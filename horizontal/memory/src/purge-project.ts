@@ -1,8 +1,129 @@
 import type { MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { projectPrefsKey } from "./prefs.js";
 import type { MemoryBackendPort, MemoryCaller } from "./service.js";
-import type { AgentMemoryScopePreview } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryExecutionControl, AgentMemoryScopePreview, AgentMemorySourceRef, AgentMemoryPurgeQuery } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { memoryErrors } from "./errors.js";
+import type { ProjectMemoryPurgeFactsQuery, ProjectMemoryPurgeLedgerFacts, ProjectMemoryPurgeLedger } from "./purge-project-ledger.js";
+
+/** The Catalog retains this original, body-free decision before any SDK Session is purged. */
+export interface ProjectMemoryPurgePlan {
+  project_id: string;
+  actor_id: string;
+  operation_id: string;
+  scopes: Array<{ scope: MemoryScope; owner: string;
+    memories: Array<{ memory_id: string; version: number }>;
+    candidates: Array<{ candidate_id: string; version: number }>;
+    sources: AgentMemorySourceRef[] }>;
+}
+
+/** The existing owner supplies exact Session bindings; evidence references never enter this selection. */
+export async function previewProjectMemoryPurge(ports: { backend: Pick<MemoryBackendPort, "previewPurge"> | null; caller: MemoryCaller;
+  readLedgerFacts(query: ProjectMemoryPurgeFactsQuery): ProjectMemoryPurgeLedgerFacts | Promise<ProjectMemoryPurgeLedgerFacts>; current(): void },
+  projectId: string, selection: { sessions: readonly NonNullable<AgentMemoryPurgeQuery["session_ref"]>[];
+    scopes: readonly { scope: "project" | "character"; owner: string }[] }): Promise<ProjectMemoryPurgePlan> {
+  const { backend, caller } = ports;
+  if (!caller.operation_id || !caller.person || caller.project_id !== projectId) throw memoryErrors.forbidden("缺少原项目删除身份");
+  if (!backend) throw memoryErrors.unavailable("原记忆运行时不可用，不能确认项目记忆已穷尽");
+  const scopes: Array<{ scope: MemoryScope; owner: string }> = [{ scope: "project", owner: projectId }];
+  for (const found of selection.scopes) {
+    if (found.scope === "character" && !scopes.some(item => item.scope === found.scope && item.owner === found.owner)) scopes.push({ scope: found.scope, owner: found.owner });
+  }
+  for (const target of selection.scopes) {
+    if (target.scope === "project" && target.owner !== projectId) throw memoryErrors.forbidden("原记忆范围不属于当前项目");
+    if (!scopes.some(item => item.scope === target.scope && item.owner === target.owner)) scopes.push(target);
+  }
+  if (selection.sessions.length) scopes.push({ scope: "personal", owner: caller.actor_id });
+  const plan: ProjectMemoryPurgePlan = { project_id: projectId, actor_id: caller.actor_id, operation_id: caller.operation_id, scopes: [] };
+  const candidateSources = new Map<string, readonly AgentMemorySourceRef[] | null>();
+  for (const target of scopes) {
+    const item: ProjectMemoryPurgePlan["scopes"][number] = { ...target, memories: [], candidates: [], sources: [] };
+    const sessions = target.scope === "personal" ? selection.sessions : [undefined];
+    for (const session_ref of sessions) {
+      for (const kind of ["memory", "memory-candidate"] as const) {
+        let cursor: string | undefined;
+        do {
+          caller.signal?.throwIfAborted(); ports.current();
+          const page = await backend.previewPurge({ ...target, kind, ...(session_ref ? { session_ref } : {}),
+            ...(cursor ? { cursor } : {}), ...(caller.signal ? { signal: caller.signal } : {}) });
+          ports.current(); caller.signal?.throwIfAborted();
+          if (page.outcome !== "completed" || page.issues.length) throw memoryErrors.conflict("项目记忆清理范围尚未完整确认，保留原件待核对");
+          for (const entry of page.items) {
+            if (entry.kind !== kind || entry.identity.owner !== target.owner || entry.identity.scope !== (target.scope === "personal" ? "user" : target.scope)
+              || session_ref && (entry.session_ref?.id !== session_ref.id || entry.session_ref.revision !== session_ref.revision))
+              throw memoryErrors.forbidden("清理预览与原范围或会话绑定不符");
+            if (entry.kind === "memory") {
+              if (!item.memories.some(saved => saved.memory_id === entry.memory_id)) item.memories.push({ memory_id: entry.memory_id, version: entry.expected_version });
+            } else {
+              if (!item.candidates.some(saved => saved.candidate_id === entry.candidate_id)) item.candidates.push({ candidate_id: entry.candidate_id, version: entry.expected_version });
+              candidateSources.set(entry.candidate_id, entry.sources);
+            }
+          }
+          if (page.exhausted) break;
+          if (!page.cursor || page.cursor === cursor) throw memoryErrors.conflict("项目记忆尚未穷尽，不能冻结不完整清理范围");
+          cursor = page.cursor;
+        } while (true);
+      }
+    }
+    plan.scopes.push(item);
+  }
+  const facts = await ports.readLedgerFacts({ project_id: projectId, actor_id: caller.actor_id, scopes: plan.scopes });
+  ports.current(); caller.signal?.throwIfAborted();
+  for (const item of plan.scopes) {
+    const notes = facts.candidates.filter(note => note.scope === item.scope && note.owner === item.owner);
+    for (const candidate of item.candidates) {
+      const sources = candidateSources.get(candidate.candidate_id) ?? notes.find(note => note.candidate_id === candidate.candidate_id)?.source_refs;
+      if (sources === undefined) throw memoryErrors.conflict("候选原来源身份未记录，不能把未知来源当作已抑制");
+      item.sources.push(...sources);
+    }
+    if (item.scope !== "personal" && facts.changes.some(note => note.scope === item.scope && note.owner === item.owner
+      && !note.forgotten
+      && !item.memories.some(entry => entry.memory_id === note.memory_id)))
+      throw memoryErrors.conflict("项目正式账注仍有无法读取的原件，保留待核对");
+    if (item.scope !== "personal" && notes.some(note => !item.candidates.some(entry => entry.candidate_id === note.candidate_id)))
+      throw memoryErrors.conflict("项目候选仍有无法读取的原件，保留待核对");
+    item.sources = [...item.sources, ...notes.filter(note => item.candidates.some(entry => entry.candidate_id === note.candidate_id)).flatMap(note => note.source_refs ?? []),
+      ...item.memories.flatMap(entry => facts.memorySources.find(source => source.memory_id === entry.memory_id)?.sources ?? [])]
+      .map(source => ({ event_id: source.event_id, version: source.version }));
+  }
+  return plan;
+}
+
+/** No re-list or new decision on retry. Source suppression remains outside the ledger's removable marker set. */
+export async function applyProjectMemoryPurge(ports: { backend: { purgeMemory: MemoryBackendPort["remove"]; purgeCandidate: MemoryBackendPort["candidates"]["purge"] } | null;
+  ledger: ProjectMemoryPurgeLedger;
+  caller: MemoryCaller; control: AgentMemoryExecutionControl;
+  verifyScopeCleanup(): Promise<void> },
+  submitted: ProjectMemoryPurgePlan): Promise<void> {
+  const plan = structuredClone(submitted), { ledger, caller } = ports;
+  if (plan.actor_id !== caller.actor_id || plan.project_id !== caller.project_id || plan.operation_id !== caller.operation_id || !caller.person)
+    throw memoryErrors.forbidden("项目记忆清理不属于原删除决定");
+  if (!ports.backend) throw memoryErrors.unavailable("原记忆运行时不可用，保留原目标等待恢复");
+  const bound = ports.backend;
+  const current = () => { caller.signal?.throwIfAborted(); ports.control.assert_current(); };
+  for (const target of plan.scopes) {
+    await ports.control.beforeEffect(); current();
+    ledger.suppressSources(target.scope, target.owner, target.sources, new Date().toISOString());
+    for (const entry of target.candidates) {
+      await bound.purgeCandidate({ scope: target.scope, owner: target.owner, candidate_id: entry.candidate_id,
+        expected_version: entry.version, operation_id: `${plan.operation_id}:candidate:${entry.candidate_id}`, ...(caller.signal ? { signal: caller.signal } : {}) });
+      await ports.control.beforeEffect(); current();
+      ledger.dropCandidate(entry.candidate_id);
+    }
+    for (const entry of target.memories) {
+      await bound.purgeMemory({ scope: target.scope, owner: target.owner, memory_id: entry.memory_id, expected_version: entry.version,
+        operation_id: `${plan.operation_id}:memory:${entry.memory_id}`, ...(caller.signal ? { signal: caller.signal } : {}) });
+      await ports.control.beforeEffect(); current();
+      ledger.forget(entry.memory_id);
+    }
+  }
+  // Preserve unselected ledger evidence until the owner proves the whole scope can close.
+  await ports.verifyScopeCleanup(); current();
+  // A personal scope is a fixed Session-bound selection, never the person's entire library.
+  const scopes = plan.scopes.filter(item => item.scope !== "personal").map(({ scope, owner }) => ({ scope, owner }));
+  await ports.control.beforeEffect(); current();
+  ledger.forgetScopes({ scopes, project_id: plan.project_id, prefs_keys: [projectPrefsKey(plan.project_id)],
+    signal_prefixes: scopes.map(item => `${item.scope}|${item.owner}|`), marker_keys: scopes.map(item => `tidy:${item.scope}:${item.owner}`) });
+}
 
 /**
  * The project is deleted: its memories and those of its Characters go from the store, every candidate waiting in their

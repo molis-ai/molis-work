@@ -42,10 +42,11 @@ function readOnlyRuntime(runtimeId: string): AgentRuntimeAdapter {
 
 async function fixture(workspace: ProjectWorkspaceRef | null) {
   const directory = await mkdtemp(join(tmpdir(), "agent-composition-"));
+  const project = await withCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "Agent composition", actor_id: "web-user" }));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({
-    databasePath: join(directory, "project.db"),
-    projectId: "project-a",
+    databasePath: project.database_path,
+    projectId: project.project_id,
   });
   const composition = composeAgentHost({ localHost, workspaceFor: () => workspace });
   composition.agentHost.register(readOnlyRuntime(READ_ONLY));
@@ -195,6 +196,8 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const start: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
   // A request body that names a number of its own is refused by the action's schema: the round's number is never the plugin's to give.
   await assert.rejects(client.invoke(agentHostCapabilities.startRun, ["probe", { ...start, call_id: "forged" } as AgentStartInput]), { code: "actions.input_invalid" });
+  for (const forged of [{ owner: { project_id: "another-project" } }, { role: { memory: {} } }, { memory_context: {} }, { class_restrictions: {} }])
+    await assert.rejects(client.invoke(agentHostCapabilities.startRun, ["probe", { ...start, ...forged } as AgentStartInput]), { code: "actions.input_invalid" });
   assert.equal(request, undefined, "the refused start reached no Runtime");
   const started = newCallId();
   await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", start]));
@@ -209,8 +212,9 @@ test("an Agent round carries the number of the call that started it: its tool ca
 
 test("装配不带任何默认 Runtime：命令行 Runtime 已删除，没给 Prologue 时运行时列表为空", async () => {
   const directory = await mkdtemp(join(tmpdir(), "agent-composition-empty-"));
+  const project = await withCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "Empty Agent composition", actor_id: "web-user" }));
   const localHost = new MolisWorkLocalHost();
-  const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "project-a" });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const composition = composeAgentHost({ localHost, workspaceFor: () => null }), store = new LocalProjectDatabase(join(directory, "starters.db"));
   try {
     assert.deepEqual(composition.agentHost.descriptors(), [], "a Host registers only what its owner supplied");
@@ -315,7 +319,7 @@ test('Git result projection excludes active, uncertain, undelivered and foreign 
     const actions = reader.actions(item.reference.project_id);
     const queue = item.composition.agentHost.reviews;
     for (const id of ['pending', 'approved', 'unknown', 'undelivered', 'done', 'failed', 'denied', 'other-workspace', 'other-project']) {
-      queue.request({ review_id: id, project_id: id === 'other-project' ? 'project-b' : 'project-a', run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
+      queue.request({ review_id: id, project_id: id === 'other-project' ? 'project-b' : item.reference.project_id, run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
         operation: { kind: 'git-index', operation_id: id, workspace_id: id === 'other-workspace' ? 'other' : 'w' },
         document: { kind: 'git-index', action: 'stage', workspace_name: 'fixture', files: [{ path: 'note', before_text: 'old', after_text: 'new', before_mode: '100644', after_mode: '100644' }] },
         requested_at: '2026-09-22T00:00:00Z', expires_at: null }, { plugin_id: 'io.molis.work.git', install_id: 'fixture', holds: () => true });
@@ -357,9 +361,10 @@ test("装配缺服务时按主人给出带码的错误，调用方分得出缺�
 
 test("BL-221 BL221-REFUSAL-01 BL221-REFUSAL-02 missing Runtime and inference reject through public composition", async () => {
   const directory = await mkdtemp(join(tmpdir(), "bl221-missing-services-"));
+  const project = await withCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "Missing Agent services", actor_id: "web-user" }));
   const localHost = new MolisWorkLocalHost({ completeText: null });
   const composition = composeAgentHost({ localHost, homeDirectory: directory, workspaceFor: () => null });
-  const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "project-a" });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   let resolved = 0;
   try {
     await assert.rejects(localHost.actionClient(reference).invoke(

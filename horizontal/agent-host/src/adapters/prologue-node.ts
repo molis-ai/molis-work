@@ -15,13 +15,14 @@ import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
-import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
+import { readResource, readResourceText, createRoundState, type DispatchGuard, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
 import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
+import { createProjectDeletion, type PrologueProjectDeletion } from "./prologue-project-deletion.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
@@ -88,7 +89,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
 export function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
+  projectDeletion: PrologueProjectDeletion; surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
   let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
   const cleanup = new Set<() => Promise<void>>();
   const keep = (close: () => unknown) => {
@@ -139,24 +140,25 @@ export function createPrologueNodeAdapter(
 
 async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown) => () => Promise<void>) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
-  const dispatchGuards: DispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
+  const dispatchGuards: DispatchGuards = new AsyncLocalStorage<DispatchGuard>();
   const host = createNodeHost({
     // This runtime owns or borrows the storage root's actual owner lock for its whole life, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
     storageRoot: options.storageRoot, exclusiveOwner: true,
     resolveHost: resolveModelHostname,
-    beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
+    beforeNetworkDispatch: async () => dispatchGuards.getStore()?.(),
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
   // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
   const effects = prologueEffects(host);
-  const schedule = createPrologueSchedule();
+  const schedule = createPrologueSchedule(effects);
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
-  const index = createSessionIndexStore(effects.host, options.app.appId);
+  const index = createSessionIndexStore(effects.host, options.app.appId, options.projectDeletionPending,
+    id => [...state.activeRuns].some(([run, active]) => state.runSessions.get(run) === id && active.live()));
   const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
@@ -175,7 +177,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => {
       const inherited = dispatchGuards.getStore();
-      return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
+      return dispatchGuards.run(async () => { const fence = await inherited?.(); await guard(); return fence; }, operation);
     },
     directoryAuthorized: options.checks?.directoryAuthorized,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
@@ -201,7 +203,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const approvals = createApprovals(reviews, pendings, remember);
   const detachReviews = restoreReviewHistory(reviews, pendings, remember);
   const closeReviews = onFailureClose(() => detachReviews?.());
-  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),
+  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, capture: index.capture, readResource: ref => readResource(runtime, ref),
     remember: (id, intent) => index.update(id, saved => { (saved.rewinds ??= []).push(intent); }),
     decision: (id, pendingId, receipt) => index.update(id, saved => {
       (saved.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
@@ -212,8 +214,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeInference = onFailureClose(stopInference);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
-    messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
+  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, memoryAuthority, credentials, stepBoards, projectWork, workGraphs,
+    messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion, checks,
     shutdown: async () => {
       await closeMcp();
       await closeInference();
@@ -227,7 +229,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
 
   return Object.assign(new PrologueAgentAdapter({
     runtime: { ...port, startAgentRun: input => effects.start(input, async () => {
+      const current = index.capture(input.session_id);
       const started = await port.startAgentRun(input);
+      current();
       // What the waits this round registers are checked against, look after look.
       const client = input.actions?.client ?? input.action_gateway?.client;
       checks.remember(started.run.ref.id, { session_id: input.session_id, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}), ...(input.root_path ? { root_path: input.root_path } : {}),
@@ -250,6 +254,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   },
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
+    projectDeletion: createProjectDeletion({ runtime, index, lifecycle: port.sessions.lifecycle!, effects }),
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });
 }
 

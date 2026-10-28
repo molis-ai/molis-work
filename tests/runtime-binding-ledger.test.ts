@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm, access as fileAccess } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import Database from "better-sqlite3";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
@@ -75,8 +75,6 @@ test("binding changes and deletion atomically preserve metadata, events, Ledger 
     assert.throws(() => bind(data.second.project_id), /injected binding failure/);
     assert.throws(() => bind(data.first.project_id, "new"), /injected binding failure/);
     assert.throws(unbind, /injected binding failure/);
-    await assert.rejects(catalog.deleteProject({ project_id: data.first.project_id, actor_id: "changing-user",
-      delete_confirmed: true, idempotency_key: "delete-failed" }), /injected binding failure/);
     await fileAccess(data.first.database_path);
     assert.deepEqual(catalog.listProjects(), data.projects);
     assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings);
@@ -103,5 +101,86 @@ test("binding changes and deletion atomically preserve metadata, events, Ledger 
     assert.equal(ledger.query.list(access, { type: "work.binding_project" }).length, 1);
     assert.deepEqual(catalog.listRuntimeContextBindingEvents(context("first")).map((event) => event.type),
       ["context.bound", "context.rebound", "context.unbound", "context.bound"]);
+  } finally { db.close(); catalog.close(); await rm(data.directory, { recursive: true, force: true }); }
+});
+
+test("an accepted deletion retains binding history on failure and resumes the same durable receipt exactly once", async () => {
+  const data = await fixture(false);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
+  const db = new Database(data.databasePath);
+  try {
+    const ledger = createContextLedger(db, { authorize: () => true });
+    const original = data.bindings.find(binding => binding.stable_work_context_id === "first")!;
+    const other = data.bindings.find(binding => binding.stable_work_context_id === "second")!;
+    const key = `work.binding_project:${original.binding_id}`;
+    const otherKey = `work.binding_project:${other.binding_id}`;
+    const history = ledger.query.history(access, key), otherHistory = ledger.query.history(access, otherKey);
+    const projectRow = db.prepare("SELECT * FROM projects WHERE project_id = ?").get(data.first.project_id);
+    const request = { project_id: data.first.project_id, actor_id: "changing-user",
+      delete_confirmed: true, idempotency_key: "delete-binding-failure" };
+    db.exec(`CREATE TRIGGER reject_binding_change BEFORE INSERT ON context_edges
+      WHEN NEW.relation_type = 'work.binding_project'
+      BEGIN SELECT RAISE(ABORT, 'injected binding failure'); END;`);
+
+    const pending = await catalog.deleteProject(request);
+    assert.equal(pending.replayed, false);
+    assert.equal(pending.deletion.cleanup_state, "pending");
+    assert.equal(pending.deletion.cleanup_error, "injected binding failure");
+    assert.equal(pending.deletion.deleted_binding_count, 0);
+    // This separate connection sees the accepted decision, while the binding transaction rolled back.
+    const stored = db.prepare("SELECT * FROM project_deletions WHERE deletion_id = ?").get(pending.deletion.deletion_id) as {
+      deletion_id: string; project_id: string; actor_id: string; idempotency_key: string; staged_directory: string;
+      cleanup_state: string; cleanup_error: string; deleted_binding_count: number;
+    };
+    assert.ok(stored);
+    assert.equal(stored.deletion_id, pending.deletion.deletion_id);
+    assert.equal(stored.project_id, request.project_id);
+    assert.equal(stored.actor_id, request.actor_id);
+    assert.equal(stored.idempotency_key, request.idempotency_key);
+    assert.equal(stored.cleanup_state, "pending");
+    assert.equal(stored.cleanup_error, "injected binding failure");
+    assert.equal(stored.deleted_binding_count, 0);
+    assert.deepEqual(db.prepare("SELECT * FROM projects WHERE project_id = ?").get(data.first.project_id), projectRow);
+    assert.deepEqual(catalog.listProjects(), data.projects.filter(project => project.project_id !== data.first.project_id));
+    assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
+    assert.deepEqual(ledger.query.history(access, key), history);
+    assert.deepEqual(ledger.query.history(access, otherKey), otherHistory);
+    await fileAccess(join(stored.staged_directory, basename(data.first.database_path)));
+    await fileAccess(data.second.database_path);
+
+    db.exec("DROP TRIGGER reject_binding_change");
+    const completed = await catalog.deleteProject(request);
+    assert.equal(completed.replayed, true);
+    assert.equal(completed.deletion.deletion_id, pending.deletion.deletion_id);
+    assert.equal(completed.deletion.cleanup_state, "complete");
+    assert.equal(completed.deletion.cleanup_error, null);
+    assert.equal(completed.deletion.deleted_binding_count, 1);
+    assert.equal(db.prepare("SELECT * FROM projects WHERE project_id = ?").get(data.first.project_id), undefined);
+    assert.deepEqual(catalog.listRuntimeContextBindings(), [other]);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
+    assert.equal(ledger.query.get(access, key), null);
+    assert.deepEqual(ledger.query.history(access, key).map(edge => [edge.state, edge.target.id]), [
+      ["active", data.first.project_id], ["removed", data.first.project_id],
+    ]);
+    assert.deepEqual(ledger.query.history(access, otherKey), otherHistory);
+    assert.deepEqual(catalog.getProject(data.second.project_id), data.second);
+    assert.equal(catalog.resolveRuntimeContext(context("second")).project?.project_id, data.second.project_id);
+    await fileAccess(data.second.database_path);
+    await assert.rejects(fileAccess(stored.staged_directory), { code: "ENOENT" });
+
+    assert.deepEqual(db.prepare("SELECT cleanup_state, cleanup_error, deleted_binding_count, idempotency_key FROM project_deletions WHERE deletion_id = ?").get(stored.deletion_id), {
+      cleanup_state: "complete", cleanup_error: null, deleted_binding_count: 1, idempotency_key: request.idempotency_key,
+    });
+    const completedRow = db.prepare("SELECT * FROM project_deletions WHERE deletion_id = ?").get(stored.deletion_id);
+    const completedHistory = ledger.query.history(access, key);
+    assert.deepEqual(await catalog.deleteProject(request), completed);
+    assert.deepEqual(db.prepare("SELECT * FROM project_deletions WHERE deletion_id = ?").get(stored.deletion_id), completedRow);
+    assert.equal(catalog.listProjectDeletions().length, 1);
+    assert.deepEqual(ledger.query.history(access, key), completedHistory);
+    assert.deepEqual(ledger.query.history(access, otherKey), otherHistory);
+    assert.deepEqual(catalog.listRuntimeContextBindings(), [other]);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
+    assert.deepEqual(catalog.getProject(data.second.project_id), data.second);
   } finally { db.close(); catalog.close(); await rm(data.directory, { recursive: true, force: true }); }
 });

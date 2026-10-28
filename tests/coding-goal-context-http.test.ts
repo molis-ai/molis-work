@@ -109,10 +109,12 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   const { host, starts, runs, sessionCount, codingCaller, holdProgress } = codingHostFixture(root);
   const goalActions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["goals:read", "goals:write"] }));
   const readGoal = (goal_id: string) => readGoalSnapshot(goalActions, goal_id);
-  const createGoal = (id: string, board = DEMO_PROJECT_ID, outcome = "固定原始目标🌲\r\n只评审，不写磁盘") => host.withProject(ref, runtime => { const coordinator = goalApplicationOf(runtime); return coordinator.goalEvents.createIntent({ project_id: board, goal_id: id, title: `目标 ${id}`, outcome, why: "保留原始依据", business_logic: "先评审再决定", actor_id: "web-user", actor_kind: "user", idempotency_key: `create-${id}`, requirements: [{ requirement_id: `human-${id}`, statement: "用户确认评审结果", human_decision_required: true }] }); });
+  const otherPath = join(root, "other-project.db");
+  seedBoard(otherPath, "other");
+  const otherRef = molisWorkHostProjectReference({ databasePath: otherPath, projectId: "other" });
+  const createGoal = (id: string, board = DEMO_PROJECT_ID, outcome = "固定原始目标🌲\r\n只评审，不写磁盘") => host.withProject(board === "other" ? otherRef : ref, runtime => { const coordinator = goalApplicationOf(runtime); return coordinator.goalEvents.createIntent({ project_id: board, goal_id: id, title: `目标 ${id}`, outcome, why: "保留原始依据", business_logic: "先评审再决定", actor_id: "web-user", actor_kind: "user", idempotency_key: `create-${id}`, requirements: [{ requirement_id: `human-${id}`, statement: "用户确认评审结果", human_decision_required: true }] }); });
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
-  // Another board in the same library: a Goal the selected project does not own.
-  await host.withProject(ref, runtime => { goalApplicationOf(runtime).initializeBoard({ project_id: "other", actor_id: "web-user", idempotency_key: "other" }); });
+  // A real Goal in another project library is not owned by the selected project.
   await createGoal("foreign", "other");
   const server = createServer((request, response) => { void host.withProject(ref, async ({ store, artifacts, processItems }) => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
     actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },
@@ -241,6 +243,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.deepEqual(starts[0], first);
     await host.closeProject(ref);
     const reopened = await request(`${sessionPath}/goal`);
+    assert.equal(reopened.status, 200, JSON.stringify(reopened.body));
     assert.equal(reopened.body.goal_id, "next"); assert.deepEqual(reopened.body.selected.reference, next.reference);
     assert.deepEqual((await request(`${sessionPath}/runs/run-1/report`)).body, report.body);
     assert.equal((await request(progressPath)).body.recorded.event_id, recorded.event_id, "original Goal receipt survives restart");

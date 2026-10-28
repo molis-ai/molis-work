@@ -158,13 +158,13 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     hold = new Promise(resolve => { release = resolve; });
     await service.send({ work_id: workId, text: "再补一句", request_id: "req-followups-archive-2" }, {});
     await until(async () => (await service.read(workId)).work.state === "running", "a round in progress");
-    await assert.rejects(service.archive(workId, true), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict" && /先停止/.test(error.message));
+    await assert.rejects(service.archive(workId, await service.lifecycle.preview(workId, true), { beforeEffect: async () => {}, assert_current: () => {} }), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict" && /先停止/.test(error.message));
     assert.equal(store.get("web-user", workId).archived, false);
     hold = null; release!();
     await until(async () => (await service.read(workId)).work.state === "completed", "that round ends");
 
     // Archived: its timed rounds are put away with it — the queued time is cancelled and the follow-up says why.
-    const archived = await service.archive(workId, true);
+    const archived = await service.archive(workId, await service.lifecycle.preview(workId, true), { beforeEffect: async () => {}, assert_current: () => {} });
     assert.equal(archived.archived, true);
     const away = service.followUps.list(workId)[0]!;
     assert.deepEqual([away.enabled, away.next_at ?? null, away.last?.outcome, away.last?.detail], [false, null, "skipped", "这项工作已归档，定时已停用"]);

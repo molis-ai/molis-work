@@ -193,7 +193,8 @@ export class MolisWorkUninstallService {
         receipt.completed_steps.push("web-service");
         await this.writeReceipt(receipt);
       }
-      if (prepared.demoProjectIds.length > 0) {
+      // Full Home purge already owns every registered store; it does not need to reopen Agent-backed project cleanup.
+      if (!plan.purge_user_data && prepared.demoProjectIds.length > 0) {
         await this.options.projects.removeDemos({ project_ids: prepared.demoProjectIds, plan_id: plan.plan_id });
         receipt.completed_steps.push("regenerable-demo-data");
         await this.writeReceipt(receipt);

@@ -1,3 +1,4 @@
+import { archiveCodingSession, previewCodingArchive, previewCodingUnarchive, unarchiveCodingSession, type CodingArchiveDecision } from "./session-archive.js";
 import { readCodingSessions } from "./session-observation.js";
 import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection } from "./materials.js";
@@ -13,10 +14,11 @@ import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.j
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { defineErrorCodes, parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage, searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { codingSubject, codingSubjectRetention } from "./subject.js";
 
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
 const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
@@ -122,38 +124,23 @@ const ROUTES: RouteMaker[] = [
       const records = execution.sessions.list(projectId).filter(record => !record.archived);
       await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite);
       return searchEntriesPage(records.map(record => ({
-        subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: record.title || "编码会话",
+        subject: { kind: "coding_session", id: record.session_id }, revision: searchRevisionOf([record.updated_at, record.state, record.title, record.goal_id ?? "",
+          record.goal_id ? execution.goalTitles.known(record.goal_id) ?? record.goal_id : ""]), title: record.title || "编码会话",
         summary: record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : "", updated_at: record.updated_at, content: "context" as const,
         open: { surface: "coding", id: record.session_id } })), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
         limit: Math.min(500, Math.max(1, Number(request.query.limit ?? 500) || 500)) });
     });
   },
   (a) => {
-    const { context, route } = a;
+    const { route } = a;
     return route("coding.subject", async (request, _api, execution, beforeWrite) => {
-      const record = selected(a, request, execution);
-      if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
-      const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
-      const intent = typeof saved === "string" ? (JSON.parse(saved) as { intent?: string }).intent : undefined;
-      const lines = [`状态：${record.state}${intent ? `；下一轮方式：${intent}` : ""}`, record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : ""];
-      let revision = "0";
-      if (record.runtime_session_id) {
-        const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-        const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
-        const runs = await Promise.all(snapshot.runs.slice(-3).map(ref => codingActions(context, beforeWrite).invoke(agent.readRun, [session, ref])));
-        revision = String(snapshot.runs.length);
-        for (const run of runs) {
-          const task = run.turns.find(turn => turn.kind === "user")?.text ?? "";
-          const reply = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "";
-          const changed = [...new Set(run.activity.filter(item => ["write", "edit", "edit-file"].includes(item.name) && item.state === "completed").map(item => item.target))];
-          lines.push("", `一轮（${run.phase}）：${task.slice(0, 600)}`, ...(changed.length ? [`改动的文件：${changed.join("、")}`] : []), ...(reply ? [`结果：${reply.slice(0, 1200)}`] : []));
-        }
-      }
-      return subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision, title: record.title || "编码会话",
-        content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [],
-        open: { surface: "coding", id: record.session_id } });
+      const source = await codingSubject(a, execution, selected(a, request, execution), beforeWrite);
+      source.assertCurrent();
+      return source.context;
     });
   },
+  a => a.route("coding.subject-retention", async (request, _api, execution, beforeWrite) =>
+    codingSubjectRetention(a, execution, request.params.sessionId!, beforeWrite)),
   // Like /compact: the next round starts from the digest of earlier rounds instead of replaying them verbatim.
   (a) => {
     const { context, route } = a;
@@ -167,30 +154,29 @@ const ROUTES: RouteMaker[] = [
       return { compact_requested: on };
     });
   },
+  a => a.route("coding.archived-sessions", async (_request, _api, execution) => ({ sessions: execution.sessions.lifecycle.archived(a.projectId) })),
+  a => a.route("coding.unarchive-preview", async (request, _api, execution, beforeWrite) =>
+    previewCodingUnarchive(a, execution, selected(a, request, execution), beforeWrite)),
+  a => a.route("coding.unarchive-session", async (request, _api, execution, beforeWrite) =>
+    unarchiveCodingSession(a, execution, selected(a, request, execution), bodyOf(request).unarchive_decision as CodingArchiveDecision | undefined, beforeWrite)),
+  a => a.route("coding.archive-preview", async (request, _api, execution, beforeWrite) =>
+    previewCodingArchive(a, execution, selected(a, request, execution), beforeWrite)),
   (a) => {
     const { context, projectId, busy, route } = a;
     return route("coding.update-session", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       const body = bodyOf(request);
-      if (body.archive === true) {
-        const notSubmitting = () => {
-          if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy-archive");
-        };
-        notSubmitting();
-        if (record.runtime_session_id) {
-          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-          const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
-          if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
-            throw codingError(codingSessionErrors.session_busy, "coding.server.stop-before-archive");
-          }
-        }
-        // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
-        notSubmitting();
-        return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), notSubmitting) };
-      }
-      if (record.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
+      if (body.archive === true) return archiveCodingSession(a, execution, record, body.archive_decision as CodingArchiveDecision | undefined, beforeWrite);
+      // Settings write synchronously after this check. Rename waits for the database and repeats it inside its transaction.
+      const editable = (current: CodingSessionRecord) => {
+        beforeWrite.assert_current();
+        if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy");
+        if (current.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
+        if (current.runtime_id !== record.runtime_id || current.runtime_session_id !== record.runtime_session_id
+          || current.updated_at !== record.updated_at || current.title !== record.title) throw codingError(message => new ActionError("actions.conflict", message), "coding.server.archive-changed");
+      };
+      editable(record);
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
-      if (materials && busy.has(record.session_id)) throw codingError(codingSessionErrors.materials_busy, "coding.server.materials-busy");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
@@ -222,7 +208,7 @@ const ROUTES: RouteMaker[] = [
       }
       const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
-      return { session: title === undefined ? record : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString()) };
+      return { session: title === undefined ? record : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString(), editable) };
     });
   },
   (a) => {

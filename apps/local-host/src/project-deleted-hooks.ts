@@ -1,10 +1,11 @@
 import path from "node:path";
-import type { ProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDeletionRecord, ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { homeProjectOwners } from "./project-deleted-owners.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
+import type { ProjectDeletionRecovery, ProjectDeletionPreparation, ProjectDeletionMemoryProof, WithProjectDeletionRecovery, WithProjectRecreation } from "./project-deletion-recovery.js";
 
 export { ProjectDeletedDeferred };
-type CommittedDeletion = Readonly<Pick<ProjectDeletionRecord, "deletion_id" | "project_id">>;
+type CommittedDeletion = Readonly<Pick<ProjectDeletionRecord, "deletion_id" | "project_id"> & { recovery: ProjectDeletionRecovery }>;
 
 /**
  * One owner's part of deleting a project. Plugins and services keep data of a project in the Home, outside the
@@ -35,6 +36,10 @@ export interface ProjectDeletedOwner {
    * again after one, clear it like the others.
    */
   readonly survivesRebuild?: boolean;
+  /** Only the existing Memory owner holds the concrete Memory→Session recovery interval. */
+  withRecovery?: WithProjectDeletionRecovery;
+  /** The Memory owner holds a current empty proof while the Catalog recreates a completed fixed-id demo. */
+  withRecreation?: WithProjectRecreation;
   /** False once the service that registered this owner has been closed; such an owner is dropped, not run. */
   alive?(): boolean;
   /**
@@ -49,18 +54,20 @@ export interface ProjectDeletedOwner {
    * left; the step then stays pending in the receipt. Deletion identity comes only from the Catalog's committed receipt;
    * demo reset has no deletion receipt and must still refer to a current project.
    */
-  clear(projectId: string, deletion?: CommittedDeletion): void | Promise<void>;
+  clear(projectId: string, deletion?: CommittedDeletion, control?: ProjectDeletionControl): void | Promise<void>;
 }
 
 /** What the deletion needs from the owners: who is registered, and a way to run one of them. */
 export interface ProjectDeletedPort {
+  withRecovery<T>(input: ProjectDeletionPreparation, work: (plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof) => Promise<T>): Promise<T>;
+  withRecreation: WithProjectRecreation;
   /** The owners that clear data of a deleted project, in the order they run. */
   owners(): ReadonlyArray<{ id: string; label: string | null }>;
   /**
    * Runs one owner. False when no such owner is registered in this process: the step stays pending, with the error it
    * last had, for a process that has the owner.
    */
-  clear(ownerId: string, projectId: string, deletion?: CommittedDeletion): Promise<boolean>;
+  clear(ownerId: string, projectId: string, deletion?: CommittedDeletion, control?: ProjectDeletionControl): Promise<boolean>;
   /**
    * Throws `ProjectDeletedDeferred` naming the owners that cannot clear in this process right now; clears nothing. With
    * `leaveElsewhere`, an owner whose service is another process's for good is not named: only owners that merely have to
@@ -85,6 +92,17 @@ export interface ProjectDeletedPort {
  */
 export class ProjectDeletedHooks implements ProjectDeletedPort {
   private readonly stacks = new Map<string, ProjectDeletedOwner[]>();
+
+  withRecovery<T>(input: ProjectDeletionPreparation, work: (plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof) => Promise<T>): Promise<T> {
+    const owner = this.owners().find(item => item.id === "memory");
+    if (!owner?.withRecovery) throw new ProjectDeletedDeferred("当前入口无法冻结 Memory 与会话的原删除范围，请由运行中的 Molis Work 重试", true);
+    return owner.withRecovery(input, work);
+  }
+  withRecreation: WithProjectRecreation = (input, work) => {
+    const owner = this.owners().find(item => item.id === "memory");
+    if (!owner?.withRecreation) throw new ProjectDeletedDeferred("当前入口无法证明示例记忆已清空，请由运行中的 Molis Work 重试", true);
+    return owner.withRecreation(input, work);
+  };
 
   register(owner: ProjectDeletedOwner): () => void {
     const stack = this.stacks.get(owner.id) ?? [];
@@ -115,10 +133,12 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
       .map(item => item.owner);
   }
 
-  async clear(ownerId: string, projectId: string, deletion?: CommittedDeletion): Promise<boolean> {
+  async clear(ownerId: string, projectId: string, deletion?: CommittedDeletion, control?: ProjectDeletionControl): Promise<boolean> {
+    control?.assertCurrent();
     const owner = this.owners().find(item => item.id === ownerId);
     if (!owner) return false;
-    await owner.clear(projectId, deletion);
+    await owner.clear(projectId, deletion, control);
+    control?.assertCurrent();
     return true;
   }
 

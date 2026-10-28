@@ -170,10 +170,14 @@ test("--retries: a file that fails and then passes is listed as flaky and does n
   assert.match(output, /flaky, failed and then passed on a retry \(1\):\n\s+\S*flaky\.test\.mjs/);
   assert.doesNotMatch(output, /^failed \(/m);
 
-  const broken = write("broken.test.mjs", 'throw new Error("always");');
+  // MEM-CI-TRACE-01: the final failure must retain its own diagnosis without a verbose flag.
+  const brokenMarker = path.join(made, "broken-tried");
+  const broken = write("broken.test.mjs", `const retry = existsSync(${JSON.stringify(brokenMarker)}); writeFileSync(${JSON.stringify(brokenMarker)}, ""); throw new Error(retry ? "retry diagnostic sentinel" : "initial diagnostic sentinel");`);
   const twice = spawnSync(process.execPath, [runner, "--retries", "1", "--jobs", "2", broken, steady], { encoding: "utf8", timeout: 120_000 });
   const again = `${twice.stdout}${twice.stderr}`;
   assert.equal(twice.status, 1, again);
+  assert.match(again, /initial diagnostic sentinel/);
+  assert.match(again, /retry diagnostic sentinel/, "the actual retry failure is reported without --verbose");
   assert.match(again, /\[retry 1\] FAIL\s+\S*broken\.test\.mjs/);
   assert.match(again, /1 of 2 files passed in/);
   assert.match(again, /failed \(1\):\n\s+fail\s+\S*broken\.test\.mjs/);

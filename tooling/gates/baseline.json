@@ -1,5 +1,5 @@
 {
-  "giantUnits": 44,
+  "giantUnits": 46,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -13,28 +13,37 @@
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 265,
+      "lines": 266,
       "methods": 40
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
+    "function apps/workbench/src/browser/knowledge/settings-page.ts#bindKnowledgeSettings": 155,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/i18n/en.ts": 3266,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 1999,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
-    "file horizontal/memory/src/service.ts": 1151,
+    "class horizontal/knowledge/src/index.ts#KnowledgeService": {
+      "lines": 441,
+      "methods": 24
+    },
+    "file horizontal/memory/src/service.ts": 905,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1015,
-      "methods": 48
+      "lines": 758,
+      "methods": 47
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
+    "class horizontal/search/src/index.ts#SearchService": {
+      "lines": 316,
+      "methods": 21
+    },
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 396,
-      "methods": 15
+      "lines": 491,
+      "methods": 19
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
@@ -53,7 +62,6 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,

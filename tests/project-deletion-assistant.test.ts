@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -12,7 +12,7 @@ const ACTOR = "local-person";
 
 /** The Assistant's library in a scratch Home, with a work in the project to delete, one in another project and a personal one. */
 async function assistantHome(t: { after(fn: () => Promise<void> | void): void }) {
-  const home = await mkdtemp(join(tmpdir(), "molis-assistant-purge-"));
+  const home = await realpath(await mkdtemp(join(tmpdir(), "molis-assistant-purge-")));
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
   const store = new AssistantStore(db);
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
@@ -100,4 +100,34 @@ test("a running Assistant cancels the timed rounds the runtime queued for a dele
   assert.deepEqual(service.followUps.list(), []);
   assert.notEqual(adapter.schedule!.find(key)?.state, "queued", "the runtime no longer holds the timed round");
   assert.equal((await service.list()).length, 0);
+});
+
+test("MEM-40 project purge removes source-owned history in the Work transaction and preserves neighbors after failure and reopen", async t => {
+  const { home, db, store, gone, archived, kept, personal } = await assistantHome(t);
+  const { homeSqlitePath, openExistingSqliteConnection } = await import("@molis-ai/molis-work-storage");
+  const associated = store.create({ actor_id: ACTOR, title: "个人工作关联项目", scope: { kind: "personal" }, origin: null,
+    project_ref: { project_id: "project-gone", storage_key: "original-project" } });
+  const source = { work_id: gone.work_id, project_id: "project-gone" };
+  store.relations.link(source, "origin", { kind: "pages.doc", id: `doc-${gone.work_id}`, revision: "2" }, "original private history");
+  store.relations.unlink(source, "origin", { kind: "pages.doc", id: `doc-${gone.work_id}` }, "removed private history");
+  store.relations.link({ work_id: associated.work_id, project_id: null }, "material", { kind: "pages.doc", id: "kept-target", revision: "1" }, "personal source private history");
+  store.relations.link({ work_id: kept.work_id, project_id: "project-kept" }, "material", { kind: "pages.doc", id: "kept-target", revision: "1" }, "independent reference");
+  store.usage.record(ACTOR, { work_id: gone.work_id, run_id: "counted", ended_at: new Date().toISOString(), input: 11, output: 7, cached: 0 });
+  const tables = ["context_edges", "assistant_works", "assistant_rounds", "assistant_followups", "assistant_jobs", "assistant_notices", "assistant_usage"];
+  const read = () => {
+    const reopened = openExistingSqliteConnection(homeSqlitePath(home, ASSISTANT_STORE_NAME), { readonly: true });
+    try { return Object.fromEntries(tables.map(table => [table, reopened.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()])); }
+    finally { reopened.close(); }
+  };
+  const before = read(), prototype = Object.getPrototypeOf(db), exec = prototype.exec, failure = new Error("project commit unavailable");
+  prototype.exec = function (sql: string) { if (this !== db && sql === "COMMIT") throw failure; return exec.call(this, sql); };
+  try { await assert.rejects(purgeAssistantProject(home, "project-gone", undefined, { assertCurrent() {} }), error => error === failure); }
+  finally { prototype.exec = exec; }
+  assert.deepEqual(read(), before, "all histories and Work rows roll back on the actual connection");
+  assert.equal(await purgeAssistantProject(home, "project-gone", undefined, { assertCurrent() {} }), 3);
+  const after = read(), deleted = new Set([gone.work_id, archived.work_id, associated.work_id]);
+  assert.deepEqual(after.context_edges, before.context_edges!.filter(row => !deleted.has(JSON.parse((row as { source_json: string }).source_json).id)));
+  assert.deepEqual(after.assistant_usage, before.assistant_usage, "body-free accounting stays");
+  assert.deepEqual(store.list(ACTOR).map(work => work.work_id).sort(), [kept.work_id, personal.work_id].sort());
+  assert.equal(await purgeAssistantProject(home, "project-gone", undefined, { assertCurrent() {} }), 0);
 });

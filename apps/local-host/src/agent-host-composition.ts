@@ -66,6 +66,7 @@ export interface AgentHostComposition {
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
+  projectDeletion(): Awaited<ReturnType<typeof createPrologueNodeAdapter>>["projectDeletion"];
   /**
    * What Characters asks of the built-in Agent in one project: the engines and the actions a round may be given. Characters is a
    * provider the Host registers itself, with no plugin caller, so it is answered here rather than through the plugin-only actions.
@@ -166,7 +167,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { projectDeletion: () => { if (!prologue) throw new Error("项目清理运行时尚未启动"); return prologue.projectDeletion; }, preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -261,18 +262,19 @@ async function startAuthority(
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     method_owner: { project_id: runtime.project_id, plugin_id: pluginId },
-    actions: async (runtimeId, validate, session) => {
+    actions: async (runtimeId, validate, session, memory) => {
+      const runtimeMemory = memory ? { plugin_id: pluginId, current_scene: memory.current_scene, class_restrictions: structuredClone(memory.class_restrictions) } : undefined;
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       // `actor_id` stays the grant's client id (`agent:<runtime>`). The session is the one the Host checked against the Runtime's own record
       // when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is recorded as author.
       const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-        project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+        project_id: runtime.project_id, audience: "agent", permissions: [], ...(runtimeMemory ? { runtime_memory: structuredClone(runtimeMemory) } : {}), ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
           caller?.assertActive(); signal?.throwIfAborted();
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
         });
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+        invoke: async (action, input, signal, memoryRead) => { const authorized = await current(signal); return authorized.service.invoke({ ...authorized.context, ...(memoryRead ? { runtime_memory_read: memoryRead } : {}) }, action, input); },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },

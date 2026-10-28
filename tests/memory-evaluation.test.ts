@@ -3,6 +3,7 @@ import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { memoryPhaseObservation } from "../scripts/memory-evaluation/memory-phase-observation.mjs";
 import { assertEvaluationArm } from "../scripts/memory-evaluation/environment.mjs";
 import { createServer } from "node:http";
 import { evaluationPerson } from "../scripts/memory-evaluation/originals.mjs";
@@ -60,6 +61,10 @@ test("MEM-36: an interrupted real HTTP stream retains the observed state and rec
     assert.deepEqual(row.usage, row.lastObservedView.usage, "preserve reported or explicitly unknown usage");
     assert.match(row.answer ?? "", /partial answer/);
     assert.equal(observed.requests.length, 1);
+    assert.equal(row.memoryPhases.method, "sdk-opening-memory-phases-v1");
+    assert.ok(row.memoryPhases.raw.length > 0, "the failed business result retains the actual opening observations");
+    assert.equal(row.taskRetrievalLatencyMs, row.memoryPhases.taskRecall.durationMs);
+    assert.equal(row.openingMemoryPreparationLatencyMs, row.memoryPhases.openingMemoryPreparation.durationMs);
   } finally {
     await env.close();
   }
@@ -124,6 +129,23 @@ test("MEM-36: real HTTP replay reaches the production Agent Context and retains 
     assert.equal(b1.usage!.tokens.output, 3);
     assert.equal(b1.usage!.coverage?.input, "reported");
     assert.equal(b1.memoryTokens, null);
+    assert.equal(b0.memoryPhases.taskRecall.state, "not-run");
+    assert.equal(b0.taskRetrievalLatencyMs, null, "disabled task recall is not a zero millisecond read");
+    const skipped = b0.memoryPhases.raw.find(row => row.phase === "taskRecall");
+    assert.ok(skipped?.boundary === "not-run");
+    assert.equal(b0.memoryPhases.taskRecall.reason, skipped.reason, "preserve the SDK's decision, not an inferred preference");
+    assert.equal(b1.memoryPhases.taskRecall.state, "complete");
+    assert.equal(b1.memoryPhases.openingMemoryPreparation.state, "complete");
+    assert.ok(b1.taskRetrievalLatencyMs !== null && b1.taskRetrievalLatencyMs >= 0);
+    assert.ok(b1.openingMemoryPreparationLatencyMs !== null && b1.openingMemoryPreparationLatencyMs >= b1.taskRetrievalLatencyMs);
+    assert.ok(b1.recipeLatencyMs !== null, "the original recipe measurement stays separate");
+    const phases = b1.memoryPhases.raw;
+    assert.deepEqual(phases.map(row => `${row.phase}:${row.boundary}`), ["openingMemoryPreparation:begin", "taskRecall:begin", "taskRecall:end", "openingMemoryPreparation:end"]);
+    assert.ok(phases.every(row => row.sessionRef.id === b1.memoryPhases.sessionId && row.openingReceiptId === b1.memoryPhases.openingReceiptId));
+    const taskEnd = phases.find(row => row.phase === "taskRecall" && row.boundary === "end");
+    assert.ok(taskEnd?.phase === "taskRecall" && taskEnd.boundary === "end");
+    assert.ok(b1.retrievals?.some(row => row.receipt_id === taskEnd.receiptId), "pair to the actual SDK retrieval receipt");
+    assert.notEqual(b0.memoryPhases.sessionId, b1.memoryPhases.sessionId);
     await assert.rejects(fetch(endpoint, { method: "POST", body: JSON.stringify({ max_tokens: 1 }) }), /attempt 预算已用尽/);
     assert.equal(observed.requests.length, 2, "a refused retry does not send a third HTTP request");
   } finally {
@@ -134,6 +156,74 @@ test("MEM-36: real HTTP replay reaches the production Agent Context and retains 
 
 test("MEM-36: current tools reject a historical B1 arm before creating a Home", () => {
   assert.throws(() => assertEvaluationArm("B1"), /冻结工具 5e47ed2bc/);
+});
+
+test("MEM-36: phase pairing preserves nested intervals, failures and explicit not-run without retaining foreign data", () => {
+  let at = 0;
+  const collector = memoryPhaseObservation(() => ++at);
+  const session = { runtime_id: "prologue", session_id: "sample" };
+  const identity = { sessionRef: { kind: "session" as const, id: "sample", revision: 1 }, openingReceiptId: "opening" };
+  const emit = collector.audit.memoryPhase!;
+  const finish = collector.bind(session);
+  assert.throws(() => collector.bind(session), /active sample/);
+  emit({ ...identity, phase: "openingMemoryPreparation", boundary: "begin", text: "must not be retained" } as Parameters<typeof emit>[0]);
+  emit({ ...identity, phase: "taskRecall", receiptId: "task", boundary: "begin" });
+  emit({ ...identity, phase: "taskRecall", receiptId: "task", boundary: "end", settlement: "resolved", outcome: "failed", errorCode: "STORAGE_CONFLICT" });
+  emit({ ...identity, phase: "openingMemoryPreparation", boundary: "end", settlement: "rejected", errorCode: "STORAGE_CONFLICT" });
+  const result = finish();
+  assert.equal(result.taskRecall.durationMs, 1);
+  assert.equal(result.openingMemoryPreparation.durationMs, 3);
+  assert.equal(result.taskRecall.state, "complete", "complete pairing does not mean a successful read");
+  assert.equal(result.taskRecall.outcome, "failed");
+  assert.equal(result.openingMemoryPreparation.settlement, "rejected");
+  assert.equal(result.openingMemoryPreparation.errorCode, "STORAGE_CONFLICT");
+  assert.doesNotMatch(JSON.stringify(result), /must not be retained|"text"/);
+  emit({ ...identity, phase: "taskRecall", boundary: "not-run", reason: "recipe" });
+  assert.equal(finish().raw.length, 4, "released samples ignore later callbacks");
+  Object.assign(result.raw[0]!.sessionRef, { id: "changed snapshot" });
+  assert.equal(finish().raw[0]!.sessionRef.id, "sample", "report snapshots do not expose collector identity");
+  const next = collector.bind({ ...session, session_id: "next" });
+  emit({ ...identity, phase: "taskRecall", boundary: "not-run", reason: "disabled" });
+  emit({ ...identity, sessionRef: { ...identity.sessionRef, id: "next" }, phase: "taskRecall", boundary: "not-run", reason: "recipe" });
+  const skipped = next();
+  assert.equal(skipped.unrelated, 1); assert.equal(skipped.raw.length, 1);
+  assert.equal(skipped.taskRecall.state, "not-run"); assert.equal(skipped.taskRecall.durationMs, null);
+  assert.equal(skipped.taskRecall.reason, "recipe"); assert.equal(skipped.openingMemoryPreparation.state, "incomplete");
+});
+
+test("MEM-36: missing, duplicated, reordered and cross-opening phase samples stay visibly unusable", () => {
+  const identity = { sessionRef: { kind: "session" as const, id: "sample", revision: 1 }, openingReceiptId: "opening" };
+  type Entry = Parameters<NonNullable<ReturnType<typeof memoryPhaseObservation>["audit"]["memoryPhase"]>>[0];
+  const begin: Entry = { ...identity, phase: "taskRecall", receiptId: "task", boundary: "begin" };
+  const end: Entry = { ...identity, phase: "taskRecall", receiptId: "task", boundary: "end", settlement: "resolved", outcome: "ready" };
+  const cases: Array<[string, Entry[], "incomplete" | "invalid"]> = [
+    ["missing", [], "incomplete"], ["half", [begin], "incomplete"], ["end only", [end], "incomplete"],
+    ["duplicate begin", [begin, begin, end], "invalid"], ["duplicate end", [begin, end, end], "invalid"],
+    ["reordered", [end, begin], "invalid"],
+    ["not-run mixed", [begin, { ...identity, phase: "taskRecall", boundary: "not-run", reason: "recipe" }], "invalid"],
+    ["opening", [begin, { ...end, openingReceiptId: "other" }], "invalid"],
+    ["revision", [begin, { ...end, sessionRef: { ...identity.sessionRef, revision: 2 } }], "invalid"],
+    ["task receipt", [begin, { ...end, receiptId: "other" }], "invalid"],
+    ["overflow", Array.from({ length: 10 }, () => begin), "invalid"],
+  ];
+  for (const [label, rows, state] of cases) {
+    let time = 0;
+    const collector = memoryPhaseObservation(() => ++time), finish = collector.bind({ runtime_id: "prologue", session_id: "sample" });
+    for (const row of rows) collector.audit.memoryPhase!(row);
+    const result = finish();
+    assert.equal(result.taskRecall.state, state, label); assert.equal(result.taskRecall.durationMs, null, label);
+    assert.equal(result.raw.length, Math.min(8, rows.length), label);
+    assert.equal(result.overflow, Math.max(0, rows.length - 8), label);
+    assert.ok(result.taskRecall.issues.length > 0, label);
+  }
+  const clock = memoryPhaseObservation(() => Number.NaN), clockFinish = clock.bind({ runtime_id: "prologue", session_id: "sample" });
+  clock.audit.memoryPhase!(begin); clock.audit.memoryPhase!(end);
+  assert.equal(clockFinish().taskRecall.state, "invalid");
+  const cleared = memoryPhaseObservation(), stopped = cleared.bind({ runtime_id: "prologue", session_id: "sample" });
+  cleared.clear(); cleared.audit.memoryPhase!(begin);
+  assert.equal(stopped().taskRecall.state, "incomplete");
+  const empty = cleared.bind({ runtime_id: "prologue", session_id: "next" });
+  assert.equal(empty().raw.length, 0);
 });
 
 test("MEM-36: initialization failure closes the actual server/SDK and releases the clock", { timeout: 20_000 }, async () => {

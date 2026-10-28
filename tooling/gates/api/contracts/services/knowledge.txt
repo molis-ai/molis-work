@@ -58,6 +58,36 @@ export declare const KNOWLEDGE_TEXT_MAX_CHARS = 400000;
 
 export declare const KNOWLEDGE_TITLE_MAX_CHARS = 120;
 
+export interface KnowledgeBindCandidate {
+    provider_id: string;
+    source_key: string;
+    source_identity: ActionSourceIdentity;
+    source_revision: string;
+    title: string;
+    plugin_title: string;
+    summary: string;
+    content_policy: "context" | "summary";
+    updated_at: string | null;
+}
+
+export interface KnowledgeBindPreviewRequest {
+    subject: ActionSubject;
+}
+
+export interface KnowledgeBindPreviewResponse {
+    subject: ActionSubject;
+    candidates: KnowledgeBindCandidate[];
+}
+
+export interface KnowledgeBindRequest {
+    subject: ActionSubject;
+    operation_id: string;
+    provider_id: string;
+    source_key: string;
+    source_identity: ActionSourceIdentity;
+    source_revision: string;
+}
+
 export interface KnowledgeCard {
     subject: ActionSubject;
     ref: string;
@@ -85,6 +115,17 @@ export interface KnowledgeCardMatch {
 }
 
 export interface KnowledgeCardRecord extends KnowledgeCardFields {
+    adoption?: {
+        operation_id: string;
+        actor_id: string;
+        source_revision: string;
+        source_identity: ActionSourceIdentity;
+    };
+    retention?: {
+        source_identity: ActionSourceIdentity | null;
+        restoration_operation_id: string | null;
+    };
+    can_organize?: boolean;
     project_id: string;
     subject: ActionSubject;
     source_key: string;
@@ -369,6 +410,8 @@ export interface KnowledgeReceiptsResponse {
     total: number;
 }
 
+export type KnowledgeRetentionIdentity = SearchRetentionIdentity & Pick<KnowledgeCardRecord, "adoption">;
+
 export interface KnowledgeSearchRequest {
     query: string;
     kinds?: string[];
@@ -427,6 +470,8 @@ export declare function knowledgeCatalogText(catalog: {
 export declare function knowledgeCatalogWhole(list: Pick<KnowledgeListResponse, "pieces" | "total">): boolean;
 
 export declare const knowledgeManageActions: {
+    bindPreview: ActionDefinition<KnowledgeBindPreviewRequest, KnowledgeBindPreviewResponse>;
+    bind: ActionDefinition<KnowledgeBindRequest, KnowledgeCardRecord>;
     cards: ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>;
     edit: ActionDefinition<KnowledgeEditRequest, KnowledgeCardRecord>;
     exclude: ActionDefinition<KnowledgeExcludeRequest, KnowledgeCardRecord>;

@@ -243,6 +243,7 @@ const REGISTER_HOOK = "molis-external-check-register";
  */
 export function createPrologueConditionCheckers(deps: { readonly runtime: () => Runtime; readonly ports?: PrologueCheckPorts; readonly project: (sessionId: string) => Promise<string | undefined>; readonly owner: (sessionId: string) => Promise<AgentSessionView["owner"] | undefined> }) {
   const rounds = new Map<string, Remembered>(), ended = new Set<string>(), offs: Array<() => void> = [];
+  const roundOffs = new Map<string, () => void>();
   const ports = deps.ports ?? {};
   const owned = ownedConditionChecks(ports.owned ?? [], deps.owner);
   const looks = new Map<string, Look>([[ACTION_QUERY_CHECKER.id, lookAtAction], [FILE_PRESENT_CHECKER.id, filePresentLook(ports, deps.project)]]);
@@ -327,11 +328,25 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
     checkers,
     /** A round started: what its waits will be checked against, until it is over and nothing it registered still waits. */
     remember(runId: string, authority: RoundCheckAuthority, events: { subscribe(listener: (event: { type: string }) => void): () => void }) {
-      rounds.set(runId, { ...authority, started_at_ms: Date.now() });
+      roundOffs.get(runId)?.();
+      const round = { ...authority, started_at_ms: Date.now() };
+      rounds.set(runId, round);
       const off = events.subscribe(event => {
+        if (rounds.get(runId) !== round) return;
         if (!["completed", "failed", "cancelled"].includes(event.type)) return;
-        ended.add(runId); queueMicrotask(off); prune();
+        ended.add(runId);
+        queueMicrotask(() => { off(); if (roundOffs.get(runId) === off) roundOffs.delete(runId); });
+        prune();
       });
+      roundOffs.set(runId, off);
+    },
+    /** Forget only this idle session's round authority and subscriptions; global wait observation stays installed. */
+    forgetSession(sessionId: string) {
+      for (const [runId, round] of rounds) {
+        if (round.session_id !== sessionId) continue;
+        rounds.delete(runId); ended.delete(runId);
+        roundOffs.get(runId)?.(); roundOffs.delete(runId);
+      }
     },
     open() {
       const runtime = deps.runtime();
@@ -342,6 +357,6 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
         return why ? { kind: "deny" as const, why } : { kind: "allow" as const };
       } });
     },
-    close() { for (const off of offs.splice(0)) off(); rounds.clear(); ended.clear(); },
+    close() { for (const off of offs.splice(0)) off(); for (const off of roundOffs.values()) off(); roundOffs.clear(); rounds.clear(); ended.clear(); },
   };
 }

@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { HomePluginHost, pluginPagesFor, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { deferred, homeProbe } from "./fixtures/home-runtime.js";
@@ -17,7 +19,7 @@ import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 // tests/plugin-database-partition-deletion.test.ts). Todo is the shipped Home plugin whose library declares its rows.
 
 function fixture(t: TestContext) {
-  const home = mkdtempSync(join(tmpdir(), "home-project-cleanup-"));
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "home-project-cleanup-")));
   pluginPagesFor(home); // Include the Host's page authority before comparing the plugin owner's lifecycle.
   const hooks = projectDeletedHooksFor(home), trace: string[] = [];
   const base = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo");
@@ -133,4 +135,23 @@ test("W5-01-RPC-01 project cleanup still deletes the rows when a same-id install
     "the fixture must put the unrelated publisher before the running trusted installation");
   f.mark(); await f.hooks.clear(f.ownerId, "p1");
   assert.deepEqual(f.trace, []); assert.deepEqual([f.batches("p1"), f.batches("p2")], [0, 1]);
+});
+
+test("MEM-40 the running Home owner retains the original control inside the platform's deletion transaction", async t => {
+  const f = fixture(t); await f.ready(); f.mark();
+  const denied = new Error("Home row owner revoked after lock");
+  let locked: DatabaseSync | undefined, revoked = true;
+  const control: ProjectDeletionControl = { assertCurrent() { assert.equal(this, control); if (locked && revoked) throw denied; } };
+  const exec = DatabaseSync.prototype.exec;
+  const interception = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    const result = exec.call(this, sql); if (sql === "BEGIN IMMEDIATE") locked = this; return result;
+  });
+  try { await assert.rejects(f.hooks.clear(f.ownerId, "p1", undefined, control), error => error === denied); }
+  finally { interception.mock.restore(); }
+  assert.ok(locked); assert.throws(() => locked!.prepare("SELECT 1"), /not open/);
+  assert.deepEqual([f.batches("p1"), f.batches("p2")], [1, 1]);
+  revoked = false;
+  assert.equal(await f.hooks.clear(f.ownerId, "p1", undefined, control), true);
+  assert.deepEqual([f.batches("p1"), f.batches("p2")], [0, 1]);
+  assert.deepEqual(f.trace, [], "the platform deletes the rows without invoking a plugin purge");
 });

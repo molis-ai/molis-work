@@ -356,3 +356,42 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     assert.equal(view.frozen.model_id, "START");
     assert.equal((await adapter.readSession(session)).runs.length, 1, "nothing started another round");
   });
+
+test("queue admission keeps explicit first-commit checks and detaches the real timer; legacy withEffect still protects admission", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-queue-admission-"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.queue-admission-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk") });
+  t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  const session = await adapter.createSession({ actor_id: "web-user", project_id: "queue-project", plugin_id: "queue-plugin", install_id: "queue-install", workspace: "none", title: "Queue" });
+  const other = await adapter.createSession({ actor_id: "web-user", project_id: "queue-project", plugin_id: "queue-plugin", install_id: "queue-install", workspace: "none", title: "Other" });
+  const request = { key: "explicit", session_id: session.session_id, kind: "probe", payload: { instruction: "original" }, due_at: new Date(Date.now() + 50).toISOString(), max_attempts: 1 };
+  const original = structuredClone(request);
+  let initialActive = true, checks = 0, runs = 0;
+  const reached = Promise.withResolvers<void>();
+  adapter.schedule!.handle("probe", async () => { runs++; reached.resolve(); });
+  const control = { beforeEffect: async () => { checks++; assert.equal(initialActive, true); }, assert_current: () => { assert.equal(initialActive, true); } };
+  const pending = adapter.withEffect!(control, () => adapter.schedule!.enqueue(request, control));
+  Object.assign(request, { key: "changed", session_id: other.session_id, kind: "changed", due_at: new Date(Date.now() + 60_000).toISOString(), max_attempts: 4 });
+  request.payload.instruction = "changed";
+  const accepted = await pending;
+  assert.equal(accepted.key, original.key); assert.equal(accepted.session_id, original.session_id);
+  assert.equal(accepted.kind, original.kind); assert.equal(accepted.due_at, original.due_at); assert.deepEqual(accepted.payload, original.payload);
+  assert.equal(adapter.schedule!.find("changed"), null);
+  initialActive = false;
+  await reached.promise;
+  const until = Date.now() + 5000;
+  while (adapter.schedule!.find(original.key)?.state !== "done") { assert.ok(Date.now() < until); await new Promise(resolve => setTimeout(resolve, 5)); }
+  assert.equal(runs, 1); assert.equal(checks, 1, "timer transitions never reuse the original first-admission control");
+  let legacyRefused = false;
+  await assert.rejects(adapter.withEffect!({ beforeEffect: async () => { legacyRefused = true; throw new ActionError("actions.forbidden", "旧调用已撤销"); }, assert_current() {} },
+    () => adapter.schedule!.enqueue({ ...original, key: "legacy" })));
+  assert.equal(legacyRefused, true);
+  assert.equal(adapter.schedule!.find("legacy"), null, "omitting explicit control does not bypass an existing withEffect guard");
+  let invalid = 0;
+  for (const incomplete of [{}, { beforeEffect: async () => {} }, { assert_current: () => {} }]) {
+    const key = `incomplete-${++invalid}`;
+    await assert.rejects(adapter.schedule!.enqueue({ ...original, key }, incomplete as never), /完整的当前授权检查/);
+    assert.equal(adapter.schedule!.find(key), null);
+  }
+  assert.equal(runs, 1);
+  assert.deepEqual(adapter.schedule!.list().map(task => task.key), [original.key]);
+});

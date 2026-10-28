@@ -269,7 +269,7 @@ for (const interrupted of ["candidate-response", "candidate-projection"] as cons
       assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), []);
       assert.ok(env.ledger.candidates(who.actor_id).some(item => item.candidate_id === proposal.candidate_id), "the incomplete projection survives restart");
       if (edited) {
-        await assert.rejects(env.service.change(who, request), { code: "STORAGE_CONFLICT" });
+        await assert.rejects(env.service.change(who, request), { code: "agent.memory_conflict" });
         assert.deepEqual(await env.raw.list("personal", who.actor_id), before.formal);
         assert.deepEqual(env.ledger.revisions(id), before.revisions);
         assert.deepEqual(env.ledger.changesOf(id), before.changes);
@@ -714,7 +714,7 @@ test("matching adoption metadata at version plus one is not an original SDK rece
     assert.equal(before[0]!.version, original.version + 1);
     assert.ok(env.ledger.marker(who.actor_id, `memory-operation:uncommitted-adopt:facts:${original.memory_id}`));
     await env.close(); env = await setup.open();
-    await assert.rejects(env.service.write(who, input), { code: "STORAGE_CONFLICT" });
+    await assert.rejects(env.service.write(who, input), { code: "agent.memory_conflict" });
     assert.deepEqual(await env.raw.list("personal", "memory-owner"), before); assert.deepEqual(env.ledger.marker(who.actor_id, key), mark);
     assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
   } finally { await env.close(); }
@@ -1032,6 +1032,33 @@ test("an append receipt arriving after an observed deletion cannot restore histo
     assert.throws(() => env.ledger.addRevision(held.memory_id, { version: 1, text: "A later-forgotten preference", kind: "preference", applies: {}, change: "created", by: "person", at: "2026-10-23T00:00:00Z" }), /已经删除/);
     assert.deepEqual(env.ledger.revisions(held.memory_id), []);
   } finally { release(); await env.close(); }
+});
+
+test("selected forget previews the actual SDK purge grant without deleting, and rechecks it before execution", async t => {
+  const setup = await fixture(t), env = await setup.open();
+  const saved = await env.service.write(caller("seed-batch-preview"), { scope: "personal", text: "Keep the original until confirmed", kind: "preference" });
+  const item = { scope: "personal" as const, owner: "memory-owner", memory_id: saved.memory!.memory_id, expected_version: saved.memory!.version };
+  const request = { action: "remove" as const, items: [item] }, mutations: string[] = [];
+  const bind = env.backend.withCaller.bind(env.backend);
+  t.mock.method(env.backend, "withCaller", who => {
+    const bound = bind(who);
+    return { ...bound, previewMutation: async input => { mutations.push(input.mutation.kind); await bound.previewMutation(input); } };
+  });
+  setup.denyDelete(item.memory_id);
+  await assert.rejects(env.service.batches.preview(caller("preview-denied"), request), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal(env.ledger.marker("memory-owner", "memory-selection:preview-denied"), null);
+  assert.deepEqual((await env.raw.list("personal", "memory-owner")).map(entry => entry.memory_id), [item.memory_id]);
+  setup.denyDelete();
+  const preview = await env.service.batches.preview(caller("preview-purge"), request);
+  assert.deepEqual((await env.raw.list("personal", "memory-owner")).map(entry => entry.version), [item.expected_version]);
+  setup.denyDelete(item.memory_id);
+  const refused = await env.service.batches.apply(caller("apply-denied"), preview.preview_id);
+  assert.equal(refused.complete, false); assert.equal(refused.items[0]!.outcome, "refused");
+  assert.ok(mutations.length >= 3); assert.ok(mutations.every(kind => kind === "purge"));
+  assert.ok(env.ledger.revisions(item.memory_id).length > 0);
+  setup.denyDelete();
+  assert.equal((await env.service.batches.apply(caller("retry-allowed"), preview.preview_id)).complete, true);
+  assert.deepEqual(await env.raw.list("personal", "memory-owner"), []); assert.deepEqual(env.ledger.revisions(item.memory_id), []);
 });
 
 // MEM-03/20: the operation fixes the whole package, including entries not yet dispatched.

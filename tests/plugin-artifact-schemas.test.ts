@@ -19,11 +19,15 @@ test("RAC-413: the 成果 plugin carries no action definitions and no 成果 typ
   // The type the 成果库 writes is the Host's own producer's declaration, with the preview action that type names.
   assert.deepEqual(module.ARTIFACTS_HOST_PRODUCER.produces.map(type => type.artifact_type_id), ["io.molis.work.document"]);
   assert.deepEqual(module.ARTIFACTS_HOST_PRODUCER.actions.map(action => action.capability_id), ["artifacts.documents.preview"]);
-  assert.ok(module.ARTIFACT_ACTIONS.some(action => action === module.ARTIFACTS_HOST_PRODUCER.actions[0]), "and it is one of the 17 the module serves");
+  assert.ok(module.ARTIFACT_ACTIONS.some(action => action === module.ARTIFACTS_HOST_PRODUCER.actions[0]), "and it is one of the 18 the module serves");
 });
 
-test("RAC-414: the module serves the 17 actions, and its constants for the provider and the producer identity match the plugin's shell", () => {
-  assert.equal(module.ARTIFACT_ACTIONS.length, 17);
+test("RAC-414: the module serves the 18 actions, and its constants for the provider and the producer identity match the plugin's shell", () => {
+  // The owner now exposes its fixed-version source state through the shared retention protocol.
+  assert.equal(module.artifactsActions.retention.capability_id, "artifacts.subject.retention");
+  assert.equal(module.artifactsActions.retention.version, 3);
+  assert.ok(module.ARTIFACT_ACTIONS.includes(module.artifactsActions.retention));
+  assert.equal(module.ARTIFACT_ACTIONS.length, 18);
   const { plugin_id, name, version, publisher } = plugin.artifactsManifest;
   // RAC-1047 (PG-077): the id the actions are called by and the identity a version carries are two constants with one value each, pinned.
   assert.equal(module.ARTIFACTS_PROVIDER_ID, plugin_id);

@@ -1,7 +1,8 @@
-import { restoredSessionRecords } from "./prologue-restored-session.js";
+import { PrologueSessionCache } from "./prologue-session-cache.js";
+import type { PrologueRunMemoryPort } from "./prologue-run-memory.js";
 import type { PrologueMemoryUsage } from "./prologue-memory-usage.js";
 import { agentErrors } from "../errors.js";
-import type { AgentRunRef, AgentRunView, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRecalledMemory, AgentRunRef, AgentRunView, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { PrologueAdapterPorts, PrologueControlPort, PrologueModelConfiguration, PrologueRunPort, PrologueRunTiming, PrologueRuntimePort } from "./prologue-ports.js";
 import {
@@ -21,6 +22,8 @@ export interface SessionRecord {
 }
 
 export interface RunRecord {
+  /** Live SDK control only; never restored from persisted history. */
+  memory?: PrologueRunMemoryPort;
   view: AgentRunView;
   state: PrologueStreamState;
   control: PrologueControlPort;
@@ -32,7 +35,7 @@ export interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
-  memory_context?: Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "consumer" | "usage">;
+  memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
 }
 
 /**
@@ -44,7 +47,7 @@ export class PrologueRunStore {
   readonly #runs = new Map<string, RunRecord>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
   readonly #startingSessions = new Set<string>();
-  readonly #restoring = new Map<string, Promise<SessionRecord>>();
+  readonly cache: PrologueSessionCache;
   readonly #runtime: PrologueRuntimePort;
   readonly #approvals: PrologueApprovalBridge | undefined;
   readonly now: () => Date;
@@ -53,6 +56,7 @@ export class PrologueRunStore {
     this.#runtime = runtime;
     this.now = now;
     this.#approvals = approvals;
+    this.cache = new PrologueSessionCache(runtime, this.#sessions, this.#runs, this.#startingSessions, id => this.publish(id, false), ids => memoryUsage.flushRuns(ids));
   }
 
   get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }
@@ -86,13 +90,11 @@ export class PrologueRunStore {
 
   /** A detail restore under way, which a cold status read must wait for rather than race. */
   restoring(sessionId: string): Promise<SessionRecord> | undefined {
-    return this.#restoring.get(sessionId);
+    return this.cache.restoring.get(sessionId);
   }
 
   requireSession(sessionId: string): SessionRecord {
-    const record = this.#sessions.get(sessionId);
-    if (!record) throw agentErrors.session_unknown("找不到这条会话");
-    return record;
+    return this.cache.require(sessionId);
   }
 
   requireRun(runId: string): RunRecord {
@@ -102,14 +104,7 @@ export class PrologueRunStore {
   }
 
   async loadSession(sessionId: string): Promise<SessionRecord> {
-    const existing = this.#sessions.get(sessionId);
-    if (existing) return existing;
-    const held = this.#restoring.get(sessionId);
-    if (held) return held;
-    const loading = this.#restoreSession(sessionId);
-    this.#restoring.set(sessionId, loading);
-    try { return await loading; }
-    finally { this.#restoring.delete(sessionId); }
+    return this.cache.load(sessionId);
   }
 
   /** The session's latest round has ended (or it has none). */
@@ -118,26 +113,15 @@ export class PrologueRunStore {
     return latest === undefined || isEnded(this.requireRun(latest.run_id).view.phase);
   }
 
-  async #restoreSession(sessionId: string): Promise<SessionRecord> {
-    const restored = await this.#runtime.sessions.restore?.(sessionId);
-    if (!restored) return this.requireSession(sessionId);
-    const { session, records } = restoredSessionRecords(restored, (run, waiting) => this.#runtime.unexecutedApprovalCall?.(run, waiting));
-    for (const record of records) {
-      this.#runs.set(record.view.ref.run_id, record);
-      this.publish(record.view.ref.run_id, false);
-    }
-    this.#sessions.set(sessionId, session);
-    return session;
-  }
-
   /**
    * Follow a live round: each event the runtime sends is projected into its view and published, an effect it stops on goes
    * in front of the person, and a control change is published too.
    */
   follow(record: RunRecord, task: string, run: PrologueRunPort, ports: PrologueAdapterPorts): void {
-    const ref = record.view.ref;
+    const ref = record.view.ref, current = this.cache.capture(ref.session_id);
     let initialPromptPending = true;
     const unsubscribeEvents = run.subscribe((event) => {
+      try { current(); } catch { return; }
       // The Host already displays the submitted task before SDK replay starts.
       if (event.type === "prompt" && event.role === "user" && initialPromptPending) {
         initialPromptPending = false;
@@ -174,6 +158,7 @@ export class PrologueRunStore {
   publish(runId: string, stampTerminal = true): void {
     const record = this.#runs.get(runId);
     if (!record) return;
+    try { this.cache.capture(record.view.ref.session_id)(); } catch { return; }
     const controlPhase = prologuePhaseOf(record.control.state);
     const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
     let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
@@ -228,7 +213,7 @@ export class PrologueRunStore {
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.now().toISOString() }
         : {}),
-    });
+    }, record.memory_context);
     const snapshot = structuredClone(record.view);
     for (const listener of record.listeners) listener(structuredClone(snapshot));
   }

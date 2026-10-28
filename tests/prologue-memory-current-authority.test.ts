@@ -47,12 +47,16 @@ function records(directory: string): Record<string, string> {
   }));
 }
 
-async function fixture(t: TestContext, options: { configured?: boolean; beforeAuthorize?: NonNullable<PrologueNodeAdapterOptions["memory"]>["authorize"] } = {}) {
+async function fixture(t: TestContext, options: { configured?: boolean; beforeAuthorize?: NonNullable<PrologueNodeAdapterOptions["memory"]>["authorize"];
+  allowsSessionPurge?: NonNullable<PrologueNodeAdapterOptions["memory"]>["allowsSessionPurge"]; afterCurrent?: () => void } = {}) {
   const root = mkdtempSync(join(tmpdir(), "molis-memory-current-authority-")), storageRoot = join(root, "sdk");
   const revoked = new Set<string>();
   const memory = currentMemoryOptions({ appId: APP.appId,
     scopesFor: caller => [{ scope: "user", owner: caller.actor_id }, ...(caller.project_id ? [{ scope: "project" as const, owner: caller.project_id }] : [])],
     allowed: caller => !revoked.has(caller.actor_id), beforeAuthorize: options.beforeAuthorize });
+  if (options.allowsSessionPurge) memory.allowsSessionPurge = options.allowsSessionPurge;
+  const assertCurrent = memory.assertCurrent;
+  memory.assertCurrent = (...args) => { const allowed = assertCurrent?.(...args); options.afterCurrent?.(); return allowed !== false; };
   let networkCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { networkCalls++; throw new Error("Memory persistence must not call a model"); });
   const open = (configured = options.configured !== false) => createPrologueNodeAdapter({ app: APP, storageRoot,
@@ -141,7 +145,7 @@ test("append retries retain their operation identity after restart and stale upd
   const next = await f.bound().update(update);
   assert.equal(next.version, original.version + 1); assert.deepEqual(next.meta, update.change.meta);
   assert.equal((await f.bound().update(update)).version, next.version);
-  await assert.rejects(f.bound().update({ ...update, operation_id: "stale-update", change: { text: "stale" } }), { code: "STORAGE_CONFLICT" });
+  await assert.rejects(f.bound().update({ ...update, operation_id: "stale-update", change: { text: "stale" } }), { code: "agent.memory_conflict" });
   await f.reopen(); const kept = (await f.bound().list(where.scope, where.owner))[0]!;
   assert.equal(kept.text, next.text); assert.equal(kept.version, next.version);
 });
@@ -165,6 +169,63 @@ test("classification, trusted session identity and disabled state survive the pu
   assert.deepEqual(restored.meta, meta); assert.deepEqual(restored.disabled, disabled.disabled);
   const resumed = await f.bound(caller).resume({ ...where, memory_id: entry.memory_id, expected_version: restored.version, operation_id: "resume" });
   assert.equal(resumed.disabled, undefined); assert.equal(resumed.version, disabled.version + 1);
+});
+
+test("persisted prepared Session fences both its caller and delete target on the first Memory request after reopening", async t => {
+  const f = await fixture(t), sessionOwner = { project_id: "project-a", plugin_id: "test.plugin", install_id: "test-install", actor_id: "alice" };
+  const session = await f.adapter.createSession({ ...sessionOwner, workspace: "none", title: "Private prepared memory" });
+  const caller = { ...alice, session_id: session.session_id }, bound = f.bound(caller);
+  const entry = await bound.write({ ...save, meta: { classification: { lifecycle: "session" }, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
+  const candidate = await bound.candidates.propose({ ...where, text: "Private candidate", origin: "person", operation_id: "session-candidate", expected_version: 0,
+    meta: { classification: { lifecycle: "session" }, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
+  const preview = await f.adapter.sessionLifecycle!.previewPurge(session, sessionOwner);
+  await f.adapter.sessionLifecycle!.preparePurge(session, { operation_id: "prepare-memory", expected_version: preview.version, expected_state: preview.state }, preview, sessionOwner);
+  await f.reopen();
+  const before = f.bytes();
+  // This caller carries no Session, so only the target's persisted Index can close the delete path.
+  await assert.rejects(f.bound().remove({ ...where, memory_id: entry.memory_id, expected_version: entry.version, operation_id: "ordinary-remove" }));
+  await assert.rejects(f.bound().candidates.purge({ ...where, candidate_id: candidate.candidate_id, expected_version: candidate.version, operation_id: "ordinary-candidate-purge" }));
+  await assert.rejects(f.bound(caller).write({ ...save, operation_id: "late-save" }));
+  await assert.rejects(f.bound(caller).setMeta({ ...where, memory_id: entry.memory_id, expected_version: entry.version, operation_id: "erase-session-binding",
+    meta: { classification: { lifecycle: "long-term" } } }));
+  assert.deepEqual(f.bytes(), before, "caller, target and old metadata refusal leaves all original bodies intact");
+  const independent = await f.bound().write({ ...save, operation_id: "independent-save", text: "Unbound memory remains writable" });
+  assert.equal(independent.text, "Unbound memory remains writable");
+});
+
+test("Memory authorization waiting across Session preparation cannot commit a late save", async t => {
+  const entered = deferred(), release = deferred();
+  const f = await fixture(t, { beforeAuthorize: async (_caller, requests) => {
+    if (requests.some(request => request.action === "save")) { entered.resolve(); await release.promise; }
+    return true;
+  } });
+  const sessionOwner = { project_id: "project-a", plugin_id: "test.plugin", install_id: "test-install", actor_id: "alice" };
+  const session = await f.adapter.createSession({ ...sessionOwner, workspace: "none", title: "Late Memory" });
+  const caller = { ...alice, session_id: session.session_id }, pending = f.bound(caller).write({ ...save, operation_id: "late-memory" });
+  const rejected = assert.rejects(pending);
+  await entered.promise;
+  try {
+    const preview = await f.adapter.sessionLifecycle!.previewPurge(session, sessionOwner);
+    await f.adapter.sessionLifecycle!.preparePurge(session, { operation_id: "close-during-authorize", expected_version: preview.version, expected_state: preview.state }, preview, sessionOwner);
+    const prepared = f.bytes(); release.resolve(); await rejected;
+    assert.deepEqual(f.bytes(), prepared, "the late grant cannot append after the persisted fence");
+  } finally { release.resolve(); }
+});
+
+test("a retained-Session purge permission is checked again after the original final scope authority", async t => {
+  let allowed = true, closing = false, calls = 0;
+  const f = await fixture(t, { allowsSessionPurge: (_caller, requests, sessionId, call) => {
+    calls++; return allowed && call.kind === "delete" && requests.every(request => request.action === "delete" && request.target.sessionRef?.id === sessionId);
+  }, afterCurrent: () => { if (closing) allowed = false; } });
+  const owner = { project_id: "project-a", plugin_id: "test.plugin", install_id: "test-install", actor_id: "alice" };
+  const session = await f.adapter.createSession({ ...owner, workspace: "none", title: "Final permission" });
+  const entry = await f.bound({ ...alice, session_id: session.session_id }).write({ ...save,
+    meta: { classification: { lifecycle: "long-term" }, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
+  const preview = await f.adapter.sessionLifecycle!.previewPurge(session, owner);
+  await f.adapter.sessionLifecycle!.preparePurge(session, { operation_id: "original-prepare", expected_version: preview.version, expected_state: preview.state }, preview, owner);
+  const before = f.bytes(); closing = true;
+  await assert.rejects(f.bound().remove({ ...where, memory_id: entry.memory_id, expected_version: entry.version, operation_id: "original-child" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.ok(calls >= 2); assert.deepEqual(f.bytes(), before, "a final permission loss cannot delete the original");
 });
 
 test("settling a versioned candidate changes formal text and metadata with one CAS and replays only the same decision", async t => {

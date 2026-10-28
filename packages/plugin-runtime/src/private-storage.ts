@@ -25,6 +25,34 @@ export const PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL = `
     );
 `;
 
+/** Existing-only maintenance; the Host owns the original transaction and physical/schema checks. No values leave this owner. */
+export function existingPluginPrivateKeys(db: PluginPrivateStorageDatabase) {
+  const keys = (installId: string): string[] => {
+    const statement = db.prepare("SELECT item_key FROM plugin_private_values WHERE install_id = ? ORDER BY item_key");
+    if (!statement.all) throw pluginErrors.storage_input_invalid("私有存储不支持原件清单");
+    return statement.all(installId).map(row => {
+      if (!row || typeof row !== "object" || !("item_key" in row) || typeof row.item_key !== "string" || !row.item_key)
+        throw pluginErrors.storage_input_invalid("私有存储键身份无效");
+      return row.item_key;
+    });
+  };
+  return {
+    keys,
+    clear(installId: string, selected: readonly string[], current: () => void): void {
+      if (!installId || new Set(selected).size !== selected.length || selected.some(key => typeof key !== "string" || !key))
+        throw pluginErrors.storage_input_invalid("原私有存储选择无效");
+      for (const key of selected) {
+        current();
+        db.prepare("DELETE FROM plugin_private_values WHERE install_id = ? AND item_key = ?").run(installId, key);
+      }
+    },
+    verifyAbsent(installId: string, selected: readonly string[]): void {
+      const remaining = new Set(keys(installId));
+      if (selected.some(key => remaining.has(key))) throw pluginErrors.state_invalid("原私有存储键尚未清除");
+    },
+  };
+}
+
 /** Host-owned private data repository. Never expose this object or its database to Plugin code. */
 export class SqlitePluginPrivateStorage {
   constructor(private readonly db: PluginPrivateStorageDatabase) {

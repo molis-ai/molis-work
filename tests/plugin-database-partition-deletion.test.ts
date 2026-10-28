@@ -1,6 +1,9 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import test from "node:test";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PROBE, later, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, write } from "./fixtures/partition-probe.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
@@ -105,4 +108,31 @@ test("PART-03 a partitioned library's step runs none of the plugin's code: the d
   assert.equal(await f.hooks.clear(PROBE, "p1"), true);
   assert.deepEqual(probe.trace, []);
   assert.equal(existsSync(partitionDirectory(f.home, "p1")), false);
+});
+
+for (const reason of ["revoked", "path"] as const) test(`MEM-40 running partition owner closes the library but refuses ${reason} before directory removal`, async t => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-partition-current-")));
+  const f = partitionHome(t, [probeEntry()], home); await f.ready();
+  await f.invoke(write, { text: "original" }, "p1"); await f.invoke(write, { text: "neighbor" }, "p2");
+  assert.equal(open(home, "p1"), true);
+  const directory = partitionDirectory(home, "p1"), saved = directory + "-held";
+  let closed = false, revoked = false;
+  const denied = new Error("partition authority revoked"), control: ProjectDeletionControl = { assertCurrent() {
+    assert.equal(this, control);
+    if (!closed && !open(home, "p1")) {
+      closed = true;
+      if (reason === "revoked") revoked = true;
+      else { renameSync(directory, saved); symlinkSync(partitionDirectory(home, "p2"), directory); }
+    }
+    if (revoked) throw denied;
+  } };
+  const clearing = f.hooks.clear(PROBE, "p1", undefined, control);
+  assert.equal(closed, true); assert.equal(existsSync(directory), true);
+  assert.equal(existsSync(reason === "path" ? `${saved}/${PROBE}.db-wal` : `${partitionFile(home, "p1")}-wal`), false, "the original partition was closed before the refusal");
+  try { await assert.rejects(clearing, error => reason === "revoked" ? error === denied : code(error) === "storage.maintenance_path"); }
+  finally { if (reason === "path") { rmSync(directory); renameSync(saved, directory); } revoked = false; }
+  assert.deepEqual(await f.invoke(read, {}, "p1"), ["original"]);
+  assert.deepEqual(await f.invoke(read, {}, "p2"), ["neighbor"]);
+  assert.equal(await f.hooks.clear(PROBE, "p1", undefined, control), true);
+  assert.equal(existsSync(directory), false); assert.deepEqual(await f.invoke(read, {}, "p2"), ["neighbor"]);
 });

@@ -13,6 +13,8 @@ export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C
     ...(caller.original_input ? { original_input: structuredClone(caller.original_input) } : {}),
   };
   Reflect.deleteProperty(view, "host_plugin");
+  Reflect.deleteProperty(view, "runtime_memory");
+  Reflect.deleteProperty(view, "runtime_memory_read");
   // The Host's own list of projects the person may reach (PG-014) is set by `pluginActionProvider` after this; what a caller carried in is not.
   Reflect.deleteProperty(view, "readable_project_ids");
   // Likewise the calling plugin's name: `pluginActionProvider` sets it from the issued caller after this, never from what the call carried.

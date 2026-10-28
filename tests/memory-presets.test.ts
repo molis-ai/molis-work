@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -124,13 +125,13 @@ test("manual recall is explicit only at the protected memory HTTP entry and not 
   const actions = bindActionClient(web.host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
   await actions.invoke(memoryActions.write, { scope: "personal", text: "周报先写风险" });
   await actions.invoke(memoryActions.savePrefs, { scope: "personal", preset: "manual" });
-  const task = await actions.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] });
+  const task = memoryData(await actions.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] }));
   assert.equal(task.state, "off"); assert.equal(task.items.length, 0);
   await assert.rejects(actions.invoke(memoryActions.recall, { query: "周报", readMode: "explicit" } as never));
   await assert.rejects(actions.invoke(memoryActions.recall, { query: "周报", memory_read_mode: "explicit" } as never));
   await actions.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { mcp: true } } as never });
   const mcp = bindActionClient(web.host.homeActionClient(), () => ({ actor_id: "runtime:codex", project_id: null, audience: "mcp" as const, permissions: [...MEMORY_PERMISSIONS] }));
-  assert.equal((await mcp.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] })).state, "off");
+  assert.equal((memoryData(await mcp.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] }))).state, "off");
   const response = await web.request("/api/memory/recall", { method: "POST", body: { query: "周报", scopes: ["personal"] } });
   assert.equal(response.status, 200); assert.equal((await response.json()).items[0].text, "周报先写风险");
   const untrusted = await web.request("/api/memory/recall", { method: "POST", authorized: false, body: { query: "周报" } });
@@ -142,13 +143,13 @@ test("disabled task reads do no backend scan and a closing switch rejects an in-
   const env = await memoryHome(t), { service, ledger, backend } = env.current;
   await service.write(person, { scope: "personal", text: "周报先写风险" });
   let scans = 0;
-  const checked = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, list: async (...args) => { scans += 1; return bound.list(...args); } })) });
+  const checked = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, listScopes: async input => { scans += 1; return bound.listScopes!(input); } })) });
   service.savePrefs(person, "personal", "manual");
   assert.equal((await checked.recall(worker, { scopes: ["personal"] })).state, "off"); assert.equal(scans, 0);
   service.savePrefs(person, "personal", "reviewed");
   let release!: () => void, entered!: () => void;
   const ready = new Promise<void>(done => { entered = done; }), blocked = new Promise<void>(done => { release = done; });
-  const waiting = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, list: async (...args) => { const rows = await bound.list(...args); entered(); await blocked; return rows; } })) });
+  const waiting = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, listScopes: async input => { const rows = await bound.listScopes!(input); entered(); await blocked; return rows; } })) });
   const pending = waiting.recall(worker, { scopes: ["personal"], query: "周报" });
   await ready; service.savePrefs(person, "personal", "off"); release();
   await assert.rejects(pending, { code: "memory.off" });

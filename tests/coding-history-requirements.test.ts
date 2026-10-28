@@ -22,6 +22,8 @@ type Summary = "model" | "error" | "empty";
 async function twoRounds(t: TestContext, summary: Summary) {
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
+  // Release the provider before the fixture closes its Host, including failures before all supplements were sent.
+  t.after(release);
   let round = 1;
   const f = await codingProductHost(t, async (request, turn) => {
     const review = endingReviewAnswer(request, () => []);

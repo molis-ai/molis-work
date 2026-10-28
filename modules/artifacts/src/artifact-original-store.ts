@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, createWriteStream, type ReadStream } from "node:fs";
+import { createReadStream, createWriteStream, rmSync, type ReadStream } from "node:fs";
 import { mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { inspectExistingStoragePath } from "@molis-ai/molis-work-storage";
 
 /**
  * The 成果库's originals that are too big to sit in a version's record (onboarding limits, user 2026-10-22): one file per content
@@ -25,7 +26,15 @@ export const ARTIFACTS_HOME_STORE: NonNullable<PluginRegistration["home_store"]>
  */
 export const artifactsProjectData: ProjectDataDeclaration = {
   label: "成果库保存的大文件原件",
-  purge: (home, projectId) => rm(projectDirectory(home, projectId), { recursive: true, force: true }),
+  async purge(home, projectId, control) {
+    control?.assertCurrent();
+    const directory = projectDirectory(home, projectId);
+    if (control) {
+      const target = inspectExistingStoragePath(directory, "directory");
+      control.assertCurrent(); target.assertCurrent();
+      rmSync(directory, { recursive: true, force: true });
+    } else await rm(directory, { recursive: true, force: true });
+  },
 };
 
 /** An original kept in the store, as a version names it. */

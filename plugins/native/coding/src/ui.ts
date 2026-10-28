@@ -135,6 +135,7 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       body: `<nav class="coding-faces" aria-label="${p.escape(p.text("coding.directory.faces"))}">${faces}</nav>
       <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">${p.escape(p.text("coding.directory.search-title"))}</span><input class="mw-input" data-coding-search aria-label="${p.escape(p.text("coding.directory.search-sessions"))}" placeholder="${p.escape(p.text("coding.directory.search-sessions"))}"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="${p.escape(p.text("coding.directory.filters"))}">${filters}</div></div>
       <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
+      <details data-coding-archived><summary>${p.escape(p.text("coding.session.archived-list"))}</summary><div data-coding-archived-list role="status"></div></details>
     <section class="coding-face-panel" data-coding-board-outline hidden aria-label="${p.escape(p.text("coding.outline.label"))}">
       <p class="coding-face-meta" data-coding-outline-meta hidden></p>
       <div class="coding-outline" data-coding-outline-list></div>

@@ -94,4 +94,9 @@ export class ContextLedgerRepository {
         JSON.stringify(value.source), JSON.stringify(value.target), value.actor_id,
         value.cause, value.recorded_at, value.state);
   }
+
+  removeRevision(scope: ContextScope, key: string, revision: number): void {
+    this.db.prepare("DELETE FROM context_edges WHERE scope_kind = ? AND scope_id = ? AND edge_key = ? AND revision = ?")
+      .run(scope.kind, scope.id, key, revision);
+  }
 }

@@ -3,13 +3,17 @@ import { isAbsolute, join } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
-import { openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
+import { isDeepStrictEqual } from "node:util";
+import { openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionBridge } from "@molis-ai/molis-work-service-agent-host";
 import { LocalSqliteStorage, inspectMemoryLedgerAdoption, beginMemoryLedgerAdoption, completeMemoryLedgerAdoption,
   type MemoryLedgerAdoptionProfile, type MemoryLedgerAdoptionSnapshot } from "@molis-ai/molis-work-storage";
 import { assertCurrentCatalog, assertOwnedCatalog } from "../catalog-schema.js";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { PRODUCT_VERSION } from "../product-version.js";
 import { memoryRuntimePolicy } from "./memory-runtime-policy.js";
+import { cleanupConfirmed, cleanupPreview, fixedCleanup, type MemoryHomeAdoptionCleanup,
+  type MemoryHomeAdoptionCleanupPreview, type MemoryHomeAdoptionCleanupResult } from "./memory-home-adoption-cleanup.js";
+export type { MemoryHomeAdoptionCleanup, MemoryHomeAdoptionCleanupPreview, MemoryHomeAdoptionCleanupResult } from "./memory-home-adoption-cleanup.js";
 
 export interface MemoryHomeAdoptionScope { readonly scope: "user" | "project" | "character"; readonly owner: string }
 type ItemOutcome = "adopted" | "current" | "needs-reconcile" | "conflict" | "unknown";
@@ -24,30 +28,38 @@ export interface MemoryHomeAdoptionBridge {
   verify(input: { scopes: readonly MemoryHomeAdoptionScope[]; cursor?: string; signal?: AbortSignal }): Promise<{
     outcome: VerificationOutcome; exhausted: boolean; cursor?: string;
   }>;
-  close(): Promise<void>;
+  previewCleanup: PrologueMemoryAdoptionBridge["previewCleanup"];
+  purgeCleanupTarget: PrologueMemoryAdoptionBridge["purgeCleanupTarget"];
+  close: PrologueMemoryAdoptionBridge["close"];
 }
 
 export interface MemoryHomeAdoptionInput {
   /** Explicit stopped, backed-up Home. This function never defaults to the person's current Home. */
   homeDirectory: string;
   signal?: AbortSignal;
-  /** Acquire the existing exclusive storage owner before returning; failure must release partially opened resources. */
+  cleanup?: MemoryHomeAdoptionCleanup;
+  /** Synchronous current maintenance authority; invoked again immediately before each ledger commit. */
+  assertCurrent?: () => void;
+  /** Acquire the existing owner, call onOwned synchronously once before SDK opening, and release partial resources on failure. */
   open?(input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[];
-    profiles: readonly MemoryLedgerAdoptionProfile[]; signal?: AbortSignal }): Promise<MemoryHomeAdoptionBridge>;
+    profiles: readonly MemoryLedgerAdoptionProfile[]; signal?: AbortSignal; assertCurrent(): void; onOwned(): void }): Promise<MemoryHomeAdoptionBridge>;
 }
 
 export interface MemoryHomeAdoptionResult {
   outcome: "completed" | "incomplete" | "cancelled";
   items: Record<ItemOutcome, number>;
   verification: VerificationOutcome | "not-run";
+  cleanup?: MemoryHomeAdoptionCleanupResult;
 }
 
-/** No defaults are inferred: ledger 3 already materialized its effective six switches; draft eight-field choices survive. */
-function profilesForAdoption(snapshot: MemoryLedgerAdoptionSnapshot): MemoryLedgerAdoptionProfile[] {
+/** Only explicit offline adoption fills the known prior shapes; all stored choices and current restrictions survive. */
+export function profilesForAdoption(snapshot: MemoryLedgerAdoptionSnapshot): MemoryLedgerAdoptionProfile[] {
   const profiles = snapshot.profiles.map(profile => {
     const value = profile.prefs;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw memoryErrors.invalid("旧记忆设置不完整，不能推断缺失的开关");
-    const prefs = Object.keys(value).length === 6 ? { enabled: true, task_recall: true, ...value } : value;
+    const count = Object.keys(value).length;
+    const prefs = count === 6 ? { enabled: true, task_recall: true, ...value, class_restrictions: [] }
+      : count === 8 ? { ...value, class_restrictions: [] } : value;
     if (!isCompletePrefs(prefs)) throw memoryErrors.invalid("旧记忆设置不完整，不能推断缺失的开关");
     if (!profile.actor_id || !(profile.key === "personal" || profile.key === "project-default" || /^project:.+/.test(profile.key))) {
       throw memoryErrors.invalid("旧记忆设置身份无法确认");
@@ -87,7 +99,7 @@ function nextCursor(page: { exhausted: boolean; cursor?: string }, previous: str
   return page.cursor;
 }
 
-async function convert(bridge: MemoryHomeAdoptionBridge, scopes: readonly MemoryHomeAdoptionScope[], result: MemoryHomeAdoptionResult, signal?: AbortSignal) {
+export async function convert(bridge: MemoryHomeAdoptionBridge, scopes: readonly MemoryHomeAdoptionScope[], result: MemoryHomeAdoptionResult, signal?: AbortSignal) {
   for (const scope of scopes) for (const kind of ["memory", "memory-candidate"] as const) {
     let cursor: string | undefined;
     do {
@@ -116,25 +128,78 @@ async function convert(bridge: MemoryHomeAdoptionBridge, scopes: readonly Memory
   } while (cursor !== undefined);
 }
 
+function prepareAdoption(input: MemoryHomeAdoptionInput) {
+  // Isolate identities, callbacks and control before the first owner-acquisition await.
+  const fixed = { ...input, cleanup: fixedCleanup(input.cleanup) };
+  if (!fixed.homeDirectory || !isAbsolute(fixed.homeDirectory)) throw memoryErrors.invalid("记忆采用需要明确的 Home 绝对路径");
+  fixed.signal?.throwIfAborted();
+  const snapshot = inspectMemoryLedgerAdoption(fixed);
+  const profiles = profilesForAdoption(snapshot), scopes = adoptionScopes(fixed.homeDirectory, snapshot);
+  const assertCurrent = () => {
+    fixed.signal?.throwIfAborted();
+    const checked: unknown = fixed.assertCurrent?.();
+    if (checked !== undefined) {
+      if (checked !== null && (typeof checked === "object" || typeof checked === "function") && "then" in checked)
+        void Promise.resolve(checked).catch(() => undefined);
+      throw memoryErrors.forbidden("维护权限必须由同步检查确认");
+    }
+    if (!isDeepStrictEqual(adoptionScopes(fixed.homeDirectory, inspectMemoryLedgerAdoption(fixed)), scopes))
+      throw memoryErrors.forbidden("当前 Home 的维护范围已改变");
+    fixed.signal?.throwIfAborted();
+  };
+  assertCurrent();
+  return { fixed, snapshot, profiles, scopes, assertCurrent };
+}
+async function openAdoption(prepared: ReturnType<typeof prepareAdoption>, onOwned: () => void): Promise<MemoryHomeAdoptionBridge> {
+  const { fixed, profiles, scopes, assertCurrent } = prepared;
+  return fixed.open ? fixed.open({ homeDirectory: fixed.homeDirectory, profiles, scopes, assertCurrent, onOwned, ...(fixed.signal ? { signal: fixed.signal } : {}) })
+    : openPrologueMemoryAdoption({ storageRoot: agentRuntimeDirectory(fixed.homeDirectory), appVersion: PRODUCT_VERSION,
+      scopes, policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent, onOwned, ...(fixed.signal ? { signal: fixed.signal } : {}) });
+}
+
+/** Body-free paged inspection of an explicit stopped Home; never changes its ledger or adoption barrier. */
+export async function previewMemoryHomeAdoptionCleanup(input: Omit<MemoryHomeAdoptionInput, "cleanup" | "open"> & { cursor?: string;
+  inspect?: (input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[]; signal?: AbortSignal; assertCurrent(): void }) => Promise<Pick<MemoryHomeAdoptionBridge, "previewCleanup"> & { close(): Promise<void> }> }): Promise<MemoryHomeAdoptionCleanupPreview> {
+  const prepared = prepareAdoption(input), cursor = input.cursor;
+  const { fixed, scopes, assertCurrent } = prepared;
+  const bridge = await (input.inspect ? input.inspect({ homeDirectory: fixed.homeDirectory, scopes, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) })
+    : openPrologueMemoryAdoptionInspection({ storageRoot: agentRuntimeDirectory(fixed.homeDirectory), appVersion: PRODUCT_VERSION,
+      scopes, policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) }));
+  try { return await cleanupPreview({ ...prepared.fixed, ...prepared, bridge }, cursor); }
+  finally { await bridge.close(); }
+}
+
 /** Explicit offline adoption only. Backup/copy rehearsal belongs to the operator, never to ordinary Home startup. */
 export async function adoptMemoryHome(input: MemoryHomeAdoptionInput): Promise<MemoryHomeAdoptionResult> {
-  if (!input.homeDirectory || !isAbsolute(input.homeDirectory)) throw memoryErrors.invalid("记忆采用需要明确的 Home 绝对路径");
-  input.signal?.throwIfAborted();
-  const snapshot = inspectMemoryLedgerAdoption(input);
-  const profiles = profilesForAdoption(snapshot), scopes = adoptionScopes(input.homeDirectory, snapshot);
-  const bridge = await (input.open ? input.open({ homeDirectory: input.homeDirectory, scopes, profiles, ...(input.signal ? { signal: input.signal } : {}) })
-    : openPrologueMemoryAdoption({ storageRoot: agentRuntimeDirectory(input.homeDirectory), appVersion: PRODUCT_VERSION,
-      scopes, policy: memoryRuntimePolicy(() => undefined).policy, ...(input.signal ? { signal: input.signal } : {}) }));
-  let adopting: MemoryLedgerAdoptionSnapshot;
+  const prepared = prepareAdoption(input), { fixed, snapshot, profiles, scopes, assertCurrent } = prepared;
+  let adopting: MemoryLedgerAdoptionSnapshot | undefined;
+  let owned = false;
+  const bridge = await openAdoption(prepared, () => {
+    if (owned) throw memoryErrors.forbidden("维护阻断只能在取得 owner 后建立一次");
+    owned = true;
+    assertCurrent();
+    adopting = beginMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot, assertCurrent });
+  });
   const result: MemoryHomeAdoptionResult = { outcome: "completed", items: { adopted: 0, current: 0, "needs-reconcile": 0, conflict: 0, unknown: 0 }, verification: "not-run" };
+  let closed = false;
   try {
-    input.signal?.throwIfAborted();
-    adopting = beginMemoryLedgerAdoption({ homeDirectory: input.homeDirectory, snapshot });
-    await convert(bridge, scopes, result, input.signal);
-  } finally { await bridge.close(); }
-  input.signal?.throwIfAborted();
-  if (result.outcome === "completed" && result.verification === "complete") {
-    completeMemoryLedgerAdoption({ homeDirectory: input.homeDirectory, snapshot: adopting!, profiles });
-  }
+    if (!adopting) throw memoryErrors.forbidden("维护入口未在 SDK 打开前建立阻断");
+    assertCurrent();
+    if (fixed.cleanup) {
+      result.cleanup = await cleanupConfirmed({ homeDirectory: fixed.homeDirectory, snapshot: adopting, scopes, bridge,
+        assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) }, fixed.cleanup);
+      if (result.cleanup.some(item => item.outcome !== "completed")) result.outcome = fixed.signal?.aborted ? "cancelled" : "incomplete";
+    }
+    if (result.outcome === "completed") await convert(bridge, scopes, result, fixed.signal);
+    if (result.outcome === "completed" && result.verification === "complete") {
+      let publicationCalls = 0;
+      await bridge.close(() => {
+        if (++publicationCalls !== 1) throw memoryErrors.forbidden("维护完成只能在原 owner 内发布一次");
+        completeMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot: adopting!, profiles, assertCurrent });
+      });
+      closed = true;
+      if (publicationCalls !== 1) throw memoryErrors.forbidden("维护关闭未在原 owner 内发布完成");
+    }
+  } finally { if (!closed) await bridge.close(); }
   return result;
 }

@@ -1,5 +1,9 @@
 # 系统搜索
 
+同步返回合同：project-data 的 query/open 与索引正文采集在读取前捕获来源；query 的当前项目和个人空间按各自可信 caller 归组，只调用一次批量 captureSources。状态/版本和异步权限仍独立核验，所有外部回调结束后统一同步否决，再返回或提交索引；缺 captureSources 明确不可用。
+
+系统资料当前性合同：索引 retention 保存 source_identity；query/open/context 读取前向原 owner 核当前身份、可用状态与本次准确版本。系统来源缺身份、缺协议或版本未知均隐藏并保留；插件原归档语义不变。
+
 在当前项目与个人范围里搜索已接入插件的真实内容：经共同动作目录发现各插件声明的搜索来源，按各自版本维护可重建的本地索引，并只把调用者当前能读取的来源交给调用者。它不读取任何插件的私有库，也不另建权限。
 
 包名：`@molis-ai/molis-work-service-search`。工作区内部包，通过仓库构建和 Host 装配使用。
@@ -20,6 +24,8 @@
 合同在 `@molis-ai/molis-work-contracts/services/search`（消费合同与索引端口）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的搜索来源协议）。索引持久化由 `@molis-ai/molis-work-storage` 的 `openTextSearchIndex` 实现，Host 装配在 [apps/local-host/src/search-actions.ts](../../apps/local-host/src/search-actions.ts)。
 
 ## 接入与边界
+
+`readSubjectRetention` 的前后目录读取只按原 provider_id 筛选，随后仍做原协议、对象、身份和版本匹配。不能按 retention 协议提前筛掉同 provider 的其它动作，否则会把“可见 system 缺协议”的拒绝误当普通旧插件的 unsupported；两次读取和最终来源 guard 均保留。回归见 `tests/action-subject-retention.test.ts`。
 
 插件只声明搜索来源动作与对象读取器即可接入，Host 与本服务都不改。索引是派生缓存：可删除重建，不作为任何业务事实。
 
@@ -57,3 +63,5 @@ pnpm --filter @molis-ai/molis-work-service-search build
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+声明 `subject-retention` 的来源在每次返回命中和打开结果时，按原项目、提供方、对象和可信来源身份查询当前状态；归档与不可用都隐藏，只有同一代明确返回 `deleted` 才清索引。索引的 `revision` 仍是列表刷新版本；`content_revision` 保存正文读口给出的版本。`retention_json` 只绑定可信来源身份，不缓存归档状态；缺少身份不承接保留内容。正文版本与绑定字段落在 Search schema 4，可重建缓存不迁移旧格式。

@@ -327,7 +327,7 @@ test("a sub-task the person put away still counts for the work that handed it ou
     const before = (await f.service.read(sent.work.work_id)).usage!;
     assert.ok(before.tokens > 0 && before.rounds === 3, JSON.stringify(before));
 
-    await f.service.archive(childId, true);
+    await f.service.archive(childId, await f.service.lifecycle.preview(childId, true), { beforeEffect: async () => {}, assert_current: () => {} });
     assert.equal((await f.service.read(sent.work.work_id)).delegated, undefined, "the board no longer shows a sub-task put away");
     assert.deepEqual((await f.service.read(sent.work.work_id)).usage, before, "its tokens and rounds still count toward the work's cap");
 
@@ -338,13 +338,20 @@ test("a sub-task the person put away still counts for the work that handed it ou
         delegated_by: { graph_id: f.store.get("web-user", sent.work.work_id).graph_id!, node_id: `p-extra-${index}`, title: sent.work.title, acceptance: "完成" } });
       made.push(extra.work_id);
     }
-    for (const id of made.slice(1, 3)) await f.service.archive(id, true);
+    for (const id of made.slice(1, 3)) await f.service.archive(id, await f.service.lifecycle.preview(id, true), { beforeEffect: async () => {}, assert_current: () => {} });
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
     // W2-18-A4-LIMITS-01
     await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
       && error.message === "这项工作已经委托了 6 个子任务，不能再多；请自己完成剩下的部分或告诉用户");
 
-    // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
+    // A delegation cannot implicitly restore what the person archived. The original Session and rounds stay put.
+    const archivedChild = f.store.get("web-user", childId), childSession = await f.adapter.readSession({ session_id: archivedChild.session_id! });
+    const childRounds = f.store.rounds(childId);
+    await assert.rejects(delegation.follow_up(childId, "归档时不能追加"), { code: "assistant.conflict" });
+    assert.deepEqual((await f.adapter.readSession({ session_id: archivedChild.session_id! })).runs, childSession.runs);
+    assert.deepEqual(f.store.rounds(childId), childRounds);
+    await f.service.archive(childId, await f.service.lifecycle.preview(childId, false), { beforeEffect: async () => {}, assert_current: () => {} });
+    // After the person's explicit restore, the parent's stop still reaches the same independent sub-task.
     await delegation.follow_up(childId, "再改改");
     await until(async () => (await f.service.read(childId)).work.state === "running", "the sub-task runs again");
     const stopped = await f.service.control(sent.work.work_id, { kind: "stop" });
@@ -475,6 +482,7 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "parent finishes before child");
     const before = f.store.get("web-user", sent.work.work_id); assert.ok(before.session_id);
     const beforeSession = await f.adapter.readSession({ session_id: before.session_id }); assert.equal(beforeSession.runs.length, 1);
+    const archiveOriginal = stage === "sdk-prepared-start" ? await f.service.lifecycle.preview(sent.work.work_id, true) : null;
     if (stage === "authority") f.flags.beforeAuthority = async () => { entered.resolve(); await release.promise; };
     else if (stage === "before-start") f.flags.beforeStart = async () => { entered.resolve(); await release.promise; };
     else {
@@ -497,7 +505,12 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
       };
     }
     finishChild.resolve(); await entered.promise;
-    if (stage !== "sdk-prepared-start") await f.service.archive(sent.work.work_id, true);
+    if (stage !== "sdk-prepared-start") await f.service.archive(sent.work.work_id, await f.service.lifecycle.preview(sent.work.work_id, true), { beforeEffect: async () => {}, assert_current: () => {} });
+    else {
+      const beforeArchive = f.store.get("web-user", sent.work.work_id);
+      await assert.rejects(f.service.archive(sent.work.work_id, archiveOriginal!, { beforeEffect: async () => {}, assert_current: () => {} }), { code: "agent.session_busy" });
+      assert.deepEqual(f.store.get("web-user", sent.work.work_id), beforeArchive, "a prepared SDK start refuses a real archive without a Work effect");
+    }
     release.resolve();
     await until(() => f.service.notices.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
     const after = await f.adapter.readSession({ session_id: before.session_id });
@@ -506,7 +519,9 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     assert.equal(parentCalls, 2, "no automatic model inference was dispatched");
     assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, "eligible", "a rejected hand-back leaves the continuation for the work's next round");
     f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined; f.flags.assertBeforeStart = undefined;
-    await f.service.archive(sent.work.work_id, false);
+    // The prepared case injected only the business bit inside the synchronous guard; its SDK remained active.
+    if (stage === "sdk-prepared-start") f.store.update("web-user", sent.work.work_id, null, { archived: false });
+    else await f.service.archive(sent.work.work_id, await f.service.lifecycle.preview(sent.work.work_id, false), { beforeEffect: async () => {}, assert_current: () => {} });
     await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage }, { project_ref: f.project });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");
     assert.equal(f.store.rounds(sent.work.work_id).length, 2);

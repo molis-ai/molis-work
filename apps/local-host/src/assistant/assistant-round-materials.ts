@@ -3,7 +3,7 @@ import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@mo
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
-import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
+import { capabilityDirectory, knowledgeDirectory, knowledgeFact, type KnowledgeMaterialGuard } from "./assistant-directory.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
@@ -53,6 +53,7 @@ export class AssistantRoundMaterials {
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean): Promise<RoundMaterials> {
+    const knowledgeGuards: KnowledgeMaterialGuard[] = [];
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
@@ -62,7 +63,7 @@ export class AssistantRoundMaterials {
     const pictured = [...new Set(this.store.rounds(work.work_id).flatMap(round => round.materials.filter(item => item.kind === "image").map(item => item.title)))];
     const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${work.title}」，${where}。`,
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
-      pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered)].filter(Boolean).join("\n");
+      pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", await knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, knowledgeGuards)].filter(Boolean).join("\n");
     const base = { source_artifact_id: work.work_id, source_version: 1 };
     const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ ...base, material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];
     // What this round tells that is told only once: marked after the round has started, not before (a start that fails tells nothing).
@@ -114,8 +115,8 @@ export class AssistantRoundMaterials {
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
     // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (this.ports.memory?.() && !this.link.memoryTools(work)) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
-      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住或忘掉任何事。"));
+    if (this.ports.memory?.() && !this.link.memoryTools(work)?.remember && !work.delegated_by) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
+      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住新内容；读取和停用是否可用，以本轮提供的工具为准。"));
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {
@@ -130,7 +131,7 @@ export class AssistantRoundMaterials {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
       if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ ...base, title }, id, text));
+    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", await knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`, knowledgeGuards)]] as const) if (text) out.push(...chunked({ ...base, title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
@@ -156,7 +157,20 @@ export class AssistantRoundMaterials {
         material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
       out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
-    return { materials: out.slice(0, 30), told };
+    // All materials come from this Host. Capture their original source scopes together, before any async recheck;
+    // a later material's authority callback must not invalidate an earlier source unnoticed.
+    const sources = knowledgeGuards.flatMap(guard => guard.sourceCapture ? [guard.sourceCapture] : []);
+    const unprepared = () => { throw assistantErrors.invalid("资料尚未完成本次发送前复核"); };
+    let assertCurrent: () => void = unprepared;
+    return { materials: out.slice(0, 30), told, beforeDispatch: async views => {
+      assertCurrent = unprepared;
+      const source = sources[0];
+      if (source && !source.client.captureSources) throw assistantErrors.invalid("当前资料来源不能完成发送前复核");
+      const captured = source ? source.client.captureSources!(sources.flatMap(item => item.scopes)) : () => {};
+      const current = () => { captured(); for (const guard of knowledgeGuards) guard.assertCardsCurrent?.(); };
+      for (const guard of knowledgeGuards) await guard.beforeDispatch?.(views);
+      current(); assertCurrent = current;
+    }, assertCurrent: () => assertCurrent() };
   }
 
   /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */

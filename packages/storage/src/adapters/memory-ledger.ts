@@ -7,11 +7,14 @@ import type {
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { isCompleteMemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { homeSqlitePath, openHomeSqliteDatabase, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
+import { readMemoryOwnerRelations } from "./memory-ledger-relations.js";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
-import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
+import { applySqliteBaseline, describeSqliteBaseline, describeSqliteSchema, SqliteSchemaVersionError, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
@@ -60,6 +63,39 @@ CREATE TABLE memory_markers (
 ` };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
+
+/** Startup inspects every stored profile before opening a writer; missing stores and other versions are never repaired. */
+export function readMemoryLedgerProfiles(options: { homeDirectory: string }): readonly { actor_id: string; key: string; prefs: unknown }[] {
+  const db = openReadOnlyHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE);
+  try {
+    const found = Number(db.prepare("PRAGMA user_version").get()!.user_version);
+    if (found !== MEMORY_LEDGER_BASELINE.version) throw new SqliteSchemaVersionError(
+      homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), found, MEMORY_LEDGER_BASELINE.version);
+    return db.prepare("SELECT actor_id, key, body FROM memory_prefs ORDER BY actor_id, key").all()
+      .map(row => ({ actor_id: String(row.actor_id), key: String(row.key), prefs: JSON.parse(String(row.body)) as unknown }));
+  } finally { db.close(); }
+}
+
+/** A never-used new Home may contain only preferences. This is not a scope-list completeness claim. */
+export function memoryLedgerHasOnlyPreferences(options: { homeDirectory: string }): boolean {
+  const db = openReadOnlyHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE);
+  try {
+    const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
+    if (version !== MEMORY_LEDGER_BASELINE.version) throw new SqliteSchemaVersionError(
+      homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), version, MEMORY_LEDGER_BASELINE.version);
+    if (!isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))) return false;
+    for (const table of ["memory_revisions", "memory_candidates", "memory_changes", "memory_signal_events", "memory_uses", "memory_owners", "memory_pairs"])
+      if (db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get()) return false;
+    const profiles = db.prepare("SELECT actor_id,key,body FROM memory_prefs").all();
+    if (!profiles.every(row => row.actor_id === LOCAL_PERSON_ACTOR_ID
+      && (row.key === "personal" || row.key === "project-default" || String(row.key).startsWith("project:"))
+      && isCompleteMemoryPrefs(JSON.parse(String(row.body))))) return false;
+    const markers = db.prepare("SELECT actor_id,key,body FROM memory_markers").all();
+    if (markers.length !== 1 || markers[0]!.actor_id !== LOCAL_PERSON_ACTOR_ID || markers[0]!.key !== "strategy-adoption") return false;
+    const marker: unknown = JSON.parse(String(markers[0]!.body));
+    return !!marker && typeof marker === "object" && Object.keys(marker).length === 1 && "origin" in marker && marker.origin === "new-home";
+  } finally { db.close(); }
+}
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
@@ -114,10 +150,13 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       return { state: Number(inserted.changes) > 0 ? "counted" as const : "duplicate" as const, count: Number(counts.count), distinct: Number(counts.distinct_count) };
     }),
     recordUses: uses => ledger.transaction(() => {
+      // Reuse statements within this transaction, never the rows they read.
+      let existingUse: ReturnType<typeof db.prepare> | undefined;
+      let recordUse: ReturnType<typeof db.prepare> | undefined;
       for (const use of uses) {
         // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
         if (retention.isForgotten(use.memory_id)) continue;
-        const before = parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?").get(use.memory_id, use.receipt_id));
+        const before = parse<MemoryUseRecord>((existingUse ??= db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?")).get(use.memory_id, use.receipt_id));
         if (before?.source === "run-context") {
           if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
             [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
@@ -126,7 +165,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
           const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
           if (rank(before.state) >= rank(use.state)) continue;
         }
-        db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body")
+        (recordUse ??= db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body"))
           .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
       }
     }),
@@ -141,9 +180,14 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     },
     owners: projectId => db.prepare("SELECT scope, owner, title, subject FROM memory_owners WHERE project_id=? ORDER BY rowid").all(projectId)
       .map(row => ({ scope: String(row.scope) as never, owner: String(row.owner), title: String(row.title), subject: row.subject === null || row.subject === undefined ? null : String(row.subject) })),
+    ownerRelations: () => readMemoryOwnerRelations(db),
     noteOwner: input => {
-      db.prepare("INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?) ON CONFLICT(scope,owner) DO UPDATE SET project_id=excluded.project_id, title=excluded.title, subject=COALESCE(excluded.subject, memory_owners.subject)")
+      const written = db.prepare(`INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?)
+        ON CONFLICT(scope,owner) DO UPDATE SET title=excluded.title, subject=COALESCE(memory_owners.subject, excluded.subject)
+        WHERE memory_owners.project_id IS excluded.project_id
+          AND (memory_owners.subject IS NULL OR excluded.subject IS NULL OR memory_owners.subject=excluded.subject)`)
         .run(input.scope, input.owner, input.project_id, input.title, input.subject ?? null);
+      if (Number(written.changes) !== 1) throw Object.assign(new Error("记忆归属的项目与角色不能被替换"), { code: "memory.conflict" });
     },
     candidateOwners: projectId => {
       const found = new Map<string, { scope: MemoryScope; owner: string }>();

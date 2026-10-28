@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
-import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
+import { openPluginProjectDatabase, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
+import { maintainCodingKnowledge } from "./fixtures/coding-knowledge-maintenance.mjs";
+import { LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-host";
+import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-feed";
+import { describeSqliteSchema, listSqliteObjects, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 
 // FI-5: Feed declares the Feed items, Sources, Signals and Listener Host tables, so the project library's baseline stops making them: version 11.
 // A version 10 library is refused, never upgraded in place; the offline maintenance is `tests/fixtures/project-maintenance-v11.sql` and these cases
@@ -14,6 +17,20 @@ import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-
 // two records there. FI-6 adds what Feed and Inbox need to find their data through the platform's services: the owners of the Inbox entries and
 // their events, and the namespace of Feed's keys in the Context Ledger (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §3.5).
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v11.sql", import.meta.url), "utf8");
+
+const historicalV10 = readFileSync(new URL("./fixtures/project-database-schema-v10.sql", import.meta.url), "utf8");
+const historicalV11 = readFileSync(new URL("./fixtures/project-database-schema-v11.sql", import.meta.url), "utf8");
+// The frozen v7 fixture owns the original Feed declaration; v8 changed only its root foreign key.
+const feedV1 = readFileSync(new URL("./fixtures/project-database-schema-v7.sql", import.meta.url), "utf8").split(/;\s*/u)
+  .filter(statement => /CREATE (?:TABLE|INDEX) feed_out_rules(?:\s|_)/u.test(statement))
+  .map(statement => statement.replace("REFERENCES boards(project_id)", "REFERENCES project_root(project_id)")).join(";\n") + ";";
+const historicalPlugins = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest)
+  .filter(manifest => [CODING_PLUGIN_ID, FEED_PLUGIN_ID, "io.molis.work.goals", "io.molis.work.schedule"].includes(manifest.plugin_id))
+  .map(manifest => ({ plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature,
+    declaration: manifest.plugin_id === FEED_PLUGIN_ID ? { ...FEED_PROJECT_DATABASE, version: 1, schema: feedV1 }
+      : manifest.plugin_id === CODING_PLUGIN_ID ? { ...manifest.databases!.project!, version: 1, schema: manifest.databases!.project!.schema.replace(/\s*lifecycle_json TEXT,/, "") }
+      : manifest.databases!.project! }));
+const inspector: PluginProjectSchemaInspector = { scratch: () => new DatabaseSync(":memory:"), objects: db => listSqliteObjects(db as never), shape: db => describeSqliteSchema(db as never) };
 
 const V1_TABLES = '["feed_out_rules","feed_out_rules_project_enabled_idx"]';
 const AT = "2026-10-01T00:00:00.000Z";
@@ -29,8 +46,12 @@ function newLibrary(t: TestContext) {
 
 /** A library as version 10 left it: Feed's rows in all eleven tables and in the out rules, and Feed's ledger row the version 1 one. */
 function fixture(t: TestContext) {
-  const file = newLibrary(t), db = new DatabaseSync(file);
+  const directory = mkdtempSync(join(tmpdir(), "project-maintenance-v11-history-")), file = join(directory, "project.db");
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const db = new DatabaseSync(file);
   try {
+    db.exec(historicalV10);
+    for (const plugin of historicalPlugins) openPluginProjectDatabase(db as never, plugin, inspector, { path: file });
     const at = AT;
     db.prepare("INSERT INTO project_root (project_id, created_at) VALUES ('project', ?)").run(at);
     db.prepare("INSERT INTO feed_sources (project_id, source_id, kind, name, status, origin, imported_at, updated_at) VALUES ('project', 'source-1', 'rss', '维护前的来源', 'ready', 'molis_work', ?, ?)").run(at, at);
@@ -90,21 +111,31 @@ const ledgerRow = (rows: string[], pluginId: string) => {
   return row;
 };
 
-test("RAC-497, RAC-514: a version 10 library is refused without being touched; the maintenance changes the version and Feed's ledger row, and Feed's tables and every other table but the three named ones keep every row", t => {
+// MEM-PROJECT-V12-01/04: rehearse the real historical chain through the original SQL and the selected maintenance entry.
+test("RAC-497, RAC-514: a version 10 library is refused without being touched; the maintenance changes the version and Feed's ledger row, and Feed's tables and every other table but the three named ones keep every row", async t => {
   const file = fixture(t), original = read(file);
   assert.equal(original.version, 10);
   assert.equal(ledgerRow(original.rows.plugin_project_databases!, FEED_PLUGIN_ID).version, 1);
   for (const table of FEED_TABLES) assert.equal(original.rows[table]!.length, 1, `${table} holds a row`);
-  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 11);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 12);
   assert.deepEqual(read(file), original, "the refusal writes nothing");
 
   apply(file);
   const after = read(file);
   assert.equal(after.version, 11);
   for (const table of FEED_TABLES) assert.deepEqual(after.rows[table], original.rows[table], `${table}: every row, its row id included, is as it was`);
-  assert.deepEqual(after.master, original.master, "no table, index or trigger was made or dropped, and nothing of the script's own stays");
-  assert.deepEqual(after.shape, original.shape, "and none changed shape");
-  const { plugin_project_databases: ledgerAfter, ...everyAfter } = after.rows, { plugin_project_databases: ledgerBefore, ...everyBefore } = original.rows;
+  assert.equal(original.shape.tables.plugin_notifications, undefined, "the real v10 fixture has no notification queue");
+  assert.ok(after.shape.tables.plugin_notifications, "the original main v11 step creates the notification queue");
+  assert.deepEqual(after.master.filter(name => !name.includes("plugin_notifications")), original.master, "only the notification table and its indexes are added");
+  const { plugin_notifications: _notifications, ...keptTables } = after.shape.tables;
+  assert.deepEqual({ ...after.shape, tables: keptTables }, original.shape, "every pre-existing table retains its complete shape");
+  const expected = new DatabaseSync(":memory:");
+  try {
+    expected.exec(historicalV11);
+    for (const plugin of historicalPlugins) expected.exec(plugin.plugin_id === FEED_PLUGIN_ID ? FEED_PROJECT_DATABASE.schema : plugin.declaration.schema);
+    assert.deepEqual(after.shape, describeSqliteSchema(expected), "the original step reaches the actual main 11 format before identity adoption");
+  } finally { expected.close(); }
+  const { plugin_project_databases: ledgerAfter, plugin_notifications: notificationRows, ...everyAfter } = after.rows, { plugin_project_databases: ledgerBefore, ...everyBefore } = original.rows;
   const otherAfter = Object.fromEntries(Object.entries(everyAfter).filter(([name]) => !NAMED_TABLES.includes(name)));
   const otherBefore = Object.fromEntries(Object.entries(everyBefore).filter(([name]) => !NAMED_TABLES.includes(name)));
   assert.deepEqual(otherAfter, otherBefore, "every row of every other table is as it was");
@@ -117,14 +148,30 @@ test("RAC-497, RAC-514: a version 10 library is refused without being touched; t
   assert.ok(newAt);
   assert.deepEqual(kept, made, "Feed's ledger row says version 2 and the twelve tables and their indexes, as the platform writes it on a first open");
   assert.equal(keptAt, AT, "and keeps the time it was first made");
-  assert.deepEqual(after.shape, read(newLibrary(t)).shape, "table by table the same as a new library");
+  assert.deepEqual(notificationRows, []);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 11 && error.expected === 12);
+  assert.deepEqual(read(file), after, "normal opening cannot perform the separately selected identity step");
+  const backupParent = mkdtempSync(join(tmpdir(), "project-maintenance-v12-backup-"));
+  t.after(() => rmSync(backupParent, { recursive: true, force: true }));
+  const selected = { home: dirname(file), projectDatabase: file, projectIdentity: true, publisher: "official-coding-binding", backupDirectory: join(backupParent, "before-identity") };
+  assert.deepEqual((await maintainCodingKnowledge("list", selected)).stores, [{ kind: "project", from: 11, to: 12 }, { kind: "coding", from: 1, to: 4 }]);
+  assert.deepEqual(read(file), after);
+  assert.deepEqual((await maintainCodingKnowledge("apply", selected)).completed, ["project", "coding"]);
+  const adopted = read(file), root = adopted.rows.project_root;
+  assert.equal(adopted.version, 12);
+  for (const table of FEED_TABLES) assert.deepEqual(adopted.rows[table], original.rows[table]);
+  // MEM-PROJECT-V12-03: replay of the completed version 12 selection keeps the adopted identity.
+  assert.deepEqual((await maintainCodingKnowledge("apply", selected)).completed, []);
+  assert.deepEqual(read(file).rows.project_root, root, "replay preserves the identity created only after main 11");
 
   const opened = new LocalProjectDatabase(file);
   try {
     const feed = opened.pluginDatabases.get(FEED_PLUGIN_ID);
     assert.ok(feed && "record" in feed, "Feed is not refused");
   } finally { opened.close(); }
-  assert.deepEqual(read(file).rows.plugin_project_databases, ledgerAfter, "and opening records nothing new");
+  const openedFacts = read(file);
+  assert.deepEqual(openedFacts.shape, read(newLibrary(t)).shape, "after explicit adoption and current plugin opening every table has the current shape");
+  assert.deepEqual(openedFacts.rows.plugin_project_databases!.filter(row => JSON.parse(row).plugin_id !== "io.molis.work.inbox"), adopted.rows.plugin_project_databases, "opening adds only Inbox's newly declared store");
 });
 
 const rowsOf = (rows: string[]) => rows.map(row => JSON.parse(row) as Record<string, unknown>);

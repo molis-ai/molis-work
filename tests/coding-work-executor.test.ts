@@ -109,8 +109,9 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
 test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same settings, its supplement's receipt, its stop", { timeout: 90_000 }, async t => {
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
+  // Release before the fixture tears down its Host, including failed HTTP assertions.
+  t.after(release);
   const f = await codingProductHost(t, async () => { await held; return cogniaModelResponse("好的。"); });
-  t.after(() => release());
   const project = f.project.project_id;
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const client = f.host.actionClient(molisWorkHostProjectReference({ databasePath: f.project.database_path, projectId: project }));

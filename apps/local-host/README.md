@@ -1,13 +1,38 @@
 # 本地应用装配中心
 
+项目库可以只打开，不自动补项目根或 Goals 看板。没有可信项目实例时，Artifacts 保留动作注册但不可用；显式初始化经同一项目根写主人，在原连接内完成后同步刷新这一来源。同身份重试不换注册，来源读取会核对当前根，旧实例的读取凭据不能因重新注册而复活。原 CLI/MCP 的无项目号 `database:<规范路径>` 绑定保持原范围拒绝；它不取得异名根的资料身份。合同与验证见 [Memory 首期 spec](../../specs/prologue-memory-strategy/spec.md)。
+
+显式 Memory 召回通过 `memory-backend` 将个人/项目等获准范围合为同一 Runtime 的完整集合读取；旧 Agent Port 顺序回退，每次等待后检查原取消信号。`memoryRuntimePolicy` 显式给每 Runtime 8 MiB Host 证明保留上限，不是正文结果缓存或 SDK 默认；预算不足只 miss，不裁结果或省去当前权限检查。原规模工具观察真实集合调用及完整返回量，`failLists` 仍作用于实际读取；B1+5ms 门与正式模型批前置不变。
+
+## Run 记忆展开装配（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，助理 list-memories 与 Coding/通用 Agent 已允许的 Memory read Actions 共用 AgentHost 的同 Run 展开。Host 绑定身份、scope 和原分类限制，运行中 Action 在 Memory owner 边界只回无正文引用/排队结果；正文经下一真实模型请求与原 Context receipt。助理的 read 与 form 分别装配，form=false 不遮掉已允许的 list；manual/skip automatic 可显式读，off/角色禁读仍零读。可信 explicit 用途只在固定 Run 展开时建立，不能给 caller 伪造 person 或从工具输入取得 owner/session。
+
+可配与可换：沿现 Action、MemoryService 和 Adapter；原产品设置与 Run 预算继续生效，不加 UI 或配置。私有 Run control 在内部 Action 转发保留，在插件可见上下文剥离。源码已接入，未跑真实 Host 或最终产品验证。
+
+## Memory 设置页的有界读取
+
+候选 Action 局部失败时，overview 的 `candidates:null` 表示尚未读到候选结果，不能当作空列表；已成功的正式分页、设置和变动仍返回。候选失败保留 Action 诊断，请求取消仍传出。读取不重放候选原决定，重开后跨等待 TTL 的 before-finish 故障由 `tests/memory-candidate-adoption.test.ts` 验证。
+
+依 memory spec §9.4，`memory.page@1` 是本人管理 query；`GET /api/memory/page?input=<JSON>` 接收同一请求（无 owner），返回页字段及仅本页 Goal 名称。`/api/memory/overview` 保留 prefs/candidates/changes/last_upkeep，pairs:null 明确尚未读取；配对区由用户打开时单独 GET `/api/memory/pairs?scope=...` 调现有 Action，其查询不声称有界。正式记忆改为相同首 page，不调用全量 list，也不对未读正文收集 labels。前端筛选、搜索和下一页使用同一 page Action；cursor、unknown 和取消按 Service/SDK 原结果传回，不伪造总数。管理权限经当前 Action 和 Memory owner 求交，off 可管理不等于恢复任务召回。验证：`tests/memory-management-page-http.test.ts`。
+
+
 把数据库、业务 Modules、横向服务和 Plugins 接成同一个本地产品。CLI、MCP、Web 要执行真实项目操作时，经这里取得已装配的能力。
 
+停写 Memory 恢复的 CLI 只经 `runLocalCli` 注入的恢复窄口进入 Desktop/LocalHost 原组合，不调用普通 `withCatalog`。终端取消撤销本次维护能力；原恢复失败携带实际 close 能力时，CLI 等待关闭后仍返回失败，关闭失败也不变成 completed。原操作号不由命令重建。参数与生命周期回归为 `tests/memory-recovery-cli.test.ts`；真实恢复组合及独立 launcher 另验。
+
 包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
+
+旧 Knowledge 卡片的 `knowledge.card.bind@1` 仅接受本人明确选择；Host 在原 Action 权限链读取当前来源、内容版本与可信安装代，写前再次复核，再交卡片 owner 原子保存关联决定。未知安装代的旧卡片只在本人管理动作可见，不进入检索、Agent 或自动整理；普通无 retention 协议的来源关联后也必须守住采用时安装代。UI 接线不在本次后端范围。直接回归：`tests/legacy-memory-adoption.test.ts`、`tests/knowledge-unbound-retention.test.ts`、`tests/knowledge-retention-policy.test.ts`。
+
+绑定与来源预览在首次读取来源前，通过原 `retainAuthority` 一次捕获全部相关来源的 `providerCommands: "unchanged"`。来源已有命令活动、或读取期间任何命令入场时拒绝本次关联/预览；同 provider 的无关长命令也可能暂时阻止关联，用户可重新查看。最后在全部同步授权与可用性回调后统一检查活动，再无等待地比较原卡和索引并交原 owner 写入；原 retention、权限、安装代、版本检查保持。它只覆盖同一 ActionService 执行的命令，外部文件/后台修改与先前失败留下的 pending 仍由来源主人识别。合同和验收见 Memory spec 的“来源命令交错的最小修复合同”。
 
 
 `HomePluginHost` 是同一 Local Host 的个人插件装配，安装事实为 `{home}/plugin-runtime/plugin-runtime.db`。`HomePluginExecutor` 提供受安装授权和撤销约束的 `PluginDatabase`；连接技术在 storage，业务 SQL 在插件。公共 Home 页面与项目工作台读取运行 contribution，MCP 只转发；Home 数据不随项目删除，按项目分开的库（`partition: "project"`，`plugin-database-partitions.ts`）除外：它按调用所在的项目给库，删项目时由 `plugin-project-cleanup.ts` 在停掉这个项目的后台执行的同一轮关掉、`purge` 之后删目录，改动后跑 `tests/plugin-database-partition.test.ts`、`tests/plugin-database-partition-deletion.test.ts`（[specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)）。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
 
 初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
+
+Home 插件运行库只复用当前声明 SQL/version 成功编译出的期望结构字符串，声明值变化重算，失败不留存；不按对象身份假定声明不变。每次打开仍保留原路径、版本和完整结构核验；只读打开仍逐次 BEGIN，安装、consent 与权限照常现读，不缓存库或开放连接。公开读取、声明变化与预热后拒绝/恢复见 `tests/security-invariants-always-on-records.test.ts`、`tests/home-plugin-private-store.test.ts`。
 
 Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contribution ID（打开 stage 的那个视图指的贡献：`stage` 视图，否则目录入口，`stageContributionId`）；项目装配将它们与项目 stage ID 合并，工作台按 Manifest 画 stage 时只画尚未提供的。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。项目级 Runtime 实例同样（W5-06 第 3 片）：`project-plugin-stages.ts` 用运行中实例的视图画它们的 stage，模型取渲染器的 `declaredStageModel`；没在运行的画 `data-project-plugin-unavailable` 占位并报同一个 ID。项目平台在启动前就记下自己该跑的插件（`ProjectPluginState.plugins`），整个平台没起来也照样画占位。项目与 Home 的不可用状态经 `unavailable_plugin_stages` 结构化字段交给工作台，和插件 HTML 分开；占位不申请 page grant、不启动客户端，插件不能用 HTML 标记选择宿主渲染。回归见 `tests/runtime-plugin-http-discovery.test.ts` 的 S-47、RAC-79。
 `plugin_stage_ids` 只在真实页面渲染的读取回调中提供，用于内部补位去重；通用读取与 `/api/board` 保持原返回合同，路由快照不包含该字段。
@@ -21,6 +46,8 @@ Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contr
 Host 在业务库、插件与后台初始化前持有同一 `agent-runtime/.molis-runtime-owner.db` 所有权，空闲及 Agent 未启动时也排斥第二 Host 或离线操作；首次给无 Home 的 Host 绑定目录或服务也先获取。SDK 只借该 owner。Web 工厂自建 Host 时，`server.close(callback)` 等待实际 HTTP、调度、IM、浏览器、桌面 helper、自有 Host 与目录连接关闭；借用 Web 关闭只释放自己的资源，Host 最终由嵌入者 `await host.close()`。反向关闭借用 Host 也会先关闭仍活的 Web 存储资源。并发 close 等待同一结果，关闭失败保留 lease，明确重试只执行未完成步骤。回归：`tests/security-invariants-home-storage-host.test.ts`。
 
 ## 一次典型调用
+
+来源协议读取可通过 `ActionClient.discover(context, filter?)` 收窄本次目录 roots。Host 保留原 Runtime 准备和身份校验，将 filter 传入 Kernel，先按冻结声明选根再完整检查所选动作；无依赖/场景时不执行无关 provider 或 handler availability。有 required_actions 或 required_scene 时，原 DiscoveryPass 惰性读取完整授权目录并检查依赖、场景、绑定与实时 Host 策略，筛后集合不能替代依赖目录。无 filter 保持原完整路径。同一同步 directory pass 内提供方状态按原规则共享，读取失败不缓存，失效后重读；一次异步 discover 可能经过多轮，依赖及场景可能再次计算所选动作的 availability，不承诺每个 provider 整次只查一次或原子快照。不缓存权限，不跨 await 延长同步 pass，owner 返回后的重新 discover、captureSources 与最终 guard 不变。准备与项目包装透传筛选；网关保持原 HTTP DTO，在完整授权响应末端本地筛选，不把此冷路径称为投影优化。回归见 `tests/action-directory-pass.test.ts`、`tests/action-subject-retention.test.ts`。
 
 createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；Goals 的用例由它自己的插件组合（`plugins/native/goals/src/plugin.ts`），宿主不持有（PG-094 S12）。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
 
@@ -111,6 +138,9 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 权限表与首页、连接、信息助手、判断规则、项目工作目录、个人规划的实际登记共用提供方 id；判断规则、工作目录和助理的权限从动作定义汇总。助理同一提供方还承载条件登记的评论线程 start/retry，因此保留它们声明的 `model:invoke`，规则读取本身仍不要求模型权限。`tests/local-web-actions.test.ts` 的 RAC-339-REVIEW-01/02 验证条件登记及两种外部 MCP 提供方的路由上限和拒绝。
 
+
+离线 Session 孤儿清理复用 `adoptMemoryHome`：`previewMemoryHomeAdoptionCleanup({ homeDirectory, cursor? })` 每次只返回一页无正文目标及已知来源抑制影响，空页仍按 cursor 继续；确认传 `cleanup: { mode: "confirm", operation_id, targets }`，恢复只传 `{ mode: "resume", operation_id }`。确认输入在获取 owner 前隔离，原 marker 固定版本、身份、选集与子操作号；不会按新墓碑追删。当前 scope/取消/同步 `assertCurrent` 在 SDK 前后及 ledger 提交前复核，未知或拒绝停止后续。全部项、整 App 分页核验及关闭均完成才允许 ledger4；正常 Home 启动没有清理入口。无来源的孤儿仅表示来源未知，不承诺完整来源遗忘。回归在 `tests/memory-adoption-maintenance.test.ts`、`tests/prologue-memory-adoption.test.ts`。
+
 项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；共享安装槽和 Home 安装分在各项目名下的按记录绑定，随同一 `install_id` 的最后一处安装走（`forgetInstallationConnections`，问 `heldInstalls`，读不全就保留；删项目时 `forgetOrphanedInstallationBindings` 清已无安装的孤儿，BL-596）。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例，以及 `tests/security-invariants-installation-bindings.test.ts`。
 
 关闭 Home 时，MemoryHost 先同步停止普通读写、撤下 provider，并阻止后续学习和维护入队；公开与后台业务共用受控 MemoryService，且要求 LocalHost 仍处于 running。原 ledger 与 Host 映射保留到 Adapter shutdown 及使用投影 flush 成功后才关闭。已发生的使用事实由可信 sink 向原未释放实例投影，项目查询 await 后仍同步复核实例身份；业务停止不撤销这项记账。actor、个人 Assistant 身份、已删除项目、遗忘屏障、去重与单调规则不变。关闭失败保留原 owner，显式重试同一关闭，不创建替代连接。补齐后台 await 后检查会使原注册函数超过 150 行门，因此把原学习/维护排程作为完整职责留在同文件的 memoryBackgroundWork；原队列、开关和关闭所有权不变，不以拆散 guard 或调高门槛通过。
@@ -123,9 +153,13 @@ Host构造或Web工厂在创建资源后抛错时，异常带不可枚举的 `cl
 
 生成插件的 SDK 声明由 Host 从已构建的 contracts 提供：`src/plugin-builder/build-sdk-declarations.ts` 持有 `SandboxSdk` 的声明依赖集合，`build-project.ts` 创建只读文件，`build-checks.ts` 的 G1 逐文件校验，隔离检查只复制这份 Host 集合。`developer/sdk.d.ts` 仍是作者的入口，依赖声明保留在 `developer/contracts/` 的原相对目录；不复制运行时代码，不增加插件权限，不改变公开合同。声明闭包修复只涉及这条生成、校验与快照链，不改变取消、恢复或执行语义。缺少构建声明时明确失败；声明被改动时在 G1 拒绝；错误的交互参数由 G2 拒绝，`skipLibCheck: false`、无 Node 环境类型、文件白名单与 Seatbelt 保持不变。验收是正常交互调用通过原六道门、错误参数不进入执行、篡改依赖不进入编译；整体构建后运行 `node scripts/run-tests.mjs tests/agent-built-plugins-checks.test.ts`。这证明生成插件的工程检查路径，不代表创作台完整体验或用户验收。
 
-Memory 形成复用登记的 `memory.extract` 与唯一 HostTextGeneration，由 SDK `memory-extractor` 槽调用。Service 一次冻结已授权上下文与目标槽，Host 不再次选目标版本；模型仅选择槽号和来源编号，task 只能收窄，suggested basis 不授予晋升。学习目前只开 `run-end`，实际槽按当前 consumer/plugin 许可类别求交；144 槽上限覆盖个人/项目各四类的三个创建位与最多三十条跨四类纠正目标，整次最多三条，不按槽循环调模型。已装 extractor 的 App 配置以 655360 字符/16384 节点容纳形成输入：真实 30 条可读、接近 4 KiB 条件元数据的记忆形成 144 槽约 535379 字符/5480 节点；剩余额度容纳来源身份和固定包装。它不是网络字节或 token 限额，SDK 默认、单条元数据 4096、产品正文及深度约束不变；超界仍拒绝，不截断目标。模型只收到本次 dN 槽、mN 正式条目、pN 待审条目的无损短编号，按目标分组的 kind→槽数组不重复长引用，未知编号拒绝。Service 的进程内 `validate_context` 在真实派发前按原 ref/version 复核正式 task-read 与候选管理许可，变化即拒发，不重新选正文；`none` 不调用它。学习用途的候选管理许可独立于 task_recall，但仍要求 enabled/form/learn_from_work 与当前 consumer 许可；不扩大正式记忆读取。保留当前调用的 signal；旧 learning 编排不再直接生成或自动 propose。
+Memory 形成复用登记的 `memory.extract` 与唯一 HostTextGeneration，由 SDK `memory-extractor` 槽调用。Service 一次冻结已授权上下文与目标槽，Host 不再次选目标版本；模型仅选择槽号和来源编号，task 只能收窄，suggested basis 不授予晋升。学习目前只开 `run-end`，实际槽按当前 consumer/plugin 许可类别求交；144 槽上限覆盖个人/项目各四类的三个创建位与最多三十条跨四类纠正目标，整次最多三条，不按槽循环调模型。已装 extractor 的 App 配置以 655360 字符/16384 节点容纳形成输入：真实 30 条可读、接近 4 KiB 条件元数据的记忆形成 144 槽约 535379 字符/5480 节点；剩余额度容纳来源身份和固定包装。它不是网络字节或 token 限额，SDK 默认、单条元数据 4096、产品正文及深度约束不变；超界仍拒绝，不截断目标。模型只收到本次 dN 槽、mN 正式条目、pN 待审条目的无损短编号，按目标分组的 kind→槽数组不重复长引用，未知编号拒绝。Service 的进程内 `validate_context` 在真实派发前按原 ref/version 复核正式 task-read 与候选管理许可，变化即拒发，不重新选正文；`none` 不调用它。学习与显式提议内部去重的候选管理读取独立于 task_recall，但仍要求 enabled/form、当前 consumer/命名空间许可及当前与原 Run 分类限制的交集；带 Session 却缺原快照时拒绝。learn_from_work 仅为 learning 来源必需；explicit 只供本次提议内部查询，不扩大正式记忆读取、接受或删除。保留当前调用的 signal；旧 learning 编排不再直接生成或自动 propose。
 
 炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 的同次并发与成功后重复调用返回同一 Promise；失败后可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。
+
+Assistant 工作列表的 GET `archived=false|true|any` 复用原 actor 与50项边界，省略仍为普通 active 列表；非法值明确拒绝。归档行只投影，不重放旧观察/通知、定时或执行；普通列表原副作用语义保持。此入口用于本人在 UI 找回归档工作，不是项目删除或全库枚举口。
+
+助理 Work 的归档/恢复先沿 AgentHost lifecycle 完成其自有 `StoredWork.session_id` 的原决定，再按原 Work revision 提交。`GET /api/assistant/works/:id/archive-preview?archived=true|false` 纯读返回完整原请求；POST 原 archive 路由须交回该原件，失败后重试不换决定/版本。SDK 已完成而 Work 尚未提交时保留部分结果，版本/绑定变化拒绝；`threads.start` 先恢复，成功前不写新回复或调用模型。任意执行方插件的 `executor.session_id` 及委托子 Work 不级联；已 stopped 可归档，真正进行中/未决状态仍拒绝。定时取消的部分结果如实保留，归档失败不把未取消项写成已停用，原请求可继续；恢复不启用旧定时。新增定时在等待后复核当前 Work 和归档占用，不越过停用快照；已经保存的安排若迟到入队，由原记录检查取消真实队列。启动保护只覆盖 Session 创建到 Work 绑定，SDK 创建返回后绑定前及最终 CAS 同步检查原调用当前授权。专项：`tests/assistant-work-lifecycle.test.ts`、`tests/assistant-thread-reply.test.ts`、`tests/assistant-followups.test.ts`、`tests/assistant-followups-collaborator.test.ts`、`tests/assistant-delegation.test.ts`、`tests/assistant-continuation-control.test.ts`。
 
 助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。
 
@@ -182,7 +216,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
   - 后台出的错写 Host 日志（`host-log.ts` 的 `hostLog`，Host 侧唯一的实现，W5-13），不写 `console`：一条一行 JSON，用稳定的区域加事件名和错误码定位，带调用编号（`call_id`，与页面上可复制的诊断编号同一个）；只记键，错误不留消息和调用栈，字段只留数字、布尔和像键的字符串，其余写成 `[omitted]`。像键只是形状检查，不是密钥识别：邮箱、`sk-` 开头的令牌形状像键，会照写，所以调用处只给自己定的编号、枚举和计数，不给从人、文件或服务商那里读来的值。一直重复的失败（定时轮次、轮询、每次写入后的索引更新）只在开始失败时记一条（`repeatingFailure`）。常驻服务的 LaunchAgent 把它写进 Home 的日志文件；开发用的跟踪写 `hostLog.debug`，只在 `MOLIS_WORK_DEBUG` 列出该区域时写（逗号分隔，`*` 为全部）。命令行的文字输出走 `@molis-ai/molis-work-app-cli` 的 `printCliLine`、`printCliJson`。
   - Web 服务的周期任务只经 `periodic-tasks.ts` 登记（W4-09）：项目定时任务、项目删除的收尾、助理找新资料与到期提醒、桌面截图清理都由它起计时器，不再各自 `setInterval`。上一次还没做完时到点的那一次跳过；「设置 › 诊断」的「后台任务」列出每一项的间隔、上次完成时间和上次的错误；服务关闭时全部停下并等进行中的那一次做完。新增的周期任务也登记在这里，`tests/host-periodic-tasks.test.ts` 守住反复启停不留计时器。
-  - 删除项目只有一份 Host 服务（`project-deletion-service.ts` 的 `ProjectDeletionService`），网页设置页（删除项目，和 `POST /api/settings/demo` 的 `remove`，由 `web-project-deletion.ts` 的 `removeDemoThroughService` 调它）和 MCP 的 `project_delete` 都是它的入口，操作者由入口给（网页是本机这个人，MCP 是 `runtimeConnectionIdentity` 取的 MCP 客户端与 Runtime 会话）：项目有终端还活着就拒绝（`catalog.project_terminal_live`，网页 409），然后释放项目的运行环境，再由目录删除；确认缺失的请求在这之前就被拒绝，不碰运行环境。终端与运行环境属于常驻 Host，生产 stdio MCP 通过 `mcp-context-client.ts` / `mcp-context-gateway.ts` 的 `/api/internal/runtime-context` 交给它，仍经 `resident-host-request.ts` 的 Home 控制令牌、数字回环、无重定向传输；常驻 Host 缺失或无令牌报 `actions.service_unavailable`，不在 stdio 打开本地可写 Catalog 或执行删除，结果未知也不回落/自动重发。持 Home 令牌的本机转发进程提供独立的 Runtime/Session/panel 元数据，Host 核 Home、实例、生命周期和 closed shape 后由原 identity 工厂构造 actor；工具参数不能指定身份。context 通道使用共同 `actionErrorResponse` 保留主人 code/message/details/kind；设置页路由只给终端还活着 409 和 `catalog.project_terminal_live`，其余失败是 400、只有信息、没有代码。命令行的 `demo remove --confirm`（`cli-project-maintenance.ts`）在这个 Home 有常驻 Host 应答时也是入口：经 `resident-host-request.ts` 向 `POST /api/settings/demo`（`remove`）发请求，地址取 `MOLIS_WORK_WEB_URL`（默认 `http://127.0.0.1:4173`），操作者是网页给的本机这个人；Home 里没有控制令牌或连接被拒绝时才在自己的进程里经 `catalog.removeDemoProject` 删（操作者记 `molis-work-cli`），有 Host 应答却拒绝则报错退出。卸载程序不是入口，是登记的例外（`docs/system/CALL-CHAINS.md` §10.1）：它先停掉受管的常驻服务，才在自己的进程里删示例项目。示例项目的「重建」（`DemoProjectLifecycle.resetDemoProject`）清所有者的数据，但声明了 `survivesRebuild` 的所有者（Sessions）除外：重建保留面板与 Runtime 绑定，它们指着的 Session 不能没有；删除和删除后同 id 重新创建都清。
+  - 删除项目只有一份 Host 服务（`project-deletion-service.ts` 的 `ProjectDeletionService`），网页设置页（删除项目，和 `POST /api/settings/demo` 的 `remove`，由 `web-project-deletion.ts` 的 `removeDemoThroughService` 调它）和 MCP 的 `project_delete` 都是它的入口，操作者由入口给（网页是本机这个人，MCP 是 `runtimeConnectionIdentity` 取的 MCP 客户端与 Runtime 会话）：项目有终端还活着就拒绝（`catalog.project_terminal_live`，网页 409），先在项目及安装绑定仍存在时固定 Memory/Session 原删除计划，再提交原目录收据；Memory（含原墓碑、限定 Session 绑定的个人目标）与 Session 完成后才释放运行环境和业务副本，最后移除目录绑定与文件；准备失败不接受删除，旧无计划收据保留 pending；确认缺失的请求在这之前就被拒绝，不碰运行环境。终端与运行环境属于常驻 Host，生产 stdio MCP 通过 `mcp-context-client.ts` / `mcp-context-gateway.ts` 的 `/api/internal/runtime-context` 交给它，仍经 `resident-host-request.ts` 的 Home 控制令牌、数字回环、无重定向传输；常驻 Host 缺失或无令牌报 `actions.service_unavailable`，不在 stdio 打开本地可写 Catalog 或执行删除，结果未知也不回落/自动重发。持 Home 令牌的本机转发进程提供独立的 Runtime/Session/panel 元数据，Host 核 Home、实例、生命周期和 closed shape 后由原 identity 工厂构造 actor；工具参数不能指定身份。context 通道使用共同 `actionErrorResponse` 保留主人 code/message/details/kind；设置页路由只给终端还活着 409 和 `catalog.project_terminal_live`，其余失败是 400、只有信息、没有代码。命令行的 `demo remove --confirm`（`cli-project-maintenance.ts`）在这个 Home 有常驻 Host 应答时也是入口：经 `resident-host-request.ts` 向 `POST /api/settings/demo`（`remove`）发请求，地址取 `MOLIS_WORK_WEB_URL`（默认 `http://127.0.0.1:4173`），操作者是网页给的本机这个人；Home 里没有控制令牌或连接被拒绝时才在自己的进程里经 `catalog.removeDemoProject` 删（操作者记 `molis-work-cli`），有 Host 应答却拒绝则报错退出。卸载程序不是入口，是登记的例外（`docs/system/CALL-CHAINS.md` §10.1）：它先停掉受管的常驻服务，才在自己的进程里删示例项目。示例项目的「重建」（`DemoProjectLifecycle.resetDemoProject`）清所有者的数据，但声明了 `survivesRebuild` 的所有者（Sessions）除外：重建保留面板与 Runtime 绑定，它们指着的 Session 不能没有；删除和删除后同 id 重新创建都清。
   - 插件开发通过 Host 函数 `developInPrivateHost` 接入同一 `runPluginDevelopment`，`molis-work plugin dev` 只创建并关闭自己隔离的开发 Host。参数不带操作者（`actor_id`、`actor_kind`、`audit_actor_id` 拒绝为 `actions.input_invalid`），操作者由 `PLUGIN_DEVELOPMENT_ACTOR_ID` 固定，项目取已打开 reference，输入不匹配为 `actions.scope_mismatch`。旧开发 typed ID 不再登记，插件声明 consumes 或伪造描述不能恢复它（W3-07-6-01/02）。
   - 删除项目时，各数据所有者（插件库、Sessions 注册表、炼金术士、插件创作台、记忆、助理、搜索、项目运行环境）经 `ProjectDeletedHooks`（`project-deleted-hooks.ts`，每个 Home 一份、进程内共享）登记自己要清什么；宿主不写它们的表名或目录。目录提交后依次运行，每个所有者在回执里记一步，失败的步骤、被所有者推迟的步骤（`ProjectDeletedDeferred`）和所有者不在收尾进程里的步骤都保持 pending 并留着上次的错误，用同一个删除请求重试，或由 Web 服务接着做（它启动时和运行中每分钟都会把别的进程留下的 pending 回执做完，`web-deletion-sweep.ts`，`projectDeletion.finishAll`）；同一个 catalog 实例里（Web 服务只有一个）同时收尾同一个回执的几处（扫描、重试、演示项目再创建）共用一次运行。只靠文件的所有者对任何打开该 Home 目录的进程都生效：插件的项目数据是它 Home 库里的行时，在 Manifest 的 `databases.home.project_rows` 声明（标签、要删的表与列、可选的先后），平台照声明拼语句、在自己的连接上删，不跑插件的代码（`plugin-project-rows.ts`，PG-024）；不只是库里的行的（成果库、Images 的文件与作业，BL-615）仍在目录条目上声明 `project_data`（类型 `ProjectDataDeclaration`：标签、清除函数、可选的先后）。`project-deleted-owners.ts` 遍历目录登记，不点名任何一个插件（回执里的 id 是 `project_plugin_id`），自己列的只有不是插件的所有者（Functions 模块与 Sessions 注册表都导出同形的声明，炼金术士、插件创作台、助理、记忆、搜索在运行服务里登记）；需要运行中服务的所有者（项目运行环境、炼金术士、Images、记忆、助理、搜索）在服务存在期间登记并替换同名的文件级所有者，服务关闭后自动退出。所有者的 id 是回执里的稳定名字：没有任何构建再登记的 id，它在旧回执里的那一步会一直 pending（Web 服务每分钟重试一次，并挡住演示项目的再创建），所以删掉或改名一个所有者之前要先决定这些回执的去向。
   - 记忆放在 Agent 运行环境里，Home 里只有执行进程持有它，所以只有执行进程会为删除项目启动它：Web 服务和进程内嵌入式 MCP 把 catalog 交给 `ensureSystemAgentService`（采用了这个 Agent 服务），或运行环境已经在本进程里启动的 Host，是执行进程；只转发到常驻 Host 的 stdio MCP、命令行和卸载程序不是。Home 里有 Agent 运行环境时，它们的记忆这一步推迟（`ProjectDeletedDeferred` 的 `elsewhere`），留在回执里由 Web 服务做，不占用 Agent 运行锁、不让常驻 Host 的 AI 调用失败；没有运行环境就没有记忆库可清，只清账本。执行进程里运行环境正被另一个进程使用时也推迟，但只是需要等待。没有搜索服务的进程（命令行、卸载程序）在 Home 有搜索索引时同样推迟搜索一步。排队中或正在提炼的记忆学习在写入前会再问项目是否还在（`projectExists`），已删除的项目不会因它重新有记忆。
@@ -216,6 +250,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 助理发送期间的内部 `input` hold 只暂缓自动接续，公开工作状态仍为暂停；它与用户真正的 `paused/stopped` 分开。首轮记忆工具绑定装配时的发送身份，旧工具不能借新的发送继续提交；失败发送保留草稿与持久 hold，迟到接受不清除真正的暂停/停止。后台学习在异步来源核验和最后同步提交处均拒绝所有 hold。验证：`tests/assistant-original-inputs.test.ts`、`tests/assistant-continuation-control.test.ts`、`tests/memory-review-remember-cancellation.test.ts`、`tests/memory-learning.test.ts`。
 
 ## 进一步阅读
+
+项目删除的 Memory 准备通过 SDK 在线无正文 `previewPurge` 固定原件集合，包含普通列表因 Session 已结束而隐藏的条目；不完整结果在保存收据前拒绝。Demo 在旧删除完成后重建时，Catalog 将已解码的原收据和计划交现 Memory owner 的 `withRecreation`，只读验证当前原范围为空，并持同一 hold 到同步 Catalog 注册。历史 complete 不授权清理后来 Memory 原件；其余 owner 正常清分区。纯 Catalog 不能接管已经存在的 Runtime，关闭 resident 后保持 deferred，重开同一 resident 后同请求恢复。确定名 staging 只由成功创建它的请求清理；排队期间 proof 失效会拒绝最后提交。真实交错回归见 `tests/project-deletion-recovery.test.ts`、`tests/project-deletion-processes.test.ts` 和 `tests/project-deletion-owners.test.ts`。
 
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
@@ -299,3 +335,73 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 后台类别权限从受理时的真实 MCP allowed refs 固定来源，再与当前精确 grants/声明求交；新授予的同权限动作不能救活旧任务。Alchemist HTTP 的请求 signal 只约束本次传输控制，正常响应结束后已受理工作仍检查 Host/项目/原动作权限。搜索派出在 DNS 后、TLS 请求体前及后续请求复核同一调用，SearchEvidence/secret/opaque/content 写入保留最终同步检查。回归见 `tests/security-invariants-alchemist-resumption.test.ts`、`tests/search-effect-authority.test.ts`、`tests/action-background-authority.test.ts`。
 
 公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/security-invariants-plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。
+
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+Agent 的通用 Memory Action 使用生产 startAuthority 绑定的原 Run `runtime_memory` 与 Session，不能以当前设置或最新 attempt 替代。Memory owner 将其作为 task caller 交同一 SDK；缺失时明确不可用。动作 grant、安装与取消检查保持原调用链。
+
+MEM-40 采用现在通过同步 onOwned 在 SDK maintenance 打开前提交 adopting；自定义 open Port 必须在取得独占权后恰好调用一次，未调用或重复均拒绝。全部 convert/verify 正常完成后，账本 complete 经 writer `close(afterSDKClosed)` 的同步回调提交；SDK 已关闭而原 owner 仍持有，发布继续检查原外层取消、授权和 ledger CAS。异常收尾只 close，不发布；只有回调恰好一次且关闭/释放成功才返回 completed。提交前失败保 adopting；COMMIT 成功后的 owner 释放失败明确抛错并保已完成账本，不虚构回滚。公开 cleanup preview 使用只读 inspect Port，保留 homeDirectory/cursor 与原选集；不再借 writer Runtime。SQLite readonly 可能产生 sidecar，T1/T0 原件零写仍依赖已冻结但本刀未实现的完整工作副本编排，不能把该局部预览宣称为整个 Home 零副作用入口。
+
+Character 的一般Memory mutation对目标及before原件均要求当前ledger中的准确项目/subject关系，并核`characterOwner(project,subject)`；本人采用不需要伪报caller.character。新写/提案沿Memory原准备口先登记关系，authority回调只读、不猜历史归属。空角色范围可读取为空且不登记关系；明确项目删除仍只沿原固定计划许可。专项回归见 `tests/memory-runtime-policy.test.ts`、`tests/memory-character-proposal-owner.test.ts` 与 `tests/memory-owner-relations.test.ts`。
+
+`readMemoryOwnerCoverage` 仅供 Host 内部清除覆盖使用：同份关系派生 SDK knownScopes 与目标项目 scopes，合并当前 Catalog、全部保留删除原计划、ledger 身份及同一持久 Work 的项目/角色配对。旧 Round 没有原项目，不能与当前 Work 拼接猜归属。读取不补写映射、不授予 mutation，也不代表 SDK 或 Catalog 已确认 complete。
+
+
+项目删除的当前 Memory 证明沿原 hold/固定 recovery plan 传 verifyMemory 与 assertCurrent；业务清理前及最终 Catalog commit 前核验覆盖穷尽和目标空态。旧 complete 只读核验、不重写历史；旧 memory complete/absent 不免检，当前无 Runtime 且 ledger 仅 prefs 的同步空态每次提交重验。
+
+原项目删除恢复独立 prepared/purged Session 的残留记忆时，仅承认 AgentHost 实际无正文 preview/逐项 purge 的调用证明。原删除 ALS 必须仍有效，Session 在可信集合；preview 限当前 scope，delete 仅在原 clear 执行区间逐项匹配持久计划的 ref/原 version 和精确 child operation，保留 SDK 同操作墓碑再物理移除的语义。普通读取、写入、清 meta、person/ui 或项目 hold 无此许可；scope/owner 和最终 current 继续走原 Memory policy。无新持久状态、schema 或通用 bypass。直接工程回归在 `tests/project-deletion-recovery.test.ts`，覆盖两种旧 Session 状态、并发拒绝、旧 ALS 失效和实际部分清除后重启同原计划续跑。
+
+`openProjectDeletionRecoveryInspection` 只打开操作者明确提供的 T1 工作副本的既有 readonly Catalog，在同一个 BEGIN 快照中分页读取全部删除决定。默认 40、上限 100；最终当前权限/取消检查通过才推进，失败可重读原页。close 即使撤权后仍释放 snapshot/connection。它不建库、不迁移、不 checkpoint、不启动 Runtime；WAL 由 SQLite 正常读取，副本可能产生侧车。输出只含无正文身份、原计划、步骤和项目身份观察；不包含错误、显示名、路径、原 JSON。页穷尽不证明跨 owner 恢复完成，时间不授权后继删除；原件/target 隔离和停写由上层维护负责。专项回归 `tests/project-deletion-recovery-inspection.test.ts`。
+
+`openProjectDeletionRecoveryTarget` 是既有 `ManagedProjectDeletion` 的显式冷装配，不调用普通 Catalog.open 或启动 Runtime/Models/Search。完整同历史 T0/T1 与停写由外层维护持有；source 穷尽并成功 close 后，先核 target 收据是兼容子集，再把同项目全部 source→target 引用和共同处置依赖交 `recordTargets` 一次保存。首次才准备新 target 计划；已有 pending 续原计划与步骤，complete 仅由冷 Memory 的 `verification: "original"` / `verifyOriginal` 证明原选集，不清后继目录或分区。新决定的所需 owner 是来源与当前声明稳定并集，缺 owner 保持 pending。旧决定只核原 steps 完整覆盖同一 source 要求并沿原步骤恢复；后来新增的 owner 不追加入旧决定，旧 complete 仍须原步骤全完成和精确原选集证明。真实 owner 接收同一 `ProjectDeletionControl`，维护撤权后连失败记账也不开始；Catalog 的无正文 before/after 在原事务内读取，成功 COMMIT 才交同步 `catalogCommitted`，回调失败使本维护实例待对账。目录 hold 只绑定本次已选 inode，外层停写前提不能被这个检查替代。专项回归 `tests/project-deletion-recovery-target.test.ts`；Memory/Session 冷 owner 的完整原件验证由各主人及组合测试负责。
+
+目标 Catalog 开始关闭即拒新恢复；同时 close 共用在途工作，等待原恢复 tail 后关闭原 SQLite 连接。实际 close 失败保持拒绝业务，后续明确 close 重试同一连接，成功才记关闭；不重新执行删除。外层仍须在实际关闭成功后发布恢复完成和释放 Home owner，关闭失败不能算作清理成功。
+
+`openProjectDeletionCatalogObservation` 给外层维护固定 Home 的同步只读观察。每次 read 用短 SQLite 快照读取已提交事实，输出与 target 原 committed 回调相同；包括全删除收据及 Projects owner 严格读取的所有现存项目稳定身份，覆盖 pending 项目，按 ID 排序，不使用展示列表的默认映射。control 只检查权限、取消与所有权，不能递归调用同一 read。沿原 Storage 路径校验拒绝 DB/祖先身份替换，以及 DB/侧车的链接或类型异常；SQLite 自己创建/移除普通侧车仍沿原生命周期，未知结构拒绝，不创建库。close 失败保留同一连接重试并永久停止新 read。这个投影不代表全 Catalog 数据版本，source 长期 BEGIN 也不能替代它；父决定与完成发布仍由外层接线。
+
+项目文件主人清理沿 `ProjectDeletionControl` 从 Port/owner 传到声明 purge；冷维护入口负责提供已验证的同步控制。文件/SQLite 主人在实际清理、事务提交、等待后的下个副作用前检查：partition purge 后再 rm、Plugin Builder rm 后再清密钥、Assistant 停轮后再删账、Images 每次删文件前。拒绝停止后继动作，未提交 SQLite 回滚；已删文件不声称回滚。带 control 的既有库只打开并核当前结构，不初始化空库。回归：`tests/project-deletion-file-control.test.ts`，配合原 owner/declarations/Assistant/studios 用例；不代替完整冷恢复或用户验收。
+
+维护的原目标还包含物理路径：数据库/现存侧车和 rm 祖先不能被链接重定向，异步清理后按原目录身份重核。Plugin Builder 的同一 control 进入原 secret owner 的 SQLite 等锁与原子 rename，外层最终拒绝不能替代该检查。专项 `tests/project-deletion-file-boundaries.test.ts` 覆盖真实重定向和拿锁后撤权；原 Images 清单回滚重试仍由 `project-deletion-file-control` 验证。
+
+维护 control 分支的目录删除在最终复核后同步执行，避免异步 rm 尚未完成时祖先目录被 JavaScript 中的另一个操作替换；普通入口仍异步。分区主人仍先等待声明 purge，返回后复核原目标再同步删除。`tests/project-deletion-directory-interleaving.test.ts` 通过公开 owner 和真实文件覆盖这个窗口；这不是对同 OS 权限进程任意竞态替换路径的原子防护。
+
+`plugin-connections` 项目文件主人消费同一 `ProjectDeletionControl`：维护清理走 Storage existing-only 库/结构/物理路径核验与显式写事务，拿锁后、实际绑定删除前、COMMIT 前复核，拒绝回滚。Connector 原 `forgetProjectBindings` 拥有项目选集；账号、凭据、别项目及按安装绑定保持。维护不初始化或修复库、不 chmod、不调用 Secrets Port；普通无 control 与安装卸载语义不变。公开 owner 真实回归 `tests/security-invariants-plugin-connection-maintenance.test.ts`，配合原 `tests/security-invariants-connection-records.test.ts` 与 `tests/connector-connections.test.ts`。
+
+冷恢复的项目 Memory 由 `createColdMemoryProjectOwner` 创建局部主人，只有原 `withRecovery/clear/proof` 生命周期，不注册 Runtime 或全局替代服务。外层固定已解码 Catalog 计划和父 Home owner；首次 `prepareProject` 给可信归属与 AgentHost 准备的 target Session plan，Memory 当前版本由 SDK 有界预览给出，Ledger 只用 Storage 已校验 body-free facts 在同一只读事务两遍连接来源/遗忘身份。未知、partial、未穷尽或来源未知拒绝；写前 reader 必须关闭，失败句柄保留到 `close()` 重试。
+
+外层 `withInspection` 和 `withWriter({memoryPurges,sessionPlan},work)` 顺序借用同一父 owner，任一时刻最多一个 SDK child；writer 只在 Catalog 原 prepared receipt 与活动 frame 相符后打开，关闭失败不能开下一个。主人仅获得固定原件 purge 与原件 proof，不获得旧 adoption cleanup、完整 Backend/Ledger 或 Runtime。项目删除继续唯一调用 `applyProjectMemoryPurge`：来源屏障→原候选/正式原件→当前空态及整 Home metadata coverage→非个人 Ledger scope 收尾→原 Session；Storage 提交返回后先由外层 `ledgerCommitted({before,after})` 核缓存并推进，再普通 current，失配使本主人失效。完成回执只读核原 Memory/Session/Index 与 Storage 原件后置条件，空 complete 不扫描或清除后继。真实包回归在 `tests/memory-cold-project-owner.test.ts`，外层完整 T1/T0 编排由集成根负责。
+
+
+Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，异常按既有 `HomeInitializationFailure` 形状保留不可枚举的 `close(): Promise<void>`。AggregateError 同时保留原业务错误与实际关闭错误，cause/code 以原业务原因为准；没有业务失败时以关闭原因为准。显式 close 只关闭同一实际连接，不查 current、不发 SQL、不重开库、不重放关联或删除；反复失败可再试，实际已关闭后再报错也不再关或重开。成功返回的 target/observation 资源合同保持。回归：`tests/project-deletion-recovery-target.test.ts`；本行为仅保证初始化资源仍可清理，不宣称父恢复完成。
+
+
+来源 Catalog inspection 初始化在 BEGIN/schema/current 拒绝后也共用 `project-deletion-catalog-close.ts` 的原连接清理：初始化失败与 close 错误同时保留，readCatalog 的安全错误码/文案保持、底层原因进入非枚举 cause。异常的 close 只关闭同一 BetterSqlite 连接，由原生 close 释放读事务，不再查权限或发 SQL；关闭成功不把原初始化失败改成成功。重试/并发与已物理关闭后报错均不重开、不重放。回归：`tests/project-deletion-recovery-inspection.test.ts` 与原 target 回归；不代表 source/target 组合恢复完成。
+
+项目删除的声明式 project_rows 与既有 purge 共用 ProjectDeletionControl 和原 Storage 事务；Assistant 原 Work 清理必须在同一事务清除精确 source 边及其 cause 历史，保留引用目标、别的 Work 和纯数值 assistant_usage。验收走公开项目 purge 的非空、故障与重开路径，不能以独立 Session 清理替代。
+
+
+
+### 独立 Session 业务原件冷维护（MEM-40）
+
+独立 Session 业务冷 owner 只调 Coding/Assistant 真实主人，父 Home 决定先保存精确纯 DTO 再允许 SDK 与业务写入。不同 canonical 的独立 Work 和 executor 引用不级联；Assistant 仅清自身 canonical 匹配 Work。资源 existing-only，准备只读，写事务先核全部原集合；close失败保留原连接明确重试，父提交等待全部资源成功关闭。
+
+公开 `createSessionBusinessPurgeOwner` 接收 Home 原恢复 current 与可信 Catalog 的 `projectDatabase(projectId)` 窄口，提供 `prepare({session,owner,wait_ids}) → clear(original) → verifyOriginal(original)` 与可重试 `close()`。父在 SDK purge 前保存纯选择和原 wait IDs；SDK 旧 complete 已失原 ID 的情况不能用空页补证明。该入口不装配普通 Runtime。Assistant 保留原策略下的无正文用量统计和个人设置。
+
+本刀定向回归为 `tests/session-business-purge.test.ts`，并运行 ContextLedger、PluginRuntime/private-storage/project-database、Coding store/lifecycle、Storage baseline、project-deletion-owners/studios 与 LocalHost 的原公开入口回归。它证明业务 owner 冷维护的工程路径，父恢复/SDK 组合验收仍归原 Memory spec。
+
+Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolver；prepare/clear/verifyOriginal 在首次外部 current 前隔离本次原 binding/selection。current 的每次外部回调返回后仍须未关闭且未待清理。Assistant 库缺席仍经原业务 owner 的 runtime/plugin/install/actor 身份校验，不得由伪 kind 跳过 Coding 原件；合法缺库保持零创建、零删除。
+
+公开 createSessionBusinessPurgeOwner 由既有 memory-home-recovery 冷维护装配入口绑定 Coding manifest 与 prepare/clear/verify 实现；内部业务资源 owner 只消费这份窄口和现有 DTO，调用者不能提供实现或自造权限，不启动插件。Host 自身固定身份、路径/结构与资源生命周期冲突统一为 host.session_purge_conflict；下层 SDK/业务 owner 抛出的原码与 cause 保留。没有新注册表，也不借项目 project_data 表达 canonical Session 清理。
+
+在线项目删除固定目标 scopes，并要求原 knownScopes 仍全部存在；无关新建空项目不撤销原决定。SDK 全量覆盖检查始终使用原 knownScopes，不追加覆盖授权；新 scope 有实际 SDK 原件、目标归属变化或旧归属缺失仍保持 pending。冷 Home 恢复的整个 Catalog 固定合同不因此放宽。
+
+`recoverMemoryHome({homeDirectory,sourceDirectory,operation_id,assertCurrent,signal?}, platform)` 是显式停写 Home 工作副本的恢复区间，Desktop 的 `recoverDesktopMemoryHome` 注入现面板 owner。请求/结果来自 Contracts；不选默认 Home，不启动普通 Runtime 或模型。source 只读；target 先 adopting，负向观察与真实目标版本、Session 的原 wait IDs/业务选集和全部 Catalog groups 一次写父决定，再调用原清理主人。重试只继续父原选集，新来源意图、额外归属和不明对象拒绝。最后所有实际资源关完，父 committed 与 Ledger4 才同事务发布；COMMIT 后关闭失败仍失败并持 owner，`error.close()` 只关原资源。Catalog 的 `projectDatabase(id)` 通过原查询和受管目录规则提供固定项目库路径，不能猜路径。
+
+同一纯归属合并 `collectMemoryOwnerCoverage` 服务在线与冷读取；`openAssistantMemoryRelations` 的 `read/projectSessions/close` 复用原 Assistant 查询及真实只读连接，关闭失败只重试原句柄。冷 `project-runtime` 步骤关闭本次真实 Session 业务资源，不用无操作函数冒充 Runtime 已收尾。当前可证明范围仍以同历史完整停写备份为前提，不能声称扫描了任意污染目标的全部 raw Session 子图。专项回归：`tests/memory-home-recovery-composition.test.ts`、`tests/memory-home-recovery-project.test.ts`、`tests/memory-home-recovery-session.test.ts`、`tests/memory-home-recovery-assistant.test.ts`、`tests/memory-recovery-owner-coverage.test.ts`；公开维护工程结果与最终产品/用户验收分开记录。
+
+HostText 的可选 `assertCurrent(): void` 是原 `beforeDispatch` 后准备的同步只读最终否决，沿唯一 Agent Host inference 交 Node Host 的最后派出 fence；原 credential/config 和取消同时保留，不能用该检查改来源或授权。`afterResult` 仍拥有已发结果的业务复核，归档同内容的结算规则由业务 control 每次重新准备，不能跨整个模型等待保存旧 fence。最后窗口测试与 Node HTTP/CONNECT 范围见 Agent Host README「Memory 来源的最后模型派出检查」；当前接线待统一构建与实际运行，不以类型存在当作通过。
+
+
+Coding 自动形成复用原 memory.learn 持久队列，key 由项目、业务会话、Runtime 和 canonical original ref（Session/input_id/version）构成，安装世代只约束来源。每次 attempt 用当前 homeAggregatePorts/localWebActionContext 只读精确 owner，并在 owner 读取前 captureSources；原 guard、当前安装 memory:write 与原 Run policy 贯穿 SDK 和 Ledger 最终提交。本人 context 仅授权读，形成 caller person=false；触发 Run 留在原 payload 管完成事实、分类与上下文；同一原件的恢复/直接重试不制造新证据，首次失败且无已接受任务时直接成功重试可首次形成，终态 key 不重造，Assistant 原 key/payload 不变。
+
+入队动作的目录可用性与执行入口共用可信 Coding caller 检查。创作台不能把仅供当前本人项目 Coding 安装使用的入口显示为可申请；其它插件只见不可用的入队声明，普通记忆正文读写仍不可发现。目录检查不替代实际入队、后台 attempt 和最终提交的重新核权。

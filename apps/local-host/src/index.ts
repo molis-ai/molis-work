@@ -63,6 +63,8 @@ export { initializeProjectDatabase, validateManagedProject } from "./managed-pro
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
+export { openProjectDeletionRecoveryTarget, openProjectDeletionCatalogObservation, type ProjectDeletionRecoveryTarget, type ProjectDeletionRecoveryTargetInput,
+  type ProjectDeletionRecoveryGroup, type ProjectDeletionSourceRequest, type ProjectDeletionCatalogSnapshot } from "./project-deletion-recovery-target.js";
 export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { ownerLabel } from "./web-project-deletion.js";
@@ -259,8 +261,12 @@ export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.j
 export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
+export { readMemoryOwnerCoverage } from "./memory/memory-owner-coverage.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
-export { adoptMemoryHome, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
+export { adoptMemoryHome, previewMemoryHomeAdoptionCleanup, type MemoryHomeAdoptionCleanup, type MemoryHomeAdoptionCleanupPreview, type MemoryHomeAdoptionCleanupResult, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
+export { recoverMemoryHome, type MemoryHomeRecoveryInput, type MemoryHomeRecoveryResult } from "./memory/memory-home-recovery.js";
+export { collectMemoryOwnerCoverage, type MemoryOwnerCoverage, type MemoryOwnerCoverageFacts } from "./memory/memory-owner-coverage.js";
+export { openAssistantMemoryRelations, type AssistantMemoryRelation, type AssistantMemoryRelationsReader } from "./assistant/assistant-memory-relations.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
@@ -305,5 +311,10 @@ export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";
+export { openProjectDeletionRecoveryInspection, type ProjectDeletionRecoveryInspection, type ProjectDeletionRecoverySource } from "./project-deletion-recovery-inspection.js";
+export { createColdMemoryProjectOwner, type ColdMemoryProjectOwnerInput, type ColdMemoryProjectPreparation } from "./memory/memory-cold-project-owner.js";
+export type { ColdProjectMemoryInspection, ColdProjectMemoryWriter, ColdProjectMemoryPurgeTarget } from "./memory/memory-cold-project-sdk.js";
+export { createSessionBusinessPurgeOwner } from "./memory/memory-home-recovery.js";
+export type { SessionBusinessPurgeInput, SessionBusinessPurgeOwner, SessionBusinessPurgeSelection } from "./session-business-purge.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
 export { entryUserAction } from "./entry-user-action.js";

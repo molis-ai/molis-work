@@ -262,8 +262,8 @@ async function queuedLearning(t: test.TestContext) {
   const observe = (memory: AgentMemoryCapability): AgentMemoryCapability => ({ ...memory,
     candidates: { ...memory.candidates,
       form: async input => { const result = await memory.candidates.form(input); formed = result.items.some(item => !!item.candidate); return result; },
-      list: async (...args) => {
-        const result = await memory.candidates.list(...args);
+      get: async (...args) => {
+        const result = await memory.candidates.get(...args);
         if (formed) { const after = afterCandidateRead; afterCandidateRead = undefined; await after?.(); }
         return result;
       },
@@ -316,14 +316,19 @@ async function queuedLearning(t: test.TestContext) {
       failed.resolve(); throw error;
     }
   });
-  const start = async (text = "以后周报都把风险放最前面", written_by?: "page") => {
+  const start = async (text = "以后周报都把风险放最前面", written_by?: "page", options: {
+    previous?: { work: ReturnType<AssistantStore["create"]>; ref: AgentRunRef }; withoutMemory?: boolean;
+  } = {}) => {
     const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
-    const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
-    const work = originals.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" }, origin: null });
+    const session = options.previous ? (await adapter.readSession({ session_id: options.previous.ref.session_id, runtime_id: adapter.descriptor.runtime_id })).session
+      : await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
+    const work = options.previous?.work ?? originals.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" }, origin: null });
     originals.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
     const original_input = { input_id: crypto.randomUUID(), text, written_by: written_by ? "host" as const : "person" as const, occurred_at: new Date().toISOString() };
+    const memory = options.withoutMemory ? null : await service.forRun({ actor_id: owner.actor_id, project_id: owner.project_id,
+      consumer: "assistant", session_id: session.session_id, work: { work_id: work.work_id, title: work.title } }, { query: text });
     const handle = await adapter.start({ ...owner, session, workspace: "none", task: text, role_id: "assistant", original_input,
-      role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+      role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [], ...(memory ? { memory } : {}) } });
     originals.addRound(work.work_id, { run_id: handle.ref.run_id, text, ...(written_by ? { written_by } : {}), materials: [], context: null, started_at: new Date().toISOString() });
     const task = { key: `memory-learn:${work.work_id}:${handle.ref.run_id}`, session_id: session.session_id,
       payload: { actor_id: owner.actor_id, work_id: work.work_id, session_id: session.session_id, run_id: handle.ref.run_id,
@@ -405,9 +410,11 @@ test("MEM-SOURCE-08: a completed supplementary source without its original time 
   const text = "以后周报都把风险放最前面";
   const sent = await fixture.adapter.inputs!.send(first.ref, { text, key: "learning.unknown-time", mode: "after-run" });
   const session = (await fixture.adapter.readSession({ session_id: first.ref.session_id, runtime_id: fixture.adapter.descriptor.runtime_id })).session;
+  const memory = await fixture.service.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "assistant", session_id: session.session_id }, { query: text });
+  assert.ok(memory);
   const next = await fixture.adapter.start({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID,
     install_id: ASSISTANT_INSTALL_ID, session, workspace: "none", task: "继续处理排队的输入", role_id: "assistant", queued: "carry",
-    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [], memory } });
   fixture.originals.addRound(first.work.work_id, { run_id: next.ref.run_id, text: "继续处理排队的输入", written_by: "host",
     materials: [], context: null, started_at: new Date().toISOString() });
   const completed = await fixture.ended(next.ref), receipt = completed.turns.find(turn => turn.steer?.id === sent.input_id)?.steer;
@@ -523,7 +530,11 @@ for (const stop of ["archive", "project-deleted", "host-closed"] as const) test(
     if (stop === "host-closed") fixture.stopHost();
   });
   fixture.attach(); await fixture.enqueue(first.task);
-  assert.equal((await fixture.settled(first.task.key)).state, "failed"); assert.equal(fixture.modelCalls, 1); await fixture.empty();
+  const settled = await fixture.settled(first.task.key);
+  const diagnostic = JSON.stringify({ settled, failures: fixture.failures, outcomes: fixture.outcomes,
+    run: await fixture.adapter.read(first.ref) });
+  assert.equal(settled.state, "failed", diagnostic);
+  assert.equal(fixture.modelCalls, 1, diagnostic); await fixture.empty();
 });
 
 test("MEM-SOURCE-06: an original archived after model checks is re-read at the actual SDK candidate commit", { timeout: 60_000 }, async t => {
@@ -538,6 +549,37 @@ test("MEM-SOURCE-06: an original archived after model checks is re-read at the a
   assert.equal(settled.last_failure, "记忆形成尚未全部记账，请携原操作重试");
   assert.deepEqual(fixture.outcomes, [], "archive invalidation reaches the SDK source gate before its commit");
   await fixture.empty(); await fixture.restart(); await fixture.empty();
+});
+
+
+test("MEM-CLASS-02: queued learning keeps its trigger Run restriction after another Run and restart", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t);
+  const rows = [{ selector: { consumer: "assistant" as const, current_scene: "assistant" as const }, read: "inherit" as const, form: "off" as const }];
+  for (const scope of ["personal", "project"] as const) fixture.service.savePrefs(person, scope, { class_restrictions: rows });
+  const first = await fixture.start(); await fixture.ended(first.ref);
+  for (const scope of ["personal", "project"] as const) fixture.service.savePrefs(person, scope, { class_restrictions: [] });
+  const next = await fixture.start(undefined, undefined, { previous: first }); await fixture.ended(next.ref);
+  await fixture.restart();
+  assert.deepEqual((await fixture.adapter.read(first.ref)).class_restrictions?.project, rows);
+  assert.deepEqual((await fixture.adapter.read(next.ref)).class_restrictions?.project, []);
+  fixture.attach(); await fixture.enqueue(first.task); await fixture.settled(first.task.key);
+  assert.equal(fixture.outcomes[0]!.ran, false); assert.equal(fixture.modelCalls, 0);
+  await fixture.empty();
+  await fixture.enqueue(next.task); await fixture.settled(next.task.key);
+  assert.equal(fixture.outcomes[1]!.ran, true); assert.equal(fixture.modelCalls, 1);
+  assert.equal((await fixture.service.candidates(person, { scope: "project" })).length, 1);
+});
+
+test("MEM-CLASS-02: a trigger Run without policy cannot borrow a newer Run snapshot", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(undefined, undefined, { withoutMemory: true });
+  await fixture.ended(first.ref);
+  const next = await fixture.start(undefined, undefined, { previous: first }); await fixture.ended(next.ref);
+  await fixture.restart(); fixture.attach();
+  assert.equal((await fixture.adapter.read(first.ref)).class_restrictions, undefined);
+  assert.ok((await fixture.adapter.read(next.ref)).class_restrictions);
+  await fixture.enqueue(first.task); await fixture.settled(first.task.key);
+  assert.equal(fixture.outcomes[0]!.ran, false); assert.equal(fixture.modelCalls, 0);
+  await fixture.empty();
 });
 
 test("MEM-SOURCE-06: a new input after the final async learning check prevents the actual candidate commit", { timeout: 60_000 }, async t => {

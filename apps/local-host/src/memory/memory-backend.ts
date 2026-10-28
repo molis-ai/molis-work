@@ -2,6 +2,8 @@ import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry
 import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 
+export const prologueMemoryScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;
+
 /** Prologue Memory of the runtime as the memory service's store: personal memories are its `user` scope. */
 export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapability>, control?: AgentMemoryExecutionControl, caller?: MemoryCaller): MemoryBackendPort {
   const store = async () => {
@@ -9,6 +11,8 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     const memory = (await source()).withCaller({ actor_id: caller.actor_id, project_id: caller.project_id, consumer: caller.consumer,
       ...(caller.plugin_id ? { plugin_id: caller.plugin_id } : {}), ...(caller.person !== undefined ? { person: caller.person } : {}),
       ...(caller.session_id ? { session_id: caller.session_id } : {}),
+      ...(caller.class_restrictions ? { class_restrictions: structuredClone(caller.class_restrictions) } : {}),
+      ...(caller.run_explicit ? { run_explicit: true as const } : {}),
       ...(caller.source_use ? { source_use: caller.source_use } : {}),
       ...(caller.character ? { character_id: caller.character.id } : {}),
       current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"), purpose: caller.purpose ?? "management" });
@@ -16,18 +20,44 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
     return memory.withExecution(control);
   };
-  const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;
+  const prologueScope = prologueMemoryScope;
   const view = ({ scope: _scope, owner: _owner, ...entry }: AgentMemoryEntry) => entry;
   const candidateView = ({ scope: _scope, owner: _owner, ...entry }: AgentMemoryCandidateEntry) => entry;
   return {
-    withCaller: next => prologueMemoryBackend(source, control, Object.freeze(structuredClone(next))),
+    withCaller: next => {
+      const { signal, ...identity } = next;
+      return prologueMemoryBackend(source, control, Object.freeze({ ...structuredClone(identity), ...(signal ? { signal } : {}) }));
+    },
     list: async (scope, owner) => (await (await store()).list(prologueScope(scope), owner)).map(view),
+    listScopes: async ({ scopes, signal }) => {
+      const fixed = scopes.map(({ scope, owner }) => ({ scope: prologueScope(scope), owner }))
+        .filter((where, index, all) => all.findIndex(one => one.scope === where.scope && one.owner === where.owner) === index);
+      signal?.throwIfAborted();
+      if (!fixed.length) return [];
+      const memory = await store();
+      signal?.throwIfAborted();
+      let entries: AgentMemoryEntry[] = [];
+      if (memory.listScopes) entries = await memory.listScopes({ scopes: fixed, ...(signal ? { signal } : {}) });
+      else for (const { scope, owner } of fixed) {
+        entries = entries.concat(await memory.list(scope, owner));
+        signal?.throwIfAborted();
+      }
+      signal?.throwIfAborted();
+      return entries.map(entry => ({ ...entry, scope: entry.scope === "user" ? "personal" as const : entry.scope }));
+    },
+    page: async input => {
+      const page = await (await store()).page({ ...input, scope: prologueScope(input.scope) });
+      return { ...page, items: page.items.map(view) };
+    },
+    verifyPurgeCoverage: async input => (await store()).verifyPurgeCoverage(input),
+    previewPurge: async input => (await store()).previewPurge({ ...input, scope: prologueScope(input.scope) }),
     write: async input => view(await (await store()).write({ ...input, scope: prologueScope(input.scope) })),
     update: async input => view(await (await store()).update({ ...input, scope: prologueScope(input.scope) })),
     setMeta: async input => view(await (await store()).setMeta({ ...input, scope: prologueScope(input.scope) })),
     pause: async input => view(await (await store()).pause({ ...input, scope: prologueScope(input.scope) })),
     disable: async input => view(await (await store()).disable({ ...input, scope: prologueScope(input.scope) })),
     resume: async input => view(await (await store()).resume({ ...input, scope: prologueScope(input.scope) })),
+    renew: async input => view(await (await store()).renew({ ...input, scope: prologueScope(input.scope) })),
     previewMutation: async input => (await store()).previewMutation({ ...input, scope: prologueScope(input.scope) }),
     tombstone: async input => view(await (await store()).tombstone({ ...input, scope: prologueScope(input.scope) })),
     remove: async input => (await store()).remove({ ...input, scope: prologueScope(input.scope) }),
@@ -44,6 +74,10 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
       }),
       propose: async input => candidateView(await (await store()).candidates.propose({ ...input, scope: prologueScope(input.scope) })),
       list: async (scope, owner) => (await (await store()).candidates.list(prologueScope(scope), owner)).map(candidateView),
+      get: async input => {
+        const found = await (await store()).candidates.get({ ...input, scope: prologueScope(input.scope) });
+        return found && candidateView(found);
+      },
       accept: async input => view(await (await store()).candidates.accept({ ...input, scope: prologueScope(input.scope) })),
       promote: async input => view(await (await store()).candidates.promote({ ...input, scope: prologueScope(input.scope) })),
       settleInto: async input => view(await (await store()).candidates.settleInto({ ...input, scope: prologueScope(input.scope) })),

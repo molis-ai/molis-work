@@ -112,7 +112,7 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
   t.after(() => local.close());
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
-    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memory.memoryTools(work)), memory: (task: string) => service.memory.memoryForRound(work, task) }),
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, () => service.memory.memoryTools(work)), memory: (task: string) => service.memory.memoryForRound(work, task) }),
     projectTitle: async id => id, timeZone: "Asia/Shanghai", memory: () => memory, learnFromRound: () => undefined }, LOCAL_PERSON_ACTOR_ID);
 
   // The person keeps a memory whose text is an attack; the page, the object and the materials carry attacks as well.

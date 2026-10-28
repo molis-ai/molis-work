@@ -114,9 +114,9 @@ const ledger = (file: string) => {
   try { return db.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json FROM plugin_project_databases ORDER BY plugin_id").all().map(row => ({ ...row })) as Array<{ plugin_id: string; version: number; tables_json: string }>; } finally { db.close(); }
 };
 
-test("RAC-496 a new version 11 library has none of the eleven tables until Feed's declaration makes them, and then records twelve tables at version 2", t => {
+test("RAC-496 a new version 12 library has none of the eleven tables until Feed's declaration makes them, and then records twelve tables at version 2", t => {
   const file = scratch(t);
-  const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec("PRAGMA user_version = 11");
+  const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec("PRAGMA user_version = 12");
   assert.deepEqual(MOVED_TABLES.filter(name => name in statementsOf(bare)), [], "the baseline alone has none");
   bare.close();
 
@@ -132,10 +132,10 @@ test("RAC-496 a new version 11 library has none of the eleven tables until Feed'
   try { assert.deepEqual(MOVED_TABLES.filter(name => !(name in statementsOf(db))), [], "all eleven are there"); } finally { db.close(); }
 });
 
-test("RAC-496 a version 10 library is refused by the version 11 Host, not upgraded in place", t => {
+test("RAC-496 a version 10 library is refused by the version 12 Host, not upgraded in place", t => {
   const file = scratch(t);
   const old = new DatabaseSync(file); old.exec(fixture("project-database-schema-v10.sql")); old.exec("PRAGMA user_version = 10"); old.close();
-  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 10 && error.expected === 11);
+  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 10 && error.expected === 12);
   const after = new DatabaseSync(file, { readOnly: true });
   try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 10, "and left as it was"); } finally { after.close(); }
 });

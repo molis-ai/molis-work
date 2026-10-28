@@ -1,7 +1,7 @@
 /** The agent-host contract (`services/agent-host`): a runtime's capabilities, descriptor and health, session and run references and phases, and the adapter a runtime implements. */
 import type { AgentMemoryExecutionControl, AgentMemoryCapability, AgentDocumentCapability } from "./agent-host-memory.js";
 import type { AgentRecoveryCapability, AgentScheduleCapability, AgentCheckpointsCapability, AgentSkillsCapability, AgentSkillLibrary, AgentMcpLibrary, AgentMcpCapability, AgentSubagentsCapability } from "./agent-host-ports.js";
-import type { AgentCreateSessionRequest, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
+import type { AgentSessionOwner, AgentCreateSessionRequest, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability } from "./agent-host-session.js";
 import type { AgentCollaborationPort } from "./agent-collaboration.js";
@@ -95,6 +95,64 @@ export interface AgentSessionRef {
   runtime_id: string;
 }
 
+/** Trusted business owner, supplied by the Host invocation, never by an action payload. */
+export interface AgentSessionDecision {
+  operation_id: string;
+  /** SDK canonical Session revision observed by the caller, not an App-side counter. */
+  expected_version: number;
+  expected_state: "active" | "archived";
+}
+export interface AgentSessionPurgePreview {
+  session: AgentSessionRef;
+  version: number;
+  state: "active" | "archived";
+  runs: number;
+  resources: number;
+  destroys_key: boolean;
+}
+/** Durable original preparation only; no Memory, SDK or business body has been deleted. */
+export interface AgentSessionPurgePreparation {
+  session: AgentSessionRef;
+  session_ref: { kind: "session"; id: string; revision: 1 };
+  decision: AgentSessionDecision;
+  preview: AgentSessionPurgePreview;
+}
+export interface AgentSessionPurgeWaitPage {
+  session: AgentSessionRef;
+  operation_id: string;
+  wait_ids: readonly string[];
+  cursor?: string;
+  exhausted: boolean;
+}
+export interface AgentSessionLifecycleView {
+  session: AgentSessionRef;
+  /** Unknown means the original decision needs reconciliation; missing never means purged. */
+  state: "active" | "archived" | "purged" | "unknown";
+  version: number | null;
+  /** Original owner decision for explicit recovery, not a replacement for current canonical state. */
+  operation?: { action: "archive" | "unarchive" | "purge"; decision: AgentSessionDecision; completed: boolean;
+    preview?: AgentSessionPurgePreview; receipt?: AgentSessionLifecycleReceipt };
+}
+export interface AgentSessionLifecycleReceipt {
+  /** This does not certify Memory ledger or business-owner copies have been deleted. */
+  scope: "agent-host-session";
+  session: AgentSessionRef;
+  operation_id: string;
+  action: "archive" | "unarchive" | "purge";
+  state: "active" | "archived" | "purged";
+  version: number;
+}
+export interface AgentSessionLifecycle {
+  read(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionLifecycleView>;
+  archive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+  /** Unlike historical Session restore, this changes the canonical lifecycle. */
+  unarchive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+  previewPurge(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionPurgePreview>;
+  preparePurge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionPurgePreparation>;
+  purgeWaits(session: AgentSessionRef, decision: AgentSessionDecision, page: { limit: number; cursor?: string }, owner: AgentSessionOwner): Promise<AgentSessionPurgeWaitPage>;
+  purge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+}
+
 export interface AgentRunRef {
   run_id: string;
   session_id: string;
@@ -152,6 +210,7 @@ export interface AgentRuntimeAdapter {
   readonly schedule?: AgentScheduleCapability;
   readonly memory?: AgentMemoryCapability;
   readonly documents?: AgentDocumentCapability;
+  readonly sessionLifecycle?: AgentSessionLifecycle;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;

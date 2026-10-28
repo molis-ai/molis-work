@@ -4,11 +4,14 @@ import { pathToFileURL } from "node:url";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueExecutionReceipt } from "@molis-ai/molis-work-service-agent-host";
 import type { SequenceRow } from "./sequence-replay.mjs";
+import type { MemoryPhaseObservation } from "./memory-phase-observation.mjs";
 
 interface Observation {
   phase?: string; error?: string | null; stopReason?: string | null; recallFailure?: string | null;
   answer?: string | null; usage?: AgentRunView["usage"] | null;
   backend?: { calls: number; entries: number }; recallLatencyMs?: number | null; firstVisibleResponseMs?: number | null;
+  recipeLatencyMs?: number | null; taskRetrievalLatencyMs?: number | null; openingMemoryPreparationLatencyMs?: number | null;
+  memoryPhases?: MemoryPhaseObservation;
   runtimePackedInjected?: readonly unknown[];
   source?: { text: string; evidence: string; allowedFacts: readonly string[]; forbiddenFacts: readonly string[] };
   outputs?: readonly { value: string; structured: unknown }[];
@@ -75,6 +78,13 @@ export function summarizeMemoryReport(report: RawReport) {
     fixtureSetup: report.fixtureRequests ? { calls: report.fixtureRequests.length, requestBytes: report.fixtureRequests.reduce((sum, request) => sum + request.bytes, 0), provider: "loopback-scripted", paidCalls: 0 } : null,
     status: Object.fromEntries(["observed", "failed", "not-run"].map(status => [status, report.rows.filter(row => row.status === status).length])),
     costsByArmAndWindow: Object.fromEntries(groups), layers: Object.fromEntries(layers),
+    memoryPhaseObservations: report.rows.filter(row => row.event.startsWith("task")).map(row => ({
+      sequence: row.sequence, repeat: row.repeat, arm: row.arm, event: row.event, window: row.window, status: row.status,
+      method: row.observation?.memoryPhases?.method ?? null,
+      recipeLatencyMs: row.observation?.recipeLatencyMs ?? null,
+      taskRecall: row.observation?.memoryPhases?.taskRecall ?? null,
+      openingMemoryPreparation: row.observation?.memoryPhases?.openingMemoryPreparation ?? null,
+    })),
     failures: report.rows.filter(row => row.status !== "observed").map(row => ({ sequence: row.sequence, repeat: row.repeat, arm: row.arm, event: row.event,
       reason: row.error ?? row.observation?.error ?? row.observation?.stopReason ?? row.observation?.phase ?? row.status, attemptRange: row.attemptRange })),
     semantics: "Costs are separated by coverage. Unknown buckets count missing observations, never assert zero token cost. Estimated memory messages are not added to Provider usage. USD remains unknown. Outcomes are actual product results, not quality verdicts.",
@@ -94,6 +104,7 @@ function reviewMarkdown(report: RawReport, input: string) {
       if (row.event.startsWith("source")) {
         sections.push(`原始来源：${observation?.source?.text ?? "unknown"}\n\n独立来源标签：${JSON.stringify(observation?.source ?? null)}\n\n实际提炼输出与门结果：\n\n\`\`\`json\n${JSON.stringify({ outputs: observation?.outputs?.map(output => output.structured ?? output.value) ?? null, outcome: observation?.outcome ?? null }, null, 2)}\n\`\`\`\n\n只读候选投影：\n\n\`\`\`json\n${JSON.stringify(observation?.ledgerProjection?.candidates ?? null, null, 2)}\n\`\`\``);
       } else {
+        sections.push(`配方：${observation?.recipeLatencyMs ?? "unknown"} ms；实际 task：${observation?.taskRetrievalLatencyMs ?? "unknown"} ms；开场 Memory 准备：${observation?.openingMemoryPreparationLatencyMs ?? "unknown"} ms。两个 SDK 区间嵌套，不相加；旧 B1 缺同口径观测。\n\n阶段状态（null 不补成零）：\n\n\`\`\`json\n${JSON.stringify(observation?.memoryPhases ?? null, null, 2)}\n\`\`\``);
         sections.push(`任务：${observation?.labels?.request.query ?? "unknown"}\n\n批准前提：${observation?.labels?.approval ?? "unknown"}；独立审查标准：${observation?.labels?.answerRubric ?? "unknown"}。\n\n最终发出记忆完整消息估计：${observation?.finalMemory?.tokens ?? "unknown"} token（conservative-estimate）；召回故障：${observation?.recallFailure ?? "无"}。\n\n最终/部分回答：\n\n~~~~text\n${observation?.answer ?? "unknown"}\n~~~~\n\n用量（原口径，不把未知当零）：\n\n\`\`\`json\n${JSON.stringify(observation?.usage ?? null, null, 2)}\n\`\`\``);
       }
     }

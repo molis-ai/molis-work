@@ -25,10 +25,11 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * them the first time the library opens with that plugin and records them in `plugin_project_databases`
  * (`project-plugin-databases.ts`). The project's root row comes first; every project table points its foreign key at it.
  * Goals' and Governance's tables are not here either: Goals declares them (S8), and Feed declares the Feed items, Sources, Signals and
- * Listener Host tables along with its out rules (FI-5, version 11).
+ * Listener Host tables along with its out rules (FI-5, version 11). Version 12 adds the persistent project data identity
+ * after that handoff; the two historical version 11 formats are never treated as interchangeable.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 11,
+  version: 12,
   schema: [
     PROJECT_ROOT_SCHEMA_SQL,
     ARTIFACTS_SCHEMA_SQL,

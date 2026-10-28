@@ -32,6 +32,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     };
   return {
     provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
+      plugin_installation_generation: installation_generation,
       ...(projectId ? { project_id: projectId } : {}) },
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => {
       const definition = manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!;

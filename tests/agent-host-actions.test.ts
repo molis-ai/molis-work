@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -48,6 +48,7 @@ async function lettersSetup(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-actions-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost, workspaceFor: () => null });
   const seen: Array<[string, unknown[]]> = [];
   const runtime = lettersRuntime(seen);
@@ -166,6 +167,7 @@ async function projectWorkSetup(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-project-work-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost, workspaceFor: () => null });
   // Every session is `owner.current`'s, but for those `owner.of` names another owner for.
   const seen: Array<[string, unknown[]]> = [], owner: { current?: Record<string, string>; of: Record<string, Record<string, string>> } = { of: {} };
@@ -179,7 +181,7 @@ async function projectWorkSetup(t: TestContext) {
     observe() { throw new Error("Not used by this fixture"); },
     readSession: async (session: { session_id: string }) => ({ session_id: session.session_id, owner: ownerOf(session.session_id) }) as never,
     readSessionStatus: answer("status", args => { const { session_id } = args[0] as { session_id: string };
-      return { owner: ownerOf(session_id), status: { session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false } }; }),
+      return { owner: ownerOf(session_id), status: { session_id, latest_phase: "completed", latest_run_id: "r1", recovery: false, checkpoint_busy: false } }; }),
     // w1 is a round of s2, w3 of s3; both overlap a probe.
     projectWork: { read: answer("read", () => ({ items: [work("w1"), work("w3", "s3")], overlaps: [{ work: work("w1"), paths: ["src/x.ts"] }, { work: work("w3", "s3"), paths: ["src/x.ts"] }] })),
       queue: answer("queue", () => ({ ...work("w2"), state: "waiting", waits_for: ["w1"], wait_id: "wait-1" })), release: answer("release", () => undefined) },
@@ -233,7 +235,7 @@ test("RAC-197 the project's work and the sessions' standing are plugin-only acti
   assert.equal(count("release"), released, "nor to give up work that is not the caller's");
 
   owner.current = mine;
-  assert.deepEqual(await actions.invoke(agent.readSessionStatuses, [RUNTIME, ["s1"]]), [{ session_id: "s1", latest_phase: "completed", recovery: false, checkpoint_busy: false }]);
+  assert.deepEqual(await actions.invoke(agent.readSessionStatuses, [RUNTIME, ["s1"]]), [{ session_id: "s1", latest_phase: "completed", latest_run_id: "r1", recovery: false, checkpoint_busy: false }]);
   const queued = await actions.invoke(agent.queueProjectRound, [RUNTIME, round]);
   assert.deepEqual([queued.work_id, queued.wait_id], ["w2", "wait-1"]);
   assert.deepEqual(last("queue"), [PROJECT, round, "web-user"], "queued for the plugin's own actor, as the person asked");
@@ -264,6 +266,7 @@ async function roundsSetup(t: TestContext, home = false) {
   // With a Home the Host keeps its call log, which RAC-181 reads.
   const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   // A Host with a Home owns its Agent service; the fixture's Runtime is registered on it either way.
   const composition = home ? localHost.ensureAgentService(directory, () => composeAgentHost({ localHost, homeDirectory: directory, workspaceFor: () => null }))
     : composeAgentHost({ localHost, workspaceFor: () => null });
@@ -295,6 +298,8 @@ async function roundsSetup(t: TestContext, home = false) {
 const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", turns: [],
   frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null }, activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
   original_input: { ref: { session_id: "s1", input_id: "original-1", version: 1 }, text: "Use pnpm", written_by: "person", occurred_at: "2026-10-23T00:00:00.000Z" },
+  class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [{ selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "off", form: "inherit" }] },
+  memory_scene: "coding",
   memory_recalled: { method: "recall", injected: [{ memory_id: "m1", version: 1 }], omitted: [{ memory_id: "m2", version: 2 }], unavailable: [],
     selected: [{ memory_id: "m1", version: 1 }], retrievals: [{ receipt_id: "retrieval-1", outcome: "ready" }],
     contexts: [{ call_id: "call-1", status: "response-observed", tokens: 12, budget_tokens: 100,
@@ -302,7 +307,7 @@ const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", 
       parts: [{ index: 0, tokens: 12, form: "entry" }] }], recording_error: "memory.receipt_unrecorded" } satisfies NonNullable<AgentRunView["memory_recalled"]>,
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
-test("merged original-input Action shapes reject prior fixed versions through the real plugin dispatcher", async t => {
+test("merged original-input and classification Action shapes reject prior fixed versions through the real plugin dispatcher", async t => {
   const { consumer, seen, owner } = await roundsSetup(t), actions = consumer.actions(PROJECT);
   owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
@@ -311,7 +316,7 @@ test("merged original-input Action shapes reject prior fixed versions through th
     [agent.startRun, [RUNTIME, { session, task: "Read the project", role_id: "reader" }]],
   ] as const;
   for (const [definition, input] of calls) {
-    for (const version of definition === agent.startRun ? [1] : [1, 2]) {
+    for (const version of definition === agent.startRun ? [1] : [1, 2, 3]) {
       await assert.rejects(actions.invoke({ ...definition, version } as ActionDefinition, input), { code: "actions.dependency_missing" }, `${definition.capability_id}@${version}`);
     }
   }
@@ -400,6 +405,17 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "running");
   assert.deepEqual((await actions.invoke(agent.readRun, [session, run])).original_input, ROUND_VIEW.original_input);
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.original_input, ROUND_VIEW.original_input);
+  const discovered = await actions.discover();
+  for (const definition of [agent.readSession, agent.readRun, agent.waitRun]) {
+    assert.equal(definition.version, 4);
+    assert.ok(!discovered.some(item => item.capability_id === definition.capability_id), "a plugin lists its own actions; declared dependencies resolve through invoke");
+  }
+  for (const view of [await actions.invoke(agent.readRun, [session, run]), (await actions.invoke(agent.readSession, [session])).latest_run!]) {
+    assert.deepEqual(view.class_restrictions, ROUND_VIEW.class_restrictions);
+    assert.equal(view.memory_scene, "coding");
+  }
+  await assert.rejects(actions.invoke({ ...agent.readSession, version: 1 }, [session]), { code: "actions.dependency_missing" });
+  await assert.rejects(actions.invoke({ ...agent.readRun, version: 1 }, [session, run]), { code: "actions.dependency_missing" });
   assert.deepEqual((await actions.invoke(agent.readRun, [session, run])).memory_recalled, ROUND_VIEW.memory_recalled);
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.memory_recalled, ROUND_VIEW.memory_recalled);
   assert.deepEqual(await actions.invoke(agent.readRunReviews, [session, run]), []);
@@ -451,6 +467,9 @@ test("RAC-181 following a round is a concurrent plugin-only query on the caller'
   const first = await waitFor(null, 0);
   assert.equal(first.view.phase, "running");
   assert.deepEqual(first.view.original_input, ROUND_VIEW.original_input);
+  assert.deepEqual(first.view.class_restrictions, ROUND_VIEW.class_restrictions);
+  assert.equal(first.view.memory_scene, "coding");
+  await assert.rejects(actions.invoke({ ...agent.waitRun, version: 1 }, [session, run, null, 0]), { code: "actions.dependency_missing" });
   assert.deepEqual(first.view.memory_recalled, ROUND_VIEW.memory_recalled);
   // Nothing changed within the wait: the same round comes back, as a success, and the call log keeps no row of it.
   const quiet = await waitFor(first.version, 50);
@@ -510,6 +529,7 @@ async function librarySetup(t: TestContext, home = false) {
   // With a Home the Host keeps its call log (RAC-185) and its own Agent service, whose workspaces `gate` cannot hold.
   const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   // The Host reads the project's workspaces for every call's authority: a test holds `gate` to stop a call between its start and its write.
   const gate: { current?: Promise<void> } = {};
   const workspaceFor = async () => { await gate.current; return null; };

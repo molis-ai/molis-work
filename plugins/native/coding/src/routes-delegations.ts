@@ -1,3 +1,4 @@
+import { codingSessionWrite } from "./session-lifecycle.js";
 import { codingArtifacts } from "./artifacts.js";
 import { readCodingChangeSet } from "./changeset.js";
 import { DELEGATION_ENDED, DELEGATION_STATE_KEY, MAX_DELEGATION_HOPS, type DelegationState } from "./cooperation.js";
@@ -26,6 +27,8 @@ const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 /** Letters for a delegation go between runtime sessions: a session that has not run yet gets its own now. */
 export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
+  beforeWrite = codingSessionWrite(beforeWrite, execution.sessions.lifecycle, projectId, record.session_id);
+  beforeWrite.assert_current();
   if (record.runtime_session_id) return record.runtime_session_id;
   const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
   const chosen = typeof saved === "string" ? (JSON.parse(saved) as { workspace_id?: string }).workspace_id : undefined;
@@ -72,9 +75,9 @@ const ROUTES: RouteMaker[] = [
       const mine = record.runtime_session_id;
       let letters = mine ? await actions.invoke(agent.readMessages, [record.runtime_id, mine]) : [];
       // A delegation whose receiving session is gone has failed; recorded once, then shown as such.
-      const gone = letters.filter(letter => isDelegation(letter) && letter.from_session === mine && ["queued", "delivered", "accepted"].includes(letter.state)
+      const gone = execution.sessions.lifecycle.pending(projectId, record.session_id) ? [] : letters.filter(letter => isDelegation(letter) && letter.from_session === mine && ["queued", "delivered", "accepted"].includes(letter.state)
         && !execution.sessions.byRuntimeSession(projectId, letter.to_session));
-      for (const letter of gone) await actions.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "cancel", { event: "failed", note: "接收委派的会话已不存在" }]).catch(() => undefined);
+      for (const letter of gone) await codingActions(a.context, codingSessionWrite(beforeWrite, execution.sessions.lifecycle, projectId, record.session_id)).invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "cancel", { event: "failed", note: "接收委派的会话已不存在" }]).catch(() => undefined);
       if (gone.length) letters = await actions.invoke(agent.readMessages, [record.runtime_id, mine!]);
       const outgoing = letters.filter(letter => isDelegation(letter) && letter.from_session === mine).reverse().map(letter => delegationView(a, execution, letter, letters));
       const received = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1);

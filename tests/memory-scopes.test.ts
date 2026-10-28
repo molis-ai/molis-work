@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { memoryServiceHome } from "./fixtures/memory-service-home.js";
@@ -125,15 +126,12 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
   assert.equal((await service.recall(tables, { query: "导出 格式" })).items.some(item => item.text === "上次导出用的是 CSV 格式"), false);
 });
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory, and a plugin's call carries no Host-confirmed plugin identity
-// today (the Studio's generated plugins carry none), so `memory.write` was refused and `memory.recall` and `memory.list` could not apply the
-// person's rule for one plugin. The directory shows plugins none of them until a plugin really uses memory with a Host-confirmed identity;
-// MemoryService above still holds a plugin to its own namespace and to the kinds the person allows, for that day. The Studio's capability
-// board follows the directory: tests/agent-built-plugins-catalog.test.ts.
-test("plugins are not an audience of memory yet: the directory offers them none of memory.*, and a call is refused", { timeout: 60_000 }, async t => {
+// Decision 19 keeps ordinary Memory reads/writes closed to plugins. M2 adds only a reference-only admission for the current trusted
+// Coding installation; another installation cannot use it. The Studio follows the same real directory, including unavailable declarations.
+test("M2-CODING-07: ordinary plugins cannot use memory; the restricted learning declaration is unavailable and calls are refused", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-plugin-actions-"));
   // A plugin that declares and holds every memory permission, started by the Host: the call context it presents carries the caller the Host issued it.
-  const tables = callerPlugin("memorytables", "home", Object.fromEntries(MEMORY_PERMISSIONS.map(permission => [permission, true])));
+  const tables = callerPlugin("memorytables", "home", Object.fromEntries(MEMORY_PERMISSIONS.map(permission => [permission, true])), [memoryActions.learningEnqueue.capability_id]);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [tables.definition] } });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const client = host.homeActionClient();
@@ -149,9 +147,13 @@ test("plugins are not an audience of memory yet: the directory offers them none 
     assert.equal(action.action.audiences.includes("plugin" as never), false, action.capability_id);
     assert.equal(action.action.plugin, false, action.capability_id);
   }
-  // Directory and metadata inspection: a plugin sees none of them, an agent the same three as before.
-  assert.deepEqual(ofMemory(await client.discover(plugin)), []);
-  assert.deepEqual(ofMemory(await host.inspectActions(plugin)), []);
+  // Ordinary memory remains hidden; Coding's reference-only admission is visible but unavailable to this other installation.
+  for (const views of [await client.discover(plugin), await host.inspectActions(plugin)]) {
+    assert.deepEqual(ofMemory(views), [memoryActions.learningEnqueue.capability_id]);
+    const availability = views.find(view => view.capability_id === memoryActions.learningEnqueue.capability_id)!.availability;
+    assert.equal(availability.available, false);
+    assert.equal(availability.code, "actions.project_required");
+  }
   assert.deepEqual(ofMemory(await client.discover(agent)), ["memory.list", "memory.recall", "memory.write"]);
 
   // A call from a plugin is refused whatever the permission it holds, and nothing was kept.
@@ -162,5 +164,8 @@ test("plugins are not an audience of memory yet: the directory offers them none 
   await assert.rejects(call(memoryActions.recall, { query: "表格 日期 排序" }), forbidden);
   await assert.rejects(call(memoryActions.list, {}), forbidden);
   await assert.rejects(call(memoryActions.change, { memory_id: "m1", action: "remove" }), forbidden);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, []);
+  // Home has no project: this proves the scope gate. The real project identity gate is exercised in agent-built-plugins-catalog.test.ts.
+  await assert.rejects(call(memoryActions.learningEnqueue,
+    { business_session_id: "source", runtime_id: "prologue", session_id: "session", run_id: "run" }), { code: "actions.project_required" });
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items, []);
 });

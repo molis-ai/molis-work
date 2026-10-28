@@ -1,8 +1,31 @@
 import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectRetentionAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
+const observed = { type: "object", required: ["session_id", "title", "state", "archived", "goal_id", "updated_at"], additionalProperties: false,
+  properties: { session_id: id, title: { type: "string", maxLength: 200 }, state: { type: "string", minLength: 1 }, archived: { type: "boolean" },
+    goal_id: { oneOf: [id, { type: "null" }] }, updated_at: id } };
+const decisionSchema = (state: "active" | "archived"): ActionSchema => {
+  const properties = { observed, previous_operation_id: { oneOf: [id, { type: "null" }] } };
+  return { oneOf: [
+    { type: "object", required: ["mode", "observed", "previous_operation_id", "runtime_id", "operation_id"], additionalProperties: false,
+      properties: { ...properties, mode: { const: "local" }, runtime_id: id, operation_id: id } },
+    { type: "object", required: ["mode", "observed", "previous_operation_id", "binding", "decision"], additionalProperties: false,
+      properties: { ...properties, mode: { const: "runtime" }, binding: { type: "object", required: ["runtime_id", "session_id"], additionalProperties: false,
+        properties: { runtime_id: id, session_id: id } }, decision: { type: "object", required: ["operation_id", "expected_version", "expected_state"], additionalProperties: false,
+        properties: { operation_id: id, expected_version: { type: "integer", minimum: 1 }, expected_state: { const: state } } } } },
+  ] };
+};
+const codingArchiveDecisionSchema = decisionSchema("active");
+const codingUnarchiveDecisionSchema: ActionSchema = { oneOf: [decisionSchema("archived"), {
+  type: "object", required: ["mode", "observed", "previous_operation_id", "binding", "operation_id", "expected_state", "expected_version"], additionalProperties: false,
+  properties: { mode: { const: "business" }, observed, previous_operation_id: { oneOf: [id, { type: "null" }] },
+    binding: { type: "object", required: ["runtime_id", "session_id"], additionalProperties: false, properties: { runtime_id: id, session_id: id } },
+    operation_id: id, expected_state: { const: "active" }, expected_version: { type: "integer", minimum: 1 } },
+} ] };
+
 const session = { session_id: id };
 const round = { session_id: id, run_id: id };
 /** A session's fields, drafts and selections stay the route's own validation; the contract names the identity it acts on. */
@@ -12,12 +35,13 @@ const result: ActionSchema = { type: "object" };
 const READS: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 /** Starting, steering and planning rounds change files in authorized directories: only the person at this computer does that. */
 const LOCAL: readonly ActionAudience[] = ["user"];
+const retention = defineSubjectRetentionAction("coding.subject.retention", "coding_session", "编码会话", ["artifact:read"]);
 
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", version = 1): ActionDefinition<Record<string, unknown>, unknown> {
+  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", version = 1, output: ActionSchema = result): ActionDefinition<Record<string, unknown>, unknown> {
   return { capability_id: `coding.${name}`, version, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result } };
+    scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: output } };
 }
 const body = (request: PluginRouteRequest) => request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {};
 const params = (input: Record<string, unknown>) => ({ ...(typeof input.session_id === "string" ? { sessionId: input.session_id } : {}), ...(typeof input.run_id === "string" ? { runId: input.run_id } : {}) });
@@ -32,6 +56,8 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
   // One session as a subject: its title, state and latest rounds, by the shared protocol (the Assistant, references).
   "coding.subject": { definition: defineSubjectContextAction("coding.subject.read", "coding_session", "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
     toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
+  "coding.subject-retention": { definition: { capability_id: retention.capability_id, version: retention.version, operation: retention.operation, action: retention.action },
+    toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
   // System search: every session of the project by version; its text is read back through `coding.subject`.
   "coding.search-entries": { definition: defineSearchEntriesAction("coding.search.entries", [{ kind: "coding_session", title: "编码会话", surface: "coding" }], "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
     toInput: request => ({ cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null, limit: Number(request.query.limit ?? 500) }),
@@ -43,7 +69,17 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
   "coding.read-session": { definition: define("sessions.read", "读取编码会话", "读取会话、最近几轮执行与草稿；window 限制完整读取的轮次", "query",
       closed({ ...session, window: { type: "integer", minimum: 1, maximum: 50 }, known: { type: "string", maxLength: 20_000 }, earlier: { type: "string", maxLength: 200 } }, ["session_id"]), ["artifact:read"], READS),
     toInput: request => fromRequest(request, ["window", "known", "earlier"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["window", "known", "earlier"]), body: {} }) },
-  "coding.update-session": { definition: define("sessions.update", "修改编码会话", "改名、归档，或保存草稿、材料、方法、角色、预算等本会话设置", "command", open(session), ["storage:private"], LOCAL),
+  "coding.archive-preview": { definition: define("sessions.archive.preview", "预览编码会话归档", "读取当前绑定与原归档决定，不恢复或写入会话", "query", closed(session), ["artifact:read"], LOCAL, undefined, "concurrent", 2,
+    closed({ archive_decision: codingArchiveDecisionSchema })),
+    toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },
+  "coding.archived-sessions": { definition: define("sessions.archived.list", "已归档编码会话", "只读取本项目的已归档业务会话，不唤醒运行时", "query", closed({}), ["artifact:read"], LOCAL),
+    toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
+  "coding.unarchive-preview": { definition: define("sessions.unarchive.preview", "预览恢复编码会话", "读取原恢复决定，不写入或启动模型", "query", closed(session), ["artifact:read"], LOCAL, undefined, "concurrent", 2,
+    closed({ unarchive_decision: codingUnarchiveDecisionSchema })),
+    toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },
+  "coding.unarchive-session": { definition: define("sessions.unarchive", "恢复编码会话", "按本人确认的原决定恢复会话，不自动继续任务", "command", closed({ ...session, unarchive_decision: codingUnarchiveDecisionSchema }), ["storage:private"], LOCAL, undefined, "concurrent", 2),
+    toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
+  "coding.update-session": { definition: define("sessions.update", "修改编码会话", "改名、归档，或保存草稿、材料、方法、角色、预算等本会话设置", "command", open({ ...session, archive: { type: "boolean" }, archive_decision: codingArchiveDecisionSchema }, ["session_id"]), ["storage:private"], LOCAL, undefined, "concurrent", 3),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "PATCH", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.read-runs": { definition: define("runs.list", "编码会话的轮次", "分页读取一个编码会话里更早的执行轮次（用 before 往前翻，每页最多 50 条）；只读，不改变会话", "query",
       closed({ ...session, before: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"]), ["artifact:read"], READS),

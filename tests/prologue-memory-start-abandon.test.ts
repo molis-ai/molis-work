@@ -38,7 +38,7 @@ for (const withMemory of [false, true]) test(`a revoked unaccepted start removes
   try {
     const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "coding", actor_id: "person" };
     const session = await adapter.createSession({ ...owner, workspace: "none", title: "Cancelled preparation" });
-    const memory: AgentRecalledMemory = { consumer: "agent", current_scene: "coding", facts: { plugins: [owner.plugin_id] },
+    const memory: AgentRecalledMemory = { class_restrictions: { policy_version: 2 as const, taxonomy_version: 1 as const, personal: [], project: [] }, consumer: "agent", current_scene: "coding", facts: { plugins: [owner.plugin_id] },
       scopes: [], pinned: [], task: false, skip: true, budget_chars: 1000, budget_tokens: 1000 };
     const request = { ...owner, session, workspace: "none" as const, role_id: "reader", task: "Finish without tools.",
       role: { role_id: "reader", version: 1, workspace: "none" as const, execution: "read-only" as const,

@@ -9,6 +9,7 @@ import { memoryRuntimePolicy, memoryExtractor, prologueMemoryBackend, type HostT
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MEMORY_EVALUATION_CORPUS, type MemoryEvaluationSeed, type MemoryEvaluationCase } from "../../tests/fixtures/memory-evaluation-corpus.js";
 import { EVALUATION_ACTOR, evaluationPerson, evaluationOriginals, type EvaluationOriginal } from "./originals.mjs";
+import { memoryPhaseObservation } from "./memory-phase-observation.mjs";
 
 export type EvaluationArm = "B0" | "B2";
 export function assertEvaluationArm(arm: string): asserts arm is EvaluationArm {
@@ -16,13 +17,24 @@ export function assertEvaluationArm(arm: string): asserts arm is EvaluationArm {
 }
 type ModelPorts = Pick<PrologueNodeAdapterOptions, "modelConfiguration" | "resolveCredential">;
 let clockHeld = false;
-export interface ReadObservation { scope: string; owner: string; status: "completed" | "failed"; entries: number | null; error: string | null }
+export type ReadObservation = ({ method: "list"; scope: string; owner: string } | { method: "listScopes"; scopes: readonly { scope: string; owner: string }[] })
+  & { status: "completed" | "failed"; entries: number | null; error: string | null };
 
 /** Instrument every immutable bound facade, never the unused bare capability. */
 function observeBackend(backend: MemoryBackendPort, observations: ReadObservation[], beforeList?: () => void): MemoryBackendPort {
+  const listScopes = backend.listScopes;
   return { ...backend, withCaller: caller => observeBackend(backend.withCaller(caller), observations, beforeList),
+    ...(listScopes ? { async listScopes({ scopes, signal }: Parameters<NonNullable<MemoryBackendPort["listScopes"]>>[0]) {
+      const fixed = scopes.map(({ scope, owner }) => ({ scope, owner }));
+      const row: ReadObservation = { method: "listScopes", scopes: fixed, status: "failed", entries: null, error: null }; observations.push(row);
+      try {
+        beforeList?.();
+        const entries = await listScopes.call(backend, { scopes: fixed, ...(signal ? { signal } : {}) });
+        row.entries = entries.length; row.status = "completed"; return entries;
+      } catch (error) { row.error = error instanceof Error ? error.message : String(error); throw error; }
+    } } : {}),
     async list(scope, owner) {
-      const row: ReadObservation = { scope, owner, status: "failed", entries: null, error: null }; observations.push(row);
+      const row: ReadObservation = { method: "list", scope, owner, status: "failed", entries: null, error: null }; observations.push(row);
       try { beforeList?.(); const entries = await backend.list(scope, owner); row.entries = entries.length; row.status = "completed"; return entries; }
       catch (error) { row.error = error instanceof Error ? error.message : String(error); throw error; }
     } };
@@ -48,9 +60,10 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
   let originals: Awaited<ReturnType<typeof evaluationOriginals>> | undefined, memory: MemoryService;
   let generation: HostTextGeneration | undefined, listFault: (() => void) | undefined;
   const observations: ReadObservation[] = [], reads = { calls: 0, entries: 0 };
+  const memoryPhases = memoryPhaseObservation();
   let closed = false;
   const close = async (removeHome = true) => {
-    if (closed) return; closed = true;
+    if (closed) return; closed = true; memoryPhases.clear();
     try { await adapter?.close(); }
     finally { alive = false; try { try { ledger?.close(); } finally { await originals?.close(); } }
       finally { mock.timers.reset(); clockHeld = false; if (removeHome) await rm(home, { recursive: true, force: true }); } }
@@ -73,6 +86,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
         promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
           decide: (caller, request) => memory.promotion.decide(caller, request), undo: {
             prepare: (caller, request) => memory.promotion.undo.prepare(caller, request), record: (caller, request) => memory.promotion.undo.record(caller, request) } } },
+      audit: memoryPhases.audit,
       memoryUsage: receipt => memory.settleUses(receipt),
       modelConfiguration: async (...args) => setup ? originals!.model : await model?.modelConfiguration(...args) ?? null,
       resolveCredential: ref => setup ? "source-setup-only" : model?.resolveCredential?.(ref) ?? null });
@@ -88,6 +102,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
     }
     const prefsBefore = memory.prefs(evaluationPerson(null), "personal").prefs;
     return { home, memory, ids, reads, observations, prefsBefore, host, adapter, setClock, close,
+      observeMemoryPhases: memoryPhases.bind,
       sourceSetup: originals.observation,
       setGeneration(value: HostTextGeneration | undefined) { generation = value; },
       failLists(value?: () => void) { listFault = value; },
@@ -96,7 +111,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
       async original(text: string, scene: "coding" | "assistant", project: string | null, previous?: EvaluationOriginal) {
         setup = true;
         try {
-          const original = previous ?? await originals!.create(adapter!, text, scene, project);
+          const original = previous ?? await originals!.create(adapter!, memory, text, scene, project);
           const target = project ? { scope: "project" as const, owner: project } : { scope: "user" as const, owner: EVALUATION_ACTOR };
           const sources = await originals!.sources.resolve(original.caller, { app_id: "io.molis.work", target, refs: [original.ref] });
           return { original, sources };

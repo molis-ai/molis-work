@@ -11,6 +11,10 @@ import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
   beforeDispatch?(): void | Promise<void>;
+  /** Read-only final denial after all SDK preparation awaits; must complete synchronously without changing source or authority. */
+  assertCurrent?(): void;
+  /** Recheck an issued result; defaults to beforeDispatch. Hard cancellation and credential checks still apply. */
+  afterResult?(): void | Promise<void>;
   system?: string;
   /** Trusted Host sources, accepted only by a configured model declaring vision. */
   images?: readonly PrologueInputImage[];
@@ -179,11 +183,17 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
   let dispatched = false;
   const boundedSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
   let authorityFailure: { cause: unknown } | undefined;
-  const checkAuthority = async () => {
+  const checkAuthority = async (check = beforeDispatch) => {
     boundedSignal.throwIfAborted();
-    try { await beforeDispatch?.(); }
+    try { await check?.(); }
     catch (cause) { authorityFailure = { cause }; throw cause; }
     boundedSignal.throwIfAborted();
+  };
+  const checkResultAuthority = () => checkAuthority(request.afterResult ?? beforeDispatch);
+  const assertAuthority = () => {
+    boundedSignal.throwIfAborted();
+    try { credential(); return request.assertCurrent?.(); }
+    catch (cause) { authorityFailure = { cause }; throw cause; }
   };
   let result: PrologueTextResult;
   try {
@@ -195,6 +205,8 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
       dispatched = true;
       const completed = await inference.completeTextResult({
         beforeDispatch: checkAuthority,
+        assertCurrent: assertAuthority,
+        afterResult: checkResultAuthority,
         protocol: prologueProtocolFor(config.api_format), endpoint: modelRequestShape(config, "").url,
         model: config.model_id, credential_ref: credentialRef,
         resolveCredential: (ref: string) => { boundedSignal.throwIfAborted(); return ref === credentialRef ? credential() : null; },
@@ -206,7 +218,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
         ...(config.prompt_cache === undefined || config.prompt_cache === "off" ? {} : { prompt_cache: config.prompt_cache }),
       });
       boundedSignal.throwIfAborted();
-      await checkAuthority();
+      await checkResultAuthority();
       return completed;
     })(), boundedSignal);
   } catch (error) {
@@ -214,7 +226,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     if (dispatched && changed?.()) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     if (error instanceof ActionError) throw error;
     if (isDispatchRefusal(error)) throw new Error(`${error.message}；没有发给模型，材料已保留`);
-    if (authorityFailure && error === authorityFailure.cause) throw error;
+    if (authorityFailure) throw authorityFailure.cause;
     const unavailable = inferenceServiceUnavailableReason(error);
     if (unavailable) throw new ActionError("actions.service_unavailable", `${unavailable}；材料已保留`);
     const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;

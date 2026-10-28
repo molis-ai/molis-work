@@ -92,6 +92,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       cleanup_error TEXT,
       deleted_at TEXT NOT NULL,
       cleaned_at TEXT,
+      recovery_plan TEXT,
       UNIQUE(actor_id, idempotency_key)
     );
     CREATE INDEX IF NOT EXISTS project_deletions_project_idx

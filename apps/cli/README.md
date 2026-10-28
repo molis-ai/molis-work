@@ -28,6 +28,10 @@
 
 ## 接入与边界
 
+`molis-work memory recover-home --source-home PATH --target-home PATH --operation-id ID --confirm [--json]` 是明确的停写维护命令。两个绝对路径指向同一 Home、同一历史的工作副本，source 是较新的 T1，target 是已放回原 Home 绝对路径的 T0 工作副本；须先停止写入并另存完整备份。命令不重定位项目路径、不选择默认 Home、不停止服务、不复制备份或切换现役目录。失败后沿原操作号显式重试，不自动换号重放。`--json` 仅控制完成结果输出；失败仍按现 CLI 协议退出非零。
+
+CLI 只解析确认后的纯数据请求并调用注入的恢复窄口，不打开普通 Catalog 或 Runtime。未装配时明确失败；LocalHost 负责取消和原失败资源关闭，Desktop 接入同一 `recoverMemoryHome`，不建立第二个恢复实现。直接回归：`tests/memory-recovery-cli.test.ts`；真实维护链还需 `tests/memory-home-recovery-entry.test.ts` 的隔离非空备份与 Desktop launcher 证据，不能以端口替身代替。
+
 这个包不是数据库入口。新增命令应调用所有者的动作（经 Host 造的管理调用者），避免在命令处理器直接打开 Store、自带 Host 客户端或自己构造身份。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。

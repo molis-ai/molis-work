@@ -16,7 +16,12 @@ test("MEM-36: scale replay reopens real storage, restores B2 after B0, and count
   assert.equal(b1.samples[0]!.phase, "first-recall-after-runtime-reopen");
   for (const sample of b0.samples) { assert.equal(sample.state, "off"); assert.equal(sample.listCalls, 0); assert.equal(sample.selected, 0); }
   for (const sample of b1.samples) {
-    assert.equal(sample.listCalls, 2);
+    assert.equal(sample.listCalls, 1, "one real collection call includes both scopes");
+    const call = sample.calls[0]!;
+    assert.equal(call.method, "listScopes");
+    assert.ok(call.method === "listScopes");
+    assert.deepEqual(call.scopes.map(where => where.scope), ["personal", "project"]);
+    assert.equal(call.scopes[1]!.owner, "project-a");
     assert.equal(sample.listEntriesReturned, 9, "5 personal plus 4 project-a entries; project-b remains isolated");
     assert.equal(sample.calls.length, sample.listCalls);
     assert.equal(sample.failedListCalls, 0);
@@ -40,7 +45,7 @@ test("MEM-36: a failed list remains a measured failure and does not erase the ne
     assert.equal(failed.calls[0]!.entries, null, "failed calls do not claim zero rows returned");
     const next = await observeScaleRecall(env, 1);
     assert.equal(next.status, "observed");
-    assert.equal(next.listCalls, 2);
+    assert.equal(next.listCalls, 1);
     assert.equal(next.failedListCalls, 0);
     assert.ok(next.selected! > 0);
   } finally { await env.close(); }

@@ -1,8 +1,50 @@
 # 平台记忆
 
+显式召回沿同一 caller 的 `listScopes` 读完整获准集合；旧 Backend 仍逐 scope 顺序读取。首个等待前固定身份、scope 顺序和查询，之后启用的范围留待下一次；取消后不派发下一范围。原分类、期限、同分排序、完整 omitted 与回执仍由 Memory owner 决定，不用 SDK top-k recall 替代。对应真实 Node 回归在 `tests/memory-service.test.ts`，规模观测在 `tests/memory-evaluation-scale.test.ts`。
+
+MEM-40 父恢复事实仍经原纯 interpreter：Storage 同一持久 decoder 产生 home-recovery header 与逐条 target，完整 header 联结后仅返回 inspect-target，不授 SDK 写权。already-cleared 没有原目标版本，解释结果不伪造 version；固定父 identity 可参与原 forgotten 精确身份联结。Catalog、Session 和最终发布由各自原主人执行；本片不增加第二删除核，完整恢复尚须外层接线。
+
+原 interpreter 的可选第三参数 retained 只透传已有 forgotten resolver，供来源收集器交入 Catalog 原主人已验证的固定 ID/identity，不复制解释分支。它与来源事实不一致时仍 unresolved，不能作为目标删除许可。
+
+## 同一 Run 按需读取
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，本人管理读取继续返回已授权内容；运行中 Agent 的 list/recall 则由 owner 选择可见固定引用，交 Host 绑定的同 Run 展开窄口，输出仅为无正文回执和 memory_id/version。scope/owner 由可信 caller 解析，工具输入只能收窄；无 Run 控制不得回落普通正文结果。最终 canonical 读取、预算、去重、状态及派发前权限仍归 SDK，本包不另排注入循环。
+
+可配与可换：沿现 backend 和产品配方；read/form 独立、当前与冻结许可求交、取消及无正文结果是硬边界。用户继续用现设置，没有新配置项。列表扩展复用一次完整的跨范围读取和最终授权检查，SDK 所给范围只与当前 caller 范围求交；读取中撤回消费者或分类许可明确拒绝，不当作已读空结果，过滤前已读目标仍在复核内。真实 Run/HTTP 的六种撤权与形成独立场景已定向验证；聚合完整验收与剩余限制见现 spec。
+
+## M3 到期正式记忆的明确续期（实现中）
+
+短合同见现策略 spec 的「M3 到期正式记忆的明确续期」。`memory.change@4` 的 renew 仅本人明确选择新绝对期限，复用 MemoryEdits、现 change-request/子操作 marker 与 SDK renew；原操作同时固定目标/所见版本/期限，原 SDK 结果补入同一历史事务。 SDK 返回后、历史事务前重跑本次 `beforeEffect`，随后同步检查公开 `caller.signal`，直接构造 Service 也不能在取消后补账；Action 的实际 SQL 继续核同步的存活、取消与当前授权；SDK 已提交后的拒绝保留原操作补账，不虚称零正式写入。后继版本不覆盖，paused/disabled 不恢复，来源/分类/未知事实保持，Session 管理本片明确拒绝。本片保持原已采用 SDK96；准确父 c10 的集成验证按策略 spec 记录，不据源码声称本轮通过。
+
+## M3 正式记忆管理页
+
+依 spec §9.4，`MemoryService.page` 由 `MemoryQueries` 复用当前 scope owner 与 SDK `page`；旧 `list` 的业务行为保留在同一查询职责，设置页不再调用它。页面只能由本人请求，owner 从可信 caller 和当前项目角色登记恢复，不从输入取得；开关 off 不挡本人管理。项目页包含项目及合法角色，角色选择不扩大到别的项目。
+
+每次请求只执行一个 owner 的一次 SDK page，共用一份 App 限额（缺省 40 条、最多 100 条、最多扫描 200 个记录槽，可由 Service ports 配置）。跨 owner 游标携固定查询及当前 owner 序列；开始及返还前比较当前序列，SDK 仍最终复核该页范围、条目和版本。游标不是许可，重启可以继续，范围或查询变化须重新开始。不建立缓存或分页表，不把 Node 目录枚举说成有界记录扫描。
+
+搜索与未分类筛选只过滤本次已授权页正文；没有命中且未穷尽时继续分页，不回退全库 list。跨 owner、后续页或存在正文/未分类后筛选时总数为 unknown；只有单 owner 首页完整且没有后筛选才能沿 SDK 报 exact。物理成本沿 SDK 当前诊断许可返回，unknown 不填 0。管理投影显示六类、真实状态、独立 expired 与 classification/null，不给旧未分类条目猜 common。四类自动形成保持不变；正式条目的六类 DTO 随下述逐条纠正片补全。
+
+正常、取消、范围撤回、固定 cursor 变化与跨重启通过真实 Node owner 的 `tests/memory-management-pages.test.ts`；Action/HTTP 入口及 overview 不全量读取由 `tests/memory-management-page-http.test.ts` 验证。首片不接批量操作、改类或候选分页。
+
+
+## M3 逐条纠正正式分类
+
+沿 spec §9.4，现 `memory.change@3` 的 `reclassify` 由本人明确选择六种正式类别、已声明场景和 long-term/short-term 生命周期。旧 `MemoryKind` 仍是自动形成/工具默认的四类，正式读取、历史、变更回执及 v2 导入导出使用 `MemoryFormalKind` 六类。页面所见版本与原操作号绑定 SDK CAS；所有 change 请求在定位与授权完成后、任何 SDK 步骤前，同步在现 ledger 固定不含目标 ID 的 change-request 标记，绑定动作、scope/owner、memory_id 和所见版本；后续同号请求核原绑定，等待 SDK 提交期间也不能换目标或动作。标记只确认身份，删除后 closed 标记不妨碍原 purge 回执补齐删除投影，SDK 子步骤操作号保持不变；分类合成在 `classification.ts`，内容/分类编辑及历史恢复由 `MemoryEdits` 共同提交，Service 保留原授权和范围入口。
+
+期限省略保留原绝对时间，ISO 时间明确替换，null 明确移除；短期必须有未来截止时间，改长期不自动清期限。纯分类编辑使用一次 setMeta；正文或原适用情境同时修改时一次 update。原 ref、来源、依据、证据、namespace、key、扩展分类及 paused/disabled 不因改类改变。已到期条目的本人续期、Session 可信管理绑定、批量和按类 read/form 仍是 P0 后续，本片明确拒绝未经支持的分类更改。
+
+`memory.history@2` 仅投影原快照的分类、期限及结构完整标志；缺快照返回未知，不补 common 或长期。snapshot_available 不随当前时钟或权限变化，恢复是否允许仍由原 SDK 对当前版本、分类、到期与 Session 检查。原操作补账不保存第二份正文，不换成后继版本；人工纠正仍使旧自动删除/恢复撤销失效。正式召回的 habit/project-decision 沿用偏好/约定的固定权重，未扩大自动形成许可。
+
+定向验证：`node scripts/run-tests.mjs --jobs 2 tests/memory-classification-edit.test.ts tests/memory-classification-edit-http.test.ts tests/memory-retention-roundtrip.test.ts tests/memory-service-cas.test.ts tests/memory-actions.test.ts tests/memory-mcp.test.ts`。真实 Node/SQLite/HTTP 覆盖六类、旧未分类、期限三态、同版本竞争、原操作重试/重启补账、当前授权、状态与拒绝；最终页面实操和资源门禁由集成任务按槽位验收。
+
+
 个人与项目记忆的平台服务：开关与策略、确定性写入门、召回编排、待认可的建议、最近变动与撤销、界面信号计数。记忆正文、版本、删除与作用域隔离都在 Prologue Memory（经 Agent Host），本服务不保存第二份正文，也不调用模型。
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。
+
+## Character 候选的原归属
+
+首次 Character proposal 在 SDK 创建前，将可信项目与原角色 id/title 记入既有 owner 映射；登记失败不创建候选，SDK 已创建而候选账注失败时映射保留，重开后按原操作补齐同一候选。候选提案的完整校验、去重、原操作和投影由 `src/proposals.ts` 持有，Service 入口不变。异步读取期间调用方改写角色不能更换已固定的 owner/subject。此接线只防新增漏映射，不补猜历史未知归属，也不把 `sources:null` 当作空来源；历史项目清除完整性仍按原 spec 保留限制。直接真实 Node/SQLite 回归为 `tests/memory-character-proposal-owner.test.ts`。
 
 ## 整包导入的固定重试输入
 
@@ -101,7 +143,7 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 
 ### M2 期限与当前格式往返
 
-沿 spec §9.5，候选自身最多等待 14 天；正式记忆的绝对期限单独保存在内部候选记录 `formal_expires_at`，不出现在公开候选投影。短于等待期时，候选同时提前到期；长于等待期或无期限时，不把等待日期当成正式期限。同一操作的无正文 marker 在 SDK 提议前冻结正式期限，补账不能把原 30 天改成 60 天。接受仍由 SDK 检查候选自身期限；已提交的同操作可以按 SDK 合同补关联与历史，不能重新产生一次正式写入。
+沿 spec §9.5，候选自身最多等待 14 天；正式记忆的绝对期限单独保存在候选账本 `formal_expires_at`，并投影给本人决定；`waiting_expires_at` 独立显示等待截止时间。短于等待期时，候选同时提前到期；长于等待期或无期限时，不把等待日期当成正式期限。同一操作的无正文 marker 在 SDK 提议前冻结正式期限，补账不能把原 30 天改成 60 天。接受仍由 SDK 检查候选自身期限；具备完整操作身份的已提交同操作可以按 SDK 合同补关联与历史，不能重新产生一次正式写入。
 
 已记录的候选 `formal_expires_at: null` 表示无正式期限，缺字段表示旧记录未记录该决定；两者不混用。公开 `write` 的替换请求沿用原语义：省略或传 `expires_at: null` 都保留目标原期限，并不提供清空期限或续期能力。
 
@@ -122,9 +164,12 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 | 文件 | 用途 |
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
+| [src/queries.ts](src/queries.ts) | 列表、管理分页、候选原件读取与召回；Run 展开在同一查询主人内选择引用，保留读取后权限复核，使用回执仍由真实 Context 决定 |
+| [src/run-recipe.ts](src/run-recipe.ts) | `forRun` 的可信 recipe 构造：当前场景、读取预检、分类限制快照、事实、使用标题及预算；不读正文、不记使用 |
 | [src/scope-commands.ts](src/scope-commands.ts) | 授权范围读取与视图、固定清空、当前格式导出/导入；导入复用 Service 写门 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、四预设配方、补全与使用方权限 |
 | [src/preferences.ts](src/preferences.ts) | 有效偏好读写、项目继承与助理设置映射；持久化仍经原 ledger |
+| [src/class-restrictions.ts](src/class-restrictions.ts) | 当前使用方、场景与 canonical 分类的只收紧匹配；读取与自动形成分别判断 |
 | [src/policy.ts](src/policy.ts) | 自动批准规则版本与低风险类型门；只决定自动提议是否仍需本人认可 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断（`sameWords`：同样的话，由 `fold` 折叠后相等；`sameText`：去掉标点的粗略相等，只用来给建议去重）、秘密形状与像指令的文字（确定性规则） |
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
@@ -138,6 +183,12 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 使用方只经 `memory.*` 动作或 Host 进程内的服务调用；使用方身份来自可信调用上下文（受众），不从输入读。插件只能读到被允许的类别（服务里的规则；动作目录今天不向插件提供记忆，见 [CALL-CHAINS §8](../../docs/system/CALL-CHAINS.md)）；外部 AI 客户端只能召回，要本人授权，默认读不到个人记忆。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
+
+分类限制由现偏好持有：新默认给 `class_restrictions: []`，本 profile 更新省略数组时保持、显式数组时完整替换，四预设保留细分限制。项目沿现完整有效 profile 继承；清空项目数组不会清空项目默认或其它项目。规则保存先严格校验，再复制到结果，调用方后续改动数组不能修改已经接受的设置；重复选择条件、未知字段/值在保存前拒绝。
+
+`memoryClassReadAllowed` 与 `memoryClassFormationAllowed` 是独立的纯限制计算，均接收规则、可信 consumer/current_scene 与 canonical kind/classification。多场景条目只匹配本次 current_scene 或 common 且条目实际具有的 scene，缺分类不猜 common。read 的 explicit-only 禁止 task/resident；form 不受 read 限制影响。返回 true 只表示未被这组规则关闭，调用方仍须求交当前旧权限、Run 冻结规则与实时规则；本人管理及显式保存的适用范围由调用链决定，不由匹配器授予。对应公共入口单测为 `tests/memory-class-restrictions.test.ts`，生产授权/形成与真实持久化另由集成验证覆盖。
+
+`memoryClassReadPossible` 在 Run 计划与 SDK 查询门共用，先合并当前与冻结规则，再判断当前声明分类和未分类是否仍有可读目标；全部关闭时不开始自动读取。它不读取库、不把未知分类映射为 common，也不取代逐条授权。形成按完整新建槽和 replacement 槽过滤；替换同时检查原分类与目标分类，派发前复核固定上下文和槽，返回登记前再次检查。正式提炼上下文走 task 读取门，候选上下文独立经过形成门。工程回归分别在 `tests/memory-class-runtime-policy.test.ts` 与 `tests/memory-class-formation.test.ts`，后者使用 SDK Node 与 SQLite；真实调用链执行后才可报告对应路径通过。
 
 ## 本地开发
 
@@ -154,11 +205,35 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 形成前由本包读取同一份当前授权上下文（最多 30 条正式、20 条待审），冻结个人/项目的新建槽与跨类别替换槽。正式上下文按当前 task 读取许可取得；已过期、暂停、停用或不在当前场景可见范围的条目不进入提炼上下文，也不生成替换槽。管理页面仍可按原管理许可查看它们，不清期限或重分类。待审上下文沿候选管理审阅许可，并再次求交当前形成/学习开关、场景、私有命名空间和有效期，仅服务本轮去重与来源合并，不冒充正式 task 召回许可。关闭任务召回而仍允许形成时，不读取正式上下文，仍可形成新候选。目标类别复用当前 consumer 与插件的 explicit 许可求交；默认 Coding 仅提供 preference/convention，明确授权其它类别后才增加相应槽，不因一个未授权类别阻断全部合法形成。每种当前允许类别可新建三条，App 明确配置最多 144 槽；提炼每轮仍最多三条，原文上下文只传一次。替换槽保留原目标与读取时版本，接受只能走同一目标的 `settleInto`；目标丢失或后继编辑不得改成新建或追最新版本。只有与本次整条本人原话对应的旧 explicit 待审候选可贡献其 SDK 已确认来源，最终仍由 SourcePort 重读；不把其它待审来源送入模型。
 
+显式提议的候选去重、限额与来源合并查询使用内部 management 副本，保留原 actor、项目、Session、插件、场景、Run 分类快照与取消信号；学习来源保留 learning，其余标为本次 explicit 提议。只有候选上下文按形成权限读取，要求当前与原 Run 共同允许；learn_from_work 仅约束 learning。正式读取与最终候选提议继续使用原 caller，Agent 不因此取得候选管理、接受或删除入口。验收覆盖 read off/form on 的真实 Action 提议、去重与本人接受，以及形成关闭、原快照缺失和 Agent 管理拒绝。
+
+`learningContext` / `learnFromWork` 明确使用 task / learning，正式读取、来源和 SDK `form` 不借后端的默认管理身份。内部候选快照、派发重验、按形成回执精确引用/版本登记和 v3 策略晋升独立使用同一受限 management 副本；保留 person 原值与所有可信身份、冻结限制和取消信号，不赋予任务正式管理读取或人工决定权。已有候选只在获准集合内参与去重；写入和候选决定仍由 SDK 独占。
+
+`memory.list@4` 的非本人调用只读取当前合法可见的正式项，personal/project 计数也来自这些正式项；pending 与 auto_this_week 返回 null，表示本次未查询管理计数，不表示零。本人管理仍查询并返回原实际计数。正式列表不因旁账中不可见的候选而失败，也不借内部 management 副本扩大权限。助理提议工具直接返回本次 Service.propose 的候选 ID，不再通过全范围候选回读或最后一条猜测结果；并发提议各自保留自己的回执。
+
+跨范围读取返回前同步复核所有已计入正式计数的 canonical 分类目标，使用当前规则与原 Run 快照交集；不只检查筛选后显示项。中途类别禁读整体拒绝，避免返回先前范围的正文或计数；只关闭形成不影响读取。复用现分类判定，不重扫 SDK 或新增元数据存储。
+
+内部非本人提议仅在本轮获准使用的 canonical 候选集合上做同文/相似去重与每工作三条上限，不借不可见项的 App 账注正文或计数推断。列表未返回的账注引用由固定 scope/owner/id 的 SDK get 复核：仅明确 MEMORY_SCOPE_DENIED 可排除；真实缺失、损坏及其它存储错误继续拒绝，不修账、不重建正文。查询保持取消信号与当前∩冻结权限，本人管理仍采用严格完整性检查。重启重放不能绕过获准集合的去重或使缺失原件复活；本片不增加 store/cache。
+
 每次实际模型派发前沿同一公开读取口复核这份固定上下文的权限、状态及原版本；变化即拒绝派发，不替换正文、目标或期望版本。该回调只活在当前调用，不进模型或持久记录。
 
 候选账注只登记 SDK 已确认的引用、版本、来源和冻结期限。模型的 inferred 提示始终保守待审；自动 v3 晋升仍独立核验两份完整本人表态、当前权限、低风险类别及原撤销 journal。形成的 partial、unknown、取消和提炼用量原样返回，不能变成空成功；同操作按 SDK 完整创建输入恢复，不宣称整批 exactly-once。模型、SDK 写主人、权限与取消都不可替换为第二条 App 提议循环。验收使用真实 Node 存储及有界提炼替身，覆盖无信号零调用、同类多条、条件与跨类纠正、来源重复、固定版本冲突、取消和部分提交。
 
 产品规则 v3 和撤销准备/补账归本包，SDK 仍拥有正式 CAS 与候选决定。准备写现操作 marker/原版本历史，并在原 marker 内一次生成有界变更 ID；提交及重试复用该 ID，提交后记现变更与撤销；失败沿原操作恢复，后继人工版本不得覆盖。遗忘先写无正文来源抑制标识，清理和重放都复用现 ledger，不新增来源正文表。`learning.ts` 拥有学习编排，`promotion.ts` 拥有版本化批准与当前账本回执；这些不成为另一个候选或执行内核。现候选账注的可选 `source_refs` 只保留 SDK 已确认的来源身份，不保存原文、不替代最终授权；晋升准备读此账注，避免重入 SDK 正在执行的候选队列。
+
+### P0 候选明确采用（SDK99 定向工程验证）
+
+页面的完整 `formal` 必须沿现候选 HTTP accept 路由进入共同 Action；此前路由重建参数漏传该字段。`tests/memory-candidate-adoption.test.ts` 补真实 HTTP → Action → Service → SDK 回归，覆盖选择透传及非法决定零写入；校验仍由共同 schema/Service 持有，本片已在 SDK99 上通过该真实 HTTP 回归。
+
+完整新 marker 的同一决定允许 pending 候选在 TTL 后进入 SDK 对账，以覆盖 formal 已提交但 candidate finish 未保存；新 formal 提交仍须通过 Host 联合请求的 TTL 最后门。真实回归分别制造 finish 保存前失败与 formal 从未提交，关闭/重开跨 TTL 观察补关联或零新增。settleInto 合并证据按现 identity 将候选证据稳定放在末尾再限六条，避免重叠截断在补账时改变 meta。旧 unknown canonical 的 SDK accept 由继承的 SDK99 处理，App 不伪造分类；真实 Node/SQLite 回归已覆盖这两个故障窗口和证据合并。重开仅为同进程 Runtime/Host 生命周期，不等同 OS 进程重启。
+
+候选本人决定由 `candidate-decisions.ts` 拥有，复用原 SDK candidates.accept/settleInto 与 MemoryOperations/ledger Port。可选 formal 必须完整；旧分类或正式期限未知须本人决定。等待期与正式期限分离，canonical replacement 优先；无 replacement 时保留原 supersedes/同文选择，首次选定后固定目标版本与完整输入摘要，失败不转 append。当前授权、来源、Session、CAS 不可配置；无新插件/阈值，用户在 App 选分类和期限。短合同与 CAND-01–05 验收见现 memory strategy。候选专项17项已通过，包含项目设置列出本项目已登记角色候选、排除个人/其它项目并拒绝错项目采用；真实临时 Home 浏览器及相关 README 回归的实际结果见 spec。完整 App、真实 Home、模型效果与用户验收不由这些工程证据代替。
+
+本人项目候选视图在读取或过期处理前，复用管理页的当前项目与已登记角色 owner 集合；个人、非本人和显式全范围查询保留各自语义。无关个人候选的到期或待恢复决定不会因项目设置读取而被处理。
+
+旧候选即使没有 SDK expiry，现 Host policy 也在 SDK 的正式 `accept` + 候选 `accept` 联合请求上检查 canonical `createdAtMs + CANDIDATE_TTL_MS`，并由同一 `assertCurrent` 在实际提交前同步重查。SDK 已提交后的 accept 对账只有候选请求，不受此新提交截止门阻挡；不推广到 promote 或其它动作，不从调用参数和 App 投影读创建时间。
+
+恢复仅覆盖具有完整新 identity 的原 marker。尚未合入的 #1064 开发态旧 accept marker 缺少完整 digest/候选版本身份时，即使 SDK 已提交，也明确 conflict 并保留原记录待对账；不猜原决定，不重写正式记录、候选或历史。主干 `abc052bcb` 的旧 accept 没有 MemoryOperations，此边界不等于发布版本升级全恢复承诺。`tests/memory-candidate-adoption.test.ts` 已分别通过真实 SDK/ledger 的旧 marker 拒绝无写反例和完整新 marker 关闭/重开后跨 TTL 补账用例。
 
 ## 开发要求
 
@@ -187,7 +262,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
   - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
   - 显式召回只记录返回，不更新最近参考；最近参考由真实 Run 的 `response-observed` Context 回执投影。派发未知和记录失败单独显示，不重发模型；迟到回执不能恢复已遗忘身份。
-  - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
+  - 项目删除原收据使用 `previewProjectMemoryPurge`/`applyProjectMemoryPurge` 冻结并恢复精确 formal/candidate（含墓碑）版本及 source 引用；先持久来源抑制，再删 SDK 目标并清 ledger，最终同步控制紧邻实际账本写。预览只走 SDK 在线无正文 `previewPurge`，逐页 completed、无 issues 且最终 exhausted 才完整；partial/cancelled/不前进游标拒绝，普通列表空不作证明。个人目标逐个固定 canonical Session 查询，纯 evidence 引用不级联；候选 sources=null 仅可由同候选的原 ledger 来源补足，否则拒绝。null backend 不构成空态证明，已知 ledger 目标缺失时冲突。原 `purgeProjectMemories` 只留给当前项目 demo reset，不是删除收据恢复口。旧无计划、未知项目归属及 MEM-40 仍独立核对。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -198,3 +273,20 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面定向工程验证已完成，资源门及依赖合并仍待收束；合同与逐步证据见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+本片定向回归（构建后，单 worker）：node scripts/run-tests.mjs --jobs 1 tests/memory-selected-batch.test.ts tests/memory-service-cas.test.ts tests/memory-management-pages.test.ts tests/memory-management-page-http.test.ts tests/memory-actions.test.ts。浏览器独立槽运行 tests/memory-settings-pages.e2e.test.ts，覆盖分类筛选后的明确选择、预览确认、后来新增不入集、部分失败及完整关闭重开 Host 后沿原预览恢复。最终真实 Home、质量/token 对照与用户验收仍按原 P0 合同执行。
+
+项目删除的 Host 入口先经 AgentHost 固定可信 Session 集合，再以当前删除 authority 冻结 formal/candidate 的原 ref/version（包括墓碑）及无正文来源引用。SDK #101 的在线预览覆盖已结束 Session 隐藏的原件；已有 purge 状态不再被当作空，也不单凭该状态拒绝，必须取得当前 canonical 预览。`applyProjectMemoryPurge` 按 Catalog 原计划依次持久来源抑制、清原件及 ledger，成功后才允许 Session purge；每次 ledger 真写前同步检查当前 control，来源抑制不随范围 marker 收尾消失。Demo 重建只核当前原范围为空，不利用历史 complete 收据删除后写原件，空态证明由现 Memory owner 持有到 Catalog 同步提交。旧无计划与 MEM-40 停写采用仍分别验收。
+
+
+项目删除显式 scopes 来自 LocalHost 同份可信关系，与 coverage knownScopes 同源。持久计划保持原 ID/版本/operation；重试不重列或扩大。目标空态复核是只读证明，不生成新删除决定。
+
+原固定目标逐项完成后，applyProjectMemoryPurge 必须先调用 verifyScopeCleanup，证明当前目标无残留且归属 coverage 完整，再同步复核 control 并执行 forgetScopes。未知或遗漏原件会保留未选候选、历史与归属依据，也阻止后继 Session purge；已选目标不跨存储回滚。最终 Catalog 提交仍另验当前证明。
+
+来源 Ledger 的 `interpretMemoryLedgerRecoveryFact` 与 `resolveForgottenMemoryIdentity` 是纯解释：事件屏障保留 event 级、普通 closed/来源关联/预览不变成删除指令；forgotten 只联精确 scope/owner，未知或矛盾返回 unresolved。merge 只交 drop 给源 SDK 检查，不删 kept、不自动新增来源屏障。返回 inspect-target 仅为核对原事实，不授权 target 写入或恢复 complete。Storage 持有唯一持久化投影，Memory 不读 SQL/raw marker。本片不接 LocalHost/Catalog 或恢复执行。专项回归 `tests/memory-ledger-recovery.test.ts`。
+
+MEM-40 来源收集 `collectMemoryLedgerRecoveryObservations`只消费新开的同一 Storage readonly reader 的 `next/rewind` 窄口与同步 current；两遍完整检查 issues，第一遍保留删除意图、事件屏障及每个 scope/owner 的真实关系代表，第二遍只联结这些意图所需的原计划/决定与 forgotten 身份证据，仍由上述解释器决定语义。入口固定 reader/control 并隔离 retained；原 Catalog 主人已校验的 T1 retained 身份只补裸 forgotten ID，不以当前 target 或猜测补归属。结果为隔离的 `{fact, observation}`：仅最终选中意图的原无正文 Fact 及 inspect-target/event-barrier，不返回中间关联证据；真实空 actor 与 home-recovery 原来源保持，不补成本机用户。不保存整 Home facts 数组、不读 SQL/marker、不提供 SDK 写权限或 target CAS；未穷尽、坏页、关系冲突或 unresolved 不返回部分结果。失败不重入已部分消费的 reader，关闭与父 owner 生命周期仍归调用者。完整短合同见 Memory spec 的 MEM-40-SOURCE-COLLECT；直接回归 `tests/memory-recovery-source.test.ts` 已通过真实公开 Ledger/Memory 入口，外层生产恢复链仍由后续装配验证。
+
+项目删除的同一规划器与执行核接收实际需要的窄口：规划只收绑定 preview、current 与已校验 Ledger facts；执行只收绑定 purgeMemory/purgeCandidate 及 suppressSources/dropCandidate/forget/forgetScopes。在线主人由原 Backend/Ledger 接线保留语义；冷主人用 SDK 现存入口和 Storage retention，不伪造完整 Backend/Ledger。Ledger source/change/forgotten 事实只证明原件归属、缺失与来源，当前 CAS 版本仍只来自 SDK。先做当前空态/coverage 后才能 forgetScopes，complete proof 不重算原计划。

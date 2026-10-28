@@ -7,6 +7,7 @@ import type {
   ArtifactReference,
   ArtifactScope,
   ArtifactVersionRecord,
+  ArtifactVersionMetadata,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { announceVersionStoreWrite, type CommitWatchedDatabase } from "./committed.js";
@@ -168,6 +169,24 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
       WHERE identity.project_id = ? AND version.artifact_id = ? AND version.version = ?
     `).get(projectId, artifactId, version) as Row | undefined;
     return row ? this.map(row) : null;
+  }
+
+  /** Current state and revision inputs, without transferring payload or provenance JSON out of SQLite. */
+  getVersionMetadata(projectId: string, artifactId: string, version: number): ArtifactVersionMetadata | null {
+    const row = this.db.prepare(`
+      SELECT identity.project_id, version.artifact_id, version.version, version.artifact_type_id,
+             version.content_digest, version.availability, version.lifecycle_state, version.content_kind,
+             (version.payload_json IS NOT NULL AND version.payload_json <> 'null') AS has_payload
+      FROM ${this.tables.versions} version
+      JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
+      WHERE identity.project_id = ? AND version.artifact_id = ? AND version.version = ?
+    `).get(projectId, artifactId, version) as Row | undefined;
+    // insertVersion writes inline JSON with JSON.stringify: JSON null is exactly 'null', not an absent SQL value.
+    return row ? { project_id: String(row.project_id), artifact_id: String(row.artifact_id), version: Number(row.version),
+      artifact_type_id: String(row.artifact_type_id), content_digest: String(row.content_digest),
+      availability: String(row.availability) as ArtifactVersionMetadata["availability"],
+      lifecycle_state: String(row.lifecycle_state) as ArtifactVersionMetadata["lifecycle_state"],
+      content_kind: String(row.content_kind) as ArtifactVersionMetadata["content_kind"], has_payload: Number(row.has_payload) === 1 } : null;
   }
 
   listVersions(projectId: string, artifactId: string): R[] {

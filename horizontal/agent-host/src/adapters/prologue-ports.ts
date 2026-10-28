@@ -20,6 +20,7 @@ import type {
   AgentStartRequest,
   AgentStartExecution,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { PrologueRunMemoryPort } from "./prologue-run-memory.js";
 import type { SupplementaryLocation } from "./prologue-original-inputs.js";
 import type { RoundInputs, SessionQueue } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -86,6 +87,7 @@ export interface PrologueStartInput {
   beforeStart?: AgentStartExecution["beforeStart"];
   assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
+  assertBeforeDispatch?: AgentStartExecution["assertBeforeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
@@ -175,6 +177,9 @@ export interface PrologueRuntimePort {
   unexecutedApprovalCall?(run: AgentRunRef, waiting: import("./prologue-stream.js").PrologueApprovalWaiting): string | undefined;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
+    capture?(sessionId: string): () => void;
+    assertReadable?(sessionId: string): Promise<void>;
+    lifecycle?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionLifecycle;
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
     readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
@@ -190,6 +195,7 @@ export interface PrologueRuntimePort {
     /** Supplements waiting for the next round; undefined when unreadable. */ queued?(sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] | undefined>;
   };
   startAgentRun(input: PrologueStartInput): Promise<{
+    memory?: PrologueRunMemoryPort;
     run: PrologueRunPort;
     control: PrologueControlPort;
   } & RoundDesk>;
@@ -207,7 +213,7 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
-    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
+    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
     stop_intent?: "stopped" | "cancelled";
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */

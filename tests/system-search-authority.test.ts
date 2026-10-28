@@ -13,11 +13,13 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, subjectContext,
   type ActionDefinition, type ActionExecutionContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SEARCH_PROVIDER_ID, searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { defineSubjectRetentionAction } from "@molis-ai/molis-work-plugin-sdk";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const marker = "ACA005ORIGINALAUTHORITYBODY";
-// PG-007 (RAC-338): indexing reads as the person, so this Host-registered fixture must use a provider the person holds permissions
-// over. MCP still receives the exact original grants below; no installation grant or search-revocation assertion is bypassed.
+// PG-007: this Host-registered owner uses the platform provider over which the local person holds form:read.
+// It is a system source with the real project data identity; MCP still receives only its per-action grants.
 const providerId = "platform";
 
 async function fixture(t: TestContext, defaultOpen = false) {
@@ -38,11 +40,16 @@ async function fixture(t: TestContext, defaultOpen = false) {
   }({ homeDirectory: directory, completeText: null });
   const home = { ...await serveTestHost(null, { home: directory, host }), host };
   const project = await home.createProject("Original search authority");
+  const root = await home.host.withProject(project.reference, runtime => listProjectRoots(runtime.store.db)[0]!);
+  assert.equal(root.project_id, project.project_id);
+  const provider = { provider_id: providerId, title: "HTTP owner", kind: "system" as const,
+    project_id: project.project_id, project_data_instance_id: root.data_instance_id };
   const permissions = defaultOpen ? [] : ["form:read"];
   const entries = defineSearchEntriesAction("fixture.search.entries", [{ kind: "authority_note", title: "Note", surface: "fixture" },
     { kind: "unrelated_note", title: "Other kind", surface: "fixture" }], "HTTP notes", permissions);
   const reader = defineSubjectContextAction("fixture.search.reader", "authority_note", "Read note", permissions);
   const unrelatedReader = defineSubjectContextAction("fixture.search.other-reader", "unrelated_note", "Read another kind", permissions);
+  const retention = defineSubjectRetentionAction("fixture.search.retention", "authority_note", "Note", permissions);
   const peer: ActionDefinition = { capability_id: "fixture.search.peer", version: 1, operation: "command", action: {
     title: "Independent grant", description: "Shares permissions without authority over this note", kind: "operation", scope: "project",
     audiences: ["user", "mcp"], permissions: ["form:read"], subject_kinds: [],
@@ -67,9 +74,8 @@ async function fixture(t: TestContext, defaultOpen = false) {
   await new Promise<void>(resolve => owner.listen(0, "127.0.0.1", resolve));
   const address = owner.address(); assert.ok(address && typeof address === "object");
   const ownerUrl = `http://127.0.0.1:${address.port}/entries`;
-  const dispose = home.host.actionRegistry(project.reference).registerProvider({ provider: {
-    provider_id: providerId, plugin_id: providerId, title: "HTTP owner", kind: defaultOpen ? "system" : "plugin", project_id: project.project_id,
-  }, availability: caller => {
+  const sourceRevision = () => JSON.stringify([root.data_instance_id, data]);
+  const dispose = home.host.actionRegistry(project.reference).registerProvider({ provider, sourceRevision, availability: caller => {
     const running = (caller as Partial<ActionExecutionContext>).current_action;
     // Observe the real query handler, not MCP's earlier catalog request or the owner's background refresh.
     if (queryArmed && caller.actor_id === clientId && caller.project_id === project.project_id && caller.audience === "mcp"
@@ -79,7 +85,7 @@ async function fixture(t: TestContext, defaultOpen = false) {
       accepted.resolve();
     }
     return { available: true };
-  }, definitions: [entries, reader, unrelatedReader, peer], handlers: [
+  }, definitions: [entries, reader, unrelatedReader, retention, peer], handlers: [
     bindSearchEntriesHandler(entries, async () => {
       const response = await fetch(ownerUrl);
       assert.equal(response.status, 200);
@@ -89,6 +95,11 @@ async function fixture(t: TestContext, defaultOpen = false) {
       revision: "1", title: "An owner's note", content: marker, goal_ids: [], open: { surface: "fixture", id: "one" } }) },
     { ...unrelatedReader, handle: (_caller, input) => subjectContext({ subject: { kind: "unrelated_note", id: String(input.subject_id) },
       revision: "1", title: "Another kind", content: "unrelated", goal_ids: [] }) },
+    { ...retention, handle: (_caller, input) => {
+      const entry = data.find(item => item.subject.id === input.subject_id && item.subject.kind === "authority_note");
+      return entry ? { subject: entry.subject, state: "active", current_revision: entry.revision, retained: null }
+        : { subject: { kind: "authority_note", id: String(input.subject_id) }, state: "deleted", retained: null };
+    } },
     { ...peer, handle: () => true },
   ] });
   const disposers = [dispose];
@@ -122,7 +133,7 @@ async function fixture(t: TestContext, defaultOpen = false) {
     assert.ok(found); return found;
   };
   await home.grant(clientId, null, [view(searchActions.query)]);
-  await home.grant(clientId, project.project_id, [view(peer), ...(defaultOpen ? [] : [view(entries), view(reader), view(unrelatedReader)])]);
+  await home.grant(clientId, project.project_id, [view(peer), ...(defaultOpen ? [] : [view(entries), view(reader), view(unrelatedReader), view(retention)])]);
   const input = { query: marker, plugins: [providerId], kinds: ["authority_note"], scope: "project" as const };
   const tool = molisWorkActionToolName({ ...searchActions.query, provider_id: view(searchActions.query).provider.provider_id });
   const ask = () => sdk.callTool({ name: tool, arguments: input });
@@ -131,9 +142,7 @@ async function fixture(t: TestContext, defaultOpen = false) {
   assert.ok(JSON.stringify(positive).includes(marker));
   const addReader = async () => {
     const next = defineSubjectContextAction("fixture.search.new-reader", "authority_note", "Another original reader", permissions);
-    disposers.push(home.host.actionRegistry(project.reference).registerProvider({ provider: {
-      provider_id: providerId, plugin_id: providerId, title: "HTTP owner", kind: defaultOpen ? "system" : "plugin",
-    }, definitions: [next], handlers: [{ ...next, handle: (_caller, value) => subjectContext({
+    disposers.push(home.host.actionRegistry(project.reference).registerProvider({ provider, sourceRevision, definitions: [next], handlers: [{ ...next, handle: (_caller, value) => subjectContext({
       subject: { kind: "authority_note", id: String(value.subject_id) }, revision: "1", title: "An owner's note", content: marker, goal_ids: [],
     }) }] }));
     const accepted = (await home.inspect(clientId, project.project_id)).find(item => item.capability_id === next.capability_id);

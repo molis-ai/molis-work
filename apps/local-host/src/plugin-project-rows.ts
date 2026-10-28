@@ -1,7 +1,8 @@
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { rmSync } from "node:fs";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { clearInExistingHomeSqlite, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
+import { clearInExistingHomeSqlite, describeSqliteBaseline, inspectExistingStoragePath } from "@molis-ai/molis-work-storage";
 import { ownerFileHasCode, ownerFilePaths } from "./plugin-owner-files-paths.js";
 
 // A project's rows in a plugin's library of the Home, as the plugin declares them (`databases.home.project_rows`, PG-024): the
@@ -75,9 +76,14 @@ function namesIn(value: unknown, key: string | undefined): string[] {
  * A name that breaks a rule is not the plugin's to have removed, and is left; a file already gone is fine. Any other error (a file
  * that cannot be looked at or removed) throws, so the rows it was read from roll back and the next attempt tries again.
  */
-function removeNamedFiles(home: string, ownerFiles: PluginOwnerFilesDeclaration, directory: string, names: readonly string[]): void {
+function removeNamedFiles(home: string, ownerFiles: PluginOwnerFilesDeclaration, directory: string, names: readonly string[], control?: ProjectDeletionControl): void {
+  if (names.length === 0) return;
+  control?.assertCurrent();
   const paths = ownerFilePaths(home, ownerFiles);
+  // A redirected maintenance directory is a refusal, not an invalid filename to skip.
+  const original = control ? inspectExistingStoragePath(paths.inspect(directory, "directory").path, "directory") : undefined;
   for (const name of new Set(names)) {
+    control?.assertCurrent(); original?.assertCurrent();
     if (name.includes("/")) continue;
     let target: ReturnType<typeof paths.inspect>;
     try { target = paths.inspect(`${directory}/${name}`, "file"); }
@@ -85,7 +91,11 @@ function removeNamedFiles(home: string, ownerFiles: PluginOwnerFilesDeclaration,
       if (ownerFileHasCode(error, "host.owner_file_invalid") || ownerFileHasCode(error, "host.owner_file_unsafe")) continue;
       throw error;
     }
-    if (target.stat?.isFile()) rmSync(target.path, { force: true });
+    if (target.stat?.isFile()) {
+      const file = control ? inspectExistingStoragePath(target.path, "file") : undefined;
+      control?.assertCurrent(); original?.assertCurrent(); file?.assertCurrent();
+      rmSync(target.path, { force: true });
+    }
   }
 }
 
@@ -121,16 +131,17 @@ export function sandboxRefusal(definition: PluginDefinition): Error {
  * files already gone, which the next attempt deletes.
  */
 export function clearProjectRows(home: string, library: HomePluginDatabaseDeclaration, pluginId: string, projectId: string,
-  ownerFiles?: PluginOwnerFilesDeclaration): void {
+  ownerFiles?: PluginOwnerFilesDeclaration, control?: ProjectDeletionControl): void {
+  control?.assertCurrent();
   const statements = projectRowsStatements(library, pluginId), files = projectRowsFiles(library, pluginId, ownerFiles);
   if (statements.length === 0) return;
   clearInExistingHomeSqlite(home, library.store_name, library, db => {
     const read = (statement: string, item: ProjectRowFiles, ...params: string[]) =>
       (db.prepare(statement).all(...params) as Array<{ names: unknown }>).flatMap(row => namesIn(row.names, item.key));
     const named = files.map(item => ({ directory: item.directory, names: read(item.select, item, projectId) }));
-    for (const statement of statements) db.prepare(statement).run(projectId);
+    for (const statement of statements) { control?.assertCurrent(); db.prepare(statement).run(projectId); }
     const kept = new Map<string, Set<string>>();
     for (const item of files) for (const name of read(item.remaining, item)) kept.set(item.directory, (kept.get(item.directory) ?? new Set()).add(name));
-    for (const { directory, names } of named) removeNamedFiles(home, ownerFiles!, directory, names.filter(name => !kept.get(directory)?.has(name)));
-  });
+    for (const { directory, names } of named) removeNamedFiles(home, ownerFiles!, directory, names.filter(name => !kept.get(directory)?.has(name)), control);
+  }, control);
 }

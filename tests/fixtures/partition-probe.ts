@@ -121,9 +121,9 @@ export const partitionDirectory = (home: string, projectId: string) => join(home
 export const partitionFile = (home: string, projectId: string) => join(partitionDirectory(home, projectId), `${PROBE}.db`);
 
 /** A temporary Home with the Home plugin Host over the kernel's action service, the way the Host composes it. */
-export function partitionHome(t: TestContext, entries: readonly HomePluginEntry[] = [probeEntry()]) {
+export function partitionHome(t: TestContext, entries: readonly HomePluginEntry[] = [probeEntry()], homeDirectory?: string) {
   probe.reset();
-  const home = mkdtempSync(join(tmpdir(), "plugin-partition-")), actions = new ActionService();
+  const home = homeDirectory ?? mkdtempSync(join(tmpdir(), "plugin-partition-")), actions = new ActionService();
   const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries });
   t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
   return { home, host, actions, hooks: projectDeletedHooksFor(home),

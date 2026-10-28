@@ -1,6 +1,11 @@
 {
   "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
   "exceptions": {
+    "function apps/workbench/src/browser/knowledge/settings-page.ts#bindKnowledgeSettings": {
+      "kind": "cohesive-unit",
+      "reason": "同一资料设置页的列表、筛选、选择与刷新生命周期，统一持有当前卡片和选择状态；详情及来源关联已委托独立组件，继续拆开会让同一页面的异步刷新与选择状态分散到多个主人。",
+      "size": 155
+    },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
       "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
@@ -19,18 +24,18 @@
     },
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
-      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
+      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 负责装配；本次增加删除提交后的孤儿绑定清理端口接线，业务规则仍归原主人。它给宿主一个入口，只超方法数；按资源再分子门面会增加转发层。",
       "size": {
-        "lines": 265,
+        "lines": 266,
         "methods": 40
       }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
-      "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
+      "reason": "内核唯一动作登记与调用主人，统一提供方注册、真实处理器生命周期和依赖可用性；来源命令活动与注册释放必须跟随同一执行入口，拆成独立服务会分散取消后尚未结束的处理器状态。授权快照与副作用检查已委托现有内聚实现。本批整组来源捕获与纯生命周期尾检仍依赖同一登记token和命令状态，外部来源修订读口不拥有业务事实。discover 按冻结声明先筛根，再完整检查所选动作与真实依赖；未增加主人职责或方法。",
       "size": {
-        "lines": 396,
-        "methods": 15
+        "lines": 491,
+        "methods": 19
       }
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -175,11 +180,6 @@
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
       "size": 173
     },
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
-      "kind": "cohesive-unit",
-      "reason": "全文搜索索引的打开：架构版本检查、预备语句和返回体的操作集合（92 行），共享同一个数据库连接；一个适配器对象，超 150 行 1 行。",
-      "size": 151
-    },
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": {
       "kind": "cohesive-unit",
       "reason": "炼金台本机运行时的装配根：逐个创建依赖并接成处理器，每个 FirstStatement 都是一次接线；装配根的职责就是把全部依赖放在一处，拆开会让接线分散。",
@@ -234,6 +234,22 @@
       "kind": "cohesive-unit",
       "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
       "size": 225
+    },
+    "class horizontal/knowledge/src/index.ts#KnowledgeService": {
+      "kind": "cohesive-unit",
+      "reason": "同一调用者的项目资料查找与读取入口，统一编排可见性、每轮额度和回执顺序。正文身份复核、模型选节、后台整理、人工编辑及持久化已有独立主人；拆散这些入口会分散同一读取合同的当前授权与预算。本批原材料与原卡尾检仍属于同一调用者读取合同，最终授权、预算和回执必须按同一顺序完成。",
+      "size": {
+        "lines": 441,
+        "methods": 24
+      }
+    },
+    "class horizontal/search/src/index.ts#SearchService": {
+      "kind": "cohesive-unit",
+      "reason": "同一派生索引的新鲜度、在途同步与关闭生命周期主人，并据此提供当前授权下的查询。同步算法、正文读取及投影已在类外，存储经独立端口；再拆会把正在同步及关闭的状态共享给多个写主人。本批精确来源与版本捕获留在原查询及派生提交周期，来源生命周期仍由原业务主人提供。",
+      "size": {
+        "lines": 316,
+        "methods": 21
+      }
     }
   }
 }

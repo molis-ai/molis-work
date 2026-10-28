@@ -295,6 +295,7 @@ export interface AssistantMemory {
 }
 
 export interface AssistantMemoryCandidate {
+    needs_formal_decision?: boolean;
     candidate_id: string;
     work_id: string;
     work_title: string;
@@ -635,6 +636,19 @@ export interface AssistantSendResult {
     work: AssistantWork;
     outcome: "started" | "steered" | "queued" | "answered" | "repeated";
     run_id?: string;
+}
+
+export interface AssistantSessionPurgeSelection {
+    readonly session: AgentSessionRef;
+    readonly owner: AgentSessionOwner;
+    readonly works: readonly {
+        readonly work_id: string;
+        readonly actor_id: string;
+        readonly project_id: string | null;
+        readonly revision: number;
+        readonly created_at: string;
+        readonly relations: readonly ContextEdgePurgeIdentity[];
+    }[];
 }
 
 export interface AssistantSurfaceChangedDetail {

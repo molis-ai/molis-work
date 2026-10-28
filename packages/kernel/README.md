@@ -8,6 +8,8 @@
 
 ActionService.registerProvider 注册同一提供方的合同、处理器与消费场景，并返回注销函数；discover 从底层唯一 CapabilityRegistry 派生授权目录。invoke 在实际派发前检查宿主策略（`admit`）、授权、提供方实例、可用性及输入输出合同。
 
+`discover(context, filter?)` 先按公共 `ActionDiscoveryFilter` 对注册的冻结声明精确求交，再对所选根执行原可见性和 availability。所选动作仍与 allowed_actions、permissions、audience、项目范围求交；getter 回退和 provider 回调后的 live matcher 不变。无关根的 availability 回调、异常和副作用不属于有 filter 查询的执行范围；真实依赖仍沿原检查读取，Host 的依赖、场景与绑定解析按需取得完整授权目录，不能把筛后集合当依赖目录。无 filter 与 inspect 保持原完整行为，轮内结果不跨 await 或下一次查询复用。回归见 `tests/action-directory-pass.test.ts`。
+
 每次调用有一个调用编号（`call_id`）：同一次入口级操作（一个页面请求、一次工具调用、一轮助理、一条命令）引起的所有调用共用它，只用于诊断，不是身份、不授予权限。内核给没带编号的调用补上：沿用此刻打开的作用域（[call-scope.ts](src/call-scope.ts)）里的编号，没有就新生成一个；处理器拿到的执行上下文里一定有。每次 `invoke` 与 `invokeSync` 恰好结算一次（[action-settlement.ts](src/action-settlement.ts)）：处理器的结果或失败，以及处理器之前的每一种拒绝（缺失、提供方变化、无权、输入不合、限流、宿主策略、同步入口自己的检查），都交给宿主的 `settled` 钩子；拒绝带 `refused: true`，表示处理器根本没跑。
 
 事务内的插件数据接口使用 invokeSync，处理器必须由可信注册方显式声明 `execution: "sync"`，与异步调用复用原记录和校验。它不等待 Promise：异步授权、未声明同步的处理器和意外 Promise 返回均被拒绝。此声明是处理器实现合同，Kernel 不为违反合同的处理器回滚已发生的副作用。Local Host 的同步端口只接收 plugin audience 的私有 SDK 动作；公共动作仍走异步调度，不能借同步端口绕过队列或异步策略。
@@ -71,10 +73,13 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期和动作声明检查）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
+  - 系统来源读后提交（MEM-SYSTEM-SOURCE-CAPTURE）：`ActionProviderRegistration.sourceRevision` 是 Host system 注册提供的纯同步 owner 读口，只收冻结的 actor/project，不获得执行上下文、不派动作、不写状态、不调用授权回调。读口按精确动作注册 token 固定，分批注册互不覆盖；`project_data_instance_id` 来源未提供读口时拒绝来源捕获。`ActionClient.captureSources([{ context, references }])` 按各组原调用上下文，在已准备好的原注册和精确项目运行实例上同步捕获全部来源；跨项目仍统一三阶段检查，返回的临时否决 guard 不授权、不执行、不后台保留 handler；异步、非法或抛错读数均拒绝。最终顺序为全部授权/可用性/Host 回调、全部 owner 读数、纯注册/取消/Host 生命周期及命令活动尾检，随后由业务 owner 同步 CAS。`retainAuthority(..., { providerCommands: "unchanged" })` 复用同一 owner 读口并在尾检保留原 handler 生命周期；默认 retained/background 不变。owner 读口纯度属于可信 Host 合同，不能用它代替 retention 权限、来源状态或业务版本。LocalHost 转发不得 prepare、打开 Runtime 或创建 entry，关闭或重开不跟随同名注册。定向回归：`tests/action-source-capture.test.ts`、`tests/action-provider-commands.test.ts`。
+  - `retainAuthority(refs, { providerCommands: "unchanged" })` 限原 handler 活跃期间的读后提交，可在初读前捕获来源命令活动：已有活动即拒绝，之后同提供方任何命令入场均使捕获永久失效。活动只在现 `execute` 的真实 handler 入场/终态计数，按可信注册的 project/provider 共享；分批注册共用，Home 跨项目共享，项目相互隔离，nested 不按调用编号去重。取消或超时停止等待不代表 handler 已结束；状态在注册与真实活动均归零后释放。最终同步检查先完成全部授权/可用性回调，再纯复核原执行生命周期、来源注册和活动。此选项只能否决，不能授权、断言业务状态或保护外部/后台写入；默认保留授权和后台授权语义不变。回归：`tests/action-provider-commands.test.ts`（MEM-BIND-FENCE-02/03/04）。
+  - 同一个 `captureSources` 批次也接可信 `plugin-installation`，只追加原注册、Runtime 当前 grants/state/live、取消/项目实例及已有公开命令 marker 的否决；不为插件造 Host owner reader。Host 不在此同步口调用异步 Catalog policy，也不把 Promise 当通过；原 discover/invoke/validate_authority/beforeDispatch 的异步权限复核保留。系统来源仍完整走原同步 Host 检查与 owner stamp。消费者在异步复核前捕获全部可信来源，最后一次 SDK 等待后的同一 guard 先做全部回调、再 owner 读数、再全部注册/命令纯尾检；同代 Coding 公开归档因此使旧材料失效。它不证明 Catalog 已同步重验，不覆盖没经过 ActionService 真实 command handler 的 raw、脱离 handler 的后台或外部进程写入。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
-  - 一次同步目录是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置在轮内各读一次，轮外（含每次调用）现读，读失败不留存，轮内一次写（`forgetInDirectoryPass`）让同一轮后面的读重新读；不能把轮内结果带到调用或下一次目录。
+  - 一次同步 directory pass 是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置按原规则在轮内共享，读取失败不留存，失效（`forgetInDirectoryPass`）后重新读取；轮外（含每次调用）现读，不跨 await 或下一轮复用。一次异步 discover 可以经过多轮，依赖及场景解析也可能再次计算所选动作的 availability；不承诺每个 provider 在整次 discover 中只查一次，也不提供原子快照。目录无外部回调的 metadata 初始过滤对固定 `allowed_actions` 建一次 capability/version/provider 局部索引；带 getter 的调用者仍逐项实时匹配。提供方可用性回调之后、调用、保留授权及来源捕获不使用该索引，撤权和同长度许可替换即时生效；`inspect` 仍展示 metadata 与真实可用性。
   - 场景读回调只能查询；绑定与成功/失败消费获得 `ActionSceneExecutionContext.beforeEffect`，原场景和判断被替换、原调用者撤权或取消、回调结束后都拒绝写入。嵌套调用不能移除只读约束，付费查询也不在只读范围内（`tests/security-invariants-plugin-scenes.test.ts`）。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`kernel.runtime_identity_missing`）。
@@ -110,7 +115,7 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 
 显式受理的后台执行另用 `retainBackgroundAuthority()`：只在活跃处理器内捕获本动作，固定原注册与可见性，并在异步检查后再次同步核权。可信 HTTP/MCP 入口通过 `retain_background_authority` 分开传输与可撤销授权；没有该入口钩子就仍服从原取消。原始入口钩子不交给处理器，绑定客户端同时保留父调用与自己的授权，不能用子动作的权限替换原调用。这个 guard 不延长旧 `beforeEffect`，后台执行控制由 Runtime 建立。验证：`tests/action-background-authority.test.ts`。
 
-`registeredActionMetadata` 只读当前登记的动作声明，沿目录的同一项目与 audience 过滤，先筛后出行，不调用提供方、处理器、依赖或 Host 可用性策略；结果没有 `availability`，不代表执行许可。常规目录把原可见性检查并进同一次筛选，再给每行算可用性。取消操作的诊断可借它命名，实际动作仍经完整调度与最终授权。
+`registeredActionMetadata(registry, context, also?, filter?)` 只读当前登记的动作声明，沿目录的同一项目与 audience 过滤，先筛后出行，不调用提供方、处理器、依赖或 Host 可用性策略；结果没有 `availability`，不代表执行许可。新增可选第四参复用原 `ActionDiscoveryFilter`，在原 context/also 可见性检查前对冻结 metadata 精确求交；不传第四参的旧调用与 also 顺序不变。常规目录把原可见性检查并进同一次筛选，再给每个所选根算可用性。取消操作的诊断可借它命名，实际动作仍经完整调度与最终授权。
 
 登记的描述在注册时复制一次并整个冻结（`CapabilityRegistry.register`）：`descriptors()`、`descriptor()` 与目录各行（`discover`、`inspect` 的 `action`、`provider`）共用这一份，不再每读一次深拷贝一次（Goals 一家的合同就约 350 KB，目录每页、每次调用都读）。读者改不了它，写入直接抛 `TypeError`，提供方事后改自己的对象也不影响登记；要改的读者自己复制，交给第三方运行时的合同同样先复制（MCP 工具、Agent 工具参数）。回归：`tests/action-service.test.ts`。
 

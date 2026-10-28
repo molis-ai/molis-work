@@ -6,8 +6,8 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginRegistration } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
-import { BUILTIN_PLUGIN_CATALOG, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
-import { pluginOnDemandStylesheet, pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
+import { BUILTIN_PLUGIN_CATALOG, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, pluginSettingsStyleLinks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
+import { pluginOnDemandStylesheet, pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginWorkbenchSettingsStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
 
 const action: ActionDefinition = { capability_id: 'fixture.future.read', version: 1, operation: 'query',
   action: { title: 'Read', description: 'Read a fixture value', kind: 'query', scope: 'project', audiences: ['mcp'], permissions: ['fixture:read'], subject_kinds: [],
@@ -44,6 +44,23 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
     LFor: (pluginId: string) => { translators.push(pluginId); return (text: string) => text; }, state: { project: { project_id: 'project-1' } }, api: () => {}, route: () => {} });
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
   assert.deepEqual(translators, ['io.molis.work.future'], 'a client the page mounts is handed a translator for its own plugin, whoever published it');
+});
+
+test('a registered settings page supplies its own styles without a settings client', () => {
+  const entry = futurePlugin(), view = entry.workbench.contributions[0]!;
+  const settings: PluginRegistration = { ...entry, workbench: { ...entry.workbench, settingsClient: undefined,
+    contributions: [{ ...view, descriptor: { ...view.descriptor, kind: 'settings-page', navigation_id: 'future-settings',
+      surfaces: [{ surface_id: 'settings', target_slot_id: 'workbench.settings', format: 'declarative-html' }] } }] } };
+  const packs = pluginWorkbenchPacks([settings]);
+  assert.equal(pluginWorkbenchSettingsStyles(packs), '', 'framed rules stay outside the shared settings sheet');
+  assert.equal(pluginOnDemandStylesheet('future', packs), '.future{color:red}');
+  assert.equal(pluginSettingsStyleLinks(view.descriptor.contribution_id, packs), '<link rel="stylesheet" href="/assets/molis-work-plugins/future.css">');
+  const nativePacks = pluginWorkbenchPacks([{ ...settings, workbench: { ...settings.workbench, clientFactory: undefined } }]);
+  assert.equal(pluginWorkbenchSettingsStyles(nativePacks), '.future{color:red}', 'a native settings page without either client still supplies its styles');
+  assert.equal(pluginSettingsStyleLinks(view.descriptor.contribution_id, nativePacks), '');
+  assert.equal(createWorkbenchUiHost(packs).mount({ slot: WORKBENCH_UI_SLOTS.settings,
+    contribution: { contribution_id: view.descriptor.contribution_id, surface: 'settings', model: { title: 'Settings' } } }).html,
+  '<article>Settings</article>');
 });
 
 test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {

@@ -64,6 +64,8 @@ export interface MolisWorkProjectRuntime extends ProjectVersionStores {
   store: LocalProjectDatabase;
   /** Which project this runtime serves. Capabilities scope their answers to it. */
   project_id: string;
+  /** Explicit project initialization refreshes only this Runtime's fixed Artifact source registration. */
+  refreshArtifactActions(): void;
 }
 
 export interface MolisWorkLocalHostOptions {
@@ -163,13 +165,23 @@ export class MolisWorkLocalHost {
           options.onRuntimeOpen?.(reference);
           const store = new LocalProjectDatabase(reference.storage_key);
           const clock = options.clock ?? (() => new Date());
-          const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
+          let artifactRegistration: { instance: string | undefined; dispose(): void } | undefined;
+          const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id,
+            refreshArtifactActions: () => {
+              const registration = artifactActionProvider(runtime, options, this.actionClient(reference));
+              const instance = registration.provider.project_data_instance_id;
+              if (artifactRegistration && artifactRegistration.instance === instance) return;
+              artifactRegistration?.dispose(); artifactRegistration = undefined;
+              const dispose = registerPreparedProviders(this.host.actionRegistry(reference), [registration]).get(registration)!;
+              artifactRegistration = { instance, dispose };
+            } };
           try {
             const scenes = this.sceneClient(reference);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
               workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId)));
-            add(artifactActionProvider(runtime, options, this.actionClient(reference)));
+            const artifacts = artifactActionProvider(runtime, options, this.actionClient(reference));
+            add(artifacts);
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
@@ -178,7 +190,8 @@ export class MolisWorkLocalHost {
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
-            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            const registrations = await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            artifactRegistration = { instance: artifacts.provider.project_data_instance_id, dispose: registrations.get(artifacts)! };
             bindProjectNotifications(store.db, reference.project_id, this.actionClient(reference));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
@@ -227,6 +240,7 @@ export class MolisWorkLocalHost {
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
+        inspectActionMetadata: (caller, reference) => this.inspectActionMetadata(caller, reference),
         // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
         knownProjects: async () => this.catalogRunner
           ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
@@ -418,9 +432,16 @@ function registerHostPlatformProviders(registry: ActionRegistryPort, providers: 
  * Registers a project's providers in the order they were built. Their contracts are compiled first, a little at a time,
  * so that opening a project never holds the Host for the whole of it.
  */
-async function registerProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Promise<void> {
+async function registerProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Promise<Map<ActionProviderRegistration, () => void>> {
   await precompileActionSchemas(providers.flatMap(provider => provider.definitions));
-  for (const provider of providers) registry.registerProvider(provider);
+  return registerPreparedProviders(registry, providers);
+}
+
+/** Initial assembly and synchronous source refresh use the same registration owner; refreshed definitions were compiled at open. */
+function registerPreparedProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Map<ActionProviderRegistration, () => void> {
+  const registrations = new Map<ActionProviderRegistration, () => void>();
+  for (const provider of providers) registrations.set(provider, registry.registerProvider(provider));
+  return registrations;
 }
 
 /**

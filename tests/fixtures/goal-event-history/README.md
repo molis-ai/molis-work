@@ -1,6 +1,6 @@
 # 带事件前历史的项目
 
-四个项目库，各自的 Goal 带着事件工作流之前留下的事实：原来的验收标准与策略作为导入的要求、旧的批准与完成状态。它们是项目库基线当前版本的样子（`PRAGMA user_version` 与 `PROJECT_DATABASE_BASELINE.version` 相同），由 `tests/goal-event-history-fixture.ts` 载入。
+四个项目库，各自的 Goal 带着事件工作流之前留下的事实：原来的验收标准与策略作为导入的要求、旧的批准与完成状态。当前导出冻结在主干项目库11，保留当时真实业务与插件表账。`tests/goal-event-history-fixture.ts` 载入隔离副本后，再显式维护到当前12并采用旧Coding私库；导出本身不伪装成当前版本。
 
 做法与真实 Home 搬到基线时一样（repository-anti-corruption §4.1），只做一次：
 

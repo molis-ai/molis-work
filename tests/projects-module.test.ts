@@ -23,6 +23,24 @@ function createModule(db: Database.Database): ProjectsModule {
   });
 }
 
+test("project registration rechecks a pending deletion accepted after the successor was prepared", () => {
+  const db = new Database(":memory:");
+  try {
+    createProjectsSchema(db);
+    const projects = createModule(db);
+    const successor = projects.lifecycle.prepareRecord({ project_id: "fixed-project", display_name: "Successor", projects_directory: "/isolated", data_class: "user" });
+    projects.lifecycle.insertDeletion({ deletion_id: "old-decision", actor_id: "person", idempotency_key: "original", request_fingerprint: "original",
+      project_id: successor.project_id, display_name: "Original", staged_directory: "/isolated/old-stage", deleted_binding_count: 0,
+      cleanup_state: "pending", cleanup_error: "completion was not persisted", deleted_at: "2026-10-25T00:00:00.000Z", cleaned_at: null, recovery_plan: null });
+    assert.throws(() => projects.lifecycle.register(successor, "project.created", "person"), { code: "catalog.project_storage_invalid" });
+    assert.equal(projects.lifecycle.retainedProject(successor.project_id), null);
+    assert.deepEqual(projects.query.listProjects(), []);
+    projects.lifecycle.updateDeletionCleanup("old-decision", { state: "complete", error: null, cleaned_at: "2026-10-25T00:00:01.000Z" });
+    projects.lifecycle.register(successor, "project.created", "person");
+    assert.equal(projects.query.getProject(successor.project_id).display_name, "Successor");
+  } finally { db.close(); }
+});
+
 test("Projects Module owns canonical project identity and workspace membership", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
   const db = new Database(":memory:");

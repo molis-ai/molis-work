@@ -10,22 +10,23 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
-import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
   const catalogStore=await openMolisWorkProjectCatalog({homeDirectory:home});
   const project=await catalogStore.createProject({display_name:'成果回流验证',actor_id:'web-user'});
+  const foreignProject=await catalogStore.createProject({display_name:'独立外项目',actor_id:'web-user'});
   catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'web-user'});
   catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'artifacts',actor_id:'web-user'});catalogStore.close();
   const databasePath=project.database_path,projectId=project.project_id,prefix='/projects/'+project.project_id;
-  const store = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(store), library = openProjectVersionStores(store);
+  const store = new LocalProjectDatabase(databasePath), library = openProjectVersionStores(store);
+  const foreignStore = new LocalProjectDatabase(foreignProject.database_path), foreignLibrary = openProjectVersionStores(foreignStore);
   await codingSessions(store).create(noEffect, { project_id: projectId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });
   const token = 'shelf-result-test-control-token-123456789';
   let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address=server.address(); assert.ok(address && typeof address!=='string'); let origin=`http://127.0.0.1:${address.port}`;
-  t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseProjectPlugins(store,projectId); store.close(); rmSync(home,{recursive:true,force:true}); });
+  t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseProjectPlugins(store,projectId); store.close(); foreignStore.close(); rmSync(home,{recursive:true,force:true}); });
   const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{origin,'content-type':'application/json','x-molis-work-idempotency-key':randomUUID(),...(authorized?{'x-molis-work-control-token':token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
   // A request the artifact and output services refuse is the caller's mistake: 400, and the body names the owner's code (the route answers by kind, not by message).
   const refused=(response:{status:number;body:{code?:string}},code:string)=>assert.deepEqual([response.status,response.body.code],[400,code],JSON.stringify(response.body));
@@ -75,9 +76,9 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   assert.equal((await request(base+'/project-results')).body.results.length,1);
   refused(await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2'),'coding.shelf_material_invalid');
   refused(await request(path+'?artifact_id=unknown&version=1'),'shelf.unavailable');
-  app.initializeBoard({project_id:'foreign',actor_id:'web-user',idempotency_key:'other'});
-  const foreign={...input,project_id:'foreign',artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
-  library.artifacts.commands.registerVersion(foreign);
+  // Each project has its own valid root; cross-project refusal must not be replaced by a malformed multi-root database.
+  const foreign={...input,project_id:foreignProject.project_id,artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
+  foreignLibrary.artifacts.commands.registerVersion(foreign);
   refused(await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1'),'shelf.unavailable');
   const unavailable={...input,artifact_id:'coding-report:unavailable:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'unavailable'}}}};
   library.artifacts.commands.registerVersion(unavailable);

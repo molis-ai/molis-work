@@ -1,3 +1,4 @@
+import { assistantLifecycleHttp } from "./assistant-lifecycle-http.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -132,7 +133,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     },
     authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
-      (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
+      (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), () => service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
@@ -219,7 +220,11 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;
-      if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "works") {
+        const archived = url.searchParams.get("archived");
+        if (archived !== null && !["false", "true", "any"].includes(archived)) throw assistantErrors.invalid("归档筛选不合法");
+        return { status: 200, body: { works: await service.list(archived === "any" ? "any" : archived === "true") } };
+      }
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
@@ -320,6 +325,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.followUps.remove(String(body.followup_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
+      const lifecycle = await assistantLifecycleHttp(request, response, url, parts, body, ports, service, store); if (lifecycle) return lifecycle;
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
       // The page follows a live work by waiting for its view to change (closing the request ends the wait).
       if (method === "GET" && parts.length === 3 && parts[2] === "wait") {
@@ -348,7 +354,6 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.dispatcher.handover(workId, { to: body.to as AssistantHandover["to"], ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
-      if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };
       if (parts.length === 4 && parts[2] === "reviews") return { status: 200, body: await service.outcomes.decide(workId, { review_id: parts[3]!, decision: body.decision as "approve" | "reject", ...(typeof body.note === "string" ? { note: body.note } : {}) }) };
       return null;
     },

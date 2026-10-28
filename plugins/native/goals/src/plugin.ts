@@ -1,5 +1,5 @@
 import { setTimeout } from "node:timers/promises";
-import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, matchesActionDiscovery, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createGoalsActionHandlers } from "./actions.js";
@@ -75,7 +75,7 @@ export function createGoalsPlugin(): PluginDefinition {
     const snapshot = () => readMolisWorkSnapshot({ goals: goals.query, governance: governanceModule.query }, projectId);
     const events = () => sqlite.journalReader().readEventsDescending();
 
-    const clientFor = (caller: ActionExecutionContext): ActionClient => ({ discover: () => directory.discover(), invoke: (_context, reference, input) => directory.invoke(reference, input, controlOf(caller)) });
+    const clientFor = (caller: ActionExecutionContext): ActionClient => ({ discover: async (_context, filter) => (await directory.discover()).filter(view => matchesActionDiscovery(view, filter)), invoke: (_context, reference, input) => directory.invoke(reference, input, controlOf(caller)) });
     const window = {
       read: <T>(body: () => T): T => sqlite.read(database, body, database.journal),
       write: <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => database.transaction(() => caller.beforeEffect(), transaction => sqlite.write(transaction, body)),

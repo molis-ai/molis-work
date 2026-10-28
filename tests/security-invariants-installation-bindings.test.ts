@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -40,9 +41,9 @@ async function world(t: TestContext, projectCount: number) {
     opened.set(project.project_id, rig);
     return rig;
   };
-  const install = async (index: number) => {
+  const install = async (index: number, installing = probe) => {
     const runtime = open(index).platform.runtime;
-    const record = runtime.install({ trust: { level: "unsigned" }, definition: probe.withoutFiles(), deployment: "local", grants: probe.permissions }).install;
+    const record = runtime.install({ trust: { level: "unsigned" }, definition: installing.withoutFiles(), deployment: "local", grants: installing.permissions }).install;
     await runtime.start(record.install_id);
     return record.install_id;
   };
@@ -53,7 +54,7 @@ async function world(t: TestContext, projectCount: number) {
   const account = () => withConnectorConnections(home, store => store.get(connection.connection_id));
   /** Installs without starting: what the Runtime says of the install itself. */
   const attempt = (index: number) => open(index).platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.withoutFiles(), deployment: "local", grants: probe.permissions });
-  return { home, projects, probe, other, install, attempt, uninstall, bind, bound, account, closeProject, connection };
+  return { home, catalog, projects, probe, other, install, attempt, uninstall, bind, bound, account, closeProject, connection };
 }
 
 test("S-71 RAC-861 the installation slot and the record bindings stay while another place has the identity installed, and go with the last one", { timeout: 120_000 }, async t => {
@@ -153,4 +154,62 @@ test("S-71 RAC-866 an identity no place has installed starts again without the b
   assert.equal(await w.install(2), id);
   assert.deepEqual(both(), [true, true], "project 1 still has it installed");
   assert.equal(w.account()?.connection_id, w.connection.connection_id, "the account itself stays");
+});
+
+
+test("MEM-40 S-71 RAC-864: an installation binding failure after Catalog commit keeps the original deletion pending and retries without recounting", { timeout: 120_000 }, async t => {
+  const w = await world(t, 2), sharedId = await w.install(0);
+  assert.equal(await w.install(1), sharedId);
+  const removedId = await w.install(0, w.other), gone = w.projects[0]!, neighbour = w.projects[1]!;
+  const shared = pluginBindingScope({ install_id: sharedId }), removed = pluginBindingScope({ install_id: removedId });
+  const recordGone = pluginBindingScope({ install_id: sharedId, project_id: gone.project_id, record_key: "record" });
+  const recordKept = pluginBindingScope({ install_id: sharedId, project_id: neighbour.project_id, record_key: "record" });
+  for (const [plugin, scope, slot] of [[w.probe.id, shared, "account"], [w.other.id, removed, "account"],
+    [w.probe.id, recordGone, "feed"], [w.probe.id, recordKept, "feed"]]) w.bind(plugin!, scope!, slot!);
+  const accountBefore = w.account();
+  w.catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "orphan-retry", host_declares_stable: true },
+    project_id: gone.project_id, actor_id: "test-user", user_confirmed: true });
+  await w.closeProject(gone.project_id);
+  const service = new ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: () => false, releaseProject: async () => {} });
+  const request = { project_id: gone.project_id, actor_id: "test-user", delete_confirmed: true, idempotency_key: "orphan-commit-retry" };
+  const prepare = DatabaseSync.prototype.prepare;
+  let interrupted = 0;
+  const hook = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    const statement = prepare.call(this, sql);
+    if (sql.startsWith("DELETE FROM connector_bindings")) {
+      const run = statement.run.bind(statement);
+      statement.run = (...args: unknown[]): ReturnType<typeof statement.run> => {
+        if (args[0] === removed) {
+          // An independent connection must see the physical removal, not just listProjects hiding a pending project.
+          const observer = new DatabaseSync(join(w.home, "projects", "catalog.db"), { readOnly: true });
+          try { assert.equal(observer.prepare("SELECT project_id FROM projects WHERE project_id=?").get(gone.project_id), undefined); }
+          finally { observer.close(); }
+          interrupted++;
+          throw new Error("installation binding DELETE interrupted after Catalog commit");
+        }
+        return Reflect.apply(run, statement, args);
+      };
+    }
+    return statement;
+  });
+  let first: Awaited<ReturnType<typeof service.deleteProject>>;
+  try { first = await service.deleteProject(w.home, request); } finally { hook.mock.restore(); }
+  assert.equal(interrupted, 1);
+  assert.equal(first.deletion.cleanup_state, "pending");
+  assert.match(first.deletion.cleanup_error ?? "", /installation binding DELETE interrupted/);
+  assert.equal(first.deletion.deleted_binding_count, 1, "the real Runtime context binding was removed at the committed Catalog step");
+  assert.deepEqual([w.bound(w.other.id, removed, "account"), w.bound(w.probe.id, shared, "account"),
+    w.bound(w.probe.id, recordGone, "feed"), w.bound(w.probe.id, recordKept, "feed")], [true, true, false, true]);
+  assert.deepEqual(w.account(), accountBefore);
+  const resumed = await service.deleteProject(w.home, request);
+  assert.equal(resumed.replayed, true);
+  assert.equal(resumed.deletion.deletion_id, first.deletion.deletion_id);
+  assert.equal(resumed.deletion.cleanup_state, "complete");
+  assert.equal(resumed.deletion.deleted_binding_count, first.deletion.deleted_binding_count);
+  assert.deepEqual([w.bound(w.other.id, removed, "account"), w.bound(w.probe.id, shared, "account"),
+    w.bound(w.probe.id, recordKept, "feed")], [false, true, true], "only the last installation lost its slot; the shared installation and neighbour record stay");
+  assert.deepEqual(w.account(), accountBefore);
+  const completed = await service.deleteProject(w.home, request);
+  assert.deepEqual(completed.deletion, resumed.deletion, "completed replay neither repeats counts nor replaces the decision");
+  assert.equal(w.catalog.listProjectDeletions().filter(row => row.project_id === gone.project_id).length, 1);
 });

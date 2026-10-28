@@ -8,12 +8,12 @@ export class ProjectRecordsRepository {
 
   listProjects(): ProjectRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM projects ORDER BY display_name COLLATE NOCASE, created_at, project_id",
+      "SELECT * FROM projects WHERE NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=projects.project_id AND d.cleanup_state='pending') ORDER BY display_name COLLATE NOCASE, created_at, project_id",
     ).all() as Row[]).map(mapProject);
   }
 
-  getProject(projectId: string): ProjectRecord | null {
-    const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ?").get(projectId) as Row | undefined;
+  getProject(projectId: string, includePending = false): ProjectRecord | null {
+    const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ? AND (? OR NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=projects.project_id AND d.cleanup_state='pending'))").get(projectId, includePending ? 1 : 0) as Row | undefined;
     return row ? mapProject(row) : null;
   }
 

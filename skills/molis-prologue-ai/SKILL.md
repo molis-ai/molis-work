@@ -74,6 +74,7 @@ description: How to add or change an AI capability in Molis Work — anything th
    - **`BUSINESS_HOST_TOOLS` 里还有 `board-wait`**（#661 加）：展开常量的业务角色都能登记等外面的结果，只能用它的 App 登记的只读外部检查器（第 7 步「等外面的结果」和其后一段）。
    - **在插件里跑一个 Agent**（等它跑完再写）：Manifest 声明 `agent.roles` 与权限 `agent:run`；动作声明 `scheduling: "concurrent"`（或保留 job）；处理器里用 `context.services.agents.run`，只传角色、任务、标题、可选工作区 id 和至多十分钟的时限，返回最后一条 assistant 正文与会话/运行引用。原动作取消、停用、撤权、超时，或运行等人工交互（`awaiting-input`、`awaiting-review`）时，平台取消本次运行。例子 `plugins/native/schedule/src/runtime-wakeups.ts`，契约 `packages/contracts/src/platform/plugin-agents.ts`，手册第 4 节有细节。
 6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；派出前被宿主复核拒绝用 `isDispatchRefusal` 识别，说明「没有发出」而不是网络问题；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。
+   - Host 有界推理的 `afterResult` 默认沿用 `beforeDispatch`，两层均保留原凭据、取消和授权检查。只有业务合同明确允许保留已发结果时才分别提供，例如 Knowledge 的同版本隐藏卡结算；普通定位、正文读取仍要求结果返回时当前可读。结果阶段拒绝不代表请求未发送，不标为 `isDispatchRefusal`，也不自动重调。
    - **页面上的「没有模型」状态**（只指原生插件的客户端脚本；生成插件没有 DOM，界面由宿主按合同渲染，不写这个）：显示过「没有模型」的页面在 `document` 上听 `molis-work:model-ready`（分栏窗格里的框架也收到），事件里重读一次是否有模型，不留着加载时的旧答案，否则页面和「模型已连接」的提示互相矛盾。去设置的链接是普通链接（`/settings/models`），页面不为它单写返回逻辑；链接若放在模态 `<dialog>` 里，点击时先关掉对话框（设置盖在页面上，模态会压住它）。要在事件里重开对话框的页面，只有此刻自己真在屏幕上才开，要同时看有盒子和可见，写成 `root.getClientRects().length && getComputedStyle(root).visibility === 'visible'`（Jelly 的写法）：只看 `getClientRects().length` 不够，设置盖下面的页面是 `visibility: hidden`，盒子还在，`showModal()` 开在被藏起来的页面里会锁住整页（Jelly 的教训）。记着「去过设置」的标记，在第一次事件上就用掉（那一刻页面不在屏幕上也用掉），不留到以后：人没保存就走了、标记还留着，之后某次保存时页面恰好回到前台，对话框就在人没打算的时候弹出来。事件何时发、设置盖何时先关、怎样到框架和其他标签页，不在这里重复，见 `docs/platform/PROLOGUE-AI.md`「第一次配置」和 `packages/contracts/src/platform/dom-events.ts` 里 `molis-work:model-ready` 的登记条目。
 7. **取消与恢复**：被取消/撤权/停用的调用不再写任何业务记录（处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容）；长任务用持久记录 + `request_id` 幂等，重试不重复调模型。
    - **等待与接续**（会话的一步等回信、后台命令或别的会话那一步，`specs/prologue-adoption/spec.md` §4.6.10）：等待和接续归 SDK 的任务图，插件不存副本。合同在 `packages/contracts/src/services/agent-collaboration.ts`：读与控制是宿主登记的动作 `agent.collaboration.read.v1`、`agent.collaboration.control.v1`，等到有接续可走用 `agentHostCapabilities.awaitContinuations`。接续由插件起会话的下一轮来接（宿主按接续的请求键开跑，开跑前的复核照旧）；开跑被拒（撤权、取消、停用）时不留言、不动接续，留给之后的 activation。写法看 `plugins/native/coding/src/wake-loop.ts`。
@@ -130,4 +131,11 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 
 `agent.inputs.send.v3` / `coding.runs.control` v8 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
 
-初始原件与接续通过正式 `agent.run.start.v1@2` 输入；`agent.session.read.v1@3`、`agent.run.read.v1@3`、`agent.run.wait.v1@3` 保留 canonical 原件，读取三口旧 @1/@2、启动口旧 @1 引用已失效。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。
+初始原件与接续通过正式 `agent.run.start.v1@2` 输入；`agent.session.read.v1@4`、`agent.run.read.v1@4`、`agent.run.wait.v1@4` 保留 canonical 原件，启动旧 @1 和三个读取口旧 @1/@2/@3 引用已失效。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。
+
+### Memory 原 Run 权限
+
+通用 Memory Action 与内置记忆工具使用同一轮 recipe，Host 在装配动作客户端前捕获分类限制。经插件代办或点击原 Run 建议时，保留原插件、Session、场景和分类快照；不能从模型参数或最新 attempt 补身份。`runtime_memory` 只在 Host 调用上下文中传递，插件 callback view 不暴露它；缺原快照的记忆调用明确不可用。当前规则只能收紧原许可，设置重开不扩大旧 Run。具体范围与待验收项以 `specs/prologue-memory-strategy/spec.md` M3 第三片为准。
+
+
+Coding 完成后的自动记忆经原观察和 `memory.learning.enqueue@1` 进入持久队列。轻量状态使用 `agent.sessions.status.v1@2` 的 latest_run_id；恢复有界检查全部 refs，在原 guard 下核指定 Run 的 canonical original ref，再用这个稳定原件 key 排除已有任务，只有无任务才读取有界上下文；同原件重试不替换旧 payload 或分类许可。读取 source 的本人 context 不授予形成许可，形成使用原 Run 分类和真实安装 memory:write，person=false。来源 guard 必须在 owner 读取前捕获，并贯穿异步复核和 SDK/Ledger 最后同步写；不得缓存已结束 handler 的授权。

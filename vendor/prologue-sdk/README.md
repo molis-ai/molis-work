@@ -1,14 +1,22 @@
-# Prologue SDK 构建来源
+# Prologue SDK 受控包
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；final103-bridge 仍只保留为上一主线包。
 
-当前包为 **1,397,575 字节**，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源为已合并 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净提交 `1cc80b05253df798eeb34afff65d1bda06bee587`，与上游合并提交 `ccafbb74fb9db0e3a124ec502c57291677487e23` 整树一致，没有 vendor 补丁。沿用已验证包的原始字节，816 个 dist 文件曾逐一对照原构建；本次从 Git 中取回同一产物，不声称重新独立制包。
+当前包来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `4ee5b9121d45c5d376ea653de3403170c9b337c6`，基于 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。集合读取、每次完整字节验证、默认0证明缓存及原权限/版本/取消/最终回执保留，存储格式未变。Molis沿同一caller/execution读取完整scopes并显式配置8 MiB证明预算；这不解除1000条性能失败，已停止的SQLite实验未进入产品。
 
-它包含既有 Memory CAS、分类、可信来源、采用与恢复能力，以及后续维护修复。新主干快照依赖的 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?})` 公共接口保留；当前组合仍须经过 Molis 实际离线快照、负例和恢复回归。本 Foundation 不采用尚在验证的集合读取优化 #108。
+保留 `config.memory.modelOrigin` 的 description/label 选择（SDK默认description，Molis选label），管理来源及canonical身份不变。新Agent开场只记caller消息，自动Context仍进入实际模型与回执；显式caller system保留，新账replay/rewind前缀语义随之变化。
 
-相邻 `.sha256`、`.provenance.json` 记录实际产物和来源；`patch-history.json` 保留历史补丁、已替换包及此前上游祖先审计。旧 #94 的包和 sidecars 可从 Molis `c61508d5e15ab4850d256843a0e4110f9ecf1e20` 取回。来源记录不是应用采用、性能或用户验收结果；以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 为准。
+本包保留按精确Session/Run读取caller原件的 `SessionOpeningReader`。SDK仅在原连续开场内无歧义对齐，排除无法确认来源的额外user段，原replay/export审计不改；peer/steer/carried及助手、工具顺序保留。Reader缺失或无法证明时不臆造原件；显式配置reader的读取错误/歧义拒绝续聊。未配置reader仍是原SDK行为，不宣称generic旧账已采用。实际省略通过无正文 `history-projected` 持久事件提示，模型发出前完成原发布；公开协作入口首次等待前固定本次history/reader，子任务不自动继承。
 
-快照命令输出的 `manifest.json` 与 `data/` 是离线备份载荷，不含原 Home 密钥，不能直接当作 `recover-home` 的完整 T0/T1 工作副本。本次不增加解包、补密钥或另一套恢复流程。
+归档 **1,414,090 B**，830个dist文件，SHA-256 `7edcac4037b3a9dfdbb433f500bd69b798fa984c38b1177be0340d22e7c2be12`。Root独立核全部dist与README和干净源构建逐字节相同；package.json仅有原pnpm pack去掉末尾换行的差异。被替换967及更早包的Git blob和来源sidecar保存在patch-history notes，不新增第三份归档。
+
+重建：固定Node24.14.0/pnpm11.9.0、冻结离线依赖，原pnpm build，packages/sdk原pnpm pack到独立目录。90e旧头的原完整quality曾自然退出0（不代表当前头）：类型/build/API、相对main ccaf的棘轮、文档、73文件770项、原干净安装消费者及Cargo fmt/clippy通过。独立复审发现的协作入口等待窗口已有4个公开红→绿回归，最终相关5文件58项通过；各类首败保留于SDK现合同。未调整质量门、重试或断言。
+
+本包保留 Node beforeNetworkDispatch 的同步只读来源否决函数，最后 SDK 等待后和代理 CONNECT 后在实际发送前复核，原授权、取消与真实派出事实不变。新增 LocalQueue.enqueue 的当次提交检查；保存确认前同key等待同一任务，未知保存只核原身份，后台执行重新核权，不继承结束的Action。最终build及queue/真实Node/public-surface共55项通过；原完整quality首轮782/783仅导出名快照失败，补齐后完成最终类型/API/棘轮/文档、原干净安装消费者与Rust检查。这是分段收束，不称单次完整命令全绿。旧967全quality通过与首次连接失败均保留；环境根因不称已解决，原时限、重试和门禁不变。
+
+新包的App生产链、旧私库采用、真实旧构建的连续续聊和页面提示、1000条性能门及完整P0验收仍待完成。上述源码旧形状测试用公开adoptRun与真实Node存储，不冒称原57cf亲生产物；0付费模型，不访问真实Home，不发布。
+
+verifyNodeStorageContents与#107原永久屏障保留。快照manifest/data仍只为离线备份载荷，不包含原Home密钥，不能冒充recover-home完整T0/T1；本次不新增解包、补密钥或另一恢复流程。
 
 ## 保留的上一主线依赖：final103-bridge（2026-10-25）
 
@@ -407,8 +415,10 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：42 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `packagesWithoutPatch`：33 个没有补丁的命名历史包（含合成保留的首份 memory-p0 #94 记录）（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：2026-10-26 对远端准确 main `ccafbb74fb9db0e3a124ec502c57291677487e23` 重新核对45 个 Prologue 提交（旧42项加 `f4bbbd88`、`15c38aed`、`ca0de1c6`），覆盖当前26份补丁及33个命名历史包的正式来源引用。41项用本地 Git 祖先检查；四个本地缺对象的历史过渡源用 GitHub compare API 核同一 main。结果为40个祖先、5个非祖先：`08b84296`、`923e5a40`、`4007a93c`、`ba75c9f8`、`f4bbbd88`。本次不审计 notes 中其他同名包后续源，也不把当前 SDK #108 候选记为已合 main。
+
+历史审计（原事实保留，完整对象在 notes 的 `Historical upstream audit retained unchanged (2026-10-25)` 项）：42 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 
@@ -428,3 +438,5 @@ git show e4bdeb12:vendor/prologue-sdk/claims.patch > claims.patch
 - `molis-repo`（1 份，`network-dispatch.patch`）：补丁只保存在 Molis 仓库里，包 `network-dispatch.tgz` 的 SHA-256 记在 `patches[].package`。
 
 没有记录的东西：最早的 `prologue-sdk-0.0.0-rc.1.tgz` 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。
+
+2026-10-26 合成后的 packagesWithoutPatch 为33个命名条目：保留主干 retry-waiting 与 Memory 分支的首份 memory-p0，后续同名包继续在 notes 保留原来源、摘要和 Git 对象。原2026-10-25的42项审计完整保留为历史文字；当前 upstream 已更新为2026-10-26对准确 main 的45项真实复核，不把新增核对倒填进旧审计。

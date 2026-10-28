@@ -1,12 +1,11 @@
-import { ledgerDatabase } from "../context-ledger-database.js";
-import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { ledgerDatabase, type LedgerConnection } from "../context-ledger-database.js";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import type { ContextAccess, ContextEdge, ObjectRef, ContextEdgePurgeIdentity } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ASSISTANT_RELATIONS, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 import { hostLog } from "../host-log.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
-type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
+type DatabaseSync = LedgerConnection;
 
 /** The Assistant writes its relations as itself, in its own partition of its own database. */
 const ACCESS: ContextAccess = { actor_id: "module:assistant", scope: { kind: "personal", id: "assistant" } };
@@ -103,6 +102,14 @@ export class AssistantRelations {
       && edge.target.object_type === object.kind && edge.target.id === object.id && (edge.target.project_id ?? null) === projectId)
       .map(edge => { const row = this.view(edge); return row ? { ...row, work_id: edge.source.id } : null; })
       .filter((row): row is WorkRelation & { work_id: string } => row !== null);
+  }
+
+  preparePurge(work: WorkIdentity): ContextEdgePurgeIdentity[] { return this.ledger.retention.prepare(ACCESS, this.workRef(work)); }
+  clearPurge(work: WorkIdentity, selected: readonly ContextEdgePurgeIdentity[], current: () => void): void {
+    this.ledger.retention.clear(ACCESS, this.workRef(work), selected, current);
+  }
+  verifyPurge(work: WorkIdentity, selected: readonly ContextEdgePurgeIdentity[]): void {
+    this.ledger.retention.verifyOriginal(ACCESS, this.workRef(work), selected);
   }
 
   private view(edge: ContextEdge): WorkRelation | null {

@@ -4,6 +4,7 @@ import type { AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewRequest } from "./agent-host-reviews.js";
 import type { AgentSkillDeclaration, AgentSkillDefinition } from "../platform/plugin-agent.js";
 import type { AgentToolActivity, AgentRunUsage } from "./agent-host-run-view.js";
+import type { AgentMemoryExecutionControl } from "./agent-host-memory.js";
 
 export interface AgentCheckpoint {
   checkpoint_id: string;
@@ -187,7 +188,9 @@ export interface AgentScheduledTask {
 export interface AgentScheduleCapability {
   /** Whether queued work still runs with the window closed, and why — from the Host's own handshake. */
   claim(): { survives_window_close: boolean; why: string };
-  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number }): Promise<AgentScheduledTask>;
+  /** The live control protects only first admission; each background attempt owns fresh authority. */
+  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number },
+    control?: AgentMemoryExecutionControl & { signal?: AbortSignal }): Promise<AgentScheduledTask>;
   /** Cancels a task not yet started; null when there is none under that key. A running one cannot be cancelled. */
   cancel(key: string): Promise<AgentScheduledTask | null>;
   find(key: string): AgentScheduledTask | null;

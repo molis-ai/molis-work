@@ -1,85 +1,15 @@
-/**
- * The memory settings page (specs/archive/memory-system §10): 个人 → 记忆 in the global settings, and 项目记忆 in a project's
- * settings. Both are the same page in a different scope; everything it shows and changes goes through `/api/memory/*`,
- * which invokes the shared directory's `memory.*` actions as the person.
- */
-export function renderMemorySettings({ L, scope, projectId }: { L(text: string): string; scope: "personal" | "project"; projectId: string | null }): string {
-  const personal = scope === "personal";
-  const title = personal ? L("记忆") : L("项目记忆");
-  const lead = personal
-    ? L("你的偏好和习惯：助理、Agent 工作、插件和界面推荐都会用到，在所有项目里生效。每一条都能看到从哪来、最近用在哪，可以修改、停用或删除。")
-    : L("这个项目的约定、背景和经验：只在这个项目里使用。和“项目说明”不同，它按相关性参考，不是必须遵守的规矩。");
-  return `<section class="settings-document memory-settings" aria-labelledby="memory-title" data-memory-settings data-memory-scope="${scope}" data-project="${projectId ?? ""}">
-    <header class="settings-page-heading memory-heading"><h1 id="memory-title">${title}</h1><p>${lead}</p>
-      <p class="memory-summary" data-memory-summary aria-live="polite">${L("正在读取…")}</p></header>
-    <p class="settings-form-error" data-memory-error role="alert" hidden></p>
-    <section class="settings-section" data-memory-retries hidden aria-labelledby="memory-retries-title">
-      <h2 id="memory-retries-title">${L("等待重试的操作")}</h2>
-      <p class="settings-muted">${L("重试会使用当时的内容和版本。筛选或重新读取不会丢失这些操作；刷新浏览器或离开本页后不再保留。")}</p>
-      <ul class="memory-list" data-memory-retry-list></ul>
-    </section>
-    <section class="settings-section memory-changes" aria-labelledby="memory-changes-title" data-memory-changes-section hidden>
-      <h2 id="memory-changes-title">${L("最近变动")}</h2>
-      <ul class="memory-change-list" data-memory-changes></ul>
-    </section>
-    <section class="settings-section memory-pairs" aria-labelledby="memory-pairs-title" data-memory-pairs-section hidden>
-      <h2 id="memory-pairs-title">${L("可能重复或冲突")}</h2>
-      <p class="settings-muted">${L("整理时发现的两两一对。选一条保留，另一条会停用（可以随时恢复）；都保留则不再提这一对。")}</p>
-      <ul class="memory-list" data-memory-pairs></ul>
-    </section>
-    <section class="settings-section memory-candidates" aria-labelledby="memory-candidates-title" data-memory-candidates-section hidden>
-      <h2 id="memory-candidates-title">${L("等你认可")}</h2>
-      <p class="settings-muted">${L("从工作、界面操作里提出，或写入门没有直接记住的内容。认可之前不会被使用。")}</p>
-      <ul class="memory-list" data-memory-candidates></ul>
-    </section>
-    <section class="settings-section memory-items" aria-labelledby="memory-items-title">
-      <div class="memory-items-head"><h2 id="memory-items-title">${personal ? L("我的记忆") : L("这个项目的记忆")}</h2>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${L("添加")}</button></div>
-      <div class="memory-toolbar" role="group" aria-label="${L("筛选记忆")}">
-        <select class="mw-select" data-memory-filter="kind" aria-label="${L("类别")}"><option value="">${L("全部类别")}</option><option value="preference">${L("偏好")}</option><option value="convention">${L("约定")}</option><option value="fact">${L("背景事实")}</option><option value="experience">${L("经验")}</option></select>
-        <select class="mw-select" data-memory-filter="source" aria-label="${L("来源")}"><option value="">${L("全部来源")}</option><option value="said">${L("你说的")}</option><option value="accepted">${L("你认可的")}</option><option value="auto">${L("自动记住")}</option><option value="manual">${L("手动添加")}</option><option value="imported">${L("导入")}</option><option value="plugin">${L("插件记下")}</option></select>
-        <select class="mw-select" data-memory-filter="state" aria-label="${L("状态")}"><option value="">${L("全部状态")}</option><option value="active">${L("生效")}</option><option value="disabled">${L("停用")}</option><option value="paused">${L("已暂停")}</option></select>
-        <input class="mw-input memory-search" type="search" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
-      </div>
-      <div class="memory-editor-slot" data-memory-new hidden></div>
-      <ul class="memory-list" data-memory-list><li class="settings-muted">${L("正在读取…")}</li></ul>
-    </section>
-    <section class="settings-section memory-prefs" aria-labelledby="memory-form-title">
-      <h2 id="memory-form-title">${L("怎么形成")}</h2>
-      ${prefRow(L, "form", L("允许记住"), personal ? L("总开关。关掉后不再形成新的记忆，也不提建议；已有的照常使用。") : L("关掉后不再为这个项目形成新的记忆，也不提建议。"))}
-      <div class="settings-setting-row memory-pref-static"><span class="setting-copy"><strong>${L("明确要求时记住")}</strong><span>${L("你说“以后……”“记住……”时直接记住，并告诉你在哪里生效。")}</span></span><span class="setting-value settings-muted">${L("总是")}</span></div>
-      ${prefRow(L, "auto", L("自动记住低风险的偏好与经验"), L("你在两次不同的工作里都这样要求时自动记住，出现在“最近变动”里，可以撤销。关掉则都先问你。"))}
-      ${prefRow(L, "learn_from_work", L("从工作里提出建议"), L("工作结束时提出值得记住的内容，等你认可。"))}
-      ${prefRow(L, "learn_from_ui", L("从界面操作里学习"), L("只数你采纳、忽略、改写、撤销界面建议的次数，不保存内容；反复出现才提出建议。"))}
-    </section>
-    <section class="settings-section memory-prefs" aria-labelledby="memory-use-title">
-      <h2 id="memory-use-title">${L("谁可以用")}</h2>
-      ${prefRow(L, "consumers.assistant", L("助理"), L("你在底栏交给助理的工作。"))}
-      ${prefRow(L, "consumers.agent", L("Agent 工作"), L("Coding、插件里的 Agent 和工作流。"))}
-      ${prefRow(L, "consumers.ui", L("界面推荐"), L("根据你正在看的内容给出的建议。"))}
-      ${prefRow(L, "consumers.plugin", L("插件"), L("插件只能读到偏好和约定，不会读到背景事实。"))}
-      ${prefRow(L, "consumers.mcp", L("外部 AI 客户端"), personal ? L("通过 MCP 连接的客户端。个人记忆默认不开放。") : L("通过 MCP 连接的客户端，只读。"))}
-    </section>
-    <section class="settings-section memory-data" aria-labelledby="memory-data-title">
-      <h2 id="memory-data-title">${L("整理与数据")}</h2>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("整理")}</strong><span data-memory-upkeep>${L("每天整理一次：到期和长期没用到的停用，重复的自动记忆合并，依据不在的暂停。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-upkeep-run>${L("现在整理")}</button></span></div>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导出")}</strong><span>${L("下载一个记忆包，里面的密钥和本机路径已经去掉。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${L("导出")}</button></span></div>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导入")}</strong><span>${L("选择一个记忆包；已有的相同内容会跳过，包损坏时一条也不写入。")}</span></span>
-        <span class="setting-value"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${L("导入")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${personal ? L("清空个人记忆") : L("清空这个项目的记忆")}</strong><span>${L("先告诉你会删掉几条，确认后删除；删除后任何地方都不会再用到。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${L("清空…")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${L("重新预览…")}</button></span></div>
-      <p class="settings-muted" data-memory-clear-status aria-live="polite" hidden></p>
-    </section>
-    ${personal ? `<p class="settings-muted memory-rules-note">${L("交互规则（例如“写方案时别打断”）由助理按规则执行，在“助理”设置里管理。")} <a href="/settings/assistant">${L("去助理设置")}</a></p>` : ""}
-  </section>`;
-}
+import { MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT } from "./settings-memory-classes.js";
+import { MEMORY_IMPORT_CLIENT_SCRIPT } from "./settings-memory-import.js";
 
-function prefRow(_L: (text: string) => string, key: string, title: string, description: string): string {
-  return `<label class="settings-setting-row memory-pref"><span class="setting-copy"><strong>${title}</strong><span>${description}</span></span>
-    <span class="setting-value"><span class="mw-switch"><input type="checkbox" role="switch" data-memory-pref="${key}" aria-label="${title}" disabled><span class="mw-switch__track" aria-hidden="true"></span></span></span></label>`;
-}
+export { renderMemorySettings } from "./settings-memory-view.js";
+
+/** Candidate and change cards open the same memory settings owner, using the current project at click time. */
+export const MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT = String.raw`(projectFor, L) => (target) => {
+  const project = projectFor();
+  if (target.scope === "character" && !target.project_id) throw new Error(L("角色建议缺少项目，无法打开设置"));
+  const scoped = target.scope === "character" ? target.project_id : target.scope === "project" ? target.project_id || project?.id : "";
+  location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
+}`;
 
 /**
  * Binds one memory page (a standalone settings page, or the same page fetched into the settings cover): safe to call
@@ -91,10 +21,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     if (!root || root.dataset.memoryBound === "1") return;
     root.dataset.memoryBound = "1";
     const L = globalThis.L || ((text) => text);
+    const unread = L("读取未完成，请重新读取。");
     const scope = root.dataset.memoryScope === "project" ? "project" : "personal";
     const project = root.dataset.project || "";
     const base = (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
     const $ = (selector) => root.querySelector(selector);
+    const part = name => $("[data-memory-" + name + "]");
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
     // A step that cannot be undone asks first, in the catalog's alert dialog (never the browser's own prompt).
@@ -115,6 +47,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       root.append(dialog); dialog.showModal(); cancel.focus();
     });
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
+    const FORMAL_KIND = { ...KIND, habit: "习惯", "project-decision": "项目决策" };
+    const CLASS = { coding: "Coding", assistant: "助理", common: "通用", "long-term": "长期", "short-term": "短期", session: "会话内", habit: "习惯", "project-decision": "项目决策" };
     const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
     const STATE = { active: "生效", disabled: "停用", paused: "已暂停" };
     const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
@@ -122,18 +56,18 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope) => {
       const parts = [];
-      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
-      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
+      if (applies?.plugin_ids?.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
+      if (applies?.object_kinds?.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
       // Goals by name when their plugin can still read them; one it cannot is said so rather than shown as an id.
-      if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.map((id) => {
+      if (applies?.goal_ids?.length) parts.push("Goal " + applies.goal_ids.map((id) => {
         const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : L("（读不到的 Goal）"); }).join("、"));
       if (applies && applies.task) parts.push(applies.task);
       if (applies && applies.until) parts.push(L("到") + " " + applies.until.slice(0, 10));
       return parts.length ? parts.join(" · ") : L(itemScope === "character" ? "这个角色在本项目承担的工作" : scope === "project" ? "这个项目的所有工作" : "所有工作");
     };
-    let data = null, busy = false;
-    const filters = { kind: "", source: "", state: "", query: "" };
-    const error = $("[data-memory-error]");
+    let data = null, busy = false, reading = false, readFailed = false, reader, currentCursor, previous = [], pairsOpened = false, pairsReader;
+    const filters = { scene: "", kind: "", lifecycle: "", source: "", state: "", expired: "", query: "" };
+    const error = part("error");
     const board = () => document.querySelector("[data-settings-toast], [data-toast]");
     const toast = (text) => {
       const box = board();
@@ -144,9 +78,83 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
+    const paintClasses = (${MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT})(L, part, el, button, () => data?.prefs, async rules => {
+      const saved = await api("/prefs", { scope, prefs: { class_restrictions: rules } });
+      data.prefs = saved.prefs; await load();
+    });
     const pendingCommands = new Map();
+    const selected = new Map(), selectionKey = item => JSON.stringify([item.scope, item.owner, item.memory_id]);
+    const batchStatus = part("batch-status"), batchResults = part("batch-results");
+    const batchStorageKey = "memory-selection:" + base;
+    let batchPreview = null, batchRequest = null, batchStorageUnread = false;
+    try {
+      const saved = JSON.parse(localStorage.getItem(batchStorageKey) || "null");
+      if (saved && typeof saved.preview_id === "string" && ["disable", "remove"].includes(saved.action)) batchPreview = saved;
+    } catch {
+      batchStorageUnread = true; batchStatus.hidden = false;
+      batchStatus.textContent = L("无法读取原预览。请恢复浏览器存储后重新打开页面，或明确结束本次操作。");
+    }
+    const paintSelection = () => {
+      part("selected").textContent = L("已选") + " " + selected.size + " / 100";
+      part("batch-disable").disabled = part("batch-remove").disabled = !selected.size || !!batchPreview || batchStorageUnread || busy || reading || readFailed;
+      part("batch-retry").hidden = !batchPreview; part("batch-retry").disabled = busy;
+      root.querySelectorAll("[data-memory-select]").forEach(input => { input.disabled = busy || !!batchPreview || batchStorageUnread; });
+      part("selection-reset").textContent = L(batchPreview || batchStorageUnread ? "结束本次操作，重新选择" : "取消勾选");
+    };
+    const showBatch = (done) => {
+      const status = batchStatus, list = batchResults;
+      status.hidden = list.hidden = false;
+      status.textContent = L(done.complete ? "所选记忆已全部处理完成" : "本次操作尚未完成；重试只处理原预览，已完成项不会重复执行。");
+      list.replaceChildren();
+      const labels = { completed: "已完成", conflict: "版本冲突", refused: "当前权限拒绝", unknown: "结果未知，可能已有部分清理", "not-executed": "尚未执行" };
+      done.items.forEach(item => {
+        const original = selected.get(selectionKey(item));
+        list.append(el("li", "memory-row", (done.action === "remove" ? item.memory_id : original?.text || item.memory_id) + " · v" + item.expected_version + " · " + L(labels[item.outcome])));
+      });
+    };
+    const applyBatch = async () => {
+      try { localStorage.setItem(batchStorageKey, JSON.stringify(batchPreview)); }
+      catch { throw new Error(L("无法保存原预览，尚未开始执行。请恢复浏览器存储后重试原预览；关闭页面会丢失本页恢复入口。")); }
+      batchStatus.hidden = false;
+      batchStatus.textContent = L("正在处理原预览；若中断，请重试原预览。");
+      const done = await api("/batch/apply", { preview_id: batchPreview.preview_id, operation_id: crypto.randomUUID() });
+      showBatch(done);
+      if (done.complete) {
+        selected.clear();
+        try { localStorage.removeItem(batchStorageKey); batchPreview = batchRequest = null; }
+        catch { batchStatus.textContent += " " + L("处理已完成，但原预览引用未能清理；重试只核对原结果，不会重复处理。"); }
+      }
+      paintSelection();
+    };
+    const previewBatch = (action) => run(async () => {
+      batchStatus.textContent = ""; batchResults.replaceChildren();
+      batchStatus.hidden = batchResults.hidden = true;
+      const values = [...selected.values()];
+      const items = values.map(({ text, ...item }) => item);
+      const signature = JSON.stringify({ action, items });
+      if (!batchRequest || batchRequest.signature !== signature) batchRequest = { signature, body: { action, items, operation_id: crypto.randomUUID() } };
+      const preview = await api("/batch/preview", batchRequest.body);
+      const summary = values.map(item => "· " + item.text + " (v" + item.expected_version + ")").join("\n");
+      if (!await ask(L(action === "remove" ? "遗忘这些记忆？" : "停用这些记忆？"),
+        preview.items.length + " " + L("条已选记忆；后来新增不进入本次操作。") + "\n" + summary, L("确认执行"))) return;
+      batchPreview = { preview_id: preview.preview_id, action: preview.action };
+      paintSelection(); await applyBatch();
+    });
+    part("batch-disable").addEventListener("click", () => previewBatch("disable"));
+    part("batch-remove").addEventListener("click", () => previewBatch("remove"));
+    part("batch-retry").addEventListener("click", () => run(applyBatch));
+    part("selection-reset").addEventListener("click", () => {
+      if (busy) return;
+      try { localStorage.removeItem(batchStorageKey); }
+      catch { fail(new Error(L("无法清理原预览引用，本次操作仍保留。请恢复浏览器存储后重试。"))); return; }
+      selected.clear(); batchPreview = batchRequest = null; batchStorageUnread = false;
+      batchStatus.hidden = batchResults.hidden = true;
+      paintItems(); paintSelection();
+    });
+    paintSelection();
+
     const commandTitle = (path, payload) => {
-      const actions = { update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
+      const actions = { renew: "续期", reclassify: "纠正分类", update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
       const title = L(actions[payload.action || path.split("/").at(-1)]);
       const subject = payload.text || data?.items?.find(item => item.memory_id === payload.memory_id)?.text
         || data?.candidates?.find(item => path.startsWith("/candidates/" + encodeURIComponent(item.candidate_id) + "/"))?.text;
@@ -160,8 +168,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); throw failure; }
     };
     function paintRetries() {
-      $("[data-memory-retries]").hidden = !pendingCommands.size;
-      const list = $("[data-memory-retry-list]"); list.replaceChildren();
+      part("retries").hidden = !pendingCommands.size;
+      const list = part("retry-list"); list.replaceChildren();
       for (const command of pendingCommands.values()) {
         const row = el("li", "memory-row"), copy = el("strong", "memory-row-copy", command.title);
         const retry = button(L("重试这次操作"), "mw-btn--secondary", L("重试这次操作") + "：" + command.title);
@@ -184,26 +192,66 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     };
     const run = async (work, message) => {
       if (busy) return;
-      busy = true; error.hidden = true;
+      busy = true; error.hidden = true; paintSelection();
       try { await work(); await load(); if (message) toast(L(message)); }
       catch (failure) { fail(failure); }
-      finally { busy = false; }
+      finally { busy = false; paintSelection(); }
     };
-    const load = async () => { data = await api("/overview?scope=" + scope); paint(); };
+    const pageInput = (cursor) => {
+      const filter = {};
+      for (const [key, plural] of [["kind", "kinds"], ["source", "sources"], ["state", "states"], ["lifecycle", "lifecycles"]]) {
+        if (filters[key]) filter[plural] = [filters[key]];
+      }
+      if (filters.scene === "unclassified") filter.unclassified = true;
+      else if (filters.scene) filter.scenes = [filters.scene];
+      if (filters.expired) filter.expired = filters.expired === "true";
+      return { scope, filter, ...(filters.query.trim() ? { query: filters.query.trim() } : {}), ...(cursor ? { cursor } : {}) };
+    };
+    const readPage = async (cursor, trail, overview = false) => {
+      reader?.abort();
+      const active = reader = new AbortController(), input = pageInput(cursor);
+      reading = true; readFailed = false; error.hidden = true; paintNavigation();
+      const request = path => molisWorkRequest(base + path, { signal: active.signal });
+      try {
+        const first = overview ? await request("/overview?scope=" + scope) : null;
+        const page = first && !Object.keys(input.filter).length && !input.query && !cursor ? first
+          : await request("/page?input=" + encodeURIComponent(JSON.stringify(input)));
+        if (reader !== active || !root.isConnected) return;
+        data = { ...data, ...first, ...page }; currentCursor = cursor; previous = trail;
+        paint();
+      } catch (failure) {
+        if (reader === active && root.isConnected) {
+          readFailed = true; fail(failure);
+          part("list").replaceChildren(el("li", "memory-empty settings-muted", unread));
+        }
+      } finally {
+        if (reader === active) { reading = false; paintNavigation(); }
+      }
+    };
+    const load = async () => { await readPage(undefined, [], true); if (pairsOpened) await readPairs(); };
+
+    function paintNavigation() {
+      part("list").setAttribute("aria-busy", String(reading));
+      part("list").inert = reading || readFailed;
+      part("previous").disabled = reading || readFailed || !previous.length;
+      const next = part("next"); next.disabled = reading || readFailed || !data?.cursor || data.exhausted;
+      next.textContent = L(data && !data.items.length && !data.exhausted ? "继续查找" : "下一页");
+      part("reload").disabled = reading; paintSelection();
+      part("page-status").textContent = reading ? L("正在读取…") : readFailed ? unread : !data ? ""
+        : L("本页显示") + " " + data.items.length + " · " + L(data.exhausted ? "已查完" : "尚未查完，可以继续查找。");
+    }
 
     function paintSummary() {
-      const counts = data.counts || {};
-      const total = scope === "project" ? counts.project : counts.personal;
-      const parts = [L(scope === "project" ? "项目记忆" : "个人记忆") + " " + (total || 0) + " " + L("条")];
-      if (counts.auto_this_week) parts.push(L("本周自动记住") + " " + counts.auto_this_week + " " + L("条"));
-      if (counts.pending) parts.push(counts.pending + " " + L("条等你认可"));
-      $("[data-memory-summary]").textContent = parts.join(" · ");
+      const parts = [L(scope === "project" ? "项目记忆" : "个人记忆") + " · " + (data.total.kind === "exact"
+        ? data.total.value + " " + L("条") : L("总数未知"))];
+      if (data.candidates?.length) parts.push(data.candidates.length + " " + L("条等你认可"));
+      part("summary").textContent = parts.join(" · ");
     }
 
     function paintChanges() {
       // What happened without the person's own hand here: automatic changes, and what works kept or forgot for them.
-      const list = $("[data-memory-changes]"), changes = (data.changes || []).filter((change) => change.by !== "person" || change.work).slice(0, 6);
-      $("[data-memory-changes-section]").hidden = !changes.length;
+      const list = part("changes"), changes = (data.changes || []).filter((change) => change.by !== "person" || change.work).slice(0, 6);
+      part("changes-section").hidden = !changes.length;
       list.replaceChildren();
       changes.forEach((change) => {
         const row = el("li", "memory-change" + (change.state === "undone" ? " is-undone" : ""));
@@ -224,27 +272,37 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintCandidates() {
-      const list = $("[data-memory-candidates]"), candidates = data.candidates || [];
-      $("[data-memory-candidates-section]").hidden = !candidates.length;
+      const list = part("candidates"), candidates = data.candidates || [];
+      part("candidates-section").hidden = data.candidates !== null && !candidates.length;
       list.replaceChildren();
+      if (data.candidates === null) list.append(el("li", "settings-muted", unread));
       candidates.forEach((candidate) => {
         const row = el("li", "memory-row memory-row--candidate"), submit = mutation();
+        row.dataset.memoryCandidate = candidate.candidate_id;
         const decide = (action, values = {}) => submit("/candidates/" + encodeURIComponent(candidate.candidate_id) + "/" + action, { ...values, expected_version: candidate.version });
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", candidate.text));
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", L(KIND[candidate.kind] || candidate.kind)));
+        meta.append(el("span", "memory-tag", L(KIND[candidate.kind] || candidate.kind)),
+          el("span", "", classificationText(candidate.classification)),
+          el("span", "", L("保留时间") + "：" + expiryText(candidate.formal_expires_at)));
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
         if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", L("依据") + "：" + candidate.why));
         if (candidate.work) meta.append(el("span", "", L("工作") + "「" + candidate.work.title + "」"));
+        if (candidate.waiting_expires_at) meta.append(el("span", "", L("建议等待至") + "：" + expiryText(candidate.waiting_expires_at)));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
         const keep = button(L("记住"), "mw-btn--primary", L("记住") + "：" + candidate.text);
-        keep.addEventListener("click", () => run(() => decide("accept"), "已记住"));
+        const needsDecision = !candidate.classification?.scenes?.length || candidate.classification.scenes.some(scene => !["coding", "assistant", "common"].includes(scene))
+          || !["long-term", "short-term"].includes(candidate.classification.lifecycle) || candidate.formal_expires_at === undefined;
+        const openDecision = () => { const form = itemEditor({ ...candidate, expires_at: candidate.formal_expires_at }, values => decide("accept", values), "candidate"); row.replaceChildren(form); form.querySelector("textarea").focus(); };
+        if (needsDecision) keep.textContent = L("明确分类与期限");
+        keep.addEventListener("click", () => needsDecision ? openDecision() : run(() => decide("accept"), "已记住"));
         const reword = button(L("改一下再记"), "mw-btn--ghost");
         reword.addEventListener("click", () => {
-          const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "已记住");
+          if (needsDecision) { openDecision(); return; }
+          const editor = itemEditor(candidate, values => decide("accept", values), "text");
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
         const drop = button(L("不用"), "mw-btn--ghost", L("不用") + "：" + candidate.text);
@@ -255,41 +313,139 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       });
     }
 
-    function textEditor(text, save, done) {
+    const classificationText = classification => classification
+      ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未归类");
+    const expiryText = expires => expires === undefined ? L("尚未决定") : expires ? new Date(expires).toLocaleString() : L("无固定期限");
+
+    function classificationFields(item, adopting = false) {
+      const host = el("details", "memory-origin"), scenes = el("div", "memory-editor-fields");
+      host.append(el("summary", "", L("分类与期限")), el("p", "settings-muted", L("原分类") + "：" + classificationText(item.classification)));
+      const sceneNames = ["coding", "assistant", "common"];
+      const initialScenes = sceneNames.filter(scene => item.classification?.scenes.includes(scene));
+      scenes.setAttribute("role", "group"); scenes.setAttribute("aria-label", L("适用场景"));
+      host.append(el("strong", "settings-muted", L("适用场景")), scenes);
+      for (const scene of sceneNames) {
+        const label = el("label", "settings-check"), box = el("input"); box.type = "checkbox"; box.value = scene;
+        box.dataset.memoryScene = ""; box.checked = Boolean(item.classification?.scenes.includes(scene));
+        label.append(box, document.createTextNode(" " + L(CLASS[scene]))); scenes.append(label);
+      }
+      const fields = el("div", "memory-editor-fields"), lifecycle = el("select", "mw-select");
+      lifecycle.setAttribute("aria-label", L("保留时间")); lifecycle.dataset.memoryLifecycle = "";
+      for (const [key, title] of [["", "请选择保留类型"], ["long-term", "长期"], ["short-term", "短期"]]) {
+        const option = el("option", "", L(title)); option.value = key; lifecycle.append(option);
+      }
+      if (item.classification?.lifecycle === "session") {
+        const option = el("option", "", L("会话内")); option.value = "session"; option.disabled = true; lifecycle.append(option);
+      }
+      lifecycle.value = item.classification?.lifecycle || "";
+      const initialLifecycle = lifecycle.value;
+      const expiry = el("select", "mw-select"); expiry.setAttribute("aria-label", L("期限决定")); expiry.dataset.memoryExpiry = "";
+      for (const [key, title] of [[adopting && item.expires_at === undefined ? "" : "keep", adopting && item.expires_at === undefined ? "请选择正式期限" : "保留原期限"], ["set", "设置截止时间"], ["remove", "移除固定期限"]]) {
+        const option = el("option", "", L(title)); option.value = key; expiry.append(option);
+      }
+      const date = el("input", "mw-input"); date.type = "datetime-local"; date.step = "1"; date.disabled = true; date.hidden = true;
+      date.setAttribute("aria-label", L("截止时间（本地时间）")); date.dataset.memoryExpiresAt = "";
+      expiry.addEventListener("change", () => { date.disabled = date.hidden = expiry.value !== "set"; date.required = expiry.value === "set"; });
+      fields.append(lifecycle, expiry, date);
+      host.append(fields, el("p", "settings-muted", L("原期限") + "：" + (item.expires_at === undefined ? L("尚未决定") : expiryText(item.expires_at))),
+        el("p", "settings-muted", L("改为长期不会自动移除期限；短期必须有未来的截止时间。")));
+      return { host, read: kindChanged => {
+        const selected = Array.from(scenes.querySelectorAll("input:checked"), box => box.value);
+        if (!kindChanged && selected.length === initialScenes.length && selected.every(scene => initialScenes.includes(scene))
+          && lifecycle.value === initialLifecycle && expiry.value === "keep") return null;
+        host.open = true;
+        if (item.expired || item.classification?.lifecycle === "session") throw new Error(L(item.expired
+          ? "这条记忆已到期，请先在更多操作中明确续期，再纠正分类。" : "会话内记忆需要可信会话绑定，暂不支持在这里纠正分类。"));
+        if (!lifecycle.value) throw new Error(L("请选择保留类型"));
+        if (!selected.length) throw new Error(L("至少选择一个适用场景"));
+        if (!expiry.value) throw new Error(L("请选择正式期限"));
+        const expires = expiry.value === "keep" ? item.expires_at : expiry.value === "remove" ? null : new Date(date.value).toISOString();
+        if (lifecycle.value === "short-term" && (!expires || Date.parse(expires) <= Date.now())) throw new Error(L("短期记忆需要未来的截止时间"));
+        if (expiry.value === "set" && Date.parse(expires) <= Date.now()) throw new Error(L("截止时间必须晚于现在"));
+        const classification = { scenes: selected, lifecycle: lifecycle.value };
+        const expanded = selected.some(scene => !item.classification?.scenes.includes(scene))
+          || (item.classification?.lifecycle === "short-term" && lifecycle.value === "long-term")
+          || (item.expires_at && (!expires || Date.parse(expires) > Date.parse(item.expires_at)));
+        const removed = (item.classification?.scenes || []).filter(scene => !sceneNames.includes(scene));
+        if (item.classification && !["long-term", "short-term", "session"].includes(item.classification.lifecycle)) removed.push(item.classification.lifecycle);
+        return { classification, ...(adopting || expiry.value !== "keep" ? { expires_at: expires } : {}),
+          confirmation: expanded || removed.length ? L("适用场景与保留时间") + "：" + classificationText(item.classification) + " → " + classificationText(classification)
+            + "；" + L("有效至") + "：" + expiryText(item.expires_at) + " → " + expiryText(expires)
+            + (removed.length ? "；" + L("将移除未声明的分类值") + "：" + removed.join("、") : "") : "" };
+      } };
+    }
+
+    function renewalEditor(item, onSave) {
       const form = el("form", "memory-editor");
-      const area = el("textarea", "mw-input memory-editor-text"); area.value = text; area.maxLength = 400; area.rows = 2; area.setAttribute("aria-label", L("记忆内容"));
-      const row = el("div", "memory-editor-actions");
-      const ok = button(L("保存"), "mw-btn--primary"); ok.type = "submit";
-      const cancel = button(L("取消"), "mw-btn--ghost");
-      cancel.addEventListener("click", () => paint());
-      row.append(ok, cancel);
-      form.append(area, row);
-      form.addEventListener("submit", (event) => { event.preventDefault(); const value = area.value.trim(); if (value) run(() => save(value), done); });
+      const date = el("input", "mw-input"); date.type = "datetime-local"; date.step = "1"; date.required = true;
+      date.setAttribute("aria-label", L("新的截止时间（本地时间）")); date.dataset.memoryRenewExpiry = "";
+      const row = el("div", "memory-editor-actions"), ok = button(L("确认续期"), "mw-btn--primary"), cancel = button(L("取消"), "mw-btn--ghost");
+      ok.type = "submit"; cancel.addEventListener("click", () => paint()); row.append(ok, cancel);
+      form.append(el("p", "settings-muted", L("原期限") + "：" + expiryText(item.expires_at)),
+        el("p", "settings-muted", L("续期只更新截止时间，停用或暂停状态保持不变。")), date, row);
+      form.addEventListener("submit", async event => {
+        event.preventDefault(); if (busy || ok.disabled) return;
+        ok.disabled = true;
+        try {
+          const millis = date.value && date.validity.valid ? new Date(date.value).getTime() : NaN;
+          if (!Number.isFinite(millis)) throw new Error(L("请选择有效的截止时间"));
+          if (millis <= Date.now()) throw new Error(L("截止时间必须晚于现在"));
+          const expires_at = new Date(millis).toISOString();
+          if (!await ask(L("确认续期？"), L("有效至") + "：" + expiryText(item.expires_at) + " → " + expiryText(expires_at)
+            + "；" + L("续期只更新截止时间，停用或暂停状态保持不变。"), L("确认续期"))) return;
+          await run(() => onSave({ action: "renew", expires_at }), "已更新期限");
+        } catch (failure) { fail(failure); }
+        finally { ok.disabled = false; }
+      });
       return form;
     }
 
-    function itemEditor(item, onSave) {
+    function itemEditor(item, onSave, mode) {
+      const adopting = mode === "candidate";
       const form = el("form", "memory-editor");
       const area = el("textarea", "mw-input memory-editor-text"); area.value = item ? item.text : ""; area.maxLength = 400; area.rows = 2; area.required = true;
       area.placeholder = L("一句能单独读懂的话，例如：周报用要点列表，每条一句"); area.setAttribute("aria-label", L("记忆内容"));
+      const row = el("div", "memory-editor-actions"), ok = button(L(adopting ? "记住" : "保存"), "mw-btn--primary"), cancel = button(L("取消"), "mw-btn--ghost");
+      ok.type = "submit"; cancel.addEventListener("click", paint); row.append(ok, cancel);
+      if (mode === "text") {
+        form.append(area, row);
+        form.addEventListener("submit", event => { event.preventDefault(); const text = area.value.trim(); if (text) run(() => onSave({ text }), "已记住"); });
+        return form;
+      }
       const fields = el("div", "memory-editor-fields");
       const kind = el("select", "mw-select"); kind.setAttribute("aria-label", L("类别"));
-      Object.keys(KIND).forEach((key) => { const option = el("option", "", L(KIND[key])); option.value = key; kind.append(option); });
+      if (adopting) kind.dataset.memoryCandidateKind = "";
+      const kinds = item ? FORMAL_KIND : KIND;
+      Object.keys(kinds).forEach((key) => { const option = el("option", "", L(kinds[key])); option.value = key; kind.append(option); });
       kind.value = item ? item.kind : (scope === "project" ? "convention" : "preference");
       const task = el("input", "mw-input"); task.maxLength = 200; task.placeholder = L("适用于（可选），例如：写周报时"); task.setAttribute("aria-label", L("适用情境"));
       task.value = item && item.applies && item.applies.task ? item.applies.task : "";
-      fields.append(kind, task);
-      const row = el("div", "memory-editor-actions");
-      const ok = button(L("保存"), "mw-btn--primary"); ok.type = "submit";
-      const cancel = button(L("取消"), "mw-btn--ghost");
-      cancel.addEventListener("click", () => paint());
-      row.append(ok, cancel);
-      form.append(area, fields, row);
-      form.addEventListener("submit", (event) => {
+      fields.append(kind); if (!adopting) fields.append(task);
+      const correction = item ? classificationFields(item, adopting) : null;
+      if (adopting) { correction.host.open = true; form.append(el("p", "settings-muted", L("正式记忆的保留时间与建议等待期限分开。请明确这条记忆以后怎样使用。"))); }
+      form.append(area, fields); if (correction) form.append(correction.host); form.append(row);
+      form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const text = area.value.trim(); if (!text) return;
+        const text = area.value.trim(); if (!text || busy || ok.disabled) return;
         const applies = Object.assign({}, item ? item.applies : {}); if (task.value.trim()) applies.task = task.value.trim(); else delete applies.task;
-        run(() => onSave({ text, kind: kind.value, applies }), item ? "已保存" : "已记住");
+        ok.disabled = true;
+        try {
+          const corrected = correction?.read(adopting || kind.value !== item.kind);
+          if (adopting) {
+            const { confirmation, ...values } = corrected;
+            if (!await ask(L("记住这条建议"), confirmation || classificationText(values.classification) + "；" + L("有效至") + "：" + expiryText(values.expires_at), L("记住"))) return;
+            const request = { text, formal: { kind: kind.value, ...values } };
+            form.replaceChildren(el("p", "settings-muted", L("正在保存…")));
+            return await run(() => onSave(request), "已记住");
+          }
+          if (corrected) {
+            const { confirmation, ...values } = corrected;
+            if (confirmation && !await ask(L("确认分类与期限变更？"), confirmation, L("确认保存"))) return;
+            await run(() => onSave({ action: "reclassify", kind: kind.value, ...values, ...(text !== item.text ? { text } : {}),
+              ...(task.value.trim() !== (item.applies?.task || "") ? { applies } : {}) }), "已保存");
+          } else await run(() => onSave({ ...(item ? { action: "update" } : {}), text, kind: kind.value, applies }), item ? "已保存" : "已记住");
+        } catch (failure) { fail(failure); }
+        finally { ok.disabled = false; }
       });
       return form;
     }
@@ -303,10 +459,20 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         body.revisions.slice().reverse().forEach((revision) => {
           const entry = el("li", "");
           entry.append(el("span", "memory-history-version", L("第") + " " + revision.version + " " + L("版") + " · " + day(revision.at)), el("span", "", revision.text));
-          if (revision.version !== item.version) {
+          entry.append(el("span", "settings-muted", L(FORMAL_KIND[revision.kind] || revision.kind) + " · " + classificationText(revision.classification)
+            + " · " + L("有效至") + "：" + (revision.expires_at || revision.snapshot_available ? expiryText(revision.expires_at) : L("期限未知"))));
+          if (revision.version !== item.version && revision.snapshot_available) {
             const back = button(L("回到这一版"), "mw-btn--link"), restore = mutation();
             back.addEventListener("click", () => run(() => restore("/change", { memory_id: item.memory_id, expected_version: item.version, action: "restore", version: revision.version }), "已回到这一版"));
             entry.append(back);
+            entry.append(el("span", "settings-muted", L("恢复时仍会核对当前权限、期限和会话条件。")));
+          } else if (revision.version !== item.version) {
+            const use = button(L("使用这段旧文字"), "mw-btn--link"), update = mutation();
+            use.addEventListener("click", async () => {
+              if (await ask(L("使用这段旧文字？"), L("只替换正文，保留当前分类、适用条件、期限、来源和状态。"), L("使用这段旧文字")))
+                await run(() => update("/change", { memory_id: item.memory_id, expected_version: item.version, action: "update", text: revision.text }), "已使用旧文字");
+            });
+            entry.append(el("span", "memory-tag", L("缺少完整快照，不能恢复")), use);
           } else entry.append(el("span", "memory-tag", L("当前")));
           list.append(entry);
         });
@@ -315,32 +481,41 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintItems() {
-      const list = $("[data-memory-list]");
+      const list = part("list");
       list.replaceChildren();
-      const query = filters.query.trim().toLowerCase();
-      // A project's page also holds the memories of the Characters working in it: each labelled with its Character.
-      const mine = (item) => item.scope === scope || (scope === "project" && item.scope === "character");
-      const items = (data.items || []).filter(mine)
-        .filter((item) => (!filters.kind || item.kind === filters.kind) && (!filters.source || item.source === filters.source) && (!filters.state || item.state === filters.state)
-          && (!query || item.text.toLowerCase().includes(query)));
+      const items = data.items;
       if (!items.length) {
-        const empty = (data.items || []).some(mine);
-        list.append(el("li", "memory-empty settings-muted", empty ? L("没有符合筛选的记忆") : scope === "project"
+        const filtered = previous.length || Object.values(filters).some(Boolean);
+        list.append(el("li", "memory-empty settings-muted", !data.exhausted ? L("尚未查完，可以继续查找。") : filtered ? L("没有符合筛选的记忆") : scope === "project"
           ? L("这个项目还没有记忆：在项目的工作里说“记住……”，或点“添加”。") : L("还没有记住任何事：在对话里说“以后……”或“记住……”，或点“添加”。")));
         return;
       }
       items.forEach((item) => {
-        const row = el("li", "memory-row" + (item.state !== "active" ? " is-off" : "")), submit = mutation();
+        const row = el("li", "memory-row memory-row--selectable" + (item.state !== "active" || item.expired ? " is-off" : "")), submit = mutation();
         const change = values => submit("/change", { ...values, memory_id: item.memory_id, expected_version: item.version });
         row.dataset.memoryId = item.memory_id;
+        const checkbox = el("input"); checkbox.type = "checkbox"; checkbox.dataset.memorySelect = "";
+        checkbox.setAttribute("aria-label", L("选择") + "：" + item.text);
+        checkbox.checked = selected.has(selectionKey(item)); checkbox.disabled = !!batchPreview;
+        checkbox.addEventListener("change", () => {
+          const key = selectionKey(item);
+          if (checkbox.checked && !selected.has(key)) {
+            if (selected.size >= 100) { checkbox.checked = false; toast(L("一次最多选择 100 条")); return; }
+            selected.set(key, { scope: item.scope, owner: item.owner, memory_id: item.memory_id, expected_version: item.version, text: item.text });
+          } else selected.delete(key);
+          batchRequest = null; paintSelection();
+        });
+
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", item.text));
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", L(KIND[item.kind] || item.kind)));
+        meta.append(el("span", "memory-tag", L(KIND[item.kind] || CLASS[item.kind] || item.kind)));
+        meta.append(el("span", "memory-tag", classificationText(item.classification)));
         if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
         if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
         if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
+        if (item.expired || item.expires_at) meta.append(el("span", "memory-tag", L(item.expired ? "已到期" : "有效至") + (item.expires_at ? " " + expiryText(item.expires_at) : "")));
         meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope)));
         meta.append(el("span", "", item.last_used ? L("最近参考轮次") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("暂无已确认参考")));
         copy.append(meta);
@@ -349,7 +524,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const actions = el("div", "memory-actions");
         const edit = button(L("修改"), "mw-btn--ghost", L("修改") + "：" + item.text);
         edit.addEventListener("click", () => {
-          const editor = itemEditor(item, (value) => change({ action: "update", text: value.text, kind: value.kind, applies: value.applies }));
+          const editor = itemEditor(item, change);
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
         const toggleLabel = item.state === "paused" ? L("恢复使用") : L(item.state === "disabled" ? "启用" : "停用");
@@ -363,6 +538,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           if (item.scope === "personal" && !project) { fail(new Error(L("在项目的设置里才能改为那个项目的记忆"))); return; }
           run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "已改范围");
         });
+        if (item.expired && item.expires_at && item.classification?.lifecycle !== "session") menuItem(L("续期"), () => {
+          const editor = renewalEditor(item, change); copy.replaceChildren(editor); editor.querySelector("input").focus();
+        });
         menuItem(L("历史版本"), () => historyPanel(item, copy));
         if (item.scope === "project" && project) menuItem(L("升级为项目说明"), () => {
           const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?draft=" + encodeURIComponent(item.text);
@@ -373,7 +551,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         }, true);
         more.append(summary, menu);
         actions.append(edit, toggle, more);
-        row.append(copy, actions);
+        row.append(checkbox, copy, actions);
         list.append(row);
       });
     }
@@ -386,12 +564,30 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         box.checked = Boolean(value);
         box.disabled = false;
       });
+      paintClasses();
+    }
+
+    async function readPairs() {
+      pairsOpened = true; pairsReader?.abort();
+      const active = pairsReader = new AbortController(), open = part("pairs-read"), list = part("pairs");
+      open.disabled = true; open.textContent = L("正在读取…"); list.inert = true;
+      try {
+        const body = await molisWorkRequest(base + "/pairs?scope=" + scope, { signal: active.signal });
+        if (pairsReader === active && root.isConnected) { data.pairs = body.pairs; paintPairs(); }
+      } catch (failure) {
+        if (pairsReader === active && root.isConnected) { data.pairs = null; paintPairs(); fail(failure); }
+      } finally {
+        if (pairsReader === active) { pairsReader = null; open.disabled = false; open.textContent = L("重新读取"); list.inert = false; }
+      }
     }
 
     function paintPairs() {
-      const list = $("[data-memory-pairs]"), pairs = data.pairs || [];
-      $("[data-memory-pairs-section]").hidden = !pairs.length;
+      const list = part("pairs"), pairs = data.pairs, open = part("pairs-read");
+      open.disabled = Boolean(pairsReader);
+      open.textContent = L(pairsReader ? "正在读取…" : pairsOpened ? "重新读取" : "查看可能重复或冲突");
       list.replaceChildren();
+      if (!pairs) return;
+      if (!pairs.length) list.append(el("li", "settings-muted", L("没有需要处理的")));
       pairs.forEach((pair) => {
         const row = el("li", "memory-row memory-row--pair");
         const copy = el("div", "memory-row-copy");
@@ -413,7 +609,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintUpkeep() {
-      const box = $("[data-memory-upkeep]"), last = data.last_upkeep;
+      const box = part("upkeep"), last = data.last_upkeep;
       if (!last) return;
       const done = [last.expired ? L("到期停用") + " " + last.expired : "", last.unused ? L("长期没用停用") + " " + last.unused : "", last.merged ? L("合并") + " " + last.merged : "",
         last.paused ? L("依据不在暂停") + " " + last.paused : "", last.pairs ? L("交给你选") + " " + last.pairs : ""].filter(Boolean).join(" · ");
@@ -422,20 +618,25 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
 
     function paint() {
       if (!data) return;
-      paintSummary(); paintChanges(); paintPairs(); paintCandidates(); paintItems(); paintPrefs(); paintUpkeep();
-      $("[data-memory-new]").hidden = true;
+      paintSummary(); paintChanges(); paintPairs(); paintCandidates(); paintItems(); paintPrefs(); paintUpkeep(); paintNavigation();
+      part("new").hidden = true;
     }
 
     root.querySelectorAll("[data-memory-filter]").forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => {
-      filters[control.dataset.memoryFilter] = control.value; if (data) paintItems();
+      filters[control.dataset.memoryFilter] = control.value;
+      readPage(undefined, [], !data);
     }));
-    $("[data-memory-add]").addEventListener("click", () => {
-      const slot = $("[data-memory-new]"), write = mutation();
+    part("previous").addEventListener("click", () => readPage(previous.at(-1), previous.slice(0, -1)));
+    part("next").addEventListener("click", () => readPage(data.cursor, [...previous, currentCursor]));
+    part("reload").addEventListener("click", load);
+    part("pairs-read").addEventListener("click", readPairs);
+    part("add").addEventListener("click", () => {
+      const slot = part("new"), write = mutation();
       const editor = itemEditor(null, (value) => write("/items", { scope, text: value.text, kind: value.kind, applies: value.applies }));
       slot.replaceChildren(editor); slot.hidden = false; editor.querySelector("textarea").focus();
     });
-    $("[data-memory-upkeep-run]").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
-    $("[data-memory-export]").addEventListener("click", () => run(async () => {
+    part("upkeep-run").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
+    part("export").addEventListener("click", () => run(async () => {
       const body = await api("/export", { scope });
       const blob = new Blob([JSON.stringify(body.package, null, 2)], { type: "application/json" });
       const link = document.createElement("a");
@@ -445,18 +646,21 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }, "已导出"));
     const importPackage = mutation();
-    $("[data-memory-import]").addEventListener("change", (event) => {
+    const prepareImport = (${MEMORY_IMPORT_CLIENT_SCRIPT})({ L, el, button, ask, run }, part("import-editor"),
+      pack => importPackage("/import", { scope, package: pack }), { kinds: FORMAL_KIND, classes: CLASS, sources: SOURCE,
+        appliesText, expiryText, targetTitle: L(scope === "project" ? "项目记忆" : "个人记忆") });
+    part("import").addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       event.target.value = "";
       if (!file) return;
       run(async () => {
         let pack;
         try { pack = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是记忆包")); }
-        await importPackage("/import", { scope, package: pack });
+        await prepareImport(pack);
       });
     });
     let clearPreview = null;
-    const clearButton = $("[data-memory-clear]"), resetClear = $("[data-memory-clear-reset]"), clearStatus = $("[data-memory-clear-status]");
+    const clearButton = part("clear"), resetClear = part("clear-reset"), clearStatus = part("clear-status");
     const showClear = (message) => {
       clearStatus.textContent = message; clearStatus.hidden = false;
       clearButton.textContent = L(clearPreview ? "重试本次清空" : "清空…"); resetClear.hidden = !clearPreview;

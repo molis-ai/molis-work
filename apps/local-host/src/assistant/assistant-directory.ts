@@ -1,6 +1,7 @@
 import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, knowledgeCatalogText, type KnowledgeListEntry } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { directEligible } from "./assistant-authority.js";
+import type { KnowledgeDispatchGuard } from "@molis-ai/molis-work-service-knowledge";
 
 /** Capabilities named as not usable now are capped; the rest are counted, so the directory stays short. */
 const UNAVAILABLE_SHOWN = 12;
@@ -48,11 +49,12 @@ function unavailableLines(unavailable: readonly ActionView[]): string[] {
 }
 
 /** What the Host reads for a round's situation besides the directory itself. */
+export type KnowledgeMaterialGuard = KnowledgeDispatchGuard;
+type WithKnowledgeGuard<T> = T & KnowledgeMaterialGuard;
+type MaybeAsync<T> = T | null | Promise<T | null>;
 export interface AssistantRoundFactPorts {
-  /** How many pieces of project knowledge a round whose directory is `views` would see listed in a project, by source. */
-  knowledgeTally?(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> } | null;
-  /** The project's catalog for that round (specs/project-knowledge §6.4): whole when small, otherwise the pieces related to `words`. */
-  knowledgeCatalog?(projectId: string, views: readonly ActionView[], words: string): { total: number; whole: boolean; pieces: KnowledgeListEntry[] } | null;
+  knowledgeTally?(projectId: string, views: readonly ActionView[]): MaybeAsync<WithKnowledgeGuard<{ total: number; sources: Array<{ plugin_title: string; count: number }> }>>;
+  knowledgeCatalog?(projectId: string, views: readonly ActionView[], words: string): MaybeAsync<WithKnowledgeGuard<{ total: number; whole: boolean; pieces: KnowledgeListEntry[] }>>;
 }
 
 /**
@@ -61,12 +63,13 @@ export interface AssistantRoundFactPorts {
  * Empty for personal work, a round without 「列出项目资料」, a count the Host cannot read now, and none counted: a project whose
  * sources are still being listed would otherwise be said to hold nothing.
  */
-export function knowledgeFact(ports: AssistantRoundFactPorts, projectId: string | null, offered: readonly ActionView[]): string {
+export async function knowledgeFact(ports: AssistantRoundFactPorts, projectId: string | null, offered: readonly ActionView[], guards?: KnowledgeMaterialGuard[]): Promise<string> {
   const list = knowledgeActions.list;
   if (!projectId || !ports.knowledgeTally || !offered.some(view => view.capability_id === list.capability_id && view.provider.provider_id === KNOWLEDGE_PROVIDER_ID)) return "";
-  let tally: ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeTally"]>>;
-  try { tally = ports.knowledgeTally(projectId, offered); } catch { return ""; }
+  let tally: Awaited<ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeTally"]>>>;
+  try { tally = await ports.knowledgeTally(projectId, offered); } catch { return ""; }
   if (!tally?.total) return "";
+  if (tally.beforeDispatch) guards?.push({ beforeDispatch: tally.beforeDispatch, sourceCapture: tally.sourceCapture, assertCardsCurrent: tally.assertCardsCurrent });
   return `这个项目的资料有 ${tally.total} 份（${tally.sources.map(source => `${source.plugin_title} ${source.count}`).join("、")}）。`;
 }
 
@@ -75,12 +78,13 @@ export function knowledgeFact(ports: AssistantRoundFactPorts, projectId: string 
  * tools, and each knowledge action's exact identity and input so it is called without looking it up. Empty when the round may
  * not list the project's knowledge, for personal work, a catalog the Host cannot read now, and an empty one.
  */
-export function knowledgeDirectory(ports: AssistantRoundFactPorts, projectId: string | null, offered: readonly ActionView[], words: string): string {
+export async function knowledgeDirectory(ports: AssistantRoundFactPorts, projectId: string | null, offered: readonly ActionView[], words: string, guards?: KnowledgeMaterialGuard[]): Promise<string> {
   const tools = offered.filter(view => view.provider.provider_id === KNOWLEDGE_PROVIDER_ID && view.action.audiences.includes("agent"));
   if (!projectId || !ports.knowledgeCatalog || !tools.some(view => view.capability_id === knowledgeActions.list.capability_id)) return "";
-  let catalog: ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeCatalog"]>>;
-  try { catalog = ports.knowledgeCatalog(projectId, offered, words); } catch { return ""; }
+  let catalog: Awaited<ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeCatalog"]>>>;
+  try { catalog = await ports.knowledgeCatalog(projectId, offered, words); } catch { return ""; }
   if (!catalog?.pieces.length) return "";
+  if (catalog.beforeDispatch) guards?.push({ beforeDispatch: catalog.beforeDispatch, sourceCapture: catalog.sourceCapture, assertCardsCurrent: catalog.assertCardsCurrent });
   const input = (view: ActionView) => {
     const schema = view.action.input_schema as { properties?: Record<string, unknown>; required?: string[] };
     return Object.keys(schema.properties ?? {}).map(key => schema.required?.includes(key) ? `${key}（必填）` : key).join("、");

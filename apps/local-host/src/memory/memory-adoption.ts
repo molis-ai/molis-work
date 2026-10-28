@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defaultPrefs, isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
-import { hasOnlyStorageOwnerFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { hasOnlyStorageOwnerFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, readMemoryLedgerProfiles, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 
 /** Current ledger format and complete product prefs, not SDK entry classification or migration. */
@@ -10,6 +10,13 @@ export function prepareMemoryHome(home: string, owner?: StorageOwner): boolean {
   const hasLedger = existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE));
   const newHome = !hasLedger && freshMemoryHome(home, owner);
   if (!hasLedger && !newHome) throw memoryErrors.unavailable("这个 Home 的记忆尚未采用当前格式；请备份后完成采用，再重新启动");
+  if (hasLedger) {
+    const profiles = readMemoryLedgerProfiles({ homeDirectory: home });
+    if (profiles.some(profile => !isCompletePrefs(profile.prefs))
+      || !["personal", "project-default"].every(key => profiles.some(profile => profile.actor_id === LOCAL_PERSON_ACTOR_ID && profile.key === key))) {
+      throw memoryErrors.unavailable("这个 Home 的记忆设置尚未全部采用当前格式；请在备份副本上完成采用，再重新启动");
+    }
+  }
   const ledger = openMemoryLedger({ homeDirectory: home });
   let initialized = false;
   try {

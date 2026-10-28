@@ -1,8 +1,9 @@
+import { rmSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { homeSqlitePartitionDirectory } from "@molis-ai/molis-work-storage";
+import { homeSqlitePartitionDirectory, inspectExistingStoragePath } from "@molis-ai/molis-work-storage";
 import { hasPluginBackground } from "./plugin-background-service.js";
 import { clearProjectRows } from "./plugin-project-rows.js";
 import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
@@ -76,14 +77,22 @@ function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackgr
     const store = library.store_name;
     return {
       id: entry.project_data?.owner_id ?? manifest.plugin_id, ...partitionLabel(manifest.name), words_of: manifest.plugin_id,
-      async clear(projectId) {
+      async clear(projectId, _deletion, control) {
+        control?.assertCurrent();
         const record = stopBackground(projectId);
+        control?.assertCurrent();
+        const directory = homeSqlitePartitionDirectory(home, store, projectId);
+        const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
         const release = record ? libraries.clearProjectLibrary(record.install_id, projectId) : undefined;
-        try { await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }); } finally { release?.(); }
+        try {
+          control?.assertCurrent(); target?.assertCurrent();
+          if (control) rmSync(directory, { recursive: true, force: true });
+          else await rm(directory, { recursive: true, force: true });
+        } finally { release?.(); }
       },
     };
   }
-  return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, words_of: manifest.plugin_id, clear(projectId) { stopBackground(projectId); } } : null;
+  return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, words_of: manifest.plugin_id, clear(projectId, _deletion, control) { control?.assertCurrent(); stopBackground(projectId); control?.assertCurrent(); } } : null;
 }
 
 /** What the confirmation dialog says of a library partitioned by project: the Host's words, with the plugin's name. */
@@ -99,9 +108,9 @@ function declaredRowsOwner(home: string, entry: PluginProjectCleanupEntry, libra
   return {
     id: shipped?.owner_id ?? manifest.plugin_id, words_of: manifest.plugin_id,
     ...shipped ? { label: rows.label } : { label: "{name} 的项目数据：{detail}", label_values: { name: manifest.name, detail: rows.label } },
-    clear(projectId) {
-      stopBackground(projectId);
-      clearProjectRows(home, library, manifest.plugin_id, projectId, manifest.owner_files);
+    clear(projectId, _deletion, control) {
+      control?.assertCurrent(); stopBackground(projectId); control?.assertCurrent();
+      clearProjectRows(home, library, manifest.plugin_id, projectId, manifest.owner_files, control);
     },
   };
 }

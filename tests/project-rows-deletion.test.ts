@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,7 +27,7 @@ const DECLARING = ["dataset", "form", "images", "lingguang", "pages", "ppt", "to
 const WHOLLY_PROJECT = DECLARING.filter(id => id !== "images");
 
 function withHome(t: TestContext): string {
-  const directory = mkdtempSync(join(tmpdir(), "project-rows-"));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "project-rows-")));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   return join(directory, "home");
 }
@@ -145,8 +145,8 @@ function rowsProbe(label = ROWS.label, id = "io.molis.work.example.rowsprobe") {
 }
 
 /** A Host behind the desktop HTTP composition, given the probe as a Home plugin it did not ship, granted and running. */
-async function runningProbe(t: TestContext, probe: ReturnType<typeof rowsProbe>) {
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+async function runningProbe(t: TestContext, probe: ReturnType<typeof rowsProbe>, homeDirectory?: string) {
+  const f = await serveHomeRuntime(t, { ...(homeDirectory ? { homeDirectory } : {}), pluginFixtures: { home: [probe.definition] } });
   const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation(probe.id)!;
   await platform.runtime.stop(install.install_id);
   platform.runtime.grant(install.install_id, PERMISSIONS.map(item => item.permission));
@@ -298,7 +298,26 @@ test("RAC-563 a deletion waits for a write another connection holds on the libra
   assert.equal(marks(home, library.store_name, ["pa"]).pages!.pa, 0);
 });
 
-test("RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own", async t => {
+test("MEM-40 running declared-row owner retains current after the actual write lock and closes the refused connection", async t => {
+  const probe = rowsProbe(), home = realpathSync(mkdtempSync(join(tmpdir(), "project-rows-current-")));
+  const f = await runningProbe(t, probe, home);
+  seed(f.home, LIBRARY, ["pa", "pb"]);
+  const calls = [...probe.calls], expected = marks(f.home, LIBRARY.store_name, ["pa", "pb"]), denied = new Error("row owner revoked after lock");
+  let locked: DatabaseSync | undefined;
+  const exec = DatabaseSync.prototype.exec;
+  const interception = t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
+    const result = exec.call(this, sql); if (sql === "BEGIN IMMEDIATE") locked = this; return result;
+  });
+  try { await assert.rejects(projectDeletedHooksFor(f.home).clear(probe.id, "pa", undefined, { assertCurrent() { if (locked) throw denied; } }), error => error === denied); }
+  finally { interception.mock.restore(); }
+  assert.ok(locked); assert.throws(() => locked!.prepare("SELECT 1"), /not open/);
+  assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), expected);
+  await projectDeletedHooksFor(f.home).clear(probe.id, "pa", undefined, { assertCurrent() {} });
+  assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
+  assert.deepEqual(probe.calls, calls);
+});
+
+for (const controlled of [false, true]) test(`RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own (${controlled ? "controlled" : "ordinary"})`, async t => {
   const home = withHome(t);
   const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
   assert.deepEqual(library.project_rows?.files, [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }], "Images declares its pictures");
@@ -316,7 +335,7 @@ test("RAC-577 S-86 the files a project's rows name go with them, and only plain 
   symlinkSync(outside, join(assets, "linked.png"));
   writeFileSync(join(home, "hard-source.png"), "png"); linkSync(join(home, "hard-source.png"), join(assets, "hard.png"));
 
-  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa", undefined, controlled ? { assertCurrent() {} } : undefined), true);
   assert.equal(existsSync(join(assets, "a.png")), false, "the project's own picture is removed");
   assert.ok(existsSync(join(assets, "kept.png")), "a name another project's row still gives is that project's, and stays");
   for (const kept of [outside, join(root, "outside.png"), join(assets, "sub", "b.png"), join(assets, "folder.png"), join(home, "hard-source.png"), join(assets, "hard.png")]) {
@@ -359,6 +378,31 @@ test("RAC-577 S-86 a file two projects' rows name stays until the last of them g
   } finally { chmodSync(assets, 0o755); }
   assert.equal(await projectDeletedHooksFor(home).clear("images", "pc"), true);
   assert.deepEqual([existsSync(join(assets, "own.png")), projects()], [false, []]);
+});
+
+test("MEM-40 no selected files means controlled row cleanup leaves an unrelated assets directory alone", async t => {
+  const home = withHome(t), images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets"), otherAssets = join(home, "other-assets"), shared = [{ filename: "shared.png" }];
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    for (const [project, names] of [["empty", []], ["shared", shared], ["kept", shared]] as const) {
+      db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+        aspect_ratio, status, images_json, error, created_at) VALUES (?, ?, ?, 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+        .run(`job-${project}`, project, `request-${project}`, JSON.stringify(names));
+    }
+  } finally { db.close(); }
+  mkdirSync(otherAssets); writeFileSync(join(otherAssets, "shared.png"), "the other project's picture");
+  symlinkSync(otherAssets, assets);
+  const hooks = projectDeletedHooksFor(home), control = { assertCurrent() {} };
+  for (const project of ["empty", "shared"]) assert.equal(await hooks.clear("images", project, undefined, control), true);
+  assert.ok(lstatSync(assets).isSymbolicLink(), "neither empty nor shared-only selection owns this directory");
+  assert.equal(readFileSync(join(otherAssets, "shared.png"), "utf8"), "the other project's picture");
+  const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+  try {
+    const rows = left.prepare("SELECT project_id, images_json FROM jobs").all();
+    assert.deepEqual(rows.map(row => row.project_id), ["kept"]);
+    assert.deepEqual(JSON.parse(String(rows[0]!.images_json)), shared);
+  } finally { left.close(); }
 });
 
 test("RAC-577 S-86 a named file the deletion cannot look at fails the step, and the rows stay for the next attempt", async t => {

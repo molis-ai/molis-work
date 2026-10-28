@@ -42,6 +42,8 @@
 
 ### 有界推理（以 Pages 写作助手为例）
 
+Host 的 `beforeDispatch` 复查材料与原调用，并经 Inference 接到 Node Host 的实际派出前检查。可选 `afterResult` 用于已发结果的业务复核，省略时仍沿用 `beforeDispatch`；凭据与取消检查在两阶段保留。只有合同明确允许时才能采用不同规则，例如归档前已发出的同版本 Knowledge 整理结果可隐藏结算，普通定位结果仍要求来源当前可读。结果阶段拒绝不能标成未发送，也不能自动重放。
+
 ```text
 页面 → 插件 HTTP 路由（只转发）
   → 动作 pages.ai（plugins/native/pages/src/actions.ts，声明 model:invoke 与 scheduling: "concurrent"）
@@ -87,7 +89,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1@3 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait.v1@4 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
 
 **每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
@@ -534,7 +536,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 工具说明延后加载 | 工具很多时先给名册，需要时用 `find-tools` 取说明 | Prologue SDK 的 `deferToolSchemasBeyond: 32`；Coding 角色开放 `find-tools`（`specs/coding-plugin/spec.md`「工具面」） | 可以照着用 | 只列名字的照样调得动，`find-tools` 取过的之后照常声明（Prologue #28，2026-10-16 换包；13.4）；没点 `find-tools` 的角色延后时也有名册（Prologue #30）。之前是 SDK 设计缺陷，调不到 | 替身模型：`tests/prologue-tool-declaration.test.ts`（PA-12）；真实模型：`specs/prologue-adoption/spec.md` §6.0e 的评测记录，换包后的重跑见那里；描述被延后以后用法是否还对，见 `specs/ai-development-handbook/spec.md` §9.5 的 BL-145 |
 | 助理的方法目录 | 方法按需读取 | 「可用的方法」→ 动作 `assistant.methods.read`（`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 摘要常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts` |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
-| 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
+| 记忆 | 模型提议，写入门决定；同轮分类权限不因设置重开扩大 | `assistant-memory-tools.ts`；`AgentHost.start` → `agent-host-composition.ts` → `memory-effect.ts` → SDK Memory authority | 同轮 recipe 同时绑定内置工具、通用 Action 与原 Run 建议；插件回调不收 Host 策略对象 | current ∩ frozen ∩ 原 grant；历史缺快照明确不可用；新 SDK 最终派发检查依赖见 memory spec | 已有：`tests/assistant-memory.test.ts`；新生产组合反例 `tests/agent-memory-action-class-policy.test.ts` 待本片统一构建实跑 |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v3` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
@@ -720,3 +722,5 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 - Anthropic，[Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)（2025-09-29）：上下文是有限的资源，要找能完整定义期望行为的最小一组高价值信息；系统 prompt 在「写死的脆弱逻辑」与「空泛的高层指引」之间找合适的高度；示例用少量多样的典型例子，不列边界情况清单；用引用按需取用信息；长任务用压缩、结构化笔记和子代理。对应本手册 12.4、13.1、13.3。
 - Anthropic，[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)（2024-12-19，页面自己注明其中提到的工具已有变化）：先找最简单的方案，只在能证明结果更好时增加复杂度；workflow 是预先写好代码路径的编排，agent 由模型自己决定过程和工具；给模型的工具接口值得像人机界面一样用心设计，改参数让错误难犯。对应 12.3、13.4。文中的具体 API 与产品现状不照搬。
 - OpenAI，[Harness engineering](https://openai.com/index/harness-engineering/)：需求书于 2026-10-15 核对并引用，取「仓库知识要可发现、给 Agent 能看见结果的反馈环境、不把全部知识堆成一大段常驻指令」这一层意思。2026-10-16 再核对时页面要求人机验证，未能读到原文，本手册不在需求书之外引申。对应 17 节的入口做法与第 16 节。
+
+同一 Run 的按需记忆读取沿现工具接入：助理 `list-memories`、Coding/通用 Agent 已获准的 `memory.list@5` / `memory.recall@3` 只回无正文引用与排队回执，授权正文由 SDK 在下一真实模型请求中按同 Run 预算注入。queued 不是派发或采用证明；纠正仍使用返回的 memory_id/version。manual 或关闭形成不关闭独立允许的读取，off/角色禁读仍拒绝。Host 私有 control 不进入插件回调；无控制不回落正文。当前为源码接入、运行验证未跑，范围和验收见 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。

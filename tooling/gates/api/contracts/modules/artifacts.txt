@@ -79,6 +79,10 @@ export interface ArtifactReference {
 
 export type ArtifactScope = "personal" | "team_project";
 
+export type ArtifactVersionMetadata = Pick<ArtifactVersionRecord, "project_id" | "artifact_id" | "version" | "artifact_type_id" | "content_digest" | "availability" | "lifecycle_state" | "content_kind"> & {
+    has_payload: boolean;
+};
+
 export interface ArtifactVersionRecord extends FixedVersionRecord {
     origin: ArtifactOrigin;
     title: string;
@@ -95,7 +99,9 @@ export interface ArtifactsApplicationApi {
 
 export type ArtifactsCommandApi = FixedVersionCommandApi<ArtifactVersionRecord, RegisterArtifactVersionInput>;
 
-export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord>;
+export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord> & {
+    getArtifactVersionMetadata(projectId: string, reference: ArtifactReference): ArtifactVersionMetadata | null;
+};
 
 export interface FixedVersionCommandApi<R extends FixedVersionRecord, I extends RecordFixedVersionInput> {
     registerVersion(input: I): FixedVersionResult<R>;

@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm, realpath, readFile, writeFile } from "node:fs/promises";
@@ -39,7 +40,7 @@ test("an Agent run receives the Host memory recipe frozen into its role; no reci
           skills: [], mcp_tools: [], host_tools: [...request.role.host_tools], text_materials: [], budget: null, directory: { canonical_path: "/tmp/ws", realpath_verified: true } } };
     },
   } as never);
-  const pinned = { pinned: [], consumer: "agent", current_scene: "coding", scopes: [{ scope: "user" as const, owner: LOCAL_PERSON_ACTOR_ID }],
+  const pinned = { class_restrictions: { policy_version: 2 as const, taxonomy_version: 1 as const, personal: [], project: [] }, pinned: [], consumer: "agent", current_scene: "coding", scopes: [{ scope: "user" as const, owner: LOCAL_PERSON_ACTOR_ID }],
     task: true, skip: false, budget_tokens: 800, budget_chars: 3000, receipt_id: "recall-1", omitted: [] };
   const asked: string[] = [];
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: ["/tmp/ws"],
@@ -67,7 +68,7 @@ test("Assistant and Agent recipes retain their own switches without claiming use
   const forAgent = await memoryForAgentRun(local, { project_id: null, task: "帮我评审这次改动", used_for: "Coding · 评审" });
   assert.deepEqual(forAgent?.pinned, []); assert.equal(forAgent?.task, true); assert.equal(forAgent?.skip, false);
   assert.deepEqual(forAgent?.scopes, [{ scope: "user", owner: LOCAL_PERSON_ACTOR_ID }]);
-  assert.equal((await asPerson.invoke(memoryActions.list, {})).items[0]!.last_used, null, "preparing a recipe is not memory use");
+  assert.equal((memoryData(await asPerson.invoke(memoryActions.list, {}))).items[0]!.last_used, null, "preparing a recipe is not memory use");
   const agentCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "agent" as const };
   assert.deepEqual((await service.recall(agentCaller, { query: "帮我评审这次改动" })).items.map(item => item.memory_id), [kept.memory!.memory_id]);
   const forAssistant = await service.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "assistant", work: { work_id: "w-1", title: "评审" } }, { query: "帮我评审这次改动" });
@@ -75,7 +76,7 @@ test("Assistant and Agent recipes retain their own switches without claiming use
   assert.deepEqual(forAssistant?.scopes, forAgent?.scopes, "both recipes use the same user store");
   assert.deepEqual((await service.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "assistant", work: { work_id: "w-1", title: "评审" } },
     { query: "帮我评审这次改动" })).items.map(item => item.memory_id), [kept.memory!.memory_id]);
-  assert.equal((await asPerson.invoke(memoryActions.list, {})).items[0]!.last_used, null, "MEM-30 an explicit recall is returned data, not a confirmed model dispatch");
+  assert.equal((memoryData(await asPerson.invoke(memoryActions.list, {}))).items[0]!.last_used, null, "MEM-30 an explicit recall is returned data, not a confirmed model dispatch");
   assert.deepEqual(service.uses({ work_id: "w-1" }).map(use => ({ memory_id: use.memory_id, title: use.title, source: use.source, state: use.state })),
     [{ memory_id: kept.memory!.memory_id, title: "工作「评审」", source: "recall", state: "returned" }]);
 
@@ -84,7 +85,7 @@ test("Assistant and Agent recipes retain their own switches without claiming use
   assert.equal((await memoryForAgentRun(local, { project_id: null, task: "帮我评审这次改动", used_for: "Coding · 评审" }))?.skip, true, "Agent work switched off: no automatic read");
   assert.equal((await service.recall(agentCaller, { query: "帮我评审这次改动" })).state, "off");
   assert.ok(await service.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "assistant" }, { query: "帮我评审这次改动" }), "the Assistant still has it");
-  const current = (await asPerson.invoke(memoryActions.list, {})).items.find(item => item.memory_id === kept.memory!.memory_id)!;
+  const current = (memoryData(await asPerson.invoke(memoryActions.list, {}))).items.find(item => item.memory_id === kept.memory!.memory_id)!;
   await asPerson.invoke(memoryActions.change, { memory_id: current.memory_id, expected_version: current.version, action: "disable" });
   assert.deepEqual((await service.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "assistant" }, { query: "帮我评审这次改动" })).items, [], "a disabled entry is unavailable to every consumer");
 });

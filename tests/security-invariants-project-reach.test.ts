@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import test, { type TestContext } from "node:test";
+import { openProjectDeletionCatalogObservation } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -61,6 +62,14 @@ const hide = (home: TestHome, project: TestProject, plugin: string) => home.web.
 const unhide = (home: TestHome, project: TestProject, plugin: string) => home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin });
 const sorted = (ids: readonly string[] | null) => [...(ids ?? [])].sort();
 
+
+/** The display list hides pending deletion; the owner's committed identity observation still includes the retained row. */
+function assertRetainedProject(home: string, projectId: string): void {
+  const observation = openProjectDeletionCatalogObservation({ homeDirectory: realpathSync(home), assertCurrent() {} });
+  try { assert.ok(observation.read().projects.some(project => project.project_id === projectId), "the real Catalog identity still exists"); }
+  finally { observation.close(); }
+}
+
 /** The existing close notification runs after resource release and is awaited before the Host drops its closing entry. */
 function closingBarrier() {
   const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
@@ -90,7 +99,8 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   assert.equal(s.home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
   assert.throws(() => database.prepare("SELECT 1"), /database.*(?:not open|closed)/iu, "the project's resources were actually released");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
-  try { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id), "the real catalog row still exists"); } finally { catalog.close(); }
+  try { assert.equal(catalog.listProjects().some(project => project.project_id === closing.project_id), false, "pending deletion is hidden from the display list"); } finally { catalog.close(); }
+  assertRetainedProject(s.home.home, closing.project_id);
   assert.equal(existsSync(closing.database_path), true);
   const during = await readable();
   assert.equal(during.includes(closing.project_id), false, "closing is excluded before the catalog removes the row");
@@ -102,7 +112,7 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   assert.equal(s.home.host.projects().some(project => project.project_id === unopened.project_id), false, "reading reach never opens a catalog-only project");
   barrier.release();
   const result = await deleting as { deletion: { cleanup_state: string } };
-  assert.equal(result.deletion.cleanup_state, "complete");
+  assert.equal(result.deletion.cleanup_state, "complete", JSON.stringify(result));
   const after = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
   try { assert.equal(after.listProjects().some(project => project.project_id === closing.project_id), false); } finally { after.close(); }
   assert.equal(existsSync(closing.database_path), false);
@@ -125,7 +135,8 @@ test("RAC-590-CLOSE-02 S-74 Todo all-projects reads exclude closing projects whi
   await Promise.race([barrier.entered, deleting.then(() => assert.fail("deletion completed before the resource-release barrier"))]);
   assert.equal(home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home.home });
-  try { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id)); } finally { catalog.close(); }
+  try { assert.equal(catalog.listProjects().some(project => project.project_id === closing.project_id), false); } finally { catalog.close(); }
+  assertRetainedProject(home.home, closing.project_id);
   assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
   await hide(home, hidden, "todo");
   assert.deepEqual(await titles(), ["Readable item"]);

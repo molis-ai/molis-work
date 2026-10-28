@@ -21,6 +21,7 @@ interface Ports {
   runtime: Runtime;
   queue: AgentReviewQueue;
   readIndex(id: string): Promise<CheckpointIndex | undefined>;
+  capture?(id: string): () => void;
   remember(id: string, intent: PrologueRewindIntent): Promise<void>;
   decision(id: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void>;
   readResource(ref: ExactRef<"resource">): Promise<unknown>;
@@ -50,9 +51,11 @@ async function rewindDocument(readResource: Ports["readResource"], effect: Effec
 }
 
 /** What the review queue says once the SDK's effect has an outcome; a session whose outcome cannot be proven is held uncertain. */
-async function settleRewind(runtime: Runtime, queue: AgentReviewQueue, uncertain: Set<string>, effectRef: ExactRef<"effect">, reviewId: string, failure?: unknown): Promise<void> {
+async function settleRewind(runtime: Runtime, queue: AgentReviewQueue, uncertain: Set<string>, effectRef: ExactRef<"effect">, reviewId: string, failure?: unknown, capture?: Ports["capture"]): Promise<void> {
   const effect = runtime.effects.get(effectRef);
+  const current = effect?.proposal.origin?.session ? capture?.(effect.proposal.origin.session) : undefined;
   const dispatch = await runtime.effects.inspectDispatch(effectRef).catch(() => ({ state: "unknown" as const }));
+  current?.();
   const receipt = queue.receipt(reviewId);
   const sessionId = effect?.proposal.origin?.session;
   if (!effect || dispatch.state === "unknown" || effect?.state === "reconcile-required" || effect?.state === "dispatching") {
@@ -163,6 +166,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
   // the whole execution ledger on each refresh and each round's start found nothing new and cost a disk read per record.
   const settledSessions = new Set<string>(), settledBoards = new Set<string>();
   const restore = (sessionId: string): Promise<void> => {
+    const current = ports.capture?.(sessionId);
     if (settledSessions.has(sessionId)) return Promise.resolve();
     const held = restoring.get(sessionId);
     if (held) return held;
@@ -178,17 +182,19 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         if (!intent || restored.has(intent.operation_id) || active.get(sessionId)?.operationId === intent.operation_id) continue;
         const request = queue.get(`prologue:${effect.pending.ref.id}`) ?? await requestOf(sessionId, effect, intent, null);
         const decision = index.review_decisions?.[effect.pending.ref.id];
+        current?.();
         if (decision) queue.restoreDecision(request, decision); else queue.request(request);
         // No live waiter survives restart. Only cancel states proven not to have dispatched.
         const dispatch = await runtime.effects.inspectDispatch(effect.ref);
         if (["prepared", "awaiting-approval", "authorized"].includes(effect.state) && dispatch.state === "not-dispatched") {
-          await runtime.effects.cancel(effect.ref);
+          current?.(); await runtime.effects.cancel(effect.ref);
+          current?.();
           queue.cancel(request.review_id, "应用已重启，原等待已撤回且没有派出文件写入；需要回退时重新预览");
         }
-        await settleRewind(runtime, queue, uncertain, effect.ref, request.review_id);
+        current?.(); await settleRewind(runtime, queue, uncertain, effect.ref, request.review_id, undefined, ports.capture); current?.();
         restored.add(intent.operation_id);
       }
-    })().then(() => { settledSessions.add(sessionId); }).finally(() => restoring.delete(sessionId));
+    })().then(() => { current?.(); settledSessions.add(sessionId); }).finally(() => restoring.delete(sessionId));
     restoring.set(sessionId, work);
     return work;
   };
@@ -197,20 +203,27 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行账暂不可读");
     const sessions = new Set(report.effects.flatMap(effect => effect.proposal.origin?.session ? [effect.proposal.origin.session] : []));
-    for (const id of sessions) if ((await ports.readIndex(id))?.owner.project_id === projectId) await restore(id);
+    for (const id of sessions) {
+      const index = await ports.readIndex(id).catch(error => { if (error?.code === "agent.session_busy") return undefined; throw error; });
+      if (index?.owner.project_id === projectId) await restore(id);
+    }
     settledBoards.add(projectId);
   });
   const capability: AgentCheckpointsCapability & { restore: typeof restore; close(): Promise<void>; context(sessionId: string): Promise<string> } = {
     busy: session => active.has(session.session_id) || uncertain.has(session.session_id),
     restore,
     async context(sessionId) {
+      const current = ports.capture?.(sessionId);
       await restore(sessionId);
-      return rewindContext(queue, (await requireIndex(sessionId)).owner.project_id, sessionId);
+      const index = await requireIndex(sessionId); current?.();
+      return rewindContext(queue, index.owner.project_id, sessionId);
     },
     async list(session) {
+      const current = ports.capture?.(session.session_id);
       await restore(session.session_id);
       const index = await requireIndex(session.session_id);
-      return sessionCheckpoints(runtime, queue, index, session.session_id);
+      const result = await sessionCheckpoints(runtime, queue, index, session.session_id);
+      current?.(); return result;
     },
     async prepareRewind(session, checkpointId) {
       if (closed) throw new Error("执行引擎正在关闭");
@@ -250,12 +263,12 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
               return runtime.effects.whenSettled(effect.ref, at);
             },
           }, operationId);
-          if (reviewId) await settleRewind(runtime, queue, uncertain, receipt.effectRef, reviewId);
+          if (reviewId) await settleRewind(runtime, queue, uncertain, receipt.effectRef, reviewId, undefined, ports.capture);
         } catch (error) {
           if (held.effect && ["prepared", "awaiting-approval", "authorized"].includes(runtime.effects.get(held.effect.ref)?.state ?? "")) {
             try { await runtime.effects.cancel(held.effect.ref); } catch { uncertain.add(session.session_id); }
           }
-          if (reviewId && held.effect) await settleRewind(runtime, queue, uncertain, held.effect.ref, reviewId, error);
+          if (reviewId && held.effect) await settleRewind(runtime, queue, uncertain, held.effect.ref, reviewId, error, ports.capture);
           reject(error);
         } finally { restored.add(operationId); active.delete(session.session_id); }
       })();

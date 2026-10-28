@@ -29,14 +29,16 @@ export const button = (text: string, variant = "mw-btn--ghost", label?: string):
 };
 
 export const subjectKey = (subject: ActionSubject): string => subject.kind + "\u0000" + subject.id;
+export const unbound = (card: KnowledgeCardRecord): boolean => card.retention?.source_identity === null && !card.adoption;
 
 /** Where a card stands, in the person's words, with the badge tone the catalog gives it. `changed` and `excluded` are not states. */
 export function stateOf(card: KnowledgeCardRecord): { label: string; tone: "neutral" | "info" | "success" | "warning" | "danger" } {
+  if (unbound(card)) return { label: L("待关联来源"), tone: "warning" };
   if (card.state === "pending") return card.excluded ? { label: L("不整理"), tone: "neutral" } : { label: L("等待整理"), tone: "info" };
   if (card.state === "failed") return { label: L("整理失败"), tone: "danger" };
   if (card.state === "over_quota") return { label: L("等额度"), tone: "warning" };
   if (card.state === "missing") return { label: L("暂时不在"), tone: "neutral" };
-  if (card.state === "listed") return { label: L("只列标题"), tone: "neutral" };
+  if (card.state === "listed") return { label: card.can_organize ? L("待手动整理") : L("只列标题"), tone: "neutral" };
   if (card.suggestion) return { label: L("有新建议"), tone: "warning" };
   return { label: L("已整理"), tone: "success" };
 }

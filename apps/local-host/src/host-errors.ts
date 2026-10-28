@@ -10,6 +10,7 @@ export const hostErrors = defineErrorCodes("host", {
   close_timeout: "timeout",
   project_invalid: "invalid",
   project_identity_conflict: "invalid",
+  session_purge_conflict: "conflict",
   project_closing: "invalid",
   /**
    * A request to the local web host failed its Host, Origin or control-token check. One code for every one of those checks, so the answer

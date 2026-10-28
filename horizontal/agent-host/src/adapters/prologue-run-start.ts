@@ -1,10 +1,11 @@
+import { bindRunMemory } from "./prologue-run-memory.js";
 import { agentErrors } from "../errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunHandle, AgentRunRef, AgentRunView, AgentRuntimeDescriptor, AgentStartExecution, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
 import type { PrologueAdapterPorts, PrologueModelConfiguration, PrologueRuntimePort, PrologueStartInput } from "./prologue-ports.js";
-import { isEnded, type PrologueRunStore, type RunRecord, type SessionRecord } from "./prologue-run-store.js";
+import { isEnded, type PrologueRunStore, type SessionRecord } from "./prologue-run-store.js";
 import { runStreamState } from "./prologue-stream.js";
 
 /** What starting a round needs from the adapter (prologue.ts). */
@@ -76,6 +77,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     beforeStart: execution?.beforeStart,
     assertBeforeStart: execution?.assertBeforeStart,
     beforeDispatch: execution?.beforeDispatch,
+    assertBeforeDispatch: execution?.assertBeforeDispatch,
     provenance,
     session_id: request.session.session_id,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
@@ -110,6 +112,8 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
 /** Start one round of a session already checked as idle: the runtime runs it, and the store follows it from its first event. */
 export async function startPrologueRun(context: RunStartContext, request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
   const { runtime, store } = context;
+  const current = store.cache.capture(request.session.session_id);
+  const memory = request.role?.memory ? structuredClone(request.role.memory) : undefined;
   if ((request.original_input || request.continued_from) && !runtime.sessions.originalInput) throw agentErrors.capability_unavailable("当前运行时没有初始原件读取能力");
   const original = await runtime.sessions.originalInput?.(request.session.session_id, request);
   const { textMaterials, imageMaterials, model, role, mode } = await checkRoundStartable(context, request);
@@ -119,7 +123,11 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
 
   await execution?.beforeStart?.();
   requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
-  const started = await runtime.startAgentRun({ ...startInput(request, role, model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
+  const memoryBinding = bindRunMemory(memory, () => execution?.beforeDispatch?.());
+  try {
+  const boundRole = { ...role, memory, ...(role.actions ? { actions: { ...role.actions, client: memoryBinding.client(role.actions.client) } } : {}),
+    ...(role.action_gateway ? { action_gateway: { ...role.action_gateway, client: memoryBinding.client(role.action_gateway.client) } } : {}) };
+  const started = await runtime.startAgentRun({ ...startInput(request, boundRole, model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
     { frozen, started_at: at }, execution), ...(original ? { original_input: original } : {}) });
 
   const state = runStreamState(model.protocol.startsWith("openai"), started);
@@ -141,18 +149,12 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   };
   state.turns.push(view.turns[0]!);
 
-  const record: RunRecord = {
-    view,
-    state,
-    control: started.control,
-    model,
-    ...(role.memory ? { memory_context: { consumer: role.memory.consumer,
-      ...(role.memory.usage ? { usage: structuredClone(role.memory.usage) } : {}) } } : {}),
-    unsubscribe: () => {},
-    listeners: new Set(),
-  };
+  current();
+  const record = memoryBinding.record({ view, state, control: started.control, model }, started.memory);
   store.rememberRun(session, record);
   store.follow(record, request.task, started.run, context.ports);
   store.publish(ref.run_id);
+  memoryBinding.ready(record);
   return { ref, frozen };
+  } catch (error) { memoryBinding.failed(error); throw error; }
 }

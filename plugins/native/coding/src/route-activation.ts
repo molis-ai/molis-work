@@ -42,7 +42,7 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   // A session's step that waits, and the loop that takes up its continuation once the wait is over (wake-loop.ts). The
   // loop belongs to this activation: it reads and starts with the activation's own capabilities and execution (the store is
   // the activation's too, so a loop a request set off never reads through that request's execution).
-  const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, records: from => from.sessions.list(projectId),
+  const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, records: from => from.sessions.list(projectId).filter(record => !from.sessions.lifecycle.pending(projectId, record.session_id)),
     record: (from, id) => from.sessions.get(projectId, id),
     startRound: (record, body, api, from, beforeWrite) => startRound(activation, record, body, api, from, beforeWrite) });
   const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
@@ -55,7 +55,7 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   // wait for the runtime to be ready first: the Agent capability handlers initialize it themselves (agent-host-composition.ts),
   // so the loop's first read does that. If that first read fails, the loop ends instead of retrying (wake-loop.ts, `recovery`);
   // the next `coding.state` read or round starts it again.
-  const resumed = new Set(execution.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id));
+  const resumed = new Set(execution.sessions.list(projectId).filter(record => record.runtime_session_id && !execution.sessions.lifecycle.pending(projectId, record.session_id)).map(record => record.runtime_id));
   if (context.services?.actions && resumed.size) for (const runtimeId of resumed) waits.wakeLoop(context.services.actions, execution, runtimeId, true);
   return activation;
 }

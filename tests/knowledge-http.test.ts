@@ -6,7 +6,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
-import type { KnowledgeCardRecord, KnowledgeCardsResponse, KnowledgeOrganizeResponse, KnowledgeReceiptsResponse, KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import type { KnowledgeBindPreviewResponse, KnowledgeCardRecord, KnowledgeCardsResponse, KnowledgeOrganizeResponse, KnowledgeReceiptsResponse, KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 interface States { states: Array<{ kind: string; id: string; state: string; excluded: boolean; changed: boolean }>; model_ready: boolean; listing: boolean }
@@ -34,6 +35,7 @@ test("PMAT-15 PMAT-16 the knowledge routes list, find, edit and keep pieces from
   const project = await withCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "资料", actor_id: "owner" });
     catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "artifacts", actor_id: "owner" });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "coding", actor_id: "owner" });
     return created;
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -109,6 +111,49 @@ test("PMAT-15 PMAT-16 the knowledge routes list, find, edit and keep pieces from
     assert.equal(raw.headers.get("content-type"), "application/pdf");
     assert.equal(raw.headers.get("x-content-type-options"), "nosniff");
     assert.deepEqual(Buffer.from(await raw.arrayBuffer()), pdf);
+    const cards = openKnowledgeCards({ homeDirectory: home });
+    try {
+      const existing = cards.get(project.project_id, review.subject)!;
+      const unboundPdf = { ...existing, revision: "historical-pdf-revision", organized_revision: "historical-pdf-revision",
+        retention: { source_identity: null, restoration_operation_id: null } }; cards.put(unboundPdf);
+      const pdfPreview = await post<KnowledgeBindPreviewResponse>("/api/knowledge/bind-preview", { subject: review.subject });
+      assert.equal(pdfPreview.candidates.length, 1);
+      const pdfCandidate = pdfPreview.candidates[0]!;
+      assert.equal(pdfCandidate.source_identity.kind, "project-data");
+      assert.deepEqual(cards.get(project.project_id, review.subject), unboundPdf);
+      const pdfDecision = { subject: review.subject, operation_id: randomUUID(), provider_id: pdfCandidate.provider_id, source_key: pdfCandidate.source_key,
+        source_identity: pdfCandidate.source_identity, source_revision: pdfCandidate.source_revision };
+      const pdfBound = await post<KnowledgeCardRecord>("/api/knowledge/bind", pdfDecision);
+      assert.deepEqual(pdfBound.adoption?.source_identity, pdfCandidate.source_identity);
+      assert.equal(pdfBound.brief, unboundPdf.brief); assert.equal(pdfBound.excluded, unboundPdf.excluded);
+      assert.equal(pdfBound.revision, pdfCandidate.source_revision, "MEM-SOURCE-04 the bind response itself adopts R2 without waiting for reconcile");
+      assert.equal(pdfBound.organized_revision, "historical-pdf-revision"); assert.equal(pdfBound.state, "listed");
+      assert.deepEqual(await post<KnowledgeCardRecord>("/api/knowledge/bind", pdfDecision), pdfBound);
+      // These routes never call catch-up/reconcile before selecting the card. R1 must not make the new association disappear.
+      const pdfEdited = await post<KnowledgeCardRecord>("/api/knowledge/edit", { subject: review.subject, title: "本人立即可编辑" });
+      assert.equal(pdfEdited.title, "本人立即可编辑");
+      await post<KnowledgeCardRecord>("/api/knowledge/exclude", { subject: review.subject, excluded: false });
+      assert.equal((await post<KnowledgeOrganizeResponse>("/api/knowledge/organize", { subjects: [review.subject] })).queued, 1,
+        "the person's explicit organize is immediately reachable after R1 to R2 binding");
+      const created = await post<{ session: { session_id: string } }>("/api/plugins/io.molis.work.coding/sessions", { title: "Choose this installed source" });
+      const subject = { kind: "coding_session", id: created.session.session_id };
+      for (const until = Date.now() + 10_000;;) {
+        await states();
+        if (cards.get(project.project_id, subject)) break;
+        assert.ok(Date.now() < until, "the installed Coding source is listed"); await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      const original = { ...cards.get(project.project_id, subject)!, retention: { source_identity: null, restoration_operation_id: null } }; cards.put(original);
+      const preview = await post<KnowledgeBindPreviewResponse>("/api/knowledge/bind-preview", { subject });
+      assert.equal(preview.candidates.length, 1); assert.deepEqual(cards.get(project.project_id, subject), original);
+      const candidate = preview.candidates[0]!;
+      const input = { subject, operation_id: randomUUID(), provider_id: candidate.provider_id, source_key: candidate.source_key,
+        source_identity: candidate.source_identity, source_revision: candidate.source_revision };
+      const forged = await send("/api/knowledge/bind", { ...input, actor_id: "another-person" }); assert.equal(forged.status, 400);
+      assert.deepEqual(cards.get(project.project_id, subject), original);
+      const bound = await post<KnowledgeCardRecord>("/api/knowledge/bind", input);
+      assert.deepEqual(bound.adoption?.source_identity, candidate.source_identity); assert.equal(bound.brief, original.brief); assert.equal(bound.excluded, original.excluded);
+      assert.deepEqual(await post<KnowledgeCardRecord>("/api/knowledge/bind", input), bound);
+    } finally { cards.close(); }
   } finally {
     await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());
     await host.close();

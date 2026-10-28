@@ -120,7 +120,8 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     } finally { await maintenance.close(); }
     return open();
   };
-  return { home, open, close, seedUnclassified, ledger: () => ledger!, adapter: () => adapter!, memory: () => adapter!.memory!, raw: (caller = person) => backend().withCaller(caller) };
+  return { home, open, close, seedUnclassified, policy: memoryRuntimePolicy(() => owner).policy,
+    ledger: () => ledger!, adapter: () => adapter!, memory: () => adapter!.memory!, raw: (caller = person) => backend().withCaller(caller) };
 }
 
 /** Fault injection wraps the same bound backend the Service actually uses. It cannot replace caller authority. */

@@ -63,6 +63,7 @@ export type {
  * round starts in prologue-run-start.ts.
  */
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
+  readonly sessionLifecycle?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionLifecycle;
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
@@ -97,6 +98,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#ports = options;
     this.#memoryUsage = new PrologueMemoryUsage(options.memoryUsage);
     this.#store = new PrologueRunStore(runtime, options.now ?? (() => new Date()), options.approvals, this.#memoryUsage);
+    if (runtime.sessions.lifecycle) this.sessionLifecycle = this.#store.cache.bind(runtime.sessions.lifecycle);
     if (runtime.projectWork) this.projectWork = runtime.projectWork;
     if (runtime.messages) this.messages = runtime.messages;
     // A plan change goes through the adapter, which knows which round's graph may still change.
@@ -140,11 +142,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async readSession(session: AgentSessionRef): Promise<AgentSessionView> {
+    const current = this.#store.cache.capture(session.session_id);
     const record = await this.#store.loadSession(session.session_id);
     const latest = record.runs.at(-1), view = latest ? structuredClone(this.#store.requireRun(latest.run_id).view) : null;
     // Read only while no round is live (ended, or stopped for checking): what a live round takes is its own (specs/ai-input-receipts D31).
     const queued = view && !isTerminalAgentPhase(view.phase) && view.phase !== "reconcile-required" ? undefined : await this.#runtime.sessions.queued?.(session.session_id);
-    return {
+    current(); return {
       session: { ...session }, owner: { ...record.owner }, workspace: record.workspace, title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
@@ -154,10 +157,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async readOriginalInput(ref: Parameters<NonNullable<AgentRuntimeAdapter["readOriginalInput"]>>[0]) {
-    return this.#runtime.sessions.readOriginalInput?.({ ...ref });
+    const current = this.#store.cache.capture(ref.session_id), result = await this.#runtime.sessions.readOriginalInput?.({ ...ref });
+    current(); return result;
   }
 
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
+    const current = this.#store.cache.capture(session.session_id);
     let projected: Awaited<ReturnType<NonNullable<PrologueRuntimePort["sessions"]["readStatus"]>>>;
     if (!this.#store.sessions.has(session.session_id) && this.#runtime.sessions.readStatus) {
       // A detail restore already under way must win over a second cold projection.
@@ -187,7 +192,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const facts = record ?? projected!;
     const phase = record ? (latest ? this.#store.requireRun(latest.run_id).view.phase : null)
       : (projected!.latest ? restorePrologueRun(projected!.latest, waiting => this.#runtime.unexecutedApprovalCall?.(projected!.latest!.ref, waiting)).state.phase : null);
-    return { owner: { ...facts.owner }, status: { session_id: session.session_id, latest_phase: phase,
+    current(); return { owner: { ...facts.owner }, status: { session_id: session.session_id, latest_phase: phase, latest_run_id: latest?.run_id ?? projected?.latest?.ref.run_id ?? null,
       recovery: Boolean(facts.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };
   }
@@ -230,10 +235,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async read(run: AgentRunRef): Promise<AgentRunView> {
+    const current = this.#store.cache.capture(run.session_id);
     const session = await this.#store.loadSession(run.session_id);
     if (!session.runs.some(item => item.run_id === run.run_id)) throw agentErrors.run_unknown("这次执行不属于此会话");
     const record = this.#store.requireRun(run.run_id);
-    await this.#memoryUsage.record(record, session.owner);
+    current(); await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
     if (view.frozen.execution_plan) {
       try {
@@ -252,10 +258,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         }
       }))).filter((question): question is AgentPendingQuestion => question !== null);
     }
-    return view;
+    current(); return view;
   }
 
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void {
+    this.#store.cache.capture(run.session_id)();
     const record = this.#store.requireRun(run.run_id);
     record.listeners.add(listener);
     listener(structuredClone(record.view));
@@ -325,15 +332,18 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     session: AgentSessionRef,
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
+    const current = this.#store.cache.capture(session.session_id);
     const record = await this.#store.loadSession(session.session_id);
     if (!record.runs.some(run => run.run_id === ref.run_id)) throw agentErrors.run_unknown("这轮执行不属于所选会话");
     if (!this.#runtime.readCommandOutput) throw agentErrors.capability_unavailable("这个 Runtime 没有接通命令回执");
-    return this.#runtime.readCommandOutput(session.session_id, ref);
+    current(); const output = await this.#runtime.readCommandOutput(session.session_id, ref);
+    current(); return output;
   }
 
   /** Release the underlying Runtime. The Host owns when this happens. */
   async close(): Promise<void> {
     this.#detachApprovalAnswers?.();
+    for (const record of this.#store.runs.values()) record.memory = undefined;
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
     try {
       await this.#runtime.shutdown();

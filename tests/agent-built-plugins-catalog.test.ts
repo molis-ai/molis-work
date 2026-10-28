@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from '@molis-ai/molis-work-contracts/services/memory';
-import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
 import { deferred } from './fixtures/home-runtime.js';
 import { openTestHome } from './fixtures/test-home.js';
+import { callerPlugin, projectPluginCaller } from './fixtures/plugin-callers.js';
+import { memoryData } from './fixtures/current-memory.js';
 import { initializeBoard } from "./fixtures/goals-board.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 
@@ -54,21 +56,32 @@ test('the capability board is the project\'s action directory: platform, install
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
 });
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory and a generated plugin's call carries no Host-confirmed plugin
-// identity, so the real declarations of memory.recall, memory.list and memory.write stay out of what a generated plugin may be granted.
-test('memory is closed to generated plugins: the board offers none of it and lists recall, list and write as not offered, with the reason', async () => {
-  const { actions } = project();
-  const definitions = Object.values(memoryActions) as ActionDefinition[];
-  actions.registry.registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: '记忆', kind: 'system' }, definitions,
-    handlers: definitions.map(definition => ({ capability_id: definition.capability_id, version: definition.version, handle: () => ({}) })) });
+// Decision 19 (specs/repository-anti-corruption, W2-03): generated plugins cannot be granted Memory. Coding formation has its own
+// Host-confirmed identity admission; its declaration on the common directory does not open it to generated plugins.
+test('M2-CODING-07: memory is closed to generated plugins, including the restricted learning admission', async t => {
+  const tables = callerPlugin('catalogmemory', 'project', Object.fromEntries(MEMORY_PERMISSIONS.map(permission => [permission, true])), [memoryActions.learningEnqueue.capability_id]);
+  const home = await openTestHome(t, { host: { pluginFixtures: { project: [tables.definition] } } });
+  const project = await home.createProject('Memory catalog boundary');
+  const plugin = await projectPluginCaller(home.host, project.reference, tables, [...MEMORY_PERMISSIONS]);
+  const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id,
+    inspect: (caller: ActionCallContext) => home.host.inspectActions(caller, project.reference) };
   const catalog = await capabilityCatalog(actions, 'web-user');
   const memory = catalog.filter(entry => entry.provider_id === MEMORY_PROVIDER_ID);
-  assert.deepEqual(memory.map(entry => entry.id).sort(), ['memory.list', 'memory.recall', 'memory.write'], 'only what agents can use appears, and only as closed');
-  assert.deepEqual(memory.map(entry => [entry.offered, entry.reason]), memory.map(() => [false, '提供方没有开放给插件']));
+  assert.deepEqual(memory.map(entry => entry.id).sort(), ['memory.learning.enqueue', 'memory.list', 'memory.recall', 'memory.write'], 'the declared agent/plugin entries appear only as closed');
+  assert.deepEqual(memory.map(entry => [entry.id, entry.offered, entry.reason]), memory.map(entry => [entry.id, false,
+    entry.id === memoryActions.learningEnqueue.capability_id ? '只对它自己的使用方开放' : '提供方没有开放给插件']));
   assert.deepEqual(catalog.filter(entry => entry.offered && entry.id.startsWith('memory.')), []);
-  // What a plugin may call is the same list: nothing of memory is discoverable to it, whatever permission its install holds.
-  const plugin = { actor_id: 'plugin:tables', project_id: 'p', audience: 'plugin' as const, permissions: [...MEMORY_PERMISSIONS] };
-  assert.deepEqual((await actions.client.discover(plugin)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID), []);
+  // The restricted admission may be described, but the real Host refuses it before any learning can begin.
+  for (const views of [await actions.client.discover(plugin), await actions.inspect(plugin)]) {
+    const visible = views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
+    assert.deepEqual(visible.map(view => [view.capability_id, view.availability]), [[memoryActions.learningEnqueue.capability_id,
+      { available: false, code: 'memory.forbidden', reason: '自动形成必须由原来源插件发起' }]]);
+  }
+  const person = bindActionClient(actions.client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: 'user', permissions: [...MEMORY_PERMISSIONS] }));
+  const before = memoryData(await person.invoke(memoryActions.list, {})).items;
+  await assert.rejects(actions.client.invoke(plugin, memoryActions.learningEnqueue,
+    { business_session_id: 'source', runtime_id: 'prologue', session_id: 'session', run_id: 'run' }), { code: 'memory.forbidden' });
+  assert.deepEqual(memoryData(await person.invoke(memoryActions.list, {})).items, before, 'a refused source admission does not add memories');
 });
 
 test('a composition that hands the studio no metadata inspection still gets the directory the caller can discover, never an empty board', async () => {

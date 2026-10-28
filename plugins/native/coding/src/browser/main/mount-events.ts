@@ -1,3 +1,4 @@
+import { codingArchive } from "../session-archive.js";
 import { errorMessage, part } from "../dom.js";
 import { renderGoalFace, renderGoalRows } from "./goals.js";
 import { applyConfiguration, refreshState, rememberConfiguration } from "./configuration.js";
@@ -114,6 +115,16 @@ function listenAttach(page: Page) {
 export function mountControlEvents(page: Page) {
   const { L, directory, lifetime, q, refs, root, s, turns } = page;
   listenAttach(page);
+  codingArchive({ root, listen: lifetime.listen, api: (path, method, body) => api(page, path, method, body), path: sessionPath,
+    confirm: page.host.confirm, current: () => s.current, assertCurrent: lifetime.assertCurrent, text: L,
+    changed: async (id, archived) => {
+      if (archived && s.current === id) {
+        s.generation++; s.current = ""; s.lastRun = null; root.dataset.codingDetail = "false"; s.sessionOnShow = false;
+        refs.taskboard.loading(""); renderGoalFace(page);
+      }
+      await refreshState(page); status(page, L(archived ? "coding.session.archived" : "coding.session.restored"));
+    }, failed: message => status(page, message, true),
+  });
   lifetime.listen(root, "click", event => { void onClick(page, event as MouseEvent); });
   lifetime.listen(part(directory, "[data-coding-search]"), "input", () => renderDirectory(page));
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.

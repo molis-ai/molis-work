@@ -3,20 +3,25 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import crypto from "node:crypto";
+import { syncBuiltinESMExports } from "node:module";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCaller, AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, characterOwner, defaultPrefs } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { LocalSqliteStorage, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
 const person: AgentMemoryCaller & { consumer: "ui"; current_scene: string } = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "ui", person: true, current_scene: "common", purpose: "management" };
 const task: AgentMemoryCaller & { consumer: "agent"; current_scene: string } = { ...person, consumer: "agent", person: false, purpose: "task" };
+const assistantManagement: AgentMemoryCaller = { ...task, consumer: "assistant", purpose: "management" };
 const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, sources?: NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>["sources"]) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-runtime-policy-"));
   const ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
@@ -27,7 +32,7 @@ async function fixture(t: TestContext) {
     prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: id => projectCheck ? projectCheck(id) : Promise.resolve(projects.has(id)), deletingProject: () => undefined };
-  const options = { ...memoryRuntimePolicy(() => registered ? owner : undefined), promotion: {
+  const options = { ...memoryRuntimePolicy(() => registered ? owner : undefined), ...(sources ? { sources } : {}), promotion: {
     policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
     decide: (caller, request) => service.promotion.decide(caller, request),
     undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
@@ -59,6 +64,106 @@ test("off keeps personal management and deletion but refuses new saves, candidat
   await assert.rejects(memory.candidates.accept({ scope: "user", owner: person.actor_id, candidate_id: candidate.candidate_id, expected_version: candidate.version, operation_id: "off-accept" }));
   await memory.remove({ scope: "user", owner: person.actor_id, memory_id: entry.memory_id, expected_version: disabled.version, operation_id: "delete" });
   await f.reopen(); assert.deepEqual(await f.bound(caller).list("user", person.actor_id), []);
+});
+
+test("MEM-33 disable is independent of formation, while disabled-entry edits and forged operation fields remain refused", async t => {
+  const f = await fixture(t), original = await f.save("disable-without-formation");
+  f.service.savePrefs(person, "project", { form: false });
+  const input = { scope: "project" as const, owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "disable-once", reason: "No longer useful" };
+  const disabled = await f.bound(assistantManagement).disable(input);
+  assert.equal(disabled.version, original.version + 1); assert.equal(disabled.disabled?.reason, input.reason);
+  assert.equal(disabled.text, original.text); assert.deepEqual(disabled.meta, original.meta);
+  const spoofed = { ...assistantManagement, operation: "disable" }, memory = f.bound(spoofed);
+  const target = { ...input, expected_version: disabled.version };
+  await assert.rejects(memory.write({ scope: "project", owner: "a", text: "Not a disable", origin: "person", meta, operation_id: "ordinary-write" }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(memory.update({ ...target, operation_id: "ordinary-update", change: { text: "Changed while disabled" } }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(memory.setMeta({ ...target, operation_id: "ordinary-meta", meta: { ...meta, basis: "repeated" } }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(memory.resume({ ...target, operation_id: "ordinary-resume" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(await f.bound().list("project", "a"), [disabled]);
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [disabled]);
+  assert.deepEqual(await f.bound(assistantManagement).disable(input), disabled, "the original operation does not advance the version again");
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [disabled]);
+});
+
+test("MEM-33 disable retains current task-read, frozen classification and scope grants", async t => {
+  const f = await fixture(t), original = await f.save("disable-denied");
+  const input = { scope: "project" as const, owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "denied-disable", reason: "No longer useful" };
+  const restriction = { selector: { consumer: "assistant" as const, current_scene: "common" as const, kind: "convention" as const },
+    read: "explicit-only" as const, form: "inherit" as const };
+  f.service.savePrefs(person, "project", { form: false, task_recall: false });
+  await assert.rejects(f.bound({ ...assistantManagement, run_explicit: true }).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  f.service.savePrefs(person, "project", { task_recall: true, class_restrictions: [restriction] });
+  await assert.rejects(f.bound(assistantManagement).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  const recipe = await f.service.forRun(assistantManagement, { scopes: ["project"] }); assert.ok(recipe);
+  f.service.savePrefs(person, "project", { class_restrictions: [] });
+  await assert.rejects(f.bound({ ...assistantManagement, class_restrictions: recipe.class_restrictions }).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(f.bound({ ...assistantManagement, project_id: "b" }).disable(input));
+  await assert.rejects(f.bound({ ...assistantManagement, consumer: "plugin", plugin_id: "example.plugin" }).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(await f.bound().list("project", "a"), [original]);
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [original]);
+});
+
+test("MEM-33 disable rechecks task-read in the final synchronous fence", async t => {
+  const f = await fixture(t), original = await f.save("disable-fence");
+  f.service.savePrefs(person, "project", { form: false });
+  const authorize = f.options.authorize, assertCurrent = f.options.assertCurrent!; let revoked = false, fenced = false;
+  f.options.authorize = async (caller, requests, operation) => {
+    const allowed = await authorize(caller, requests, operation);
+    if (!revoked && operation === "disable" && requests.some(request => request.action === "save")) {
+      assert.equal(allowed, true); revoked = true; f.service.savePrefs(person, "project", { task_recall: false });
+    }
+    return allowed;
+  };
+  f.options.assertCurrent = (caller, requests, operation) => {
+    const allowed = assertCurrent(caller, requests, operation);
+    if (operation === "disable" && requests.some(request => request.action === "save") && !allowed) fenced = true;
+    return allowed;
+  };
+  await f.reopen();
+  await assert.rejects(f.bound(assistantManagement).disable({ scope: "project", owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "fenced-disable", reason: "No longer useful" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal(revoked, true); assert.equal(fenced, true);
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [original]);
+});
+
+test("MEM-33 a waiting disable cannot lend its operation to a concurrent disabled-entry update", { timeout: 30_000 }, async t => {
+  const f = await fixture(t), original = await f.save("waiting-disable"), other = await f.save("already-disabled");
+  const disabledOther = await f.bound().disable({ scope: "project", owner: "a", memory_id: other.memory_id,
+    expected_version: other.version, operation_id: "person-disable", reason: "Person disabled" });
+  f.service.savePrefs(person, "project", { form: false });
+  let enter!: () => void, release!: () => void, intercepted = false;
+  const entered = new Promise<void>(done => { enter = done; }), gate = new Promise<void>(done => { release = done; });
+  const authorize = f.options.authorize;
+  f.options.authorize = async (caller, requests, operation) => {
+    if (!intercepted && operation === "disable" && requests.some(request => request.action === "save")) {
+      intercepted = true; enter(); await gate;
+    }
+    if (requests.some(request => request.action === "save" && request.target.ref.id === other.memory_id)) assert.equal(operation, undefined);
+    return authorize(caller, requests, operation);
+  };
+  await f.reopen();
+  const pending = f.bound(assistantManagement).disable({ scope: "project", owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "waiting-disable", reason: "No longer useful" });
+  let rejected: Promise<void> | undefined, disabled: Awaited<typeof pending>;
+  try {
+    await Promise.race([entered, pending.then(() => assert.fail("disable completed without reaching the authorization barrier"))]);
+    rejected = assert.rejects(f.bound(assistantManagement).update({ scope: "project", owner: "a", memory_id: other.memory_id,
+      expected_version: disabledOther.version, operation_id: "parallel-update", change: { text: "Must remain unchanged" } }), { code: "MEMORY_SCOPE_DENIED" });
+    // Both mutations use the SDK owner's queue; release its first entry before awaiting the queued update.
+    release();
+    [disabled] = await Promise.all([pending, rejected]);
+  } finally {
+    release();
+    await Promise.allSettled(rejected ? [pending, rejected] : [pending]);
+  }
+  assert.equal(disabled.version, original.version + 1); assert.deepEqual(disabled.meta, original.meta);
+  await f.reopen();
+  const stored = await f.bound().list("project", "a");
+  assert.equal(stored.length, 2);
+  assert.deepEqual(stored.find(item => item.memory_id === other.memory_id), disabledOther);
+  assert.deepEqual(stored.find(item => item.memory_id === original.memory_id), disabled);
 });
 
 test("mixed on/off scope queries remain admitted while canonical task reads use current consumer switches", async t => {
@@ -151,6 +256,85 @@ test("a trusted current Character can start with an empty scope without blocking
   assert.equal((await f.options.authorizeRecall(caller, request)).allowed, false);
 });
 
+test("an unrecorded Character has empty reads but cannot directly create a canonical SDK entry", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer"), caller = { ...assistantManagement, character_id: "reviewer" };
+  assert.deepEqual(await f.bound(caller).list("character", owner), []);
+  await assert.rejects(f.bound(caller).write({ scope: "character", owner, text: "Unmapped original", origin: "person", operation_id: "unmapped", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(f.ledger.owners("a"), []);
+  await f.reopen(); assert.deepEqual(await f.bound(caller).list("character", owner), []);
+});
+
+test("a person cannot mutate a recorded Character whose subject does not prove its project owner", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Unproven", subject: "different" });
+  const before = f.ledger.owners("a");
+  await assert.rejects(f.bound().write({ scope: "character", owner, text: "Wrong original", origin: "person", operation_id: "wrong-subject", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(f.ledger.owners("a"), before);
+});
+
+test("the original Character preparation fills its subject and a person can accept or settle without claiming that Character", async t => {
+  const f = await fixture(t), character = { id: "reviewer", title: "Reviewer" }, owner = characterOwner("a", character.id);
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: character.title });
+  await assert.rejects(f.bound().write({ scope: "character", owner, text: "Unproven subject", origin: "person", operation_id: "missing-subject", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  const writer = { ...person, character }, input = { scope: "character" as const, kind: "convention" as const, basis: "explicit" as const, why: "Person decided", from: "work" as const };
+  const target = await f.service.write({ ...writer, operation_id: "first" }, { scope: "character", text: "Keep a checklist" });
+  assert.equal(target.outcome, "written");
+  assert.deepEqual(f.ledger.owners("a"), [{ scope: "character", owner, title: character.title, subject: character.id }]);
+  const candidate = await f.service.propose({ ...writer, operation_id: "offer" }, { ...input, text: "Review in small batches" });
+  const accepted = await f.service.accept({ ...person, operation_id: "accept" }, candidate.candidate_id, { expected_version: candidate.version });
+  assert.equal(accepted.memory?.scope, "character");
+  assert.equal((await f.bound().list("character", owner)).find(row => row.memory_id === accepted.memory?.memory_id)?.owner, owner);
+  const correction = await f.service.propose({ ...writer, operation_id: "correct" }, { ...input, text: "Keep a checklist with owners", supersedes: target.memory!.memory_id });
+  const settled = await f.service.accept({ ...person, operation_id: "settle" }, correction.candidate_id, { expected_version: correction.version });
+  assert.equal(settled.memory?.memory_id, target.memory!.memory_id); assert.equal(settled.memory?.version, 2);
+  await f.reopen(); assert.equal((await f.bound().list("character", owner)).length, 2);
+});
+
+test("a Character mapping removed while SDK admission waits cannot commit the pending entry", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Reviewer", subject: "reviewer" });
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  f.projectCheck(async () => { enter(); await held; return true; });
+  const pending = f.bound().write({ scope: "character", owner, text: "Late original", origin: "person", operation_id: "late-owner", meta });
+  await entered; f.ledger.forgetScopes({ project_id: "a", scopes: [{ scope: "character", owner }], prefs_keys: [], signal_prefixes: [], marker_keys: [] }); release();
+  await assert.rejects(pending, { code: "MEMORY_SCOPE_DENIED" });
+  await f.reopen(); assert.deepEqual(await f.bound({ ...assistantManagement, character_id: "reviewer" }).list("character", owner), []);
+  assert.deepEqual(f.ledger.owners("a"), []);
+});
+
+test("a valid formal target does not grant mutation of a Character before identity with a conflicting subject", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Conflicting original", subject: "different" });
+  const target = { scope: "project" as const, owner: "a", ref: { kind: "memory" as const, id: "formal", revision: 1 as const }, version: 1, createdAtMs: 1, identityKnown: true };
+  const request = { appId: "io.molis.work", context: { consumer: "ui", currentScene: "common", purpose: "management" as const },
+    action: "save" as const, target, before: { ...target, scope: "character" as const, owner } };
+  assert.equal(await f.options.authorize(person, [request]), false);
+  assert.equal(f.options.assertCurrent(person, [request]), false);
+});
+
+test("a mapped Character candidate keeps the normal automatic promotion through the production policy and journal", async t => {
+  const id = "reviewer", owner = characterOwner("a", id), text = "Review before release";
+  const originals = ["one", "two"].map(event_id => ({ event_id, version: "1", text, speaker: { kind: "person" as const, id: person.actor_id },
+    derivation: "original" as const, occurred_at_ms: Date.now() }));
+  const f = await fixture(t, {
+    async resolve(who, request) { assert.equal(who.character_id, id); assert.equal(request.target.owner, owner);
+      return request.refs.flatMap(ref => originals.filter(row => row.event_id === ref.event_id && row.version === ref.version)); },
+    async check(_who, request) { return request.identities.every(ref => originals.some(row => row.event_id === ref.event_id && row.version === ref.version)); },
+  });
+  f.service.savePrefs(person, "project", { auto: true });
+  const caller = { ...assistantManagement, character_id: id, character: { id, title: "Reviewer" }, source_use: "learning" as const };
+  const candidate = await f.service.propose({ ...caller, operation_id: "promotion-offer" }, { scope: "character", text,
+    kind: "convention", basis: "repeated", why: "Two original statements", from: "work" }, { sources: originals.map(({ event_id, version }) => ({ event_id, version })) });
+  const entry = await f.bound(caller).candidates.promote({ scope: "character", owner, candidate_id: candidate.candidate_id,
+    expected_version: candidate.version, operation_id: "promotion", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+    meta: { ...meta, basis: "repeated", source: "auto", approved_by: { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION } } });
+  assert.equal(entry.version, 1); assert.equal(entry.text, text);
+  assert.equal((await f.bound().candidates.list("character", owner)).find(row => row.candidate_id === candidate.candidate_id)?.state, "promoted");
+  assert.equal(f.ledger.marker(person.actor_id, "memory-operation:promotion:promotion-journal")?.body.phase, "committed");
+  await f.reopen(); assert.equal((await f.bound().list("character", owner))[0]?.memory_id, entry.memory_id);
+});
+
 test("global personal candidate management binds each ledger-owned project without widening task callers", async t => {
   const f = await fixture(t), global = { ...person, project_id: null };
   const propose = (project_id: string, text: string) => f.service.propose({ ...person, project_id },
@@ -200,27 +384,45 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   const { projectDeletedHooksFor } = await import("@molis-ai/molis-work-app-local-host");
   const f = await fixture(t), original = await f.save("clear-original");
   const other = await f.bound({ ...person, project_id: "b" }).write({ scope: "project", owner: "b", text: "Other project", origin: "person", meta, operation_id: "other-project" });
-  const receipt = { deletion_id: "confirmed-deletion", project_id: "a" };
-  let release!: () => void, entered!: () => void, first = true;
+  // This hook now consumes persisted owner facts, just as Catalog's production path does.
+  f.ledger.setMarker(person.actor_id, "strategy-adoption", { origin: "new-home" }, new Date().toISOString());
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home }); t.after(() => catalog.close());
+  for (const project_id of ["a", "b"]) f.ledger.noteOwner({ scope: "project", owner: project_id, project_id, title: project_id });
+  const storage = new LocalSqliteStorage(join(f.home, "projects", "catalog.db")); t.after(() => storage.close());
+  const projects = new ProjectsModule({ db: storage.db, plugins: { has: () => false, companions: () => [] } });
+  const hooks = projectDeletedHooksFor(f.home);
+  let release!: () => void, entered!: () => void, first = true, armed = false;
   const gate = new Promise<void>(done => { release = done; }), pending = new Promise<void>(done => { entered = done; });
-  const backend = prologueMemoryBackend(async () => f.adapter.memory!, {
-    beforeEffect: async () => { if (first) { first = false; entered(); await gate; } }, assert_current: () => undefined });
+  const backend = prologueMemoryBackend(async () => f.adapter.memory!);
   const deletion = registerMemoryProjectDeletion({ homeDirectory: f.home, backend, ledger: f.ledger,
-    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists });
-  f.owner.deletingProject = deletion.deletingProject;
-  f.projects.delete("a");
-  await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a"), { code: "memory.forbidden" });
-  await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a", { ...receipt, project_id: "b" }), { code: "memory.forbidden" });
+    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists,
+    projectDeletion: () => f.adapter.projectDeletion, withEffect: (control, work) => f.adapter.withEffect(control, work),
+    controlledBackend: control => prologueMemoryBackend(async () => f.adapter.memory!, {
+      beforeEffect: async () => { if (armed && first) { first = false; entered(); await gate; } await control.beforeEffect(); }, assert_current: control.assert_current }) });
+  Object.assign(f.owner, deletion);
+  let receipt!: NonNullable<Parameters<typeof hooks.clear>[2]>;
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "off");
-  const clearing = projectDeletedHooksFor(f.home).clear("memory", "a", receipt); await pending;
+  const clearing = hooks.withRecovery({ project_id: "a", operation_id: "confirmed-deletion" }, async recovery => {
+    receipt = { deletion_id: "confirmed-deletion", project_id: "a", recovery };
+    projects.lifecycle.insertDeletion({ deletion_id: receipt.deletion_id, actor_id: person.actor_id, idempotency_key: receipt.deletion_id,
+      request_fingerprint: receipt.deletion_id, project_id: "a", display_name: "a", staged_directory: join(f.home, "staged-a"),
+      deleted_binding_count: 0, cleanup_state: "pending", cleanup_error: null, deleted_at: new Date().toISOString(), cleaned_at: null,
+      recovery_plan: JSON.stringify(recovery) });
+    f.projects.delete("a"); armed = true;
+    return hooks.clear("memory", "a", receipt);
+  }); await pending;
+  await assert.rejects(hooks.clear("memory", "a"), { code: "memory.forbidden" });
+  await assert.rejects(hooks.clear("memory", "a", { ...receipt, project_id: "b" }), { code: "memory.forbidden" });
   assert.equal(deletion.deletingProject(), undefined, "the in-flight clear does not grant its scope to another invocation");
   await assert.rejects(f.bound(task).remove({ scope: "project", owner: "a", memory_id: original.memory_id, expected_version: original.version, operation_id: "task-delete" }));
   release(); assert.equal(await clearing, true);
+  projects.lifecycle.updateDeletionCleanup(receipt.deletion_id, { state: "complete", error: null, cleaned_at: new Date().toISOString() });
   assert.equal(deletion.deletingProject(), undefined);
   f.projects.add("a"); f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed");
   assert.deepEqual(await f.bound().list("project", "a"), []);
   const later = await f.save("after-original-preview");
-  f.projects.delete("a"); await projectDeletedHooksFor(f.home).clear("memory", "a", receipt);
+  f.projects.delete("a");
+  await assert.rejects(hooks.withRecovery({ project_id: "a", operation_id: receipt.deletion_id, original: receipt.recovery }, () => hooks.clear("memory", "a", receipt)), { code: "memory.conflict" });
   f.projects.add("a");
   assert.deepEqual((await f.bound().list("project", "a")).map(item => item.memory_id), [later.memory_id]);
   assert.deepEqual((await f.bound({ ...person, project_id: "b" }).list("project", "b")).map(item => item.memory_id), [other.memory_id]);
@@ -284,22 +486,77 @@ test("learning candidate management stays independent of task recall without gra
   const f = await fixture(t); await f.save("formal-retained");
   const candidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
     meta, expected_version: 0, operation_id: "candidate-management" });
+  const privateCandidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Private plugin candidate", origin: "person",
+    meta: { ...meta, namespace: "another.plugin" }, expected_version: 0, operation_id: "private-candidate-management" });
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { task_recall: false });
   const learner: AgentMemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "assistant",
     current_scene: "common", purpose: "management", source_use: "learning" };
+  const explicit: AgentMemoryCaller = { ...learner, source_use: "explicit" };
   assert.deepEqual((await f.bound(learner).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  assert.deepEqual((await f.bound(explicit).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id],
+    "explicit proposal context reads the same allowed candidates, never another plugin's namespace");
   assert.deepEqual(await f.bound(learner).list("project", "a"), [], "the candidate grant is not formal memory access");
+  assert.deepEqual(await f.bound(explicit).list("project", "a"), [], "explicit formation is not formal task access");
   await assert.rejects(f.bound({ ...learner, purpose: "task" }).candidates.list("project", "a"), { code: "MEMORY_SCOPE_DENIED" },
     "a task caller cannot turn a candidate query into management");
-  for (const other of [{ ...learner, source_use: undefined }, { ...learner, source_use: "explicit" as const }, { ...learner, project_id: "b" }]) {
+  for (const other of [{ ...learner, source_use: undefined }, { ...learner, project_id: "b" }, { ...explicit, project_id: "b" }]) {
     assert.deepEqual(await f.bound(other).candidates.list("project", "a"), []);
   }
-  for (const override of [{ form: false }, { learn_from_work: false }, { enabled: false },
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { learn_from_work: false });
+  assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), []);
+  assert.deepEqual((await f.bound(explicit).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  const restricted = { selector: { consumer: "assistant" as const, current_scene: "common" }, read: "inherit" as const, form: "off" as const };
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [restricted] });
+  const recipe = await f.service.forRun(explicit, { scopes: ["project"] }); assert.ok(recipe);
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [] });
+  assert.deepEqual(await f.bound({ ...explicit, session_id: "original-form-off", class_restrictions: recipe.class_restrictions }).candidates.list("project", "a"), [],
+    "the original Run's form restriction survives a later current preference change");
+  for (const override of [{ form: false }, { enabled: false }, { class_restrictions: [restricted] },
     { consumers: { ...defaultPrefs("project", "reviewed").consumers, assistant: false } }]) {
     f.service.savePrefs({ ...person, consumer: "ui" }, "project", { ...defaultPrefs("project", "reviewed"), task_recall: false, ...override });
     assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), []);
+    assert.deepEqual(await f.bound(explicit).candidates.list("project", "a"), []);
   }
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed"); await f.reopen();
-  assert.equal((await f.bound().candidates.list("project", "a"))[0]?.version, candidate.version);
+  assert.deepEqual((await f.bound().candidates.list("project", "a")).map(row => [row.candidate_id, row.version]).sort(),
+    [[candidate.candidate_id, candidate.version], [privateCandidate.candidate_id, privateCandidate.version]].sort());
   assert.equal((await f.bound().list("project", "a")).length, 1, "permission probes never modify persistent values");
+});
+
+
+test("coverage inspection refuses a forged ordinary caller and rechecks after its final async authority", async t => {
+  const f = await fixture(t), input = { operation_id: "original-delete", known_scopes: [{ scope: "project" as const, owner: "a" }] };
+  await assert.rejects(f.bound().verifyPurgeCoverage(input));
+  f.owner.deletingProject = () => "a";
+  f.owner.deletingCoverage = (operation: string, scopes: readonly { scope: string; owner: string }[]) => operation === input.operation_id && scopes.length === 1 && scopes[0]?.scope === "project" && scopes[0].owner === "a";
+  const original = f.options.authorizePurgeInspection!; let calls = 0;
+  f.options.authorizePurgeInspection = async (caller: AgentMemoryCaller, request: Parameters<NonNullable<NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>["authorizePurgeInspection"]>>[1]) => {
+    const allowed = await original(caller, request);
+    if (++calls === 2) f.closeOwner();
+    return allowed;
+  };
+  await assert.rejects(f.bound().verifyPurgeCoverage(input)); assert.equal(calls, 2);
+});
+
+
+test("MEM-36: the App's explicit proof budget reaches the real Host; warm collections recheck bytes without decrypting unchanged bodies", async t => {
+  const f = await fixture(t), original = await f.save("observed-collection");
+  assert.equal(f.options.readCache?.maxBytes, 8 * 1024 * 1024);
+  // Observe the real Node crypto boundary, without replacing storage, authority or SDK execution.
+  const decrypt = t.mock.method(crypto, "createDecipheriv");
+  syncBuiltinESMExports();
+  t.after(() => { decrypt.mock.restore(); syncBuiltinESMExports(); });
+  const scopes = [{ scope: "project" as const, owner: "a" }];
+  const memory = f.bound(); assert.ok(memory.listScopes);
+  assert.deepEqual(await memory.listScopes({ scopes }), [original]);
+  const first = decrypt.mock.callCount(); assert.ok(first > 0, "the first collection authenticates actual persisted bytes");
+  assert.deepEqual(await memory.listScopes({ scopes }), [original]);
+  assert.equal(decrypt.mock.callCount(), first, "a wrapper dropping Host observations would decrypt again");
+  const changed = await memory.update({ scope: "project", owner: "a", memory_id: original.memory_id, expected_version: original.version,
+    operation_id: "changed-collection", change: { text: "Changed current convention" } });
+  assert.deepEqual(await memory.listScopes({ scopes }), [changed], "the proof cannot hide a new canonical version");
+  await f.reopen();
+  const before = decrypt.mock.callCount(), reopened = f.bound(); assert.ok(reopened.listScopes);
+  assert.deepEqual(await reopened.listScopes({ scopes }), [changed]);
+  assert.ok(decrypt.mock.callCount() > before, "the closed Runtime's observations are not reused after reopening");
 });

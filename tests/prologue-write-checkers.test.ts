@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentWriteCheckerActions, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -12,7 +13,8 @@ test("BL221-REFUSAL-03 a malformed persisted checker is refused without rewritin
   const home = join(root, "home"), storageRoot = join(root, "runtime");
   const workspaces = ["broken", "healthy"].map(id => ({ workspace_id: id, canonical_path: join(root, id), realpath_verified: true, display_name: id }));
   await Promise.all(workspaces.map(workspace => mkdir(workspace.canonical_path)));
-  const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.db"), projectId: "checkers" });
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Write checkers", actor_id: "web-user" }));
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const person = { actor_id: "web-user", project_id: reference.project_id, audience: "user" as const, permissions: ["projects:settings"] };
   const checker = { checker_id: "node", display_name: "Node", executable: "node", args: ["--check", "{file}"], applies_to: [".js"], cwd: ".", timeout_ms: 30_000 };
   let models = 0;

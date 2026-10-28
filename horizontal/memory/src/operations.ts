@@ -1,4 +1,4 @@
-import type { MemoryCandidateRecord, MemoryLedgerPort, MemoryScope, MemorySource } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryBatchRequest, MemoryCandidateRecord, MemoryChangeRequest, MemoryLedgerPort, MemoryScope, MemorySource } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "./service.js";
 import { memoryErrors } from "./errors.js";
 
@@ -15,7 +15,7 @@ interface OperationIdentity {
   evidence_count?: number;
   /** An absolute retention decision, not content or a reconstructed command. */
   formal_expires_at?: string | null;
-  /** Identity of an entire normalized import, including items not yet dispatched. */
+  /** Identity of a complete normalized import or person candidate decision. */
   input_digest?: string;
 }
 interface OperationMark extends OperationIdentity {
@@ -25,11 +25,30 @@ interface OperationMark extends OperationIdentity {
   result?: { memory_id?: string; candidate_id?: string; version?: number; outcome?: "duplicate" | "candidate" };
 }
 const PREFIX = "memory-operation:";
+
+/** The UI freezes a canonical UTC instant, never a duration to recalculate on retry. */
+function renewalDeadline(request: MemoryChangeRequest): string {
+  if (!Number.isSafeInteger(request.expected_version) || request.expected_version! < 1)
+    throw memoryErrors.invalid("续期需要页面所见的版本");
+  if ([request.text, request.kind, request.classification, request.applies, request.to, request.version].some(value => value !== undefined))
+    throw memoryErrors.invalid("续期只能修改截止时间，请单独提交其它修改");
+  const value = request.expires_at, millis = typeof value === "string" ? Date.parse(value) : NaN;
+  if (!Number.isSafeInteger(millis) || millis < 0 || new Date(millis).toISOString() !== value)
+    throw memoryErrors.invalid("续期需要明确且有效的 UTC ISO 截止时间");
+  return new Date(millis).toISOString();
+}
+
 export interface MemoryPurgeTarget {
   scope: MemoryScope;
   owner: string;
   entry: { memory_id: string; version: number };
   condition?: { expected_version: number; operation_id: string; signal?: AbortSignal };
+}
+
+/** The fixed selection holds stable references and child identities, never body copies or local progress. */
+export interface MemorySelection extends MemoryBatchRequest {
+  project_id: string | null;
+  children: string[];
 }
 
 /** The existing ledger keeps operation identity and receipts, never a proposed body or encoded command. */
@@ -55,6 +74,19 @@ export class MemoryOperations {
     return { ...parent, operation_id };
   }
 
+  selection(caller: MemoryCaller, previewId: string): MemorySelection | undefined {
+    return this.ledger.marker(caller.actor_id, "memory-selection:" + previewId)?.body as MemorySelection | undefined;
+  }
+
+  saveSelection(caller: MemoryCaller, previewId: string, selection: MemorySelection): void {
+    this.ledger.transaction(() => {
+      const existing = this.selection(caller, previewId);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(selection))
+        throw memoryErrors.conflict("同一预览操作号不能改变原选集");
+      if (!existing) this.ledger.setMarker(caller.actor_id, "memory-selection:" + previewId, selection, this.now().toISOString());
+    });
+  }
+
   /** Recreating a merged item belongs to the original change, even when the person's retry is a new request. */
   recreate(caller: MemoryCaller, change: { change_id: string; scope: MemoryScope; owner: string }): MemoryCaller {
     const operation = this.child({ ...caller, operation_id: change.change_id }, "undo-recreate");
@@ -67,6 +99,26 @@ export class MemoryOperations {
   find(caller: MemoryCaller, key: string): OperationMark | undefined {
     if (!caller.operation_id) return undefined;
     return this.ledger.marker(caller.actor_id, `${PREFIX}${caller.operation_id}:${key}`)?.body as OperationMark | undefined;
+  }
+
+  /** Claim a whole change before its first SDK step; an existing claim only checks identity, including after deletion. */
+  changeRequest(caller: MemoryCaller, request: MemoryChangeRequest,
+    located?: { scope: MemoryScope; owner: string; version: number }): void {
+    const expiry = request.action === "renew" ? renewalDeadline(request) : undefined;
+    const existing = this.find(caller, "change-request");
+    if (existing) {
+      if (existing.kind !== request.action || existing.memory_id !== request.memory_id || existing.formal_expires_at !== expiry
+        || request.expected_version !== undefined && existing.expected_version !== request.expected_version
+        || located && (existing.scope !== located.scope || existing.owner !== located.owner))
+        throw memoryErrors.conflict("同一记忆操作号不能改变目标、动作、确认版本或续期期限");
+      // Closed child operations still refuse writes; the original purge receipt may finish its deletion projection.
+      return;
+    }
+    if (!located) return;
+    const original = this.find(caller, `change:${request.memory_id}`);
+    this.begin(caller, "change-request", { kind: request.action, scope: located.scope, owner: located.owner,
+      memory_id: request.memory_id, expected_version: request.expected_version ?? original?.expected_version ?? located.version,
+      ...(expiry === undefined ? {} : { formal_expires_at: expiry }) });
   }
 
   begin(caller: MemoryCaller, key: string, identity: OperationIdentity): OperationMark {

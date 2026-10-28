@@ -40,11 +40,10 @@ const jsonObject = (input: string, message: string) => {
 };
 
 /** Dispatching or steering a subagent: who is sent, to do what, with which tools and where, with the exact arguments. */
-async function subagentCard(deps: ReviewDeps, pending: Pending, effect: Effect, subject: { name: string; input?: unknown }): Promise<Card> {
+async function subagentCard(deps: ReviewDeps, pending: Pending, subject: { name: string; input?: unknown }): Promise<Card> {
   const { attempt } = await attemptOf(deps, pending);
   if (!attempt?.frozen.host_tools.includes(subject.name) || typeof subject.input !== "string") throw new Error("子任务操作不属于本轮固定工具");
   const args = jsonObject(subject.input, "子任务操作参数无效");
-  deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
   const roleKey = typeof args.character === "string" ? args.character.split("@")[0] : "";
   const role = attempt.subagent_roles?.find(([key]) => key === roleKey)?.[1];
   const root = typeof args.workspace === "string" ? attempt.subagent_roots?.find(entry => entry.id === args.workspace) : undefined;
@@ -60,7 +59,6 @@ async function subagentCard(deps: ReviewDeps, pending: Pending, effect: Effect, 
 
 /** An action on the side panel's browser or the desktop: on which site or app, what, and which file. */
 async function surfaceCard(deps: ReviewDeps, pending: Pending, effect: Effect, subject: { surface: string; action: string; scope: string }): Promise<Card> {
-  deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
   const surfaceHost = deps.surfaces();
   const label = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
   const typed = subject.action === "text" && effect.proposal.reviewRef ? await readResourceText(deps.runtime, effect.proposal.reviewRef).catch(() => undefined) : undefined;
@@ -74,25 +72,23 @@ async function surfaceCard(deps: ReviewDeps, pending: Pending, effect: Effect, s
 }
 
 /** Stopping a background command has no review resource of its own: the card names the command it stops. */
-function commandStopCard(deps: ReviewDeps, pending: Pending, effect: Effect, subject: { name: string; input?: unknown }): Card {
+function commandStopCard(deps: ReviewDeps, subject: { name: string; input?: unknown }): Card {
   if (typeof subject.input !== "string") throw new Error("停止命令的参数不可读，不能批准");
   const args = JSON.parse(subject.input);
   const handle = args && typeof args === "object" && typeof args.handle === "string" ? args.handle : "";
   const task = handle ? deps.runtime.background.get(handle) : undefined;
-  deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
   return { kind: "tool-operation", tool: subject.name, summary: task ? "停止一条后台命令" : "停止一条命令",
     fields: [{ label: "命令", value: task?.summary ?? handle }, ...(task ? [{ label: "现在", value: task.state === "running" ? "还在运行" : task.state }] : []),
       { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
 }
 
 /** A change through the business gateway, a catalog action, or an MCP call: the card from the round's frozen tools. */
-async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, subject: { name: string; input?: unknown }): Promise<Card | undefined> {
+async function actionCard(deps: ReviewDeps, pending: Pending, subject: { name: string; input?: unknown }): Promise<Card | undefined> {
   if (subject.name === GATEWAY_TOOLS.change) {
     if (typeof subject.input !== "string") throw new Error("所请求修改的参数不可读，不能批准");
     const { attempt } = await attemptOf(deps, pending);
     const gateway = deps.state.gatewayRuns.get(pending.origin!.session!);
     if (!attempt?.frozen.action_gateway || !gateway) throw new Error("这项修改不属于本轮的能力网关，不能批准");
-    deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
     const readable = await gatewayReview(gateway, subject.input);
     return { kind: "tool-operation", tool: subject.name, summary: readable.summary, fields: readable.fields };
   }
@@ -102,7 +98,6 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     const selected = attempt?.action_tool_scope && attempt.frozen.action_tools?.find(ref => agentActionToolName(ref, attempt.action_tool_scope!) === subject.name);
     if (!selected) throw new Error("Action is outside this run's frozen tools");
     const args = jsonObject(subject.input, "Invalid action arguments");
-    deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
     return { kind: "tool-operation", tool: subject.name, summary: deps.runtime.tools.get(subject.name)?.description ?? selected.capability_id,
       fields: [{ label: "Capability", value: selected.capability_id }, { label: "Version", value: String(selected.version) },
         { label: "Provider", value: selected.provider_id }, { label: "Arguments", value: JSON.stringify(args, null, 2) }] };
@@ -113,19 +108,18 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     const selected = attempt?.frozen.mcp_tools.find(item => `mcp:${mcpConnectionId(item)}/${item.tool}` === subject.name);
     if (!selected?.version) throw new Error("MCP 操作不属于本轮固定工具，不能批准");
     jsonObject(subject.input, "MCP 原始参数格式无效");
-    deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
     return { kind: "mcp", server: selected.server_label ?? selected.server, tool: selected.tool, arguments_json: subject.input };
   }
   return undefined;
 }
 
 /** A command or a file change in the round's own workspace: read from the exact review resource the runtime published. */
-async function workspaceCard(deps: ReviewDeps, pending: Pending, effect: Effect, ref: ExactRef<"resource">): Promise<Card> {
+async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"resource">): Promise<Card> {
   const review = await readResource(deps.runtime, ref);
-  const root = pending.origin?.run && deps.state.runRoots.get(pending.origin.run);
-  if (!root || review.rootRef?.kind !== root.kind || review.rootRef?.id !== root.id || review.rootRef?.revision !== root.revision) throw new Error("审查工作区与本轮授权不一致");
   const index = pending.origin?.session ? await deps.index.read(pending.origin.session) : undefined;
   const attempt = index?.attempts.find(each => each.run_id === pending.origin?.run);
+  const root = attempt?.root_ref;
+  if (!root || review.rootRef?.kind !== root.kind || review.rootRef?.id !== root.id || review.rootRef?.revision !== root.revision) throw new Error("审查工作区与本轮授权不一致");
   const childDirectory = index?.parent_run && attempt?.frozen.directory?.canonical_path;
   if (review.kind === WORKSPACE_COMMAND_KIND && review.version === 1
     && typeof review.executable === "string" && Array.isArray(review.argv) && review.argv.every((arg: unknown) => typeof arg === "string")
@@ -137,7 +131,6 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, effect: Effect,
     // The person's after-write check (§6.0p.3): which checker, from which list version, as its executor noted under this key.
     const check = isAfterWriteCheckOperationKey(review.operationKey) ? attempt?.write_checks?.[review.operationKey] ?? null : undefined;
     if (check === null) throw new Error("这条写后检查找不到当时用的检查器，不能批准");
-    deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
     return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
       timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate, ...(grants ? { grants } : {}),
       ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}),
@@ -145,7 +138,6 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, effect: Effect,
   }
   if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
     || typeof review.baseExists !== "boolean" || typeof review.baseText !== "string" || typeof review.nextText !== "string") throw new Error("这类操作的完整审查尚未接通，不能批准");
-  deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
   // A file this round writes joins its work's scope; other work under way that covers it is named on the card.
   const work = pending.origin?.run ? deps.state.runWork.get(pending.origin.run) : undefined;
   let concurrent: string[] = [];
@@ -167,7 +159,9 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
     async read(ref) {
       const pending = await runtime.effects.pendings.read(ref);
       if (!pending) return undefined;
+      const current = pending.origin?.session ? deps.index.capture(pending.origin.session) : undefined;
       const clock = await host.readClock();
+      current?.();
       let expiresAtWallMs = state.deadlines.get(ref.id);
       if (expiresAtWallMs === undefined) {
         expiresAtWallMs = clock.wallTimeMs + Math.max(0, pending.expiresAtMs - clock.monotonicMs);
@@ -188,18 +182,21 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
     },
     async answer(ref, answer) { return runtime.effects.pendings.answer(ref, answer, await host.readClock()); },
     async document(pending) {
+      if (!pending.origin?.session) throw new Error("审查缺少会话归属");
+      const current = deps.index.capture(pending.origin.session);
       const effect = pending.effectRef && runtime.effects.get(pending.effectRef);
       const ref = effect?.proposal.reviewRef;
       if (!effect || effect.proposal.origin?.session !== pending.origin?.session
         || effect.proposal.origin?.run !== pending.origin?.run) throw new Error("原始审查或执行归属不可用，不能批准");
       const subject = effect.proposal.subject;
-      if (subject.what === "tool" && ["dispatch-subagent", "steer-subagent"].includes(subject.name)) return subagentCard(deps, pending, effect, subject);
-      if (subject.what === "surface") return surfaceCard(deps, pending, effect, subject);
-      if (subject.what === "tool" && subject.name === "command-stop") return commandStopCard(deps, pending, effect, subject);
-      const action = subject.what === "tool" ? await actionCard(deps, pending, effect, subject) : undefined;
-      if (action) return action;
-      if (!ref) throw new Error("原始审查资源不可用，不能批准");
-      return workspaceCard(deps, pending, effect, ref);
+      const card = subject.what === "tool" && ["dispatch-subagent", "steer-subagent"].includes(subject.name) ? await subagentCard(deps, pending, subject)
+        : subject.what === "surface" ? await surfaceCard(deps, pending, effect, subject)
+          : subject.what === "tool" && subject.name === "command-stop" ? commandStopCard(deps, subject)
+            : subject.what === "tool" ? await actionCard(deps, pending, subject) : undefined;
+      if (!card && !ref) throw new Error("原始审查资源不可用，不能批准");
+      const result = card ?? await workspaceCard(deps, pending, ref!);
+      current(); state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+      return result;
     },
   };
 }
@@ -227,7 +224,7 @@ export function createApprovals(deps: ReviewDeps, pendings: ProloguePendingPort,
   const queue = deps.options.reviewQueue;
   if (!queue) return undefined;
   return new PrologueApprovalBridge({
-    queue, pendings,
+    queue, pendings, capture: deps.index.capture,
     async recordRequest(pending, request) { await remember(pending.origin!.session!, pending.ref.id, queue.receipt(request.review_id)!); },
     async allowAppForRound(pending) { allowDesktopAppForRound(deps.surfaces(), pending.effectRef && deps.runtime.effects.get(pending.effectRef), pending.origin?.run ? deps.state.runRefs.get(pending.origin.run) : undefined); },
     async recordDecision(pending, receipt) {
@@ -262,14 +259,15 @@ export function restoreReviewHistory(deps: ReviewDeps, pendings: ProloguePending
     for (const effect of report.effects) {
       const pending = effect.pending;
       if (!pending?.origin?.session || !pending.origin.run) continue;
-      const index = await deps.index.read(pending.origin.session);
+      const index = await deps.index.read(pending.origin.session).catch(error => { if (error?.code === "agent.session_busy") return undefined; throw error; });
       if (!index || index.owner.project_id !== projectId) continue;
+      const current = deps.index.capture(pending.origin.session);
       const attempt = index.attempts.find(item => item.run_id === pending.origin!.run);
       if (!attempt?.root_ref || deps.state.activeRuns.has(pending.origin.run)) continue;
-      deps.state.runRoots.set(pending.origin.run, attempt.root_ref);
       const restored = await pendings.read(pending.ref);
       if (!restored) throw new Error("审查历史的待批引用不可读");
       const document = await pendings.document(restored);
+      current(); deps.state.runRoots.set(pending.origin.run, attempt.root_ref);
       const decision = index.review_decisions?.[pending.ref.id];
       const request = { review_id: `prologue:${pending.ref.id}`, run: { session_id: pending.origin.session, run_id: pending.origin.run },
         project_id: projectId, plugin_id: index.owner.plugin_id, kind: document.kind, document,
@@ -298,7 +296,9 @@ export function restoreReviewHistory(deps: ReviewDeps, pendings: ProloguePending
       if (receipt?.status === "pending" && ["cancelled", "denied"].includes(effect.state)) {
         queue.cancel(request.review_id, "执行方已结束这笔操作");
       } else if (receipt?.status === "approved") {
+        const current = effect.proposal.origin?.session ? deps.index.capture(effect.proposal.origin.session) : undefined;
         const dispatched = await deps.runtime.effects.inspectDispatch(ref);
+        current?.();
         if (effect.state === "completed" && dispatched.state === "dispatched" && dispatched.ok === true) {
           queue.settle(request.review_id, { ok: true });
         } else if (["failed", "denied", "cancelled"].includes(effect.state) && dispatched.state !== "unknown") {

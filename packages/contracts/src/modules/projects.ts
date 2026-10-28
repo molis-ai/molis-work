@@ -43,6 +43,23 @@ export interface ProjectSelection {
   display_name: string;
 }
 
+/** Body-free source request identity; the Catalog owns the original deletion plan and completion. */
+export interface ProjectDeletionSourceRequest {
+  deletion_id: string;
+  project_id: string;
+  actor_id: string;
+  idempotency_key: string;
+  request_fingerprint: string;
+}
+
+/** One durable mapping in the Memory recovery parent; never a copy of Catalog plans or steps. */
+export interface ProjectDeletionRecoveryGroup {
+  project_id: string;
+  sources: readonly ProjectDeletionSourceRequest[];
+  targets: readonly { source_deletion_id: string; target_deletion_id: string }[];
+  disposal: { primary_target: string | null; dependent_targets: readonly string[] };
+}
+
 /**
  * A project plugin id is an open string validated at runtime against the
  * installed registry, not a closed literal set. Adding a Plugin is an install,
@@ -141,6 +158,10 @@ export interface CreateProjectInput {
  * among the deletion's owners. A plugin declares its data in its Manifest instead (`databases.home.project_rows`, PG-024), and the
  * platform deletes it without running the plugin's code.
  */
+/** Live maintenance authority: the real owner rechecks after waits/locks and before writes/commit.
+ * Controlled paths must preserve the original physical target and refuse redirected files or ancestors. */
+export interface ProjectDeletionControl { assertCurrent(): void }
+
 export interface ProjectDataDeclaration {
   /** What the confirmation dialog tells the person goes with the project (Chinese source text, translated when shown). */
   readonly label: string;
@@ -151,7 +172,7 @@ export interface ProjectDataDeclaration {
    * can run it without the owner's service running; it is idempotent (a failed receipt is retried, and a library that
    * does not exist yet is not created). Throws when something is left, and the step then stays pending in the receipt.
    */
-  purge(homeDirectory: string, projectId: string): void | Promise<void>;
+  purge(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void | Promise<void>;
 }
 
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */

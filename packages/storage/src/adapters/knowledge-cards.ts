@@ -12,7 +12,7 @@ import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } 
  */
 export const KNOWLEDGE_CARDS_STORE = "knowledge";
 
-export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: 4, schema: `
 CREATE TABLE knowledge_cards (
   card_id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, object_id TEXT NOT NULL, body TEXT NOT NULL,
   UNIQUE (project_id, kind, object_id)
@@ -30,7 +30,12 @@ CREATE INDEX knowledge_receipts_subject ON knowledge_receipts (project_id, kind,
 ` };
 
 type Row = Record<string, unknown>;
-const cardText = (record: KnowledgeCardRecord) => [record.brief, record.keywords.join(" "), ...record.outline.map(note => `${note.title} ${note.summary}`)].join("\n");
+const cardText = (record: KnowledgeCardRecord) => {
+  const original = record.adoption && record.state !== "ready" || record.retention?.restoration_operation_id && (record.state === "listed" || record.organized_revision === null);
+  return [original && !record.edited.includes("brief") ? "" : record.brief,
+    original && !record.edited.includes("keywords") ? "" : record.keywords.join(" "),
+    ...(original ? [] : record.outline.map(note => `${note.title} ${note.summary}`))].join("\n");
+};
 
 export function openKnowledgeCards(options: { homeDirectory: string }): KnowledgeCardStorePort {
   const db = openBaselineHomeSqlite(options.homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE);
@@ -103,11 +108,14 @@ function receiptsOf(db: DatabaseSync, projectId: string, options: { subject?: Ac
   return { receipts: rows.map(row => JSON.parse(String(row.body)) as KnowledgeReadReceipt), total };
 }
 
-function removeProjectCards(db: DatabaseSync, projectId: string): number {
+function removeProjectCards(db: DatabaseSync, projectId: string, control?: { assertCurrent(): void }): number {
   const ids = db.prepare("SELECT card_id FROM knowledge_cards WHERE project_id = ?").all(projectId) as Row[];
-  for (const row of ids) db.prepare("DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id));
+  for (const row of ids) { control?.assertCurrent(); db.prepare("DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id)); }
+  control?.assertCurrent();
   db.prepare("DELETE FROM knowledge_cards WHERE project_id = ?").run(projectId);
+  control?.assertCurrent();
   db.prepare("DELETE FROM knowledge_usage WHERE project_id = ?").run(projectId);
+  control?.assertCurrent();
   db.prepare("DELETE FROM knowledge_receipts WHERE project_id = ?").run(projectId);
   return ids.length;
 }
@@ -130,8 +138,8 @@ function searchCards(db: DatabaseSync, projectId: string, query: string, limit: 
 }
 
 /** A deleted project's cards and usage, cleared from the file by whichever process deletes it (nothing to do when there is no store yet). */
-export function clearKnowledgeProject(homeDirectory: string, projectId: string): number {
-  return clearInExistingHomeSqlite(homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, db => removeProjectCards(db, projectId)) ?? 0;
+export function clearKnowledgeProject(homeDirectory: string, projectId: string, control?: { assertCurrent(): void }): number {
+  return clearInExistingHomeSqlite(homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, db => removeProjectCards(db, projectId, control), control) ?? 0;
 }
 
 /** The knowledge store in the Home's store registry (W4-11). */

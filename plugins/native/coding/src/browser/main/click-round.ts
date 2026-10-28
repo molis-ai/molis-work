@@ -6,7 +6,6 @@ import { refreshState } from "./configuration.js";
 import { shut } from "./composer-state.js";
 import { controls, openMaterials } from "./controls.js";
 import { ownTask } from "./helpers.js";
-import { renderGoalFace } from "./goals.js";
 import { openMethods, renderMcp } from "./methods.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
@@ -64,28 +63,6 @@ async function pause(page: Page, target: HTMLButtonElement) {
     status(page, errorMessage(error), true);
   } finally {
     controls(page);
-  }
-}
-
-/** Archives the session after the person agrees; the page goes back to the list. */
-async function archive(page: Page, target: HTMLButtonElement) {
-  const { L, host, root, s } = page, { taskboard } = page.refs;
-  if (!s.current || !await host.confirm(L("coding.session.archive-confirm"))) return;
-  target.disabled = true;
-  const id = s.current;
-  try {
-    await api(page, sessionPath(id), "PATCH", { archive: true });
-    s.generation++;
-    s.current = "";
-    s.lastRun = null;
-    root.dataset.codingDetail = "false";
-    s.sessionOnShow = false;
-    taskboard.loading("");
-    renderGoalFace(page);
-    await refreshState(page);
-    status(page, L("coding.session.archived"));
-  } finally {
-    target.disabled = false;
   }
 }
 
@@ -150,6 +127,5 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
     status(page, L("coding.run.stop-received"));
     await readCurrent(page);
   }],
-  ["[data-coding-archive]", archive],
   ["[data-coding-rename]", rename],
 ];

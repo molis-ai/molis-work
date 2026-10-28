@@ -142,7 +142,7 @@ export async function replayMemorySequences(config: PrologueModelConfiguration, 
     limitations: ["Frozen corpus, labels, pairing and evaluated attempt limits are unchanged; current arms are B0/B2, never relabelled B1",
       "B2 aligns the App and NodeHost Date clock; historical B1 used wall time in the SDK. TTL outcomes are not a clock-equivalent comparison",
       "Source setup uses actual Session/Run owners with a separate scripted loopback model. fixtureRequests are setup cost, not evaluated Provider attempts or free production formation",
-      "recipeLatencyMs measures recipe construction; taskRetrievalLatencyMs remains unknown. Neither replaces the historical explicit-recall 5 ms metric",
+      "recipeLatencyMs measures recipe construction; SDK taskRecall and openingMemoryPreparation are nested monotonic intervals, never added. Missing/invalid/not-run remain null; historical B1 lacks these phases and the explicit-recall 5 ms metric is unchanged",
       "Final emitted memory content and SDK per-call references are observed separately. They do not prove model use, quality or token savings",
       "SDK-upgrade attribution control and independent quality review remain unperformed"] };
 }

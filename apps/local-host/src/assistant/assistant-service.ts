@@ -1,10 +1,11 @@
+import { AssistantWorkLifecycle, type AssistantArchiveRequest } from "./assistant-work-lifecycle.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
 import { assistantFailure } from "./assistant-error.js";
 import { AssistantContinuations } from "./assistant-continuations.js";
 import { controlAssistantWork } from "./assistant-work-control.js";
 import { AssistantFollowUps } from "./assistant-followups.js";
-import type { AgentDelegation } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -19,7 +20,7 @@ import { AssistantJobs } from "./assistant-jobs.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
-import { inputsOf, withdrawInput } from "./assistant-inputs.js";
+import { checkArchiveFilter, inputsOf, withdrawInput } from "./assistant-inputs.js";
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
@@ -61,6 +62,7 @@ export class AssistantService {
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
   readonly continuations: AssistantContinuations;
+  readonly lifecycle: AssistantWorkLifecycle;
   /** Background work this person's works started, followed on their graphs. */
   readonly jobs: AssistantJobs;
   /** The reminders, timed rounds and attention rules of this person. */
@@ -83,7 +85,7 @@ export class AssistantService {
       readSubject: (work, subject) => this.materials.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs,
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
-      work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
+      work: workId => store.get(actorId, workId), assertCanSchedule: work => this.lifecycle.assertStart(work), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
       rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), pages: () => ports.pages(),
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
@@ -91,6 +93,8 @@ export class AssistantService {
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
       host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work), schedule: () => this.notices.schedule(),
       send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
+    this.lifecycle = new AssistantWorkLifecycle({ store, actorId, host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work),
+      blockStart: id => this.continuations.blockStart(id), stopFollowUps: (id, control) => this.followUps.stopForArchive(id, control) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.reads.stateFor(host, work), latestRun: (host, work) => this.reads.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.reads.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
@@ -104,7 +108,7 @@ export class AssistantService {
         catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
       } });
     this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materials.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
-    this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), continuations: this.continuations, delegations: this.delegations });
+    this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), lifecycle: this.lifecycle, continuations: this.continuations, delegations: this.delegations });
     this.outcomes = new AssistantOutcomes(store, ports, actorId, now, this.titles, { executorOf: (...a) => this.dispatcher.executorOf(...a), dispatch: (...a) => this.dispatcher.dispatch(...a), latestRun: (...a) => this.reads.latestRun(...a), read: (...a) => this.read(...a), jobs: this.jobs });
     this.materials = new AssistantRoundMaterials(store, ports, actorId, now, this.starting, this.chosenMemory, { workObjects: (...a) => this.reads.workObjects(...a), related: (...a) => this.reads.related(...a), methods: (...a) => this.reads.methods(...a), readMethod: (...a) => this.reads.readMethod(...a), memoryTools: (...a) => this.memory.memoryTools(...a), jobs: this.jobs, delegations: this.delegations });
     this.memory = new AssistantMemoryBridge(store, ports, actorId, this.recalled, this.chosenMemory, this.memorySourceWithdrawals, { assistantPart: (...a) => this.reads.assistantPart(...a), continuations: this.continuations });
@@ -112,13 +116,13 @@ export class AssistantService {
     this.notices = new AssistantNotices(store, ports, actorId, now, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), continuations: this.continuations, followUps: this.followUps, jobs: this.jobs, delegations: this.delegations });
   }
 
-  async list(): Promise<AssistantWork[]> {
-    const works = this.store.list(this.actorId);
+  async list(archived: boolean | "any" = false): Promise<AssistantWork[]> {
+    const works = this.store.list(this.actorId, { archived: checkArchiveFilter(archived) });
     if (!works.length) return [];
     const host = await this.ports.host();
     return Promise.all(works.map(async work => {
       const state = await this.reads.stateFor(host, work);
-      this.notices.notice(work, state);
+      if (!work.archived) this.notices.notice(work, state);
       return this.reads.publicWork(await this.reads.named(work), state);
     }));
   }
@@ -177,6 +181,7 @@ export class AssistantService {
     if (input.executor_session_id !== undefined && (input.work_id || choice?.kind !== "plugin" || typeof input.executor_session_id !== "string" || !input.executor_session_id)) {
       throw assistantErrors.invalid("只有交给执行方插件的新工作可以接着一个已有的会话");
     }
+    if (input.work_id) this.lifecycle.assertStart(this.store.get(this.actorId, input.work_id));
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
@@ -234,16 +239,9 @@ export class AssistantService {
     return this.reads.publicWork(work, await this.reads.stateSafely(work));
   }
 
-  /** Put away (or back). Putting away is quiet: it waits for no round in progress here or in what it handed out, and takes its timed rounds with it. */
-  async archive(workId: string, archived: boolean): Promise<AssistantWork> {
-    if (archived) {
-      const host = await this.ports.host(), own = this.store.get(this.actorId, workId), group = [own, ...this.store.delegatedBy(this.actorId, own, "any")];
-      if ((await Promise.all(group.map(item => this.reads.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
-        throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
-      }
-      await this.followUps.stopForArchive(workId);
-    }
-    const work = this.store.update(this.actorId, workId, null, { archived });
+  /** SDK first, then the Work projection, under the same current authority. */
+  async archive(workId: string, request: AssistantArchiveRequest, control: AgentMemoryExecutionControl): Promise<AssistantWork> {
+    const work = await this.lifecycle.change(workId, request, control);
     return this.reads.publicWork(work, await this.reads.stateSafely(work));
   }
 

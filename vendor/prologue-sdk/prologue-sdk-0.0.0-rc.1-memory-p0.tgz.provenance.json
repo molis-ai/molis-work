@@ -9,23 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
+    "commit": "4ee5b9121d45c5d376ea653de3403170c9b337c6",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
-      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/107",
-      "head": "1cc80b05253df798eeb34afff65d1bda06bee587",
-      "status": "merged",
-      "mergeCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
-      "note": "Archive was packed from the clean reviewed head. GitHub compare confirms that its merged commit has no file differences."
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
+      "head": "4ee5b9121d45c5d376ea653de3403170c9b337c6",
+      "status": "draft",
+      "note": "Clean candidate with controlled queue admission and original quality-chain checks completed in segments. App integration, frozen performance and final acceptance remain open."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1397575,
-    "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
-    "integrity": "sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ=="
+    "bytes": 1414090,
+    "sha256": "7edcac4037b3a9dfdbb433f500bd69b798fa984c38b1177be0340d22e7c2be12",
+    "integrity": "sha512-4271oCV28+CK9/7VJ75r0/Q4cA25b6zjlu9NRHNoGQMQ47pnNOjetEosVZKQjyTPyxmljIhQr6RIZ/V0SrA/wQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -33,12 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source 1cc80b05253df798eeb34afff65d1bda06bee587; merged #107 at ccafbb74fb9db0e3a124ec502c57291677487e23 has no file differences.",
-      "pnpm install --frozen-lockfile --offline --store-dir <existing-cache>",
-      "QUALITY_BASE=b54429dbf43e8f9f8f4b910999674c192077c247 pnpm quality",
-      "In packages/sdk: pnpm pack --pack-destination <isolated-directory>; all 816 archived dist files match the original build byte-for-byte, without vendor patches."
+      "Validate final source using original type/build/API/ratchet/docs checks, queue and real Node tests; retain first full-quality snapshot failure and complete the original downstream checks separately.",
+      "Commit reviewed source as 4ee5b9121d45c5d376ea653de3403170c9b337c6 and verify no dirty paths.",
+      "Pack packages/sdk with original pnpm pack into an independent directory.",
+      "Verify all 830 dist files and README byte-for-byte against this build; package.json differs from source only by the terminal newline removed by pnpm."
     ],
-    "packedOn": "2026-10-26",
-    "note": "Upstream #107 records final-head quality (71 files, 748 tests) and 24 delivery/App-wait regression tests passing. This adoption verifies the clean source, all 816 dist files, and unchanged archived package.json. Upstream remote quality did not start and is not claimed as CI passing. The same Molis consumer patch must persist original wait IDs before SDK purge; complete App MEM-40 and user acceptance require their own verification. Foundation #1064 consumes these same archive bytes only with its existing unpublished-session creation rollback; there is no registered-session deletion consumer here. The original wait-ID persistence requirement above belongs to the complete App #1101 purge/recovery plan, not to a claim that Foundation has delivered MEM-40."
+    "packedOn": "2026-10-28",
+    "note": "Original full quality first reached 782/783 tests with one stale public-surface snapshot. After synchronizing it and adding synchronous final-check rejection, final build and 55 queue/Node/surface tests passed; final type/API/ratchet/docs, original clean installed consumer and Cargo fmt/clippy passed. This is segmented completion, not one entirely green full-quality command. Zero paid model calls, no real Home. App acceptance, performance, merge and release remain open."
   }
 }

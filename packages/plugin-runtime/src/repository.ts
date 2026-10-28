@@ -19,10 +19,17 @@ export const PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL = `
       publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 `;
 
+function installationRecord(row: { install_id: string; record_json: string; publisher_trust: string }): PluginInstanceRecord {
+  const record = JSON.parse(row.record_json) as PluginInstanceRecord | null;
+  if (!record || record.install_id !== row.install_id || record.publisher_trust !== row.publisher_trust)
+    throw pluginErrors.state_invalid("原安装记录与其存储身份不一致");
+  return record;
+}
+
 /** Read existing installation records without constructing a repository that creates the table. */
 export function readPluginRuntimeRecords(db: Pick<PluginRuntimeDatabase, "prepare">): PluginInstanceRecord[] {
-  return db.prepare("SELECT record_json FROM plugin_runtime_installs ORDER BY install_id").all()
-    .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
+  return (db.prepare("SELECT install_id, record_json, publisher_trust FROM plugin_runtime_installs ORDER BY install_id").all() as
+    Array<{ install_id: string; record_json: string; publisher_trust: string }>).map(installationRecord);
 }
 
 /** Installation records owned by Plugin Runtime; no Goal/Artifact/Provider tables are read here. */
@@ -31,8 +38,9 @@ export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
     db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
   }
   get(installId: string): PluginInstanceRecord | null {
-    const row = this.db.prepare("SELECT record_json FROM plugin_runtime_installs WHERE install_id = ?").get(installId) as { record_json: string } | undefined;
-    return row ? JSON.parse(row.record_json) as PluginInstanceRecord : null;
+    const row = this.db.prepare("SELECT install_id, record_json, publisher_trust FROM plugin_runtime_installs WHERE install_id = ?").get(installId) as
+      { install_id: string; record_json: string; publisher_trust: string } | undefined;
+    return row ? installationRecord(row) : null;
   }
   list(): PluginInstanceRecord[] {
     return readPluginRuntimeRecords(this.db);

@@ -11,15 +11,31 @@ import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-ht
 import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { webServerProcess } from "./web-server-process.js";
 import { boardSnapshot } from "./goal-application.js";
 
 /** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
 const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
+/** Both modes share the same browser driver; only the process mode owns an independently restartable Host. */
+async function browserServer(options: WebServerOptions, separateProcess: boolean | undefined, connections: Set<Socket>) {
+  if (separateProcess) {
+    assert.ok(!options.databasePath && !options.localHost && !options.chooseDirectory, "process launcher uses the persisted catalog and production Host");
+    const processServer = await webServerProcess(options.homeDirectory!, CONTROL_TOKEN);
+    return { processServer, server: undefined, setFrameInitScript: (_source: string) => { throw new Error("Process launcher does not inject plugin frame scripts"); } };
+  }
+  const server = createMolisWorkWebServer(options), setFrameInitScript = observePluginFrames(server);
+  server.on("connection", connection => {
+    connections.add(connection);
+    connection.once("close", () => connections.delete(connection));
+  });
+  return { server, processServer: undefined, setFrameInitScript };
+}
+
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
-  webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
+  webOptions: Pick<WebServerOptions, "chooseDirectory"> & { processServer?: boolean } = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
@@ -28,6 +44,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   let localHost: MolisWorkLocalHost | undefined;
   let harness: ChromeHarness | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let processServer: Awaited<ReturnType<typeof webServerProcess>> | undefined;
   const connections = new Set<Socket>();
   t.after(async () => {
     const failures: unknown[] = [];
@@ -44,6 +61,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // and releases the pipe.
     await cleanup("Chrome exit", async () => { await harness?.close(); });
     await cleanup("HTTP server", async () => {
+      if (processServer) return processServer.close();
       if (!server?.listening) return;
       const closed = new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
       server.closeAllConnections();
@@ -91,13 +109,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: CONTROL_TOKEN, ...webOptions });
-  const setFrameInitScript = observePluginFrames(server);
-  server.on("connection", connection => {
-    connections.add(connection);
-    connection.once("close", () => connections.delete(connection));
-  });
+  const { processServer: separateProcess, ...serverOptions } = webOptions;
+  const started = await browserServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory,
+    ...(localHost ? { localHost } : {}), controlToken: CONTROL_TOKEN, ...serverOptions }, separateProcess, connections);
+  server = started.server; processServer = started.processServer;
+  const { setFrameInitScript } = started;
   // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
   // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
   const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
@@ -106,16 +122,18 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
     return browser.command<T>(method, params, sessionId, timeoutMs);
   }
-  await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
+  if (server) await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+  const address = server?.address();
+  assert.ok(processServer || address && typeof address === "object");
+  const origin = processServer?.origin ?? `http://127.0.0.1:${(address as { port: number }).port}`;
   await (await fetch(origin + "/health")).text();
   const before = boardSnapshot(store, projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  await command("Network.enable", {}, sessionId);
+  await command("Page.setLifecycleEventsEnabled", { enabled: true }, sessionId);
   async function setViewport(width: number, height: number, mobile = false): Promise<void> {
     // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
     // Size this window for the current scenario before applying its layout and mobile emulation.
@@ -131,12 +149,66 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   }
+  let surfaceWaitSequence = 0;
   async function waitFor(expression: string, timeoutMs = 10_000): Promise<void> {
-    const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
-      const deadline = Date.now() + ${timeoutMs};
-      const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); else setTimeout(check, 16); }; check();
-    })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
-    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+    // MEM-CI-TRACE-02: a command may time out before its expression runs; do not report a previous click's snapshot.
+    const sequence = expression === SURFACES_SETTLED ? ++surfaceWaitSequence : undefined;
+    const nodeStarted = sequence === undefined ? undefined : performance.now(), nodeStartedAt = sequence === undefined ? undefined : Date.now();
+    const recording = sequence === undefined ? "" : `
+      const trace = { sequence: ${sequence}, started_ms: performance.now(), started_at_ms: Date.now(), deadline_at_ms: deadline,
+        last_checked_ms: null, ended_ms: null, outcome: 'waiting', last_blocked: null, recorder_failed: false };
+      const recordSurfaceWait = outcome => {
+        try {
+          const ms = performance.now(), roots = [];
+          trace.last_checked_ms = ms; trace.outcome = outcome;
+          if (outcome !== 'waiting') trace.ended_ms = ms;
+          if (outcome === 'ready') return;
+          let more_roots = false;
+          for (const root of document.querySelectorAll('[data-ui-client-state="loading"], [data-deferred-surface]')) {
+            const loading = root.dataset.uiClientState === 'loading', deferred = root.hasAttribute('data-deferred-surface');
+            const hidden = !!root.closest('[hidden]');
+            if (!loading && (!deferred || hidden || root.dataset.uiClientState === 'failed')) continue;
+            if (roots.length === 8) { more_roots = true; break; }
+            roots.push({ kind: root.hasAttribute('data-settings-page') ? 'settings' : root.querySelector('[data-plugin-document]') ? 'plugin'
+              : root.hasAttribute('data-work-surface') ? 'work' : 'other', loading, deferred, hidden, pool: !!root.closest('[data-surface-pool]') });
+          }
+          trace.last_blocked = { ms, roots, more_roots };
+        } catch { trace.recorder_failed = true; }
+      };
+      try { window.__molisSurfaceWaitDiagnostic = trace; } catch { trace.recorder_failed = true; }`;
+    const record = (outcome: string) => sequence === undefined ? "" : `recordSurfaceWait('${outcome}');`;
+    try {
+      const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
+        const deadline = Date.now() + ${timeoutMs};
+        const check = () => { if (${expression}) { ${record("ready")}resolve(true); } else if (Date.now() >= deadline) { ${record("timeout")}reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); } else { ${record("waiting")}setTimeout(check, 16); } };${recording}
+        check();
+      })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
+      assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+    } catch (error) {
+      if (sequence !== undefined) {
+        const nodeElapsed = performance.now() - nodeStarted!, nodeFailedAt = Date.now();
+        let snapshot: unknown = { unavailable: "read-failed" };
+        try {
+          const result = await command<{ result: { value?: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+            // Read the stored observation only. Recovery must not replace the last blocking state.
+            expression: `(() => { const trace = window.__molisSurfaceWaitDiagnostic;
+              if (trace?.sequence !== ${sequence}) return '{"unavailable":"not-current"}';
+              if (trace.recorder_failed) return '{"unavailable":"record-failed"}';
+              const text = JSON.stringify(trace);
+              return text.length <= 2048 ? text : '{"unavailable":"too-large"}'; })()`, returnByValue: true,
+          }, sessionId, 1_000);
+          if (!result.exceptionDetails && typeof result.result.value === "string" && result.result.value.length <= 2048) snapshot = JSON.parse(result.result.value);
+        } catch { /* An unresponsive renderer cannot replace the original wait failure. */ }
+        let diagnostic = JSON.stringify({ node_started_at_ms: nodeStartedAt, node_failed_at_ms: nodeFailedAt,
+          node_elapsed_ms: Math.round(nodeElapsed), browser: snapshot });
+        if (diagnostic.length > 2304) diagnostic = '{"unavailable":"too-large"}';
+        try {
+          if (error instanceof Error) Object.defineProperty(error, "surface_wait_diagnostic", { value: diagnostic, enumerable: true, configurable: true });
+        } catch { diagnostic = '{"unavailable":"error-property"}'; }
+        try { t.diagnostic("Surface wait: " + diagnostic); } catch { /* Diagnostics never replace the original failure. */ }
+      }
+      throw error;
+    }
   }
   /** No shown plugin surface is still loading its client; one whose client failed to load shows its own retry. */
   const SURFACES_SETTLED = `!document.querySelector('[data-ui-client-state="loading"]')
@@ -209,6 +281,49 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   async function navigate(action: () => Promise<unknown>) {
     const timeoutError = new Error("Navigation did not finish");
+    const started = Date.now(), events: unknown[] = [];
+    const requests = new Map<string, { resource: object; type: unknown; frame: unknown; loader: unknown; status?: number; state: "pending" | "finished" | "failed"; canceled?: boolean }>();
+    let mainFrame: string | undefined, loader: string | undefined, omittedEvents = 0, omittedRequests = 0;
+    // Keep only structural metadata: neither arbitrary exception text nor request/response content is diagnostic input.
+    const resource = (value: string) => {
+      const url = URL.parse(value);
+      if (!url) return { scheme: "invalid" };
+      if (!["http:", "https:"].includes(url.protocol) || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) return { scheme: url.protocol };
+      return { path: url.pathname.replace(/\/projects\/[^/]+/g, "/projects/:id").replace(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/gi, ":id").slice(0, 200) };
+    };
+    const record = (kind: string, detail: unknown) => {
+      if (events.length < 40) events.push({ ms: Date.now() - started, kind, detail }); else omittedEvents++;
+    };
+    const listeners = [
+      browser.on("Page.frameNavigated", (event, session) => {
+        const frame = event.frame as { id: string; parentId?: string; loaderId?: string };
+        if (session === sessionId && !frame.parentId) { mainFrame = frame.id; loader = frame.loaderId; record("main-frame", { mainFrame, loader }); }
+      }),
+      browser.on("Page.lifecycleEvent", (event, session) => {
+        if (session === sessionId && event.frameId === mainFrame) record("lifecycle", { name: event.name, loader: event.loaderId, timestamp: event.timestamp });
+      }),
+      browser.on("Page.domContentEventFired", (event, session) => { if (session === sessionId) record("DOMContentLoaded", { timestamp: event.timestamp }); }),
+      browser.on("Page.loadEventFired", (event, session) => { if (session === sessionId) record("load", { timestamp: event.timestamp }); }),
+      browser.on("Network.requestWillBeSent", (event, session) => {
+        if (session !== sessionId) return;
+        const id = String(event.requestId);
+        if (requests.size < 40 || requests.has(id)) requests.set(id, {
+          resource: resource((event.request as { url: string }).url), type: event.type, frame: event.frameId, loader: event.loaderId, state: "pending",
+        }); else omittedRequests++;
+      }),
+      browser.on("Network.responseReceived", (event, session) => {
+        const request = session === sessionId ? requests.get(String(event.requestId)) : undefined;
+        if (request) request.status = (event.response as { status: number }).status;
+      }),
+      browser.on("Network.loadingFinished", (event, session) => {
+        const request = session === sessionId ? requests.get(String(event.requestId)) : undefined;
+        if (request) request.state = "finished";
+      }),
+      browser.on("Network.loadingFailed", (event, session) => {
+        const request = session === sessionId ? requests.get(String(event.requestId)) : undefined;
+        if (request) { request.state = "failed"; request.canceled = event.canceled === true; }
+      }),
+    ];
     let timer: ReturnType<typeof setTimeout>;
     let stopListening = () => {};
     // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
@@ -220,17 +335,25 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     try {
       await Promise.all([loaded, action()]);
     } catch (error) {
-      if (error === timeoutError) {
-        try {
-          timeoutError.message += "; " + await evaluate("JSON.stringify({url:location.pathname,error:document.querySelector('[role=alert]:not([hidden])')?.textContent,invalid:Array.from(document.querySelectorAll(':invalid')).map(x=>x.name)})");
-        } catch (diagnosticError) {
-          timeoutError.message += "; page diagnostics unavailable: " + String(diagnosticError);
-        }
+      let page: unknown = { unavailable: true };
+      try {
+        const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+          expression: `({readyState:document.readyState,visible:document.visibilityState,
+            timing:performance.getEntriesByType('navigation').slice(-1).map(x=>({domInteractive:x.domInteractive,
+              domContentLoadedEventStart:x.domContentLoadedEventStart,domContentLoadedEventEnd:x.domContentLoadedEventEnd,loadEventEnd:x.loadEventEnd}))})`,
+          returnByValue: true,
+        }, sessionId, 1_000);
+        if (!result.exceptionDetails) page = result.result.value;
+      } catch {
+        // An unresponsive renderer must not replace the original navigation failure or leak CDP exception text.
       }
+      if (error === timeoutError) timeoutError.message += "; " + JSON.stringify(page);
+      t.diagnostic("Navigation: " + JSON.stringify({ mainFrame, loader, events, omittedEvents, requests: [...requests.values()], omittedRequests, page }));
       throw error;
     } finally {
       clearTimeout(timer!);
       stopListening();
+      for (const stop of listeners) stop();
     }
   }
   const reloadPage = () => navigate(() => command("Page.reload", { ignoreCache: true }, sessionId));
@@ -261,5 +384,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, server, restartServer: processServer?.restart, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

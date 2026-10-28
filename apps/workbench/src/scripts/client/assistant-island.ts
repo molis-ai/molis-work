@@ -1,4 +1,6 @@
+import { ASSISTANT_WORK_MENU_FACTORY_SCRIPT } from "./assistant-work-menu.js";
 import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
+import { MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT } from "../../settings-memory.js";
 import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
@@ -32,6 +34,7 @@ export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: 
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate, noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, L);
+  const openMemorySettings = (${MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT})(() => project, L);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
   const panel = island.querySelector("[data-assistant-panel]");
@@ -219,11 +222,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
   let attachments = null;
-  const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !String(input.value || "").trim() || !!attachments?.reading(); };
+  const syncSend = () => { send.disabled = busy || !!getWork()?.archived || !!getWork()?.reply_target || !String(input.value || "").trim() || !!attachments?.reading(); };
 
   /* ─── Where the next Send goes ─────────────────────────────────────────── */
   const paintAim = () => {
-    const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
+    const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.archived || !!work?.reply_target;
     if (work) {
       targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
       target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
@@ -781,7 +784,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
         cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L(candidate.held ? "你刚才让我记住" : "要记住吗") + "：" + candidate.text, detail: candidate.held,
           sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
-          actions: [sideAct(L("记住"), candidate.text, settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
+          actions: [sideAct(L(candidate.needs_formal_decision ? "去设置查看" : "记住"), candidate.text, candidate.needs_formal_decision ? () => openMemorySettings(candidate) : settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
       });
       paintBlock(node, L("还等你处理"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
     });
@@ -922,12 +925,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           await molisWorkRequest(host.route("/api/memory/changes/"+encodeURIComponent(change.change_id)+"/undo"),{method:"POST",fallback:L("没能撤销")});
           await reload();
         }, false, "secondary", "undo"));
-        if (!undone) actions.push(sideAct(L("去设置查看"), change.text, async () => {
-          // The settings surface opens its memory section when it hears this; with nobody listening, go there.
-          const handled = !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
-          const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
-          if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
-        }, true));
+        if (!undone) actions.push(sideAct(L("去设置查看"), change.text, () => openMemorySettings(change), true));
         const scope = proc.memoryScope(change.scope);
         if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: L("已撤销（已从记忆里删掉）"), done: true, sub: scope, actions });
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,
@@ -1020,7 +1018,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
     titleEl.textContent = work ? work.title : L("新工作");
-    stateEl.textContent = work ? stateLabel(work.state) : "";
+    stateEl.textContent = work ? work.archived ? L("已归档") : stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");
     if (summary) summary.dataset.tone = !work ? "" : WAITING.has(work.state) ? "waiting" : work.state === "running" ? "running" : work.state === "failed" || work.state === "stopped" ? "failed" : "";
@@ -1296,47 +1294,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   /* ─── All works ────────────────────────────────────────────────────────── */
-  const paintList = () => {
-    if (!workNav || workNav.hidden) return;
-    const focused = document.activeElement && workNav.contains(document.activeElement) ? document.activeElement.dataset.workId || "new" : null;
-    workNav.replaceChildren();
-    const fresh = el("button", "assistant-works-item assistant-works-new", L("＋ 新工作")); fresh.type = "button"; fresh.dataset.workId = "new";
-    fresh.addEventListener("click", () => { setWorks(false); switchTo(null); input.focus(); });
-    workNav.append(fresh);
-    if (!works.length) workNav.append(el("p", "assistant-muted", L("还没有工作。发送一句话就会开始第一项。")));
-    // Grouped the way the person looks for them: what waits on them, what is running, then the rest by recency.
-    const groups = [["等你", (work) => markOf(work) === "waiting"], ["进行中", (work) => work.state === "running" || work.state === "paused"], ["最近", () => true]];
-    const placed = new Set();
-    groups.forEach(([label, fits]) => {
-      const rows = works.filter((work) => !placed.has(work.work_id) && fits(work));
-      if (!rows.length) return;
-      workNav.append(el("p", "assistant-works-group", L(label)));
-      rows.forEach((work) => {
-        placed.add(work.work_id);
-        const item = el("button", "assistant-works-item"); item.type = "button"; item.dataset.workId = work.work_id;
-        const mark = markOf(work);
-        if (mark) item.dataset.mark = mark;
-        if (work.work_id === curId) item.setAttribute("aria-current", "true");
-        const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title) + (tabs.includes(work.work_id) ? " · " + L("已打开") : ""));
-        meta.dataset.state = work.state; meta.dataset.mwState = ringState(work.state);
-        const head = el("span", "assistant-works-head");
-        head.append(tabMark(mark, work), el("span", "assistant-works-title", work.title));
-        item.append(head, meta);
-        item.addEventListener("click", () => { setWorks(false); switchTo(work.work_id); });
-        workNav.append(item);
-      });
-    });
-    if (focused) [...workNav.querySelectorAll("button")].find((btnEl) => btnEl.dataset.workId === focused)?.focus();
-  };
-  const setWorks = (open) => {
-    if (!workNav) return;
-    workNav.hidden = !open;
-    worksToggle?.setAttribute("aria-expanded", String(open));
-    if (open) { paintList(); (workNav.querySelector("[aria-current]") || workNav.querySelector("button"))?.focus(); loadWorks(); }
-  };
+  const { paint: paintList, toggle: setWorks } = (${ASSISTANT_WORK_MENU_FACTORY_SCRIPT})({ L, el, workNav, worksToggle, input, api,
+    route: (path) => host.route("/api/assistant" + path), state: () => ({ works, curId, tabs }),
+    markOf, stateLabel, scopeLabel, ringState, tabMark, open: (id) => switchTo(id), load: () => loadWorks(),
+    changed: async (work) => {
+      const index = works.findIndex(row => row.work_id === work.work_id); if (index >= 0) works[index] = work;
+      if (view && view.work.work_id === work.work_id) view.work = work;
+      render(); syncSend(); await loadWorks(); await reload();
+    } });
   const loadWorks = async () => {
     try {
-      const res = await api("/works");
+      const res = await api("/works?archived=any");
       const drafts = new Map(works.map((work) => [work.work_id, work.draft]));
       works = (res.works || []).map((work) => drafts.has(work.work_id) && (work.work_id === curId || work.work_id === activeSend?.work) ? Object.assign(work, { draft: drafts.get(work.work_id) }) : work);
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }

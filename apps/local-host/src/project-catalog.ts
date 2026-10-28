@@ -8,6 +8,7 @@ import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
@@ -211,6 +212,7 @@ export class MolisWorkProjectCatalog {
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
+      removeOrphanedBindings: () => forgetOrphanedInstallationBindings(homeDirectory),
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,

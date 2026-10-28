@@ -1,10 +1,11 @@
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sameActionSourceIdentity, type ActionSourceIdentity, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_BRIEF_MAX_CHARS,
   KNOWLEDGE_CARD_MAX_KEYWORDS,
   KNOWLEDGE_KEYWORD_MAX_CHARS,
   KNOWLEDGE_TITLE_MAX_CHARS,
   type KnowledgeCardRecord,
+  type KnowledgeBindRequest,
   type KnowledgeCardsRequest,
   type KnowledgeCardsResponse,
   type KnowledgeCardStorePort,
@@ -30,11 +31,30 @@ export class KnowledgeCards {
   constructor(private readonly store: KnowledgeCardStorePort, private readonly organizer: KnowledgeOrganizer) {}
 
   /** `listing`: whether the catch-up before this list left a source still being listed (the caller's to know). */
-  list(caller: ActionCallContext, input: KnowledgeCardsRequest, listing = false): KnowledgeCardsResponse {
+  list(caller: ActionCallContext, input: KnowledgeCardsRequest, listing = false, visible: (card: KnowledgeCardRecord) => boolean = card => !card.retention): KnowledgeCardsResponse {
     const project = this.project(caller);
-    const all = this.store.list(project).filter(card => !input.states?.length || input.states.includes(card.state));
+    const all = this.store.list(project).filter(card => visible(card) && (!input.states?.length || input.states.includes(card.state)));
     const offset = input.offset ?? 0;
     return { cards: all.slice(offset, offset + (input.limit ?? DEFAULT_PAGE)), total: all.length, quota: this.organizer.quota(project), model_ready: this.organizer.modelReady(), listing };
+  }
+
+  /** Authority and current source are checked by the Host immediately before this synchronous original-card write. */
+  bind(caller: ActionCallContext, input: KnowledgeBindRequest, source: { retention?: { source_identity: ActionSourceIdentity | null }; content_policy: "context" | "summary" }): KnowledgeCardRecord {
+    const card = this.card(caller, input), previous = card.adoption;
+    if (previous) {
+      if (previous.operation_id !== input.operation_id || previous.actor_id !== caller.actor_id || previous.source_revision !== input.source_revision
+        || !sameActionSourceIdentity(previous.source_identity, input.source_identity) || card.provider_id !== input.provider_id || card.source_key !== input.source_key)
+        throw knowledgeErrors.invalid("这次选择与原关联请求不同，请保留原请求核对");
+      return card;
+    }
+    if (!card.retention || card.retention.source_identity !== null) throw knowledgeErrors.invalid("仅尚未关联来源的保留卡片可以明确关联");
+    const { retention: _unbound, ...kept } = card;
+    const next: KnowledgeCardRecord = { ...kept, provider_id: input.provider_id, source_key: input.source_key,
+      ...(source.retention ? { retention: { source_identity: input.source_identity, restoration_operation_id: null } } : {}),
+      adoption: { operation_id: input.operation_id, actor_id: caller.actor_id, source_revision: input.source_revision, source_identity: input.source_identity },
+      revision: input.source_revision, state: "listed", can_organize: source.content_policy === "context", content_policy: source.content_policy };
+    this.store.put(next);
+    return next;
   }
 
   edit(caller: ActionCallContext, input: KnowledgeEditRequest): KnowledgeCardRecord {

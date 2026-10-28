@@ -19,6 +19,7 @@ export class WorkspaceRepository {
         membership.created_at, membership.updated_at
       FROM workspace_project_memberships AS membership
       INNER JOIN workspaces AS workspace ON workspace.workspace_id = membership.workspace_id
+      WHERE NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=membership.project_id AND d.cleanup_state='pending')
       ORDER BY workspace.display_name COLLATE NOCASE, membership.is_default DESC,
         membership.updated_at DESC, membership.project_id
     `).all() as Row[]).map(mapWorkspaceMembership);
@@ -31,7 +32,7 @@ export class WorkspaceRepository {
         workspace.created_at, workspace.updated_at
       FROM workspaces AS workspace
       ${projectId ? "INNER JOIN workspace_project_memberships AS selected_membership ON selected_membership.workspace_id = workspace.workspace_id" : ""}
-      ${projectId ? "WHERE selected_membership.project_id = ?" : ""}
+      ${projectId ? "WHERE selected_membership.project_id = ? AND NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=selected_membership.project_id AND d.cleanup_state='pending')" : ""}
       ORDER BY workspace.display_name COLLATE NOCASE, workspace.canonical_path
     `).all(...(projectId ? [projectId] : [])) as Row[];
     const memberships = this.listWorkspaceMemberships();
@@ -53,7 +54,7 @@ export class WorkspaceRepository {
       SELECT workspace.canonical_path AS canonical_path
       FROM workspace_project_memberships AS membership
       INNER JOIN workspaces AS workspace ON workspace.workspace_id = membership.workspace_id
-      WHERE membership.project_id = ?
+      WHERE membership.project_id = ? AND NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=membership.project_id AND d.cleanup_state='pending')
       ORDER BY membership.is_default DESC, membership.updated_at DESC, membership.membership_id
       LIMIT 1
     `).get(projectId) as Row | undefined;
@@ -65,7 +66,7 @@ export class WorkspaceRepository {
       SELECT project.project_id, project.display_name
       FROM workspace_project_memberships AS membership
       INNER JOIN projects AS project ON project.project_id = membership.project_id
-      WHERE membership.workspace_id = ?
+      WHERE membership.workspace_id = ? AND NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=membership.project_id AND d.cleanup_state='pending')
       ORDER BY membership.updated_at DESC, project.display_name COLLATE NOCASE
     `).all(workspaceId) as Row[]).map((row) => ({
       project_id: text(row.project_id),

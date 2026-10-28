@@ -1,16 +1,22 @@
+import { assertCodingMemoryLearningCaller, codingMemoryLearningPayload, withCodingMemoryLearningSources } from "./memory-coding-learning.js";
+import type { MemoryLearningEnqueueRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
+import type { AgentHost, PrologueProjectDeletion } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
+  MEMORY_BATCH_MAX_ITEMS,
+  type MemoryBatchRequest,
   memoryActions,
   type MemoryChangeRequest,
   type MemoryCandidateDecision,
   type MemoryListRequest,
+  type MemoryPageRequest,
+  type MemoryPageResponse,
   type MemoryPrefsWriteRequest,
   type MemoryRecallRequest,
   type MemoryScope,
@@ -42,6 +48,13 @@ export { prologueMemoryBackend } from "./memory-backend.js";
 /** This Home's person. Agents, plugins and external clients act on their behalf, so personal memories are theirs. */
 const LOCAL_PERSON = LOCAL_PERSON_ACTOR_ID;
 const RUNTIME = "prologue";
+const input = <T>(value: unknown) => (value ?? {}) as T;
+
+function memoryRuntimeEffect(agentHost: AgentHost) {
+  const effect = agentHost.adapter(RUNTIME).withEffect;
+  if (!effect) throw memoryErrors.unavailable("当前运行时缺少最终清理控制");
+  return effect;
+}
 
 interface MemoryHost {
   readonly service: MemoryService;
@@ -88,6 +101,7 @@ interface MemoryHostPorts {
   localHost: MolisWorkLocalHost;
   homeDirectory: string;
   agentHost: AgentHost;
+  projectDeletion?(): PrologueProjectDeletion;
   /** Starts the runtime when needed; memory lives in it. */
   ready(): Promise<void>;
   /** Settles once the runtime started because something needed it (never starts it). */
@@ -153,7 +167,7 @@ function memoryBackgroundWork(input: {
   const runLearning = async (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">) => {
     try {
       assertBusiness();
-      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { adapter: ports.agentHost.adapter(RUNTIME), service,
+      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { localHost: ports.localHost, adapter: ports.agentHost.adapter(RUNTIME), service,
         ports: { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) }, backend: control => prologueMemoryBackend(store, control),
         alive: businessAlive, ...(ports.projectExists ? { projectExists: ports.projectExists } : {}) });
       logMemoryLearning(outcome);
@@ -174,6 +188,34 @@ function memoryBackgroundWork(input: {
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
   return { upkeepNow,
+    enqueueLearning: async (context: ActionExecutionContext, request: MemoryLearningEnqueueRequest): Promise<{ status: "queued" | "existing" | "skipped" }> => {
+      assertBusiness(); await ports.ready(); await context.beforeEffect(); assertBusiness();
+      const adapter = ports.agentHost.adapter(RUNTIME), schedule = adapter.schedule;
+      if (!schedule) throw memoryErrors.unavailable("自动形成持久队列不可用");
+      assertCodingMemoryLearningCaller(context);
+      if (!context.project_id) throw memoryErrors.forbidden("自动形成缺少原项目");
+      const payload = await codingMemoryLearningPayload(ports.localHost, context, request);
+      const task = { session_id: request.session_id, payload: { ...payload } };
+      const result = await withCodingMemoryLearningSources(ports.localHost, adapter, task, businessAlive, async sources => {
+        const key = sources.key;
+        if (schedule.find(key)) return { status: "existing" as const };
+        const learning = await sources.request();
+        if (!service.worthLearning(learning.caller, [sources.triggerText])
+          || !service.worthLearning(learning.caller, learning.said)) return { status: "skipped" as const };
+        await context.beforeEffect();
+        if (!await sources.current()) throw memoryErrors.forbidden("原来源在排队前已失效");
+        sources.assertCurrent(); attachQueue();
+        // Same key is immutable even for cancelled, failed and unknown outcomes.
+        if (schedule.find(key)) return { status: "existing" as const };
+        await schedule.enqueue({ ...task, key, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 }, {
+          ...(context.signal ? { signal: context.signal } : {}),
+          beforeEffect: async () => { await context.beforeEffect(); if (!await sources.current()) throw memoryErrors.forbidden("原来源已失效"); },
+          assert_current: () => { context.assert_authority_current?.(); sources.assertCurrent(); },
+        });
+        return { status: "queued" as const };
+      });
+      return result ?? { status: "skipped" };
+    },
     learnLater: async (request: AssistantMemoryLearningRequest) => {
       assertBusiness();
       await ports.ready();
@@ -196,7 +238,7 @@ function memoryBackgroundWork(input: {
  * this Home's person and the run's project, under the Agent consumer's switch. Null when there is no memory host yet.
  */
 export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { project_id: string | null; task: string; used_for: string; plugin_id?: string;
-  character?: { artifact_id: string; title: string } }) {
+  character?: { artifact_id: string; title: string } }): ReturnType<MemoryService["forRun"]> {
   const host = memoryHostFor(localHost);
   if (!host) return null;
   return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.artifact_id, title: input.character.title } } : {}) },
@@ -225,46 +267,65 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     return memory;
   };
   const backend = prologueMemoryBackend(store);
-  const servicePorts = { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
+  const servicePorts = { backend, ledger, managementBatchMaxItems: MEMORY_BATCH_MAX_ITEMS, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
   const projection = new MemoryService(servicePorts);
   const service = controlledMemoryService(servicePorts, control => prologueMemoryBackend(store, control),
     { beforeEffect: async () => assertBusiness(), assert_current: assertBusiness });
-  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
+  const forCall = (context: ActionExecutionContext) => memoryCallService(context, servicePorts,
     control => prologueMemoryBackend(store, control), businessAlive);
   const caller = memoryCaller;
-  const input = <T>(value: unknown) => (value ?? {}) as T;
-  const { upkeepNow, learnLater } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
+  const { upkeepNow, learnLater, enqueueLearning } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
+  // Internal Agent identity follows memoryCaller; external MCP runtime Sessions keep their granted non-Run reads.
+  const read = async (context: ActionExecutionContext, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest }) => {
+    if (context.actor_id.startsWith("agent:")) {
+      if (!context.runtime_memory_read) throw memoryErrors.unavailable("这一轮没有记忆展开控制");
+      await context.beforeEffect();
+      return forCall(context).expand(memoryCaller(context), request, context.runtime_memory_read);
+    }
+    const service = forCall(context), identity = memoryCaller(context);
+    return "recall" in request
+      ? service.recall(identity, request.recall, { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" })
+      : service.list(identity, request.list);
+  };
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
-    { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
-    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
-    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
-    { ...memoryActions.history, handle: (context, value) => forCall(context).history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
-    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(caller(context), input(value)) }; } },
+    { ...memoryActions.learningEnqueue, availability: context => {
+      try { assertCodingMemoryLearningCaller(context); return { available: true }; }
+      catch { return { available: false, code: "memory.forbidden", reason: "自动形成必须由原来源插件发起" }; }
+    }, handle: (context, value) => enqueueLearning(context, input<MemoryLearningEnqueueRequest>(value)) },
+    { ...memoryActions.recall, handle: (context, value) => read(context, { recall: input<MemoryRecallRequest>(value) }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.page, handle: (context, value) => forCall(context).page(memoryCaller(context), input<MemoryPageRequest>(value)) },
+    { ...memoryActions.list, handle: (context, value) => read(context, { list: input<MemoryListRequest>(value) }) },
+    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(memoryCaller(context), input<MemoryWriteRequest>(value)); } },
+    { ...memoryActions.batchPreview, handle: (context, value) => forCall(context).batches.preview(memoryCaller(context), input<MemoryBatchRequest>(value)) },
+    { ...memoryActions.batchApply, handle: (context, value) => forCall(context).batches.apply(memoryCaller(context), input<{ preview_id: string }>(value).preview_id) },
+    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(memoryCaller(context), input<MemoryChangeRequest>(value)); } },
+    { ...memoryActions.history, handle: (context, value) => forCall(context).history(memoryCaller(context), String(input<{ memory_id: string }>(value).memory_id)) },
+    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(memoryCaller(context), input(value)) }; } },
     { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
-      return forCall(context).accept(caller(context), request.candidate_id, request); } },
+      return forCall(context).accept(memoryCaller(context), request.candidate_id, request); } },
     { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
-      return forCall(context).discard(caller(context), request.candidate_id, request.expected_version); } },
-    { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(caller(context), input(value)) }) },
-    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(caller(context), input<{ change_id: string }>(value).change_id); } },
-    { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
+      return forCall(context).discard(memoryCaller(context), request.candidate_id, request.expected_version); } },
+    { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(memoryCaller(context), input(value)) }) },
+    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(memoryCaller(context), input<{ change_id: string }>(value).change_id); } },
+    { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(memoryCaller(context), input<{ scope?: MemoryScope }>(value).scope) },
     { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryPrefsWriteRequest>(value);
-      return forCall(context).savePrefs(caller(context), request.scope, request.preset ?? request.prefs); } },
-    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).signal(caller(context), input<MemorySignalReport>(value)); } },
-    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await forCall(context).pairs(caller(context), input(value)) }; } },
+      return forCall(context).savePrefs(memoryCaller(context), request.scope, request.preset ?? request.prefs); } },
+    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).signal(memoryCaller(context), input<MemorySignalReport>(value)); } },
+    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await forCall(context).pairs(memoryCaller(context), input(value)) }; } },
     { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
-      return forCall(context).resolvePair(caller(context), request.pair_id, request.keep); } },
+      return forCall(context).resolvePair(memoryCaller(context), request.pair_id, request.keep); } },
     { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw memoryErrors.forbidden("只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(forCall(context)); } },
-    { ...memoryActions.preview, handle: async (context, value) => { return forCall(context).previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
+    { ...memoryActions.preview, handle: async (context, value) => { return forCall(context).previewScope(memoryCaller(context), input<{ scope: MemoryScope }>(value).scope); } },
     { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
-      return forCall(context).clearScope(caller(context), request.scope, request.fingerprint); } },
-    { ...memoryActions.export, handle: async (context, value) => { return { package: await forCall(context).exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
+      return forCall(context).clearScope(memoryCaller(context), request.scope, request.fingerprint); } },
+    { ...memoryActions.export, handle: async (context, value) => { return { package: await forCall(context).exportScope(memoryCaller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
     { ...memoryActions.import, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
-      return forCall(context).importScope(caller(context), request.scope, request.package); } },
+      return forCall(context).importScope(memoryCaller(context), request.scope, request.package); } },
   ];
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
     definitions: Object.values(memoryActions), handlers: bindings });
-  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: businessAlive });
+  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: businessAlive,
+    withEffect: (control, work) => memoryRuntimeEffect(ports.agentHost)(control, work), controlledBackend: control => prologueMemoryBackend(store, control) });
   const host: MemoryHost = {
     service,
     withExecution: (control, bindChangeTarget) => controlledMemoryService({ ...servicePorts, bindChangeTarget },
@@ -279,7 +340,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       owners: projectId => ledger.owners(projectId),
       candidateOwners: projectId => ledger.candidateOwners(projectId),
       projectExists: projectId => ports.projectExists?.(projectId) ?? Promise.resolve(null),
-      deletingProject: deletion.deletingProject,
+      ...deletion,
     },
     caller,
     learnLater,
@@ -325,27 +386,42 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       const call = (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
-      // One read for a settings page: the scope's memories, switches, candidates and recent changes.
+      const pageLabels = async (page: MemoryPageResponse) => ({ goals: await subjectTitles(ports.localHost, ports.projectRef, "goal",
+        page.items.flatMap(item => item.applies.goal_ids ?? [])).catch(() => ({})) });
+      if (method === "GET" && parts.length === 1 && parts[0] === "page") {
+        const encoded = url.searchParams.get("input") ?? "{}";
+        if (encoded.length > 70000) throw memoryErrors.invalid("管理页查询超出限额");
+        let input: unknown;
+        try { input = JSON.parse(encoded); } catch { throw memoryErrors.invalid("管理页查询不是有效 JSON"); }
+        const page = await call(memoryActions.page, input) as MemoryPageResponse;
+        return { status: 200, body: { ...page, labels: await pageLabels(page) } };
+      }
+      // Side sections retain their contracts; formal memories use the same bounded page as subsequent requests.
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
-        // A project's page also holds its Characters' memories, so it lists everything the person has there and shows those.
-        const [list, prefs, candidates, changes, pairs] = await Promise.all([
-          call(memoryActions.list, wanted === "project" ? {} : { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
-          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }), call(memoryActions.pairs, { scope: wanted }),
+        const [page, prefs, candidates, changes] = await Promise.all([
+          call(memoryActions.page, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
+          call(memoryActions.candidates, { scope: wanted }).catch(error => {
+            if (abort.signal.aborted) throw error;
+            // The failed Action keeps its diagnostic; null means unread, never an empty candidate list.
+            return { candidates: null };
+          }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
-        // Goals a memory is limited to, by name (read through the Goals plugin's own reader), so the page never shows bare ids.
-        const goalIds = ((list as { items?: Array<{ applies?: { goal_ids?: string[] } }> }).items ?? []).flatMap(item => item.applies?.goal_ids ?? []);
-        const goals = await subjectTitles(ports.localHost, ports.projectRef, "goal", goalIds).catch(() => ({}));
-        return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object), ...(pairs as object),
-          labels: { goals }, last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
+        return { status: 200, body: { scope: wanted, ...(page as object), ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
+          labels: await pageLabels(page as MemoryPageResponse), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
+      if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,
+        body: await call(memoryActions.pairs, { scope: url.searchParams.get("scope") ?? (ports.projectRef ? "project" : "personal") }) };
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
       if (parts.length === 1 && parts[0] === "recall") return { status: 200, body: await call(memoryActions.recall, body) };
       if (parts.length === 1 && parts[0] === "items") return { status: 200, body: await call(memoryActions.write, body) };
+      if (parts.length === 2 && parts[0] === "batch" && parts[1] === "preview") return { status: 200, body: await call(memoryActions.batchPreview, body) };
+      if (parts.length === 2 && parts[0] === "batch" && parts[1] === "apply") return { status: 200, body: await call(memoryActions.batchApply, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
       if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };
-      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };
+      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version,
+        ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}), ...(body.formal === undefined ? {} : { formal: body.formal }) }) };
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "discard") return { status: 200, body: await call(memoryActions.discard, { candidate_id: parts[1], expected_version: body.expected_version }) };
       if (parts.length === 3 && parts[0] === "changes" && parts[2] === "undo") return { status: 200, body: await call(memoryActions.undo, { change_id: parts[1] }) };
       if (parts.length === 1 && parts[0] === "signals") return { status: 200, body: await call(memoryActions.signal, body) };

@@ -49,7 +49,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - 负责：成果库与过程项的身份、版本、类型、内容引用、范围与来源。
 - 不负责：插件实现、跨对象关系、传输回执、插件私有草稿。
 - 公开入口：`@molis-ai/molis-work-module-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/artifacts`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共用保留协议声明）、`@molis-ai/molis-work-storage`（项目原件维护删除复用公开物理路径检查）。方向：经公开合同与基础存储边界协作；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Repository 只由包内装配；成果与过程项的 Module、service/query/commands 不提供 `repository` 成员，调用方通过业务服务发布和读取固定版本。
   - 错误由本包声明并抛出共同 `ActionError`，Host 不注入错误工厂；现行码、消息、详情与响应分类随 owner 保持。
@@ -62,6 +62,14 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-module.test.ts tests/artifacts-actions.test.ts tests/plugin-artifact-client.test.ts tests/personal-artifact-owner.test.ts tests/plugin-platform-composition.test.ts`
 - 相关手册：[docs/modules/artifacts.md](../../docs/modules/artifacts.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
+## 系统资料当前状态短合同
+
+本片对应 [Memory 规格](../../specs/prologue-memory-strategy/spec.md)「系统资料来源的当前实例身份」。沿原 Artifacts owner 新增 `artifacts.subject.retention@3`，按当前项目内准确 `artifact_id + version` 查询：确实缺失才返回 deleted；可用且 active 返回准确 current_revision、retained 为 null；归档返回 temporarily_archived，content_revision 和恢复操作号均为 null：owner 未保存归档时的 Goal 关系，不能拿今天的投影补造旧正文版本；正在整理的资料若随后归档且无法证明同内容，结算拒绝；不可用明确拒绝，不能伪装成删除或恢复。复用同一个保留协议 helper、原 artifacts:read 门和 user/agent/workflow/mcp 受众，plugin 仍不可调用。
+
+普通成果复用搜索的有界摘要及版本投影，包括 reference 和 null payload；PDF 等有可读 inline payload 的导入文档复用原正文入口的版本、digest 与当前 caller 可读的同项目真实 Goal 关联计算版本。`query.getArtifactVersionMetadata` 只从同一 owner 投影准确身份、类型、digest、状态、content_kind 与 has_payload，不返回正文；当前 owner 以 `JSON.stringify` 写 payload，JSON null 字面量不算有正文。状态查询不生成上下文或读取原文件；无可读 payload 的文档复用搜索实际降级后的摘要版本。原正文、搜索的版本与内容策略不变，不新增状态表或第二读取服务。项目数据实例身份及最终交错提交复核由 Host 装配，本模块不伪造插件安装代、不声明所有写入都来自本提供方命令。
+
+允许修改本模块动作、浏览器与必要 owner 内函数、README 及专属行为测试；Contracts、Host、其他消费者和全局快照由集成片同步。验收通过真实 SQLite owner 和 ActionService 公开入口，覆盖 summary/reference/PDF 准确版本、Goal 关联边界、归档、不可用、缺失、权限拒绝及状态查询不读取正文。构建、必跑回归及专属测试由集成根统一按机器槽位安排；本片不运行模型，不代替系统资料完整绑定闭环或用户验收。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/artifacts.md)
@@ -69,3 +77,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+项目原件清理由本模块的 `artifactsProjectData` 拥有，插件仅登记 Home 存储。受控维护沿原 `ProjectDeletionControl` 核对当前许可与原目录身份后同步删除；普通调用保留原异步行为。修改此边界同时验证 `tests/project-deletion-directory-interleaving.test.ts`、`tests/project-deletion-file-boundaries.test.ts` 和 `tests/project-deletion-file-control.test.ts`。
+
+同步消费复核只读取原成果事件游标和 `artifactGoalRelations` 的稳定关系投影；正文版本与该投影共用同一过滤。关系只含当前项目实际参与正文的准确成果版本及去重 Goal ID，不包含原文、历史、原因或操作者。Host 在注册时复用同一份 Ledger 与 linkKinds；不以异步写通知代替最终复核，也不新增生命周期存储。

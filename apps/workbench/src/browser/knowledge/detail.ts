@@ -1,11 +1,15 @@
 import type { KnowledgeCardRecord, KnowledgeEditableField, KnowledgeReceiptsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { button, count, el, L, readerOf, when } from "./common.js";
+import { button, count, el, L, readerOf, unbound, when } from "./common.js";
 
 /** What the detail needs from its page: the routes, and a way to put a changed card back into the list. */
 export interface KnowledgeDetailHost {
   api<T>(path: string, body?: unknown): Promise<T>;
   replaced(card: KnowledgeCardRecord): void;
   organize(card: KnowledgeCardRecord): Promise<void>;
+  bind(card: KnowledgeCardRecord): Promise<void>;
+  retryBind(card: KnowledgeCardRecord): boolean;
+  canReviewBind(card: KnowledgeCardRecord): boolean;
+  reviewBind(card: KnowledgeCardRecord): Promise<void>;
   fail(error: unknown): void;
   toast(text: string): void;
 }
@@ -34,17 +38,30 @@ const draftKey = (card: KnowledgeCardRecord) => card.subject.kind + "\u0000" + c
 export function renderDetail(card: KnowledgeCardRecord, host: KnowledgeDetailHost): HTMLElement {
   const box = el("div", "knowledge-detail");
   box.dataset.knowledgeDetail = "";
-  if (card.state === "failed") {
+  const retained = unbound(card);
+  if (retained) {
+    const note = el("div", "knowledge-suggestion");
+    note.append(el("span", "", L("旧卡片已保留；关联当前来源前不会被搜索或 Agent 使用。")));
+    const bind = button(host.retryBind(card) ? L("重试这次关联") : L("关联当前来源"), "mw-btn--secondary");
+    bind.dataset.knowledgeBind = "";
+    bind.addEventListener("click", () => void host.bind(card));
+    note.append(bind); box.append(note);
+    if (host.canReviewBind(card)) {
+      const review = button(L("重新查看来源"), "mw-btn--secondary"); review.dataset.knowledgeBindReviewCard = "";
+      review.addEventListener("click", () => void host.reviewBind(card)); note.append(review);
+    }
+  }
+  if (!retained && card.state === "failed") {
     const failed = el("div", "knowledge-failed");
     const retry = button(L("重试"), "mw-btn--secondary");
     retry.addEventListener("click", () => void host.organize(card));
     failed.append(el("span", "", L("整理失败：") + (card.error || L("没有给出原因"))), retry);
     box.append(failed);
   }
-  if (card.state === "listed") box.append(el("p", "settings-muted", card.content_policy === "summary" ? L("这份资料的主人只让出标题和摘要，正文不交给模型整理，卡片用主人给的标题与摘要。")
-    : L("读不出这份资料的正文（比如图片或二进制文件），不交给模型整理；卡片用它的标题与摘要，Agent 只能看到这些。")));
+  if (!retained && card.state === "listed") box.append(el("p", "settings-muted", card.content_policy === "summary" ? L("这份资料的主人只让出标题和摘要，正文不交给模型整理，卡片用主人给的标题与摘要。")
+    : card.can_organize ? L("恢复后未自动整理，可按需手动整理。") : L("读不出这份资料的正文（比如图片或二进制文件），不交给模型整理；卡片用它的标题与摘要，Agent 只能看到这些。")));
   if (card.excluded && card.state === "pending") box.append(el("p", "settings-muted", L("不给 Agent 用的资料不交给模型整理；取消这个设置后再整理。")));
-  if (card.state === "missing") box.append(el("p", "settings-muted", L("这份资料现在不在项目的目录里（可能被移走或停用）。你改过的卡片先留着，资料回来时接上。")));
+  if (!retained && card.state === "missing") box.append(el("p", "settings-muted", L("这份资料现在不在项目的目录里（可能被移走或停用）。你改过的卡片先留着，资料回来时接上。")));
   const form = el("form", "knowledge-fields");
   const inputs = new Map<KnowledgeEditableField, HTMLInputElement | HTMLTextAreaElement>();
   const unsaved = drafts.get(draftKey(card)) ?? {};
@@ -83,7 +100,7 @@ export function renderDetail(card: KnowledgeCardRecord, host: KnowledgeDetailHos
   toggle.dataset.knowledgeExcluded = "";
   toggle.addEventListener("change", () => void exclude(toggle.checked));
   keep.append(toggle, el("span", "", L("不给 Agent 用")));
-  organize.hidden = card.excluded || card.state === "listed" || card.state === "missing";
+  organize.hidden = retained || card.excluded || (card.state === "listed" && !card.can_organize) || card.state === "missing";
   actions.append(saveButton, organize, keep);
   form.append(actions);
   form.addEventListener("submit", event => {
@@ -132,7 +149,7 @@ export function renderDetail(card: KnowledgeCardRecord, host: KnowledgeDetailHos
   async function exclude(excluded: boolean) {
     try {
       host.replaced(await host.api<KnowledgeCardRecord>("/exclude", { subject: card.subject, excluded }));
-      host.toast(excluded ? L("Agent 不会再找到或读到它") : L("Agent 又能找到它了"));
+      host.toast(retained ? L("已保存；关联来源前仍不会给 Agent 使用") : excluded ? L("Agent 不会再找到或读到它") : L("Agent 又能找到它了"));
     } catch (error) { toggle.checked = !excluded; host.fail(error); }
   }
   return box;

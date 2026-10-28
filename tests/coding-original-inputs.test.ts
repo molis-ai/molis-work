@@ -74,8 +74,10 @@ test("MEM-35 production source assembly checks the current Coding installation w
   const view = await completed(f, await start(f, id, text, { original_input: { input_id: inputId, text } }));
   const adapter = ensureSystemAgentService(f.host, f.home).agentHost.adapter("prologue");
   const { owner } = await adapter.readSessionStatus!({ session_id: view.ref.session_id, runtime_id: "prologue" });
+  assert.ok(view.class_restrictions, "the completed production Run provides its original classification policy");
   const memory = adapter.memory!.withCaller({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "agent",
-    plugin_id: owner.plugin_id, session_id: view.ref.session_id, current_scene: "coding", purpose: "management", source_use: "learning" });
+    plugin_id: owner.plugin_id, session_id: view.ref.session_id, current_scene: "coding", purpose: "management", source_use: "learning",
+    class_restrictions: structuredClone(view.class_restrictions) });
   const sources = [{ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, view.ref.session_id, "original", inputId]), version: "1" }];
   const propose = () => memory.candidates.propose({ scope: "project", owner: owner.project_id, text, origin: "source-test", sources,
     expected_version: 0, operation_id: randomUUID(), meta: { kind: "convention", source: "extraction", basis: "explicit",

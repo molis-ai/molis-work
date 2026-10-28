@@ -12,6 +12,10 @@ export type PrologueTextProgress = { type: "started"; run_ref: PrologueRunRef }
 export interface PrologueCredentialInput {
   /** Host-only continuing authority check, immediately before each actual dispatch. */
   beforeDispatch?(): void | Promise<void>;
+  /** Synchronous read-only denial after the final SDK preparation await. Must return undefined and never change authority or sources. */
+  assertCurrent?(): void;
+  /** Check an already issued result. Defaults to beforeDispatch; credential and cancellation checks always remain. */
+  afterResult?(): void | Promise<void>;
   credential_ref: string;
   resolveCredential(ref: string): string | null | Promise<string | null>;
 }
@@ -78,13 +82,21 @@ export function reportedTokenTotal(receipts: readonly PrologueUsageReceipt[], di
 
 // A registry symbol, so a refusal still reads as one when two copies of this module are loaded (source and build).
 const REFUSAL = Symbol.for("molis-work.agent-host.dispatch-refusal");
-/** What the Host's own dispatch check threw (a revoked source, a changed key): it reaches the caller unchanged. */
-export function markDispatchRefusal(error: Error): Error { Object.defineProperty(error, REFUSAL, { value: true }); return error; }
+/** Keep a check's reason and fields without permanently marking a caller-owned Error reused by another request. */
+export function markDispatchRefusal(error: Error, knownNotSent = true): Error {
+  const properties = Object.getOwnPropertyDescriptors(error);
+  Reflect.deleteProperty(properties, REFUSAL);
+  const result = Object.create(Object.getPrototypeOf(error), properties) as Error;
+  Object.defineProperty(result, REFUSAL, { value: knownNotSent });
+  return result;
+}
+/** Internal: a dispatch check's own error, including a refusal after an earlier send may have happened. */
+export function isDispatchCheckFailure(error: unknown): error is Error { return error instanceof Error && typeof (error as { [REFUSAL]?: boolean })[REFUSAL] === "boolean"; }
 /**
  * The Host's own check refused before anything was sent. The SDK reports that as `EFFECT_NOT_AUTHORIZED`; consumers
  * get the check's own error back and must say it was not sent, not blame the model or the network.
  */
-export function isDispatchRefusal(error: unknown): error is Error { return error instanceof Error && (error as { [REFUSAL]?: boolean })[REFUSAL] === true; }
+export function isDispatchRefusal(error: unknown): error is Error { return isDispatchCheckFailure(error) && (error as { [REFUSAL]?: boolean })[REFUSAL] === true; }
 
 /**
  * When the Home's execution service itself cannot take the request, the person needs that reason, not a

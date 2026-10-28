@@ -195,6 +195,38 @@ export declare const ACTION_SCENE_TARGETS_SCHEMA: {
     readonly required: readonly ["targets"];
 };
 
+export declare const ACTION_SOURCE_IDENTITY_SCHEMA: {
+    oneOf: ({
+        type: string;
+        properties: {
+            kind: {
+                const: string;
+            };
+            generation: {
+                type: string;
+                minLength: number;
+            };
+            data_instance_id?: undefined;
+        };
+        required: string[];
+        additionalProperties: boolean;
+    } | {
+        type: string;
+        properties: {
+            kind: {
+                const: string;
+            };
+            data_instance_id: {
+                type: string;
+                minLength: number;
+            };
+            generation?: undefined;
+        };
+        required: string[];
+        additionalProperties: boolean;
+    })[];
+};
+
 export declare const ACTION_SUBJECT_SCHEMA: {
     type: string;
     properties: {
@@ -405,6 +437,12 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly delegated_by?: string;
     readonly delegated_audience?: ActionAudience;
     readonly runtime_session_id?: string;
+    readonly runtime_memory_read?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl;
+    readonly runtime_memory?: {
+        readonly plugin_id: string;
+        readonly current_scene: string;
+        readonly class_restrictions: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy;
+    };
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
     readonly user_action?: ActionUserAction;
@@ -442,8 +480,12 @@ export interface ActionCallOrigin {
 }
 
 export interface ActionClient {
-    discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
+    discover(context: ActionCallContext, filter?: ActionDiscoveryFilter): readonly ActionView[] | Promise<readonly ActionView[]>;
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
+    captureSources?(scopes: readonly {
+        readonly context: ActionCallContext;
+        readonly references: readonly ExactActionReference[];
+    }[]): () => void;
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
@@ -454,6 +496,13 @@ export interface ActionDefinition<Input = unknown, Output = unknown> extends Hos
     readonly operation: "query" | "command";
     readonly provider_id?: string;
     readonly action: ActionMetadata;
+}
+
+export interface ActionDiscoveryFilter {
+    readonly provider_id?: string;
+    readonly input_type?: string;
+    readonly output_type?: string;
+    readonly subject_kind?: string;
 }
 
 export declare class ActionError extends Error {
@@ -476,6 +525,7 @@ export interface ActionExecutionContext extends ActionCallContext {
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
+        readonly providerCommands?: "unchanged";
     }) => RetainedActionAuthority;
     readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
@@ -578,6 +628,8 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
+    readonly plugin_installation_generation?: string;
+    readonly project_data_instance_id?: string;
     readonly words_of?: string;
 }
 
@@ -588,6 +640,7 @@ export interface ActionProviderRegistration {
     readonly scenes?: readonly ActionSceneDefinition[];
     readonly scene_handlers?: readonly ActionSceneHandlerBinding[];
     availability?(context: ActionCallContext): ActionAvailability;
+    sourceRevision?(scope: Readonly<Pick<ActionCallContext, "actor_id" | "project_id">>): string | number;
 }
 
 export interface ActionReference {
@@ -752,6 +805,14 @@ export interface ActionSceneView {
 
 export type ActionSchema = Readonly<Record<string, unknown>>;
 
+export type ActionSourceIdentity = {
+    readonly kind: "plugin-installation";
+    readonly generation: string;
+} | {
+    readonly kind: "project-data";
+    readonly data_instance_id: string;
+};
+
 export interface ActionSubject {
     kind: string;
     id: string;
@@ -772,6 +833,26 @@ export interface ActionSubjectContext {
     offset?: number;
     length?: number;
 }
+
+export type ActionSubjectRetention = {
+    readonly subject: ActionSubject;
+} & ({
+    readonly state: "active";
+    readonly current_revision: string | null;
+    readonly retained: {
+        readonly content_revision: string | null;
+        readonly restoration_operation_id: string;
+    } | null;
+} | {
+    readonly state: "temporarily_archived";
+    readonly retained: {
+        readonly content_revision: string | null;
+        readonly restoration_operation_id: null;
+    };
+} | {
+    readonly state: "deleted";
+    readonly retained: null;
+});
 
 export interface ActionUsage {
     usage_id: string;
@@ -4653,6 +4734,155 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
+export declare const SUBJECT_RETENTION_INPUT_SCHEMA: {
+    type: string;
+    properties: {
+        subject_id: {
+            type: string;
+            minLength: number;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const SUBJECT_RETENTION_OUTPUT_SCHEMA: {
+    oneOf: ({
+        type: string;
+        properties: {
+            subject: {
+                type: string;
+                properties: {
+                    kind: {
+                        type: string;
+                        minLength: number;
+                    };
+                    id: {
+                        type: string;
+                        minLength: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            state: {
+                const: string;
+            };
+            current_revision: {
+                anyOf: ({
+                    type: string;
+                    minLength: number;
+                } | {
+                    type: string;
+                })[];
+            };
+            retained: {
+                anyOf: ({
+                    type: string;
+                    properties: {
+                        content_revision: {
+                            anyOf: ({
+                                type: string;
+                                minLength: number;
+                            } | {
+                                type: string;
+                            })[];
+                        };
+                        restoration_operation_id: {
+                            type: string;
+                            minLength: number;
+                        };
+                    };
+                    required: string[];
+                    additionalProperties: boolean;
+                } | {
+                    type: string;
+                })[];
+                type?: undefined;
+            };
+        };
+        required: string[];
+        additionalProperties: boolean;
+    } | {
+        type: string;
+        properties: {
+            subject: {
+                type: string;
+                properties: {
+                    kind: {
+                        type: string;
+                        minLength: number;
+                    };
+                    id: {
+                        type: string;
+                        minLength: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            state: {
+                const: string;
+            };
+            retained: {
+                properties: {
+                    content_revision: {
+                        anyOf: ({
+                            type: string;
+                            minLength: number;
+                        } | {
+                            type: string;
+                        })[];
+                    };
+                    restoration_operation_id: {
+                        type: string;
+                    };
+                };
+                type: string;
+                required: string[];
+                additionalProperties: boolean;
+                anyOf?: undefined;
+            };
+            current_revision?: undefined;
+        };
+        required: string[];
+        additionalProperties: boolean;
+    } | {
+        type: string;
+        properties: {
+            subject: {
+                type: string;
+                properties: {
+                    kind: {
+                        type: string;
+                        minLength: number;
+                    };
+                    id: {
+                        type: string;
+                        minLength: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            state: {
+                const: string;
+            };
+            retained: {
+                type: string;
+                anyOf?: undefined;
+            };
+            current_revision?: undefined;
+        };
+        required: string[];
+        additionalProperties: boolean;
+    })[];
+};
+
+export declare const SUBJECT_RETENTION_REQUEST_TYPE = "molis.subject-retention-request.v1";
+
+export declare const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v3";
+
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
 export interface SandboxPackageInterface {
@@ -4736,6 +4966,10 @@ export interface SubjectOfferChoice {
 export interface SubjectOffersInput {
     subject: ActionSubject;
     request_id: string;
+}
+
+export interface SubjectRetentionRequest {
+    readonly subject_id: string;
 }
 
 export interface SyncActionClient {
@@ -4997,6 +5231,8 @@ export declare function actionResultSubject(action: Pick<ActionDefinition["actio
     revision: string | null;
 } | null;
 
+export declare function actionSourceIdentity(provider: ActionProvider, projectId: string | null): ActionSourceIdentity | null;
+
 export declare function artifactLineHeadOf(latest: {
     version: number;
     origin: ArtifactOrigin;
@@ -5180,6 +5416,8 @@ export declare function linkedArtifactVersion(href: string): ArtifactReference |
 
 export declare function linksToArtifactVersion(value: unknown, reference: ArtifactReference): boolean;
 
+export declare function matchesActionDiscovery(view: ActionView, filter?: ActionDiscoveryFilter): boolean;
+
 export declare function nextPinnedVersion(input: {
     recorded: number;
     pending: number | null;
@@ -5299,6 +5537,8 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
 }>;
 
 export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
+
+export declare function sameActionSourceIdentity(left: ActionSourceIdentity | null | undefined, right: ActionSourceIdentity | null | undefined): boolean;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

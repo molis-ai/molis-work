@@ -39,3 +39,9 @@ export function currentMemoryOptions(input: {
     callerForSession: input.callerForSession ?? (async () => undefined),
   };
 }
+
+/** Management/non-Run tests must observe the data branch, never silently accept a Run queue receipt. */
+export function memoryData<T extends import("@molis-ai/molis-work-contracts/services/memory").MemoryListResponse | import("@molis-ai/molis-work-contracts/services/memory").MemoryRecallResponse | import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult>(result: T): Exclude<T, import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult> {
+  if ("mode" in result) throw new Error("Expected non-Run memory data, received an expansion receipt");
+  return result as Exclude<T, import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult>;
+}

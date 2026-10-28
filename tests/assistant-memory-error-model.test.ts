@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { AssistantService, AssistantStore, assistantAuthority, assistantServiceFor, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryService, memoryErrors } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
@@ -130,10 +131,14 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
     const { service, store } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: agent.agentHost,
       agentReady: () => agent.ready, projectTitle: async () => null, pages: async () => ["home"] });
     const project = await home.createProject("记忆错误分类");
-    const work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: "写周报", scope: { kind: "project", project_id: project.project_id }, origin: null, project_ref: project.reference });
+    let work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: "写周报", scope: { kind: "project", project_id: project.project_id }, origin: null, project_ref: project.reference });
     const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, consumer: "ui" as const, person: true };
     memory.savePrefs(person, "personal", { learn_from_work: true });
     memory.savePrefs(person, "project", { learn_from_work: false });
+    const session = await agent.agentHost.adapter("prologue").createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id,
+      plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, title: work.title, workspace: "business", role_id: "assistant" });
+    work = store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { session_id: session.session_id });
+    await service.memory.memoryForRound(work, "写周报");
     const tools = service.memory.memoryTools(work); assert.ok(tools?.propose);
     const propose = (text: string) => tools.propose!({ scope: "project", text, applies: "", why: "工作里的偏好" }, memoryToolControl());
     await assert.rejects(propose("项目周报先列风险"), error => error instanceof ActionError && error.code === "memory.forbidden" && error.kind === "forbidden" && /没有允许/.test(error.message));

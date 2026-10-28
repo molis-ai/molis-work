@@ -1,3 +1,5 @@
+import { inspectExistingSqlitePath, inspectExistingStoragePath } from "../storage-maintenance-path.js";
+import { pathToFileURL } from "node:url";
 /**
  * SecretStore v2 — AES-256-GCM ciphertext only; never returns plaintext to Item rows.
  *
@@ -94,17 +96,25 @@ function secretsLockDbPath(): string {
  * BEGIN IMMEDIATE waits up to busy_timeout then fails closed. A crashed
  * holder is released by the OS/SQLite; no durable lock file is required.
  */
-function withSecretsLock<T>(fn: () => T): T {
+function withSecretsLock<T>(fn: () => T, control?: { assertCurrent(): void }): T {
   const lockDbPath = secretsLockDbPath();
-  fs.mkdirSync(path.dirname(lockDbPath), { recursive: true });
+  control?.assertCurrent();
+  const target = control ? inspectExistingSqlitePath(lockDbPath) : undefined;
+  if (target && !target.exists) throw snapshotErrors.invalid("现凭据互斥库不存在，不能初始化维护目标");
+  if (!control) fs.mkdirSync(path.dirname(lockDbPath), { recursive: true });
   let db: DatabaseSync | undefined;
   let begun = false;
   try {
-    db = new DatabaseSync(lockDbPath);
+    control?.assertCurrent(); target?.assertCurrent();
+    const uri = pathToFileURL(lockDbPath); uri.searchParams.set("mode", "rw");
+    db = new DatabaseSync(control ? uri.href : lockDbPath);
     db.exec("PRAGMA busy_timeout = 5000;");
+    control?.assertCurrent(); target?.assertCurrent();
     db.exec("BEGIN IMMEDIATE;");
     begun = true;
+    control?.assertCurrent(); target?.assertCurrent();
     const result = fn();
+    control?.assertCurrent(); target?.assertCurrent();
     db.exec("COMMIT;");
     begun = false;
     return result;
@@ -558,14 +568,14 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
   return body.contents;
 }
 
-function saveFile(file: SecretsFileV2): void {
+function saveFile(file: SecretsFileV2, control?: { assertCurrent(): void }): void {
   const p = secretsPath();
   const payload: SecretsFileV2 = {
     version: FORMAT_VERSION,
     backend: file.backend,
     entries: file.entries,
   };
-  atomicWriteFileSync(p, JSON.stringify(payload, null, 2), { mode: 0o600 });
+  atomicWriteFileSync(p, JSON.stringify(payload, null, 2), { mode: 0o600, ...(control ? { assertCurrent: () => control.assertCurrent() } : {}) });
 }
 
 /** A new seal must be an AES-GCM v2 envelope, never reversible encoding. */
@@ -715,16 +725,22 @@ export function peekSealedEntry(authRef: string): string | null {
  * Deletes every entry whose reference starts with `prefix` (a deleted project's secrets), under the same cross-process
  * lock as the store's other writes. Nothing is decrypted, so it needs no master key. Returns how many went.
  */
-export function deleteSecretEntriesWithPrefix(prefix: string): number {
+export function deleteSecretEntriesWithPrefix(prefix: string, control?: { assertCurrent(): void }): number {
   if (!prefix) throw new Error("a secret prefix is required");
-  if (!fs.existsSync(secretsPath())) return 0;
+  control?.assertCurrent();
+  const target = control ? inspectExistingStoragePath(secretsPath(), "file") : undefined;
+  if (target ? !target.exists : !fs.existsSync(secretsPath())) return 0;
+  const directory = control ? inspectExistingStoragePath(resolveHomeSecurityDirectory(), "directory") : undefined;
+  const authority = control ? { assertCurrent() { control.assertCurrent(); directory!.assertCurrent(); } } : undefined;
   return withSecretsLock(() => {
-    const file = loadFile();
+    authority?.assertCurrent(); target?.assertCurrent();
+    const file = control ? readExistingSecretsFile(resolveMolisWorkHome()) : loadFile();
+    if (!file) throw snapshotErrors.invalid("原凭据文件已消失");
     const names = Object.keys(file.entries).filter(name => name.startsWith(prefix));
     for (const name of names) delete file.entries[name];
-    if (names.length) saveFile(file);
+    if (names.length) saveFile(file, authority ? { assertCurrent() { authority.assertCurrent(); target!.assertCurrent(); } } : undefined);
     return names.length;
-  });
+  }, authority);
 }
 
 export function readSecretsFileMeta(): {

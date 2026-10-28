@@ -124,6 +124,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
+      ...(outer ? { actor_kind: outer.caller.actor_kind, audit_actor_id: outer.caller.audit_actor_id, runtime_session_id: outer.caller.runtime_session_id, runtime_memory: outer.caller.runtime_memory, runtime_memory_read: outer.caller.runtime_memory_read } : {}),
       audience: outer?.caller.audience ?? "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
@@ -244,7 +245,8 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
 export function withPreparedActions(client: ActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
   refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): ActionClient {
   return {
-    discover: async caller => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); return client.discover(caller); },
+    ...(client.captureSources ? { captureSources: (scopes: Parameters<NonNullable<ActionClient["captureSources"]>>[0]) => client.captureSources!(scopes) } : {}),
+    discover: async (caller, filter) => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); return client.discover(caller, filter); },
     invoke: async (caller, capability, input) => {
       try { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); }
       catch (error) { return refuse(caller, capability, error); }
@@ -261,5 +263,10 @@ export function homePluginActions(host: Pick<import("./local-host.js").LocalHost
     if (!project) throw new ActionError("actions.scope_mismatch", "查询委托缺少已打开的项目运行环境");
     return host.actionClient(project);
   };
-  return { discover: caller => client(caller).discover(caller), invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input) };
+  return { discover: (caller, filter) => client(caller).discover(caller, filter), invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input),
+    captureSources: scopes => {
+      const selected = host.homeActionClient();
+      if (!selected.captureSources) throw new ActionError("actions.unavailable", "来源同步捕获不可用");
+      return selected.captureSources(scopes);
+    } };
 }

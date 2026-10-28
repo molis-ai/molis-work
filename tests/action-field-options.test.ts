@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { actionFieldInput, actionFieldOptions, actionFieldValue } from "@molis-ai/molis-work-contracts/platform/actions";
 
+// MEM-ACTION-FIELD-01: the original public entry retains field presentation behavior.
 test("a field's declared choices read by their labels: oneOf titles, or value=label pairs in the description", () => {
   const titled = { oneOf: [{ const: "personal", title: "个人空间" }, { const: "project", title: "当前项目" }] };
   assert.deepEqual(actionFieldOptions(titled), [{ value: "personal", label: "个人空间" }, { value: "project", label: "当前项目" }]);

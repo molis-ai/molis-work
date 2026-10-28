@@ -128,6 +128,10 @@ export interface AgentRetryWait {
 }
 
 export interface AgentRunView {
+  /** Exact Host-frozen class policy of this Run; historical Runs can lack a snapshot. */
+  readonly class_restrictions?: import("./agent-host-memory.js").AgentMemoryClassPolicy;
+  /** Scene captured in the same original memory_context, never inferred from current preferences. */
+  readonly memory_scene?: string;
   /** Canonical original input read from its existing Session attempt; absent when no source was recorded. */
   original_input?: import("./agent-inputs.js").AgentOriginalInput;
   step_board?: AgentStepBoard;
@@ -215,6 +219,8 @@ export interface AgentSessionStatus {
   session_id: string;
   /** The latest round's phase; null before the first round. */
   latest_phase: AgentRunPhase | null;
+  /** Canonical latest Run identity, including when consecutive rounds have the same phase. */
+  latest_run_id: string | null;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery: boolean;
   checkpoint_busy: boolean;

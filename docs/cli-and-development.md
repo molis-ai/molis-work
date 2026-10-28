@@ -34,6 +34,8 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 ## CLI
 
+停写记忆恢复使用 `molis-work memory recover-home --source-home /absolute/newer-copy --target-home /original/home --operation-id ORIGINAL_ID --confirm [--json]`。源和目标须来自同一 Home、同一历史，均已停写并另有完整备份；目标是已放回原 Home 绝对路径的 T0 工作副本。命令不重定位项目路径、不停止服务、不复制备份或更换现役 Home。参数没有默认路径，失败后保留同一个操作号明确重试。恢复及关闭都成功才输出 completed；取消、未装配或关闭失败退出非零。CLI 解析与结果呈现归 `apps/cli`，真实恢复、取消和资源生命周期仍由 LocalHost/Desktop 的原主人负责。
+
 公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载，以及 `molis-work v1 <operation>` 管理接口：
 
 ```text

@@ -27,11 +27,10 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-// ATTN-OWNER-07: the fixture is that schema as of version 11 (FI-5: the Feed items, Sources, Signals and Listener Host tables are Feed's
-// declaration's, so they left the baseline; version 10 was ac-trust T1 and S9-0b together): changing any owner's tables means a new
-// version and a new fixture, never a silent drift.
-test("the project database baseline is version 11 and the platform's and Modules' current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 11);
+// ATTN-OWNER-07: the current fixture is version 12, including the persistent project data identity. The historical v10 and main v11 fixtures
+// remain separate: changing any owner's tables means a new version and fixture, never a silent drift.
+test("the project database baseline is version 12 and the platform's and Modules' current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 12);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
 });
 
@@ -46,7 +45,7 @@ test("ATTN-OWNER-07 a version 9 project with legal namespace-shaped ids is refus
       .run("p", "io.molis.work.example:entry", "goal_decision", "io.molis.work.example:goal", "goal_decision", "open", "2026-10-24", "2026-10-24");
     const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
     old.close();
-    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 11);
+    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 12);
     const after = new DatabaseSync(file, { readOnly: true });
     try {
       assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, 9);
@@ -86,17 +85,17 @@ test("PLIB-02: the plugins' tables are the ones version 7 had in the baseline, t
         if (table !== "boards") assert.deepEqual(now, then, table);
         continue;
       }
-      // The shape lists keys in the order of their table and column, so the key that moved from the board to the root moves in the list too.
+      const expectedColumns = table === "coding_sessions" ? [...then.columns, { name: "lifecycle_json", type: "TEXT", notnull: false, default: null, pk: 0 }] : then.columns;
       const foreignKeys = then.foreign_keys.map(key => key.table === "boards" ? { ...key, table: "project_root" } : key)
         .sort((left, right) => `${left.table}.${left.from}`.localeCompare(`${right.table}.${right.from}`));
-      assert.deepEqual(now, { ...then, foreign_keys: foreignKeys }, table);
+      assert.deepEqual(now, { ...then, columns: expectedColumns, foreign_keys: foreignKeys }, table);
     }
   }
 });
 
 test("PLIB-09: the project is one root row; the eleven tables and Goals' board, which Goals declares, point at it, and Goals' other tables point at the board", () => {
   const tables = opened.tables;
-  assert.deepEqual(tables.project_root!.columns.map(column => column.name), ["project_id", "created_at"]);
+  assert.deepEqual(tables.project_root!.columns.map(column => column.name), ["project_id", "created_at", "data_instance_id"]);
   const pointing = (target: string) => Object.entries(tables).filter(([, table]) => table.foreign_keys.some(key => key.table === target)).map(([name]) => name).sort();
   assert.deepEqual(pointing("project_root"), [...ROOTED, "boards", "inbox_scene_bindings"].sort(), "and Inbox's scene binding table (FI-6 P3), declared since version 7");
   const goals = declaring.find(manifest => manifest.plugin_id === GOALS_PLUGIN_ID)!;

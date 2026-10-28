@@ -42,6 +42,8 @@ export interface SearchHit {
 export type SearchHitField = "title" | "summary" | "content";
 
 export interface SearchIndexDocument {
+    content_revision?: string | null;
+    retention?: SearchRetentionBinding;
     source_key: string;
     kind: string;
     object_id: string;
@@ -196,6 +198,25 @@ export interface SearchReferencesResponse {
     status: SearchQueryStatus;
     candidates: SearchReferenceCandidate[];
 }
+
+export interface SearchRetentionBinding {
+    source_identity: ActionSourceIdentity | null;
+}
+
+export interface SearchRetentionIdentity {
+    project_id: string | null;
+    provider_id: string;
+    subject: {
+        kind: string;
+        id: string;
+    };
+    retention?: SearchRetentionBinding;
+    expected_revision?: string;
+}
+
+export type SearchRetentionResult = {
+    state: "unsupported" | "unavailable";
+} | import("@molis-ai/molis-work-contracts/platform/actions").ActionSubjectRetention;
 
 export type SearchScope = "project" | "personal" | "all";
 

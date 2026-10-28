@@ -6,6 +6,7 @@ import { MEMORY_EVALUATION_CORPUS, type MemoryEvaluationCase } from "../../tests
 import { currentEvaluationSource } from "./baseline.mjs";
 import { memoryEvaluationEnvironment, type EvaluationArm, assertEvaluationArm } from "./environment.mjs";
 import { evaluationOwner } from "./originals.mjs";
+import { missingMemoryPhases } from "./memory-phase-observation.mjs";
 
 export const MEMORY_MODEL_CALIBRATION = {
   cases: ["coding-install", "assistant-meeting", "self-contained", "correction"],
@@ -76,6 +77,7 @@ export async function runMemoryEvaluationTask(env: Environment, arm: EvaluationA
   const started = performance.now();
   let recallFailure: string | null = null, view: AgentRunView | null = null, failure: string | null = null;
   let recallLatencyMs: number | null = null, firstVisibleResponseMs: number | null = null;
+  let memoryPhases = missingMemoryPhases();
   try {
     const owner = evaluationOwner(item.scene, item.project);
     const authority: AgentStartAuthority = { manifest, authorizedDirectories: [], prompts: [], memory: async task => {
@@ -87,9 +89,13 @@ export async function runMemoryEvaluationTask(env: Environment, arm: EvaluationA
       finally { recallLatencyMs = performance.now() - recallStarted; }
     } };
     const session = await env.host.createSession("prologue", { ...owner, workspace: "none", role_id: "reader", title: item.id }, authority);
-    const handle = await env.host.start("prologue", { ...owner, session, workspace: "none", role_id: "reader", task: item.request.query ?? "", budget: {
-      max_turns: 1, max_output_tokens: MEMORY_MODEL_CALIBRATION.maxOutputTokens, max_total_tokens: MEMORY_MODEL_CALIBRATION.maxTokensPerRun, max_duration_ms: MEMORY_MODEL_CALIBRATION.maxDurationMs,
-    } }, authority);
+    const finishPhases = env.observeMemoryPhases(session);
+    let handle: AgentRunHandle;
+    try {
+      handle = await env.host.start("prologue", { ...owner, session, workspace: "none", role_id: "reader", task: item.request.query ?? "", budget: {
+        max_turns: 1, max_output_tokens: MEMORY_MODEL_CALIBRATION.maxOutputTokens, max_total_tokens: MEMORY_MODEL_CALIBRATION.maxTokensPerRun, max_duration_ms: MEMORY_MODEL_CALIBRATION.maxDurationMs,
+      } }, authority);
+    } finally { memoryPhases = finishPhases(); }
     const outcome = await ended(env, handle, observationTimeoutMs, started);
     view = outcome.view; failure = outcome.error; firstVisibleResponseMs = outcome.firstVisibleResponseMs;
 
@@ -106,7 +112,8 @@ export async function runMemoryEvaluationTask(env: Environment, arm: EvaluationA
       receiptId: memoryChoice.value?.receipt_id ?? null, usage: view?.usage ?? null,
       answer: view?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n") ?? null,
       lastObservedView: view ? { phase: view.phase, usage: view.usage, startedAt: view.started_at, endedAt: view.ended_at } : null,
-      backend: env.readCounts(), recipeLatencyMs: recallLatencyMs, taskRetrievalLatencyMs: null, firstVisibleResponseMs, taskQuality: "awaiting-independent-review", memoryTokens: null,
+      backend: env.readCounts(), recipeLatencyMs: recallLatencyMs, taskRetrievalLatencyMs: memoryPhases.taskRecall.durationMs,
+      openingMemoryPreparationLatencyMs: memoryPhases.openingMemoryPreparation.durationMs, memoryPhases, firstVisibleResponseMs, taskQuality: "awaiting-independent-review", memoryTokens: null,
       model: view?.frozen.model_id ?? null, durationMs: performance.now() - started,
     };
 }

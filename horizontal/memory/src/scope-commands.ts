@@ -50,13 +50,26 @@ export class MemoryScopeCommands {
 
   async located(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<Located[]> {
     const entries = await this.ports.backend.withCaller(caller).list(scope, owner);
-    const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
-    // Every entry this service writes carries its facts; one without them is not the platform's and stays out of sight.
-    return entries.flatMap(entry => {
-      const meta = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}), ...(entry.disabled ? { disabled: entry.disabled } : {}),
-        created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms });
-      return meta ? [{ scope, owner, entry, project, meta }] : [];
-    });
+    return locateEntries(caller, scope, owner, entries);
+  }
+
+  async locatedScopes(caller: MemoryCaller, scopes: readonly { scope: MemoryScope; owner: string }[]): Promise<Located[]> {
+    const fixed = scopes.map(({ scope, owner }) => ({ scope, owner })), { signal } = caller;
+    signal?.throwIfAborted();
+    if (!fixed.length) return [];
+    const backend = this.ports.backend.withCaller(caller);
+    if (backend.listScopes) {
+      const entries = await backend.listScopes({ scopes: fixed, ...(signal ? { signal } : {}) });
+      signal?.throwIfAborted();
+      return fixed.flatMap(({ scope, owner }) => locateEntries(caller, scope, owner, entries.filter(entry => entry.scope === scope && entry.owner === owner)));
+    }
+    const result: Located[] = [];
+    for (const { scope, owner } of fixed) {
+      const entries = await backend.list(scope, owner);
+      signal?.throwIfAborted();
+      for (const located of locateEntries(caller, scope, owner, entries)) result.push(located);
+    }
+    return result;
   }
 
   async find(caller: MemoryCaller, memoryId: string): Promise<Located> {
@@ -213,4 +226,15 @@ export class MemoryScopeCommands {
     return { written: written.length, skipped, refused };
   }
 
+}
+
+/** Both read paths use the same canonical App metadata projection. */
+function locateEntries(caller: MemoryCaller, scope: MemoryScope, owner: string, entries: readonly MemoryBackendEntry[]): Located[] {
+  const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
+  // Entries without platform facts stay out of sight.
+  return entries.flatMap(entry => {
+    const meta = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}), ...(entry.disabled ? { disabled: entry.disabled } : {}),
+      created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms });
+    return meta ? [{ scope, owner, entry, project, meta }] : [];
+  });
 }

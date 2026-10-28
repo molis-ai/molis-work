@@ -85,6 +85,14 @@ function splitOf(pack: BuiltinPluginWorkbenchPack): SplitStylesheet | null {
   return split;
 }
 
+/** Settings keep shared rules; framed plugin rules arrive through pluginSettingsStyleLinks. */
+export function pluginWorkbenchSettingsStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+  return packs
+    .filter((pack) => pack.settingsClient || pack.contributions.some(({ descriptor }) => descriptor.kind === "settings-page"))
+    .map((pack) => splitOf(pack)?.shared ?? pack.stylesheet ?? "")
+    .join("");
+}
+
 /** What the shared workbench sheet holds of the plugins' styles: everything a framed plugin does not bring itself. */
 export function pluginWorkbenchStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
   return packs.map((pack) => splitOf(pack)?.shared ?? pack.stylesheet ?? "").join("");

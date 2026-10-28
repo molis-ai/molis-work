@@ -6,16 +6,14 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createScheduleService } from "@molis-ai/molis-work-service-scheduler";
-import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule";
 
 const before = readFileSync(new URL("./fixtures/project-database-schema-v8.sql", import.meta.url), "utf8");
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
-// This build is two versions later (10, ac-trust; 11, FI-5): the library this maintenance makes is opened after the next two, which have their own rehearsals.
-const next = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8")
-  + `INSERT INTO plugin_project_databases (plugin_id, publisher_signature, store_name, version, tables_json, created_at)
-    VALUES ('io.molis.work.feed', 'official-feed-binding', 'feed', 1, '["feed_out_rules","feed_out_rules_project_enabled_idx"]', '2026-10-21T00:00:00Z');\n`
-  + readFileSync(new URL("./fixtures/project-maintenance-v11.sql", import.meta.url), "utf8");
+// The separately rehearsed next step still stops at v10. Scheduler checks borrow the historical store directly;
+// only the explicitly selected project-instance rehearsal proves opening the current v12 library.
+const next = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
 function fixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "project-maintenance-v9-")), file = join(directory, "project.db");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -52,12 +50,16 @@ test("SYS-15-S6: v8 is refused; offline maintenance preserves jobs/history, paus
   assert.deepEqual(after.receipt, original.receipt);
   assert.deepEqual(after.task, original.task); assert.deepEqual(after.turn, original.turn);
   apply(file, next);
-  const store = new LocalProjectDatabase(file), clock = createScheduleService(store.db);
+  const historical = read(file); assert.equal(historical.version, 10);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 12);
+  assert.deepEqual(read(file), historical, "current opening does not adopt the historical maintenance output");
+  const store = new LocalSqliteStorage(file, { fileMustExist: true }), clock = createScheduleService(store.db);
   try {
     assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM schedule_action_bindings").get()!.n, 0);
     assert.equal((await clock.tick(new Date("2026-10-22T00:00:00Z"))).invoked, 0);
     assert.equal(clock.get("old-job")!.next_due_at, original.job.next_due_at);
   } finally { await clock.close(); store.close(); }
+  assert.deepEqual(read(file), historical, "the historical Scheduler rehearsal does not upgrade the project or bind old jobs");
 });
 
 test("SYS-15-S6: wrong versions and a write failure roll back the entire maintenance", t => {

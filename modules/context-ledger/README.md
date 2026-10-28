@@ -66,3 +66,10 @@ node scripts/run-tests.mjs tests/context-ledger.test.ts
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+
+### 独立 Session 业务原件冷维护（MEM-40）
+
+永久清除实际被选业务 owner 时，精确历史维护只处理该 owner 的 source 边原 key/revision/type/source/target，不因 target 引用而清其他 owner 边。准备包含 removed 历史，DTO 不带 cause；清理先核全部原件身份再删选定revision，独立对象与后继历史保留。原 remove 仍是普通软移除，不冒充永久清理。
+
+工厂返回的 `retention.prepare/clear/verifyOriginal` 只用于已获授权的 owner 维护，沿原 authorize 和事务，在每次精确删除前执行同步 current。实际 Assistant 消费链的定向回归在 `tests/session-business-purge.test.ts`，原 `tests/context-ledger.test.ts` 同时保留。

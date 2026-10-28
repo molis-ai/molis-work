@@ -8,10 +8,11 @@ import { codingText } from "./words.js";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** Queries return current projections. Only the activation's observation job persists them (SYS-15-Q1/Q2). */
-export async function readCodingSessions(a: CodingActivation, execution: CodingExecution, beforeWrite: CodingBeforeWrite, persist = false) {
+export async function readCodingSessions(a: CodingActivation, execution: CodingExecution, beforeWrite: CodingBeforeWrite, persist = false, observe?: (record: CodingSessionRecord, status: AgentSessionStatus) => Promise<void>) {
   const { projectId } = a;
   // Every session's standing in one Host call per runtime, rather than one queued read per session.
-  const records = execution.sessions.list(projectId);
+  const all = execution.sessions.list(projectId), pending = new Set(all.filter(record => execution.sessions.lifecycle.pending(projectId, record.session_id)).map(record => record.session_id));
+  const records = all.filter(record => !pending.has(record.session_id));
   // The titles of the Goals sessions are attached to, as Goals has them now: read through Goals' public action, and kept for the
   // directory, which draws at once (goal-titles.ts). A Goal that cannot be read keeps the title it had, or none.
   await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite, persist);
@@ -48,6 +49,9 @@ export async function readCodingSessions(a: CodingActivation, execution: CodingE
       const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
       if (status && !("error" in status)) {
         checkpointBusy = status.checkpoint_busy;
+        if (persist && observe) {
+          try { await observe(record, status); } catch { beforeWrite.assert_current(); } // Learning refusal does not block directory facts or other sessions.
+        }
         const read = status.steps ?? null;
         if (JSON.stringify(read) !== JSON.stringify(steps)) { if (persist) await execution.sessions.setSteps(write, projectId, record.session_id, read); steps = read; }
         const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";
@@ -61,6 +65,8 @@ export async function readCodingSessions(a: CodingActivation, execution: CodingE
     return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null };
   };
   const sessions = [];
-  for (const record of records) sessions.push(await describe(record));
+  for (const record of persist ? records : all) sessions.push(pending.has(record.session_id)
+    ? { ...record, background_unreadable: false, checkpoint_busy: false, goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null }
+    : await describe(record));
   return sessions;
 }

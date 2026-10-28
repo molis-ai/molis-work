@@ -34,6 +34,8 @@ export interface AssistantMemoryPrefs {
  * only when the person accepts it; declined or left alone for 14 days, it goes.
  */
 export interface AssistantMemoryCandidate {
+  /** The person must finish this candidate's classification/retention in Memory settings. */
+  needs_formal_decision?: boolean;
   candidate_id: string;
   work_id: string;
   work_title: string;

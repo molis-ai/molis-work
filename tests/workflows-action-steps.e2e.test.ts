@@ -59,7 +59,7 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await click('[data-wf-dialog-submit]');
   await waitFor("document.querySelector('[data-wf-action=continue]')");
   // SYS-15-U7: the real source is readable inside the workflow, but its trusted document is outside the opaque page.
-  await b.waitFor("document.querySelector('iframe[data-plugin-embedded=feed]')?.contentDocument?.body.innerText.includes('这是端到端字段映射的原始正文')");
+  await b.waitFor("document.querySelector('iframe[data-plugin-embedded=feed]')?.contentDocument?.body?.innerText.includes('这是端到端字段映射的原始正文')");
   assert.equal(await evaluate("(()=>{try{return Boolean(parent.document)}catch(error){return error.name}})()"), "SecurityError");
   // RING-07: current human-led station is static doing; future station waits.
   await waitFor("document.querySelector('.wf-vstep.is-current .mw-state-ring')?.dataset.mwState === 'doing'");

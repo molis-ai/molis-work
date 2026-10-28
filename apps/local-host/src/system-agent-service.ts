@@ -18,6 +18,7 @@ import { memoryRuntime } from "./memory/memory-runtime.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { projectDeletionPending } from "./project-deletion-recovery.js";
 import { prepareMemoryHome } from "./memory/memory-adoption.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
@@ -59,6 +60,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
+        projectDeletionPending: (projectId, sessionId) => projectDeletionPending(storageHome, projectId, sessionId),
         memory: memoryRuntime(localHost, storageHome, () => service.agentHost.adapter("prologue"), async projectId => owner.withCatalog
           ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.database_path) : undefined),
         memoryUsage: receipt => recordMemoryUsage(localHost, receipt),
@@ -94,6 +96,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
     const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
       executes: () => owner.withCatalog !== undefined,
+      projectDeletion: () => service.projectDeletion(),
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });

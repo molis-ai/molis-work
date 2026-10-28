@@ -1,11 +1,12 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, directoryActionVisibility, visibleAction } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
+import { ActionSourceRevisions } from "./action-source-revisions.js";
 import {
-  ActionError, requireSynchronous,
+  ActionError, requireSynchronous, type ActionDiscoveryFilter,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
-  type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
+  type ActionProvider, type ActionProviderRegistration, type ActionReference, type ExactActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -28,6 +29,12 @@ interface RegisteredScene {
   validateResult: ActionValidator;
 }
 
+interface ProviderCommands {
+  registrations: number;
+  active: number;
+  marker: symbol;
+}
+
 export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** One execution registry, shared by UI, workflows, SDK and protocol adapters. */
@@ -35,12 +42,17 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly scenes = new Map<string, RegisteredScene>();
   /** Availability is synchronous; this stack exists only during a directory/execution check. */
   private readonly checkingDependencies = new WeakMap<ActionCallContext, Set<string>>(); // per context: a delegated caller's authority check reads its original's own, which is not a cycle
+  /** Only command lifetimes, shared by split registrations of the same trusted provider scope. */
+  private readonly providerCommands = new Map<string, ProviderCommands>();
+  private readonly sourceRevisions = new ActionSourceRevisions();
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
     private readonly effects: {
       beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
       /** The Host's live runtime check, without yielding after the final authority check. */
       assertCurrent?(context: ActionCallContext, reference: ActionReference): void;
+      /** Trusted pure Host lifecycle read for source-capture tails: no dispatch, mutation or authority callbacks. */
+      sourceCurrent?(): boolean;
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
       /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
@@ -52,6 +64,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
+    if (registration.sourceRevision && provider.kind !== "system") throw new ActionError("actions.provider_invalid", "同步来源状态读口只接受可信 Host 系统来源");
     const handlers = exactBindings(registration.definitions, registration.handlers, actionKey, "能力");
     const sceneHandlers = exactBindings(registration.scenes ?? [], registration.scene_handlers ?? [], sceneKey, "消费场景");
     // A provider commonly shares its full workspace schema across many commands: check that immutable registration
@@ -65,7 +78,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (!validator) { validator = compileSchema(snapshot); validators.set(original, validator); }
       return validator;
     };
-    const disposers: Array<() => void> = [];
+    const commandKey = JSON.stringify([provider.project_id ?? null, provider.provider_id]);
+    const commands = this.providerCommands.get(commandKey) ?? { registrations: 0, active: 0, marker: Symbol() };
+    this.providerCommands.set(commandKey, commands); commands.registrations++;
+    const releaseCommands = () => {
+      if (!commands.registrations && !commands.active) this.providerCommands.delete(commandKey);
+    };
+    const disposers: Array<() => void> = [() => { commands.registrations--; releaseCommands(); }];
     let active = true;
     const sourceAvailability = (context: ActionCallContext): ActionAvailability => {
       if (!active) return unavailable("actions.stopped", "能力来源已停止");
@@ -116,21 +135,26 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const registration = this.registry.registrationToken(registeredDefinition);
           const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
           let executing = true;
-          const assertCurrent = () => {
+          const assertExecutionCurrent = () => {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
             lifetime?.assertActive();
             context.signal?.throwIfAborted();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
+          };
+          const assertCurrent = () => {
+            assertExecutionCurrent();
             assertAvailable(availability(context));
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            definition.action.permissions, assertCurrent, assertExecutionCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref),
+            providers => this.captureProviderCommands(providers), sources => this.sourceRevisions.capture(context, sources), () => this.assertSourcesCurrent(), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
-            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
+            const result = runActionHandler(context, execution, () => executing, () => definition.operation === "command"
+              ? this.runProviderCommand(commands, releaseCommands, () => handler.handle(execution, input)) : handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }
@@ -141,6 +165,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         };
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, synchronous: handler.execution === "sync" }));
+        disposers.push(this.sourceRevisions.register(this.registry.registrationToken(registeredDefinition)!, registration.sourceRevision));
       }
       for (const original of registration.scenes ?? []) {
         const definition = structuredClone(original);
@@ -179,8 +204,85 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return dispose;
   }
 
-  discover(context: ActionCallContext): ActionView[] {
-    return this.directory(context, false);
+  private runProviderCommand(commands: ProviderCommands, release: () => void, run: () => unknown): unknown {
+    commands.active++; commands.marker = Symbol();
+    const finish = () => { commands.active--; release(); };
+    let result: unknown;
+    try {
+      result = run();
+      if (result && (typeof result === "object" || typeof result === "function") && typeof (result as PromiseLike<unknown>).then === "function") {
+        // Follow the raw handler, not lifetime.wait: a cancelled caller can leave the handler running.
+        return Promise.resolve(result).finally(finish);
+      }
+    } catch (error) { finish(); throw error; }
+    finish(); return result;
+  }
+
+  private captureProviderCommands(providers: readonly ActionProvider[]): () => void {
+    const captured = providers.map(provider => {
+      const commands = this.providerCommands.get(JSON.stringify([provider.project_id ?? null, provider.provider_id]));
+      if (!commands || commands.active) throw new ActionError("actions.conflict", "来源正在变更，请稍后重新查看");
+      return { commands, marker: commands.marker };
+    });
+    return () => {
+      // No external callbacks here: a later provider's authority check can synchronously start an earlier one's command.
+      if (captured.some(({ commands, marker }) => commands.active || commands.marker !== marker)) {
+        throw new ActionError("actions.conflict", "来源在读取期间发生变更，请重新查看");
+      }
+    };
+  }
+
+  captureSources(scopes: readonly { readonly context: ActionCallContext; readonly references: readonly ExactActionReference[] }[]): () => void {
+    const groups = scopes.map(({ context, references }) => {
+      const caller = { ...context, permissions: [...context.permissions],
+        ...(context.allowed_actions ? { allowed_actions: context.allowed_actions.map(reference => ({ ...reference })) } : {}),
+        ...(context.allowed_capability_ids ? { allowed_capability_ids: [...context.allowed_capability_ids] } : {}) };
+      caller.signal?.throwIfAborted();
+      const snapshots = references.map(source => {
+        if (!source.provider_id) throw new ActionError("actions.provider_changed", "来源捕获需要精确提供方");
+        const reference = Object.freeze({ capability_id: source.capability_id, version: source.version, provider_id: source.provider_id });
+        const definition = requireDefinition(this.actionDefinition(caller, reference), reference);
+        if (!definition.action || !definition.action_provider || !visibleAction(definition as ActionDefinition, definition.action_provider, caller)) {
+          throw new ActionError("actions.forbidden", "不能捕获未获授权的来源");
+        }
+        return { reference, definition, token: this.registry.registrationToken(definition) };
+      });
+      return { caller, snapshots };
+    });
+    const callbacks = () => {
+      for (const { caller, snapshots } of groups) {
+        caller.signal?.throwIfAborted();
+        for (const saved of snapshots) {
+          assertAvailable(requireSynchronous(this.registry.availability(caller, saved.definition), "来源可用性检查必须同步完成"));
+          assertCurrentAuthority(caller, saved.reference, saved.definition.action!.permissions);
+          requireSynchronous(this.effects.assertCurrent?.(caller, saved.reference), "最终运行环境检查必须同步完成");
+        }
+      }
+    };
+    const tail = () => {
+      this.assertSourcesCurrent();
+      for (const { caller, snapshots } of groups) {
+        caller.signal?.throwIfAborted();
+        for (const saved of snapshots) if (!saved.token || this.registry.registrationToken(saved.definition) !== saved.token) {
+          throw new ActionError("actions.provider_changed", "原来源已停用或重新加载，请重新查看");
+        }
+      }
+    };
+    callbacks();
+    const commands = this.captureProviderCommands(groups.flatMap(group => group.snapshots.map(saved => saved.definition.action_provider!)));
+    const revisions = groups.map(group => this.sourceRevisions.capture(group.caller, group.snapshots));
+    tail(); commands();
+    return () => { callbacks(); for (const read of revisions) read(); tail(); commands(); };
+  }
+
+  private assertSourcesCurrent(): void {
+    if (requireSynchronous(this.effects.sourceCurrent?.(), "来源生命周期读口必须同步完成") === false) {
+      throw new ActionError("actions.host_closed", "来源所在运行环境已关闭");
+    }
+  }
+
+  discover(context: ActionCallContext, filter?: ActionDiscoveryFilter): ActionView[] {
+    return this.directory(context, false, filter);
   }
 
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */
@@ -188,10 +290,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return this.directory(context, true);
   }
 
-  private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Visibility is checked with the rest of the directory's checks, before any row is made. One pass: a provider is asked once for all its actions.
-    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context);
-    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
+  private directory(context: ActionCallContext, inspection: boolean, filter?: ActionDiscoveryFilter): ActionView[] {
+    // Visibility is checked before rows are made. Provider state is shared within this synchronous pass; failed reads are not retained.
+    const visible = inspection ? undefined : directoryActionVisibility(context);
+    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible, filter).map(metadata =>
       ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) })));
   }
 

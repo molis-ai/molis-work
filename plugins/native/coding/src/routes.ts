@@ -1,3 +1,4 @@
+import { memoryLearningSourceAction } from "@molis-ai/molis-work-contracts/services/memory";
 import type { ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -64,6 +65,17 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   // The work-executor roles have no route: they answer through the handlers just made.
   codingExecutor(activation);
+  activation.route.action(memoryLearningSourceAction, async ({ session_id }, { beforeWrite }) => {
+    beforeWrite.assert_current();
+    const record = sessions.byRuntimeSession(activation.projectId, session_id);
+    if (!record) return null;
+    const lifecycle = sessions.lifecycle.current(activation.projectId, record.session_id);
+    const state = lifecycle && !lifecycle.completed ? "pending" : record.archived ? "archived" : "active";
+    if (state === "active") sessions.lifecycle.assertWritable(activation.projectId, record.session_id);
+    beforeWrite.assert_current();
+    return { business_session_id: record.session_id, runtime_id: record.runtime_id, session_id,
+      state, lifecycle_operation_id: lifecycle ? (lifecycle.request.mode === "runtime" ? lifecycle.request.decision.operation_id : lifecycle.request.operation_id) : null };
+  });
   startCodingObservation(activation);
   return { routes, actions };
 }

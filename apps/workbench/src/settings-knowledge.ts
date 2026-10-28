@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { renderAlertDialog } from "@molis-ai/molis-work-design-system";
+import { renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * 项目资料 in a project's settings (specs/project-knowledge §8.3): every piece the project's agents can find, how far its card
@@ -47,6 +49,13 @@ export function renderKnowledgeSettings({ L, projectId }: { L(text: string): str
       <p class="settings-muted">${L("Agent 读到资料原文的每一次：哪个 Agent、哪一轮、读了哪个版本多少字。保留 30 天。")}</p>
       <ul class="knowledge-receipt-list" data-knowledge-receipts><li class="settings-muted">${L("正在读取…")}</li></ul>
     </section>
+    ${renderAlertDialog({ labelledBy: "knowledge-bind-title", title: L("关联当前来源"), className: "mw-dialog--form",
+      description: L("旧卡片内容完整保留。确认关联后，搜索和 Agent 才能使用当前来源；不会自动调用模型整理。"),
+      attrs: { "data-knowledge-bind-dialog": true }, closeLabel: L("关闭"),
+      body: `<div data-knowledge-bind-original></div><fieldset class="mw-fieldset" data-knowledge-bind-candidates></fieldset><p class="mw-field__error" data-knowledge-bind-error role="alert" hidden></p>`,
+      footer: renderButton({ label: L("取消"), variant: "secondary", attrs: { "data-knowledge-bind-cancel": true } })
+        + renderButton({ label: L("重新查看来源"), variant: "secondary", attrs: { "data-knowledge-bind-review": true, hidden: true } })
+        + renderButton({ label: L("确认关联"), variant: "primary", type: "submit", attrs: { "data-knowledge-bind-confirm": true } }) })}
   </section>`;
 }
 

@@ -1,6 +1,6 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
-import type { createNodeHost } from "@prologue/sdk/node";
+import { SYSTEM_TOOL_NAMES, type AuditSink, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
+import type { createNodeHost, NodeHostOptions } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
@@ -17,6 +17,10 @@ import type { StopGuard } from "./prologue-stop-guard.js";
  */
 
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
+  /** Optional SDK diagnostics; synchronous observations never authorize or change a Run. */
+  audit?: AuditSink;
+  /** Synchronous Catalog pending receipt fact; deletion itself uses its original held lane. */
+  projectDeletionPending?(projectId: string, sessionId?: string): boolean;
   /** App taxonomy and live memory authority; absent means memory is unavailable. */
   memory?: import("./prologue-memory-authority.js").PrologueMemoryOptions;
   /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */
@@ -59,7 +63,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 }
 
 export type NodeHost = ReturnType<typeof createNodeHost>;
-export type DispatchGuards = AsyncLocalStorage<() => void | Promise<void>>;
+export type DispatchGuard = NonNullable<NodeHostOptions["beforeNetworkDispatch"]>;
+export type DispatchGuards = AsyncLocalStorage<DispatchGuard>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
 export type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";
@@ -95,6 +100,8 @@ export interface RoundState {
   readonly actionControllers: Map<string, AbortController>;
   readonly runRoots: Map<string, ExactRef<"authorized-root">>;
   readonly activeRuns: Map<string, { live(): boolean; steer(text: string): Promise<void> }>;
+  /** Raw SDK observers retained until their session's local view is released. */
+  readonly runObservers: Map<string, Set<() => void>>;
   /** Which session each run belongs to, and the run ref, so "allow in this app this round" binds to that run. */
   readonly runSessions: Map<string, string>;
   readonly runRefs: Map<string, ExactRef<"run">>;
@@ -114,10 +121,17 @@ export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
     gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
-    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
+    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runObservers: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(),
   };
+}
+
+/** Keep the original unsubscribe without creating another observer or execution lifecycle. */
+export function retainRunObserver(state: Pick<RoundState, "runObservers">, runId: string, unsubscribe: () => void): void {
+  const observers = state.runObservers.get(runId) ?? new Set<() => void>();
+  observers.add(unsubscribe);
+  state.runObservers.set(runId, observers);
 }
 
 export const sameRef = (a: { kind?: unknown; id?: unknown; revision?: unknown } | undefined, b: { kind: string; id: string; revision: number }) =>

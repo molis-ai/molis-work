@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { MEMORY_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryRevision, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryRevision, type MemoryRevisionView, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { completeRevisionSnapshot } from "./classification.js";
 import { memoryErrors } from "./errors.js";
 import { CONSUMER_LABELS } from "./prefs.js";
 import type { MemoryCaller } from "./service.js";
@@ -21,8 +22,10 @@ export function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; own
   return counted.length === 1 ? counted[0]!.fingerprint : counted.map(part => `${part.scope}:${part.owner}=${part.fingerprint}`).join("|");
 }
 
+export const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
 export function candidateView(record: MemoryCandidateRecord): MemoryCandidate {
-  const { actor_id: _actor, owner: _owner, formal_expires_at: _formalExpiry, source_refs: _sourceRefs, ...view } = record;
+  const { actor_id: _actor, owner: _owner, source_refs: _sourceRefs, ...view } = record;
   return view;
 }
 
@@ -32,9 +35,10 @@ export function changeView(record: MemoryChangeRecord): MemoryChange {
 }
 
 /** Restore's canonical snapshot stays in the ledger; history exposes the existing revision contract. */
-export function revisionView(record: MemoryRevision): Omit<MemoryRevision, "snapshot"> {
-  const { snapshot: _snapshot, ...view } = record;
-  return view;
+export function revisionView(record: MemoryRevision): MemoryRevisionView {
+  const { snapshot, ...view } = record;
+  return { ...view, classification: snapshot?.meta.classification ?? null,
+    expires_at: snapshot?.meta.expires_at_ms === undefined ? null : new Date(snapshot.meta.expires_at_ms).toISOString(), snapshot_available: completeRevisionSnapshot(record) };
 }
 
 /** A package is read whole before anything is written: one malformed entry and the whole import is refused. */
@@ -49,7 +53,7 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
     const at = `第 ${index + 1} 条`;
     if (!item || typeof item !== "object") refuse(`${at}损坏`);
     if (typeof item.text !== "string" || !item.text.trim() || item.text.length > MAX_TEXT) refuse(`${at}的内容不合格`);
-    if (!MEMORY_KINDS.includes(item.kind)) refuse(`${at}的类别不认识`);
+    if (!MEMORY_FORMAL_KINDS.includes(item.kind)) refuse(`${at}的类别不认识`);
     if (typeof item.origin !== "string") refuse(`${at}缺少出处`);
     if (item.applies !== undefined && (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies))) refuse(`${at}的适用情境损坏`);
     if (item.expires_at !== null && item.expires_at !== undefined && (typeof item.expires_at !== "string" || !Number.isFinite(Date.parse(item.expires_at)))) refuse(`${at}的有效期损坏`);

@@ -30,7 +30,7 @@ async function finished(adapter: Awaited<ReturnType<typeof createPrologueNodeAda
 }
 
 /** Real Node/HTTP/SQLite and production App authority; scripted model output is engineering evidence, not model quality. */
-test("trusted Run goal/object facts select only applicable memory through final HTTP Context and survive Session reopen", { timeout: 40_000 }, async () => {
+for (const history of ["digest", "session"] as const) test(`trusted ${history} Run facts and source presentation survive Session reopen`, { timeout: 40_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-run-context-")), requests: string[] = [];
   const server = createServer(async (request, response) => {
     let body = ""; for await (const chunk of request) body += chunk;
@@ -44,12 +44,14 @@ test("trusted Run goal/object facts select only applicable memory through final 
   const ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(caller.actor_id, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   let alive = true, service!: MemoryService, failUsage = true;
+  let legacyDescription = true;
+  const originalSource = "Legacy source description: follow the old release convention";
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive, prefsFor: (scope, id) => service.prefsFor(caller.actor_id, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => id === project, deletingProject: () => undefined };
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"),
     memoryUsage: receipt => { if (failUsage) throw new Error("isolated ledger fault"); service.settleUses(receipt); },
-    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+    memory: { ...memoryRuntimePolicy(() => owner), ...(legacyDescription ? { modelOrigin: "description" as const } : {}), promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
       decide: (caller, request) => service.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
         record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`,
@@ -64,7 +66,7 @@ test("trusted Run goal/object facts select only applicable memory through final 
     const entries: Awaited<ReturnType<typeof backend.write>>[] = [];
     for (const item of [{ text: "Release checklist: ALPHA_ONLY", goal: "goal-a", object: "file" },
       { text: "Release checklist: BETA_ONLY", goal: "goal-b", object: "document" }]) {
-      entries.push(await backend.withCaller(person).write({ scope: "project", owner: project, text: item.text, origin: "person", operation_id: item.goal,
+      entries.push(await backend.withCaller(person).write({ scope: "project", owner: project, text: item.text, origin: originalSource, operation_id: item.goal,
         meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["coding"], lifecycle: "long-term" },
           applies_when: { plugins: [coding], goals: [item.goal], object_kinds: [item.object] } } }));
     }
@@ -74,7 +76,7 @@ test("trusted Run goal/object facts select only applicable memory through final 
       const recipe = await service.forRun({ ...caller, work: { work_id: "work-context", title: "Release preparation" } }, { query: "Release checklist", situation: { goal_id: goal, object_kind: object } });
       assert.ok(recipe); assert.equal(recipe.task, true); assert.equal(recipe.skip, false); assert.deepEqual(recipe.pinned, []);
       assert.deepEqual(recipe.facts, { plugins: [coding], goals: [goal], object_kinds: [object] });
-      return finished(adapter, await adapter.start({ ...sessionOwner, session, workspace: "none", role_id: "reader", task: "Release checklist", history: "digest",
+      return finished(adapter, await adapter.start({ ...sessionOwner, session, workspace: "none", role_id: "reader", task: "Release checklist", history,
         role: { role_id: "reader", version: 1, workspace: "none", execution: "read-only", host_tools: [], prompts: [], memory: recipe } }));
     };
     const first = await run("goal-a", "file");
@@ -89,9 +91,10 @@ test("trusted Run goal/object facts select only applicable memory through final 
       assert.ok(contexts![0]!.references.every(ref => ref.receipt_id));
     };
     verifyReceipt(first, entries[0]!);
+    assert.ok(requests[0]!.includes(originalSource), "the old configuration actually sent the source description");
     assert.equal(first.memory_recalled?.recording_error, "memory.receipt_unrecorded");
     assert.deepEqual(service.uses({ work_id: "work-context" }), [], "a failed projection does not fabricate saved usage or repeat the model call");
-    await adapter.close(); adapter = await open();
+    await adapter.close(); legacyDescription = false; adapter = await open();
     failUsage = false;
     const recovered = await adapter.read(first.ref);
     assert.equal(requests.length, 1, "restoring the original receipt does not dispatch another model request");
@@ -109,6 +112,12 @@ test("trusted Run goal/object facts select only applicable memory through final 
     const second = await run("goal-b", "document");
     assert.equal(requests.length, 2); assert.match(requests[1]!, /BETA_ONLY/); assert.doesNotMatch(requests[1]!, /ALPHA_ONLY/);
     verifyReceipt(second, entries[1]!);
+    assert.ok(!requests[1]!.includes(originalSource), "reopening the existing Session with the production policy projects the current memory source");
+    const secondWire = JSON.parse(requests[1]!) as { messages: { content: unknown }[] };
+    const memoryWrappers = secondWire.messages.flatMap(({ content }) => typeof content === "string" && content.startsWith("Untrusted context data.")
+      ? [JSON.parse(content.slice(content.indexOf("\n") + 1)) as { source: string; origin: string; text: string }] : []).filter(one => one.source === "memory-recall");
+    assert.deepEqual(memoryWrappers, [{ source: "memory-recall", origin: "memory", text: "Release checklist: BETA_ONLY" }]);
+    assert.ok((await backend.withCaller(person).list("project", project)).every(entry => entry.origin === originalSource), "the stored source description remains available to management");
     assert.equal(service.uses({ work_id: "work-context" }).length, 2);
     assert.notEqual(second.ref.run_id, first.ref.run_id);
     const recipe = await service.forRun({ ...caller, work: { work_id: "refused-work", title: "Refused release" } },

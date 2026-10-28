@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
-import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, MolisWorkLocalHost, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -179,8 +179,10 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     try { assert.equal(library.listJudgments().filter(row => row.function_key.startsWith("auth_")).length, 3); } finally { library.close(); }
     await second.grant("runtime:codex", null, [functionsActions.invoke]);
     for (const projectId of ["client-project-a", "client-project-b"]) {
+      const databasePath = join(home, `${projectId}.sqlite`);
+      await initializeProjectDatabase(databasePath, projectId);
       const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", {
-        projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: second.origin,
+        projectId, databasePath, webBaseUrl: second.origin,
       }, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: projectId, host_declares_stable: true } }, host);
       try {
         const result = JSON.parse(await mcp.callTool("molis_work_v1_action_functions.invoke__v1", { function_key: published[0]!.function_key, input: projectId }));

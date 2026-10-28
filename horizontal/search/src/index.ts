@@ -1,5 +1,9 @@
+import { readSubjectRetention, retentionView } from "./retention.js";
+export { readSubjectRetention } from "./retention.js";
 import {
   ActionError,
+  actionSourceIdentity,
+  sameActionSourceIdentity,
   SUBJECT_CONTEXT_TYPE,
   SUBJECT_REFERENCE_TYPE,
   isSearchEntriesSource,
@@ -79,6 +83,7 @@ const RETRY_MS = 10_000;
 const referenceOf = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 const sameReference = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 const isReader = (view: ActionView) => view.action.input_type === SUBJECT_REFERENCE_TYPE && view.action.output_type === SUBJECT_CONTEXT_TYPE;
+const indexedRevision = (document: SearchIndexDocument | null | undefined) => document?.content_policy === "context" ? document.content_revision ?? undefined : document?.revision;
 const entryKey = (kind: string, id: string) => `${kind}\u0000${id}`;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 300);
 
@@ -119,6 +124,20 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
         && view.action.subject_kinds.includes(kind) && view.availability.available
         && sameReference(referenceOf(view), referenceOf(reader.view)) && view.provider.project_id === reader.view.provider.project_id)) ?? false,
   };
+}
+
+/** One Kernel batch spans the current project and the person's own space; never compose per-owner authority callbacks. */
+function captureSearchSources(access: SearchAccess, sources: readonly { source: SourceView; owner: SearchAccess }[]): () => void {
+  const selected = sources.filter(({ source }) => actionSourceIdentity(source.view.provider, source.project_id) !== null);
+  if (!selected.length) return () => {};
+  if (!access.client.captureSources) throw new ActionError("actions.unavailable", "当前搜索来源缺少同步状态校验能力");
+  const scopes = new Map<ActionCallContext, { context: ActionCallContext; references: Array<ActionReference & { provider_id: string }> }>();
+  for (const { source, owner } of selected) {
+    const scope = scopes.get(owner.caller) ?? { context: owner.caller, references: [] };
+    if (!scope.references.some(reference => sameReference(reference, source.reference))) scope.references.push(source.reference);
+    scopes.set(owner.caller, scope);
+  }
+  return access.client.captureSources([...scopes.values()]);
 }
 
 function defaultOpen(source: SourceView, kind: string, id: string) {
@@ -245,13 +264,26 @@ export class SearchService {
     const visible = current.filter(source => before.visible.some(original => original.key === source.key));
     const allowed = visible.map(source => ({ source_key: source.key,
       readable_kinds: [...source.kinds.keys()].filter(kind => authority.canRead(source, kind, views)) }));
+    const sourceCurrent = captureSearchSources(access, visible.map(source => ({ source,
+      owner: before.personal?.sources.some(candidate => candidate.key === source.key) ? before.personal.access : access })));
     const found = this.options.index.search({ query, sources: allowed, ...(input.kinds?.length ? { kinds: input.kinds } : {}), offset, limit });
-    const hits = searchHits(found.matches, visible);
+    const retained = await Promise.all(found.matches.map(async match => {
+      const source = visible.find(source => source.key === match.source_key)!;
+      const document = this.options.index.document(match.source_key, match.kind, match.object_id);
+      const owner = before.personal?.sources.some(item => item.key === source.key) ? before.personal.access : access;
+      const state = await readSubjectRetention(owner, { project_id: source.project_id, provider_id: source.reference.provider_id,
+        subject: { kind: match.kind, id: match.object_id }, expected_revision: indexedRevision(document), ...(document?.retention ? { retention: document.retention } : {}) }, views);
+      if (state.state === "deleted") { sourceCurrent(); this.options.index.remove(match.source_key, [{ kind: match.kind, object_id: match.object_id }]); }
+      return state.state === "active" || state.state === "unsupported";
+    }));
+    const hits = searchHits(found.matches.filter((_, index) => retained[index]), visible);
     const sources = searchStatuses(this.options, all);
     const pending = sources.some(source => source.state === "indexing");
     const degraded = sources.some(source => ["failed", "stale", "unavailable", "indexing"].includes(source.state));
-    return { status: !hits.length && pending ? "indexing" : degraded ? "partial" : "complete", hits: hits.slice(0, limit),
+    const result: SearchQueryResponse = { status: !hits.length && pending ? "indexing" : degraded ? "partial" : "complete", hits: hits.slice(0, limit),
       next_cursor: offset + limit < found.total ? cursorOf(query, offset + limit) : null, sources };
+    authority.assertCurrent(); sourceCurrent();
+    return result;
   }
 
   async open(access: SearchAccess, input: SearchOpenRequest): Promise<SearchOpenResponse> {
@@ -271,7 +303,16 @@ export class SearchService {
     const origin = { ...searchActions.open, provider_id: SEARCH_PROVIDER_ID };
     const nested = retainActionAuthority(access.caller, origin);
     const reader = views.find(view => isReader(view) && view.availability.available && view.provider.provider_id === hit.provider_id && view.action.subject_kinds.includes(hit.kind));
+    const sourceCurrent = captureSearchSources(access, [{ source, owner: access }]);
     const indexed = this.options.index.document(source.key, hit.kind, hit.id);
+    const retention = await readSubjectRetention({ ...access, caller: nested }, { project_id: source.project_id, provider_id: source.reference.provider_id,
+      subject: { kind: hit.kind, id: hit.id }, expected_revision: indexedRevision(indexed), ...(indexed?.retention ? { retention: indexed.retention } : {}) }, views);
+    if (retention.state === "deleted") {
+      sourceCurrent();
+      this.options.index.remove(source.key, [{ kind: hit.kind, object_id: hit.id }]);
+      return { state: "missing", hit_id, reason: "这条内容已被删除" };
+    }
+    if (retention.state !== "active" && retention.state !== "unsupported") return { state: "unavailable", hit_id, reason: "这条内容已归档或当前不可读取" };
     // Set when the reader failed. Whatever the error was (its code, a plugin's plain Error, its wording), that alone does not say the
     // object is gone: a locked document or a version kept only as a file is refused too while the owner still lists it.
     let refusal: string | null = null;
@@ -279,7 +320,12 @@ export class SearchService {
       try {
         const context = await access.client.invoke(nested, referenceOf(reader), { subject_id: hit.id }) as ActionSubjectContext & { open?: { surface: string; id: string } };
         if (context.subject.kind !== hit.kind || context.subject.id !== hit.id) return { state: "unavailable", hit_id, reason: "对象读取结果与搜索结果不一致" };
-        return { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
+        const final = await readSubjectRetention({ ...access, caller: nested }, { project_id: source.project_id, provider_id: source.reference.provider_id,
+          subject: context.subject, expected_revision: indexed?.content_policy === "summary" ? indexed.revision : context.revision, ...(indexed?.retention ? { retention: indexed.retention } : {}) });
+        if (final.state !== "active" && final.state !== "unsupported") return { state: "unavailable", hit_id, reason: "这条内容已变化或当前不可读取" };
+        const result: SearchOpenResponse = { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
+        sourceCurrent();
+        return result;
       } catch (error) {
         refusal = errorText(error);
       }
@@ -291,12 +337,18 @@ export class SearchService {
       if (refusal === null) throw error;
       return { state: "unavailable", hit_id, reason: refusal };
     }
+    if (!entry && retention.state !== "unsupported") return { state: "unavailable", hit_id, reason: "来源当前没有列出这条内容" };
     if (!entry) {
       this.options.index.remove(source.key, [{ kind: hit.kind, object_id: hit.id }]);
       return { state: "missing", hit_id, reason: refusal === null ? "这条内容已被删除" : "这条内容已被删除或归档" };
     }
     if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
-    return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+    const final = await readSubjectRetention({ ...access, caller: nested }, { project_id: source.project_id, provider_id: source.reference.provider_id,
+      subject: entry.subject, expected_revision: entry.revision, ...(indexed?.retention ? { retention: indexed.retention } : {}) });
+    if (final.state !== "active" && final.state !== "unsupported") return { state: "unavailable", hit_id, reason: "这条内容已变化或当前不可读取" };
+    const result: SearchOpenResponse = { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+    sourceCurrent();
+    return result;
   }
 
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
@@ -484,15 +536,17 @@ function searchScope(caller: ActionCallContext, scope: SearchScope | undefined):
 }
 
 
-async function readSearchDocument(source: SourceView, entry: SearchEntry, reader: ActionReference | undefined, owner: SearchAccess, nested: ActionCallContext): Promise<SearchIndexDocument> {
+async function readSearchDocument(source: SourceView, entry: SearchEntry, reader: ActionReference | undefined, owner: SearchAccess, nested: ActionCallContext, views: readonly ActionView[]): Promise<SearchIndexDocument> {
   const base: SearchIndexDocument = { source_key: source.key, kind: entry.subject.kind, object_id: entry.subject.id, project_id: source.project_id, revision: entry.revision,
     title: entry.title, summary: entry.summary, content: "", updated_at: entry.updated_at, open: entry.open ?? defaultOpen(source, entry.subject.kind, entry.subject.id),
-    content_policy: "summary" };
+    content_policy: "summary", content_revision: null,
+    ...(retentionView(views, source.reference.provider_id, entry.subject.kind, source.project_id)
+      ? { retention: { source_identity: actionSourceIdentity(source.view.provider, source.project_id) } } : {}) };
   if (entry.content !== "context" || !reader) return base;
   try {
     const context = await owner.client.invoke(nested, reader, { subject_id: entry.subject.id }) as ActionSubjectContext;
     if (context.subject.kind !== entry.subject.kind || context.subject.id !== entry.subject.id) return base;
-    return { ...base, content: context.content, content_policy: "context" };
+    return { ...base, content: context.content, content_revision: context.revision, content_policy: "context" };
   } catch {
     // Unreadable now (archived, locked): index what the listing allowed; the object stays findable by title.
     return base;
@@ -531,10 +585,24 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
     const live = views.find(view => sameReference(referenceOf(view), source.reference) && (view.provider.project_id ?? null) === (source.view.provider.project_id ?? null));
     if (!live) throw new ActionError("actions.missing", "来源已从当前项目撤下");
     if (!live.availability.available) throw new ActionError(live.availability.code, live.availability.reason);
+    const sourceCurrent = captureSearchSources(owner, [{ source, owner }]);
     const nested = retainActionAuthority(owner.caller, source.reference);
     const list = (cursor: string | null) => owner.client.invoke(nested, source.reference, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as Promise<SearchEntriesPage>;
     let first = await list(null);
-    if (previous?.state === "ready" && !previous.error && previous.collection_revision === first.collection_revision) {
+    const sameBinding = (document: SearchIndexDocument) => {
+      const retention = retentionView(views, source.reference.provider_id, document.kind, source.project_id);
+      return retention ? !!document.retention && sameActionSourceIdentity(document.retention.source_identity, actionSourceIdentity(retention.provider, source.project_id)) : !document.retention;
+    };
+    let hasRetentionBindings = false;
+    const bindingsCurrent = [...index.revisions(source.key).keys()].every(key => {
+      const [kind, id] = key.split("\u0000") as [string, string];
+      const document = index.document(source.key, kind, id);
+      hasRetentionBindings ||= document?.retention != null;
+      return !document || sameBinding(document);
+    });
+    // An unchanged active list cannot say whether an omitted, retained document was truly deleted.
+    // Walk its metadata pages and recheck omissions below; unchanged entries still need no body reads.
+    if (!hasRetentionBindings && bindingsCurrent && previous?.state === "ready" && !previous.error && previous.collection_revision === first.collection_revision) {
       save({ checked_at: startedAt });
       return;
     }
@@ -560,7 +628,10 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
       seen.set(key, entry);
     }
     const known = index.revisions(source.key);
-    const changed = [...seen.values()].filter(entry => known.get(entryKey(entry.subject.kind, entry.subject.id)) !== entry.revision);
+    const changed = [...seen.values()].filter(entry => {
+      const document = index.document(source.key, entry.subject.kind, entry.subject.id);
+      return known.get(entryKey(entry.subject.kind, entry.subject.id)) !== entry.revision || !!document && !sameBinding(document);
+    });
     const readers = new Map<string, ActionReference>();
     for (const view of views) if (isReader(view) && view.availability.available && view.provider.provider_id === source.reference.provider_id) {
       for (const kind of view.action.subject_kinds) if (!readers.has(kind)) readers.set(kind, referenceOf(view));
@@ -568,13 +639,21 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
     for (let at = 0; at < changed.length; at += CONTEXT_BATCH) {
       if (state.isClosed()) throw new ActionError("search.closed", "搜索服务已关闭");
       const batch = changed.slice(at, at + CONTEXT_BATCH);
-      index.upsert(await Promise.all(batch.map(entry => readSearchDocument(source, entry, readers.get(entry.subject.kind), owner, nested))));
+      const documents = await Promise.all(batch.map(entry => readSearchDocument(source, entry, readers.get(entry.subject.kind), owner, nested, views)));
+      sourceCurrent(); index.upsert(documents);
     }
     const removed = [...known.keys()].filter(key => !seen.has(key)).map(key => {
       const [kind, object_id] = key.split("\u0000") as [string, string];
       return { kind, object_id };
     });
-    if (removed.length) index.remove(source.key, removed);
+    const deletions = [];
+    for (const item of removed) {
+      const document = index.document(source.key, item.kind, item.object_id);
+      const retention = await readSubjectRetention({ ...owner, caller: nested }, { project_id: source.project_id, provider_id: source.reference.provider_id,
+        subject: { kind: item.kind, id: item.object_id }, expected_revision: indexedRevision(document), ...(document?.retention ? { retention: document.retention } : {}) }, views);
+      if (retention.state === "unsupported" || retention.state === "deleted") deletions.push(item);
+    }
+    if (deletions.length) { sourceCurrent(); index.remove(source.key, deletions); }
     save({ collection_revision: first.collection_revision, state: "ready", error: null, synced_at: clock(), checked_at: startedAt });
   } catch (error) {
     // Keep what was indexed; removals wait for a complete pass. The next query retries after a pause.

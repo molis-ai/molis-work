@@ -6,7 +6,7 @@ import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-ac
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
 import { bindGoalsManagementActions, refusePayloadIdentity } from "./goal-callers.js";
 import { bindProjectArtifacts } from "./declared-types.js";
@@ -68,10 +68,9 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
   const request = structuredClone(input);
   if (request.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
   refusePayloadIdentity(request, ["audit_actor_id"]);
+  await ensureStandaloneProjectRoot(host, reference);
   return host.withProject(reference, async runtime => {
     if (request.project_id !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
-    // The development project has no catalog to give it a root row, so it is made here; the board is Goals' to make (its start does, or this call).
-    writeProjectRoot(runtime.store.db, runtime.project_id, new Date().toISOString());
     await ensureBoard(host, reference);
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,

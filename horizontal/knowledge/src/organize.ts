@@ -1,4 +1,5 @@
-import type { ActionSubject, SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { setImmediate as yieldToIO } from "node:timers/promises";
+import { ActionError, requireSynchronous, sameActionSourceIdentity, type ActionSourceIdentity, type ActionSubject, type SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_BRIEF_MAX_CHARS,
   KNOWLEDGE_CARD_MAX_KEYWORDS,
@@ -6,17 +7,20 @@ import {
   KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS,
   KNOWLEDGE_TITLE_MAX_CHARS,
   type KnowledgeCardFields,
+  type KnowledgeRetentionIdentity,
   type KnowledgeCardRecord,
   type KnowledgeCardStorePort,
   type KnowledgeEditableField,
   type KnowledgeQuota,
   type KnowledgeSectionNote,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { SEARCH_INDEX_CONTENT_CHARS, type SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
+import { SEARCH_INDEX_CONTENT_CHARS, type SearchIndexPort, type SearchRetentionIdentity, type SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
 import { outlineOf } from "./text.js";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
 export interface KnowledgePiece {
+  retention?: { source_identity: ActionSourceIdentity | null };
+  restoration?: { content_revision: string | null; restoration_operation_id: string };
   subject: ActionSubject;
   source_key: string;
   provider_id: string;
@@ -39,7 +43,7 @@ export function knowledgeCatalog(index: Pick<SearchIndexPort, "documents" | "sou
     const source = sources.get(document.source_key);
     if (!source) return [];
     return [{ subject: { kind: document.kind, id: document.object_id }, source_key: document.source_key, provider_id: source.provider_id, plugin_id: source.plugin_id,
-      plugin_title: source.title, revision: document.revision, title: document.title, summary: document.summary, content: document.content,
+      plugin_title: source.title, revision: document.content_revision ?? document.revision, ...(document.retention ? { retention: document.retention } : {}), title: document.title, summary: document.summary, content: document.content,
       content_policy: document.content_policy, updated_at: document.updated_at, open: document.open }];
   });
 }
@@ -54,7 +58,10 @@ export interface KnowledgeDraftInput { title: string; summary: string; text: str
 /** What the model proposes. Anything outside these bounds is cut; a section anchor the piece does not have is dropped. */
 /** What a model wrote for one piece: only a title and a brief are certain; keywords and section notes may be missing or partial. */
 export interface KnowledgeDraft { title: string; brief: string; keywords?: string[]; sections?: Array<{ anchor?: string; summary?: string }> }
-export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal) => Promise<KnowledgeDraft>;
+export interface KnowledgeWriterControl { beforeDispatch(): Promise<void>; afterResult(): Promise<void>; assertCurrent?(): void }
+export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal, control?: KnowledgeWriterControl) => Promise<KnowledgeDraft>;
+
+type UnboundRetentionClassifier = (identity: SearchRetentionIdentity) => "unsupported" | "unavailable";
 
 export interface KnowledgeOrganizerOptions {
   store: KnowledgeCardStorePort;
@@ -62,6 +69,11 @@ export interface KnowledgeOrganizerOptions {
   catalog(projectId: string): Promise<KnowledgePiece[]>;
   /** The project's text model now; null when there is none, and pending cards wait for one. */
   writer(): KnowledgeWriter | null;
+  retention?(identity: KnowledgeRetentionIdentity): Promise<SearchRetentionResult>;
+  /** Prepare only the caller; classification of unbound pieces reads the current declarations synchronously. */
+  prepareUnboundRetention?(projectId: string): Promise<UnboundRetentionClassifier>;
+  /** Pins the original permission and installation before sending; completion rechecks version without sending again. */
+  authorize?(projectId: string, piece: KnowledgePiece, card: KnowledgeCardRecord): Promise<{ assertCurrent(): void; beforeDispatch(): Promise<void>; current(): Promise<boolean> } | null>;
   /** Organizing allowed per project per day before it stops for the person (spec §12 Q3; numbers to be measured). */
   quota?: { pieces: number; chars: number };
   clock?: () => Date;
@@ -88,17 +100,39 @@ const bare = (piece: KnowledgePiece) => piece.content_policy === "summary" || !p
 
 /** A new card for a piece: a bare piece is listed as its owner describes it; the rest wait for organizing. */
 export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCardRecord {
-  const listed = bare(piece);
+  const listed = bare(piece) || piece.restoration?.content_revision === null || piece.restoration?.content_revision === piece.revision;
   return { project_id: projectId, subject: piece.subject, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
-    content_policy: piece.content_policy, revision: piece.revision, organized_revision: null, state: listed ? "listed" : "pending",
+    ...(piece.retention ? { retention: { ...piece.retention, restoration_operation_id: piece.restoration?.restoration_operation_id ?? null } } : {}),
+    can_organize: !bare(piece), content_policy: piece.content_policy, revision: piece.revision, organized_revision: null, state: listed ? "listed" : "pending",
     title: clip(piece.title, KNOWLEDGE_TITLE_MAX_CHARS), brief: listed ? clip(piece.summary, KNOWLEDGE_BRIEF_MAX_CHARS) : "", keywords: [], outline: [], edited: [], suggestion: null,
     excluded: false, error: null, updated_at: piece.updated_at, organized_at: null, open: piece.open };
 }
 
 /** The card as the catalog lists the piece now: where it is and its revision; its state follows the revision. */
 export function cardSeen(card: KnowledgeCardRecord, piece: KnowledgePiece): KnowledgeCardRecord {
+  // An old card cannot be adopted by a different install, or acquire a binding after the fact.
+  if (card.provider_id !== piece.provider_id || card.source_key !== piece.source_key
+    || (card.retention?.source_identity || piece.retention?.source_identity) && !sameActionSourceIdentity(card.retention?.source_identity, piece.retention?.source_identity) || !!card.retention !== !!piece.retention) return card;
+  if (card.retention && card.content_policy === "context" && piece.content_policy === "summary") return card;
+  const operation = piece.restoration?.restoration_operation_id;
+  const firstRestore = !!operation && card.retention?.restoration_operation_id !== operation;
   const next: KnowledgeCardRecord = { ...card, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
-    content_policy: piece.content_policy, revision: piece.revision, updated_at: piece.updated_at, open: piece.open };
+    ...(card.retention ? { retention: { ...card.retention, restoration_operation_id: operation ?? card.retention.restoration_operation_id } } : {}),
+    can_organize: !bare(piece), content_policy: piece.content_policy, revision: piece.revision, updated_at: piece.updated_at, open: piece.open };
+  if (firstRestore && piece.restoration?.content_revision === null) return { ...next, state: "listed" };
+  if (card.state === "listed" && piece.restoration?.content_revision === null) return { ...next, state: "listed" };
+  if (card.adoption && card.state === "listed") return { ...next, state: "listed" };
+  if (piece.restoration?.content_revision === piece.revision && card.state === "listed" && card.content_policy === "summary"
+    && card.organized_revision === null && card.retention?.restoration_operation_id === operation) return { ...next, state: "listed" };
+  if (firstRestore && piece.restoration?.content_revision === piece.revision) {
+    // An older organized card is not evidence about the archived version. Keep human edits, discard stale derived material.
+    if (card.revision !== piece.revision) return { ...next, state: "listed", organized_revision: null, organized_at: null,
+      title: card.edited.includes("title") ? card.title : clip(piece.title, KNOWLEDGE_TITLE_MAX_CHARS),
+      brief: card.edited.includes("brief") ? card.brief : "", keywords: card.edited.includes("keywords") ? card.keywords : [],
+      outline: [], suggestion: null, error: null };
+    return { ...next, state: card.state === "pending" || card.state === "missing" ? "listed" : card.state };
+  }
+  if (card.state === "listed" && card.retention?.restoration_operation_id && card.revision === piece.revision && card.content_policy === piece.content_policy) return next;
   if (bare(piece)) {
     // Nothing of its text was organized: the owner's own title and summary, unless the person wrote their own.
     const own = { title: clip(piece.title, KNOWLEDGE_TITLE_MAX_CHARS), brief: clip(piece.summary, KNOWLEDGE_BRIEF_MAX_CHARS) };
@@ -187,14 +221,48 @@ export class KnowledgeOrganizer {
     const store = this.options.store;
     const pieces = await this.options.catalog(projectId);
     if (this.closed || this.removed.has(projectId)) return;
+    let unbound: UnboundRetentionClassifier | undefined;
+    try { unbound = await this.options.prepareUnboundRetention?.(projectId); }
+    catch { return; }
+    if (this.closed || this.removed.has(projectId)) return;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
-    for (const piece of pieces) {
-      const card = cards.get(keyOf(piece.subject));
-      cards.delete(keyOf(piece.subject));
+    for (const candidate of pieces) {
+      const observed = cards.get(keyOf(candidate.subject));
+      cards.delete(keyOf(candidate.subject));
+      await yieldToIO();
+      if (this.closed || this.removed.has(projectId)) return;
+      const card = store.get(projectId, candidate.subject) ?? undefined;
+      if (!sameFields(observed, card)) continue;
+      const target = card ?? candidate;
+      let state: SearchRetentionResult;
+      if (unbound && target.retention === undefined && !("adoption" in target && target.adoption)) state = this.unboundRetention(projectId, target, unbound);
+      else {
+        state = await this.retention(projectId, { ...target, revision: candidate.revision });
+        if (this.closed || this.removed.has(projectId)) return;
+        if (!sameFields(card, store.get(projectId, candidate.subject) ?? undefined)) continue;
+      }
+      if (state.state !== "unsupported" && state.state !== "active") {
+        if (state.state === "deleted") store.remove(projectId, candidate.subject);
+        continue;
+      }
+      const piece = state.state === "active" && state.retained ? { ...candidate, restoration: state.retained } : candidate;
       const next = card ? cardSeen(card, piece) : cardFor(projectId, piece);
       if (!card || !sameFields(card, next)) store.put(next);
     }
-    for (const card of cards.values()) {
+    for (const observed of cards.values()) {
+      await yieldToIO();
+      if (this.closed || this.removed.has(projectId)) return;
+      const card = store.get(projectId, observed.subject);
+      if (!card || !sameFields(observed, card)) continue;
+      let state: SearchRetentionResult;
+      if (unbound && card.retention === undefined && !card.adoption) state = this.unboundRetention(projectId, card, unbound);
+      else {
+        state = await this.retention(projectId, card);
+        if (this.closed || this.removed.has(projectId)) return;
+        if (!sameFields(card, store.get(projectId, card.subject))) continue;
+      }
+      if (state.state === "deleted") { store.remove(projectId, card.subject); continue; }
+      if (state.state !== "unsupported") continue;
       if (card.edited.length || card.excluded) { if (card.state !== "missing") store.put({ ...card, state: "missing" }); }
       else store.remove(projectId, card.subject);
     }
@@ -211,7 +279,7 @@ export class KnowledgeOrganizer {
     const named = subjects?.length ? new Set(subjects.map(keyOf)) : null;
     let queued = 0;
     for (const card of store.list(projectId)) {
-      if (card.state === "listed" || card.state === "missing" || card.excluded) continue;
+      if ((card.state === "listed" && !(named && card.can_organize)) || card.state === "missing" || card.excluded) continue;
       if (named ? !named.has(keyOf(card.subject)) : card.state !== "failed" && card.state !== "over_quota") continue;
       store.put({ ...card, state: "pending", organized_revision: named ? null : card.organized_revision, error: null });
       queued += 1;
@@ -241,6 +309,20 @@ export class KnowledgeOrganizer {
     await Promise.allSettled([...this.running.values()]);
   }
 
+  private retention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord): Promise<SearchRetentionResult> {
+    return this.options.retention?.({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject, expected_revision: piece.revision,
+      ...(piece.retention ? { retention: piece.retention } : {}),
+      ...("adoption" in piece && piece.adoption ? { adoption: piece.adoption } : {}) }) ?? Promise.resolve({ state: piece.retention || "adoption" in piece && piece.adoption ? "unavailable" : "unsupported" });
+  }
+
+  private unboundRetention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord,
+    classify: UnboundRetentionClassifier): SearchRetentionResult {
+    try {
+      const state = requireSynchronous(classify({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject }));
+      return { state: state === "unsupported" ? "unsupported" : "unavailable" };
+    } catch { return { state: "unavailable" }; }
+  }
+
   private async organizePending(projectId: string, signal: AbortSignal): Promise<void> {
     const writer = this.options.writer();
     if (!writer) return;
@@ -249,8 +331,27 @@ export class KnowledgeOrganizer {
       if (signal.aborted) return;
       const piece = (await this.options.catalog(projectId)).find(item => keyOf(item.subject) === keyOf(queued.subject));
       if (signal.aborted) return;
-      const waiting = this.options.store.get(projectId, queued.subject);
+      let waiting = this.options.store.get(projectId, queued.subject);
       if (!waiting || waiting.excluded || waiting.state !== "pending" || !piece || piece.revision !== waiting.revision || bare(piece)) continue;
+      const state = await this.retention(projectId, waiting);
+      if (state.state !== "active" && state.state !== "unsupported") continue;
+      if (state.state === "active" && state.retained) {
+        const reconciled = cardSeen(waiting, { ...piece, restoration: state.retained });
+        if (!sameFields(waiting, reconciled)) this.options.store.put(reconciled);
+        waiting = reconciled;
+        if (waiting.state !== "pending") continue;
+      }
+      const authorized = await this.options.authorize?.(projectId, piece, waiting);
+      if (this.options.authorize && !authorized) continue;
+      const original = waiting;
+      const matchesCard = (now: KnowledgeCardRecord | null): now is KnowledgeCardRecord => !!now && now.revision === original.revision && now.state === "pending"
+        && !now.excluded && now.provider_id === original.provider_id && now.source_key === original.source_key && now.content_policy === original.content_policy
+        && sameFields(now.edited, original.edited) && now.title === original.title && now.brief === original.brief
+        && sameFields(now.keywords, original.keywords) && sameFields(now.retention, original.retention);
+      const assertCardCurrent = () => {
+        if (!matchesCard(this.options.store.get(projectId, original.subject))) throw new ActionError("actions.subject_unavailable", "资料卡片已被排除、编辑或替换，不能继续使用原材料");
+      };
+      const assertCurrent = () => { authorized?.assertCurrent(); assertCardCurrent(); };
       const input = draftInput(piece);
       const quota = this.quota(projectId);
       if (quota.used_pieces + 1 > quota.limit_pieces || quota.used_chars + input.text.length > quota.limit_chars) {
@@ -258,14 +359,24 @@ export class KnowledgeOrganizer {
         for (const card of this.options.store.list(projectId)) if (card.state === "pending" && !card.excluded) this.options.store.put({ ...card, state: "over_quota" });
         return;
       }
-      this.options.store.addUsage(projectId, this.day(), { pieces: 1, chars: input.text.length });
-      const outcome = await writer(input, signal).then(draft => ({ draft }), (error: unknown) => ({ error }));
+      const usageDay = this.day();
+      assertCurrent();
+      this.options.store.addUsage(projectId, usageDay, { pieces: 1, chars: input.text.length });
+      const control = authorized ? { beforeDispatch: async () => { await authorized.beforeDispatch(); assertCurrent(); }, assertCurrent, afterResult: async () => {
+        if (!await authorized.current()) throw new Error("资料的原授权或正文已经变化");
+        assertCurrent();
+      } } : undefined;
+      const outcome = await writer(input, signal, control).then(draft => ({ draft }), (error: unknown) => ({ error }));
       if (signal.aborted) return;
       // The piece may have changed, or the person queued it again, while the model wrote: then this draft is for nothing.
+      if (authorized && !await authorized.current()) continue;
       const now = this.options.store.get(projectId, waiting.subject);
-      if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
-      this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
-        : { ...now, state: "failed", error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) });
+      if (!matchesCard(now)) continue;
+      const updated = "draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
+        : { ...now, state: "failed" as const, error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) };
+      assertCurrent();
+      if (!sameFields(now, this.options.store.get(projectId, waiting.subject))) continue;
+      this.options.store.put(updated);
     }
   }
 

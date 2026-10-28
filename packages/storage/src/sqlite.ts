@@ -1,5 +1,10 @@
 import Database from "better-sqlite3";
 export type SqliteDatabase = Database.Database;
+
+/** Existing-only maintenance handle. The caller must retain it for close before configuring or validating it. */
+export function openExistingSqliteConnection(filename: string, options: { readonly readonly: boolean }): SqliteDatabase {
+  return new Database(filename, { fileMustExist: true, readonly: options.readonly, timeout: 5000 });
+}
 type Row = Record<string, unknown>;
 
 function json(value: unknown): string {

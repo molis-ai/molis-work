@@ -163,7 +163,7 @@ export function registerAgentHostCapabilities<Context>(
             return status;
           }
           const view = await readScopedSession(context, session);
-          return { session_id, latest_phase: view.latest_run?.phase ?? null, recovery: Boolean(view.recovery), checkpoint_busy: view.checkpoint_busy === true };
+          return { session_id, latest_phase: view.latest_run?.phase ?? null, latest_run_id: view.latest_run?.ref.run_id ?? null, recovery: Boolean(view.recovery), checkpoint_busy: view.checkpoint_busy === true };
         } catch (error) {
           return { session_id, error: error instanceof Error ? error.message : "会话暂不可读" };
         }
@@ -184,7 +184,7 @@ export function registerAgentHostCapabilities<Context>(
     ...registerMessageActions(register, calls),
     // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions), and the person's after-write checkers (write-checker-actions).
     ...registerSessionActions(register, { pluginFor, originalInput: call => owners.originalInput?.(call.source, pluginFor(call)), adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun,
-      ownsSession: (call, session) => readScopedSession(call, session).then(() => true, () => false), actions: async (call, runtimeId, session) => { const authority = await ports.authority(call); return authority.actions ? authority.actions(runtimeId, undefined, session) : undefined; } }),
+      ownsSession: (call, session) => readScopedSession(call, session).then(() => true, () => false), actions: async (call, runtimeId, session, memory) => { const authority = await ports.authority(call); return authority.actions ? authority.actions(runtimeId, undefined, session, memory) : undefined; } }),
     ...registerWriteCheckerActions(register, { pluginFor, projectId: ports.projectId, writeCheckers: call => owners.writeCheckers?.(call.source) ?? Promise.reject(agentErrors.capability_unavailable("宿主没有接通写后检查器")) }),
     ...registerRecoveryActions(register, calls),
   ];
@@ -198,5 +198,6 @@ function invocationAuthority(authority: AgentStartAuthority, invocation: HostCap
     beforeStart: async () => { await authority.beforeStart?.(); await invocation.beforeEffect(); },
     assertBeforeStart: () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); invocation.assertAuthorityCurrent(); },
     beforeDispatch: async () => { caller?.assertActive(); await authority.beforeDispatch?.(); caller?.assertActive(); },
+    assertBeforeDispatch: () => { caller?.assertActive(); requireSynchronous(authority.assertBeforeDispatch?.(), "派出前的最终检查必须同步完成"); caller?.assertActive(); },
   };
 }

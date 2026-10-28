@@ -21,6 +21,8 @@ import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js"
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
+import { createSessionLifecycle } from "./prologue-session-lifecycle.js";
+import { cleanupSession } from "./prologue-session-cleanup.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
@@ -35,6 +37,7 @@ export const SUBAGENT_DEFAULT_TURNS = 20;
 export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>) {
   return createRuntime({
     app: options.app,
+    ...(options.audit ? { audit: options.audit } : {}),
     host,
     memoryAuthority: memoryAccess.authority,
     ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
@@ -57,7 +60,7 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
     // at a time; a step waits up to a week, like a request.
     // One intake batch holds the 50 originals one call may send (Prologue's default is 30; images from one folder are one batch).
-    config: { ...(options.memory ? { memory: options.memory.policy } : {}), delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { maxDeadlineMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 32, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}),
+    config: { ...(options.memory ? { memory: { ...options.memory.policy, ...(options.memory.modelOrigin === undefined ? {} : { modelOrigin: options.memory.modelOrigin }), ...(options.memory.readCache ? { readCache: options.memory.readCache } : {}) } } : {}), delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { maxDeadlineMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 32, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}),
       ...(options.referenceKinds?.length && options.questionTypes?.includes("reference") ? { askUserReferenceKinds: options.referenceKinds } : {}) }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 }, intake: { maxItemsPerBatch: 50, maxItemBytes: 32 * 1024 * 1024, maxBatchBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
@@ -113,6 +116,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
 }
 
 interface PortDeps extends RunDeps {
+  readonly checks: { forgetSession(sessionId: string): void };
   readonly host: NodeHost;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
@@ -183,6 +187,7 @@ function projectWorkPort(deps: PortDeps): NonNullable<PrologueRuntimePort["proje
 /** A command's receipt, read back from the exact resource the runtime published for it; anything inconsistent is refused. */
 function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["readCommandOutput"]> {
   return async (sessionId, ref) => {
+    const current = deps.index.capture(sessionId);
     const { runtime, state } = deps;
     const index = await deps.index.read(sessionId);
     if (!index) throw new Error("会话执行索引不可用");
@@ -201,6 +206,7 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
     if (matches.length !== 1) throw new Error(matches.length ? "命令引用对应多次执行，请指定轮次" : "没有这次命令的持久回执；结果未知，不能当作成功或自动重跑");
     const { event, runId, root } = matches[0]!;
     const record = await readResource(runtime, event.receiptRef);
+    current();
     const receipt = record.receipt;
     if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
       || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
@@ -218,7 +224,18 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
 /** Sessions: created with their Host index, restored with their runs, read for their status only. */
 function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   return {
-    create: (input, execution) => deps.effects.start(execution, async () => {
+    capture: deps.index.capture,
+    assertReadable: async id => { if (!await deps.index.read(id)) throw agentErrors.session_unknown("找不到这条会话"); },
+    lifecycle: createSessionLifecycle({ runtime: deps.runtime, index: deps.index, effects: deps.effects,
+      checkpointBusy: session => deps.checkpoints?.busy?.(session) ?? false,
+      // Lifecycle already binds the owner; the general project's projection would re-enter this Session's Index lane.
+      backgroundBusy: async id => deps.runtime.background.list({ session: id }).some(task => task.state === "running" || task.state === "interrupted"),
+      cleanup: async (id, owner, purge, runIds) => {
+        await cleanupSession(deps, id, runIds);
+        deps.effects.assertCurrent();
+        if (purge) deps.approvals?.forget(deps.options.reviewQueue?.forgetSession({ ...owner, session_id: id }) ?? []);
+      } }),
+    create: (input, execution) => deps.index.creating(input.project_id, current => deps.effects.start(execution, () => deps.effects.admit(current, async () => {
       const session = await deps.runtime.sessions.create();
       try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
         owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
@@ -231,15 +248,17 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
       }
       deps.state.sessions.set(session.ref.id, session.ref);
       return session;
-    }),
+    }))),
     restore: id => deps.recovery.restore(id),
     originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
     readOriginalInput: ref => readOriginalInput(deps.index, ref),
     async locateInput(sessionId, inputId) {
+      const current = deps.index.capture(sessionId);
       const index = await deps.index.read(sessionId);
       if (!index) return undefined;
       const session = await deps.runtime.sessions.open(index.ref);
       const found = await session?.locateInput(inputId);
+      current();
       if (!found) return undefined;
       if (found.state === "queued") return { state: "queued", input: queuedInput(found.input) };
       return found.state === "withdrawn" ? { state: "withdrawn" }
@@ -287,7 +306,8 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
     queue: {
-      add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),
+      add: (sessionId, input) => deps.index.starting(sessionId, current => deps.effects.admit(current, async () =>
+        (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input))),
       withdraw: async (sessionId, inputId) => (await openSession(sessionId, "这条会话读不到，撤不回排着的补充")).withdrawQueuedInput(inputId),
     },
     background: deps.waitsPort.background,
@@ -307,7 +327,8 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     inlineMethods: true,
     imageAttachments: true,
     compaction: true,
-    ...(deps.checkpoints ? { checkpoints: deps.checkpoints } : {}),
+    ...(deps.checkpoints ? { checkpoints: { ...deps.checkpoints,
+      prepareRewind: (session, checkpointId) => deps.index.starting(session.session_id, current => deps.effects.admit(current, () => deps.checkpoints!.prepareRewind(session, checkpointId))) } } : {}),
     async saveRunTiming(run, timing) {
       await deps.index.update(run.session_id, index => {
         const attempt = index.attempts.find(item => item.run_id === run.run_id);
@@ -333,7 +354,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     },
     readCommandOutput: readCommandOutput(deps),
     sessions: sessionsPort(deps),
-    startAgentRun: input => startPrologueRun(deps, input),
+    startAgentRun: input => deps.index.starting(input.session_id, current => deps.effects.admit(current, () => startPrologueRun(deps, input))),
     shutdown: deps.shutdown,
   };
 }

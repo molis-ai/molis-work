@@ -131,9 +131,11 @@ export interface AgentStartAuthority {
   assertBeforeStart?(): void;
   /** Recheck installation/material authority at real dispatch, without retaining a completed invocation. */
   beforeDispatch?(): void | Promise<void>;
+  /** Read-only current-source denial in the final synchronous segment of every model send. */
+  assertBeforeDispatch?(): void;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef): Promise<AgentActionClient>;
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, memory?: Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "class_restrictions" | "current_scene"> | null): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -318,7 +320,7 @@ export class AgentHost implements AgentHostApi {
     const session = await adapter.readSession(request.session);
     checkStartSession(session, request, runtimeId, workspace);
     const { character, hostTools } = selectStartCharacter(role, request, authority);
-    const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch } = startGuards(authority, character, request);
+    const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch } = startGuards(authority, character, request);
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw agentErrors.role_execution_exceeded("当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
     }
@@ -338,7 +340,9 @@ export class AgentHost implements AgentHostApi {
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
     assertMaySuggest(hostTools, execution);
-    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution };
+    // Capture one recipe before binding Action tools; failed preparation grants no Memory access.
+    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
+    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, memory };
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));
@@ -347,8 +351,6 @@ export class AgentHost implements AgentHostApi {
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
     const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
-    // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
-    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     await beforeStart(); assertBeforeStart();
     const handle = await adapter.start({
       ...request,
@@ -372,7 +374,7 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);
@@ -384,5 +386,11 @@ export class AgentHost implements AgentHostApi {
 export { PrologueInferenceError, inferenceServiceUnavailableReason, isDispatchRefusal } from "./inference.js";
 export { reportedTokenTotal, decodePrologueJsonOutput } from "./inference.js";
 export type { PrologueCredentialInput, PrologueTextInput, PrologueInputImage, PrologueTextResult, PrologueExecutionReceipt, PrologueRunRef, PrologueStructuredRequest, PrologueTextProgress, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";
-export { openPrologueMemoryAdoption, type PrologueMemoryAdoptionInput, type PrologueMemoryAdoptionBridge, type PrologueMemoryAdoptionScope } from "./adapters/prologue-memory-adoption.js";
+export { openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionInput, type PrologueMemoryAdoptionBridge, type PrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionScope } from "./adapters/prologue-memory-adoption.js";
+export type { PrologueSessionIndexFact, PrologueSessionIndexPage } from "./adapters/prologue-session-index-reader.js";
 export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority.js";
+
+export type { PrologueProjectDeletion, ProjectSessionDeletionPlan } from "./adapters/prologue-project-deletion.js";
+
+export type { PrologueSessionPurgeTarget } from "./adapters/prologue-session-purge.js";
+export type { SessionPurgePreparationInput, SessionPurgeVerificationInput } from "./adapters/prologue-project-session-cold.js";

@@ -247,7 +247,12 @@ export interface FixedVersionCommandApi<R extends FixedVersionRecord, I extends 
   archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R>;
 }
 
-export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord>;
+/** Owner metadata for one exact fixed version; no payload or content reference crosses this port. */
+export type ArtifactVersionMetadata = Pick<ArtifactVersionRecord,
+  "project_id" | "artifact_id" | "version" | "artifact_type_id" | "content_digest" | "availability" | "lifecycle_state" | "content_kind"> & { has_payload: boolean };
+export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord> & {
+  getArtifactVersionMetadata(projectId: string, reference: ArtifactReference): ArtifactVersionMetadata | null;
+};
 export type ArtifactsCommandApi = FixedVersionCommandApi<ArtifactVersionRecord, RegisterArtifactVersionInput>;
 
 export interface ArtifactsApplicationApi {

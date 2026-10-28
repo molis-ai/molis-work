@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeStores, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -240,6 +240,82 @@ test("MEM-42 one discovery reads and validates the current Home plugin library o
   assert.equal(connections.size, 1);
   for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "the read retains no connection");
   assert.deepEqual(filesAt(f.home), before, "discovery changes no files, agreements or installation records");
+});
+
+test("MEM-HOME-EXPECTED-01 repeated public reads reuse only the declared expectation and validate each real connection", async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const baseline = homeStores().get("plugin-runtime")!.library!.baseline, original = baseline.schema;
+  // The public declaration is the same object; a harmless SQL comment forces a new declaration value without changing the real schema.
+  const schema = original + "\n-- expected-schema repeated-read fixture\n";
+  const file = db.location(), before = filesAt(f.home), connections = new Set<DatabaseSync>();
+  let compiled = 0, versions = 0, structures = 0;
+  const exec = DatabaseSync.prototype.exec, prepare = DatabaseSync.prototype.prepare;
+  const compilation = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    if (this.location() === null && sql === schema) compiled++;
+    return exec.call(this, sql);
+  });
+  const validation = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    if (this.location() === file) {
+      if (sql === "PRAGMA user_version") { versions++; connections.add(this); }
+      if (sql.startsWith("SELECT name, sql FROM sqlite_master WHERE type = 'table'")) structures++;
+    }
+    return prepare.call(this, sql);
+  });
+  const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);
+  const pluginId = manifestId("goals"), action = { provider: { provider_id: pluginId, plugin_id: pluginId, title: "Goals", kind: "plugin" as const } };
+  try {
+    Reflect.set(baseline, "schema", schema);
+    for (let read = 1; read <= 2; read++) {
+      assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, true);
+      assert.equal(versions, read, "each public read checks the actual database version");
+      assert.equal(structures, read, "each public read describes the complete actual schema");
+      assert.equal(connections.size, read, "a later read opens its own current connection");
+    }
+  } finally { Reflect.set(baseline, "schema", original); compilation.mock.restore(); validation.mock.restore(); }
+  for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u);
+  assert.deepEqual(filesAt(f.home), before, "real files and authorization records are unchanged");
+  assert.equal(compiled, 1, "unchanged declaration SQL is executed in the expected in-memory database only once");
+});
+
+test("MEM-HOME-EXPECTED-02 changed public declaration values and failed compilation cannot borrow an earlier expectation", async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const baseline = homeStores().get("plugin-runtime")!.library!.baseline, original = { schema: baseline.schema, version: baseline.version };
+  const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);
+  const pluginId = manifestId("goals"), action = { provider: { provider_id: pluginId, plugin_id: pluginId, title: "Goals", kind: "plugin" as const } };
+  const read = async () => assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, true);
+  const invalid = original.schema + "\nTHIS IS NOT SQL;", exec = DatabaseSync.prototype.exec;
+  let failedCompilations = 0, successfulCompilations = 0;
+  const observation = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    if (this.location() === null && sql === invalid) failedCompilations++;
+    const result = exec.call(this, sql);
+    if (this.location() === null && sql === original.schema) successfulCompilations++;
+    return result;
+  });
+  try {
+    await read();
+    Reflect.set(baseline, "schema", original.schema + "\nCREATE TABLE changed_expectation (id TEXT PRIMARY KEY);\n");
+    await assert.rejects(policy.snapshotForDiscovery(caller), { code: "actions.execution_failed" }, "same object with different SQL must reject the old on-disk shape");
+    Reflect.set(baseline, "schema", original.schema); await read();
+    Reflect.set(baseline, "schema", invalid);
+    await assert.rejects(policy.snapshotForDiscovery(caller), { code: "ERR_SQLITE_ERROR" });
+    await assert.rejects(policy.snapshotForDiscovery(caller), { code: "ERR_SQLITE_ERROR" });
+    assert.equal(failedCompilations, 2, "failed compilation is attempted again, never retained as a result");
+    Reflect.set(baseline, "schema", original.schema); await read();
+    Reflect.set(baseline, "version", original.version + 1);
+    await assert.rejects(policy.snapshotForDiscovery(caller), { code: "storage.schema_version_mismatch" });
+    db.exec(`PRAGMA user_version = ${original.version + 1}`);
+    const before = successfulCompilations;
+    await read();
+    assert.equal(successfulCompilations, before + 1, "a changed declaration version is not an identity-cache hit");
+  } finally {
+    Reflect.set(baseline, "schema", original.schema); Reflect.set(baseline, "version", original.version);
+    db.exec(`PRAGMA user_version = ${original.version}`); observation.mock.restore();
+  }
+  await read();
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE name = 'changed_expectation'").get()!.count, 0, "declaration changes never create or repair real schema");
+  assert.deepEqual(db.prepare("SELECT * FROM plugin_consents").all(), [], "queries never write agreements");
 });
 
 for (const corruption of ["version", "structure"] as const) test(`MEM-42 later discovery and live reads see consent changes and refuse ${corruption} damage before missing-project fallback`, async t => {

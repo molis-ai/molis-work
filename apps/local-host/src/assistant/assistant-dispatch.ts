@@ -1,10 +1,11 @@
+import type { AssistantWorkLifecycle } from "./assistant-work-lifecycle.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
-import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
+import { type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { L } from "../web-locale.js";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { agentActions } from "./assistant-directory.js";
@@ -32,7 +33,7 @@ const MAX_ACTION_TOOLS = 1000;
 /** How many of a work's objects, and how much of each, travel to the executor when the work is handed over. */
 const HANDOVER_OBJECTS = 3, HANDOVER_OBJECT_CHARS = 6000;
 
-export type AssistantDispatchLinks = Pick<AssistantWorkReads, "assistantPart" | "workObjects" | "stateSafely" | "publicWork"> & Pick<AssistantRoundMaterials, "readSubject" | "roundMaterials"> & Pick<AssistantBudget, "assertBudget" | "workUsage"> & Pick<AssistantMemoryBridge, "memoryForRound"> & Pick<AssistantNotices, "notice"> & { read(workId: string): Promise<AssistantWorkView>; continuations: Pick<AssistantContinuations, "withdraw" | "watch">; delegations: Pick<AssistantDelegations, "startPlaced"> };
+export type AssistantDispatchLinks = Pick<AssistantWorkReads, "assistantPart" | "workObjects" | "stateSafely" | "publicWork"> & Pick<AssistantRoundMaterials, "readSubject" | "roundMaterials"> & Pick<AssistantBudget, "assertBudget" | "workUsage"> & Pick<AssistantMemoryBridge, "memoryForRound"> & Pick<AssistantNotices, "notice"> & { read(workId: string): Promise<AssistantWorkView>; lifecycle: Pick<AssistantWorkLifecycle, "assertStart" | "bindSession">; continuations: Pick<AssistantContinuations, "withdraw" | "watch">; delegations: Pick<AssistantDelegations, "startPlaced"> };
 
 /**
  * Who runs a work's rounds and how one starts: the Assistant's own round, or the executor plugin's session it is
@@ -138,7 +139,8 @@ export class AssistantDispatch {
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
-    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
+    const current = () => { assertSendCurrent(stillCurrent); this.link.lifecycle.assertStart(work); };
+    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: dispatchControl(current) });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
     if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
@@ -166,19 +168,25 @@ export class AssistantDispatch {
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
-    const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
-      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent);
+    let checkMaterials: RoundMaterials["beforeDispatch"];
+    let assertMaterials: RoundMaterials["assertCurrent"];
+    const startAuthority = () => ({ ...base, beforeDispatch: async () => {
+      await base.beforeDispatch?.();
+      if (checkMaterials) await checkMaterials(base.actions ? await (await base.actions(RUNTIME)).discover() : []);
+    }, assertBeforeDispatch: () => {
+      requireSynchronous(base.assertBeforeDispatch?.(), "发送前最终授权检查必须同步完成");
+      requireSynchronous(assertMaterials?.(), "发送前资料复核必须同步完成");
+    }, beforeStart: async () => {
+      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); this.link.lifecycle.assertStart(work);
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
-      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
-    } } : base), original_input });
+      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); this.link.lifecycle.assertStart(work);
+    }, original_input });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
-      const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
-        actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
-      work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
-      // Action ownership includes the newly created session, also on the very first round.
+      work = await this.link.lifecycle.bindSession(host, work, { title: work.title, workspace: "business", role_id: role }, authority, () => assertSendCurrent(stillCurrent));
+      // Action ownership includes the newly bound session; later preparation is fenced without holding the binding gap.
       base = await this.ports.authority(work); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
@@ -212,6 +220,8 @@ export class AssistantDispatch {
     try {
       if (!work.reply_target) await this.link.memoryForRound(work, text, context);
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
+      checkMaterials = prepared.beforeDispatch;
+      assertMaterials = prepared.assertCurrent;
       handle = await this.link.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
         return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);

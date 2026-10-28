@@ -1,8 +1,43 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference } from "./actions.js";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionProvider } from "./actions.js";
 
 export const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 export const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
+export const SUBJECT_RETENTION_REQUEST_TYPE = "molis.subject-retention-request.v1";
+export const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v3";
+/** Trusted owner identity; the caller's project scopes a project-data instance. */
+export type ActionSourceIdentity =
+  | { readonly kind: "plugin-installation"; readonly generation: string }
+  | { readonly kind: "project-data"; readonly data_instance_id: string };
+export const ACTION_SOURCE_IDENTITY_SCHEMA = { oneOf: [
+  { type: "object", properties: { kind: { const: "plugin-installation" }, generation: { type: "string", minLength: 1 } }, required: ["kind", "generation"], additionalProperties: false },
+  { type: "object", properties: { kind: { const: "project-data" }, data_instance_id: { type: "string", minLength: 1 } }, required: ["kind", "data_instance_id"], additionalProperties: false },
+] };
+/** Only trusted registration metadata can identify an owner; a project instance is never a plugin install. */
+export function actionSourceIdentity(provider: ActionProvider, projectId: string | null): ActionSourceIdentity | null {
+  if (provider.project_id != null && provider.project_id !== projectId) return null;
+  if (provider.kind === "plugin" && provider.plugin_installation_generation && !provider.project_data_instance_id)
+    return { kind: "plugin-installation", generation: provider.plugin_installation_generation };
+  if (provider.kind === "system" && projectId && provider.project_id === projectId && provider.project_data_instance_id
+    && !provider.plugin_installation_generation && !provider.plugin_install_id && !provider.plugin_id)
+    return { kind: "project-data", data_instance_id: provider.project_data_instance_id };
+  return null;
+}
+/** Unknown identity cannot prove continuity. */
+export function sameActionSourceIdentity(left: ActionSourceIdentity | null | undefined, right: ActionSourceIdentity | null | undefined): boolean {
+  if (!left || !right || left.kind !== right.kind) return false;
+  return left.kind === "plugin-installation" ? right.kind === "plugin-installation" && left.generation === right.generation
+    : right.kind === "project-data" && left.data_instance_id === right.data_instance_id;
+}
 export interface ActionSubject { kind: string; id: string }
+export interface SubjectRetentionRequest { readonly subject_id: string }
+/** The owner supplies lifecycle and current revision facts. Identity comes from trusted provider metadata. */
+export type ActionSubjectRetention = {
+  readonly subject: ActionSubject;
+} & (
+  | { readonly state: "active"; readonly current_revision: string | null; readonly retained: { readonly content_revision: string | null; readonly restoration_operation_id: string } | null }
+  | { readonly state: "temporarily_archived"; readonly retained: { readonly content_revision: string | null; readonly restoration_operation_id: null } }
+  | { readonly state: "deleted"; readonly retained: null }
+);
 export interface ActionSubjectContext {
   subject: ActionSubject;
   revision: string;
@@ -31,6 +66,18 @@ export interface SubjectContextRequest { subject_id: string; offset?: number }
 const id = { type: "string", minLength: 1 };
 const position = { type: "integer", minimum: 0 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
+export const SUBJECT_RETENTION_INPUT_SCHEMA = { type: "object", properties: { subject_id: id }, required: ["subject_id"], additionalProperties: false };
+const retainedContent = { type: "object", properties: { content_revision: { anyOf: [id, { type: "null" }] }, restoration_operation_id: id },
+  required: ["content_revision", "restoration_operation_id"], additionalProperties: false };
+export const SUBJECT_RETENTION_OUTPUT_SCHEMA = { oneOf: [
+  { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, state: { const: "active" }, current_revision: { anyOf: [id, { type: "null" }] }, retained: { anyOf: [retainedContent, { type: "null" }] } },
+    required: ["subject", "state", "current_revision", "retained"], additionalProperties: false },
+  { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, state: { const: "temporarily_archived" },
+    retained: { ...retainedContent, properties: { content_revision: { anyOf: [id, { type: "null" }] }, restoration_operation_id: { type: "null" } } } },
+    required: ["subject", "state", "retained"], additionalProperties: false },
+  { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, state: { const: "deleted" }, retained: { type: "null" } },
+    required: ["subject", "state", "retained"], additionalProperties: false },
+] };
 export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false };
 const required = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
   truncated: { type: "boolean" } };
@@ -97,7 +144,7 @@ export function isSubjectReader(action: Pick<ActionDefinition["action"], "input_
 }
 /** Protocol discovery confers no authority; invocation keeps the original caller and exact provider. */
 export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {
-  const matches = (await client.discover(caller)).filter(view => view.action.input_type === SUBJECT_REFERENCE_TYPE
+  const matches = (await client.discover(caller, { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, subject_kind: subject.kind })).filter(view => view.action.input_type === SUBJECT_REFERENCE_TYPE
     && view.action.output_type === SUBJECT_CONTEXT_TYPE && view.action.subject_kinds.includes(subject.kind));
   const available = matches.filter(view => view.availability.available);
   if (available.length > 1) throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");

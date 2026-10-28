@@ -49,7 +49,7 @@
 
 | 编号 | 事项 | 来源 | 为什么还没做 | 优先级 |
 | --- | --- | --- | --- | --- |
-| BL-020 | Coding 下一阶段 Q2–Q8 剩余决定：命令自动批准模式、用户钩子审批、长期记忆是否逐条确认、语言服务器是否自动下载、多模型对比上限与语音服务、GitHub 账号与推送范围、是否做 VS Code 扩展 | [coding-plugin/next-requirements.md §4](coding-plugin/next-requirements.md) | 2026-10-28 已定公开网页搜索/读取默认允许、项目或本次任务可关闭，其他操作按对应授权；搜索作为平台公共能力、复用已连接服务及统一默认来源已定，Coding 不单独配置；Q2 的默认受限执行、项目目录统一及长期规则由 AI 提出／用户同意保存已定，当前已有授权直接继续；开发任务所需公开依赖可自动下载并遵守联网限制，其他操作按对应授权，自动批准模式等其余事项仍待拍板，未实施 | 中 |
+| BL-020 | Coding 下一阶段 Q3–Q8 剩余决定：用户钩子审批、长期记忆是否逐条确认、语言服务器是否自动下载、多模型对比上限与语音服务、GitHub 账号与推送范围、是否做 VS Code 扩展 | [coding-plugin/next-requirements.md §4](coding-plugin/next-requirements.md) | 2026-10-28 已定公开网页搜索/读取默认允许、项目或本次任务可关闭，其他操作按对应授权；搜索作为平台公共能力、复用已连接服务及统一默认来源已定，Coding 不单独配置；Q2 的默认受限执行、项目目录统一及长期规则由 AI 提出／用户同意保存已定，当前已有授权直接继续；开发任务所需公开依赖可自动下载并遵守联网限制，其他操作按对应授权，可选 AI 低风险自动审批已定，Q1/Q2 决定完成，Q3～Q8 仍待拍板，未实施 | 中 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
 

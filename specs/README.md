@@ -4,7 +4,7 @@
 
 ## 在做的
 
-- [sessions-rebuild](sessions-rebuild/spec.md)：Sessions 按平台能力重做，覆盖国内外主流 AI 开发工具的冷启动导入、持续了解进展，以及恢复／消息／交接；2026-10-28 三类场景与厂商范围已定，交互与技术方案待细化，尚未实现或验收。需求维护 Codex，实现待分配。
+- [sessions-rebuild](sessions-rebuild/spec.md)：Sessions 按平台能力重做，覆盖国内外主流 AI 开发工具的冷启动导入、持续了解进展，以及恢复／消息／交接；2026-10-28 三类场景、厂商范围及获准后自动发现已有会话已定，项目归属、交互与技术方案待细化，尚未实现或验收。需求维护 Codex，实现待分配。
 
 - [product-flow-governance](product-flow-governance/spec.md)：全平台产品与架构系统性审查和优化——覆盖全部功能、入口、设置、交互与公共机制，核功能完整性、流程依赖、AI 效果和检查审查；Onboarding 与服务连接为已暴露案例，全平台覆盖与优化验证后才算专项完成。2026-10-27 首轮静态盘点已完成，具体发现与五批优化顺序见[核查记录](product-flow-governance/audit-2026-10-27.md)；真实路径实操与整改未完成。需求维护/本轮核查 Codex，后续整改统筹待分配。
 

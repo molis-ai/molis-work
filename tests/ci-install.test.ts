@@ -60,7 +60,7 @@ function blockCommands(step: Step, after: number): Command[] {
     const line = step.lines[i];
     if (line.trim() === "") continue;
     if (!/^ {10}/.test(line)) break; // less indented: the run block has ended
-    out.push({ line: step.line + i, text: line.trim() });
+    out.push({ line: step.line + i, text: line.trimStart() });
   }
   return out;
 }
@@ -70,14 +70,14 @@ function commands(step: Step): Command[] {
   // `      - run: pnpm install …` and `      - run: |`, where the command is the step's own first line or a block below it.
   const first = /^ {6}- run:(?: (.*))?$/.exec(step.lines[0]);
   if (first) {
-    const inline = first[1]?.trim();
+    const inline = first[1]?.trimStart();
     if (inline && inline !== "|" && inline !== ">") return [{ line: step.line, text: inline }];
     return blockCommands(step, 0);
   }
   const run = step.lines.findIndex((line) => /^ {8}run:/.test(line));
   if (run === -1) return [];
   const inline = /^ {8}run: (?!\|$|>$)(.+)$/.exec(step.lines[run]);
-  if (inline) return [{ line: step.line + run, text: inline[1].trim() }];
+  if (inline) return [{ line: step.line + run, text: inline[1].trimStart() }];
   return blockCommands(step, run);
 }
 
@@ -180,6 +180,23 @@ test("RAC-1183 counterexample: the same expression in single quotes is rejected,
     "        timeout-minutes: 5",
     "        run: |",
     "          export npm_config_nodedir='$(dirname \"$(dirname \"$(command -v node)\")\")'",
+    "          pnpm install --frozen-lockfile",
+    "",
+  ].join("\n");
+  const found = violations(text);
+  assert.equal(found.length, 1, found.join("\n"));
+  assert.match(found[0], /npm_config_nodedir is not the approved export line/);
+});
+
+test("RAC-1183 counterexample: the approved export line with trailing spaces is rejected", () => {
+  const text = [
+    "jobs:",
+    "  gates:",
+    "    steps:",
+    "      - name: Install dependencies",
+    "        timeout-minutes: 5",
+    "        run: |",
+    `          ${APPROVED_EXPORT}  `,
     "          pnpm install --frozen-lockfile",
     "",
   ].join("\n");

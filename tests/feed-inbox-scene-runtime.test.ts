@@ -89,7 +89,7 @@ const entry = (over: Partial<{ revision: number; status: string; reason: string 
   ({ entry_id: "entry-1", revision: 1, status: "open", reason: "manual", detail: { k: 1 }, subject_type: "manual", subject_id: "entry-1", ...over });
 
 function inboxRuntime(over: { entry?: (id: string) => ReturnType<typeof entry>; bound?: ActionSceneBinding | null; judgments?: JudgmentRecord[]; usages?: ActionSceneUsage[];
-  views?: ActionSceneView[]; capabilities?: ActionView[] } = {}) {
+  views?: ActionSceneView[]; capabilities?: ActionView[]; content?: (id: string) => Promise<never> } = {}) {
   const bound: ActionSceneBinding[] = [], saved: ActionSceneBinding[] = [], events: JudgmentRecord[] = [], recorded: unknown[] = [];
   const scenes = { usages: async () => over.usages ?? [], discoverScenes: async () => over.views ?? [sceneView(INBOX_NEXT_SCENE_ID, 1, true)],
     bind: async (binding: ActionSceneBinding) => { bound.push(binding); }, runScene: async () => ({ ran: true }) } as never;
@@ -97,7 +97,7 @@ function inboxRuntime(over: { entry?: (id: string) => ReturnType<typeof entry>; 
   const runtime = createInboxSceneRuntime({ projectId: PROJECT, scenes, judgments,
     bindings: { get: () => over.bound ?? null, save: (_context, binding) => { saved.push(binding); } },
     judgmentActions: async () => over.capabilities ?? [], entry: id => (over.entry ?? (() => entry()))(id),
-    content: async () => { throw new Error("these entries point at no Feed item"); }, recordEvent: (_context, judgment) => { events.push(judgment); } });
+    content: over.content ?? (async () => { throw new Error("these entries point at no Feed item"); }), recordEvent: (_context, judgment) => { events.push(judgment); } });
   return { ...runtime, bound, saved, events, recorded };
 }
 
@@ -143,6 +143,10 @@ test("FI-1 RAC-483 Inbox keeps a judgment only while its entry is open and uncha
   assert.equal((await run({ entry: () => entry({ revision: 2 }) })).judgments.length, 0, "a changed entry drops it");
   assert.equal((await run({ entry: () => entry({ status: "done" }) })).judgments.length, 0, "a finished entry drops it");
   assert.equal((await run({ entry: () => { throw Object.assign(new Error("gone"), { code: "inbox.entry_not_found" }); } })).judgments.length, 0, "a missing entry drops it");
+  // Feed removed with Inbox and only Inbox added back (BL-800): the item's content cannot be read, and the project page must still open.
+  const feedEntry = () => ({ ...entry(), subject_type: "feed_item", subject_id: "item-1" });
+  const feedAbsent = async () => { throw Object.assign(new Error("Feed 不在项目里"), { code: "actions.dependency_missing" }); };
+  assert.equal((await run({ entry: feedEntry, content: feedAbsent })).judgments.length, 0, "an item Feed cannot give now drops it");
   await assert.rejects(run({ entry: () => { throw new Error("storage broke"); } }), /storage broke/u);
   assert.equal((await run({ usages: [bindingUsage({ enabled: false })] })).judgments.length, 0, "a paused binding gives none");
   assert.equal((await run({ usages: [] })).judgments.length, 0, "no right to the scene gives none");

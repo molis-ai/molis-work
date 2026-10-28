@@ -222,11 +222,11 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
-  // The detail fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
+  // The detail (the shell's reader, `/api/stage/feed/items/<id>` since FI-7) fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
   // refreshes the board, which opens the selected item again and hides the retry while it does. The page also records
   // whether the first detail request after the press was made by the press itself (the window's capture listener runs
   // before the page's click handler, its bubble listener after), so a later refresh cannot stand in for the retry.
-  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/detail?')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
+  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/api/stage/feed/items/')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
   const retry='[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]';
   await click(row);await waitFor(`document.querySelector('[data-feed-stage-shell][data-expanded=true] ${retry}')?.checkVisibility()`);
   // One retry, in the placeholder under the reader bar.

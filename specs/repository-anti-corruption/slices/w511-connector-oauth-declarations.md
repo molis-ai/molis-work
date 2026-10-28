@@ -110,7 +110,7 @@
   - 宿主构建的插件 Manifest 不许写服务的 `origins`（`integration-registry.ts` 的 `enableOnce`）。
 - **集成登记**：
   - 不只收宿主构建的插件。`integration-registry.ts:67-80` 的 `attach()` 会把签名沙箱包的 `connection_services` 登记进来（BL-530、S-95）；`detach` 会 `declarations.release(pluginId)`，放出 service_id。
-  - 宿主构建的插件每次启用都拿到新的 `install_id`（`enableOnce`）；沙箱包 attach 时沿用原来的安装。
+  - `install_id` 由 `plugin_id` 和发布者签名算出（`installIdentity`），同一个包停用再启用拿到的还是同一个，所以它只判得出「换了 `plugin_id` 或发布者签名」；「停用过」由第 6 条的「现在没启用」判。沙箱包 attach 时沿用原来的安装。
 - **`ConnectorAuthKind`**：有 `github | gmail | notion | feishu | token | none` 六种。workbench 的 `settings-view.ts` 和宿主的 `connector-directory.ts`、`platform-connection-services.ts` 都按它分支。
 
 ### 1.4 C 定下的形状，本稿不改
@@ -473,7 +473,7 @@
 - **state**：protocol store 生成的 32 字节、43 位 base64url（`/^[A-Za-z0-9_-]{43}$/`，建议 1），只能用一次，TTL 10 分钟。
 - **待完成记录**存在平台的 protocol store，记下：
   - 发起时的本机来源和 `redirect_uri`；
-  - 插件：`plugin_id`、`install_id`（宿主构建的插件每次启用都换新的；沙箱包沿用原安装，建议 10）、发布者；
+  - 插件：`plugin_id`、`install_id`（由 `plugin_id` 和发布者签名算出，同一个包重新启用不变；沙箱包沿用原安装，建议 10）、发布者；
   - `service_id`，以及本方法的声明指纹：整个方法声明规范化后的哈希，端点指纹（§2.6）也在里面；
   - 连接目标：新建，或者重新授权某个连接及其 revision；
   - 设置提交的核对结果（`checkConnectorSetupSubmission`）和 `return_to`；

@@ -3,11 +3,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { setImmediate as nextTurn } from "node:timers/promises";
 
 import {
   completeApiOAuth,
   connectorAuthorizationStatus,
   connectorProtocolSecrets,
+  connectorSetupAction,
+  connectorSetupIntentAction,
+  holdConnectorAuthorizationsForSession,
+  homeIntegrationRegistry,
+  retainConnectorSetupsForSession,
   startApiOAuth,
   withConnectorConnections,
   withConnectorProtocols,
@@ -15,6 +21,9 @@ import {
   type OAuthOwners,
   type OAuthServiceOwner,
 } from "@molis-ai/molis-work-app-local-host";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
+import { openTestHome } from "./fixtures/test-home.js";
 
 // S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
 // §3.3, §3.4): the generic OAuth callback, judged in order. The Host is checked before the store; once the record is taken by its state,
@@ -160,6 +169,8 @@ test("S-101 RAC-1083 rules 6 and 7: the declaring plugin disabled, re-enabled, r
     const owner = h.declared.owner!;
     const changes: Array<[string, OAuthServiceOwner | undefined, RegExp]> = [
       ["disabled", undefined, /停用或变更/u],
+      // `install_id` comes from the plugin id and the publisher's signature: a package enabled again keeps it, so another one here is
+      // another signature under the same names.
       ["enabled again as another install", { ...owner, install_id: "install-2" }, /停用或变更/u],
       ["another publisher", { ...owner, publisher_id: "io.example.lookalike" }, /停用或变更/u],
       ["another plugin", { ...owner, plugin_id: "io.example.lookalike" }, /停用或变更/u],
@@ -180,6 +191,42 @@ test("S-101 RAC-1083 rules 6 and 7: the declaring plugin disabled, re-enabled, r
     h.declared.owner = undefined;
     await assert.rejects(h.start(), /没有已启用的宿主插件/u, "no owner, no authorization");
     assert.equal(h.sent.length, 0);
+  } finally { h.close(); }
+});
+
+test("S-101 RAC-1083 rules 6 and 7 are judged again when a callback leaves the connection's queue: one queued behind another sends nothing once its plugin changed", async () => {
+  const h = harness();
+  try {
+    const owner = h.declared.owner!;
+    const tokens = () => h.sent.filter(entry => entry.url.includes("oauth_token")).length;
+    for (const [why, changed] of [["disabled", undefined], ["another install", { ...owner, install_id: "install-2" }], ["method changed", { ...owner, method: flow() }]] as const) {
+      h.declared.owner = owner;
+      const seed = await h.start();
+      await h.complete({ origin, state: h.stateOf(seed), code: "code" });
+      const revision = withConnectorConnections(h.directory, store => store.require(seed.connection_id)).updated_at;
+      const protocol = JSON.stringify(withConnectorProtocols(h.directory, store => store.get(seed.connection_id)));
+      const ahead = await h.start({ connectionId: seed.connection_id, clientId: "" }), queued = await h.start({ connectionId: seed.connection_id, clientId: "" });
+      const queuedStage = h.stageOf(h.stateOf(queued));
+      let release!: () => void;
+      let entered!: () => void;
+      const out = new Promise<void>(resolve => { entered = resolve; });
+      const first = h.complete({ origin, state: h.stateOf(ahead), code: "code" }, h.transport("work", async () => { entered(); await new Promise<void>(resolve => { release = resolve; }); }));
+      await out;
+      const second = h.complete({ origin, state: h.stateOf(queued), code: "code" }, h.transport("work"));
+      // The queued callback has passed its first check and waits behind the one whose token request is out.
+      await nextTurn();
+      const sent = tokens();
+      h.declared.owner = changed;
+      release();
+      await assert.rejects(first, /停用或变更|授权方式/u, why);
+      await assert.rejects(second, /停用或变更|授权方式/u, why);
+      assert.equal(tokens(), sent, `${why}: the queued callback sends no token request`);
+      assert.equal(connectorAuthorizationStatus(h.directory, queued.authorization_id)?.status, "failed", why);
+      assert.equal(connectorProtocolSecrets(h.directory, queuedStage).get("client"), null, `${why}: the queued stage is cleared`);
+      assert.equal(withConnectorConnections(h.directory, store => store.require(seed.connection_id)).updated_at, revision, why);
+      assert.equal(JSON.stringify(withConnectorProtocols(h.directory, store => store.get(seed.connection_id))), protocol, why);
+      assert.equal(connectorProtocolSecrets(h.directory, seed.connection_id).get("access"), "access-work", `${why}: the committed access token stays`);
+    }
   } finally { h.close(); }
 });
 
@@ -237,4 +284,79 @@ test("S-101 RAC-1083 every request of the generic flow refuses to follow a redir
     assert.ok(saved.includes("clientId"));
     for (const key of ["plugin", "fingerprint", "issuer", "previousRevision"]) assert.equal(saved.includes(key), false, key);
   } finally { h.close(); }
+});
+
+// §3.3 step 5: a result held for the person's intent takes effect only after the last check. The plugin that declared the service when
+// the authorization started is pinned in the private completion, and judged again when either entry retains it: the session's intent
+// choice, or the person's own retain after the work stopped. Real routes, the Home's own registry and its stores.
+const caller: ActionCallContext = { actor_id: "oauth-callback-user", runtime_session_id: "oauth-callback-session", audience: "agent", project_id: null,
+  permissions: ["connectors:management:read", "connectors:management:write"] };
+const asanaFlow = { kind: "oauth", grant: "authorization_code", authorize_url: "https://app.asana.com/-/oauth_authorize", token_url: "https://app.asana.com/-/oauth_token",
+  scopes: [], identity: { url: "https://app.asana.com/api/1.0/users/me", account_id: [[], ["identity:/data/gid"]], label: ["identity:/data/name"] } } as const;
+const changes = ["disabled", "another plugin", "method changed"] as const;
+/** An asana authorization, prepared by the session, started and called back through the real routes while the session is held. */
+async function parkHeld(t: Parameters<typeof openTestHome>[0]) {
+  const home = await openTestHome(t);
+  const client = home.host.homeActionClient();
+  const prepared = await client.invoke(caller, connectorSetupAction, { service_id: "asana", method: "oauth", display_name: "Held account", expected_revision: null }) as { authorization_id: string };
+  const registry = await homeIntegrationRegistry(home.home);
+  const owner = registry.oauthOwner("asana")!;
+  let tokens = 0;
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.startsWith(home.origin)) return realFetch(input, init);
+    if (url === "https://app.asana.com/-/oauth_token") { tokens += 1; return Response.json({ access_token: "fixture-held-access", refresh_token: "fixture-held-refresh", expires_in: 3600 }); }
+    assert.equal(url, "https://app.asana.com/api/1.0/users/me", "no other request");
+    return Response.json({ data: { gid: "held-account", name: "Held", email: "held@example.test" } });
+  });
+  const start = await home.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start", {
+    service_id: "asana", display_name: "Held account", client_id: "fixture-held-client", client_secret: "fixture-held-private", setup_id: prepared.authorization_id });
+  const state = new URL(start.authorization_url).searchParams.get("state");
+  holdConnectorAuthorizationsForSession(home.home, caller.runtime_session_id!, caller.actor_id, "latest");
+  const parked = await home.web.post<{ awaiting_intent: boolean }>("/api/settings/connectors/methods/oauth/complete", {
+    returned_url: `${home.origin}/api/settings/connectors/methods/oauth/callback?state=${state}&code=fixture-code` });
+  assert.equal(parked.awaiting_intent, true);
+  assert.equal(connectorAuthorizationStatus(home.home, prepared.authorization_id)?.completion_ready, true);
+  return { home, client, prepared, registry, owner, start, tokenRequests: () => tokens };
+}
+for (const entry of ["intent choice", "session retain"] as const) for (const change of changes) {
+  test(`S-101 RAC-1084 rules 6 and 7 are judged again before a held result takes effect: ${change}, then ${entry}, commits nothing`, { timeout: 30_000 }, async t => {
+    const { home, client, prepared, registry, owner, start, tokenRequests } = await parkHeld(t);
+    await registry.disable(owner.plugin_id);
+    if (change !== "disabled") {
+      const replacement = createCatalogIntegrationPlugin({ connectorId: "asana", providerFor: () => { throw new Error("the test reads no integration records"); } });
+      const manifest = change === "another plugin" ? { ...replacement.manifest, plugin_id: "io.molis.work.integration.asana.lookalike" }
+        // An upgrade: the same plugin and signature (so the same install) with another version that declares the flow as data.
+        : { ...replacement.manifest, version: replacement.manifest.version.replace(/\d+$/u, patch => String(Number(patch) + 1)), connection_services: replacement.manifest.connection_services!.map(service => service.service_id !== "asana" ? service
+          : { ...service, auth: { ...service.auth, methods: [...service.auth.methods.filter(method => method.kind !== "oauth"), asanaFlow] } }) };
+      await registry.enable({ ...replacement, manifest });
+      const now = registry.oauthOwner("asana")!;
+      if (change === "another plugin") assert.notEqual(now.plugin_id, owner.plugin_id);
+      else assert.deepEqual([now.plugin_id, now.install_id, now.publisher_id], [owner.plugin_id, owner.install_id, owner.publisher_id], "only the method differs");
+    } else assert.equal(registry.oauthOwner("asana"), undefined);
+    const retain = entry === "intent choice"
+      ? client.invoke(caller, connectorSetupIntentAction, { authorization_id: prepared.authorization_id, intent_revision: "latest", decision: "retain" })
+      : retainConnectorSetupsForSession(home.home, caller.runtime_session_id!, caller.actor_id, (...args) => home.host.connectorMcp!.remember(...args));
+    await assert.rejects(retain, change === "method changed" ? /授权方式/u : /停用或变更/u);
+    const after = connectorAuthorizationStatus(home.home, prepared.authorization_id)!;
+    assert.equal(after.status, "failed");
+    assert.equal(after.completion_ready, undefined, "the held completion is cleared");
+    assert.deepEqual(withConnectorConnections(home.home, store => store.list()), [], "no connection is written");
+    assert.equal(withConnectorProtocols(home.home, store => store.get(start.connection_id)), null, "no protocol configuration is written");
+    for (const key of ["access", "oauth", "expires", "client"]) assert.equal(connectorProtocolSecrets(home.home, start.connection_id).get(key), null, `no ${key} credential is written`);
+    assert.equal(tokenRequests(), 1, "only the callback's own token request");
+  });
+}
+
+test("S-101 RAC-1084 rules 6 and 7 are judged again before a held result takes effect: unchanged, the retained connection's configuration pins no declaration", { timeout: 30_000 }, async t => {
+  const { home, client, prepared, start, tokenRequests } = await parkHeld(t);
+  const held = connectorAuthorizationStatus(home.home, prepared.authorization_id)!;
+  assert.equal(withConnectorProtocols(home.home, store => store.get(held.connection_id)), null, "nothing is saved while the result is held");
+  const kept = await client.invoke(caller, connectorSetupIntentAction, { authorization_id: prepared.authorization_id, intent_revision: "latest", decision: "retain" }) as { status: string };
+  assert.equal(kept.status, "connected");
+  const saved = withConnectorProtocols(home.home, store => store.get(start.connection_id)) as Record<string, unknown> | null;
+  assert.ok(saved?.clientId);
+  for (const key of ["plugin", "fingerprint", "issuer", "previousRevision", "declaration"]) assert.equal(key in saved!, false, `the saved configuration has no ${key}`);
+  assert.equal(tokenRequests(), 1);
 });

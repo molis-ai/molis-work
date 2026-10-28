@@ -1,6 +1,7 @@
-import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { connectorErrors, type ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { submitConnectorActivation } from "./connector-authorization-commit.js";
+import type { ConnectorActivation } from "./connector-activation.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
@@ -28,7 +29,10 @@ interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   previousRevision?: string;
   brokerOrigin?: string;
   clientSource?: "product" | "custom";
-  /** Who declared the method when the authorization started, and what it declared (W5-11 §3.2); dropped once the connection is saved. */
+  /**
+   * Who declared the method when the authorization started, and what it declared (W5-11 §3.2). Never saved with the connection: a result
+   * held for the person's intent keeps them in its private completion, to be judged once more before it takes effect.
+   */
   plugin?: Omit<OAuthServiceOwner, "method">;
   fingerprint?: string;
   /** RFC 9207: the callback must name this issuer when the declaration gives one. */
@@ -51,6 +55,19 @@ async function assertStillDeclared(config: OAuthConfiguration, owners: OAuthOwne
     throw new ApiOAuthError("声明这个服务的插件在授权期间已停用或变更，请重新连接");
   }
   if (methodFingerprint(owner, config.serviceId, config.settings, Boolean(config.brokerOrigin)) !== config.fingerprint) throw new ApiOAuthError("这个服务的授权方式在授权期间已变更，请重新连接");
+}
+/**
+ * The last check before a held result takes effect (W5-11 §3.3 step 5): rules 6 and 7 once more, against what the completion pinned.
+ * A generic flow's completion that pinned nothing is refused; the dedicated flows (Gmail, Notion) save no OAuth configuration and pin
+ * nothing yet (slices 6 and 7).
+ */
+export async function assertHeldOAuthDeclared(home: string, completion: ConnectorActivation, owners: OAuthOwners = registryOwners(home)): Promise<void> {
+  if (completion.kind !== "oauth" || completion.protocol?.protocol !== "oauth") return;
+  try {
+    await assertStillDeclared({ ...completion.protocol as OAuthConfiguration, ...completion.declaration }, owners);
+  } catch (error) {
+    throw connectorErrors["connector.connection.invalid"](error instanceof ApiOAuthError ? error.message : "无法确认声明这个服务的插件，请重新连接");
+  }
 }
 export class ApiOAuthError extends Error {
   /** `refused`: the token endpoint said no (`tokenEndpointRefused`), not a network failure or a 5xx. */
@@ -312,9 +329,11 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     if (!code || code.length > (config.brokerOrigin ? 16000 : 4096)) throw new ApiOAuthError("缺少有效的授权码");
     // Rule 5 (RFC 9207): a declared issuer must come back named.
     if (config.issuer && (returned?.searchParams.get("iss") ?? input.iss) !== config.issuer) throw new ApiOAuthError("授权服务的签发方不符，请重新连接");
-    // Rules 6 and 7: the declaring plugin and its method, as they were when the authorization started.
+    // Rules 6 and 7: the declaring plugin and its method, as they were when the authorization started. Judged again once the
+    // connection's queue lets this callback go: another callback or a refresh may have held it meanwhile.
     await assertStillDeclared(config, owners);
     return await serialized(home, config.connectionId, async () => {
+      await assertStillDeclared(config, owners);
       assertConnectorAuthorizationPending(home, state);
       const tokens = await exchange(home, config, { code }, fetchImpl);
       const token = text(tokens.access_token);
@@ -338,7 +357,7 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
       const saved = { ...config, sessionId: config.connectionId };
       delete saved.previousRevision; delete saved.plugin; delete saved.fingerprint; delete saved.issuer;
       const result = submitConnectorActivation(home, state, { kind: "oauth", target: { connectionId: config.connectionId, expectedRevision: config.previousRevision },
-        credentials, protocol: saved, input: { connectionId: config.connectionId, serviceId: config.serviceId,
+        credentials, protocol: saved, declaration: { plugin: config.plugin!, fingerprint: config.fingerprint! }, input: { connectionId: config.connectionId, serviceId: config.serviceId,
           displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
           refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
       return { service_id: config.serviceId, ...result };

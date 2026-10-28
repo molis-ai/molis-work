@@ -2,7 +2,7 @@
 // (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
 // supervisor, Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
 // use it too: tests/shipped-plugin-lifecycle-*.test.ts); this file keeps the four producers it was written for and RAC-1034.
-// Goals has migrated but its additional walk remains BL-756. Alchemist is passed over (2026-10-23).
+// Goals has migrated too (its walk is RAC-1230 below, BL-756): 常开, and its Home half is another installation. Alchemist is passed over (2026-10-23).
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,12 +28,19 @@ const SHIPPED: Record<string, Shipped> = {
   lingguang: { key: "lingguang", plugin_id: "io.molis.work.lingguang", scope: "project",
     write: (web, routes, title) => web.post(`${routes}/sparks`, { title, body: "材料" }),
     titles: async (web, routes) => titlesOf((await web.get<{ sparks: Array<{ title: string }> }>(`${routes}/sparks`)).sparks) },
+  // Goals 常开: the project cannot take it out, the walk takes the Home agreement back to uninstall, and each project's own half is
+  // the installation this walk follows while the Home half keeps running (a second installation of the same plugin).
+  goals: { key: "goals", plugin_id: "io.molis.work.goals", scope: "project", always_on: true, dual: "project",
+    write: (web, routes, title) => web.post(`${routes}/goals`, { title }),
+    titles: async (web, routes) => titlesOf((await web.get<{ goals: Array<{ title: string }> }>(`${routes}/goals/directory`)).goals) },
 };
 
 test("RAC-1030 W6-02 Todo on the Home supervisor: added, removed and added back in a project, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.todo!));
 test("RAC-1031 W6-02 Jelly on the Home supervisor: added, removed and added back in a project, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.jelly!));
 test("RAC-1032 W6-02 Pages on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.pages!));
 test("RAC-1033 W6-02 灵光 on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.lingguang!));
+
+test("RAC-1230 W6-02 Goals on a project's supervisor: 常开, the Home half is another installation, the data stays through the uninstall and the restart", { timeout: 180_000 }, () => walk(SHIPPED.goals!));
 
 test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a legacy disabled personal plugin, and still refuses revoked grants", { timeout: 180_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shipped-lifecycle-restart-"));

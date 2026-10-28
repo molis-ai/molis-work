@@ -22,19 +22,24 @@ type Summary = "model" | "error" | "empty" | "timeout";
 // RAC-1340/RAC-1341 (BL-311, QA-010, RCPT-102's timeout arm): the summary call is held until the production two-minute
 // deadline really passes; only the calls made with that exact limit are shortened, everything else keeps its delay.
 const LATE_SUMMARY_MARKER = "LATE-SUMMARY-MARKER";
-const DEADLINE_DUE_MS = 500, DEADLINE_LATE_MS = 1_400;
+const DEADLINE_DUE_MS = 1_000, LATE_AFTER_DUE_MS = 900;
 
 /** Shorten only the production deadline calls (120 000 ms) and record who made them; every other delay is untouched. */
-function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> {
-  const calls: Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> = [];
+function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> & { firedAt: () => number } {
+  const calls = [] as Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> & { firedAt: () => number };
+  let firedAt = 0;
+  calls.firedAt = () => firedAt;
   const realSetTimeout = globalThis.setTimeout, realAbortTimeout = AbortSignal.timeout;
   // The first production frames that made the call, past this test's own mock wrapper.
   const frames = () => (new Error().stack ?? "").split("\n").slice(1).map(line => line.trim().replace(/^at /, ""))
     .filter(line => !line.includes("coding-history-requirements.test.ts") && !line.includes("node:internal/test_runner"))
     .slice(0, 3).join(" | ");
   t.mock.method(globalThis, "setTimeout", (callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
-    calls.push({ call: "setTimeout", delay: delay ?? 0, frames: frames() });
-    return realSetTimeout(callback, delay === 120_000 ? DEADLINE_DUE_MS : delay, ...args);
+    const made = { call: "setTimeout" as const, delay: delay ?? 0, frames: frames() };
+    calls.push(made);
+    if (delay !== 120_000) return realSetTimeout(callback, delay, ...args);
+    // The lifetime's own deadline is the production one that fires first; remember when it actually did.
+    return realSetTimeout(() => { if (made.frames.includes("createExecutionLifetime")) firedAt = Date.now(); callback(...args); }, DEADLINE_DUE_MS);
   });
   t.mock.method(AbortSignal, "timeout", (milliseconds: number) => {
     calls.push({ call: "AbortSignal.timeout", delay: milliseconds, frames: frames() });
@@ -44,7 +49,7 @@ function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" |
 }
 
 async function twoRounds(t: TestContext, summary: Summary) {
-  let summaryArrivedAt = 0, lateReturnedAt = 0, patchedAt = 0, deadlineCalls: ReturnType<typeof shortenProductionDeadline> = [];
+  let summaryArrivedAt = 0, lateReturnedAt = 0, patchedAt = 0, firedAt = () => 0, deadlineCalls: ReturnType<typeof shortenProductionDeadline> = [];
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
   let round = 1;
@@ -56,7 +61,10 @@ async function twoRounds(t: TestContext, summary: Summary) {
       if (summary === "timeout") {
         // Held here until the production deadline has passed; the answer is late and must change nothing (RAC-1341).
         summaryArrivedAt = Date.now();
-        await new Promise(resolve => setTimeout(resolve, DEADLINE_LATE_MS));
+        // The answer waits for the production deadline to have actually fired, then comes 900 ms after it.
+        const until = Date.now() + 10_000;
+        while (!firedAt() && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, LATE_AFTER_DUE_MS));
         lateReturnedAt = Date.now();
         return cogniaModelResponse(`${LATE_SUMMARY_MARKER}\n1. 目标与要求：${SUPPLEMENTS.at(-1)}\n2. 已完成：无`);
       }
@@ -91,7 +99,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const roundOne = f.requests.length;
   assert.equal((await f.call(project, coding + `/sessions/${id}/compact`, { on: true })).status, 200);
   round = 2;
-  if (summary === "timeout") { patchedAt = Date.now(); deadlineCalls = shortenProductionDeadline(t); }
+  if (summary === "timeout") { patchedAt = Date.now(); deadlineCalls = shortenProductionDeadline(t); firedAt = deadlineCalls.firedAt; }
   const second = await start("接着把超时也改了");
   assert.equal(second.status, 200, JSON.stringify(second.body));
   const next = await f.ended(second.body.run.ref);
@@ -99,7 +107,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const reviews = f.requests.slice(roundOne).filter(isReview), later = f.requests.slice(roundOne).filter(request => !isReview(request));
   const summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
   const roundTwo = later.filter(request => !textOf(request).includes(SUMMARY_PROMPT));
-  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, summaryArrivedAt, patchedAt, deadlineCalls, lateReturnedAt: () => lateReturnedAt };
+  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, summaryArrivedAt, patchedAt, deadlineCalls, deadlineFiredAt: firedAt, lateReturnedAt: () => lateReturnedAt };
 }
 
 function assertCarried(request: CodingProviderRequest, steers: AgentRunView["turns"]) {
@@ -135,12 +143,17 @@ for (const summary of ["error", "empty"] as const) {
 }
 
 test("RAC-1340 a summary still pending at the production deadline is replaced by the record-based digest, and round two starts from it", { timeout: 60_000 }, async t => {
-  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, patchedAt, deadlineCalls, lateReturnedAt } = await twoRounds(t, "timeout");
+  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, patchedAt, deadlineCalls, deadlineFiredAt, lateReturnedAt } = await twoRounds(t, "timeout");
   // The shortened calls are exactly the production deadline ones: execution-lifetime's setTimeout and host-complete-text's
   // AbortSignal.timeout, both made with 120 000 ms.
   assert.deepEqual([...new Set(deadlineCalls.filter(call => call.delay === 120_000).map(call => call.call))].sort(), ["AbortSignal.timeout", "setTimeout"],
     "both production deadline timers were the shortened ones: " + JSON.stringify(deadlineCalls.filter(call => call.delay === 120_000)));
-  assert.ok(summaryArrivedAt - patchedAt < DEADLINE_DUE_MS, `the summary request reached the provider stub before the deadline (${summaryArrivedAt - patchedAt} ms)`);
+  // The production limit is the lifetime's own `setTimeout`: if the product changes that number this assertion explains the red.
+  assert.ok(deadlineCalls.some(call => call.call === "setTimeout" && call.frames.includes("createExecutionLifetime")),
+    "the shortened deadline is the lifetime's own setTimeout: " + JSON.stringify(deadlineCalls.filter(call => call.delay === 120_000)));
+  assert.ok(deadlineFiredAt() > 0, "the shortened deadline actually fired");
+  assert.ok(summaryArrivedAt < deadlineFiredAt(), `the summary request reached the provider stub before the deadline fired (${summaryArrivedAt} < ${deadlineFiredAt()})`);
+  assert.ok(summaryArrivedAt - patchedAt < DEADLINE_DUE_MS, `the summary request reached the provider stub within the deadline window (${summaryArrivedAt - patchedAt} ms)`);
   assert.equal(summaries.length, 1, "exactly one summary attempt, no second one");
   assert.equal(later.length, 2, "one summary attempt plus the round's own call, nothing more");
   assert.equal(reviews.length, 1, "round two called nothing: its ending is reviewed once, and nothing more");
@@ -150,15 +163,15 @@ test("RAC-1340 a summary still pending at the production deadline is replaced by
   // Let the late responder finish before the test ends, so it cannot leak into another test's observations.
   const deadline = Date.now() + 8_000;
   while (!lateReturnedAt() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-  assert.ok(lateReturnedAt() > 0, "the late summary did answer, after the deadline");
+  assert.ok(lateReturnedAt() > deadlineFiredAt(), "the late summary did answer, after the deadline");
 });
 
 test("RAC-1341 a summary that comes back after the deadline changes no request and records no usage", { timeout: 60_000 }, async t => {
-  const { f, project, coding, id, lateReturnedAt } = await twoRounds(t, "timeout");
+  const { f, project, coding, id, deadlineFiredAt, lateReturnedAt } = await twoRounds(t, "timeout");
   const afterRound = f.requests.length;
   const deadline = Date.now() + 8_000;
   while (!lateReturnedAt() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-  assert.ok(lateReturnedAt() > 0, "the late summary did answer, after the deadline");
+  assert.ok(lateReturnedAt() > deadlineFiredAt(), "the late summary did answer, after the deadline");
   // The answered-but-late summary reached nothing: the live request list is re-read, not the snapshot taken at round start.
   assert.equal(f.requests.length, afterRound, "the late summary added no provider request");
   assert.deepEqual(f.requests.filter(request => textOf(request).includes(LATE_SUMMARY_MARKER)), [], "no request carries the late summary");

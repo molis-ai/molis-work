@@ -52,7 +52,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role codex --wait --max 25
 
 它在 shell 里每 3 分钟查一次，有事才返回，等的时候你不用做任何事。harness 的单条命令有时限的，把 `--max`（分钟）设在时限以内；返回「无事」就再跑一次。每天开工时重新取一次 `next.mjs`。
 
-它给的顺序就是你的顺序：
+它给的顺序就是你的顺序。你的根聊天可以开几条评审线并行，规矩是：每个 PR 全程只交给一条线，一审、验证、读 CI 日志和之后的增量复核都由它做，不按阶段转给别的线，也不交叉审；不同的 PR 可以同时做（README 第 11 节）。Claude 的二审照旧。
+
 
 1. 自己任务的修复：你开的 PR 被要改，或 Verify 红了；看板「加急：」列出的任务（`next.mjs` 标「加急」），它的【修复】【交接】排在这一位；
 2. 增量一审与验证：最后一条阶段评论是【修复】的 PR；
@@ -159,7 +160,7 @@ PR 正文缺节、措辞这类，能用 `gh pr edit <号> --body-file` 改正文
 
 **验证结论等 Verify。** 读 diff、跑测试不用等它；结论要等 PR 上的 Verify 出来再贴。Verify 红了，贴【验证 失败】，写红在哪一步，退回开发。
 
-**全量。** `full=true` 的，CI Full 由统筹排，你不加标签。只有统筹在【统筹答】里点名、而且你的队列空时，才在本机跑全量：
+**全量。** `full=true` 的，CI Full 由统筹排，你不加标签。只有统筹在【统筹答】里点名时，才在本机跑全量：
 
 ```bash
 node scripts/machine-slot.mjs run browser --label "Codex T-XXX full" -- node scripts/run-tests.mjs

@@ -82,7 +82,9 @@ export function removeManagedConnectorTool(home: string, id: string): "in-use" |
   const directory = join(realpathSync(home), "runtime", "connectors", "installs", id);
   if (!existsSync(directory)) return "absent";
   if (lstatSync(directory).isSymbolicLink() || realpathSync(directory) !== directory) throw toolInstallErrors.invalid("受管理安装目录已改变，未移除任何文件");
-  const owner: unknown = JSON.parse(readFileSync(join(directory, "installation.json"), "utf8"));
+  const record = join(directory, "installation.json");
+  if (!existsSync(record)) throw toolInstallErrors.invalid("安装所有权记录缺失，未移除任何文件");
+  const owner: unknown = JSON.parse(readFileSync(record, "utf8"));
   if (!owner || typeof owner !== "object" || !("id" in owner) || owner.id !== id) throw toolInstallErrors.invalid("安装所有权记录不符，未移除任何文件");
   rmSync(directory, { recursive: true, force: true });
   return "removed";

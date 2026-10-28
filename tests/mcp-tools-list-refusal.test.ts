@@ -25,22 +25,29 @@ interface Cleanup {
   push(close: () => Promise<void> | void): void;
 }
 
-interface Cleanup {
-  push(close: () => Promise<void> | void): void;
-}
-
-/** Runs the test body, then every teardown in reverse order; body and teardown failures are reported together. */
-async function withCleanup(body: (dispose: Cleanup) => Promise<void>): Promise<void> {
+/**
+ * Runs the body, then every teardown in reverse order. The body also loses the race to the test
+ * deadline, so a timed-out test still closes its requests, listeners and Home before the late
+ * reply can arrive; body and teardown failures are then reported together, body error first.
+ */
+async function withCleanup(t: TestContext, body: (dispose: Cleanup, signal: AbortSignal) => Promise<void>): Promise<void> {
   const closes: (() => Promise<void> | void)[] = [];
   const dispose: Cleanup = {
     push(close) {
       closes.push(close);
     },
   };
+  const deadline = new Promise<never>((_resolve, reject) => {
+    const abandon = () => reject(t.signal.reason);
+    if (t.signal.aborted) abandon();
+    else t.signal.addEventListener("abort", abandon, { once: true });
+  });
+  const running = body(dispose, t.signal);
+  running.catch(() => undefined);
   let bodyFailure: unknown;
   let bodyFailed = false;
   try {
-    await body(dispose);
+    await Promise.race([running, deadline]);
   } catch (error) {
     bodyFailure = error;
     bodyFailed = true;
@@ -137,127 +144,137 @@ function lines(output: PassThrough): { next(): Promise<string> } {
   };
 }
 
-/** The stdio server may end while a reply is awaited: that is a failure, not a timeout. */
-async function readLine(reader: { next(): Promise<string> }, serving: Promise<void>): Promise<Reply> {
+/** The stdio server may end (or the test may time out) while a reply is awaited: that is a failure, not a reply. */
+async function readLine(reader: { next(): Promise<string> }, serving: Promise<void>, signal: AbortSignal): Promise<Reply> {
   const line = await Promise.race([
     reader.next(),
     serving.then(() => {
       throw new Error("stdio ended before the reply arrived");
     }),
+    new Promise<never>((_resolve, reject) => {
+      const abandon = () => reject(signal.reason);
+      if (signal.aborted) abandon();
+      else signal.addEventListener("abort", abandon, { once: true });
+    }),
   ]);
   return JSON.parse(line) as Reply;
 }
 
-test("RAC-1470: a control-token refusal answers tools/list with one JSON-RPC error", { timeout: 30_000 }, async () => {
-  await withCleanup(async dispose => {
-  const home = await tempHome(dispose);
-  const resident = await stub(dispose, (_request, response) => {
-    const body = JSON.stringify(REFUSED);
-    response.writeHead(403, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
-    response.end(body);
-  });
-  const server = mcp(dispose, home, resident.origin);
-  const reply = await server.handleMessage({ jsonrpc: "2.0", id: 7, method: "tools/list" }) as Reply | null;
-  refusal(reply, "host.request_refused");
-  assert.ok(resident.requests.some(request => request.method === "POST"), "the resident was asked and refused the forwarded context");
-  });
-});
-
-test("RAC-1470: a listener that cannot prove this Home answers tools/list with the transport error", { timeout: 30_000 }, async () => {
-  await withCleanup(async dispose => {
-  const home = await tempHome(dispose);
-  const resident = await stub(dispose, (request, response) => {
-    assert.equal(request.method, "GET");
-    const url = new URL(request.url ?? "", "http://localhost");
-    assert.equal(url.pathname, "/health");
-    assert.match(url.searchParams.get("challenge") ?? "", /^[A-Za-z0-9_-]{43}$/);
-    const body = JSON.stringify({ status: "ok", desktop_tui: true });
-    response.writeHead(200, { "content-length": Buffer.byteLength(body) });
-    response.end(body);
-  });
-  const starter = createMcpResidentStarter();
-  dispose.push(() => starter.close());
-  const server = mcp(dispose, home, resident.origin, starter.ensure);
-  const reply = await server.handleMessage({ jsonrpc: "2.0", id: 7, method: "tools/list" }) as Reply | null;
-  refusal(reply, "actions.transport_invalid");
-  assert.equal(resident.requests.length, 1, "only the read-only health probe reached the other listener");
-  assert.equal(resident.requests[0]?.headers["x-molis-work-control-token"], undefined, "the probe sent no credentials");
+test("RAC-1470: a control-token refusal answers tools/list with one JSON-RPC error", { timeout: 30_000 }, async t => {
+  await withCleanup(t, async (dispose, signal) => {
+    const home = await tempHome(dispose);
+    const resident = await stub(dispose, (_request, response) => {
+      const body = JSON.stringify(REFUSED);
+      response.writeHead(403, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
+      response.end(body);
+    });
+    const server = mcp(dispose, home, resident.origin);
+    const reply = (await server.handleMessage({ jsonrpc: "2.0", id: 7, method: "tools/list" }, signal)) as Reply | null;
+    refusal(reply, "host.request_refused");
+    assert.ok(resident.requests.some(request => request.method === "POST"), "the resident was asked and refused the forwarded context");
   });
 });
 
-test("RAC-1471: a refused discovery keeps the stdio server answering the next request", { timeout: 30_000 }, async () => {
-  await withCleanup(async dispose => {
-  const home = await tempHome(dispose);
-  const resident = await stub(dispose, (_request, response) => {
-    const body = JSON.stringify(REFUSED);
-    response.writeHead(403, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
-    response.end(body);
-  });
-  const server = mcp(dispose, home, resident.origin);
-  const input = new PassThrough(), output = new PassThrough();
-  const reader = lines(output);
-  const serving = serveMcpStdio({ input, output, handleMessage: (message, signal) => server.handleMessage(message, signal) });
-  let settled = false;
-  void serving.then(() => {
-    settled = true;
-  }, () => {
-    settled = true;
-  });
-  dispose.push(async () => {
-    if (!input.writableEnded) input.end();
-    await serving.catch(() => undefined);
-    output.destroy();
-  });
-
-  // Write both requests first: the refusal must not stop the already queued ping from being answered.
-  input.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) + "\n");
-  input.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" }) + "\n");
-  const first = await readLine(reader, serving);
-  assert.equal(first.id, 1, "the refused discovery answered first");
-  assert.equal(first.error?.code, -32603);
-  assert.equal(first.result, undefined);
-  const second = await readLine(reader, serving);
-  assert.equal(second.id, 2);
-  assert.deepEqual(second.result, {});
-  assert.equal(settled, false, "the process stayed open for the next request");
-  assert.equal(input.writableEnded, false, "nothing closed the input on our behalf");
-
-  input.end();
-  await serving;
-  assert.equal(settled, true);
+test("RAC-1470: a listener that cannot prove this Home answers tools/list with the transport error", { timeout: 30_000 }, async t => {
+  await withCleanup(t, async (dispose, signal) => {
+    const home = await tempHome(dispose);
+    const resident = await stub(dispose, (request, response) => {
+      assert.equal(request.method, "GET");
+      const url = new URL(request.url ?? "", "http://localhost");
+      assert.equal(url.pathname, "/health");
+      assert.match(url.searchParams.get("challenge") ?? "", /^[A-Za-z0-9_-]{43}$/);
+      const body = JSON.stringify({ status: "ok", desktop_tui: true });
+      response.writeHead(200, { "content-length": Buffer.byteLength(body) });
+      response.end(body);
+    });
+    const starter = createMcpResidentStarter();
+    dispose.push(() => starter.close());
+    const server = mcp(dispose, home, resident.origin, starter.ensure);
+    const reply = (await server.handleMessage({ jsonrpc: "2.0", id: 7, method: "tools/list" }, signal)) as Reply | null;
+    refusal(reply, "actions.transport_invalid");
+    assert.equal(resident.requests.length, 1, "only the read-only health probe reached the other listener");
+    assert.equal(resident.requests[0]?.headers["x-molis-work-control-token"], undefined, "the probe sent no credentials");
   });
 });
 
-test("RAC-1472: a cancelled discovery rejects with the cancellation and answers nothing", { timeout: 30_000 }, async () => {
-  await withCleanup(async dispose => {
-  const home = await tempHome(dispose);
-  let entered!: () => void;
-  const reached = new Promise<void>(resolve => {
-    entered = resolve;
+test("RAC-1471: a refused discovery keeps the stdio server answering the next request", { timeout: 30_000 }, async t => {
+  await withCleanup(t, async (dispose, signal) => {
+    const home = await tempHome(dispose);
+    const resident = await stub(dispose, (_request, response) => {
+      const body = JSON.stringify(REFUSED);
+      response.writeHead(403, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
+      response.end(body);
+    });
+    const server = mcp(dispose, home, resident.origin);
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const reader = lines(output);
+    const serving = serveMcpStdio({ input, output, handleMessage: (message, requestSignal) => server.handleMessage(message, requestSignal) });
+    let settled = false;
+    void serving.then(() => {
+      settled = true;
+    }, () => {
+      settled = true;
+    });
+    dispose.push(async () => {
+      if (!input.writableEnded) input.end();
+      await serving.catch(() => undefined);
+      output.destroy();
+    });
+
+    // Write both requests first: the refusal must not stop the already queued ping from being answered.
+    input.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) + "\n");
+    input.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" }) + "\n");
+    const first = await readLine(reader, serving, signal);
+    assert.equal(first.id, 1, "the refused discovery answered first");
+    assert.equal(first.error?.code, -32603);
+    assert.equal(first.result, undefined);
+    const second = await readLine(reader, serving, signal);
+    assert.equal(second.id, 2);
+    assert.deepEqual(second.result, {});
+    assert.equal(settled, false, "the process stayed open for the next request");
+    assert.equal(input.writableEnded, false, "nothing closed the input on our behalf");
+
+    input.end();
+    await serving;
   });
-  const resident = await stub(dispose, () => {
-    entered();
-  });
-  const server = mcp(dispose, home, resident.origin);
-  dispose.push(() => resident.drain());
-  const controller = new AbortController();
-  const reason = new Error("MCP request cancelled");
-  const pending = server.handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/list" }, controller.signal);
-  // Observe the request from the start, so an early rejection is neither unhandled nor waited on forever.
-  const settled = pending.then(() => "resolved", () => "rejected");
-  try {
-    await Promise.race([
-      reached,
-      settled.then(state => {
-        throw new Error(`the request settled before the resident saw it: ${state}`);
-      }),
-    ]);
-  } finally {
-    if (!controller.signal.aborted) controller.abort(reason);
-    await pending.catch(() => undefined);
-  }
-  const error = await pending.then(() => assert.fail("the cancelled request resolved"), (failure: unknown) => failure);
-  assert.equal(error, reason, "the cancellation keeps the original reason object");
-  assert.equal(resident.requests.length, 1, "the cancelled request was not retried");
+});
+
+test("RAC-1472: a cancelled discovery rejects with the cancellation and answers nothing", { timeout: 30_000 }, async t => {
+  await withCleanup(t, async (dispose, signal) => {
+    const home = await tempHome(dispose);
+    let entered!: () => void;
+    const reached = new Promise<void>(resolve => {
+      entered = resolve;
+    });
+    const resident = await stub(dispose, () => {
+      entered();
+    });
+    const server = mcp(dispose, home, resident.origin);
+    dispose.push(() => resident.drain());
+    const controller = new AbortController();
+    const reason = new Error("MCP request cancelled");
+    const pending = server.handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/list" }, controller.signal);
+    // Observe the request from the start, so an early rejection is neither unhandled nor waited on forever.
+    const settled = pending.then(() => "resolved", () => "rejected");
+    try {
+      await Promise.race([
+        reached,
+        settled.then(state => {
+          throw new Error(`the request settled before the resident saw it: ${state}`);
+        }),
+        new Promise<never>((_resolve, reject) => {
+          const abandon = () => reject(signal.reason);
+          if (signal.aborted) abandon();
+          else signal.addEventListener("abort", abandon, { once: true });
+        }),
+      ]);
+    } finally {
+      if (!controller.signal.aborted) controller.abort(reason);
+      await pending.catch(() => undefined);
+    }
+    const error = await pending.then(() => assert.fail("the cancelled request resolved"), (failure: unknown) => failure);
+    assert.equal(error, reason, "the cancellation keeps the original reason object");
+    assert.equal(resident.requests.length, 1, "the cancelled request was not retried");
   });
 });

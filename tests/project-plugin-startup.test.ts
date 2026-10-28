@@ -105,7 +105,8 @@ function installRecords(store: LocalProjectDatabase): Array<{ install_id: string
   return rows.map(row => JSON.parse(row.record_json) as { install_id: string; state: string });
 }
 
-/** Run the cleanup steps one by one: a failing step is recorded, and the later steps still run. */
+/** Run the cleanup steps one by one: a failing step is recorded, and the later steps still run. Every case below starts its try right
+ * after openProject(): whether the platform never started, started, or was already released, the finally still runs its cleanup (RAC-1600). */
 async function collectCleanupErrors(steps: ReadonlyArray<() => void | Promise<void>>): Promise<unknown[]> {
   const errors: unknown[] = [];
   for (const step of steps) {
@@ -126,17 +127,21 @@ function throwCleanupErrors(failure: unknown, errors: readonly unknown[]): void 
 
 test("RAC-1453 a project plugin whose install record the Runtime cannot give is one close failure, and the plugins after it still stop and are revoked", async () => {
   const { home, store, ports } = await openProject();
-  const platform = (await ensureProjectPlugins(ports)).platform;
-  assert.ok(platform);
-  const running = runningPlugins(platform);
-  assert.ok(running.length > 1, "a project has more than one running plugin");
-  const [gone, ...rest] = running;
-  // Keep the row so the finally can put it back; deleting it is how the close meets a record the Runtime cannot give.
-  const saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
-  assert.ok(saved);
-  store.db.prepare("DELETE FROM plugin_runtime_installs WHERE install_id = ?").run(gone.install);
+  let platform: RunningPlatform | undefined;
+  let running: RunningPlugin[] = [];
+  let saved: Record<string, unknown> | undefined;
   let failure: unknown;
   try {
+    const opened = (await ensureProjectPlugins(ports)).platform;
+    assert.ok(opened);
+    platform = opened;
+    running = runningPlugins(opened);
+    assert.ok(running.length > 1, "a project has more than one running plugin");
+    const [gone, ...rest] = running;
+    // Keep the row so the finally can put it back; deleting it is how the close meets a record the Runtime cannot give.
+    saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
+    assert.ok(saved);
+    store.db.prepare("DELETE FROM plugin_runtime_installs WHERE install_id = ?").run(gone.install);
     await assert.rejects(releaseProjectPlugins(store, DEMO_PROJECT_ID), error => {
       assert.ok(error instanceof AggregateError);
       assert.match(error.message, /项目插件停止失败/);
@@ -156,35 +161,37 @@ test("RAC-1453 a project plugin whose install record the Runtime cannot give is 
     throw error;
   } finally {
     // Nobody stopped the instances the close left running (on the red branch, all of `rest` too); the project is already
-    // forgotten, so release cannot reach them, and each installation is its own cleanup step.
-    const errors = await collectCleanupErrors([
-      () => {
-        const columns = Object.keys(saved);
-        store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
-      },
-      ...running.map(plugin => async () => {
-        if (platform.runtime.get(plugin.install).state === "running") await platform.runtime.stop(plugin.install);
-      }),
-      () => releaseProjectPlugins(store, DEMO_PROJECT_ID),
-      () => store.close(),
-      () => rmSync(home, { recursive: true, force: true }),
-    ]);
+    // forgotten, so release cannot reach them, and each installation is its own cleanup step. A failure before the row was
+    // saved or before the platform was assigned skips only that step.
+    const cleanup: Array<() => void | Promise<void>> = [() => {
+      if (!saved) return;
+      const present = store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(saved.install_id);
+      if (present) return;
+      const columns = Object.keys(saved);
+      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+    }];
+    const live = platform;
+    if (live) for (const plugin of running) cleanup.push(async () => {
+      if (live.runtime.get(plugin.install).state === "running") await live.runtime.stop(plugin.install);
+    });
+    cleanup.push(() => releaseProjectPlugins(store, DEMO_PROJECT_ID), () => store.close(), () => rmSync(home, { recursive: true, force: true }));
+    const errors = await collectCleanupErrors(cleanup);
     throwCleanupErrors(failure, errors);
   }
 });
 
 test("RAC-1454 a crashed installation the supervisor still counts running is not stopped, does not fail the close, and keeps its record", async () => {
   const { home, store, ports } = await openProject();
-  const platform = (await ensureProjectPlugins(ports)).platform;
-  assert.ok(platform);
-  const running = runningPlugins(platform);
-  assert.ok(running.length > 1);
-  const crashed = running[0];
-  await platform.runtime.reportCrash(crashed.install);
-  assert.equal(platform.runtime.get(crashed.install).state, "crashed");
-  assert.equal(platform.supervisor.state(crashed.id)?.status, "running", "the supervisor does not hear about a crash");
   let failure: unknown;
   try {
+    const platform = (await ensureProjectPlugins(ports)).platform;
+    assert.ok(platform);
+    const running = runningPlugins(platform);
+    assert.ok(running.length > 1);
+    const crashed = running[0];
+    await platform.runtime.reportCrash(crashed.install);
+    assert.equal(platform.runtime.get(crashed.install).state, "crashed");
+    assert.equal(platform.supervisor.state(crashed.id)?.status, "running", "the supervisor does not hear about a crash");
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     const records = installRecords(store);
     assert.equal(records.find(record => record.install_id === crashed.install)?.state, "crashed");
@@ -208,28 +215,24 @@ test("RAC-1454 a crashed installation the supervisor still counts running is not
 
 test("RAC-1455 every running project plugin is stopped exactly once with preserve_enabled, recorded installed, and starts again when the project reopens", async () => {
   const { home, store, ports } = await openProject();
-  const platform = (await ensureProjectPlugins(ports)).platform;
-  assert.ok(platform);
-  const running = runningPlugins(platform);
-  assert.ok(running.length > 0);
-  const stop = platform.runtime.stop.bind(platform.runtime);
-  const stopped: Array<{ install: string; options: { preserve_enabled?: boolean } | undefined }> = [];
-  platform.runtime.stop = async (installId, options) => {
-    stopped.push({ install: installId, options });
-    return stop(installId, options);
-  };
-  let reopened: Awaited<ReturnType<typeof ensureProjectPlugins>> | null = null;
   let failure: unknown;
   try {
+    const platform = (await ensureProjectPlugins(ports)).platform;
+    assert.ok(platform);
+    const running = runningPlugins(platform);
+    assert.ok(running.length > 0);
+    const stop = platform.runtime.stop.bind(platform.runtime);
+    const stopped: Array<{ install: string; options: { preserve_enabled?: boolean } | undefined }> = [];
+    platform.runtime.stop = async (installId, options) => {
+      stopped.push({ install: installId, options });
+      return stop(installId, options);
+    };
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.deepEqual(stopped.map(entry => entry.install).sort(), running.map(plugin => plugin.install).sort());
-    for (const entry of stopped) {
-      assert.equal(stopped.filter(other => other.install === entry.install).length, 1, "each installation is stopped once");
-      assert.deepEqual(entry.options, { preserve_enabled: true });
-    }
+    for (const entry of stopped) assert.deepEqual(entry.options, { preserve_enabled: true });
     const records = installRecords(store);
     for (const plugin of running) assert.equal(records.find(record => record.install_id === plugin.install)?.state, "installed");
-    reopened = await ensureProjectPlugins(ports);
+    const reopened = await ensureProjectPlugins(ports);
     assert.ok(reopened.platform);
     for (const plugin of running) assert.equal(reopened.platform.supervisor.state(plugin.id)?.status, "running");
   } catch (error) {

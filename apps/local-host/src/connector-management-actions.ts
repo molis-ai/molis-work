@@ -4,7 +4,7 @@ import { noProjectMcp, listProjectMcpConnections, manageProjectMcp, type Project
 import { controlConnectorConnection } from "./connector-management-service.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
-import { cancelConnectorAuthorization, connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { cancelConnectorAuthorization, connectorAuthorizationStatus, requireConnectorInitiator } from "./connector-authorization-status.js";
 import { checkConnectorConnection, verifyEnabledConnection } from "./connector-check-service.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -95,9 +95,14 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     }),
     binding(connectorManagementActions.control, (caller, input) => change(caller, input as { connection_id: string; expected_revision: string; action: "enable" | "disable" })),
     binding(connectorManagementActions.remove, (caller, input) => change(caller, { ...input as { connection_id: string; expected_revision: string }, action: "remove" })),
-    binding(connectorManagementActions.authorization, (_caller, input) => authorization((input as { authorization_id: string }).authorization_id)),
+    binding(connectorManagementActions.authorization, (caller, input) => {
+      const id = (input as { authorization_id: string }).authorization_id;
+      requireConnectorInitiator(home, id, caller);
+      return authorization(id);
+    }),
     binding(connectorManagementActions.cancel, async (caller, input) => {
       const id = (input as { authorization_id: string }).authorization_id;
+      requireConnectorInitiator(home, id, caller);
       authorization(id); await caller.beforeEffect();
       return cancelConnectorAuthorization(home, id)!;
     }),

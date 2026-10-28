@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MolisWorkLocalHost, ensureSystemAgentService, connectorManagementActions, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkLocalHost, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openTestHome, serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { connectorAssistantModel, toolField, untilSetup } from "./fixtures/connector-assistant-model.js";
 
 const read = (server: TestHostServer, id: string) => server.web.get<AssistantWorkView>(`/api/assistant/works/${id}`);
-const authorizationState = (host: MolisWorkLocalHost, id: string) => host.homeActionClient().invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: ["connectors:management:read"] }, connectorManagementActions.authorization, { authorization_id: id }) as Promise<{ commit_held?: boolean }>;
+const authorizationState = (server: TestHostServer, id: string) => server.web.get<{ commit_held?: boolean }>(`/api/settings/connectors/authorizations/${id}`);
 const setup = { service_id: "model-api", method: "token", display_name: "Work service", expected_revision: null };
 const query = (id: string) => ({ name: "read-capability", input: { capability_id: "connectors.authorization.read", version: 1, provider_id: "system.connectors", input: { authorization_id: id } } });
 
@@ -101,11 +100,11 @@ test("ASC-33 ASC-34: latest Send holds the original setup; an explicit retain su
   await untilSetup(async () => { const view = await read(home, sent.work.work_id); return view.work.state === "waiting-input" && view.rounds[0]?.phase === "completed" ? view : undefined; }, "initial wait");
   await home.web.post("/api/assistant/send", { work_id: sent.work.work_id, text: latest, request_id: crypto.randomUUID() });
   const retainedReview = await untilSetup(async () => (await read(home, sent.work.work_id)).reviews.find(review => review.review_id !== initialReview.review_id), "latest intent approval");
-  assert.equal((await authorizationState(home.host, authorization)).commit_held, true);
+  assert.equal((await authorizationState(home, authorization)).commit_held, true);
   assert.match(JSON.stringify(model.requests[6]?.messages), new RegExp(latest));
   await approve(retainedReview.review_id);
   await untilSetup(async () => { const view = await read(home, sent.work.work_id); return view.work.state === "waiting-input" && view.rounds.length === 2 && view.rounds[1]?.phase === "completed" ? view : undefined; }, "new wait under latest intent");
-  assert.notEqual((await authorizationState(home.host, authorization)).commit_held, true);
+  assert.notEqual((await authorizationState(home, authorization)).commit_held, true);
   assert.equal(model.requests.length, 9);
   await home.close(); await home.host.close();
   restartedHost = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });

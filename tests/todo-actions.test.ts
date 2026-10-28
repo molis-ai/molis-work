@@ -445,3 +445,35 @@ test("choices a card may show carry the names a person reads, and still validate
   assert.deepEqual([made.placement, made.status], ["project", "doing"]);
   await assert.rejects(f.inA.invoke(actions.create, { title: "不认识的值", placement: "当前项目" as never }), { code: "actions.input_invalid" });
 });
+test("RAC-1655: a todo's title, notes and waiting fields are counted in Unicode characters, as its action schemas count them", async t => {
+  // fieldInput in src/actions.ts allows a 200-character title, 10000 characters of notes and an 80/200-character waiting who/what;
+  // one 🟢 is one character but two UTF-16 units.
+  const f = fixture(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const { item } = await f.me.invoke(actions.create, { title: wide(200) });
+  assert.equal(item.title, wide(200), "create keeps a 200-character title");
+  const noted = (await f.me.invoke(actions.update, { id: item.id, notes: wide(10_000) })).item;
+  assert.equal(noted.notes, wide(10_000), "update keeps 10000 characters of notes");
+  const waited = (await f.me.invoke(actions.update, { id: item.id, waiting: { who: wide(80), what: wide(200), follow_up_on: null } })).item;
+  assert.deepEqual(waited.waiting, { who: wide(80), what: wide(200), follow_up_on: null }, "update keeps an 80-character who and a 200-character what");
+  await assert.rejects(f.me.invoke(actions.update, { id: item.id, title: wide(201) }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
+});
+
+test("RAC-1656: a todo's sources keep names, excerpts and reasons up to their schema lengths in Unicode characters", async t => {
+  // sourceInput in src/actions.ts allows a 200-character name, a 2000-character excerpt and a 500-character reason.
+  const f = fixture(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const { item } = await f.me.invoke(actions.create, { title: "有来源", sources: [{ kind: "material", title: wide(200), excerpt: wide(2000), reason: wide(500) }] });
+  assert.deepEqual(item.sources.map(source => [source.title, source.excerpt, source.reason]), [[wide(200), wide(2000), wide(500)]], "create keeps the source as given");
+  await assert.rejects(f.me.invoke(actions.create, { title: "来源名太长", sources: [{ kind: "material", title: wide(201) }] }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
+});
+
+test("RAC-1657: a link's name is counted in Unicode characters, as todo.items.link's schema counts it", async t => {
+  // linkInput in src/actions.ts allows a 200-character name; organizing names a link after another todo's title, which may be that long.
+  const f = fixture(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const { item } = await f.me.invoke(actions.create, { title: "有关联" });
+  const linked = (await f.me.invoke(actions.link, { id: item.id, add: { kind: "material", subject: { kind: "page", id: "doc-1" }, title: wide(200) } })).item;
+  assert.deepEqual(linked.links.map(link => link.title), [wide(200)], "link keeps a 200-character name");
+  await assert.rejects(f.me.invoke(actions.link, { id: item.id, add: { kind: "material", subject: { kind: "page", id: "doc-2" }, title: wide(201) } }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
+});

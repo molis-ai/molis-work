@@ -16,11 +16,11 @@ export function normalizeFields(patch: TodoFields, current: TodoItem | null, acc
   const out: { -readonly [K in keyof NormalizedFields]: NormalizedFields[K] } = {};
   if (patch.title !== undefined) {
     const title = String(patch.title).replace(/\s+/gu, " ").trim();
-    if (!title || title.length > 200) throw invalid("标题须为 1 到 200 个字");
+    if (!title || [...title].length > 200) throw invalid("标题须为 1 到 200 个字");
     out.title = title;
   }
   if (patch.notes !== undefined) {
-    if (String(patch.notes).length > 10_000) throw invalid("说明最多 10000 字");
+    if ([...String(patch.notes)].length > 10_000) throw invalid("说明最多 10000 字");
     out.notes = String(patch.notes);
   }
   for (const field of ["due_date", "planned_date"] as const) {
@@ -48,7 +48,7 @@ export function normalizeFields(patch: TodoFields, current: TodoItem | null, acc
     else {
       const who = String(patch.waiting.who ?? "").trim(), what = String(patch.waiting.what ?? "").trim();
       const follow = patch.waiting.follow_up_on ?? null;
-      if (who.length > 80 || what.length > 200) throw invalid("等待对象最多 80 字，等待内容最多 200 字");
+      if ([...who].length > 80 || [...what].length > 200) throw invalid("等待对象最多 80 字，等待内容最多 200 字");
       if (follow !== null && !isTodoDate(follow)) throw invalid("跟进日期无效");
       out.waiting = { who, what, follow_up_on: follow };
     }
@@ -81,9 +81,9 @@ export function normalizeSources(input: TodoCreateInput["sources"], access: Todo
   return input.map(source => {
     if (!SOURCE_KINDS.includes(source.kind)) throw invalid("来源种类无效");
     const title = String(source.title ?? "").trim();
-    if (!title || title.length > 200) throw invalid("来源要有 1 到 200 字的名称");
+    if (!title || [...title].length > 200) throw invalid("来源要有 1 到 200 字的名称");
     const excerpt = String(source.excerpt ?? ""), reason = String(source.reason ?? "");
-    if (excerpt.length > 2000 || reason.length > 500) throw invalid("依据最多 2000 字，形成原因最多 500 字");
+    if ([...excerpt].length > 2000 || [...reason].length > 500) throw invalid("依据最多 2000 字，形成原因最多 500 字");
     const subject = source.subject ? { kind: String(source.subject.kind), id: String(source.subject.id) } : null;
     if (subject && (!text(subject.kind, 80) || !text(subject.id, 200))) throw invalid("来源对象无效");
     return { source_id: crypto.randomUUID(), kind: source.kind, title, excerpt, reason, subject, open: normalizeOpen(source.open), added_at: at };

@@ -4,7 +4,7 @@
 
 | 来源 | 文件:行 | 要改的 | 记于 |
 | --- | --- | --- | --- |
-| T-031 二审 @4f322bff2 后续 1 | `specs/repository-anti-corruption/spec.md:2930`、`:507` | T-031 合入后，讲 `renderPluginRailAccountFooter` 的这两句改成「已删（#1353）」；`inventory.md` 那一半已进 T-047。先等 #1101 不再锁这个文件 | 2026-10-28 |
+| T-031 二审 @4f322bff2 后续 1 | `specs/repository-anti-corruption/spec.md:2930`、`:507` | T-031 合入后，讲 `renderPluginRailAccountFooter` 的这两句改成「已删（#1353）」；`inventory.md` 那一半 T-047 已做完（#1372）。先等 #1101 不再锁这个文件 | 2026-10-28 |
 | T-032 【方案】问题 1 | `tests/installed-plugin-host.test.ts` | Runtime 在 `installed` 状态同样拒绝 `stop`（`packages/plugin-runtime/src/index.ts:496`），但活 Host 里找不到能稳定停在这个状态的办法，T-032 没补这条用例。造法已找到：Supervisor 仍 `running` 时 `runtime.stop(id, { preserve_enabled: true })` 一句就停在 `installed`（T-035 第 1 节）。T-034 合入后（它让不带 `preserve_enabled` 的停止对 `installed` 记 `disabled`），按这个造法补 Host 层的停用用例 | 2026-10-28 |
 | T-020 【方案】@637cea31e | `apps/local-host/src/web-request.ts:230-240` 的 `goals` 改写；BL-386 | Goals 已经由 Plugin Runtime 监督器装配，BL-386 等的前提（S9）成立了，这一行可以开单：删旧地址改写，客户端改打插件前缀，`check-package-boundaries.mjs` 的 goals-command-owner 规则跟着改认新的挂载处。注释「Goals has no Runtime installation yet」已过时。实测：旧地址在撤权、卸载后答 `404 actions.missing`（不看安装状态，由 `local-host.ts:182` 拒），仍是拒绝，不是漏洞 | 2026-10-28 |
 | T-036 起草 第 8 节 | `scripts/run-tests/pool.mjs:133-140`（`runFile`） | `--bail`（main、`task/*` 的 Full）下，文件重试通过时只留第二次的结果，第一次失败的输出不打印，main 与 task 分支上的偶发因此看不见原因，所有偶发计数都是下限。改法：重试通过时也把第一次的输出打印出来，或写进结尾的 flaky 列表。#1101（草稿）在改 `pool.mjs`，等它不再锁这个文件再开单 | 2026-10-28 |

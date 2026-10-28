@@ -85,3 +85,4 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | 工作台摘 Goals 链 T-114～T-118（PG-094 ② 加 PG-060 → PG-060 末片 → PG-064 → 小收尾，串行；不碰 T-043 的文件） | Claude（设备 A） | 同上 |
 | 连接器尾巴 T-119～T-122（BL-740、`integration-providers.ts`、FI-7b、BL-530 批 B） | Claude（设备 A） | 同上 |
 | 零碎甲行 T-123（MISC:10，等 T-036）、T-124（MISC:18，等 T-042）；只出方案 T-125（BL-802）、T-126（BL-636） | Claude（设备 A） | 同上；T-125、T-126 用户裁完才写代码 |
+| 双实例页面归属 T-127（改成「哪一半有舞台视图就由哪一半画」，先出【方案】，含半边停着时的判据） | Claude（设备 A） | `apps/local-host/src/home-plugin-http.ts`、`apps/local-host/src/project-plugin-stages.ts`，其余在【方案】里报 |

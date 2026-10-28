@@ -36,3 +36,4 @@
 | T-050 二审登记 | `tests/goals-personal-methods-stored-json.test.ts:14`、`:32`、`:46` | 二审 #1374 的三条「建议·登记」：`:46` `unreadable` 给 `assert.rejects` 用，返回类型应是 `boolean`（同 `tests/desktop-launch-args.test.ts:70`）；`:32` 注释「a maintenance people」改「maintenance」；`:14` 注释里的 BL-820 合入后查不到，只留 T-050。下次改这个文件的任务带上 | 2026-10-29 |
 | T-072 起草 | `horizontal/runtime-host/src/adapters/terminal-pty.ts:393-397` | 终端进程自己退出时只删 `sessions`，不删 `replay`（只有 `kill` 删，`:416`）；从外面看不到（退出后接入拿空串），但表一直留着。要不要退出时也删是行为改动，另开一行再议 | 2026-10-29 |
 | 起草线 10-29 | `modules/shelf/README.md:61` | 写着「CLI 能力探测只缓存完成的结果，超时或启动失败下次重新探测」，代码里没有：`detectShelfRuntime`（`runtimes.ts:146`）只找可执行文件、不启动 CLI，`store.ts:72-82` 每次重找、不缓存。改成「只找可执行文件，不启动 CLI」或删掉。下次改 Shelf README 的任务带上 | 2026-10-29 |
+| 起草线 10-29 | `specs/dual-instance-plugins/spec.md:87`、`:167` | 说 DUAL-14 页面一层「要浏览器」才能验，已过时：PG094-STAGE-01（`tests/runtime-plugin-http-discovery.test.ts:641`）在纯 Node 里查服务端 HTML。T-127 或下次改这份 spec 的任务带上 | 2026-10-29 |

@@ -133,3 +133,35 @@ test("PPT outline from a Pages document reads it through Pages' own actions with
   await assert.rejects(pptOnly.invoke(actions.outlinePages, {}), { code: "actions.forbidden" });
   await assert.rejects(pptOnly.invoke(actions.outline, { id: presentation.id, page_id: page.id }), { code: "actions.forbidden" });
 });
+test("RAC-1617: PPT counts a deck's title and description in Unicode characters, as its action schemas do", async t => {
+  // create/update in src/actions.ts allow an 80-character title and a 2000-character description; one 🟢 is one character but two UTF-16 units.
+  const f = await fixture(t), wide = (count: number) => "🟢".repeat(count);
+  const { presentation } = await f.bound.invoke(actions.create, { title: wide(80) });
+  assert.equal(presentation.title, wide(80), "create keeps an 80-character title");
+  const described = (await f.bound.invoke(actions.update, { id: presentation.id, description: wide(2000) })).presentation;
+  assert.equal(described.description, wide(2000), "update keeps a 2000-character description");
+  await assert.rejects(f.bound.invoke(actions.update, { id: presentation.id, title: wide(81) }), { code: "actions.input_invalid" }, "81 characters is still past the schema");
+});
+
+test("RAC-1618: a slide's title, bullets and notes are cut at whole Unicode characters, never half of one", async t => {
+  // slideFields in src/actions.ts leave these unlimited; the store keeps 80, 200 and 2000 characters of them.
+  const f = await fixture(t), wide = (count: number) => "🟢".repeat(count);
+  const { presentation } = await f.bound.invoke(actions.create, {});
+  const [slide] = (await f.bound.invoke(actions.update, { id: presentation.id, slides: [{ title: "页" + wide(80), bullets: ["点" + wide(200)], notes: "注" + wide(2000) }] })).presentation.slides;
+  assert.equal(slide!.title, "页" + wide(79), "a slide title keeps 80 whole characters");
+  assert.deepEqual(slide!.bullets, ["点" + wide(199)], "a bullet keeps 200 whole characters");
+  assert.equal(slide!.notes, "注" + wide(1999), "the notes keep 2000 whole characters");
+});
+
+test("RAC-1619: an outline cuts the deck title, slide title, bullets and notes at whole Unicode characters", async t => {
+  // slidesFromMarkdown in src/content-actions.ts cuts what it reads before the store cuts again; the outline text may be 20000 characters.
+  const f = await fixture(t), wide = (count: number) => "🟢".repeat(count);
+  const { presentation } = await f.bound.invoke(actions.create, {});
+  const text = ["# 题" + wide(80), "## 页" + wide(80), "- 点" + wide(200), "> 注" + wide(2000)].join("\n");
+  const outlined = (await f.bound.invoke(actions.outline, { id: presentation.id, text })).presentation;
+  assert.equal(outlined.title, "题" + wide(79), "the untitled deck takes the outline's title, 80 whole characters");
+  const [slide] = outlined.slides;
+  assert.equal(slide!.title, "页" + wide(79), "an outline's slide title keeps 80 whole characters");
+  assert.deepEqual(slide!.bullets, ["点" + wide(199)], "an outline's bullet keeps 200 whole characters");
+  assert.equal(slide!.notes, "注" + wide(1999), "an outline's notes keep 2000 whole characters");
+});

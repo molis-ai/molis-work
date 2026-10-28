@@ -92,3 +92,25 @@ test("ISSUE-38 discard takes back only a record nobody changed since it was made
   assert.deepEqual(issuesActions.discard.action.audiences, ["user", "agent"]); assert.equal(issuesActions.discard.action.effect, "write");
   assert.deepEqual(issuesActions.capture.action.audiences, ["user"], "a draft is the page's; the Assistant records with issues.create (ISSUE-53)");
 });
+test("RAC-1663 a page draft is counted in Unicode characters: 100000 🟢 of words with a 500-character address and a 200-character title are prepared and saved as they are; one more is refused and not held", async t => {
+  // issues.prepare's schema (src/actions.ts) counts characters; one 🟢 is one character but two UTF-16 units.
+  const home = await mkdtemp(join(tmpdir(), "issue-capture-wide-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
+  t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
+  const wide = (count: number) => "🟢".repeat(count);
+  const store = new IssueStore(db.client, "owner"), drafts = new IssueCaptures(store), draft_id = crypto.randomUUID();
+  const page = { url: "/" + wide(499), title: wide(200) };
+  await drafts.prepare({ draft_id, description: wide(100_000), page }, caller);
+  const saved = await drafts.capture({ draft_id, title: "很长的原话", type: "bug" }, caller);
+  assert.equal(saved.description, wide(100_000), "the words are saved whole");
+  assert.deepEqual(saved.context.page, { ...page, provenance: "client_reported" }, "the page is saved as the draft reported it");
+  const refused = [
+    { draft_id: crypto.randomUUID(), description: wide(100_001) },
+    { draft_id: crypto.randomUUID(), description: "原话", page: { url: "/", title: wide(201) } },
+    { draft_id: crypto.randomUUID(), description: "原话", page: { url: "/" + wide(500), title: null } },
+  ];
+  await assert.rejects(drafts.prepare(refused[0]!, caller), { code: "actions.input_invalid", message: "请描述问题或添加图片" }, "100001 characters of words is still past the limit");
+  await assert.rejects(drafts.prepare(refused[1]!, caller), { code: "actions.input_invalid", message: "记录页面格式不正确" }, "a 201-character page title is still past the limit");
+  await assert.rejects(drafts.prepare(refused[2]!, caller), { code: "actions.input_invalid", message: "记录页面格式不正确" }, "a 501-character page address is still past the limit");
+  for (const draft of refused) await assert.rejects(drafts.capture({ draft_id: draft.draft_id, title: "不该保存", type: "bug" }, caller), { code: "actions.conflict" }, "a refused draft is not held");
+  assert.equal(store.list({}).items.length, 1, "only the draft within the limits was saved");
+});

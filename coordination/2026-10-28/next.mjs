@@ -87,7 +87,9 @@ function parseBoard(text) {
     }
     if (/^-+$/.test(cells[0].replace(/:/g, ""))) continue;
     const col = (name) => cells[header.indexOf(name)] ?? "";
-    const locks = [...col("锁定的文件").matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+    // BOARD.md says specs/BACKLOG.md is never locked (rows are edited one by one), but rows still name it in backticks with 「不锁」;
+    // reading it as a lock made every task that deletes a BACKLOG row wait on every other one.
+    const locks = [...col("锁定的文件").matchAll(/`([^`]+)`/g)].map((m) => m[1]).filter((l) => l !== "specs/BACKLOG.md");
     if (/^T-\d{3}$/.test(cells[0])) {
       rows.push({
         id: cells[0],

@@ -4,7 +4,7 @@ import type { MolisWorkProjectCatalog, RuntimeWorkContext } from "@molis-ai/moli
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import Database from "better-sqlite3";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -143,5 +143,46 @@ test("RAC-1524 a blank idempotency key is refused before any effect; a real key 
     const bound = await create("no-key-1");
     assert.equal(bound.status, "bound");
     assert.equal(catalog.listProjects().length, 1);
+  });
+});
+
+test("RAC-1650 removing a membership the workspace really has: the membership goes; the Session binding, the project and its database stay", async () => {
+  await withCatalog(async (catalog, directory) => {
+    const alpha = await catalog.createProject({ display_name: "Alpha", actor_id: "owner" });
+    const workspacePath = join(directory, "member-workspace");
+    await mkdir(workspacePath, { recursive: true });
+    const workspace = { canonical_path: workspacePath, realpath_verified: false };
+    const member: RuntimeWorkContext = { ...session("workspace-member"), workspace };
+    const noSession: RuntimeWorkContext = { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false, workspace };
+    // Binding a Session that carries a workspace also records the workspace as Alpha's member (bindRuntimeContextInTransaction).
+    const bound = catalog.bindRuntimeContext({ context: member, project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
+    const workspaceId = bound.context.workspace!.workspace_id;
+    const members = () => catalog.listWorkspaceMemberships().filter((membership) => membership.workspace_id === workspaceId)
+      .map((membership) => membership.project_id);
+    const directoryRecord = () => catalog.listWorkspaceDirectory().find((record) => record.workspace_id === workspaceId);
+    const unbind = () => catalog.unbindRuntimeContext({ context: member, actor_id: "runtime-codex",
+      user_confirmed: true, binding_scope: "workspace", project_id: alpha.project_id });
+    // (a) control: the workspace is Alpha's member, so a Runtime there with no Session is offered Alpha.
+    assert.deepEqual(members(), [alpha.project_id]);
+    assert.deepEqual(directoryRecord()?.project_ids, [alpha.project_id]);
+    assert.deepEqual(catalog.resolveRuntimeContext(noSession).suggested_projects.map((project) => project.project_id), [alpha.project_id]);
+    // (b) removing the membership reports Alpha, and the workspace no longer offers it.
+    const removed = unbind();
+    assert.equal(removed.changed, true);
+    assert.deepEqual(removed.unbound_project, { project_id: alpha.project_id, display_name: "Alpha" });
+    assert.deepEqual(members(), []);
+    assert.equal(catalog.resolveRuntimeContext(noSession).status, "unbound");
+    // (c) the Session binding is another fact: it still resolves to Alpha, and no unbind was recorded for it.
+    assert.equal(removed.resolution.project?.project_id, alpha.project_id);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(member).map((event) => event.type), ["context.bound"]);
+    // (d) the project and its database stay; the workspace record stays with no member (unlinkWorkspaceMembership(…, false)).
+    assert.equal(catalog.getProject(alpha.project_id).display_name, "Alpha");
+    assert.equal((await stat(alpha.database_path)).isFile(), true);
+    assert.deepEqual(directoryRecord()?.project_ids, []);
+    // (e) removing it again finds no membership: nothing changes, nothing is reported.
+    const again = unbind();
+    assert.equal(again.changed, false);
+    assert.equal(again.unbound_project, null);
+    assert.equal(catalog.resolveRuntimeContext(member).project?.project_id, alpha.project_id);
   });
 });

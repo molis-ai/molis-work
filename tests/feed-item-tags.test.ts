@@ -8,12 +8,8 @@ import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-cli
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/search-sources";
 import type { IntelligenceCollectRequest, IntelligenceCollectResult, SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import {
-  FEED_CAPTURE_ARTIFACT_TYPE_ID,
-  feedCaptureArtifactId,
-  createFeedContentHandlers,
-} from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createFeedContentHandlers } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { renderPersistedFeedItemDetail } from "./workbench-renderer-fixture.js";
 
@@ -52,7 +48,6 @@ function harness() {
   const path = join(directory, "project.sqlite");
   seedDemoBoard(path);
   const store = new LocalProjectDatabase(path);
-  const app = openProjectVersionStores(store);
   const runtimeFactory = (): SourcePullRuntime => ({
     intelligenceCollect: {
       async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
@@ -74,7 +69,7 @@ function harness() {
   });
   const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory);
   const source = service.register({ kind: "custom_rss", feed_url: "https://example.com/tags-feed.xml" }).source;
-  return { directory, store, app, service, source };
+  return { directory, store, service, source };
 }
 
 function close(data: ReturnType<typeof harness>): void {
@@ -82,21 +77,33 @@ function close(data: ReturnType<typeof harness>): void {
   rmSync(data.directory, { recursive: true, force: true });
 }
 
-// RAC-1270 BL-096: a pull stamps its own source marker on each item; the moment a person reads the item the marker is gone and the source
-// kind stays. A tag a person wrote is kept as it is, in the order it was written.
-test("RAC-1270 pulled Feed items read back without the source marker tag, keeping the source kind and human tags", async () => {
+// RAC-1185 BL-096: a pull writes the source kind into the stored tags and nothing else — no feed-source: marker reaches the database, so
+// the stored value itself is what the snapshot and a direct read show.
+test("RAC-1185 a pulled Feed item's stored tags carry its source kind and no source marker tag", async () => {
   const data = harness();
   try {
     const synced = await data.service.sync(data.source.source_id, { idempotencyKey: "feed-item-tags-pull-0001" });
     assert.equal(synced.created, 1);
     const item = data.service.feed.snapshot(DEMO_PROJECT_ID).feed_items.find(candidate => candidate.source_id === data.source.source_id);
     assert.ok(item, "the pull leaves one item for its source");
-    // The pull stamps the source kind beside `feed-source:<source_id>`; a person reads the source kind alone, and this exact list is
-    // what turns red if the write site ever renames its marker while the filter still drops only the old prefix.
-    assert.deepEqual(item.tags, ["custom_rss"], "the pull reads back as its source kind only");
-    const read = data.service.feed.getFeedItem(DEMO_PROJECT_ID, item.item_id);
-    assert.deepEqual(read.tags, ["custom_rss"], "getFeedItem returns the same tags a person sees in a snapshot");
+    // The stored column, not the projection: reading the database is what turns red if the write site adds the marker again, even while a
+    // projection filter would still hide it.
+    const stored = data.store.db.prepare("SELECT tags_json FROM feed_items WHERE project_id = ? AND item_id = ?")
+      .get(DEMO_PROJECT_ID, item.item_id) as { tags_json: string } | undefined;
+    assert.ok(stored, "the item is stored");
+    assert.deepEqual(JSON.parse(stored.tags_json), ["custom_rss"], "the stored tags are exactly the source kind");
+    assert.deepEqual(item.tags, ["custom_rss"], "the snapshot reads the source kind alone");
+    assert.deepEqual(data.service.feed.getFeedItem(DEMO_PROJECT_ID, item.item_id).tags, ["custom_rss"], "getFeedItem returns the same tags");
+  } finally {
+    close(data);
+  }
+});
 
+// RAC-1186 BL-096: the read does not rewrite tags any more. A person's tag that happens to start with the old marker prefix comes back as it
+// was written, in the same order, from all three reads.
+test("RAC-1186 Feed reads keep a person's tag that starts with the old marker prefix exactly as written", async () => {
+  const data = harness();
+  try {
     const human = data.service.feed.ingestItem({
       source: data.source,
       externalId: "human-tags-1",
@@ -106,15 +113,19 @@ test("RAC-1270 pulled Feed items read back without the source marker tag, keepin
       occurredAt: "2026-09-15T00:00:00.000Z",
       attention: false,
     });
-    assert.deepEqual(human.item.tags, ["zeta", "alpha"], "only the marker goes; a person's tags keep their order");
-    assert.deepEqual(data.service.feed.getFeedItem(DEMO_PROJECT_ID, human.item.item_id).tags, ["zeta", "alpha"]);
+    assert.deepEqual(human.item.tags, ["zeta", "feed-source:handmade", "alpha"], "ingestItem returns the tags as written");
+    assert.deepEqual(data.service.feed.getFeedItem(DEMO_PROJECT_ID, human.item.item_id).tags, ["zeta", "feed-source:handmade", "alpha"],
+      "getFeedItem does not filter tags");
+    const snapshot = data.service.feed.snapshot(DEMO_PROJECT_ID).feed_items.find(candidate => candidate.item_id === human.item.item_id);
+    assert.ok(snapshot);
+    assert.deepEqual(snapshot.tags, ["zeta", "feed-source:handmade", "alpha"], "the snapshot keeps the human tags untouched");
   } finally {
     close(data);
   }
 });
 
-// RAC-1271 BL-096: the detail page renders the tags a person may see, so the source marker never reaches the HTML.
-test("RAC-1271 the rendered detail of a pulled item shows the source kind and no marker", async () => {
+// RAC-1187 BL-096: the detail page renders the tags a person may see; the pulled item shows its source kind and no marker.
+test("RAC-1187 the rendered detail of a pulled item shows the source kind and no marker", async () => {
   const data = harness();
   try {
     const synced = await data.service.sync(data.source.source_id, { idempotencyKey: "feed-item-tags-detail-0001" });
@@ -130,10 +141,9 @@ test("RAC-1271 the rendered detail of a pulled item shows the source kind and no
   }
 });
 
-// RAC-1272 BL-096: the search summary is built from the tags a person may see; the marker is not in it, the visible pieces stay, and an item
-// with no marker keeps exactly the summary it has today.
-test("RAC-1272 the search summary of a pulled item leaves the marker out and keeps the visible parts", async () => {
-  assert.equal(FEED_CAPTURE_ARTIFACT_TYPE_ID.length > 0, true);
+// RAC-1187 BL-096: the search summary is built from the tags a person may see; the visible pieces stay and an item with no marker keeps
+// exactly the summary it has today.
+test("RAC-1187 the search summary of a pulled item keeps the visible parts and no marker", async () => {
   const data = harness();
   try {
     const synced = await data.service.sync(data.source.source_id, { idempotencyKey: "feed-item-tags-search-0001" });
@@ -181,50 +191,6 @@ test("RAC-1272 the search summary of a pulled item leaves the marker out and kee
       ["Plain summary", data.source.name, "Person", "visible"].join(" · "),
       "an item without the marker keeps the summary it has today",
     );
-  } finally {
-    close(data);
-  }
-});
-
-// RAC-1273 BL-096: an out rule matches the tags a person may see, so a rule that names the internal marker matches nothing and a captured
-// artifact carries only visible tags.
-test("RAC-1273 an out rule naming the internal marker matches nothing, and captures carry only visible tags", () => {
-  const data = harness();
-  try {
-    const markerRule = data.service.feed.createOutRule(DEMO_PROJECT_ID, { name: "内部标记", match: { contains: MARKER } });
-    const visibleRule = data.service.feed.createOutRule(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
-
-    const marked = data.service.feed.ingestItem({
-      source: data.source,
-      externalId: "marker-only-1",
-      title: "Only the internal marker",
-      summary: "No visible tag here",
-      tags: ["feed-source:internal"],
-      occurredAt: "2026-09-15T00:00:00.000Z",
-      attention: false,
-    });
-    assert.equal(
-      data.app.artifacts.query.latestArtifactVersion(DEMO_PROJECT_ID, feedCaptureArtifactId(marked.item.item_id, markerRule.rule_id)),
-      null,
-      "a rule that names the internal marker does not match",
-    );
-
-    // The rule names a word that only the visible tag carries: the title and summary stay free of it, so this artifact exists only if
-    // the matcher reads the tags a person may see.
-    const launch = data.service.feed.ingestItem({
-      source: data.source,
-      externalId: "launch-with-marker-1",
-      title: "发布说明",
-      summary: "今天发版，讲安排",
-      tags: ["launch", "feed-source:internal"],
-      occurredAt: "2026-09-15T00:00:00.000Z",
-      attention: false,
-    });
-    const artifact = data.app.artifacts.query.latestArtifactVersion(DEMO_PROJECT_ID, feedCaptureArtifactId(launch.item.item_id, visibleRule.rule_id));
-    assert.ok(artifact, "a visible tag still matches");
-    assert.equal(artifact.artifact_type_id, FEED_CAPTURE_ARTIFACT_TYPE_ID);
-    const payload = artifact.payload as { tags?: string[] };
-    assert.deepEqual(payload.tags, ["launch"], "the capture payload carries only visible tags");
   } finally {
     close(data);
   }

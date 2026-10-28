@@ -8,17 +8,20 @@ import { fullSuiteWorkflow, workflow } from "./fixtures/ci-workflow.js";
 // command, not by name, so a step added later is held to the same rules; when any one of them loses either half, or a new
 // unguarded install appears, this fails.
 //
-// Both step forms count: a `run: |` block and the one-line `- run: pnpm install …`. The value must be the headers
-// directory derived from the installed Node, exactly `$(dirname "$(dirname "$(command -v node)")")`; an empty value, a
-// hand-written path, or the same `$(…)` written into an `env:` map does not pass (a YAML env value is not shell-expanded,
-// so it cannot prove where the headers come from).
+// Both step forms count: a `run: |` block and the one-line `- run: pnpm install …`. The headers line must be the approved
+// export line byte for byte (only the YAML indentation in front of it may differ):
+//
+//   export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+//
+// The test does not parse shell quoting: an empty value, a hand-written path, the same expression in single quotes, or
+// the same text in a step's `env:` map is not that line and does not pass.
 
+const APPROVED_EXPORT = 'export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"';
 const TIMEOUT_LIMIT = 10;
 const TIMEOUT = /^ {8}timeout-minutes: (\d+)$/m;
 const STEP_START = /^ {6}- /;
-const SET_HEADERS = /^export npm_config_nodedir=(.+)$/;
+const EXPORT_LINE = /^export npm_config_nodedir/;
 const INSTALL = /^pnpm install\b/;
-const HEADERS_FROM_INSTALLED_NODE = /^\$\(dirname "\$\(dirname "\$\(command -v node\)"\)"\)$/;
 
 interface Step {
   line: number;
@@ -81,20 +84,8 @@ function commands(step: Step): Command[] {
 const installs = (step: Step): Command[] => commands(step).filter((command) => INSTALL.test(command.text));
 const installSteps = (text: string): Step[] => steps(text).filter((step) => installs(step).length > 0);
 
-/** The value an `export npm_config_nodedir=…` command sets, when the command is one. */
-function headersValue(command: Command): string | null {
-  const set = SET_HEADERS.exec(command.text);
-  return set ? set[1] : null;
-}
-
-/** True when the value is exactly the headers directory derived from the Node actions/setup-node installed. */
-function isInstalledNodeHeaders(value: string): boolean {
-  const trimmed = value.trim();
-  const quoted = trimmed.startsWith('"') && trimmed.endsWith('"');
-  const singleQuoted = trimmed.startsWith("'") && trimmed.endsWith("'");
-  const unquoted = quoted || singleQuoted ? trimmed.slice(1, -1) : trimmed;
-  return HEADERS_FROM_INSTALLED_NODE.test(unquoted);
-}
+/** True when the command is exactly the approved export line, with only its indentation removed. */
+const isApprovedExport = (command: Command): boolean => command.text === APPROVED_EXPORT;
 
 /** Everything that would let a hang or a nodejs.org fetch back in, as `line: what` strings. */
 function violations(text: string): string[] {
@@ -106,14 +97,11 @@ function violations(text: string): string[] {
       out.push(`line ${step.line} (${step.name}): timeout-minutes is ${timeout[1]}, not 1..${TIMEOUT_LIMIT}`);
     for (const install of installs(step)) {
       const before = commands(step).filter((command) => command.line < install.line);
-      const set = before.find((command) => headersValue(command) !== null);
-      if (!set) {
-        out.push(`line ${install.line} (${step.name}): npm_config_nodedir is not set before the install`);
-        continue;
-      }
-      const value = headersValue(set);
-      if (value === null || !isInstalledNodeHeaders(value))
-        out.push(`line ${set.line} (${step.name}): npm_config_nodedir is not the installed Node's headers directory`);
+      if (before.some(isApprovedExport)) continue;
+      const otherExport = before.find((command) => EXPORT_LINE.test(command.text));
+      if (otherExport)
+        out.push(`line ${otherExport.line} (${step.name}): npm_config_nodedir is not the approved export line`);
+      else out.push(`line ${install.line} (${step.name}): npm_config_nodedir is not set before the install`);
     }
   }
   return out;
@@ -179,8 +167,25 @@ test("RAC-1183 counterexample: an empty or hand-written npm_config_nodedir value
   for (const value of ['""', '"/opt/hostedtoolcache/node/24.14.0/x64"']) {
     const found = violations(workflowText(value));
     assert.equal(found.length, 1, `${value}: ${found.join("\n")}`);
-    assert.match(found[0], /npm_config_nodedir is not the installed Node's headers directory/);
+    assert.match(found[0], /npm_config_nodedir is not the approved export line/);
   }
+});
+
+test("RAC-1183 counterexample: the same expression in single quotes is rejected, not unpacked", () => {
+  const text = [
+    "jobs:",
+    "  gates:",
+    "    steps:",
+    "      - name: Install dependencies",
+    "        timeout-minutes: 5",
+    "        run: |",
+    "          export npm_config_nodedir='$(dirname \"$(dirname \"$(command -v node)\")\")'",
+    "          pnpm install --frozen-lockfile",
+    "",
+  ].join("\n");
+  const found = violations(text);
+  assert.equal(found.length, 1, found.join("\n"));
+  assert.match(found[0], /npm_config_nodedir is not the approved export line/);
 });
 
 test("RAC-1183 counterexample: a one-line `- run: pnpm install` step is held to the same rules", () => {

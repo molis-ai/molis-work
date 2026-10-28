@@ -29,6 +29,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-014 | 信息助手按能力 id 取 Feed 与 Inbox，不再 import 两个插件包 | 乙 | 池 | 2 | — | `apps/local-host/src/information-actions.ts`、`apps/local-host/src/information-planner.ts`、`tests/plugin-query-consumers.test.ts`、`tests/information-plan-capability-ids.test.ts`、`specs/repository-anti-corruption/slices/pg031-remaining.md`（只第 35 行）、`specs/repository-anti-corruption/privileges.md`（只 PG-093 状态格）、`docs/system/RUNTIME-MIGRATION.md`（只第 126 行那一句） |
 | T-018 | T-017 二审的两条建议：A3 的写法、PG-017 的行号、pg017 片里 BL-490 的旧状态 | 丙 | 池 | 3 | T-017 | `specs/repository-anti-corruption/slices/w5-08-workbench-exports.md`（只「A3 已合入」两处）、`specs/repository-anti-corruption/privileges.md`（只 PG-017 状态格；T-014 改 PG-093 格）、`specs/repository-anti-corruption/slices/pg017-sandbox-services.md`（只第 30、117、118 行） |
 | T-019 | CI 装依赖不再现场去 nodejs.org 下载 Node 头文件，挂住了快速失败（【方案】要用户批） | 甲 | 池 | 1 | — | `.github/workflows/ci.yml`、`.github/workflows/full-suite.yml`、`tests/ci-install.test.ts`（新）、`tests/fixtures/ci-workflow.ts`（只加读取函数） |
+| T-020 | 给 Goals 加一项生命周期用例 | 乙 | A | 5 | T-005 | `tests/shipped-plugin-lifecycle.test.ts`；`tests/fixtures/shipped-lifecycle.ts` 只在【方案】批了之后才锁；`docs/system/RUNTIME-MIGRATION.md`（只第 242 行那一句） |
 
 ## 在途，不走任务书
 

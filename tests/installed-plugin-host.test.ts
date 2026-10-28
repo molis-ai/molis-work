@@ -861,6 +861,7 @@ test('RAC-1150 disabling a crashed installation withdraws it and keeps the crash
     // A crashed installation cannot be stopped on the way out; the record is what this case is about.
     await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
     await rm(home, { recursive: true, force: true });
+    setTimeout(() => { process.stderr.write('HANDLES ' + (process as unknown as { _getActiveHandles(): Array<{ constructor: { name: string } }> })._getActiveHandles().map(handle => handle.constructor.name).join(',') + '\n'); }, 3000).unref();
   }
 });
 
@@ -1005,16 +1006,25 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
   const home = await mkdtemp(join(tmpdir(), 'installed-read-failure-close-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  let undo: (() => void) | undefined;
   try {
     const installed = await rig.control(), platform = installed.platform, runtime = platform.runtime, id = fixture.install.install_id;
+    // The close below cannot stop what it cannot read, so let go of the live process first: a Home that fails to close has no
+    // second chance to stop it. The record stays installed and the Supervisor still counts it as running, exactly like RAC-1197.
+    await runtime.stop(id, { preserve_enabled: true });
     const injected = new Error('the Runtime record cannot be read');
     const get = runtime.get.bind(runtime), stop = runtime.stop.bind(runtime), revoke = platform.supervisor.revoke.bind(platform.supervisor);
     const revoked: string[] = [], stopped: string[] = [];
     runtime.get = (installId: string) => { if (installId === id) throw injected; return get(installId); };
     runtime.stop = async (...args: Parameters<typeof stop>) => { stopped.push(args[0]); return stop(...args); };
     platform.supervisor.revoke = (pluginId: string) => { revoked.push(pluginId); revoke(pluginId); };
+    undo = () => { runtime.get = get; runtime.stop = stop; platform.supervisor.revoke = revoke; };
     await assert.rejects(rig.host.close(), (error: unknown) => error instanceof AggregateError && error.message === '安装插件停止失败' && error.errors.includes(injected));
     assert.deepEqual(stopped, [], 'nothing is stopped on a record the Host could not read');
     assert.deepEqual(revoked, [fixture.release.pluginId], 'the loop still revokes the installation');
-  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally {
+    undo?.();
+    await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
+    await rm(home, { recursive: true, force: true });
+  }
 });

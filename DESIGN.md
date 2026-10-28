@@ -211,7 +211,7 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 | `mw-*` primitives | `packages/design-system/src/styles/primitives.ts` and `src/primitives/*` |
 | Final expression layer: desk, sheet, bottom bar geometry, depth, motion, moments | `packages/design-system/src/styles/craft-finish.ts` (`CRAFT_FINISH_STYLES`, last on every page) |
 | Ways out and back: cover chip close, bar trays | `apps/workbench/src/styles/navigation-flow.ts` (`NAVIGATION_FLOW_STYLES`, right after the final layer on the workbench and settings pages) |
-| Navigation behaviour: history, covers, the bar's second press, kept page state | `apps/workbench/src/scripts/client/tab-workspace.ts`, `tab-workspace-ops.ts`; the rules in [specs/archive/page-interaction-flow](specs/archive/page-interaction-flow/spec.md) |
+| Navigation behaviour: history, covers, the bar's second press, kept page state | `apps/workbench/src/scripts/client/tab-workspace.ts` and its parts (`tab-workspace-places.ts` holds history and covers), `tab-workspace-ops.ts`; the rules in [specs/archive/page-interaction-flow](specs/archive/page-interaction-flow/spec.md) |
 | The one list of global settings categories | `apps/workbench/src/settings-sections.ts` |
 | The way in (chooser, opening, Welcome, new-project journey, update page) | `apps/workbench/src/arrival/` (the shared frame, the chooser and its brief), `src/styles/arrival.ts`, `src/context-onboarding-renderer.ts`, `src/scripts/context-onboarding.ts`; its parts are the `arrival` components in `packages/design-system/src/primitives/arrival.ts` and `styles/arrival-components.ts` |
 | Component board | `/__ui/catalog` (sections below) and `/__ui/catalog/bar` (the real bottom bar) |

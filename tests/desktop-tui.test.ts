@@ -1,4 +1,5 @@
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
+import { tabWorkspaceSource } from "./tab-workspace-files.js";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
@@ -791,7 +792,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /html\[data-native-desktop="true"\] body\.immersive-workbench \[data-titlebar-tabs\] \.tab-scroll/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; min-width: 0; \}/);
-    const tabWorkspaceClient = readFileSync(new URL("../apps/workbench/src/scripts/client/tab-workspace.ts", import.meta.url), "utf8");
+    const tabWorkspaceClient = tabWorkspaceSource();
     assert.match(tabWorkspaceClient, /documentElement\.dataset\.nativeDesktop === "true"/);
     assert.match(tabWorkspaceClient, /spacer\.dataset\.tauriDragRegion = ""/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /grid-template-columns: var\(--plugin-rail-width\) var\(--tree-width/);

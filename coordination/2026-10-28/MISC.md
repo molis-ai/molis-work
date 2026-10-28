@@ -33,3 +33,5 @@
 | 估算核对 | `specs/repository-anti-corruption/spec.md:1481` | 说 `skills/molis-plugin-dev/search.md` 没写 Home 级模式，`search.md:35` 已写，句子过时。下次改这份 spec 的任务带上 | 2026-10-29 |
 | 用户裁定 10-29 | `specs/BACKLOG.md` 的 BL-812 行 | 用户 10-29：BL-812（平台包日志端口）不算进防腐完成标准，记录在案，后续做。BACKLOG 那一行的「待你决定」改成这句（仍随 BL-169）。下次改 BACKLOG 的丙档带上 | 2026-10-29 |
 | 用户裁定 10-29 | `docs/system/CONTRACT-CHANGES.md:3-5`、`:80`，`specs/repository-anti-corruption/c-end-readiness.md` 的 D1 与 `:262`，`specs/repository-anti-corruption/spec.md:2790` | 用户 10-29：「1.0.0 之前都是开发版本」，0.3.0 不是第一个外部版本，读取兼容的起点不早于 1.0.0；发版（W5-15 余下）不算进防腐完成标准。三份文档写进这句。要尽快开一单丙档 | 2026-10-29 |
+| T-050 二审登记 | `tests/goals-personal-methods-stored-json.test.ts:14`、`:32`、`:46` | 二审 #1374 的三条「建议·登记」：`:46` `unreadable` 给 `assert.rejects` 用，返回类型应是 `boolean`（同 `tests/desktop-launch-args.test.ts:70`）；`:32` 注释「a maintenance people」改「maintenance」；`:14` 注释里的 BL-820 合入后查不到，只留 T-050。下次改这个文件的任务带上 | 2026-10-29 |
+| T-072 起草 | `horizontal/runtime-host/src/adapters/terminal-pty.ts:393-397` | 终端进程自己退出时只删 `sessions`，不删 `replay`（只有 `kill` 删，`:416`）；从外面看不到（退出后接入拿空串），但表一直留着。要不要退出时也删是行为改动，另开一行再议 | 2026-10-29 |

@@ -69,6 +69,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-070 | project-plugin-startup 三例把平台启动后的步骤挪进 try，失败也收尾（T-037 二审登记 1） | 丙 | 池 | 22 | — | `tests/project-plugin-startup.test.ts` |
 | T-071 | 助理的「添加定时」「取消定时」两处调用方错误回 assistant.invalid、assistant.not_found，不再是原生 Error | 乙 | B | 23 | — | `apps/local-host/src/assistant/assistant-rule-actions.ts`、`tests/assistant-attention.test.ts` |
 | T-057 | Runtime 项目绑定的五个错误码有用例钉住 | 丙 | B | 24 | — | `tests/runtime-binding-error-codes.test.ts`（新）、`modules/private-work-context/README.md`（只 `:39`、`:42`、`:58`） |
+| T-072 | 终端重放只留最后 20 万字、再接入拿到最新那段，补护栏用例 | 丙 | B | 25 | — | `tests/runtime-host.test.ts` |
+| T-073 | 流程交给问卷的超长标题和题目列表截到上限后收下，补护栏用例 | 丙 | 池 | 26 | — | `tests/form-actions.test.ts` |
 
 ## 在途，不走任务书
 

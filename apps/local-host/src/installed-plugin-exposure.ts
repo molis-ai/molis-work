@@ -47,7 +47,13 @@ export function installedPluginExposure(c: ExposurePorts) {
       if (current()) {
         c.recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error));
         // Install/enable owns their cleanup; a version switch restores its old release and keys instead of revoking itself first.
-        if (onFailure !== 'caller') { c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId); await c.platform.runtime.stop(record.install_id); }
+        if (onFailure !== 'caller') {
+          c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);
+          // The installation may have left running while this exposure was reading the catalog; its own failure is what the person needs.
+          await c.platform.runtime.stop(record.install_id).catch((error: unknown) => {
+            if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
+          });
+        }
       } else throw new ActionError('actions.provider_replaced', '原插件曝光或启用已变化，旧请求不再恢复或停用当前实例');
       throw error;
     }

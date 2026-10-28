@@ -3,7 +3,7 @@
 // All state comes from GitHub: the board on the coordination branch, task/* branches, task PRs with their stage comments
 // and checks, and the coordination issue. Nothing is written except the --new state file.
 //
-//   node next.mjs --role dev-a|dev-b|codex|review|coord|status [--wait] [--max <min>] [--interval <s>] [--new <file>] [--json]
+//   node next.mjs --role dev-a|dev-b|dev-ca|codex|review|coord|status [--wait] [--max <min>] [--interval <s>] [--new <file>] [--json]
 //
 //   --wait      poll until there is something to do (or --max minutes pass, default 240), then print and exit
 //   --new FILE  only items not printed before wake --wait; FILE keeps the keys already printed
@@ -21,9 +21,9 @@ const ISSUE = 1332;
 const STALE_HOURS = 2;
 const DEPTH = 3;
 const PUSH_MINUTES = 60;
-const SUFFIX = { A: "a", B: "b", Codex: "cx", 本机: "m" };
-const DEVICE = { a: "A", b: "B", cx: "Codex", m: "本机" };
-const SIGNATURE = { a: "DeepSeek（设备 A）", b: "DeepSeek（设备 B）", cx: "Codex（设备 A）", m: "Claude" };
+const SUFFIX = { A: "a", B: "b", Codex: "cx", "A-Claude": "ca", 本机: "m" };
+const DEVICE = { a: "A", b: "B", cx: "Codex", ca: "A-Claude", m: "本机" };
+const SIGNATURE = { a: "DeepSeek（设备 A）", b: "DeepSeek（设备 B）", cx: "Codex（设备 A）", ca: "Claude（设备 A）", m: "Claude" };
 const STAGES = "方案|交接|一审|验证|修复|二审|问统筹|统筹答|合入|空闲|阻塞|main 红|设备";
 const HEADER = new RegExp(`^【(${STAGES})(?:\\s*(T-\\d{3}))?】\\s*(.*)$`);
 
@@ -31,7 +31,7 @@ const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
 const value = (name, fallback) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback);
 const role = value("--role");
-const ROLES = ["dev-a", "dev-b", "codex", "review", "coord", "status"];
+const ROLES = ["dev-a", "dev-b", "dev-ca", "codex", "review", "coord", "status"];
 if (!ROLES.includes(role)) {
   console.error(`--role 要写 ${ROLES.join("、")} 之一`);
   process.exit(2);
@@ -118,7 +118,7 @@ function checkState(pr, test) {
 
 function fixtureSnapshot(file) {
   const f = JSON.parse(readFileSync(file, "utf8"));
-  const taskOf = (ref) => ref.match(/^task\/T(\d{3})-(a|b|cx|m)$/);
+  const taskOf = (ref) => ref.match(/^task\/T(\d{3})-(a|b|cx|ca|m)$/);
   return {
     board: parseBoard(f.board),
     boardSha: "fixture",
@@ -145,7 +145,7 @@ function snapshot() {
   const boardSha = boardFile ? "local" : run("git", ["log", "-1", "--format=%h", `origin/${COORD}`, "--", BOARD]).trim();
   const boardTime = boardFile ? new Date(0).toISOString() : run("git", ["log", "-1", "--format=%cI", `origin/${COORD}`, "--", BOARD]).trim();
   const mainSha = run("git", ["rev-parse", "--short=9", "origin/main"]).trim();
-  const taskOf = (ref) => ref.match(/^task\/T(\d{3})-(a|b|cx|m)$/);
+  const taskOf = (ref) => ref.match(/^task\/T(\d{3})-(a|b|cx|ca|m)$/);
   const branches = run("git", ["ls-remote", "--heads", "origin", "task/*"])
     .split("\n")
     .filter(Boolean)
@@ -222,8 +222,8 @@ function analyse(pr, issueStages, tier) {
   const lastChange = last([...of("一审", ["要改"]), ...of("二审", ["要改"]), ...of("验证", ["失败"]).filter((f) => !overturned(f))].sort((x, y) => x.time.localeCompare(y.time)));
   const fresh = (s) => !lastChange || s.time > lastChange.time;
   const passed = (kind, verdicts) => last(of(kind, verdicts).filter((s) => fresh(s) && holdsAt(s.fixedAt ?? s.at, head)));
-  // Codex's own tasks, the local lines and 丙 get no 一审: 二审 reviews them with the 一审 list too, Codex only verifies.
-  const needYi = pr.suffix !== "m" && pr.suffix !== "cx" && tier !== "丙";
+  // Codex's own tasks, the local lines, Claude on device A and 丙 get no 一审: 二审 reviews them with the 一审 list too, Codex only verifies.
+  const needYi = pr.suffix !== "m" && pr.suffix !== "cx" && pr.suffix !== "ca" && tier !== "丙";
   const yi = needYi ? passed("一审", ["可进二审", "已小修"]) : null;
   const yan = passed("验证", ["通过"]);
   const er = passed("二审", ["可合"]);
@@ -296,7 +296,7 @@ function plan(snap) {
   const ref = (s) => `${s.pr.id} #${s.pr.number} @${s.head9}`;
   const out = [];
 
-  if (role === "dev-a" || role === "dev-b" || role === "codex") {
+  if (role === "dev-a" || role === "dev-b" || role === "dev-ca" || role === "codex") {
     const suffix = role === "codex" ? "cx" : role.slice(4);
     const device = DEVICE[suffix];
     const me = SIGNATURE[suffix];

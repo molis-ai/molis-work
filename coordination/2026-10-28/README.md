@@ -11,13 +11,14 @@
 | 统筹 | 本机 Claude 统筹会话 | 拆任务、写任务书（可让子代理起草）、答【问统筹】、批【方案】、排 Full、合并、记账 | 不写功能代码，不读 diff |
 | 二审 | 本机一个常驻 Claude 会话：丙、乙档用 Sonnet，甲档用 Opus | 用 `next.mjs --role review` 自己找活，按第 7 节审，结论贴到 PR | 不推代码 |
 | 本机开发线 | 本机 Claude 子会话 | 甲档里要深上下文的任务 | 不跑浏览器用例、全量 |
+| 重活线 A | 设备 A 的 Claude 会话，署名「Claude（设备 A）」，开工 prompt 是 `prompts/claude-a.md` | 统筹直接派的重活，像本机线：在派片范围里自己拆 PR、开发、自测、开 PR、修（用户 2026-10-29 定：「重活直接给设备 A 的 claude 来做，可以给一定自主权，像本机线即可。」） | 不合并、不加减标签、不改协同分支、不在设备上跑全量 |
 | 开发 A | 设备 A（一骏的电脑）DeepSeek | 按任务书开发、自测自审、开 PR、修 | 不合并、不碰别人的分支 |
 | 开发 B | 设备 B（用户另一台）DeepSeek | 同开发 A | 同开发 A |
 | 一审与验证 | 设备 A Codex | 一审、验证、小修、main 变红归因；空了做自己的任务 | 不合并、不做大修 |
 
 | 设备 | GitHub 账号 | 上面的 AI | 浏览器用例、全量 |
 | --- | --- | --- | --- |
-| 设备 A（一骏的电脑） | `yijunw0212`（管理员） | DeepSeek、Codex | 都能跑 |
+| 设备 A（一骏的电脑） | `yijunw0212`（管理员） | DeepSeek、Codex、Claude | 都能跑 |
 | 设备 B（用户另一台） | `jingxusandra-gif` | DeepSeek | 都能跑 |
 | 本机 | `jingxusandra-gif` | Claude 统筹、二审、本机线 | 都不跑 |
 
@@ -65,7 +66,7 @@ git show origin/coordination/handoff-2026-10-14:coordination/2026-10-28/next.mjs
   git push -u origin task/T012-a
   ```
 
-- 分支名 `task/T<三位号>-<后缀>`：设备 A DeepSeek 用 `a`，设备 B DeepSeek 用 `b`，Codex 自己的任务用 `cx`，本机线用 `m`。
+- 分支名 `task/T<三位号>-<后缀>`：设备 A DeepSeek 用 `a`，设备 B DeepSeek 用 `b`，Codex 自己的任务用 `cx`，设备 A 的 Claude 用 `ca`，本机线用 `m`。
 - 池里的一项被 A、B 同时领了：后缀字母序靠后的（`b`）删掉自己的分支，去领下一项；`next.mjs` 会提示。
 - 开发中的分支可以随时推，备份进度，不花 CI。**开发中每 60 分钟至少推一次**：没有新代码就推一个写明做到哪里的空提交；卡住了贴【阻塞】。`next.mjs` 到点提醒。
 - 一台设备同一时间只开发一项（第 11 节）。两项的【方案】都批了，先做先领的那项，开了 PR 再做下一项。
@@ -82,7 +83,7 @@ git show origin/coordination/handoff-2026-10-14:coordination/2026-10-28/next.mjs
 
 丙档没有一审，一审的清单由二审顺带看。
 
-甲档默认留在本机线。本机线都占满、又急着做时，统筹才把做法写到函数级交给 DeepSeek。
+甲档默认留在本机线或设备 A 的 Claude（重活线 A，2026-10-29 加）。本机线都占满、又急着做时，统筹才把做法写到函数级交给 DeepSeek。
 
 「Codex 全套」：在 PR 头上重跑任务书第 7 节的测试文件、affected-tests 给出而开发没跑的、浏览器用例和开发报红或偶发的。不整套重跑开发已经跑过、CI 也覆盖的。
 
@@ -178,7 +179,7 @@ Codex：一审 + 验证（验证结论等 Verify 出来；Verify 红就退回开
 5. 验证的证据和当前头一致；`full` 的判断对。
 6. 账目：spec 状态句、BACKLOG、PR 正文的各节。
 
-本机线和 Codex 自己的任务、丙档没有一审，二审连一审的清单一起看（前两种用 Opus，丙档用 Sonnet）。
+本机线、设备 A 的 Claude 和 Codex 自己的任务、丙档没有一审，二审连一审的清单一起看（前三种用 Opus，丙档用 Sonnet）。
 
 ## 8. 合并
 
@@ -235,7 +236,7 @@ gh pr merge <号> --match-head-commit <H 的完整 sha>
 **其他。**
 
 - Codex 在本机跑全量会把设备 A 占住约一小时，只在统筹点名的时候跑；它只是提前发现问题，不替代 CI Full。
-- 设备 A 上 DeepSeek 和 Codex 共用一台机器：构建、浏览器用例包在 `node scripts/machine-slot.mjs run <build|browser> --label "<谁> <任务>" -- <命令>` 里排队；全量只由 Codex 跑。
+- 设备 A 上 DeepSeek、Codex 和 Claude 共用一台机器：构建、浏览器用例包在 `node scripts/machine-slot.mjs run <build|browser> --label "<谁> <任务>" -- <命令>` 里排队；全量只由 Codex 跑。Claude 要全量时在 PR 上写 `full=true`，由统筹排 CI Full。
 - 改 `.github/workflows/*`（比如承载分支从 10 个 runner 降到 6 个、PR 上按改动的路径跳过作业）算 CI 改动：T-019 合入、观察一天后，统筹写方案，用户批了再改。
 
 ## 10. 号段
@@ -246,6 +247,7 @@ gh pr merge <号> --match-head-commit <H 的完整 sha>
 | 开发 A | BL-820～839 | RAC-1200～1299 |
 | 开发 B | BL-840～859 | RAC-1300～1399 |
 | Codex | BL-860～869 | RAC-1400～1449 |
+| 重活线 A（设备 A 的 Claude） | BL-880～889 | RAC-1550～1599；任务号 T-058～T-069（2026-10-29 加，一个 PR 一个号） |
 
 - S（安全不变量）、R（风险）、PG 号只由统筹给，写进任务书，或回【问统筹】。统筹给号前查 main 和所有在途 PR 的 diff。
 - 切片的验收编号（如 `W5-13-16`）写在任务书里。

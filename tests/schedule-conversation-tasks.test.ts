@@ -352,3 +352,45 @@ test("对话任务编辑会重新排期；归档后不在列表且不会再唤�
   assert.equal(runs, 0);
   db.close();
 });
+test("RAC-1660 a conversation task's title is counted in Unicode characters up to 80: 80 🟢 become the task's and its alarm's title; 81 are refused on create and update", () => {
+  // fields.title in src/actions.ts promises 1 to 80 characters; one 🟢 is one character but two UTF-16 units.
+  const db = scheduleDatabase();
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const now = () => new Date("2026-09-20T00:50:00.000Z");
+  const schedule = installation.scheduler(db, { now });
+  const ports = createScheduleActionPorts({ db, schedule, now });
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const task = ports.createTask({ title: wide(80), instructions: "读说明", hour: 9, minute: 0, notify_important: true });
+    assert.equal(task.title, wide(80), "create keeps an 80-character title");
+    assert.ok(task.job_id);
+    assert.equal(schedule.get(task.job_id)?.title, wide(80), "the task's alarm carries the same title");
+    assert.throws(() => ports.createTask({ title: wide(81), instructions: "读说明", hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 1 到 80 字的标题" }, "81 characters is still past the limit");
+    assert.throws(() => ports.updateTask(task.task_id, { title: wide(81), instructions: "读说明", hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 1 到 80 字的标题" }, "update is held to the same limit");
+    assert.deepEqual(ports.listTasks().map(row => row.title), [wide(80)], "neither refusal wrote anything");
+  } finally { db.close(); }
+});
+
+test("RAC-1661 a conversation task's instructions are counted in Unicode characters up to 8000: 8000 🟢 become the instructions and the first turn; 8001 are refused on create and update", () => {
+  // fields.instructions in src/actions.ts promises at most 8000 characters.
+  const db = scheduleDatabase();
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const now = () => new Date("2026-09-20T00:50:00.000Z");
+  const schedule = installation.scheduler(db, { now });
+  const ports = createScheduleActionPorts({ db, schedule, now });
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const task = ports.createTask({ title: "长说明", instructions: wide(8_000), hour: 9, minute: 0, notify_important: true });
+    assert.equal(task.instructions, wide(8_000), "create keeps 8000 characters of instructions");
+    assert.deepEqual(getScheduleConversationTask(db, task.task_id)?.turns.map(turn => [turn.kind, turn.text]), [["user", wide(8_000)]], "the instructions open the conversation");
+    assert.throws(() => ports.createTask({ title: "说明太长", instructions: wide(8_001), hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 Agent 到点要做的说明" }, "8001 characters is still past the limit");
+    assert.throws(() => ports.updateTask(task.task_id, { title: "长说明", instructions: wide(8_001), hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 Agent 到点要做的说明" }, "update is held to the same limit");
+    assert.equal(getScheduleConversationTask(db, task.task_id)?.instructions, wide(8_000), "the refused update changed nothing");
+  } finally { db.close(); }
+});

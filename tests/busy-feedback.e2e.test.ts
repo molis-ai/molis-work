@@ -9,17 +9,21 @@ import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 // opens (twice round) and Files and Git refresh. Before, Todo's skeleton showed for 3 frames on its first open, and the
 // Files and Git refresh spinners for 1 to 4 frames on every open and refresh; marks now wait 250ms (`.mw-loading`'s rule).
 // A refresh held back in Chrome (a real request) keeps the button's label at first and shows the spinner after the wait.
+// How long a load takes is the runner's, not the rule's: a mark that shows only once its own 250ms wait has passed is a slow
+// load and is not counted; a mark with no such wait (none, or a shorter one) is the flash this test is for.
 
 const SAMPLE = `window.__marks = []; (() => { const seen = (el) => { if (!el.isConnected) return false; const box = el.getBoundingClientRect(); if (!box.width || !box.height || box.bottom <= 0 || box.top >= innerHeight) return false;
     for (let node = el; node; node = node.parentElement) { const style = getComputedStyle(node); if (style.display === 'none' || +style.opacity < 0.05 || (node === el && style.visibility !== 'visible')) return false; } return true; };
   const name = (el) => el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\\s+/)[0] : '');
+  const waited = (el) => { for (let node = el; node; node = node.parentElement) if (node.getAnimations().some((motion) => { const delay = motion.effect?.getTiming().delay ?? 0; return delay >= 250 && motion.currentTime >= delay; })) return true; return false; };
   const frame = () => { const now = [];
-    for (const el of document.querySelectorAll('.mw-spinner, .mw-skeleton')) if (seen(el)) now.push(name(el));
-    for (const el of document.querySelectorAll('[aria-busy=true]')) if (seen(el)) for (const part of [el, ...el.children]) if (seen(part) && +getComputedStyle(part).opacity < 0.95) { now.push('dim ' + name(part)); break; }
+    for (const el of document.querySelectorAll('.mw-spinner, .mw-skeleton')) if (seen(el) && !waited(el)) now.push(name(el));
+    for (const el of document.querySelectorAll('[aria-busy=true]')) if (seen(el)) for (const part of [el, ...el.children]) if (seen(part) && +getComputedStyle(part).opacity < 0.95 && !waited(part)) { now.push('dim ' + name(part)); break; }
     if (now.length) window.__marks.push(now.join(', ')); requestAnimationFrame(frame); }; requestAnimationFrame(frame); })();`;
 const ORDER = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "files", "git", "home"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type Seen = { busy: boolean; view: string; opacity: number; mark: number | null };
+type Refresh = { busy: boolean; label: number; spinner: number };
 
 test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows its spinner after the wait", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
@@ -56,13 +60,20 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
   const barrier = await sendBarrier(browser as never, [{ urlPattern: "*files/state*", requestStage: "Request" }]);
   const parts = `(() => { const button = document.querySelector('[data-files-refresh]'), opacity = (el) => getComputedStyle(el).visibility === 'visible' ? +getComputedStyle(el).opacity : 0;
     return { busy: button.hasAttribute('data-loading'), label: opacity(button.querySelector(':scope > :not(.mw-spinner)')), spinner: button.querySelector('.mw-spinner').hidden ? 0 : opacity(button.querySelector('.mw-spinner')) }; })()`;
+  // The wait is two animations' 250ms delay, so a runner that answers the click late would read the finished swap, and the label's
+  // animation (a `backwards` fill) is gone from getAnimations() once it ends. Have the button's animations start paused, then hold
+  // them at a known time (100ms in, then past delay plus duration) and read both states in one script, as
+  // tests/menu-exit-motion.e2e.test.ts does.
+  await views.files!.evaluate(`document.head.append(Object.assign(document.createElement('style'), { textContent: '.mw-btn[data-loading], .mw-btn[data-loading] > * { animation-play-state: paused !important; }' }))`);
   await views.files!.evaluate("document.querySelector('[data-files-refresh]').click()"); const held = await barrier.next();
-  await pause(60);
-  const early = await views.files!.evaluate<{ busy: boolean; label: number; spinner: number }>(parts);
-  assert.deepEqual(early, { busy: true, label: 1, spinner: 0 }, "just after the click the label stays and no spinner shows");
-  await pause(700);
-  const late = await views.files!.evaluate<{ busy: boolean; label: number; spinner: number }>(parts);
-  assert.deepEqual(late, { busy: true, label: 0, spinner: 1 }, "past the wait the spinner shows in the label's place");
+  const seen = await views.files!.evaluate<{ motions: string[]; early: Refresh; late: Refresh }>(`(() => {
+    const motions = document.querySelector('[data-files-refresh]').getAnimations({ subtree: true }).filter((motion) => ['mw-loading-in', 'mw-loading-out'].includes(motion.animationName));
+    const at = (time) => { for (const motion of motions) motion.currentTime = time; return ${parts}; };
+    return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), early: at(100), late: at(600) };
+  })()`);
+  assert.deepEqual(seen.motions, ["mw-loading-in", "mw-loading-out"], "the label and the spinner both wait on a real animation");
+  assert.deepEqual(seen.early, { busy: true, label: 1, spinner: 0 }, "just after the click the label stays and no spinner shows");
+  assert.deepEqual(seen.late, { busy: true, label: 0, spinner: 1 }, "past the wait the spinner shows in the label's place");
   await barrier.release(held); await barrier.close();
   await views.files!.waitFor("!document.querySelector('[data-files-refresh]').hasAttribute('data-loading')", 15_000);
   assert.deepEqual(await views.files!.evaluate(parts), { busy: false, label: 1, spinner: 0 }, "when the read answers the label comes back at once");

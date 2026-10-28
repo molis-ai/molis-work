@@ -305,17 +305,98 @@ test("a timed-out command carries how much Chrome said while it waited (RAC-1451
   });
 });
 
+test("a timed-out command profiles what kept Node busy, without the script URL's query string (RAC-1451)", async () => {
+  const sentinel = "SENTINEL-T036";
+  // The busy function lives in a script whose sourceURL carries a query string: the profile sees it, the error must not.
+  const busy = vm.runInThisContext(`(function cdpSentinelBusyWork() {
+    const until = Date.now() + 200;
+    let sum = 0;
+    while (Date.now() < until) sum += Math.sqrt(sum + 1);
+    return sum;
+  })
+  //# sourceURL=/tmp/t036-sentinel.js?token=${sentinel}`);
+
+  await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
+    const command = harness.command("Busy", {}, undefined, 120);
+    const observed = command.then(
+      () => { throw new Error("the busy command resolved, but nothing answers it"); },
+      (error) => error,
+    );
+    busy(); // keep the main thread working inside the command's window, past the 120 ms limit
+    const error = await observed;
+    assert.match(error.message, /^CDP timeout: Busy \(elapsed \d+ms; limit 120ms\)$/);
+    const diagnostics = error.diagnostics;
+    assert.ok(diagnostics, "a timeout error carries diagnostics");
+    assert.ok(Array.isArray(diagnostics.nodeSelfTime), "the profile is in the diagnostics");
+    assert.equal(diagnostics.nodeSelfTimeComplete, true);
+    assert.ok(
+      diagnostics.nodeSelfTime.some(({ functionName }) => functionName === "cdpSentinelBusyWork"),
+      `the busy function is listed: ${JSON.stringify(diagnostics.nodeSelfTime)}`,
+    );
+    const dumped = JSON.stringify({ message: error.message, cause: error.cause, diagnostics });
+    assert.ok(!dumped.includes(sentinel), "the script URL's query string is not copied into the error");
+  });
+});
+
 test("a timeout is still a timeout: the limit, the message and the requests do not change (RAC-1452)", async () => {
+  // A reply that arrives after the limit is dropped: the timeout already happened and its error does not change.
   await withHarness((message, reply) => {
-    if (message.method !== "Never") reply({ result: {} });
+    if (message.method === "Never") {
+      setTimeout(() => reply({ result: { late: true } }), 250);
+      return;
+    }
+    reply({ result: {} });
   }, {}, async (harness, devtools) => {
     assert.equal(harness.commandTimeoutMs, 20_000);
     await harness.command("Ping");
     const started = Date.now();
-    await assert.rejects(harness.command("Never", {}, undefined, 120), /CDP timeout: Never/);
+    await assert.rejects(harness.command("Never", {}, undefined, 120), (error) => {
+      assert.match(error.message, /^CDP timeout: Never \(elapsed \d+ms; limit 120ms\)$/);
+      return true;
+    });
     const elapsed = Date.now() - started;
     assert.ok(elapsed >= 120 && elapsed <= 370, `failed after ${elapsed}ms`);
-    assert.equal(devtools.received.length, 2, "only the two commands were sent to Chrome: the timeout adds no requests");
+    // The late reply settles nothing: the command after it still works, and the timeout added no requests.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.deepEqual(await harness.command("Ping"), {});
+    assert.equal(devtools.received.length, 3, "only the three commands were sent to Chrome: the timeout adds no requests");
+  });
+
+  // An unexpected disconnect fails the commands in flight the way it does today.
+  await withHarness((message, reply) => {
+    if (message.method !== "Hang") reply({ result: {} });
+  }, {}, async (harness, devtools) => {
+    await harness.command("Ping");
+    const pending = harness.command("Hang", {}, undefined, 5_000);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    devtools.dropConnections();
+    await assert.rejects(pending, /CDP connection closed/);
+  });
+
+  // Calling close() after the limit passed but before the deferred decision runs drops the command: it is not settled.
+  await withHarness(() => {}, {}, async (harness) => {
+    let outcome = "pending";
+    const command = harness.command("Never", {}, undefined, 50);
+    const settled = command.then(() => { outcome = "resolved"; }, () => { outcome = "rejected"; });
+    // Hold the loop until both 50 ms timers are due in one timers pass: the command's timer (registered first) yields
+    // to the check phase, then close() runs in the same timers pass and clears pending before that phase.
+    const hold = new Promise((resolve) => setTimeout(() => {
+      const until = Date.now() + 40;
+      while (Date.now() < until) { /* hold the timers pass until both timers are due together */ }
+      resolve();
+    }, 30));
+    const closed = new Promise((resolve) => {
+      setTimeout(() => { resolve(harness.close().then(() => "closed", () => "closed")); }, 50);
+    });
+    await hold;
+    const raced = await Promise.race([
+      settled.then(() => outcome),
+      closed,
+      new Promise((resolve) => setTimeout(() => resolve("pending"), 500)),
+    ]);
+    assert.equal(raced, "closed", "close() ran before the command settled");
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.equal(outcome, "pending", "close() drops pending work without settling it");
   });
 });
 

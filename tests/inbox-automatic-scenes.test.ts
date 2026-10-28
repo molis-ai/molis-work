@@ -23,7 +23,9 @@ const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Product Sig
 <item><guid>https://example.com/posts/automatic-public</guid><title>公开来源材料</title><link>https://example.com/automatic-public</link>
 <description>需要核查</description><pubDate>Fri, 25 Sep 2026 00:00:00 GMT</pubDate></item></channel></rss>`;
 
-test("HTTP admission, ingestion, workflow and scheduler events use the saved Inbox scene without a second judgment path", { timeout: 25_000 }, async t => {
+// 60 s until BL-814: the admission now goes through Plugin Runtime's per-call checks (about 2.5 s each here, 34 s for this test on CI); back to
+// 25 s once that path costs what it did before the migration.
+test("HTTP admission, ingestion, workflow and scheduler events use the saved Inbox scene without a second judgment path", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "automatic-inbox-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "自动判断", actor_id: "test" });

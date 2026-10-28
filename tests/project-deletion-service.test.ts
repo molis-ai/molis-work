@@ -454,7 +454,7 @@ test("a Host of another Home refuses the MCP tool at the control-token gate with
   assert.equal(catalog.listProjectDeletions().length, 0, "the MCP process did not go on to delete in its own process");
 });
 
-test("the settings route gives only a live terminal its own code and status; any other failure of the demo removal is a 400 with the message and no code, and the CLI prints that message", { timeout: 120_000 }, async t => {
+test("RAC-1333 an unexpected failure of the demo removal answers the Host's generic 500 with a diagnostic id, and the CLI prints that sentence without leaking ENOENT or the local path", { timeout: 120_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const demo = (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project;
   const { origin, token, stop } = await residentHost(t, home);
@@ -466,14 +466,20 @@ test("the settings route gives only a live terminal its own code and status; any
     body: JSON.stringify({ action: "remove", user_confirmed: true }) });
 
   const failed = await remove();
-  const body = await failed.json() as { error?: string; code?: string };
-  assert.equal(failed.status, 400, JSON.stringify(body));
-  assert.match(body.error ?? "", /ENOENT/, "the message names what failed");
-  assert.equal(Object.hasOwn(body, "code"), false, "the settings route carries a code only for a live terminal");
+  const body = await failed.json() as { error?: string; code?: string; diagnostic_id?: string };
+  assert.equal(failed.status, 500, JSON.stringify(body));
+  assert.equal(body.code, "actions.execution_failed", "the unexpected failure is the Host's own, not the deletion's");
+  assert.equal(typeof body.diagnostic_id, "string");
+  assert.ok(body.diagnostic_id, "the answer carries a diagnostic id to look the failure up");
+  assert.doesNotMatch(body.error ?? "", /ENOENT/, "the internal failure's own text is not passed on");
+  assert.ok(!(body.error ?? "").includes(home), "the answer names no local path");
 
   const refused = await demoRemoveCli(home, origin);
   assert.notEqual(refused.status, 0, refused.stdout);
-  assert.match(refused.stderr, /ENOENT/, "the CLI prints the message the Host gave");
+  assert.ok((body.error ?? "") !== "", "the Host's generic sentence is there for the CLI to print");
+  assert.ok(refused.stderr.includes(body.error!), "the CLI prints the message the Host gave");
+  assert.doesNotMatch(refused.stderr, /ENOENT/, "neither does the CLI pass on the internal text");
+  assert.ok(!refused.stderr.includes(home), "nor the local path");
   assert.doesNotMatch(refused.stderr, /project_deletion\.failed|catalog\.[a-z_]+/, "and no code");
   assert.equal(catalog.listProjectDeletions().length, 0, "the CLI did not go on to delete in its own process");
 });

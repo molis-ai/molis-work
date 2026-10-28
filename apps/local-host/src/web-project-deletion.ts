@@ -16,7 +16,7 @@ export function ownerLabel(owner: Pick<ProjectDeletedOwner, "label" | "label_val
   return owner.words_of ? withPluginWords(owner.words_of, draw) : draw();
 }
 
-/** How the settings page hears a refused or failed deletion: the answer every Host exit gives a failure, chosen by its kind (SDK `actionErrorResponse`), so a missing project is the not-found 404 a live terminal is the 409. */
+/** How the settings page hears a refused or failed deletion: the answer every Host exit gives a failure, chosen by its kind (SDK `actionErrorResponse`), so a missing project is the not-found 404 and a live terminal the 409. */
 export function sendDeletionFailure(response: ServerResponse, error: unknown): void {
   respondLocalWebRefusal({ respond: (status, body) => sendJson(response, status, body) }, error);
 }

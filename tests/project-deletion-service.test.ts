@@ -466,13 +466,14 @@ test("RAC-1333 an unexpected failure of the demo removal answers the Host's gene
     body: JSON.stringify({ action: "remove", user_confirmed: true }) });
 
   const failed = await remove();
-  const body = await failed.json() as { error?: string; code?: string; diagnostic_id?: string };
-  assert.equal(failed.status, 500, JSON.stringify(body));
+  const raw = await failed.text();
+  const body = JSON.parse(raw) as { error?: string; code?: string; diagnostic_id?: string };
+  assert.equal(failed.status, 500, raw);
   assert.equal(body.code, "actions.execution_failed", "the unexpected failure is the Host's own, not the deletion's");
   assert.equal(typeof body.diagnostic_id, "string");
   assert.ok(body.diagnostic_id, "the answer carries a diagnostic id to look the failure up");
-  assert.doesNotMatch(body.error ?? "", /ENOENT/, "the internal failure's own text is not passed on");
-  assert.ok(!(body.error ?? "").includes(home), "the answer names no local path");
+  assert.doesNotMatch(raw, /ENOENT/, "the internal failure's own text is not passed on, anywhere in the JSON body");
+  assert.ok(!raw.includes(home), "the answer names no local path, anywhere in the JSON body");
 
   const refused = await demoRemoveCli(home, origin);
   assert.notEqual(refused.status, 0, refused.stdout);
@@ -480,6 +481,7 @@ test("RAC-1333 an unexpected failure of the demo removal answers the Host's gene
   assert.ok(refused.stderr.includes(body.error!), "the CLI prints the message the Host gave");
   assert.doesNotMatch(refused.stderr, /ENOENT/, "neither does the CLI pass on the internal text");
   assert.ok(!refused.stderr.includes(home), "nor the local path");
-  assert.doesNotMatch(refused.stderr, /project_deletion\.failed|catalog\.[a-z_]+/, "and no code");
+  assert.ok(!refused.stderr.includes(body.code ?? "actions.execution_failed"), "the CLI prints no code, including the one this answer carries");
+  assert.doesNotMatch(refused.stderr, /project_deletion\.failed/, "and none of the old code names");
   assert.equal(catalog.listProjectDeletions().length, 0, "the CLI did not go on to delete in its own process");
 });

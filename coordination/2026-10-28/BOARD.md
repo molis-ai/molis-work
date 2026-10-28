@@ -65,6 +65,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-053 | Feed 拉取不再给条目写来源归属标签，读出时也不再改写标签（BL-096 标签一半收尾） | 乙 | 池 | 18 | — | `plugins/native/feed/src/source-sync.ts`、`plugins/native/feed/src/application-projection.ts`、`tests/feed-item-tags.test.ts`、`specs/BACKLOG.md`（只 BL-096 行，不锁） |
 | T-055 | Home 里已装的签名包再装一次，回 plugin.state_invalid，不再是原生 Error | 乙 | A | 19 | — | `apps/local-host/src/home-installed-plugins.ts`、`tests/home-installed-plugins.test.ts` |
 | T-056 | 官方发布元数据不是 JSON 时，CLI 安装准备回 connector.install.failed，不再抛原生 SyntaxError | 乙 | 池 | 20 | — | `apps/local-host/src/connector-native-release.ts`、`tests/security-invariants-native-cli.test.ts`（只在末尾追加） |
+| T-054 | Home 里已有这个插件时，另一个发布者的同 ID 签名包在固定发布者、保存包之前就拒绝（S-84 的顺序，BL-628） | 甲 | A | 21 | — | `apps/local-host/src/plugin-install-service.ts`、`tests/security-invariants-plugin-install.test.ts`、`tests/security-invariants-sandbox-home-instance.test.ts` |
 
 ## 在途，不走任务书
 

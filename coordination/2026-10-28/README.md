@@ -1,6 +1,6 @@
 # 防腐跨设备协同（2026-10-28 起）
 
-状态：现行（用户 2026-10-28 确认；同日按省 token、不断流、不空槽位重审后改；同日下午按第一天的数据再改：丙档不走一审、常备 3 份、加急、认领提醒与收回、交接前自查、二审建议的去处）。`coordination/2026-10-14/` 里 `CODEX-SESSION-ROLES.md`、`CODEX-TASKS.md`、`MERGE-QUEUE.md`、`SLICE-RULES.md` 讲分工、评审与合并的部分作废，以这里为准；`LINES.md`、`RISKS-AND-DEFERRED.md`、`known-red-main.md` 照旧由统筹记账。
+状态：现行（用户 2026-10-28 确认；同日按省 token、不断流、不空槽位重审后改；同日下午按第一天的数据再改：丙档不走一审、常备 3 份、加急、认领提醒与收回、交接前自查、二审建议的去处；10-29 按用户「每个环节都要加速」改：乙档【方案】贴完就写代码，乙档、丙档任务书用短版 `tasks/TEMPLATE.md`）。`coordination/2026-10-14/` 里 `CODEX-SESSION-ROLES.md`、`CODEX-TASKS.md`、`MERGE-QUEUE.md`、`SLICE-RULES.md` 讲分工、评审与合并的部分作废，以这里为准；`LINES.md`、`RISKS-AND-DEFERRED.md`、`known-red-main.md` 照旧由统筹记账。
 
 仓库：`molis-ai/molis-work`。协同分支：`coordination/handoff-2026-10-14`，本目录 `coordination/2026-10-28/`。
 
@@ -78,7 +78,7 @@ git show origin/coordination/handoff-2026-10-14:coordination/2026-10-28/next.mjs
 | 档 | 什么样的任务 | 谁做 | 方案 | 一审 | 验证 | 二审 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 甲 | 共享核心（contracts、plugin-sdk、plugin-runtime、kernel、agent-host、storage、local-host 装配、workbench 外壳），安全边界，门禁、CI，合同与快照，存储迁移，跨三个以上包，要深上下文 | 本机开发线；或统筹把做法写到函数级后交 DeepSeek | 任务书写到函数级 | 本机线、Codex 自己的任务不做；交给 DeepSeek 的照乙档 | Codex 全套 | Opus |
-| 乙 | 一个包内、改行为、带测试 | DeepSeek | 领取后先贴【方案】，统筹批了再写代码；等批的时候可以先写先红的测试 | Codex | Codex 全套 | Sonnet |
+| 乙 | 一个包内、改行为、带测试 | DeepSeek | 领取后先贴【方案】，贴完就写代码（2026-10-29 改，不再等批）；方案里有要先问的事（改门禁、改合同、安全边界、页面资源、任务书范围以外），只有那一部分等【统筹答】。统筹有异议回【统筹答】，照着调 | Codex | Codex 全套 | Sonnet |
 | 丙 | 文档、机械改名、删有证据的死代码、补测试、补日志 | DeepSeek | 不要 | 不做，二审连一审的清单一起看 | Codex：看 CI 和开发的自测；改了代码的，只跑任务书第 7 节的测试文件 | Sonnet |
 
 丙档没有一审，一审的清单由二审顺带看。
@@ -95,7 +95,7 @@ git show origin/coordination/handoff-2026-10-14:coordination/2026-10-28/next.mjs
 统筹：写任务书，派
   ↓
 开发：领取（只推分支）
-  乙档：在 #1332 贴【方案】 → 统筹【统筹答】 → 再写代码
+  乙档：在 #1332 贴【方案】 → 接着写代码；要先问的那一部分等【统筹答】
   ↓
 开发：自测、自审 → 开 PR（直接 ready，不开 draft） → 马上贴【交接】，不等 CI
   ↓

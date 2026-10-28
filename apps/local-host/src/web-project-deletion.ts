@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
+import { decodeLocalWebPathPart, readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
@@ -47,7 +47,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.
       const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: ownerLabel(owner) }] : []);
-      sendJson(response, 200, { project_id: decodeURIComponent(scopeMatch[1]), owners });
+      sendJson(response, 200, { project_id: decodeLocalWebPathPart(scopeMatch[1]), owners });
       return true;
     }
     const projectDeleteMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete$/);
@@ -60,7 +60,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
       }
       try {
         const result = await new ProjectDeletionService(withMolisWorkProjectCatalog, deletionPorts).deleteProject(homeDirectory, {
-          project_id: decodeURIComponent(projectDeleteMatch[1]),
+          project_id: decodeLocalWebPathPart(projectDeleteMatch[1]),
           actor_id: LOCAL_PERSON_ACTOR_ID,
           delete_confirmed: true,
           idempotency_key: deletionKey,

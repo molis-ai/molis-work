@@ -200,12 +200,42 @@ test("RAC-1330 project deletion of a project that is not in the catalog answers 
 });
 
 test("RAC-1333 a deletion failure that is not an ActionError keeps its text out of the response", async t => {
-  const { post } = await fixture(t);
-  // A project id whose percent-encoding does not decode is a plain URIError on the way in, not a refusal: the exit rethrows it,
-  // the Host's unhandled answer logs it and answers with a diagnostic id, never with the internal text.
+  const { directory, catalog, project, localHost, post } = await fixture(t);
+  // The deletion port lets go of the project's runtime before the catalog deletes; here it fails with a plain Error that names a local path.
+  // That is not a refusal: the exit rethrows it, the Host's unhandled answer logs it and answers with a diagnostic id, never with its text.
+  const closeProject = localHost.closeProject;
+  localHost.closeProject = async () => { throw new Error(`closing failed at ${directory}`); };
+  try {
+    const response = await post(`/api/settings/projects/${project.project_id}/delete`, { delete_confirmed: true, idempotency_key: "release-fails-delete" });
+    const raw = await response.text();
+    assert.equal(response.status, 500, raw);
+    const body = JSON.parse(raw) as { error?: string; code?: string; diagnostic_id?: string };
+    assert.equal(body.code, "actions.execution_failed", "the unexpected failure is the Host's own");
+    assert.equal(typeof body.diagnostic_id, "string", raw);
+    assert.doesNotMatch(raw, /closing failed/, "the internal failure's own text is not passed on");
+    assert.ok(!raw.includes(directory), "the answer names no local path");
+  } finally {
+    localHost.closeProject = closeProject;
+  }
+  assert.equal(existsSync(project.database_path), true, "the catalog never got to delete");
+  assert.ok(catalog.listProjects().some(item => item.project_id === project.project_id));
+});
+
+test("RAC-1615 a deletion whose project id in the path is not valid percent-encoding is refused as the caller's mistake", async t => {
+  const { catalog, project, other, post } = await fixture(t);
   const response = await post("/api/settings/projects/%zz/delete", { delete_confirmed: true, idempotency_key: "malformed-project-id" });
-  assert.equal(response.status, 500);
-  const body = await response.json() as { error?: string; diagnostic_id?: string };
-  assert.equal(typeof body.diagnostic_id, "string", JSON.stringify(body));
-  assert.doesNotMatch(body.error ?? "", /URI|malformed/i);
+  const raw = await response.text();
+  assert.equal(response.status, 400, raw);
+  assert.equal((JSON.parse(raw) as { code?: string }).code, "host.request_path_invalid");
+  assert.equal(existsSync(project.database_path), true);
+  assert.equal(existsSync(other.database_path), true);
+  assert.equal(catalog.listProjectDeletions().length, 0, "nothing was deleted");
+});
+
+test("RAC-1616 the deletion scope of a project id that is not valid percent-encoding is refused as the caller's mistake", async t => {
+  const { origin } = await fixture(t);
+  const response = await fetch(origin + "/api/settings/projects/%zz/delete-scope");
+  const raw = await response.text();
+  assert.equal(response.status, 400, raw);
+  assert.equal((JSON.parse(raw) as { code?: string }).code, "host.request_path_invalid");
 });

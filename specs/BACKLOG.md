@@ -49,7 +49,7 @@
 
 | 编号 | 事项 | 来源 | 为什么还没做 | 优先级 |
 | --- | --- | --- | --- | --- |
-| BL-020 | Coding 下一阶段 Q6–Q8 剩余决定：多模型对比上限与语音服务、GitHub 账号与推送范围、是否做 VS Code 扩展 | [coding-plugin/next-requirements.md §4](coding-plugin/next-requirements.md) | 2026-10-28 已定公开网页搜索/读取默认允许、项目或本次任务可关闭，其他操作按对应授权；搜索作为平台公共能力、复用已连接服务及统一默认来源已定，Coding 不单独配置；Q2 的默认受限执行、项目目录统一及长期规则由 AI 提出／用户同意保存已定，当前已有授权直接继续；开发任务所需公开依赖可自动下载并遵守联网限制，其他操作按对应授权，可选 AI 低风险自动审批已定，Q3 用户钩子首次启用确认、范围内自动运行、脚本／权限变化重新确认与随时停用已定；Q4 沿现有 Prologue 记忆方案接入与验收、不另设规则已定；Q5 代码分析工具优先复用已有适用版本、缺少时按需下载到隔离目录并遵守联网限制已定；Q1～Q5 决定完成，Q6～Q8 仍待拍板，本轮未实施 | 中 |
+| BL-020 | Coding 下一阶段 Q7–Q8 剩余决定：GitHub 账号与推送范围、是否做 VS Code 扩展 | [coding-plugin/next-requirements.md §4](coding-plugin/next-requirements.md) | 2026-10-28 已定公开网页搜索/读取默认允许、项目或本次任务可关闭，其他操作按对应授权；搜索作为平台公共能力、复用已连接服务及统一默认来源已定，Coding 不单独配置；Q2 的默认受限执行、项目目录统一及长期规则由 AI 提出／用户同意保存已定，当前已有授权直接继续；开发任务所需公开依赖可自动下载并遵守联网限制，其他操作按对应授权，可选 AI 低风险自动审批已定，Q3 用户钩子首次启用确认、范围内自动运行、脚本／权限变化重新确认与随时停用已定；Q4 沿现有 Prologue 记忆方案接入与验收、不另设规则已定；Q5 代码分析工具优先复用已有适用版本、缺少时按需下载到隔离目录并遵守联网限制已定；Q6 多模型对比已取消，页面复用 Character 选择，语音沿既有统一输入／本地识别方案；Q1～Q6 已收口，Q7～Q8 仍待拍板，本轮未实施 | 中 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
 
@@ -123,7 +123,7 @@
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | BL-023 | 项目多输入／单输出目录，输入输出可相同且用户可修改；Coding、公共文件浏览与 Git 默认联动，临时查看不改变执行位置；承接 Files 退役 | [coding-harness-optimization R1、CHO-36～39](coding-harness-optimization/spec.md)；[目录与资料整合方案](product-flow-governance/workspace-and-materials-design.md) | 部分实现 | 2026-10-27 目录模型已定；源码已有部分联动，新配置合同、公共能力承接与完整验证未完成 | 历史过程项与现行目录配置须接好；无待决的主工作目录规则 | 中 | 未分配 |
-| BL-050 | Coding 下一阶段 20 项（A1–E4：仓库说明与 `/init`、斜杠命令、图片输入、代码智能、联网、沙盒与规则、钩子、记忆、多模型对比、VS Code 等） | [coding-plugin/next-requirements.md §5](coding-plugin/next-requirements.md) | 未实现 | 需求已定稿，标「待定」的等 BL-020 | BL-020 | 中 | 未分配 |
+| BL-050 | Coding 下一阶段保留 19 项（原 20 项取消 C5 多模型对比；含仓库说明与 `/init`、斜杠命令、图片输入、代码智能、联网、沙盒与规则、钩子、记忆、VS Code 等；页面沿现有 Character 选择） | [coding-plugin/next-requirements.md §5](coding-plugin/next-requirements.md) | 未实现 | 需求已定稿，标「待定」的等 BL-020 | BL-020 | 中 | 未分配 |
 | BL-051 | Coding：子任务预算（现在只显示用量）；重试在真实运行中未触发过；派出子任务的标识格式在 SDK 工具参数里加约束 | [coding-plugin/spec.md 第 0 节](coding-plugin/spec.md) | 部分实现 | 见原文各块「还没做 / 未验证」 | Prologue SDK | 低 | 未分配 |
 | BL-052 | Characters：五家原生 Agent（含 Cursor、OpenCode）真实启动、规则与技能加载、取消与失败实操 | [characters-local-agent-import](archive/characters-local-agent-import/spec.md) | 部分实现 | 本机缺 CLI，且 AI 验证限定走 Prologue | 本机安装对应 CLI | 低 | 未分配 |
 | BL-053 | Shelf：轮盘纸面与字色对齐 DropAgent；面板内 Esc/⌘V/⌘C/⌫ 快捷键 | [shelf-drop-wheel-craft](archive/shelf-drop-wheel-craft/spec.md)、[shelf-plugin](archive/shelf-plugin/spec.md) | 部分实现 | 留后续切片 | 无 | 低 | 未分配 |

@@ -131,6 +131,7 @@ function fixtureSnapshot(file) {
     mainRuns: f.mainRuns ?? [],
     fullsRunning: f.fullsRunning ?? 0,
     carrierRunning: f.carrierRunning ?? 0,
+    ciQueued: f.ciQueued ?? 0,
   };
 }
 
@@ -179,7 +180,9 @@ function snapshot() {
   const fulls = ghJson(["run", "list", "--workflow", "full-suite.yml", "--limit", "20", "--json", "status,headBranch"]).filter((r) => r.status !== "completed");
   const fullsRunning = fulls.length;
   const carrierRunning = fulls.filter((r) => r.headBranch.startsWith("integration/")).length;
-  return { board, boardSha, boardTime, mainSha, branches, open, merged, issue, mainRuns, fullsRunning, carrierRunning };
+  // CI runs with no job started yet: PR heads, merge-queue groups and main pushes waiting for a runner.
+  const ciQueued = ghJson(["run", "list", "--workflow", "ci.yml", "--status", "queued", "--limit", "50", "--json", "databaseId"]).length;
+  return { board, boardSha, boardTime, mainSha, branches, open, merged, issue, mainRuns, fullsRunning, carrierRunning, ciQueued };
 }
 
 const patchIds = new Map();
@@ -354,10 +357,10 @@ function plan(snap) {
   }
 
   if (role === "coord") {
-    const { fullsRunning, carrierRunning } = snap;
-    // README 第 9 节的 runner 预算：承载分支在排或在跑时不排 PR Full；晚高峰（UTC 10～15 点）最多一个，平时最多两个。
+    const { fullsRunning, carrierRunning, ciQueued } = snap;
+    // README 第 9 节的 runner 预算：承载分支在排或在跑时不排 PR Full；晚高峰（UTC 10～15 点）或 CI 有 3 轮以上在排队时最多一个，平时最多两个。
     const utcHour = new Date().getUTCHours();
-    const fullCap = utcHour >= 10 && utcHour < 15 ? 1 : 2;
+    const fullCap = (utcHour >= 10 && utcHour < 15) || ciQueued >= 3 ? 1 : 2;
     const fullWait = carrierRunning > 0 ? "承载分支的 Full 在排或在跑" : fullsRunning >= fullCap ? `已有 ${fullsRunning} 个 Full（现在最多 ${fullCap} 个）` : null;
     for (const s of states) {
       if (s.askOpen) out.push(item(`ask:${s.askOpen.id}`, `答：${s.pr.id} 的【问统筹】`, s.askOpen.url, 1));

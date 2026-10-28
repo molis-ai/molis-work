@@ -218,6 +218,7 @@ gh pr merge <号> --match-head-commit <H 的完整 sha>
 
 - 所有 Full 合计不超过约 12 个 runner。要么一条承载分支，要么最多两个 PR Full，两种不混：承载分支在排队或在跑时，不排 PR Full。
 - 承载分支同时只一条。同一批的子分支（`…-c`、`…-c2` 这类）也占这一条的名额。它在排队或在跑时不往它推（会取消它）。
+- PR 的 CI 有 3 轮以上在排队（`gh run list --workflow ci.yml --status queued`，一个作业都还没开始）时，也最多一个 PR Full，先把 runner 让给 PR 的 CI（2026-10-29 加：10-28 晚上两个 Full 占 8 个 runner，PR 的 CI 一轮约 20 分钟、排着 67 个作业）。已经在跑的 Full 不取消，跑完不补第二个。
 - 晚高峰（本机 18:00～23:00，即 UTC 10:00～15:00）最多一个 PR Full。这段时间两台设备都在推，合并队列也最忙；不急的承载分支挪到这段之外。
 - 什么时候排：`full=true` 的 PR，一审过了、同头 `Verify` 绿了就排，和验证、二审并行。`Verify` 红的头不排；一审「要改」的，等改完的头。
 - `next.mjs --role coord` 按这几条给「排 Full」，或者「待排 Full：等…」。

@@ -45,6 +45,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-031 | 删掉两个没有调用方的导出：renderPluginRailAccountFooter、sideViewKeys | 丙 | 池 | 8 | — | `apps/workbench/src/settings-directory.ts`、`apps/workbench/src/side-view-document.ts` |
 | T-032 | 安装不在 running 时，停用和曝光失败清理不再被 plugin.state_invalid 拒绝 | 乙 | 池 | 9 | — | `apps/local-host/src/installed-plugin-lifecycle.ts`、`apps/local-host/src/installed-plugin-exposure.ts`、`tests/installed-plugin-host.test.ts`（与 T-033 共改：T-033 只改 SYS-15-S1 一个用例和文件顶部的 import，T-032 只在文件末尾追加） |
 | T-033 | installed-plugin-host 的 SYS-15-S1 只数自己的定时任务，另断言 Feed 唤醒（main 已知红） | 丙 | 池 | 10 | — | `tests/installed-plugin-host.test.ts`（与 T-032 共改，见 T-032 行） |
+| T-034 | 停止崩掉或还没启动的安装时 Runtime 记 disabled，人的停用撑得过 Host 重启 | 甲 | 本机 | 3 | T-032、T-007 | `packages/plugin-runtime/src/index.ts`（只改 `stopOnce`）、`packages/plugin-runtime/README.md`、`tooling/gates/giant-exceptions.json`（只改 `PluginRuntime` 的 `size`）、`tests/plugin-lifecycle-states.test.ts`、`tests/installed-plugin-host.test.ts`（只改 T-032 追加的两例）、`tests/project-plugin-enablement-refresh.test.ts`（只改 RAC-1120 第一例和顶部注释）、`apps/local-host/src/project-plugin-enablement.ts` 与 `apps/local-host/src/installed-plugin-lifecycle.ts`（只改注释）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（一句）、`docs/system/CALL-CHAINS.md`（只改第 132 行） |
 
 ## 在途，不走任务书
 

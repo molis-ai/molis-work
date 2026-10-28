@@ -172,8 +172,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const renderTabs = () => {
     if (knownIds().size) prune();
     tabsEl.hidden = true;
-    const workspaceTabs = document.querySelector("[data-titlebar-tabs]");
-    if (workspaceTabs) workspaceTabs.hidden = false;
     shell.querySelectorAll("[data-board-view-tab]").forEach((button) => {
       const current = boardTab(curTab) && button.dataset.boardViewTab === curTab;
       button.classList.toggle("is-current", current);

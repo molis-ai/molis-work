@@ -1,3 +1,4 @@
+import { storageErrors } from "./errors.js";
 import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
@@ -10,13 +11,21 @@ export function json(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
+const unreadableStoredJson = Symbol("unreadable-stored-json");
+const unreadableStoredJsonMessage = "Goals 存的一条记录读不出来（JSON 已损坏），读取已停止，没有按空值处理";
+
 export function parseJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string" || value.length === 0) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
+  if (value == null) return fallback;
+  let parsed: unknown = unreadableStoredJson;
+  if (typeof value === "string" && value.length > 0) {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      // The stored text is not JSON; it is reported as unreadable below.
+    }
   }
+  if (parsed === unreadableStoredJson) throw storageErrors.record_unreadable(unreadableStoredJsonMessage);
+  return parsed as T;
 }
 
 export function text(value: unknown): string {

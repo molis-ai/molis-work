@@ -260,6 +260,19 @@ async function withDelayedProfileStop(delayMs, run) {
   try { await run(); } finally { Session.prototype.post = original; }
 }
 
+/** Holds the first `Profiler.stop` back until the test releases it, modelling a read whose request never answers. */
+async function withHungProfileStop(run) {
+  const original = Session.prototype.post;
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let hung = false;
+  Session.prototype.post = async function post(...args) {
+    if (args[0] === "Profiler.stop" && !hung) { hung = true; await held; }
+    return original.apply(this, args);
+  };
+  try { return await run(() => release()); } finally { Session.prototype.post = original; }
+}
+
 test("a command resolves with the result and an error reply rejects with the protocol error", async () => {
   await withHarness((message, reply) => {
     if (message.method === "Good") reply({ result: { value: 7 } });
@@ -396,6 +409,32 @@ test("a close during the bounded profile read still rejects the timed-out comman
       assert.equal(error.diagnostics.nodeSelfTimeComplete, false);
       await closing;
     } finally {
+      await devtools.close();
+    }
+  });
+});
+
+test("a close finishes while a diagnostic read waits for an inspector answer that never comes (RAC-1452)", async () => {
+  await withHungProfileStop(async (release) => {
+    const devtools = await fakeDevTools(() => {});
+    const harness = await ChromeHarness.connect(devtools.url, { profileTimeouts: true });
+    try {
+      const command = harness.command("Never", {}, undefined, 60);
+      const error = await command.then(
+        () => { throw new Error("a timed-out command must not resolve"); },
+        (rejection) => rejection,
+      );
+      assert.match(error.message, /^CDP timeout: Never \(elapsed \d+ms; limit 60ms\)$/);
+      // The command has already rejected through the bounded read; close() must not wait for the inspector answer
+      // that the fake never sends.
+      const started = Date.now();
+      const outcome = await Promise.race([
+        harness.close().then(() => "closed"),
+        new Promise((resolve) => setTimeout(() => resolve("hung"), 2_000)),
+      ]);
+      assert.equal(outcome, "closed", `close() waited ${Date.now() - started}ms behind the hung diagnostic read`);
+    } finally {
+      release();
       await devtools.close();
     }
   });

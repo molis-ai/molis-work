@@ -196,7 +196,9 @@ class TimeoutProfiler {
     this.closed = true;
     if (this.rotation) clearInterval(this.rotation);
     this.rotation = undefined;
-    await this.finishSegment();
+    // A diagnostic read can be waiting on an inspector request that never gets answered. Closing must not wait for
+    // it: `closed` keeps the queued step from restarting sampling, and dropping the session ends the read without the
+    // caller having to release the hung request first.
     this.session.disconnect();
   }
 

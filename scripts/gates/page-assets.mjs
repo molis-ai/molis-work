@@ -242,11 +242,10 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-006 (PR #1348), RAC-1310–1317: the plugin market says what adding or removing a plugin brings along — two
-// data-market-* attributes per card, the button title, the status line and three new strings with their English
-// (+1488 B). One asset, no second renderer; folding the doubled add/remove label lookup won back 97 B.
+// T-048 (BL-544), RAC-1487–1491: the frame bridge now guards a raw mount until the child answers ready or failed — the
+// owner of the surface writes the guard instead of the deferred client, +341 B on one asset, no second renderer.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1146895, 1148383],
+  "/assets/molis-work-plugin-frame.js": [190219, 190560],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

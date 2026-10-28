@@ -44,7 +44,7 @@ function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" |
 }
 
 async function twoRounds(t: TestContext, summary: Summary) {
-  let summaryArrivedAt = 0, patchedAt = 0, deadlineCalls: ReturnType<typeof shortenProductionDeadline> = [];
+  let summaryArrivedAt = 0, lateReturnedAt = 0, patchedAt = 0, deadlineCalls: ReturnType<typeof shortenProductionDeadline> = [];
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
   let round = 1;
@@ -57,6 +57,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
         // Held here until the production deadline has passed; the answer is late and must change nothing (RAC-1341).
         summaryArrivedAt = Date.now();
         await new Promise(resolve => setTimeout(resolve, DEADLINE_LATE_MS));
+        lateReturnedAt = Date.now();
         return cogniaModelResponse(`${LATE_SUMMARY_MARKER}\n1. 目标与要求：${SUPPLEMENTS.at(-1)}\n2. 已完成：无`);
       }
       // The model's summary keeps only the last supplement: the Host's own section must still carry all six.
@@ -98,7 +99,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const reviews = f.requests.slice(roundOne).filter(isReview), later = f.requests.slice(roundOne).filter(request => !isReview(request));
   const summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
   const roundTwo = later.filter(request => !textOf(request).includes(SUMMARY_PROMPT));
-  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, summaryArrivedAt, patchedAt, deadlineCalls };
+  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, summaryArrivedAt, patchedAt, deadlineCalls, lateReturnedAt: () => lateReturnedAt };
 }
 
 function assertCarried(request: CodingProviderRequest, steers: AgentRunView["turns"]) {
@@ -134,7 +135,7 @@ for (const summary of ["error", "empty"] as const) {
 }
 
 test("RAC-1340 a summary still pending at the production deadline is replaced by the record-based digest, and round two starts from it", { timeout: 60_000 }, async t => {
-  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, patchedAt, deadlineCalls } = await twoRounds(t, "timeout");
+  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, patchedAt, deadlineCalls, lateReturnedAt } = await twoRounds(t, "timeout");
   // The shortened calls are exactly the production deadline ones: execution-lifetime's setTimeout and host-complete-text's
   // AbortSignal.timeout, both made with 120 000 ms.
   assert.deepEqual([...new Set(deadlineCalls.filter(call => call.delay === 120_000).map(call => call.call))].sort(), ["AbortSignal.timeout", "setTimeout"],
@@ -146,13 +147,19 @@ test("RAC-1340 a summary still pending at the production deadline is replaced by
   assert.deepEqual(second.body.digest, { source: "records", problem: "起草超过两分钟，已停止，可重试" }, "the production deadline's own sentence, not the fetch signal's");
   assert.match(textOf(roundTwo[0]!), /的记录由宿主根据执行记录整理/, "the record-based digest stood in");
   assertCarried(roundTwo[0]!, steers);
+  // Let the late responder finish before the test ends, so it cannot leak into another test's observations.
+  const deadline = Date.now() + 8_000;
+  while (!lateReturnedAt() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.ok(lateReturnedAt() > 0, "the late summary did answer, after the deadline");
 });
 
 test("RAC-1341 a summary that comes back after the deadline changes no request and records no usage", { timeout: 60_000 }, async t => {
-  const { f, project, coding, id } = await twoRounds(t, "timeout");
+  const { f, project, coding, id, lateReturnedAt } = await twoRounds(t, "timeout");
   const afterRound = f.requests.length;
-  // Let the late answer land, then read: it reached nothing.
-  await new Promise(resolve => setTimeout(resolve, DEADLINE_LATE_MS + 400));
+  const deadline = Date.now() + 8_000;
+  while (!lateReturnedAt() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.ok(lateReturnedAt() > 0, "the late summary did answer, after the deadline");
+  // The answered-but-late summary reached nothing: the live request list is re-read, not the snapshot taken at round start.
   assert.equal(f.requests.length, afterRound, "the late summary added no provider request");
   assert.deepEqual(f.requests.filter(request => textOf(request).includes(LATE_SUMMARY_MARKER)), [], "no request carries the late summary");
   const read = await f.call<{ usage_total?: { digests?: unknown } }>(project, coding + `/sessions/${id}?window=20`);

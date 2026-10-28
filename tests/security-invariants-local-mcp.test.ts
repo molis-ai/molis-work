@@ -157,6 +157,13 @@ test("RAC-1352 a stored local connection carrying a newly refused loader name is
   assert.equal(existsSync(childPid), false, "the management check starts no child");
   assert.ok(checked instanceof ActionError, "the management check is refused");
   assert.equal(checked.code, "connector.mcp.configuration");
+  // Each path proves the refusal changed nothing on its own: the management check's own inspection observations are not one of the three.
+  assert.deepEqual(calls(home.home), [], "the management check reaches no business call");
+  assert.deepEqual(readProtocol(), storedProtocol, "the management check leaves the stored protocol configuration unchanged");
+  assert.deepEqual(connectorProtocolSecrets(home.home, connected.connectionId).get("environment"), storedSecrets,
+    "the management check leaves the stored credential value unchanged");
+  assert.deepEqual(withConnectorConnections(home.home, store => store.require(connected.connectionId)), storedConnection,
+    "the management check leaves the connection record unchanged");
   const called = await home.host.homeActionClient().invoke(caller, reference(connected.connectionId), { text: "must not run" })
     .then(() => undefined, (error: unknown) => error);
   assert.equal(existsSync(childPid), false, "the registered tool starts no child either");

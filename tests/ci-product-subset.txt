@@ -422,6 +422,7 @@ tests/primitives.test.ts
 tests/projects-module.test.ts
 tests/question-rules-consistency.test.ts
 tests/prompt-registration.test.ts
+tests/runtime-binding-error-codes.test.ts
 tests/runtime-binding-ledger.test.ts
 tests/runtime-context-entry.test.ts
 tests/runtime-dependency-flatten.test.ts

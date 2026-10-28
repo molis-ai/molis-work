@@ -180,7 +180,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const failures: unknown[] = [];
     for (const pluginId of platform.supervisor.enabledPluginIds()) {
       const state = platform.supervisor.state(pluginId);
-      if (state?.status === 'running' && state.install_id) try { await platform.runtime.stop(state.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
+      // The Supervisor does not see a crash on the Runtime's side: a record it restored as running may not be running there.
+      if (state?.status === 'running' && state.install_id) try { if (platform.runtime.get(state.install_id).state === 'running') await platform.runtime.stop(state.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
       platform.supervisor.revoke(pluginId);
     }
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');

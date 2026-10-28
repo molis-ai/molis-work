@@ -966,3 +966,93 @@ test('RAC-1151 an exposure failure keeps its own error when the installation cra
     await rm(home, { recursive: true, force: true });
   }
 });
+
+// RAC-1196 T-035: the Host must stop only the installations the Runtime still reports as running. A record crashed in the Runtime
+// while the Supervisor still shows running must not turn the whole close into a failure, and the crash stays the record's state.
+test('RAC-1196 closing the Host does not reject for a crashed installation and the prompts stay enabled after a restart', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-crashed-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id;
+    await runtime.reportCrash(id);
+    assert.equal(runtime.get(id)?.state, 'crashed');
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId)?.status, 'running');
+    await rig.host.close();
+    const record = new LocalProjectDatabase(fixture.databasePath);
+    try { assert.equal(new SqlitePluginRuntimeRepository(record.db).get(id)?.state, 'crashed', 'the close leaves the crashed record as it was'); }
+    finally { record.close(); }
+    rig.reopen();
+    const reopened = await rig.control();
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'enabled');
+    assert.notEqual(reopened.installations()[0]?.state, 'disabled');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1197 T-035: an installation that someone stopped with preserve_enabled is still running in the Supervisor's mirror; closing
+// the Host must not fail on it a second time, and a restart runs it again.
+test('RAC-1197 closing the Host does not reject for an installation stopped with preserve_enabled and a restart runs it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-installed-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id;
+    await runtime.stop(id, { preserve_enabled: true });
+    assert.equal(runtime.get(id)?.state, 'installed');
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId)?.status, 'running');
+    await rig.host.close();
+    rig.reopen();
+    const reopened = await rig.control();
+    assert.equal(reopened.installations()[0]?.state, 'running');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1198 T-035: a running installation is still stopped by the close, exactly once, keeping the enabled bit; a restart runs it.
+test('RAC-1198 closing the Host stops a running installation exactly once with preserve_enabled and a restart runs it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-running-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id, stop = runtime.stop.bind(runtime);
+    const calls: Array<{ install_id: string; options: unknown }> = [];
+    runtime.stop = async (...args: Parameters<typeof stop>) => { calls.push({ install_id: args[0], options: args[1] }); return stop(...args); };
+    await rig.host.close();
+    assert.deepEqual(calls, [{ install_id: id, options: { preserve_enabled: true } }]);
+    await rig.host.close();
+    assert.deepEqual(calls, [{ install_id: id, options: { preserve_enabled: true } }], 'a second close stops nothing');
+    rig.reopen();
+    const reopened = await rig.control();
+    assert.equal(reopened.installations()[0]?.state, 'running');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1199 T-035: when the Runtime record itself cannot be read, that failure joins the same 安装插件停止失败 rejection, the loop
+// still revokes every enabled installation, and nothing is stopped on a record the Host could not read.
+test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the installation and stops nothing', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-read-failure-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  let undo: (() => void) | undefined;
+  try {
+    const installed = await rig.control(), platform = installed.platform, runtime = platform.runtime, id = fixture.install.install_id;
+    // The close below cannot stop what it cannot read, so let go of the live process first: a Home that fails to close has no
+    // second chance to stop it. The record stays installed and the Supervisor still counts it as running, exactly like RAC-1197.
+    await runtime.stop(id, { preserve_enabled: true });
+    const injected = new Error('the Runtime record cannot be read');
+    const get = runtime.get.bind(runtime), stop = runtime.stop.bind(runtime), revoke = platform.supervisor.revoke.bind(platform.supervisor);
+    const revoked: string[] = [], stopped: string[] = [];
+    runtime.get = (installId: string) => { if (installId === id) throw injected; return get(installId); };
+    runtime.stop = async (...args: Parameters<typeof stop>) => { stopped.push(args[0]); return stop(...args); };
+    platform.supervisor.revoke = (pluginId: string) => { revoked.push(pluginId); revoke(pluginId); };
+    undo = () => { runtime.get = get; runtime.stop = stop; platform.supervisor.revoke = revoke; };
+    await assert.rejects(rig.host.close(), (error: unknown) => error instanceof AggregateError && error.message === '安装插件停止失败' && error.errors.includes(injected));
+    assert.deepEqual(stopped, [], 'nothing is stopped on a record the Host could not read');
+    assert.deepEqual(revoked, [fixture.release.pluginId], 'the loop still revokes the installation');
+  } finally {
+    undo?.();
+    await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
+    await rm(home, { recursive: true, force: true });
+  }
+});

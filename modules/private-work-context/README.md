@@ -36,10 +36,10 @@ pnpm --filter @molis-ai/molis-work-module-private-work-context typecheck
 pnpm --filter @molis-ai/molis-work-module-private-work-context build
 ```
 
-已有行为示例与回归：[runtime-binding-ledger.test.ts](../../tests/runtime-binding-ledger.test.ts)、[runtime-context-entry.test.ts](../../tests/runtime-context-entry.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[runtime-binding-ledger.test.ts](../../tests/runtime-binding-ledger.test.ts)、[runtime-context-entry.test.ts](../../tests/runtime-context-entry.test.ts)、[runtime-binding-error-codes.test.ts](../../tests/runtime-binding-error-codes.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts
+node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts tests/runtime-binding-error-codes.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -55,7 +55,7 @@ node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-co
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
   - 项目关系缺失时拒绝（`work.context.project_relation_missing`），不猜测绑定。
   - 本包不打开 `<home>/sessions/`：那是已下线 Sessions 的旧存储，只由 Host 的存储登记（备份与卸载清理仍认得它）持有，删除要在备份副本上另做（SC-5）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts tests/session-project-binding-router.test.ts tests/project-deletion-owners.test.ts`（构建后）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts tests/runtime-binding-error-codes.test.ts tests/session-project-binding-router.test.ts tests/project-deletion-owners.test.ts`（构建后）。
 - 相关手册：[docs/modules/private-work-context.md](../../docs/modules/private-work-context.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

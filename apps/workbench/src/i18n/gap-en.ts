@@ -53,7 +53,6 @@ export const GAP_EN: Record<string, string> = {
   "依赖它的插件不会一并添加：{list}": "Plugins that depend on it are not added with it: {list}",
   "添加会同时添加：{list}": "Also adds: {list}",
   "全局": "Everywhere",
-  "Dock 与插件": "Dock and plugins",
   "添加与创作插件": "Get and build plugins",
   "更多常驻插件": "More pinned plugins",
   "切换插件": "Switch plugin",

@@ -173,6 +173,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
     installPackage: (release: InstalledRelease, input: { consent: true }) => {
       assertHomePackageAllowed(release.packaged!.manifest);
+      // A Home package is not upgraded in place: a second confirmation of an installed plugin is refused before
+      // the lifecycle sees it, with the declared state code instead of the lifecycle's bare `Error` (S-80, BL-628).
+      if (recordFor(release.pluginId)) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
       return lifecycle('install', release, input);
     },
     /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */

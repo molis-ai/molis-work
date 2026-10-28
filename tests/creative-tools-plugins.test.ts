@@ -413,3 +413,66 @@ test("问卷、数据表、演示稿按项目隔离", async () => {
     ppts.close();
   });
 });
+test("RAC-1635: Forms counts a form's title in Unicode characters, as its action schemas do", async () => {
+  // create and update in plugins/native/form/src/actions.ts allow an 80-character title; one 🟢 is one character but two UTF-16 units.
+  await withHome(async (home) => {
+    const store = openFormStore(home);
+    try {
+      const { actions } = formTestPorts(store, PROJECT);
+      const wide = (count: number) => "🟢".repeat(count);
+      const created = (await actions.invoke(formActions.create, { title: wide(80) })).form;
+      assert.equal(created.title, wide(80), "create keeps an 80-character title");
+      const renamed = (await actions.invoke(formActions.update, { id: created.id, title: "改" + wide(79) })).form;
+      assert.equal(renamed.title, "改" + wide(79), "update keeps an 80-character title");
+      assert.equal((await actions.invoke(formActions.get, { id: created.id })).form.title, "改" + wide(79), "the stored title reads back whole");
+      await assert.rejects(actions.invoke(formActions.create, { title: wide(81) }), { code: "actions.input_invalid" }, "81 characters is still past the schema");
+    } finally {
+      store.close();
+    }
+  });
+});
+
+test("RAC-1636: a form's description, a question's title and questions.add's prompt are counted in Unicode characters", async () => {
+  // update allows a 2000-character description and 200-character question titles; questions.add allows a 200-character prompt, which becomes the new question's title.
+  await withHome(async (home) => {
+    const store = openFormStore(home);
+    try {
+      const { actions } = formTestPorts(store, PROJECT);
+      const wide = (count: number) => "🟢".repeat(count);
+      const id = (await actions.invoke(formActions.create, { title: "字数" })).form.id;
+      const described = (await actions.invoke(formActions.update, { id, description: wide(2000) })).form;
+      assert.equal(described.description, wide(2000), "update keeps a 2000-character description");
+      const asked = (await actions.invoke(formActions.update, { id, questions: [{ id: "q1", type: "text", title: wide(200), required: false, order: 1 }] })).form;
+      assert.equal(asked.questions[0]?.title, wide(200), "update keeps a 200-character question title");
+      const added = (await actions.invoke(formActions.generate, { id, prompt: "加" + wide(199) })).form;
+      assert.equal(added.questions.at(-1)?.title, "加" + wide(199), "questions.add keeps a 200-character prompt as the new question's title");
+      const stored = (await actions.invoke(formActions.get, { id })).form;
+      assert.deepEqual([stored.description, ...stored.questions.map((question) => question.title)], [wide(2000), wide(200), "加" + wide(199)], "the stored description and titles read back whole");
+      await assert.rejects(actions.invoke(formActions.update, { id, description: wide(2001) }), { code: "actions.input_invalid" }, "2001 characters is still past the schema");
+      await assert.rejects(actions.invoke(formActions.update, { id, questions: [{ id: "q1", type: "text", title: wide(201), required: false, order: 1 }] }), { code: "actions.input_invalid" }, "a 201-character question title is still past the schema");
+      await assert.rejects(actions.invoke(formActions.generate, { id, prompt: wide(201) }), { code: "actions.input_invalid" }, "a 201-character prompt is still past the schema");
+    } finally {
+      store.close();
+    }
+  });
+});
+
+test("RAC-1637: an answer is counted in Unicode characters, as submit's schema does", async () => {
+  // submit allows an answer of FORM_ANSWER_LIMIT (4000, plugins/native/form/src/fillpage.ts) characters; the package does not export it, so the number is written here.
+  await withHome(async (home) => {
+    const store = openFormStore(home);
+    try {
+      const { actions } = formTestPorts(store, PROJECT);
+      const wide = (count: number) => "🟢".repeat(count);
+      const id = (await actions.invoke(formActions.create, { title: "回答" })).form.id;
+      await actions.invoke(formActions.update, { id, questions: [{ id: "q1", type: "text", title: "想说的话", required: true, order: 1 }] });
+      // A draft takes the person's own trial fill: the caller is the user audience, recorded as preview (assertTakesAnswers in src/store.ts).
+      const { submission } = await actions.invoke(formActions.submit, { id, answers: { q1: wide(4000) } });
+      assert.equal(submission.answers.q1, wide(4000), "submit keeps a 4000-character answer");
+      assert.equal((await actions.invoke(formActions.results, { id })).submissions[0]?.answers.q1, wide(4000), "the stored answer reads back whole");
+      await assert.rejects(actions.invoke(formActions.submit, { id, answers: { q1: wide(4001) } }), { code: "actions.input_invalid" }, "4001 characters is still past the schema");
+    } finally {
+      store.close();
+    }
+  });
+});

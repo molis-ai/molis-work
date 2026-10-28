@@ -39,7 +39,7 @@ export function createPagesContentHandlers(actions: BoundActionClient) {
         : markdown.split(/\n\n+/).map(text => ({ type: "paragraph", content: [{ type: "text", text }] })) };
       // One delivery is one document: a retried handoff returns the original page and keeps later edits.
       // A long headline is cut to the 80 characters a title holds; refused, the same hand-over could never be delivered.
-      const documents = [{ title: input.title.trim().slice(0, 80), body: body as never }];
+      const documents = [{ title: [...input.title.trim()].slice(0, 80).join(""), body: body as never }];
       const request_hash = createHash("sha256").update(JSON.stringify(documents)).digest("hex");
       const imported = await invoke(pagesActions.importDocuments, { request_id: input.request_id, request_hash, documents }, caller);
       return ref(imported.documents[0]!);

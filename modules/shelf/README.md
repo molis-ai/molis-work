@@ -58,7 +58,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
   - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
   - 首次读取快照时，若 `seeded_sample` 为假且架子为空，放入一份「试用示例.pdf」（`ensureSample` → `seedSample`，真实可抽字的 PDF，由 `src/pdf.ts` 生成，经 `admit` 上架）。这是有意的首次使用引导，不是演示数据：任何材料入库或示例放入后 `seeded_sample` 为真，之后删除、隐藏都不会自动放回；用户可在设置的「使用指南」主动再放一份；不写项目库。
   - 自动任务只通过注入的 ShelfAiPorts，冻结 input 副本只读；领域模块不启动模型或终端进程。
-  - CLI 能力探测只缓存完成的结果，超时或启动失败下次重新探测。
+  - 不探测 CLI 能力：`ShelfStore.runtime()` 每次都经平台的本机工具服务重新找可执行文件（`detectShelfRuntime`，`src/runtimes.ts`），不启动 CLI、不缓存；找到的报 `capability_pending: true`，执行能力在执行时才检查。
   - 任务使用 SDK 的执行生命周期；在途执行按 Home/root/job 隔离。异步等待后复查原 Action、任务和原件/副本 hash，再写输出、成果或失败记录。已取消/撤权的执行不补写失败；终止或重启后的旧 running 记录不自动重跑，也不继续阻塞材料。显式取消可以关闭原记录。
   - 失败都是 `ActionError`：码是 `shelf.<原因>`（`shelfErrors`），状态只由 kind 推出，模块没有错误类和状态表。带着模型运行回执的失败是 `ShelfFailure`（多一个 `execution`），任务记录据此留下回执；`isShelfFailure` 按码认自己的失败，不用 `instanceof`。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-module-shelf run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。

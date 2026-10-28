@@ -22,14 +22,13 @@ type Summary = "model" | "error" | "empty" | "timeout";
 // RAC-1340/RAC-1341 (BL-311, QA-010, RCPT-102's timeout arm): the summary call is held until the production two-minute
 // deadline really passes; only the calls made with that exact limit are shortened, everything else keeps its delay.
 const LATE_SUMMARY_MARKER = "LATE-SUMMARY-MARKER";
-const DEADLINE_DUE_MS = 1_000, LATE_AFTER_DUE_MS = 900;
+const DEADLINE_DUE_MS = 1_000, LATE_AFTER_DUE_MS = 900, QUIET_AFTER_LATE_MS = 300;
+type DeadlineCall = { call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string };
 
 /** Shorten only the production deadline calls (120 000 ms) and record who made them; every other delay is untouched. */
-function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> & { firedAt: () => number } {
-  const calls = [] as Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> & { firedAt: () => number; lifetimeAt: () => number };
+function shortenProductionDeadline(t: TestContext): DeadlineCall[] & { firedAt: () => number; lifetimeAt: () => number } {
+  const calls: DeadlineCall[] = [];
   let firedAt = 0, lifetimeAt = 0;
-  calls.firedAt = () => firedAt;
-  calls.lifetimeAt = () => lifetimeAt;
   const realSetTimeout = globalThis.setTimeout, realAbortTimeout = AbortSignal.timeout;
   // The first production frames that made the call, past this test's own mock wrapper.
   const frames = () => (new Error().stack ?? "").split("\n").slice(1).map(line => line.trim().replace(/^at /, ""))
@@ -49,13 +48,13 @@ function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" |
     calls.push({ call: "AbortSignal.timeout", delay: milliseconds, frames: frames() });
     return realAbortTimeout(milliseconds === 120_000 ? DEADLINE_DUE_MS : milliseconds);
   });
-  return calls;
+  return Object.assign(calls, { firedAt: () => firedAt, lifetimeAt: () => lifetimeAt });
 }
 
 async function twoRounds(t: TestContext, summary: Summary) {
-  let summaryArrivedAt = 0, lateReturnedAt = 0, patchedAt = 0, firedAt = () => 0, lifetimeCreatedAt = () => 0, lateReady = () => {};
+  let summaryArrivedAt = 0, lateReturnedAt = 0, firedAt = () => 0, lifetimeCreatedAt = () => 0, lateReady = () => {};
   const lateJoined = new Promise<void>(resolve => { lateReady = resolve; });
-  let deadlineCalls: ReturnType<typeof shortenProductionDeadline> = [];
+  let deadlineCalls: DeadlineCall[] = [];
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
   let round = 1;
@@ -103,24 +102,28 @@ async function twoRounds(t: TestContext, summary: Summary) {
   assert.equal(ended.phase, "completed", ended.stop_reason ?? "");
   const steers = ended.turns.filter(turn => turn.kind === "user" && turn.steer);
   assert.deepEqual(steers.map(turn => [turn.text, turn.steer!.state]), SUPPLEMENTS.map(text => [text, "read"]), "the round read all six");
-  const roundOne = f.requests.length;
   const roundOneCount = f.requests.length;
   assert.equal((await f.call(project, coding + `/sessions/${id}/compact`, { on: true })).status, 200);
   round = 2;
   if (summary === "timeout") {
-    patchedAt = Date.now(); deadlineCalls = shortenProductionDeadline(t); firedAt = deadlineCalls.firedAt; lifetimeCreatedAt = deadlineCalls.lifetimeAt;
+    const shortened = shortenProductionDeadline(t);
+    deadlineCalls = shortened; firedAt = shortened.firedAt; lifetimeCreatedAt = shortened.lifetimeAt;
     // Even if an assertion above this point throws, the responder that was already started is joined before the test ends
     // (its own polling/900 ms timer does not stop with the production abort); bounded so a broken responder cannot hang.
-    t.after(async () => { await Promise.race([lateJoined, new Promise(resolve => setTimeout(resolve, 12_000))]); });
+    // The bound's own timer is cleared once the race is decided, so it does not keep the process alive for 12 s.
+    t.after(async () => {
+      let bound: ReturnType<typeof setTimeout> | undefined;
+      try { await Promise.race([lateJoined, new Promise(resolve => { bound = setTimeout(resolve, 12_000); })]); } finally { clearTimeout(bound); }
+    });
   }
   const second = await start("接着把超时也改了");
   assert.equal(second.status, 200, JSON.stringify(second.body));
   const next = await f.ended(second.body.run.ref);
   assert.equal(next.phase, "completed", next.stop_reason ?? "");
-  const reviews = f.requests.slice(roundOne).filter(isReview), later = f.requests.slice(roundOne).filter(request => !isReview(request));
+  const reviews = f.requests.slice(roundOneCount).filter(isReview), later = f.requests.slice(roundOneCount).filter(request => !isReview(request));
   const summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
   const roundTwo = later.filter(request => !textOf(request).includes(SUMMARY_PROMPT));
-  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, roundOneCount, summaryArrivedAt, patchedAt, deadlineCalls, deadlineFiredAt: firedAt, lifetimeCreatedAt, lateReturnedAt: () => lateReturnedAt };
+  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, roundOneCount, summaryArrivedAt, deadlineCalls, deadlineFiredAt: firedAt, lifetimeCreatedAt, lateReturnedAt: () => lateReturnedAt };
 }
 
 function assertCarried(request: CodingProviderRequest, steers: AgentRunView["turns"]) {
@@ -156,7 +159,7 @@ for (const summary of ["error", "empty"] as const) {
 }
 
 test("RAC-1340 a summary still pending at the production deadline is replaced by the record-based digest, and round two starts from it", { timeout: 60_000 }, async t => {
-  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, patchedAt, deadlineCalls, deadlineFiredAt, lifetimeCreatedAt, lateReturnedAt } = await twoRounds(t, "timeout");
+  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, deadlineCalls, deadlineFiredAt, lifetimeCreatedAt, lateReturnedAt } = await twoRounds(t, "timeout");
   // The shortened calls are exactly the production deadline ones: execution-lifetime's setTimeout and host-complete-text's
   // AbortSignal.timeout, both made with 120 000 ms.
   assert.deepEqual([...new Set(deadlineCalls.filter(call => call.delay === 120_000).map(call => call.call))].sort(), ["AbortSignal.timeout", "setTimeout"],
@@ -199,4 +202,7 @@ test("RAC-1341 a summary that comes back after the deadline changes no request a
   const read = await f.call<{ usage_total?: { digests?: unknown } }>(project, coding + `/sessions/${id}?window=20`);
   assert.equal(read.status, 200, JSON.stringify(read.body));
   assert.equal(read.body.usage_total?.digests, undefined, "a summary that never answered records no digest usage");
+  // Anything the late answer set off after the count above shows up here: wait a fixed quiet time past the late answer.
+  while (Date.now() < lateReturnedAt() + QUIET_AFTER_LATE_MS) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(f.requests.length, roundOneCount + 3, "no provider request arrived after the late summary either");
 });

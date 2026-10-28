@@ -388,13 +388,13 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名文档";
-  if (title.length > 80) throw pagesErrors.invalid("标题须为 1 到 80 个字");
+  if ([...title].length > 80) throw pagesErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeFolderTitle(value: string): string {
   const title = value.trim() || "未命名文件夹";
-  if (title.length > 40) throw pagesErrors.invalid("文件夹名须为 1 到 40 个字");
+  if ([...title].length > 40) throw pagesErrors.invalid("文件夹名须为 1 到 40 个字");
   return title;
 }
 

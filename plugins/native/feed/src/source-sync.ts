@@ -176,7 +176,7 @@ export class PublicSourceSync {
             url: material.canonicalUrl,
             kind: "update",
             priority: "medium",
-            tags: [latest.kind, `feed-source:${latest.source_id}`],
+            tags: [latest.kind],
             author: material.sourceName,
             occurredAt: material.capturedAt,
             material: {

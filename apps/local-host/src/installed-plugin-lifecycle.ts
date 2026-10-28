@@ -163,7 +163,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (refusal) throw refusal;
     if (action === 'disable') {
       c.withdraw(pluginId); platform.supervisor.revoke(pluginId);
-      // A crash or a quarantine already left the installation not running; the person's switch-off still stands, and the Runtime keeps that state.
+      // The Runtime records the switch-off of a crashed installation as disabled; it refuses a quarantined one, which stays quarantined and is off all the same.
       await platform.runtime.stop(record.install_id).catch((error: unknown) => {
         if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
       });

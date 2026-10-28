@@ -54,7 +54,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # Numbers that may only go down (giant units, tests reaching into package internals, vendored SDK packages, in-place schema
       # patches, compatibility markers, empty catch blocks, `as unknown as` casts, old names, conflicting translations, the
@@ -108,7 +114,7 @@ jobs:
       # (they only report, or do not block yet: their own jobs below), and so does the parallel test runner every step here uses
       # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
       - name: Gate rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
 
   # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
   # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
@@ -135,7 +141,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # tests/health-gates-errors.test.ts reads the error codes of the built contracts package; nothing else here needs a build.
       - name: Build the contracts package
@@ -170,7 +182,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       - name: Test durations
         uses: actions/cache@v4
@@ -281,7 +299,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       - name: Test durations
         uses: actions/cache@v4
@@ -457,7 +481,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       - name: Test durations
         uses: actions/cache@v4
@@ -516,7 +546,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # ASC-06/17: the managed Python MCP test runs real uv against a local package registry (the same pin as full-suite.yml).
       - name: uv for the managed Python installer tests
@@ -584,7 +620,13 @@ jobs:
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # The tests import the built workspace packages and dist/; the same full build the probe makes.
       - name: Build

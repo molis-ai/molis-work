@@ -1,4 +1,4 @@
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { isTerminalAgentPhase, type AgentDelegatedWork, type AgentDelegation, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -299,10 +299,8 @@ export class AssistantDelegations {
       const back = latest?.phase === "completed" ? await this.#back(host, parent) : [];
       if (!latest || !back.some(item => item.step.state !== "cancelled")) return;
       const stillCurrent = () => {
-        try {
-          const current = store.get(actorId, parent.work_id);
-          return !preparing.withdrawn && !current.archived && current.session_id === parent.session_id && store.rounds(parent.work_id).at(-1)?.run_id === latest.ref.run_id;
-        } catch { return false; }
+        const current = whenThere(() => store.get(actorId, parent.work_id)); // A store that cannot be read is thrown: the hand-back says so.
+        return current !== null && !preparing.withdrawn && !current.archived && current.session_id === parent.session_id && store.rounds(parent.work_id).at(-1)?.run_id === latest.ref.run_id;
       };
       // Started once per continuation: the round's own start is under the continuation's request key (the binding's).
       const key = `hand-back-${ready.request_key.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 80);

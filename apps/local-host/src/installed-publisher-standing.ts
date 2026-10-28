@@ -7,9 +7,6 @@ import { repeatingFailure } from './host-log.js';
 /** What a person is told about an installation whose publisher they took back. */
 export const PUBLISHER_REVOKED_MESSAGE = '这个插件的发布者已被你撤销信任：它不再运行，数据还在，可以卸载';
 
-/** A ledger that cannot be read is written when it starts failing, and again only once it has been read since. */
-const ledgerFailures = repeatingFailure('plugins', 'publisher_ledger_unreadable');
-
 /**
  * Whether the publisher behind an installed package is still one the person trusts (ac-trust T5b, BL-559, S-87). A package installation
  * holds the key it was signed with (`publisher_signature`) and may run only while the Home's ledger has that key pinned and not taken
@@ -19,6 +16,8 @@ const ledgerFailures = repeatingFailure('plugins', 'publisher_ledger_unreadable'
  */
 export function publisherStanding(ledger: Pick<PluginConsentLedger, 'publishers'>) {
   let at = -1, live = new Set<string>();
+  // Each standing's own: a ledger it cannot read is written when it starts failing, and again only once it has been read since.
+  const ledgerFailures = repeatingFailure('plugins', 'publisher_ledger_unreadable');
   const pinned = (): ReadonlySet<string> => {
     if (at === consentRevision()) return live;
     try { live = new Set(ledger.publishers().filter(pin => !pin.revoked_at).map(pin => pin.key_id)); at = consentRevision(); ledgerFailures.worked('ledger'); }

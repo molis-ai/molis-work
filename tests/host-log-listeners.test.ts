@@ -5,12 +5,12 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { defineDueRemindersAction, defineHomeEventsAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { AssistantService, AssistantStore, ComputerDesk, ComputerRecords, ComputerSettings, LocalHost, assistantAuthority, captureHostLog, eachListener, homeAgentDefinitions,
-  publisherStanding, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, ComputerDesk, ComputerRecords, ComputerSettings, LocalHost, PluginInstallService, SandboxPackageStore, assistantAuthority, captureHostLog,
+  eachListener, homeAgentDefinitions, publisherStanding, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 
 type StoredCardOf = ReturnType<AssistantStore["addCard"]>;
-type Pins = ReturnType<Parameters<typeof publisherStanding>[0]["publishers"]>;
 
 /**
  * W5-13 third slice: the catches that carried on past a failure and left nothing behind (a listener, a record the main step does not
@@ -149,15 +149,17 @@ test("RAC-1112 W5-13-14 settling a job's cards: a card changed meanwhile is expe
   const conflict = await settleWith((one, expected, patch) => update(one, expected - 1, patch));
   assert.deepEqual(of(conflict.entries, "job_card_unsettled"), [], "a card changed meanwhile is the expected answer");
   const broken = await settleWith(() => { throw failure("fixture.cards_unwritable"); });
-  assert.equal(broken.value.status, "running", "the card that could not be written stays as it was");
+  assert.deepEqual(store.cards(broken.value.work_id).map(one => one.status), ["running"], "the card that could not be written stays as it was");
   assert.deepEqual(of(broken.entries, "job_card_unsettled").map(entry => [entry.area, entry.event, entry.error?.code]), [["assistant", "job_card_unsettled", "fixture.cards_unwritable"]]);
 });
 
-test("RAC-1113 W5-13-15 a publishers' ledger that cannot be read still trusts nobody, and says so once; read again, it trusts as before", async () => {
+test("RAC-1113 W5-13-15 a publishers' ledger that cannot be read still trusts nobody, and says so once; read again, it trusts as before, and failing again after that is said again", async () => {
   const pinned = { publisher_trust: "pinned" as const, publisher_signature: "key-1" };
   const host = { publisher_trust: "host" as const, publisher_signature: "" };
+  const pins = new MemoryPluginConsentLedger();
+  for (const key_id of ["key-1", "key-2"]) pins.pinPublisher({ key_id, public_key_spki_base64: "spki", label: key_id, pinned_at: "2026-10-28T00:00:00.000Z", pinned_by: "web-user" });
   let readable = false;
-  const ledger = { publishers: (): Pins => { if (!readable) throw failure("storage.ledger_unreadable"); return [{ key_id: "key-1", revoked_at: null }] as Pins; } };
+  const ledger = { publishers: () => { if (!readable) throw failure("storage.ledger_unreadable"); return pins.publishers(); } };
   const standing = publisherStanding(ledger);
   const unread = await captured(() => [standing.trusted(pinned), standing.trusted(pinned), standing.trusted(host)]);
   assert.deepEqual(unread.value, [false, false, true], "the refusal does not change: a pinned installation stays denied, the Host's own runs");
@@ -166,10 +168,16 @@ test("RAC-1113 W5-13-15 a publishers' ledger that cannot be read still trusts no
   readable = true;
   const read = await captured(() => standing.trusted(pinned));
   assert.equal(read.value, true); assert.deepEqual(read.entries, []);
-  // A ledger that fails again after it was read is written again.
+  // The person takes another publisher back, so the same standing asks the ledger again, which now fails: written again, as it was read since.
+  new PluginInstallService({ ledger: pins, packages: new SandboxPackageStore("/nonexistent"), installInProject: async () => undefined, installInHome: async () => undefined,
+    installed: async () => [], control: async () => "disabled" }).revokePublisher("key-2");
   readable = false;
-  const again = await captured(() => publisherStanding(ledger).trusted(pinned));
-  assert.equal(again.value, false); assert.equal(again.entries.length, 1);
+  const again = await captured(() => [standing.trusted(pinned), standing.trusted(pinned)]);
+  assert.deepEqual(again.value, [false, false]);
+  assert.deepEqual(again.entries.map(entry => [entry.event, entry.error?.code]), [["publisher_ledger_unreadable", "storage.ledger_unreadable"]]);
+  // Another standing (each Host that asks keeps its own) writes its own line.
+  const other = await captured(() => publisherStanding(ledger).trusted(pinned));
+  assert.equal(other.value, false); assert.equal(other.entries.length, 1);
 });
 
 test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new material, a reminder source, a continuation watch) is written when it starts, by its key, and the look carries on", async t => {
@@ -194,8 +202,8 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   // New material: each look asks the source, which fails; it is written once, then again only after it answered.
   const looks = await captured(async () => { await service.notices.scanNewMaterial(); await service.notices.scanNewMaterial(); eventsBroken = false;
     await service.notices.scanNewMaterial(); eventsBroken = true; await service.notices.scanNewMaterial(); });
-  assert.deepEqual(of(looks.entries, "material_source_failed").map(entry => [entry.area, entry.fields?.capability_id, Boolean(entry.error)]),
-    Array(2).fill(["assistant", "fixture.material.events", true]));
+  assert.deepEqual(of(looks.entries, "material_source_failed").map(entry => [entry.area, entry.fields?.project_id, entry.fields?.capability_id, Boolean(entry.error)]),
+    Array(2).fill(["assistant", "project", "fixture.material.events", true]));
 
   // Reminders: the stretch a source could not answer is asked again next time, and its failure is written once.
   const swept = await captured(async () => [await service.followUps.sweepReminders(), await service.followUps.sweepReminders()]);

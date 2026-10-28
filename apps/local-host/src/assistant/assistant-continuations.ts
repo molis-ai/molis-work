@@ -5,6 +5,7 @@ import type { AgentCollaborationSessionView } from "@molis-ai/molis-work-contrac
 import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { repeatingFailure } from "../host-log.js";
+import { whenThere } from "./assistant-errors.js";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
@@ -26,7 +27,9 @@ export class AssistantContinuations {
   private readonly offChanges: () => void;
   private readonly watchFailures = repeatingFailure("assistant", "continuation_watch_failed"); // A failing watch is retried every 5 s; written when it starts failing.
   constructor(private readonly ports: Ports) { this.offChanges = ports.store.onChange(id => {
-    try { this.nudges.get(owner(ports.store.get(ports.actorId, id)))?.abort(); } catch { /* Deleted work has no scope to wake. */ }
+    // Deleted work has no scope to wake; a store that cannot be read fails this listener, which the store writes.
+    const work = whenThere(() => ports.store.get(ports.actorId, id));
+    if (work) this.nudges.get(owner(work))?.abort();
   }); }
   close(): void { this.stopped.abort(); this.offChanges(); for (const nudge of this.nudges.values()) nudge.abort(); for (const off of this.observers) off(); this.observers.clear(); }
   private works() { return this.ports.store.list(this.ports.actorId, { limit: Number.MAX_SAFE_INTEGER }).filter(work => work.executor.kind === "assistant" && work.session_id && !work.reply_target); }
@@ -126,8 +129,8 @@ export class AssistantContinuations {
         const revision = work.revision;
         const current = () => {
           if (this.stopped.signal.aborted || (this.busy.get(work.work_id) ?? 0) > 1) return false;
-          try { const now = this.ports.store.get(this.ports.actorId, work.work_id); return now.revision === revision && !now.archived && !now.continuation_hold; }
-          catch { return false; }
+          const now = whenThere(() => this.ports.store.get(this.ports.actorId, work.work_id)); // A store that cannot be read is thrown: the watch writes it.
+          return now !== null && now.revision === revision && !now.archived && !now.continuation_hold;
         };
         if (!current()) { retry = true; continue; }
         this.enter(work.work_id);

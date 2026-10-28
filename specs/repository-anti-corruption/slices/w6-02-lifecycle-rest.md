@@ -20,7 +20,7 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 
 ## 2. 名单与各自的入口
 
-名单来自 `apps/local-host/src/plugin-registry.generated.ts` 的 24 份登记。范围外的不在表里：Feed、Inbox（C 线 `feature/anticorruption-closeout-c`）、Goals（BL-756，C 线与 W5-10 仍在改它）、Alchemist 与插件创作台（绕过，BL-376、BL-377）、成果库（PG-077 第二步）；置物架见第 3 节。
+名单来自 `apps/local-host/src/plugin-registry.generated.ts` 的 24 份登记。范围外的不在表里：Feed、Inbox（C 线 `feature/anticorruption-closeout-c`）、Alchemist 与插件创作台（绕过，BL-376、BL-377）、成果库（PG-077 第二步）；置物架见第 3 节。
 
 | 插件 | `plugin_id`／项目键 | 谁来运行 | 写入（经插件自己的路由） | 读回 | 测试 |
 | --- | --- | --- | --- | --- | --- |
@@ -47,7 +47,6 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 
 | 插件 | 原因 | 谁拿走 |
 | --- | --- | --- |
-| Goals | C 线与 W5-10 仍在改 | BL-756 |
 | Alchemist、插件创作台 | 绕过 Plugin Runtime，先不迁、之后删掉重做 | BL-376、BL-377 |
 | 成果库 Artifacts | PG-077 第二步 | PG-077 |
 
@@ -75,6 +74,7 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 | 4 | 评审后 Git 的读回改为读出所选改动的路径（只重跑这一个文件） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-coding.test.ts` | 通过，5 项（RAC-1099～1103） |
 | 5 | Feed、Inbox（RAC-1200、RAC-1201；夹具 `declared()` 补上场景声明的三项配置动作） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-feed.test.ts tests/shipped-plugin-lifecycle-content.test.ts`（经机器槽位） | 通过，7 项：Feed 2 项（RAC-1200、RAC-1201）与作为对照的 content 5 项 |
 | 6 | 加回置物架（RAC-1098）并修 Home 一半停用后的回落（T-005） | `node scripts/run-tests.mjs --jobs 2 tests/shipped-plugin-lifecycle-personal.test.ts tests/dual-instance-routes.test.ts` 与交接里列的 18 个文件（第 7 节 17 个 + main 新加的 `tests/shipped-plugin-lifecycle-feed.test.ts`） | 通过：置物架 RAC-1098 走完，撤权之后的升级、卸载、重启三步这次真的跑了（卸载先被 `plugin.always_on` 拒、撤回常开同意后卸载，重启后记录与同意都仍是那一步的结果）；RAC-1300、RAC-1301 冷启动（关掉项目后的项目一半路由）也通过 |
+| 7 | 加 Goals 的生命周期用例（RAC-1230，T-020） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle.test.ts`（另跑置物架、Feed、Coding、Content 四份作对照） | 通过：Goals 项目那半的写读、移出（常开拒绝）、撤权、升级、卸载、重启都走完，Home 那半全程是另一份 running 的安装；作为对照的置物架 4/4、Feed 2/2、Coding 5/5、Content 5/5 不变 |
 
 没跑的：
 

@@ -136,7 +136,7 @@
 | BL-092 | 从助理结果打开 Jelly 日程时，侧栏「文件」标签写「这个文件所在的插件没有向侧栏提供文件」：日程被叫成文件，Jelly 也没有给侧栏提供预览 | [post-merge-review §5 场景 1](archive/post-merge-review/spec.md) | 已知缺口 | 「在插件中打开」可用（#146 修好后能直接打开到这条日程） | #146 | 低 | 未分配 |
 | BL-094 | Feed 的失败提示：来源返回 403 时写「未取得可信终态」；失败卡片带成功图标并露出原码 `protocol_invalid`；同一个错误出现两个提示框；上一个表单的错误带到另一个表单 | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 不是合并引入；Feed 体验整理 | 无 | 中 | 未分配 |
 | BL-095 | Feed 添加来源：提交按钮写「创建任务」；来源目录把已知会被网站防火墙拦下的 36氪 当作默认选项 | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 同上 | 无 | 低 | 未分配 |
-| BL-096 | Feed 详情与搜索摘要露出内部值：作者写 `exact-1`，标签写 `feed-source:feed-source-<十六进制>` | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 同上 | 无 | 中 | 未分配 |
+| BL-096 | Feed 详情与搜索摘要露出内部值：作者写 `exact-1`；标签写 `feed-source:feed-source-<十六进制>`（读出时已由 `application-projection.ts` 滤掉，库里仍存，写入处 `source-sync.ts` 的 `tags:` 待去） | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 同上 | 无 | 中 | 未分配 |
 | BL-097 | 首次打开慢：Feed 第一条详情约 8 秒；从 Inbox「打开待办」后舞台空白约 5 秒才出现待办 | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 要先量插件首次加载的耗时分布 | 第二步性能基线 | 中 | 未分配 |
 | BL-098 | 「今天的工作」把同步来的 20 条 Feed 消息都列为「个人」事件（「今天接到 22 件事」），项目里的 Feed 也算作个人 | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 待你决定 | 首页事件应列哪些、怎么归属，属于产品取舍 | 无 | 中 | 未分配 |
 | BL-113 | 插件创作台：界面验收发现「显示问题」时交回设计并重新实现，之后门禁不通过就整次构建失败，没有像普通分支那样交回代码 Agent 修（报名表真实模型复测，PMR-36） | [post-merge-review §3 PMR-36](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 显示问题分支在门禁失败时进入相同的修复轮（最多两轮），用离线回放验证 | 无 | 中 | 未分配 |

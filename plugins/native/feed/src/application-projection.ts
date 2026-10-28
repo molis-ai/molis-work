@@ -4,7 +4,11 @@ import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/
 
 import type { FeedItemRecord, FeedSourceRunRecord } from "./projection.js";
 
-/** A Feed item as the plugin shows it: the module record without its signal fields, typed as a Feed item. */
+/** The tag a pulled Feed item carries for its source: an internal marker, not something a person reads. */
+const FEED_SOURCE_TAG_PREFIX = "feed-source:";
+
+/** A Feed item as the plugin shows it: the module record without its signal fields, typed as a Feed item. The internal source tag
+ * SourceSync writes on every pulled item is dropped here; stop writing it there and remove both in the same change. */
 export function feedItemRecord(item: ModuleFeedItemRecord): FeedItemRecord {
   return {
     project_id: item.project_id,
@@ -21,7 +25,7 @@ export function feedItemRecord(item: ModuleFeedItemRecord): FeedItemRecord {
     url: item.url,
     origin_status: item.origin_status,
     priority: item.priority,
-    tags: item.tags,
+    tags: item.tags.filter(tag => !tag.startsWith(FEED_SOURCE_TAG_PREFIX)),
     author: item.author,
     disposition: item.disposition,
     linked_goal_id: item.linked_goal_id,

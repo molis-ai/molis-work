@@ -219,8 +219,11 @@ function analyse(pr, issueStages, tier) {
   // A 【验证 失败】 that a later 【验证 通过】 on the same head overturns (CI reran, no new code) asks nobody to change anything.
   const sameHead = (a, b) => Boolean(a && b) && (a.startsWith(b) || b.startsWith(a));
   const overturned = (f) => of("验证", ["通过"]).some((s) => s.time > f.time && sameHead(s.at, f.at));
-  const lastChange = last([...of("一审", ["要改"]), ...of("二审", ["要改"]), ...of("验证", ["失败"]).filter((f) => !overturned(f))].sort((x, y) => x.time.localeCompare(y.time)));
-  const fresh = (s) => !lastChange || s.time > lastChange.time;
+  const changes = [...of("一审", ["要改"]), ...of("二审", ["要改"]), ...of("验证", ["失败"]).filter((f) => !overturned(f))].sort((x, y) => x.time.localeCompare(y.time));
+  const lastChange = last(changes);
+  // A pass outlives a later change request from another stage when the head has not moved since it (the developer answered it in
+  // the PR body only): the code the pass judged is still the code under review. The stage that asked has to pass again.
+  const fresh = (s) => changes.every((c) => c.time <= s.time || (c.kind !== s.kind && holdsAt(c.at, head)));
   const passed = (kind, verdicts) => last(of(kind, verdicts).filter((s) => fresh(s) && holdsAt(s.fixedAt ?? s.at, head)));
   // Codex's own tasks, the local lines, Claude on device A and 丙 get no 一审: 二审 reviews them with the 一审 list too, Codex only verifies.
   const needYi = pr.suffix !== "m" && pr.suffix !== "cx" && pr.suffix !== "ca" && tier !== "丙";

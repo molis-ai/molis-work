@@ -4,6 +4,7 @@ import { isTerminalAgentPhase, type AgentRunRef } from "@molis-ai/molis-work-con
 import type { AgentCollaborationSessionView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import { repeatingFailure } from "../host-log.js";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
@@ -23,6 +24,7 @@ export class AssistantContinuations {
   private readonly observers = new Set<() => void>();
   private readonly nudges = new Map<string, AbortController>();
   private readonly offChanges: () => void;
+  private readonly watchFailures = repeatingFailure("assistant", "continuation_watch_failed"); // A failing watch is retried every 5 s; written when it starts failing.
   constructor(private readonly ports: Ports) { this.offChanges = ports.store.onChange(id => {
     try { this.nudges.get(owner(ports.store.get(ports.actorId, id)))?.abort(); } catch { /* Deleted work has no scope to wake. */ }
   }); }
@@ -93,7 +95,7 @@ export class AssistantContinuations {
   private async keepWatching(scope: string): Promise<void> {
     while (!this.stopped.signal.aborted) {
       try { await this.loop(scope); return; }
-      catch { if (!this.stopped.signal.aborted) await pause(5_000, undefined, { signal: this.stopped.signal }).catch(() => undefined); }
+      catch (error) { if (this.stopped.signal.aborted) return; this.watchFailures.failed(scope, error, { scope }); await pause(5_000, undefined, { signal: this.stopped.signal }).catch(() => undefined); }
     }
   }
   private async loop(scope: string): Promise<void> {
@@ -106,6 +108,7 @@ export class AssistantContinuations {
       const nudge = new AbortController(); this.nudges.set(scope, nudge);
       const views = await collaboration.awaitReady(scope, 25_000, [...held.keys()], AbortSignal.any([this.stopped.signal, nudge.signal]));
       if (this.stopped.signal.aborted) return;
+      this.watchFailures.worked(scope);
       let retry = false;
       for (const view of views) {
         const next = view.continuation;

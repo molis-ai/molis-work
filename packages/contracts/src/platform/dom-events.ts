@@ -80,7 +80,7 @@ export const PAGE_STATE_OWNERS = {
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
-    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
+    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
     state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {

@@ -6,6 +6,7 @@ import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/moli
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type ActionView, type DueReminderCollection, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
+import { repeatingFailure } from "../host-log.js";
 
 /**
  * The Assistant's reminders and follow-ups (W4-05, the first collaborator split out of `AssistantService` along a
@@ -18,6 +19,8 @@ import { assistantErrors } from "./assistant-errors.js";
 export const FOLLOW_UP_KIND = "assistant.follow-up";
 const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
+/** A reminder source that cannot be asked, by its capability: written when it starts failing (the stretch is asked again next time). */
+const reminderSourceFailures = repeatingFailure("assistant", "reminder_source_failed");
 /** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
 const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
 /** A reminder told later than this after its time is said to be missed. */
@@ -251,7 +254,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       for (const provider of providers) {
         let collection: DueReminderCollection;
         try { collection = await actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window) as DueReminderCollection; }
-        catch { missed = true; continue; }
+        catch (error) { missed = true; reminderSourceFailures.failed(provider.capability_id, error, { capability_id: provider.capability_id }); continue; }
+        reminderSourceFailures.worked(provider.capability_id);
         for (const reminder of collection.reminders) {
           const due = Date.parse(reminder.due_at);
           if (!(due >= from.getTime() && due <= now.getTime())) continue;

@@ -5,6 +5,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { computerErrors, helperFailure, markHelper } from "./computer-errors.js";
+import { eachListener } from "../host-log.js";
 
 /**
  * The connection to the macOS computer helper (specs/computer-use D09): local-host opens a Unix socket only this user can
@@ -217,7 +218,7 @@ export class HelperConnection {
   }
 
   private emit(event: HelperEvent): void {
-    for (const listener of this.listeners) { try { listener(event); } catch { /* one listener's failure does not stop the others */ } }
+    eachListener("computer", "helper_events", this.listeners, listener => listener(event));
   }
 
   /** One request; starts the helper first when needed. */

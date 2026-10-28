@@ -6,6 +6,7 @@ import type { AssistantBackgroundJob } from "@molis-ai/molis-work-contracts/serv
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
+import { hostLog } from "../host-log.js";
 
 const RUNTIME = "prologue";
 /** How long a job is followed: one not done by then is no longer followed, and its step fails as not done in time. */
@@ -147,7 +148,7 @@ export class AssistantJobs {
       try {
         this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: "后台已完成" }
           : step.job.ended === "failed" ? { status: "failed", outcome: "后台没有完成" } : { status: "unknown", outcome: step.job.ended === "expired" ? "过了 6 小时仍没有结束，请到原处查看" : "不能再查看它的状态，请到原处查看" });
-      } catch { /* The card changed meanwhile: the notice still says how the job ended. */ }
+      } catch (error) { if (!(error instanceof ActionError && error.code === "assistant.conflict")) hostLog.warn("assistant", "job_card_unsettled", error); } // Changed meanwhile is expected (the notice still says how the job ended); anything else is written.
     }
   }
 

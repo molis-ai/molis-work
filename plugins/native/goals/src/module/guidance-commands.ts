@@ -15,7 +15,7 @@ export class GuidanceCommands {
   constructor(private readonly context: GoalsCommandContext) {}
 
   read(projectId: string): ProjectGuidanceView {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     const repository = this.context.repository;
     return projectGuidanceView({
       entries: repository.listProjectGuidanceEntries(projectId, true),

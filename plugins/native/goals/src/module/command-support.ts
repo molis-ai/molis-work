@@ -18,7 +18,7 @@ export class GoalsCommandContext {
     this.now = options.now ?? (() => new Date());
   }
 
-  requireBoard(projectId: string): void {
+  requireGoalsLibrary(projectId: string): void {
     if (!this.repository.boardExists(projectId)) {
       throw goalErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
     }

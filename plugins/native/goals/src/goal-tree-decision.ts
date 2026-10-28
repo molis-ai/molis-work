@@ -59,7 +59,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
     const result = this.ports.governance.records.executeGoalTreeDecision({
       project_id: input.project_id, actor_id: authority.actor_id, idempotency_key: input.idempotency_key, request_hash: hash,
     }, () => {
-      this.requireBoard(input.project_id);
+      this.requireGoalsLibrary(input.project_id);
       const proposal = this.ports.query.readNative(input.project_id, proposalId);
       if (proposal.state !== "pending" && proposal.state !== "partially_applied") {
         throw treeErrors["goals.goal_tree_proposal.decision_not_pending"]("只有仍有待处理条目的 Goal Tree 提案可以继续决定");
@@ -306,7 +306,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
     return result;
   }
 
-  private requireBoard(projectId: string): void {
+  private requireGoalsLibrary(projectId: string): void {
     if (!this.ports.goals.query.getBoard(projectId)) throw treeErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
   }
   private requiredText(value: string, code: TreeErrorCode, message: string): string {

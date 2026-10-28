@@ -150,7 +150,7 @@ export function addProjectGuidance(
       hash,
     );
     if (replay) return { ...replay, replayed: true };
-    context.requireBoard(input.project_id);
+    context.requireGoalsLibrary(input.project_id);
     const existing = repository
       .listProjectGuidanceEntries(input.project_id, true)
       .find((entry) => entry.kind === request.kind && entry.content_hash === request.contentHash);

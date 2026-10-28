@@ -1,6 +1,6 @@
 # Prologue MCP 策略：服务器信任、发现与生命周期
 
-状态：需求已整理（2026-10-21），待评审后实施。独立需求；连接、协议、调用与审查沿用 [plugin-platform-v2](../plugin-platform-v2/spec.md) 和 Prologue `mcp/` 合同，本 spec 只补“哪些服务器可信、发现什么、坏了怎么办、怎么让人看懂”。
+状态：需求已整理（2026-10-21；2026-10-27 用户确定只读协助、修改前确认、授权内自动执行三种权限选项，连续工作推荐自动执行、本次工作授权为默认作用范围、可明确保存持续授权），其余策略仍待逐项评审，尚未实施本次决定。独立需求；连接、协议、调用与审查沿用 [plugin-platform-v2](../plugin-platform-v2/spec.md) 和 Prologue `mcp/` 合同，本 spec 只补“哪些服务器可信、发现什么、坏了怎么办、怎么让人看懂”。
 
 同系列：[Skill](../prologue-skill-strategy/spec.md) · [Tool](../prologue-tool-strategy/spec.md) · [Context](../prologue-context-strategy/spec.md)。
 
@@ -41,17 +41,22 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 
 ## 3. 优化策略
 
-### 3.1 服务器信任：三档，只能加严
+### 3.1 服务器信任与用户权限选项
+
+用户面向的三种权限选项、授权期限和连续执行行为统一按 [主动助理 §7.1](../proactive-assistant/spec.md#71-行动范围与授权)：只读协助、修改前确认、授权内自动执行。连续工作推荐第三种，AI 按任务提出范围，用户可调整；默认仅授予本次工作，长期委托可明确保存持续授权。发送、发布、删除等已明确包括在有效自动执行授权内时，不逐次重复确认。MCP 不另设一套与此冲突的“外部操作必问”规则。
+
+以下服务器信任档仍为待评审的技术提案，区分来源与发现限制，不是另一组要求用户必选的权限档，也不自动产生操作授权。
 
 | 档 | 用途 | 允许 |
 | --- | --- | --- |
-| `trusted` | 公司内网、已审服务 | 仍走同一道门；注解只加严；只读面 P1 评审后才可能开放 |
-| `standard` | 常规第三方 | 默认档；工具可按注解收窄；写入必问 |
+| `trusted` | 公司内网、已审服务 | 仍走同一道门；注解只加严；能否执行由实际能力与有效授权决定 |
+| `standard` | 常规第三方 | 默认来源档；工具可按注解收窄，操作沿用户权限选项与有效授予处理 |
 | `restricted` | 临时/未知来源 | 只读、只允许显式点名的工具；不自动发现进目录 |
 
 - 信任档只影响“可发现/可自动进入哪一面”，**不放宽**副作用链、审批和密钥规则。
 - 服务器指令（server instructions）按“外部数据”进上下文，不进系统指令；要人能看见来源。
 - 连接、启用、信任三件事分开：连上不等于信任，信任不等于自动放行。
+- 已有只读或逐次确认选择不被推荐、重连或升级覆盖；切模式、撤权、换账号及结束委托按同一授权 owner 生效。旧目录、工具说明和待批请求不能绕过新限制，跨轮/重启也不把本次工作授权扩大成持续授权。
 
 ### 3.2 发现：工具、资源、提示、模板、补全
 
@@ -63,8 +68,8 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 ### 3.3 工具注解：用来加严和分层
 
 - 读取 MCP `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`。
-- **P0 只用来加严/提示，不改变 `effectKind`。** 把 `readOnly` 映射成 `safe-read`、让只读 MCP 工具进只读面，是安全边界变更，P1 单独评审；没有批准就不做。
-- **destructive / openWorld 一律 `mutate-external` 并必问**，注解不能把它们降级。
+- **注解只用来加严/提示，不独自降低 `effectKind` 或授予权限。** 只读路径只开放有可信能力依据、不修改业务内容或产生发送/发布等对外业务效果且在读取授权范围内的工具；不能仅凭 `readOnlyHint`、名字或服务器描述认定只读，性质不明确的仍按可能有副作用处理。实现时同步合同与安全不变量，用真实拒绝测试证明边界；产品权限选择已定，当前代码尚未因此改变。
+- **destructive / openWorld 不能靠注解降级放行**。由实际效果、用户权限方式和有效操作授予决定直接执行、等待确认或拒绝；不再把这些标记等同于每次弹窗。自动执行仍需明确覆盖目标和相应操作，不能以服务器受信、登录成功或模型判断代替。
 - `idempotentHint: true` 也只表示“对方这么说”，未知结果仍不自动重放；`idempotency` 仍以显式声明为准。
 - 注解冲突时取更严的一档；不认识的注解忽略，不当成放行。
 
@@ -106,25 +111,26 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 - `refreshMcp` 返回 `McpDiscoveryDiff`；新增 `mcp-discovery-changed` 事件。
 - `mcp.prompts.invoke`：提示作为命令/方法调用；`mcp.resources.read` 已有，补模板与订阅。
 - 公开 Node OAuth 适配器与凭据引用合同；不新增第二套认证。
+- 三种用户权限方式映射到平台已有授权与 Effect 决策，保留本次工作/持续授权的真实范围与当前有效性，不新增 MCP 专属授权账；技术字段在实施方案中与现有合同对齐。
 - 错误码：`MCP_TRUST_INSUFFICIENT`、`MCP_QUOTA_EXCEEDED`、`MCP_DEGRADED`、`MCP_DISCOVERY_CHANGED`。
 
 ## 5. Molis Work 接入
 
 | 位置 | 改什么 | 不做什么 |
 | --- | --- | --- |
-| `horizontal/agent-host` | 信任档、注解加严、健康/配额投影、prompts/resources 入口；只读面按 P1 评审结论 | 不绕过现有审查与 Effect 链 |
-| `apps/local-host` | 项目 MCP 设置加信任/配额；账号切换；只读路径；OAuth | 不在请求体里读身份/密钥 |
-| `apps/workbench` | 服务器健康、工具/提示/资源列表、发现差异、最近失败；不展示明文 | 不做第二套 MCP 连接 |
+| `horizontal/agent-host` | 信任与注解、健康/配额、prompts/resources；可信只读能力与三种权限选项接入同一授权/Effect 决策 | 不以注解或模型声明代替实际授权 |
+| `apps/local-host` | 复用授权 owner 的本次工作/持续范围；账号切换、撤权、只读路径与 OAuth | 不在请求体里读身份/密钥，不建 MCP 授权副本 |
+| `apps/workbench` | 三种权限选项与可调整的范围，查看/收窄/撤销及真实运行状态；健康、能力列表、发现差异和失败 | 不做第二套 MCP 连接，不强迫逐个配置工具 |
 | `packages/contracts` | `AgentMcpServerView` 加 trust/health/quotas/annotations；事件投影 | 不复制 SDK 类型 |
 | `packages/storage` | 配置/用量/健康事实沿用现有表；不另建 MCP 账 | 不存 token 明文 |
 
-Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 现在明确“当前仅 workspace-write 路径开放外部工具”；本 spec 的目标是先把注解、信任、健康、发现和配额做清楚；只读 MCP 工具能否进只读路径，P1 单独做安全评审，通过后再开。写入路径的审查保持原样。
+2026-10-21 整理时，[Agent Host](../../docs/horizontal/agent-host.md)记录“当前仅 workspace-write 路径开放外部工具”。2026-10-27 已确定的目标是让可信只读能力与三种用户权限选项真实生效：已授权读取直接进行，其他操作按有效授予和所选方式决定，不能用现有实现的一律外部写入分类代替产品规则。实现仍须复用同一调用身份、授权与 Effect 链，同步适用安全不变量和拒绝测试；本次只改需求，不宣称入口已经接通。
 
 ## 6. 分期
 
 | 期 | 内容 | 完成时能证明 |
 | --- | --- | --- |
-| M0 | 信任档、annotations（只加严）、健康/配额、发现差异 | 服务器坏了能说清；注解不放宽边界 |
+| M0 | 用户权限选项与本次工作/持续授权接线、可信只读能力、信任档与 annotations（只加严）、健康/配额、发现差异 | 授权内连续工作不重复打断；限制与撤权有效，注解不授予权限；服务器坏了能说清 |
 | M1 | prompts/resources 一等入口、模板/补全、OAuth 公开 | 提示可点名、资源可引用；认证走统一合同 |
 | M2 | 订阅/进度/日志、按服务器搜索、用量评测 | 长任务能看到进展；服务器多时找得到工具 |
 
@@ -134,7 +140,7 @@ Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 现在明确“当�
 | --- | --- | --- |
 | MCPX-01 | 三档信任只影响发现/分层，不放宽审批、密钥或副作用链 | Prologue 单测 + 策略测试 |
 | MCPX-02 | `restricted` 服务器不自动进目录；只读工具也要显式点名 | Prologue 单测 |
-| MCPX-03 | P0 注解只加严；MCP 工具不因 readOnly 自动降成 safe-read；destructive/openWorld 必问；冲突取更严 | Prologue 单测 + Molis 审查测试 |
+| MCPX-03 | 注解只加严、不产生授权；伪造 readOnly 或来源信任不能让有副作用/性质未知工具进入只读路径；destructive/openWorld 仍核对实际操作授权，不能被注解或模型声明放行 | Prologue 单测 + Molis 拒绝测试 |
 | MCPX-04 | 未知结果不自动重试；`idempotentHint` 不当作可重放 | Prologue 单测 |
 | MCPX-05 | 发现差异（新增/删除/形状变化）可查；不静默替换 | Prologue live + Molis 投影 |
 | MCPX-06 | 健康探活/退避/配额生效；超限明确失败，不无限排队 | Prologue 单测 |
@@ -143,10 +149,12 @@ Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 现在明确“当�
 | MCPX-09 | sampling/roots 不支持时明确报错，不偷偷换通道 | Prologue 单测 |
 | MCPX-10 | OAuth 公开适配器只经 Host 凭据口；配置/日志/快照无明文 | 真实 Node Host + 安全测试 |
 | MCPX-11 | 每服务器健康/延迟/失败/工具数/配额可看；能回答为什么不可用 | Molis 设置页测试 |
-| MCPX-12 | P1 若批准只读映射，Molis 只读路径能调用 readOnly MCP 工具；写入仍走 workspace-write + Review；未批准时保持现状 | Molis live + 安全评审 |
+| MCPX-12 | Molis 只读路径能真实调用具有可信只读依据且已获准的 MCP 查询；只读模式拒绝副作用，修改前确认等待用户，授权内自动执行只放行明确覆盖的操作；三者仍走同一 Effect 链 | Molis live + 安全拒绝测试 |
 | MCPX-13 | MCP 工具按服务器分组搜索；find-tools 不返回未授权服务器 | Molis 测试 |
 | MCPX-14 | 账号切换/连接版本变化不会把旧待批请求送到新地址 | Molis `prologue-mcp` 测试 |
 | MCPX-15 | `[人工]` 在真实项目里接一个只读 MCP 服务器，完成一次查询；断开后能说清原因 | 人工 |
+| MCPX-16 | `[人工]` 用真实 MCP 工作验证三种权限选项；AI 按任务提出范围，用户可调整且不必逐个配置工具；授权内包含的修改和外部操作连续完成、不逐次重复确认，未包含的目标或效果明确阻塞 | 真实任务 + 用户入口验证 |
+| MCPX-17 | 本次工作授权跨轮/等待/重启按原范围复用，结束后不带到新工作；持续授权仅在用户明确保存后有效；改回只读/确认、收窄、撤权或换账号后，旧目录及请求不能继续放行，新限制即时生效且未知结果不重放 | Molis 授权、并发与恢复测试 |
 
 ## 8. 非目标与风险
 
@@ -161,7 +169,7 @@ Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 现在明确“当�
 
 - 现有实现已经给模型 `list-mcp-resources` / `read-mcp-resource`，并且长资料有分页；原稿写成“resources 没有模型入口”不准确，已改正。本轮只补 prompts、模板、补全、订阅。
 - `readMcpPrompt` / `readMcpResource` 仍是 App 侧入口；本 spec 不重复实现，只补模型可点名的提示面。
-- MCP 工具当前一律 `mutate-external`；P0 的 annotations 只加严，不把 readOnly 自动降成 `safe-read`。只读面是 P1 安全评审项。
+- 当时 MCP 工具一律 `mutate-external`，草案将只读映射另列 P1。2026-10-27 已确认 §3.1/3.3 的三种权限方式及可信只读方向，实施仍须验证实际授权与拒绝；不能仅凭注解降级的边界保留。
 - 与 Skill/Tool 的边界：MCP prompts 不是 Skill；MCP tools 仍进 Tool 目录、走同一道门。`find-tools` / `find-skills` 不替 MCP 另开搜索。
 
 ## 9. 参考

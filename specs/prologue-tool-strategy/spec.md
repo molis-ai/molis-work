@@ -94,7 +94,7 @@ Molis 现在把 13 个业务网关工具、宿主工具和 MCP 工具按角色�
 
 - 并行仍按 `lockOn` 分波；只读默认可并行，写同一路径/同一工作区串行。
 - `idempotency` 继续决定未知结果是否可重放；`none` 一律对账，不自动重试。
-- 工具注解可以**加严**审批（destructive / openWorld 必问），不能把 `ask` 降成 `allow`。
+- 工具注解只能**加严**，不能自行把 `ask` 降成 `allow` 或授予权限。是否等待用户按 [主动助理 §7.1](../proactive-assistant/spec.md#71-行动范围与授权)的权限选项与有效操作授权裁决：修改前确认保留逐次确认，自动执行复用明确覆盖的操作，不因 destructive / openWorld 标记一律重复弹窗；平台不可覆盖的拒绝与用户限制继续生效。
 - 工具失败给结构化错误：`retryable` / `unknown` / `invalid-arguments` / `unauthorized`；不让模型从一段自然语言里猜。
 
 ### 3.6 观测与评测
@@ -122,7 +122,7 @@ Molis 现在把 13 个业务网关工具、宿主工具和 MCP 工具按角色�
 | `apps/local-host` | 动作网关工具加 tags/when；提供项目/角色当前获准能力，调用时落实有效边界；工具用量投影 | 不另写工具目录或场景专用选择分支 |
 | `apps/workbench` | 支持用户点名或限制、查看用了什么及原因；按工具看失败/审批/成本 | 不做第二套工具注册，不要求用户先配置完整工具面 |
 | `packages/contracts` | 工具元数据、`tool-selection`/`tool-found` 投影；API 快照 | 不复制 SDK 类型 |
-| MCP 适配 | 已接入、启用且获准的工具按服务器分组进入同一目录；按 annotations 加严，只读面是否开放仍按 MCP 策略另行评审 | 不把 MCP 工具当另一条执行链或因自动发现而扩权 |
+| MCP 适配 | 已接入、启用且获准的工具按服务器分组进入同一目录；按 annotations 加严，可信只读能力与三种权限选项按 MCP 策略接入 | 不把 MCP 工具当另一条执行链或因自动发现而扩权 |
 
 Molis 的 [Prologue AI 手册](../../docs/platform/PROLOGUE-AI.md) 已要求“工具会说话”；本 spec 把“给哪些工具、怎么找到、结果多大”变成可观察的配置，而不是每个角色手写一长串名字。
 
@@ -142,7 +142,7 @@ Molis 的 [Prologue AI 手册](../../docs/platform/PROLOGUE-AI.md) 已要求“�
 | TOL-02 | 当前可用闭集保持现行 schema 规则；可延后部分按需取得完整说明与参数，不把全部 schema 固定带入每轮；有效同版本可复用，变更后不使用失效说明 | Prologue 单测 |
 | TOL-03 | `find-tools` 支持 namespace/cursor/why；只返回本轮可见且已装配的工具 | Prologue 单测 |
 | TOL-04 | 语义 `toolSearch` 不装时退关键词；装了也不改变授权 | Prologue 单测 |
-| TOL-05 | 工具元数据只加严审批；destructive/openWorld 不能被注解降成 allow | Prologue 单测 + 策略测试 |
+| TOL-05 | 工具元数据只加严，不被注解或模型声明降成 allow；实际调用按三种权限选项和有效操作授权执行，明确获准的自动执行不重复询问，用户限制和不可覆盖的拒绝仍有效 | Prologue 单测 + 策略测试 |
 | TOL-06 | perTool 观察上限生效；超限进 resource；截断标记在正文 | Prologue 单测 |
 | TOL-07 | 并行波与锁不因工具面变化而放宽；写同一路径仍串行 | Prologue 回归 |
 | TOL-08 | 非幂等工具未知结果不自动重试；错误带 retryable/unknown | Prologue 单测 |

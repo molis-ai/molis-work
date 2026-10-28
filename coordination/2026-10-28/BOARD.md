@@ -88,6 +88,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-088 | 终端进程自己退出时也删掉它的重放缓冲 | 乙 | 池 | 41 | — | `horizontal/runtime-host/src/adapters/terminal-pty.ts`、`tests/runtime-host.test.ts` |
 | T-089 | Runtime 解除目录关联成功那条路补用例，绑定错误码用例进 CI 产品子集 | 丙 | B | 42 | — | `tests/runtime-binding-error-codes.test.ts`、`tests/ci-product-subset.txt` |
 | T-090 | 待办的标题、说明、等待对象与内容、来源和关联的名称按 Unicode 字数数上限，与动作 schema 一致 | 乙 | B | 43 | — | `plugins/native/todo/src/store-normalize.ts`、`plugins/native/todo/src/store-writes.ts`、`tests/todo-actions.test.ts` |
+| T-091 | 定时对话任务的标题与说明按 Unicode 字数数上限，与动作说明和报错一致 | 乙 | 池 | 44 | — | `plugins/native/schedule/src/tasks.ts`、`tests/schedule-conversation-tasks.test.ts` |
 
 ## 在途，不走任务书
 

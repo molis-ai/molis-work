@@ -80,6 +80,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-080 | 灵光的标题、正文与对话消息按 Unicode 字数数上限，没写标题时取正文首行按整字截取，与动作 schema 一致 | 乙 | 池 | 33 | — | `plugins/native/lingguang/src/store.ts`、`tests/lingguang-actions.test.ts` |
 | T-082 | 两处二审登记：个人方法包用例的校验函数返回 boolean、两句注释改对，MCP 健康探测补一句「不带 authorization」 | 丙 | 池 | 34 | — | `tests/goals-personal-methods-stored-json.test.ts`、`tests/mcp-tools-list-refusal.test.ts` |
 | T-081 | 扩展点清单与 Shelf README 的三处陈旧话：标题栏的客户端脚本已改名，F6 的调用编号与诊断界面指错了文件，Shelf 早已不探测 CLI | 丙 | 池 | 35 | — | `docs/system/EXTENSION-POINTS.md`、`modules/shelf/README.md` |
+| T-075 | 角色页没保存的修改留在这个窗口、重新载入还在，别处存了新修订时既不覆盖也不丢：补浏览器护栏用例 | 丙 | A | 36 | — | `tests/characters-window-drafts.e2e.test.ts` |
 
 ## 在途，不走任务书
 

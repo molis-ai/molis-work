@@ -33,8 +33,8 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         const wanted = enabled.get(state.plugin_id);
         if (wanted === false && active.has(state.plugin_id)) {
           platform.supervisor.revoke(state.plugin_id);
-          // The Runtime refuses to stop an installation that is not running (crashed, quarantined, installed): it is left as it is (R-70).
-          // That includes one whose stop, queued by the revoke above, failed in the plugin's stop hook and left it crashed. Any other
+          // A crashed or never-started installation is recorded disabled, also one whose stop, queued by the revoke above, failed in the
+          // plugin's stop hook and left it crashed; the Runtime refuses only a quarantined one, which is left as it is (R-70). Any other
           // failure is the stop's own and is thrown.
           if (state.install_id) await platform.runtime.stop(state.install_id).catch((error: unknown) => {
             if (!(error instanceof ActionError && error.code === "plugin.state_invalid")) throw error;

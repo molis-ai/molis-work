@@ -257,7 +257,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderImmersiveHeader(primitives, desktopShell)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
-        rail: renderPluginRail(primitives, enabledPlugins, "", "", directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
+        rail: renderPluginRail(primitives, enabledPlugins, "", directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
         sideTabs: projectSideTabs(enabledPlugins, view.route_prefix),
       })}

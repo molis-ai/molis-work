@@ -2,7 +2,7 @@
 // step): a job's block, and the jobs that block a merge, which are the needs of `verify` (the required check `Verify`). The one
 // test that also pins the install of full-suite.yml reads that file too.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const workflow = readFileSync(fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url)), "utf8");
@@ -35,4 +35,13 @@ export function blockingTestRuns(text = workflow): string[][] {
     .map((line) => /^\s+run: (node scripts\/run-tests\.mjs .*)$/.exec(line)?.[1])
     .filter((line): line is string => Boolean(line))
     .map((line) => line.split(/\s+/));
+}
+
+/** Every workflow file under .github/workflows/, sorted by file name, as its repo-relative path and its text. */
+export function workflowFiles(): { file: string; text: string }[] {
+  const directory = fileURLToPath(new URL("../../.github/workflows/", import.meta.url));
+  return readdirSync(directory)
+    .filter((name) => /\.ya?ml$/.test(name))
+    .sort()
+    .map((name) => ({ file: `.github/workflows/${name}`, text: readFileSync(`${directory}${name}`, "utf8") }));
 }

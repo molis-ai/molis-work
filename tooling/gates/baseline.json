@@ -1,5 +1,5 @@
 {
-  "giantUnits": 47,
+  "giantUnits": 46,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -15,10 +15,6 @@
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 266,
       "methods": 40
-    },
-    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 304,
-      "methods": 22
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,

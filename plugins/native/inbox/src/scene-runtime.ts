@@ -148,9 +148,8 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
         if (record.subject.kind !== "inbox_entry" || !provenance || provenance.binding_id !== usage.binding_id || provenance.binding_revision !== usage.revision
           || provenance.function.capability_id !== usage.function.capability_id || provenance.function.version !== usage.function.version || provenance.function.provider_id !== usage.function.provider_id) continue;
         let subject: InboxJudgmentSubject;
-        // An entry or item gone, or Feed not in the project now (its content read is `actions.dependency_missing`): the advice cannot be shown as current.
         try { subject = (await fetched(record.subject.id)).subject; }
-        catch (error) { if (error instanceof Error && "code" in error && (error.code === "inbox.entry_not_found" || error.code === "feed.item_not_found" || error.code === "actions.dependency_missing")) continue; throw error; }
+        catch (error) { if (error instanceof Error && "code" in error && (error.code === "inbox.entry_not_found" || error.code === "feed.item_not_found")) continue; throw error; }
         if (OPEN(subject.status) && subjectRevision(subject) === provenance.subject_revision) held.push(record);
       }
       return { judgments: held };

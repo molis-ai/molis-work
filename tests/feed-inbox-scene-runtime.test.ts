@@ -143,10 +143,12 @@ test("FI-1 RAC-483 Inbox keeps a judgment only while its entry is open and uncha
   assert.equal((await run({ entry: () => entry({ revision: 2 }) })).judgments.length, 0, "a changed entry drops it");
   assert.equal((await run({ entry: () => entry({ status: "done" }) })).judgments.length, 0, "a finished entry drops it");
   assert.equal((await run({ entry: () => { throw Object.assign(new Error("gone"), { code: "inbox.entry_not_found" }); } })).judgments.length, 0, "a missing entry drops it");
-  // Feed removed with Inbox and only Inbox added back (BL-800): the item's content cannot be read, and the project page must still open.
+  // A Feed item the caller's directory cannot read (a client not granted Feed's content read) is said to the caller, not taken for an item
+  // that is gone: without Feed in the project its entries are not Inbox's to show at all (`inbox.entry_not_found` above).
   const feedEntry = () => ({ ...entry(), subject_type: "feed_item", subject_id: "item-1" });
-  const feedAbsent = async () => { throw Object.assign(new Error("Feed 不在项目里"), { code: "actions.dependency_missing" }); };
-  assert.equal((await run({ entry: feedEntry, content: feedAbsent })).judgments.length, 0, "an item Feed cannot give now drops it");
+  const unreachable = async () => { throw Object.assign(new Error("声明消费的动作或版本未在当前项目登记"), { code: "actions.dependency_missing" }); };
+  await assert.rejects(run({ entry: feedEntry, content: unreachable }), { code: "actions.dependency_missing" });
+  assert.equal((await run({ entry: feedEntry, content: async () => { throw Object.assign(new Error("gone"), { code: "feed.item_not_found" }); } })).judgments.length, 0, "an item that is gone drops it");
   await assert.rejects(run({ entry: () => { throw new Error("storage broke"); } }), /storage broke/u);
   assert.equal((await run({ usages: [bindingUsage({ enabled: false })] })).judgments.length, 0, "a paused binding gives none");
   assert.equal((await run({ usages: [] })).judgments.length, 0, "no right to the scene gives none");

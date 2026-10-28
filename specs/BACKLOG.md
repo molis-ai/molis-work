@@ -32,7 +32,7 @@
 | BL-010 | Alchemist 场景完整使用路径的本人验收（承接旧“完整迁入”的未验收范围，随工作台升级交付） | [plugin-builder-upgrade §4](plugin-builder-upgrade/spec.md#4-alchemist完整落地场景) | 工作台升级的 Alchemist 场景实现 | 低 | 用户 |
 | BL-011 | 研究信息 Feed → Inbox → Pages 闭环 | [feed-inbox-pages-loop](archive/feed-inbox-pages-loop/spec.md) | 无 | 低 | 用户 |
 | BL-012 | 来源清单、OAuth 与有内容的项目（Onboarding） | [molis-work-context-onboarding](archive/molis-work-context-onboarding/spec.md) | 无 | 中 | 用户 |
-| BL-013 | 项目讨论分屏（群聊与公开 Thread） | [molis-work-im/redesign-v2](archive/molis-work-im/redesign-v2/spec.md) | 无 | 低 | 用户 |
+| BL-013 | 项目讨论分屏（群聊与公开 Thread）；团队项目内可见性沿明确共享范围，具体讨论形态待细化 | [team-collaboration](team-collaboration/spec.md)、[原讨论需求](archive/molis-work-im/redesign-v2/spec.md) | 团队权限与讨论方案 | 低 | 用户 |
 | BL-014 | Shelf 原生手势：真人划选不出轮盘、Finder 拖放、系统文件选择器 | [shelf-drop-wheel-arming](archive/shelf-drop-wheel-arming/spec.md)、[shelf-dropagent-parity](archive/shelf-dropagent-parity/spec.md) | 本机原生环境 | 中 | 用户 |
 | BL-015 | 菜单栏胶囊在副屏上的点击 | [macos-secondary-display-tray-click](archive/macos-secondary-display-tray-click/spec.md) | 双屏 | 低 | 用户 |
 | BL-016 | 真机中文输入法、软键盘与 VoiceOver：底栏/主区助理、Pages 评论、Todo、侧栏和动态交互 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md)、[Pages 与助理](archive/pages-assistant-surfaces/spec.md) | 真机 | 中 | 用户 |
@@ -49,7 +49,7 @@
 
 | 编号 | 事项 | 来源 | 为什么还没做 | 优先级 |
 | --- | --- | --- | --- | --- |
-| BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
+| BL-022 | 多人协作项目里项目记忆的可见性、形成和修改；个人记忆不因项目共享自动公开 | [team-collaboration](team-collaboration/spec.md)、[原记忆需求](archive/memory-system/spec.md) | 项目共享边界已定，共享记忆规则仍待决定 | 低 |
 | BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
 
 ## 3. 助理、记忆与动态交互
@@ -218,7 +218,7 @@
 | BL-021 | macOS 公开发布：使用已有个人 Apple Developer 账号接入 Developer ID 签名与公证（2026-10-27 用户已定） | [macos-desktop-release](archive/macos-desktop-release/spec.md)、[发布策略 §6](../docs/releases/POLICY.md#6-交付状态与尚缺项) | 明确后续做 | 账号采用已定；证书与公证配置、最终发行物验证仍未完成 | 既有账号的发布凭据与发布流水线 | 低 | Codex（F 轨）；账号与证书由用户办理 |
 | BL-569 | 安全不变量门禁的游离测试检查漏掉 `.e2e.test.ts`：`scripts/gates/security-invariants.mjs` 的 `hasTests` 与末尾扫描只匹配普通 `.test.ts`，需在独立片纳入浏览器文件，并补未登记 e2e 的拒绝回归；落实后删本行 | AC-AUDIT-08；[#1173 一轮建议](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380866302)、[统筹接续](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380869179) | 已知缺口 | 本片仅校正文档与登记，门禁实现另片先核权限依据 | 独立门禁片与评审 | 中 | 防腐线（本线） |
 | BL-070 | Outbox 的实现与重放验收（目标架构保留，本期只重组现有功能） | [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md) 开头 2026-09-06 范围澄清 | 明确后续做 | 用户 2026-09-06 定为后续 | 无 | 低 | 未分配 |
-| BL-071 | 团队空间与多人共享项目（Identity & Space 的团队部分属于 Server） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 未开始 | Server | 低 | 未分配 |
+| BL-071 | 团队空间与多人共享项目：按项目明确共享，个人空间、其他项目和个人外部 AI 会话不自动公开 | [team-collaboration](team-collaboration/spec.md)、[原工作归属需求](archive/work-placement/spec.md) | 明确后续做 | 共享边界已定，权限、同步与交互待细化，尚未实现 | 个人同步、Server 与身份／团队权限 | 低 | 需求维护 Codex，实现待分配 |
 | BL-525 | 连接服务的目录卡里，Model API、TypeSafe、图像 API、MCP bearer 四张宿主自带卡（`apps/local-host/src/connector-directory.ts`）：FI-3 里写成平台的一份声明列表；消费方（Functions、Images、Coding）成了 Runtime 插件后各自声明 `connection_services` 并移走，平台自身消费的留平台声明 | [feed-inbox-runtime](repository-anti-corruption/slices/feed-inbox-runtime.md)、[集成登记设计稿](repository-anti-corruption/slices/feed-inbox-integration-registry.md) §5 | 明确后续做 | 消费方还不是 Runtime 插件 | FI-3 | 中 | 防腐线（本线） |
 | BL-526 | 删整个项目时释放它的 Feed 正文并删它在 Home 引用账里的行：今天 `ProjectDeletionService` 不处理证据存储，已有缺口；账建好后补 | [FI-4 设计稿](repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md) §5 | 已知缺口 | 要先有 Home 引用账 | FI-4 | 中 | 防腐线（本线） |
 | BL-527 | 清扫 Feed 证据存储里无人引用的孤儿正文（写了文件但 `hold` 或提交失败留下的）：账建好后可做，按账对存储做一次带宽限期的清扫 | [FI-4 设计稿](repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md) §5 | 明确后续做 | 要先有 Home 引用账 | FI-4 | 低 | 防腐线（本线） |

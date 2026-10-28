@@ -2,6 +2,7 @@ import { ActionError, actionReachesAudience, requireSynchronous, type ActionDefi
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CapabilityRegistry } from "./index.js";
 import { assertCurrentAuthority, effectGuard } from "./action-settlement.js";
+import { rememberInDirectoryPass } from "./directory-pass.js";
 
 /** A retained guard checks original registrations, without extending a finished handler's effect lifetime. */
 export function actionExecutionContext(context: ActionCallContext, reference: ExactActionReference, permissions: readonly string[],
@@ -60,8 +61,25 @@ export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: 
   return (!c.query_only || (d.operation === "query" && d.action.execution?.cost !== "metered")) && !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
     && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
     && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
-    && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
-      && (!ref.provider_id || ref.provider_id === provider.provider_id)));
+    && (!c.allowed_actions || allowedAction(c.allowed_actions, d, provider));
+}
+
+/**
+ * Whether the list names this action of this provider. Every row of one directory asks the same list (a plugin's runs to hundreds), so in a
+ * pass it is indexed on its second question and the index kept for the pass (`rememberInDirectoryPass`); one question, or any outside a pass, scans it.
+ */
+function allowedAction(list: readonly ActionReference[], d: ActionDefinition, provider: ActionProvider): boolean {
+  const asked = rememberInDirectoryPass(list, allowedAction, () => ({ times: 0, index: undefined as Map<string, { any: boolean; providers: Set<string> }> | undefined }));
+  if (++asked.times < 2) return list.some(ref => ref.capability_id === d.capability_id && ref.version === d.version && (!ref.provider_id || ref.provider_id === provider.provider_id));
+  if (!asked.index) {
+    asked.index = new Map();
+    for (const ref of list) {
+      const key = `${ref.capability_id}@${ref.version}`, entry = asked.index.get(key) ?? asked.index.set(key, { any: false, providers: new Set() }).get(key)!;
+      if (ref.provider_id) entry.providers.add(ref.provider_id); else entry.any = true;
+    }
+  }
+  const entry = asked.index.get(`${d.capability_id}@${d.version}`);
+  return !!entry && (entry.any || entry.providers.has(provider.provider_id));
 }
 
 /** Scene preparation can inspect an authorized judgment without acquiring permission to execute it. */

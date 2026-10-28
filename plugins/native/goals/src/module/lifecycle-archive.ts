@@ -276,7 +276,7 @@ export class GoalArchiveCommands {
   }
 
   listTrashed(projectId: string): GoalRecord[] {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     return this.context.repository.listGoals(projectId).filter((goal) => goal.trashed_at !== null);
   }
 

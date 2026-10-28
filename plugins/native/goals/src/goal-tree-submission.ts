@@ -54,7 +54,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     const result = this.ports.governance.records.executeGoalTreeSubmission({
       project_id: input.project_id, actor_id: actorId, idempotency_key: input.idempotency_key, request_hash: hash,
     }, () => {
-      this.requireBoard(input.project_id);
+      this.requireGoalsLibrary(input.project_id);
       const currentCursor = this.ports.governance.query.eventCursor(input.project_id);
       const baseEventCursor = input.base_event_cursor ?? currentCursor;
       if (!Number.isInteger(baseEventCursor) || baseEventCursor < 0 || baseEventCursor > currentCursor) {
@@ -170,7 +170,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     return text;
   }
 
-  private requireBoard(projectId: string): void {
+  private requireGoalsLibrary(projectId: string): void {
     if (!this.ports.goals.query.getBoard(projectId)) throw treeErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
   }
 

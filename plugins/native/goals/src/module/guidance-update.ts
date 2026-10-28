@@ -238,7 +238,7 @@ export function updateProjectGuidance(
       hash,
     );
     if (replay) return { ...replay, replayed: true };
-    context.requireBoard(input.project_id);
+    context.requireGoalsLibrary(input.project_id);
     const { outcome, at } = applyGuidanceUpdate(context, input, request);
     context.remember(input.project_id, input.actor_id, "update_project_guidance", input.idempotency_key, hash, outcome, at);
     return { ...outcome, replayed: false };

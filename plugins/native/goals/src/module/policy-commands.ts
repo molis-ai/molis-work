@@ -23,7 +23,7 @@ export class ProjectPolicyCommands {
         input.project_id, input.actor_id, operation, input.idempotency_key, hash,
       );
       if (replay) return { ...replay, replayed: true };
-      this.context.requireBoard(input.project_id);
+      this.context.requireGoalsLibrary(input.project_id);
       const at = this.context.now().toISOString();
       const bindingId = randomUUID();
       const replaced = this.context.repository.replacePolicyBinding({

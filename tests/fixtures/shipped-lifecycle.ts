@@ -12,6 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, projectActionAvailability, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -71,11 +72,13 @@ export async function answer(request: Promise<unknown>): Promise<number | string
   }
 }
 
-/** The actions the build declares for the plugin, as the person's directory in a project names them. */
+/** The actions the build declares for the plugin, as the person's directory in a project names them; a scene declaration brings its three configuration actions too. */
 export function declared(pluginId: string): string[] {
   const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId);
   assert.ok(entry, pluginId);
-  return (entry.manifest.actions ?? []).filter(action => action.action.audiences.includes("user")).map(action => `${action.capability_id}@${action.version}`).sort();
+  const actions = (entry.manifest.actions ?? []).filter(action => action.action.audiences.includes("user")).map(action => `${action.capability_id}@${action.version}`);
+  const scenes = (entry.manifest.action_scenes ?? []).flatMap(scene => Object.values(sceneConfigurationActions(scene)).map(action => `${action.capability_id}@${action.version}`));
+  return [...actions, ...scenes].sort();
 }
 
 /** Where the plugin is, for one Host: its routes in the project, the person's directory, and its installation. */

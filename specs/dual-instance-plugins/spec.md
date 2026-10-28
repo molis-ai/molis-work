@@ -123,10 +123,10 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
   - `tests/dual-instance-routes.test.ts`（DUAL-09，S-31）：
     - 项目路径下两半各答自己的路由，都在那个项目里，查询里的项目不读。
     - 不带前缀只有 Home 一半的路由，不在任何项目里；项目不存在答 `actions.missing`。
-    - Home 那一半停用后，项目一半照常；Home 的路由在项目路径下答 `actions.execution_failed`，不带前缀答 400。
+    - Home 那一半停用后，项目一半照常；Home 的路由在项目路径下答 `actions.execution_failed`，不带前缀答 400。2026-10-28（T-005）改：Home 那一半停用后，项目路径下只有项目一半此刻绑定的路由交给它（项目的插件平台还没起来时，宿主先把它起来再看），两半都不绑定的路由由 Home 照停了的 Home 插件答，不再是项目实例的 `actions.execution_failed`；不带前缀仍答 400。
     - 不带标记的对照照旧。
 - 取舍：
-  - 回落只看 Manifest 声明过的路由（`home-plugin-http.ts` 的 `projectHalfRoute`）：没声明的路径由 Home 答 404，不交给项目，不带前缀时也不变成「请先选择项目」。
+  - 回落只看 Manifest 声明过的路由（`home-plugin-http.ts` 的 `projectHalfRoute`）：没声明的路径由 Home 答 404，不交给项目，不带前缀时也不变成「请先选择项目」。2026-10-28（T-005）改：Home 一半没在运行时，声明过、Home 不绑定、项目一半也不绑定的路由由 Home 照停了的 Home 插件答（`projectHalfRoute` 判断候选，`projectHalfBinds` 判断项目一半是否真的绑定，项目的插件平台没起来时先经 `projectPluginPlatform` 把它起来）；`actions.execution_failed` 仍留在项目一半绑定了该路由的夹具里。
   - 不带前缀的项目一半路由答 400（「请先选择一个 Molis Work 项目」），不是方案里写的 404：这是请求链给所有不带项目的项目路由的答复，`web-request.ts` 不改；失败时拒绝，没有实例运行。Home 那一半停用时，不带前缀的 Home 路由也答 400：停了的一半不绑定任何路由，宿主分不出哪条是它的。
   - 宿主夹具里的双实例插件没有目录条目，项目「显示这个插件」的核对对它只看项目存在（`routeProject`），与它的项目一半在每个项目都启动一致。
 - 已补（BL-394，⑤ 评 #891）：项目一半从发行物恢复已装版本时，`plugin-platform.ts` 的 `start` 让恢复出的定义对象带上名单条目的标记（`bundled`、`dual_instance` 与各项声明），与 Home 一侧的 `releaseArtifact` 一致；**RAC-330** 由 `tests/dual-instance-restored-release.test.ts` 证：名单上的新版本接不了已装版本时，恢复出的旧版本仍只兑现自己这一半并运行，不记成 crashed。

@@ -15,3 +15,6 @@
 | T-029 交接 遗漏 2 | `docs/system/EXTENSION-POINTS.md:193` | 「grok-build 11 个文件」「opencode 15 个文件，8 个包」：按不含测试的搜法现在是 12 和 15，先定按哪种搜法数，再改数字 | 2026-10-28 |
 | T-029 交接 遗漏 3 | `docs/system/EXTENSION-POINTS.md:284` | `schedule-task-runner.ts` 已经在 #1018 删了，要找到替代它的文件，或者删掉这一句 | 2026-10-28 |
 | T-029 交接 遗漏 4 | `tests/security-invariants-route-grants.test.ts:3` | 注释里还提 `HOST_OWNER_PERMISSIONS`。这是安全不变量测试，只改注释，不动断言 | 2026-10-28 |
+| T-031 二审 @4f322bff2 后续 1 | `specs/repository-anti-corruption/spec.md:2918` | T-031 合入后，`renderPluginRailAccountFooter` 这一句改成「已删（#1353）」；`specs/repository-cleanup/inventory.md:168-169` 里的两个名字一并改。先等 #1101、#1335 不再锁这个文件 | 2026-10-28 |
+| T-031 二审 @4f322bff2 后续 2 | `apps/workbench/src/i18n/gap-en.ts:54` | T-031 合入后 `"Dock 与插件"` 没人用了；先 grep 确认，再删这一条 | 2026-10-28 |
+| T-031 二审 @4f322bff2 后续 3 | `apps/workbench/src/immersive-shell.ts` 的 `accountFooter` 参数 | T-031 删了唯一的调用方，参数已经没人传；等 T-006（#1348，锁着这个文件）合入后再删 | 2026-10-28 |

@@ -37,6 +37,10 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-023 | 插件开发 Skill 补上动作之间的引用规则，改正结果对象的推断规则（BL-130） | 丙 | 池 | 5 | — | `skills/molis-plugin-dev/continuity.md`、`skills/molis-plugin-dev/host.md` |
 | T-026 | 摘要真的超时时 Coding 换用备用摘要：补生产截止时间的用例（BL-311） | 乙 | B | 6 | — | `tests/coding-history-requirements.test.ts` |
 | T-028 | Feed 条目的来源归属标记不再露给人，也不进搜索摘要（BL-096 标签一半） | 乙 | A | 7 | — | `plugins/native/feed/src/application-projection.ts`、`tests/feed-item-tags.test.ts`（新） |
+| T-024 | Goals 内部方法 requireBoard 改名 requireGoalsLibrary（W5-14 片 5） | 丙 | A | 8 | — | `plugins/native/goals/src/` 下 12 个文件：`goal-tree-decision.ts`、`goal-tree-submission.ts`、`module/command-support.ts`、`module/goal-commands.ts`、`module/goal-writable.ts`、`module/guidance-add.ts`、`module/guidance-commands.ts`、`module/guidance-update.ts`、`module/lifecycle-archive.ts`、`module/planning/engine.ts`、`module/policy-commands.ts`、`module/query.ts`；`docs/system/GLOSSARY.md` 只第 189、411 行（与 T-029 共改，各改各的行） |
+| T-025 | Goals 库里存的 JSON 读不出来时报错，不再悄悄当成空值 | 乙 | A | 9 | — | `plugins/native/goals/src/module/repository.ts`、`plugins/native/goals/src/module/command-error-codes.ts`、`plugins/native/goals/src/governance/mappers.ts`、`plugins/native/goals/src/governance/errors.ts`、`tests/goals-stored-json.test.ts`（新）、`tests/goal-events-state.test.ts`（只追加）、`tests/governance-collaboration-module.test.ts`（只追加）、`plugins/native/goals/README.md`（只加一条不变量和必跑里的一个文件名）、`tests/ci-product-subset.txt`（看【方案】） |
+| T-027 | BACKLOG 清理：删 BL-132，BL-141、BL-551 改成只写没做的 | 丙 | 池 | 6 | — | —（`specs/BACKLOG.md` 只这三行，不锁） |
+| T-029 | 活文档里对不上 main 的九处话（已并入的包、已改名和已删的文件） | 丙 | 池 | 7 | — | `docs/horizontal/README.md`、`docs/horizontal/listener-host.md`、`docs/modules/signals.md`、`docs/modules/sources.md`、`docs/modules/README.md`、`docs/SSOT-MATRIX.md`（只第 117 行）、`docs/system/DEVELOPMENT-REQUIREMENTS.md`（只第 37 行）、`docs/system/GLOSSARY.md`（只第 124、254、325 行；与 T-024 共改）、`docs/system/EXTENSION-POINTS.md`（只第 125、193、314 行）、`docs/platform/PLUGIN-PLATFORM.md`（只第 138 行） |
 
 ## 在途，不走任务书
 

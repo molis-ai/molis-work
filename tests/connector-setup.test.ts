@@ -12,7 +12,7 @@ type Prepared = { authorization_id: string; status: string; url: string; possibl
 const prepare = (home: TestHome, service = "github", method = "token", context = caller) => home.host.homeActionClient().invoke(context, connectorSetupAction,
   { service_id: service, method, display_name: "Work account", expected_revision: null }) as Promise<Prepared>;
 const status = (home: TestHome, id: string) => home.host.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: id }) as Promise<{ status: string; connection_id: string }>;
-const cancel = (home: TestHome, id: string) => home.host.homeActionClient().invoke(caller, connectorManagementActions.cancel, { authorization_id: id });
+const cancel = (home: TestHome, id: string, context = caller) => home.host.homeActionClient().invoke(context, connectorManagementActions.cancel, { authorization_id: id });
 
 for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: cancel ${service} clears only its pending protocol material without requiring a callback`, async t => {
   const home = await openTestHome(t), request = await prepare(home, service, "oauth");
@@ -83,7 +83,7 @@ test("ASC-03 ASC-07 ASC-08 ASC-19 ASC-37: prepare before any project, reuse this
   assert.equal((await status(home, first.authorization_id)).connection_id, saved.connection.connection_id);
   assert.equal((await status(home, first.authorization_id)).status, "connected");
   await assert.rejects(home.web.post("/api/settings/connectors/connections", { service_id: "github", display_name: "Duplicate", token: "fixture-work-setup", setup_id: first.authorization_id }), { status: 400 });
-  await cancel(home, other.authorization_id);
+  await cancel(home, other.authorization_id, { ...caller, runtime_session_id: "independent-session" });
   await assert.rejects(home.web.post("/api/settings/connectors/connections", { service_id: "github", display_name: "Cancelled", token: "fixture-work-setup", setup_id: other.authorization_id }), { status: 400 });
   assert.equal(withConnectorConnections(home.home, store => store.list()).length, 2);
   assert.equal(withConnectorConnections(home.home, store => store.resolveToken(existing.connection_id, "github")), "fixture-personal-setup");

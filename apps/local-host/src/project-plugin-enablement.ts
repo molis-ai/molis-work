@@ -33,7 +33,8 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         const wanted = enabled.get(state.plugin_id);
         if (wanted === false && active.has(state.plugin_id)) {
           platform.supervisor.revoke(state.plugin_id);
-          if (state.install_id) await platform.runtime.stop(state.install_id);
+          // A crashed or quarantined installation is not running, and the Runtime refuses to stop one: leave it as it is (R-70).
+          if (state.install_id && platform.runtime.get(state.install_id).state === "running") await platform.runtime.stop(state.install_id);
         } else if (wanted === true && !active.has(state.plugin_id) && !uninstalled(platform, state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
       }
     });

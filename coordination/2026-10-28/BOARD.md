@@ -14,9 +14,10 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | --- | --- | --- | --- | --- | --- | --- |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
 | T-002 | privileges 状态列收口与 BACKLOG 清理 | 丙 | B | 1 | — | `specs/repository-anti-corruption/privileges.md` |
-| T-003 | 给 Feed、Inbox 各加一项生命周期用例 | 乙 | A | 2 | — | `tests/shipped-plugin-lifecycle-feed.test.ts` |
-| T-005 | 双实例插件 Home 一半停用后不再答裸 404，加回置物架走查 | 甲 | B | 2 | — | `apps/local-host/src/home-plugin-http.ts`、`tests/dual-instance-routes.test.ts`、`tests/fixtures/shipped-lifecycle.ts`、`tests/shipped-plugin-lifecycle-personal.test.ts`、`specs/dual-instance-plugins/spec.md` |
-| T-004 | 公开来源拉取已提交后判断失败，对外报原来的错误 | 乙 | A | 3 | — | `plugins/native/feed/src/source-sync.ts`、`tests/feed-sync-concurrency.test.ts`、`tests/feed-inbox-lifecycle.test.ts`、`tests/feed-runtime-plugin.test.ts`（与 T-007 共改：只追加，不改已有用例和辅助函数；后合的解冲突，两边的用例都留） |
+| T-003 | 给 Feed、Inbox 各加一项生命周期用例 | 乙 | A | 2 | — | `tests/shipped-plugin-lifecycle-feed.test.ts`、`tests/fixtures/shipped-lifecycle.ts`（只改 `declared()`，与 T-005 共改，后合的解冲突） |
+| T-016 | 分屏之后后台刷新把顶栏标签条又显示出来（夜间 Full 红） | 甲 | A | 3 | — | `apps/workbench/src/scripts/client/frame-container.ts`、`apps/workbench/src/scripts/client/tab-workspace-panes.ts`、`tests/workbench-pane-feed.e2e.test.ts` |
+| T-005 | 双实例插件 Home 一半停用后不再答裸 404，加回置物架走查 | 甲 | B | 2 | — | `apps/local-host/src/home-plugin-http.ts`、`tests/dual-instance-routes.test.ts`、`tests/fixtures/shipped-lifecycle.ts`（与 T-003 共改：T-003 只改 `declared()`）、`tests/shipped-plugin-lifecycle-personal.test.ts`、`specs/dual-instance-plugins/spec.md` |
+| T-004 | 公开来源拉取已提交后判断失败，对外报原来的错误 | 乙 | A | 4 | — | `plugins/native/feed/src/source-sync.ts`、`tests/feed-sync-concurrency.test.ts`、`tests/feed-inbox-lifecycle.test.ts`、`tests/feed-runtime-plugin.test.ts`（与 T-007 共改：只追加，不改已有用例和辅助函数；后合的解冲突，两边的用例都留） |
 | T-006 | 插件市场与 Dock 说明添加、移除会连带什么 | 乙 | B | 3 | — | `apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/scripts/client/plugin-workbench.ts`、`apps/workbench/src/i18n/gap-en.ts`、`tests/plugin-market-catalog.test.ts`、`tests/plugin-picker-pins.test.ts`、`tests/immersive-workbench.e2e.test.ts`、`tests/plugin-picker-pins.e2e.test.ts` |
 | T-007 | 崩掉、没启用的安装被启停刷新去停后，页面请求全部失败（R-70 / BL-813） | 甲 | 本机 | 1 | — | `apps/local-host/src/project-plugin-enablement.ts`、`tests/project-plugin-enablement-refresh.test.ts`、`tests/feed-runtime-plugin.test.ts`（与 T-004 共改，只在 D4-d 之后追加一条）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md` |
 | T-008 | Runtime 动作调用路径的成本（BL-814） | 甲 | 本机 | 2 | T-007 | 开工时补 |

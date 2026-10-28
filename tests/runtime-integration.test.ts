@@ -12,6 +12,7 @@ import {
   type SupportedRuntimeId,
 } from "@molis-ai/molis-work-app-local-host";
 import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
+import { RUNTIME_DISPLAY_NAMES, SUPPORTED_RUNTIME_IDS } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 interface Fixture {
@@ -637,4 +638,32 @@ test("Runtime host keeps Session identity independent from the canonical workspa
   assert.equal(noWorkspace?.runtimeContext.stable_work_context_id, null);
   assert.equal(noWorkspace?.runtimeContext.host_declares_stable, false);
   assert.equal(noWorkspace?.runtimeContext.workspace, null);
+});
+
+test("RAC-1240 the installer shows each Runtime with RUNTIME_DISPLAY_NAMES, and its adapter file writes none of those names itself", async () => {
+  await withFixture(async (fixture) => {
+    const integration = service(fixture);
+    const detections = await integration.detectAll();
+    assert.deepEqual(
+      new Set(detections.map((detection) => detection.runtime_id)),
+      new Set(SUPPORTED_RUNTIME_IDS),
+    );
+    for (const detection of detections) {
+      assert.equal(
+        detection.display_name,
+        RUNTIME_DISPLAY_NAMES[detection.runtime_id],
+        `installer shows ${detection.runtime_id} as ${detection.display_name}`,
+      );
+    }
+    const source = await readFile(
+      new URL("../apps/local-host/src/installer/runtime-config-adapters.ts", import.meta.url),
+      "utf8",
+    );
+    for (const name of Object.values(RUNTIME_DISPLAY_NAMES)) {
+      assert.ok(
+        !source.includes(`"${name}"`) && !source.includes(`'${name}'`),
+        `apps/local-host/src/installer/runtime-config-adapters.ts writes "${name}" itself instead of taking it from RUNTIME_DISPLAY_NAMES`,
+      );
+    }
+  });
 });

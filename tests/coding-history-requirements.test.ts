@@ -97,6 +97,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const steers = ended.turns.filter(turn => turn.kind === "user" && turn.steer);
   assert.deepEqual(steers.map(turn => [turn.text, turn.steer!.state]), SUPPLEMENTS.map(text => [text, "read"]), "the round read all six");
   const roundOne = f.requests.length;
+  const roundOneCount = f.requests.length;
   assert.equal((await f.call(project, coding + `/sessions/${id}/compact`, { on: true })).status, 200);
   round = 2;
   if (summary === "timeout") { patchedAt = Date.now(); deadlineCalls = shortenProductionDeadline(t); firedAt = deadlineCalls.firedAt; }
@@ -107,7 +108,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const reviews = f.requests.slice(roundOne).filter(isReview), later = f.requests.slice(roundOne).filter(request => !isReview(request));
   const summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
   const roundTwo = later.filter(request => !textOf(request).includes(SUMMARY_PROMPT));
-  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, summaryArrivedAt, patchedAt, deadlineCalls, deadlineFiredAt: firedAt, lateReturnedAt: () => lateReturnedAt };
+  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, roundOneCount, summaryArrivedAt, patchedAt, deadlineCalls, deadlineFiredAt: firedAt, lateReturnedAt: () => lateReturnedAt };
 }
 
 function assertCarried(request: CodingProviderRequest, steers: AgentRunView["turns"]) {
@@ -167,13 +168,18 @@ test("RAC-1340 a summary still pending at the production deadline is replaced by
 });
 
 test("RAC-1341 a summary that comes back after the deadline changes no request and records no usage", { timeout: 60_000 }, async t => {
-  const { f, project, coding, id, deadlineFiredAt, lateReturnedAt } = await twoRounds(t, "timeout");
-  const afterRound = f.requests.length;
+  const { f, project, coding, id, roundOneCount, deadlineFiredAt, lateReturnedAt } = await twoRounds(t, "timeout");
   const deadline = Date.now() + 8_000;
   while (!lateReturnedAt() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
   assert.ok(lateReturnedAt() > deadlineFiredAt(), "the late summary did answer, after the deadline");
-  // The answered-but-late summary reached nothing: the live request list is re-read, not the snapshot taken at round start.
-  assert.equal(f.requests.length, afterRound, "the late summary added no provider request");
+  // A fixed point from the end of round one (before the summary call existed) plus this run's three calls: one summary
+  // attempt, the round's own call and its ending review. A late answer that caused any extra call fails the count itself,
+  // instead of being compared with a count that may already contain its side effect.
+  const later = f.requests.slice(roundOneCount);
+  assert.equal(f.requests.length, roundOneCount + 3, `the late summary added no provider request: ${JSON.stringify(later.map(textOf))}`);
+  assert.equal(later.filter(request => textOf(request).includes(SUMMARY_PROMPT)).length, 1, "one summary attempt");
+  assert.equal(later.filter(request => isReview(request)).length, 1, "one ending review");
+  assert.equal(later.filter(request => !textOf(request).includes(SUMMARY_PROMPT) && !isReview(request)).length, 1, "one call of the round itself");
   assert.deepEqual(f.requests.filter(request => textOf(request).includes(LATE_SUMMARY_MARKER)), [], "no request carries the late summary");
   const read = await f.call<{ usage_total?: { digests?: unknown } }>(project, coding + `/sessions/${id}?window=20`);
   assert.equal(read.status, 200, JSON.stringify(read.body));

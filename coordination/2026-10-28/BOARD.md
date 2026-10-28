@@ -41,6 +41,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-025 | Goals 库里存的 JSON 读不出来时报错，不再悄悄当成空值 | 乙 | A | 9 | — | `plugins/native/goals/src/module/repository.ts`、`plugins/native/goals/src/module/command-error-codes.ts`、`plugins/native/goals/src/governance/mappers.ts`、`plugins/native/goals/src/governance/errors.ts`、`tests/goals-stored-json.test.ts`（新）、`tests/goal-events-state.test.ts`（只追加）、`tests/governance-collaboration-module.test.ts`（只追加）、`plugins/native/goals/README.md`（只加一条不变量和必跑里的一个文件名）、`tests/ci-product-subset.txt`（看【方案】） |
 | T-027 | BACKLOG 清理：删 BL-132，BL-141、BL-551 改成只写没做的 | 丙 | 池 | 6 | — | —（`specs/BACKLOG.md` 只这三行，不锁） |
 | T-029 | 活文档里对不上 main 的九处话（已并入的包、已改名和已删的文件） | 丙 | 池 | 7 | — | `docs/horizontal/README.md`、`docs/horizontal/listener-host.md`、`docs/modules/signals.md`、`docs/modules/sources.md`、`docs/modules/README.md`、`docs/SSOT-MATRIX.md`（只第 117 行）、`docs/system/DEVELOPMENT-REQUIREMENTS.md`（只第 37 行）、`docs/system/GLOSSARY.md`（只第 124、254、325 行；与 T-024 共改）、`docs/system/EXTENSION-POINTS.md`（只第 125、193、314 行）、`docs/platform/PLUGIN-PLATFORM.md`（只第 138 行） |
+| T-030 | 本机 MCP 再拒六类 loader 环境变量名（BL-181） | 乙 | B | 7 | — | `apps/local-host/src/connector-local-mcp.ts`、`tests/security-invariants-local-mcp.test.ts`、`docs/system/SECURITY-INVARIANTS.md`（只改 S-36 一行；与 T-005、T-009、T-010 共改，各改各的行）；`specs/BACKLOG.md` 只删 BL-181 行，不锁 |
+| T-031 | 删掉两个没有调用方的导出：renderPluginRailAccountFooter、sideViewKeys | 丙 | 池 | 8 | — | `apps/workbench/src/settings-directory.ts`、`apps/workbench/src/side-view-document.ts` |
 
 ## 在途，不走任务书
 

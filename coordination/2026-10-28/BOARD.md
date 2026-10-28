@@ -47,6 +47,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-033 | installed-plugin-host 的 SYS-15-S1 只数自己的定时任务，另断言 Feed 唤醒（main 已知红） | 丙 | 池 | 10 | — | `tests/installed-plugin-host.test.ts`（与 T-032 共改，见 T-032 行） |
 | T-034 | 停止崩掉或还没启动的安装时 Runtime 记 disabled，人的停用撑得过 Host 重启 | 甲 | 本机 | 3 | T-032、T-007 | `packages/plugin-runtime/src/index.ts`（只改 `stopOnce`）、`packages/plugin-runtime/README.md`、`tooling/gates/giant-exceptions.json`（只改 `PluginRuntime` 的 `size`）、`tests/plugin-lifecycle-states.test.ts`、`tests/installed-plugin-host.test.ts`（只改 T-032 追加的两例）、`tests/project-plugin-enablement-refresh.test.ts`（只改 RAC-1120 第一例和顶部注释）、`apps/local-host/src/project-plugin-enablement.ts` 与 `apps/local-host/src/installed-plugin-lifecycle.ts`（只改注释）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（一句）、`docs/system/CALL-CHAINS.md`（只改第 132 行） |
 | T-035 | Host 关闭时只停 Runtime 记录里确实在跑的安装，崩掉的不再让整次关闭失败 | 乙 | 池 | 11 | T-032 | `apps/local-host/src/installed-plugin-host.ts`（只改关闭循环）、`tests/installed-plugin-host.test.ts`（与 T-032、T-033、T-034 共改：T-035 只在文件末尾追加，不加 import） |
+| T-037 | 关闭项目插件时 Runtime 读不到记录，不再跳过它的撤销和排在后面的插件 | 甲 | 池 | 12 | — | `apps/local-host/src/project-plugins.ts`（只改 `stopProjectPlugins` 的守卫）、`tests/project-plugin-startup.test.ts`（只在文件末尾追加，不加 import） |
 
 ## 在途，不走任务书
 

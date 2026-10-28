@@ -1,4 +1,4 @@
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { WorkExecutor } from "./assistant-executor.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -13,7 +13,8 @@ export type SessionWork = StoredWork & { executor: { kind: "plugin"; session_id:
 function sessionHolder(store: SessionStore, actorId: string, projectId: string | null, session: { kind: string; id: string }, except?: string): StoredWork | null {
   for (const row of store.relations.forObject(projectId, session)) {
     if (row.relation !== "session" || row.work_id === except) continue;
-    try { const work = store.get(actorId, row.work_id); if (!work.archived) return work; } catch { /* gone */ }
+    const work = whenThere(() => store.get(actorId, row.work_id)); // Gone holds nothing; a store that cannot be read is not a free session.
+    if (work && !work.archived) return work;
   }
   return null;
 }

@@ -2,7 +2,7 @@ import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/ag
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantUsage, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
 
@@ -36,9 +36,8 @@ export class AssistantBudget {
     if (!host) return;
     const adapter = host.adapter(RUNTIME);
     for (const { work_id, round } of open) {
-      let work: StoredWork;
-      try { work = this.store.get(this.actorId, work_id); } catch { continue; }
-      if (!work.session_id) continue;
+      const work = whenThere(() => this.store.get(this.actorId, work_id));
+      if (!work?.session_id) continue;
       const view = await adapter.read({ session_id: work.session_id, run_id: round.run_id }).catch(() => null);
       if (!view || !isTerminalAgentPhase(view.phase) || !view.usage) continue;
       this.store.usage.record(this.actorId, { work_id, run_id: round.run_id, ended_at: view.ended_at ?? this.now().toISOString(),

@@ -10,7 +10,7 @@ import type { AssistantMethod, AssistantPendingReview, AssistantRound, Assistant
 import { L } from "../web-locale.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { PersonActions } from "./assistant-executor.js";
 import { queuedInputs, readAssistantInputs } from "./assistant-inputs.js";
 import { ownerOf } from "./assistant-round-start.js";
@@ -152,7 +152,7 @@ export class AssistantWorkReads {
 
   /** A work of this person, as stored (for the Assistant's own actions acting for it); null when it is not theirs. */
   workRecord(workId: string): StoredWork | null {
-    try { return this.store.get(this.actorId, workId); } catch { return null; }
+    return whenThere(() => this.store.get(this.actorId, workId));
   }
 
   /** Which object kind each surface's tab items are, as plugins declare their search sources (kind and surface). */
@@ -175,9 +175,8 @@ export class AssistantWorkReads {
     const rows = this.store.relations.forObject(projectId, subject);
     const out: AssistantRelatedWork[] = [];
     for (const row of rows) {
-      let work: StoredWork;
-      try { work = this.store.get(this.actorId, row.work_id); } catch { continue; }
-      if (work.archived) continue;
+      const work = whenThere(() => this.store.get(this.actorId, row.work_id));
+      if (!work || work.archived) continue;
       out.push({ work_id: work.work_id, title: work.title, state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
     }
     return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -241,7 +240,7 @@ export class AssistantWorkReads {
     const recent = this.store.roundsSince(this.actorId, since).filter(({ round }) => round.executor !== "plugin").slice(0, Math.max(1, Math.min(limit, 50)));
     const works = new Map<string, StoredWork | null>();
     const workOf = (workId: string) => {
-      if (!works.has(workId)) { try { works.set(workId, this.store.get(this.actorId, workId)); } catch { works.set(workId, null); } }
+      if (!works.has(workId)) works.set(workId, whenThere(() => this.store.get(this.actorId, workId)));
       return works.get(workId) ?? null;
     };
     const rounds = await Promise.all(recent.map(async ({ work_id, round }): Promise<AssistantRoundDiagnostics> => {

@@ -6,7 +6,7 @@ import type { AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantWork
 import { NOTICE_TTL_MS, scanNewMaterialOnce, type ScanLook } from "./assistant-material-scan.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { type AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { identity } from "./assistant-relations.js";
 import { memoryLearningSources } from "./assistant-inputs.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
@@ -151,8 +151,8 @@ export class AssistantNotices {
     const open = this.store.openNotices(this.actorId).filter(notice => notice.kind === "completed" || notice.kind === "result");
     let settled = 0;
     for (const workId of [...new Set(open.map(notice => notice.work_id))].slice(0, 5)) {
-      let work: StoredWork;
-      try { work = this.store.get(this.actorId, workId); } catch { continue; }
+      const work = whenThere(() => this.store.get(this.actorId, workId));
+      if (!work) continue;
       const objects = await this.link.workObjects(work).catch(() => [] as AssistantWorkObject[]);
       if (!objects.some(object => object.relation === "result" && (object.state === "changed" || object.state === "missing"))) continue;
       for (const notice of open.filter(item => item.work_id === workId)) settled += this.store.settleNotices(this.actorId, { notice_id: notice.notice_id }, "seen");

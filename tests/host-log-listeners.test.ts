@@ -149,7 +149,7 @@ test("RAC-1112 W5-13-14 settling a job's cards: a card changed meanwhile is expe
   const conflict = await settleWith((one, expected, patch) => update(one, expected - 1, patch));
   assert.deepEqual(of(conflict.entries, "job_card_unsettled"), [], "a card changed meanwhile is the expected answer");
   const broken = await settleWith(() => { throw failure("fixture.cards_unwritable"); });
-  assert.equal(broken.value.status, "running", "the card that could not be written stays as it was");
+  assert.deepEqual(store.cards(broken.value.work_id).map(one => one.status), ["running"], "the card that could not be written stays as it was");
   assert.deepEqual(of(broken.entries, "job_card_unsettled").map(entry => [entry.area, entry.event, entry.error?.code]), [["assistant", "job_card_unsettled", "fixture.cards_unwritable"]]);
 });
 
@@ -166,7 +166,7 @@ test("RAC-1113 W5-13-15 a publishers' ledger that cannot be read still trusts no
   readable = true;
   const read = await captured(() => standing.trusted(pinned));
   assert.equal(read.value, true); assert.deepEqual(read.entries, []);
-  // A ledger that fails again after it was read is written again.
+  // Another standing (each Host that asks keeps its own) writes its own line.
   readable = false;
   const again = await captured(() => publisherStanding(ledger).trusted(pinned));
   assert.equal(again.value, false); assert.equal(again.entries.length, 1);
@@ -194,8 +194,8 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   // New material: each look asks the source, which fails; it is written once, then again only after it answered.
   const looks = await captured(async () => { await service.notices.scanNewMaterial(); await service.notices.scanNewMaterial(); eventsBroken = false;
     await service.notices.scanNewMaterial(); eventsBroken = true; await service.notices.scanNewMaterial(); });
-  assert.deepEqual(of(looks.entries, "material_source_failed").map(entry => [entry.area, entry.fields?.capability_id, Boolean(entry.error)]),
-    Array(2).fill(["assistant", "fixture.material.events", true]));
+  assert.deepEqual(of(looks.entries, "material_source_failed").map(entry => [entry.area, entry.fields?.project_id, entry.fields?.capability_id, Boolean(entry.error)]),
+    Array(2).fill(["assistant", "project", "fixture.material.events", true]));
 
   // Reminders: the stretch a source could not answer is asked again next time, and its failure is written once.
   const swept = await captured(async () => [await service.followUps.sweepReminders(), await service.followUps.sweepReminders()]);

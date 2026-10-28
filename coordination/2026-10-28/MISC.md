@@ -21,3 +21,4 @@
 | T-035 CI @390ed98c2（run 40724368952 第 1 次） | `apps/desktop/adapters/tauri/src/shelf_clipboard_macos.rs:176`、`:218` | `Rust and Swift checks` 里两条 macOS 剪贴板用例在不碰 Rust 的 PR 上红（「读不了原剪贴板，未复制文件」），同树 main 绿。偶发候选：再出现一次就开单查 runner 上的剪贴板并发 | 2026-10-28 |
 | T-051 起草 | `docs/system/CALL-CHAINS.md:69` | 「工具失败 `isError: true`」那一格补一句「发现失败：`tools/list` 回 JSON-RPC `-32603`，进程继续答别的请求」。等 T-051 合入，且 #1367、#1360 不再改这份文件 | 2026-10-28 |
 | T-052 起草 | `docs/system/EXTENSION-POINTS.md:156` | 「一个客户端脚本（如 `scripts/client/background-tasks.ts`）」：这个文件 #555 改名为 `apps/workbench/src/scripts/client/attention.ts`，只换路径；同一句的 `arrival/chooser.ts` 仍对。T-047（#1372）锁着这份文件，合入后与下一单丙合派 | 2026-10-29 |
+| T-056 起草 | `apps/local-host/src/connector-tool-download.ts:27` | `runtimeReleaseBytes` 调 `fetch` 的地方没有接错：`TypeError: fetch failed`、`TimeoutError` 都以没有码的 `actions.execution_failed`（500）出去。要另开一单：只给网络失败标上 `connector.install.failed`，调用方的取消（`signal.throwIfAborted`）必须原样通过，不能改标成安装失败。等 T-056 合入后起草 | 2026-10-29 |

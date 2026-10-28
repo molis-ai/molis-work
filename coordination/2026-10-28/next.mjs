@@ -375,7 +375,9 @@ function plan(snap) {
     for (const s of issue.filter((x) => ["空闲", "阻塞", "main 红", "设备"].includes(x.kind) || (x.kind === "问统筹" && !x.task)))
       if (s.time > lastCoord) out.push(item(`issue:${s.id}`, `#${ISSUE}：【${s.kind}】${s.sig}`, s.url, 3));
     const asking = (id) => issueOpen(id, "方案").length > 0 || issueOpen(id, "问统筹").length > 0;
-    for (const b of claims.filter((x) => !open.some((p) => p.id === x.id) && !merged.has(x.id) && !asking(x.id))) {
+    // A device develops one task at a time: a claim parked while the same device pushes another is waiting its turn, not stalled.
+    const busy = (suffix) => claims.some((x) => x.suffix === suffix && x.time && hoursSince(x.time) <= STALE_HOURS);
+    for (const b of claims.filter((x) => !open.some((p) => p.id === x.id) && !merged.has(x.id) && !asking(x.id) && !busy(x.suffix))) {
       const touched = lastTouch(b);
       if (touched && hoursSince(touched) > STALE_HOURS)
         out.push(item(`stalled:${b.branch}:${touched}`, `${b.id} ${b.branch} 已 ${hoursSince(touched).toFixed(1)} 小时没有推送或评论：在 #${ISSUE} 问一声；问后 1 小时仍没回音，可以在看板改派给收回`, null, 4));

@@ -35,6 +35,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-021 | 删掉三条已经做完的 BACKLOG 行（BL-172、BL-522、BL-568） | 丙 | 池 | 4 | — | `specs/repository-anti-corruption/slices/pg031-remaining.md`（只第 41 行附近那一句；第 35 行是 T-014 的） |
 | T-022 | 安装器里 Runtime 的显示名改读统一的那张表（BL-392 的一半） | 乙 | A | 6 | — | `apps/local-host/src/installer/runtime-config-adapters.ts`、`tests/runtime-integration.test.ts` |
 | T-023 | 插件开发 Skill 补上动作之间的引用规则，改正结果对象的推断规则（BL-130） | 丙 | 池 | 5 | — | `skills/molis-plugin-dev/continuity.md`、`skills/molis-plugin-dev/host.md` |
+| T-026 | 摘要真的超时时 Coding 换用备用摘要：补生产截止时间的用例（BL-311） | 乙 | B | 6 | — | `tests/coding-history-requirements.test.ts` |
 
 ## 在途，不走任务书
 

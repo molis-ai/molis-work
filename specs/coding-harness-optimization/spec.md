@@ -116,6 +116,8 @@ Coding 当前轮次实际执行目录与文件浏览 / Git 默认联动。允许
 
 2026-10-27 对 `74f31c19ec` 的源码核对：Coding 已有随会话调用 Host 选择目录并刷新 Files / Git 的路径（[workspace.ts](../../plugins/native/coding/src/browser/main/workspace.ts)），不能记成从零建设。该路径目前写入项目浏览选择；临时查看、多会话／多窗口隔离和完整恢复须按 CHO-36～39 验证，未在本轮实操。同日用户补充方向：去掉独立 Files 插件，项目内插件共用统一文件／资料源；因此本文及 CHO-36～39 中的 Files 指当前文件浏览能力，退役后由平台公共浏览能力承接，验收不要求保留 Files 插件。目录配置合同与职责切换见[整合方案](../product-flow-governance/workspace-and-materials-design.md)，WMD-07～09 验证多输入／单输出与配置变更。
 
+2026-10-28 用户确认命令默认限制在本轮已授权执行目录及必要临时／构建缓存位置，已获准构建、测试连续执行。范围直接复用上述输入／输出和临时工作树模型，不另选沙盒工作目录；临时浏览不扩权，输入仅作参考，额外位置授权不自动改项目配置。唯一目录合同与跨入口验收见[整合方案 §2.1、WMD-11～12](../product-flow-governance/workspace-and-materials-design.md#21-命令范围沿用同一目录模型2026-10-28)，命令隔离与拒绝按 [B2、CEX-01～03](../coding-plugin/next-requirements.md) 验证；本轮只同步需求。
+
 责任：Host 修复真实进程等待与目录事实；项目设置负责回填和关联；Coding 负责实际使用及错误反馈。测试必须覆盖默认执行器的真实异步行为，不能只测注入成功结果。
 
 ### R2 · P0：助理能力发现与 Coding 委派

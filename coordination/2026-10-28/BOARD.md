@@ -8,7 +8,6 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 取法见 README 第 12 节。「派给」写「池」的，A、B 谁空谁领。`specs/BACKLOG.md` 和 spec 的进度表是只加、删自己行的文档，不锁；`specs/repository-anti-corruption/slices/w6-02-lifecycle-rest.md` 由 T-003、T-005 各改自己的行。
 
-公告：CI 拥堵，21:30Z 起暂缓开新 PR、暂缓往已开的 PR 推提交（含【修复】）；照常开发，推到任务分支，做完照常贴【交接】并在第一行写「未开 PR（CI 拥堵暂缓），分支 `<分支名>`」。已开 PR 的【修复】推到另一个分支 `<原分支>-next`（不推原分支，推它会触发 CI），【修复】第一行写「未推 PR（CI 拥堵暂缓），分支 `<原分支>-next` @<头>」。例外：设备 A 的 Claude 的 T-128～T-130。恢复看 #1332 的【统筹答】「恢复开 PR」，到时统筹删掉这一行。详情 https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6481027385
 
 ## 任务
 

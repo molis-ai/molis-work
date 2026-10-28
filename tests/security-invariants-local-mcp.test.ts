@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { connectLocalMcp, connectorLocalActions, connectorManagementActions, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectLocalMcp, connectorLocalActions, connectorManagementActions, connectorProtocolSecrets, withConnectorConnections, withConnectorProtocols, type ConnectorProtocolConfiguration } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "local-mcp-person", audience: "agent", project_id: null,
@@ -83,6 +83,13 @@ const LOADER_FAMILIES = {
   Java: ["JAVA_TOOL_OPTIONS", "JAVA_HOME", "_JAVA_OPTIONS", "CLASSPATH"], JDK: ["JDK_JAVA_OPTIONS"],
   Python: ["PYTHONPATH", "PYTHONUSERBASE", "PYTHONSTARTUP"], Perl: ["PERL5OPT", "PERL5LIB"], Ruby: ["RUBYOPT", "RUBYLIB"],
   Node: ["NODE_OPTIONS", "NODE_PATH", "NODE_EXTRA_CA_CERTS"],
+  // RAC-1350 (BL-181): one more name per family than that line lists, so a passing case proves the prefix is refused rather
+  // than the names themselves. Zsh and glibc take a single name each; .NET, PHP, Lua and npm are prefix families.
+  Zsh: ["ZDOTDIR"], Glibc: ["GCONV_PATH"],
+  ".NET": ["DOTNET_STARTUP_HOOKS", "DOTNET_ADDITIONAL_DEPS"],
+  PHP: ["PHPRC", "PHP_INI_SCAN_DIR"],
+  Lua: ["LUA_INIT", "LUA_INIT_5_4", "LUA_PATH"],
+  npm: ["NPM_CONFIG_SCRIPT_SHELL", "NPM_CONFIG_PREFIX"],
 };
 // The fixture's own key goes along, and every loader name gets a value node itself accepts, so a launch that got past the rule would start
 // and write child-pid.
@@ -112,4 +119,58 @@ test("S-36 ASC-14: local launch rejects relative executables and loader environm
     await assert.rejects(connectLocalMcp(home.home, launched, { beforeDispatch() {} }), /程序、参数/);
     assert.equal(existsSync(join(home.home, "child-pid")), false);
   }
+});
+
+test("RAC-1351 credential-looking names that are not loader families still launch and are discovered", async t => {
+  const home = await openTestHome(t), plan = input(home.home);
+  const accepted = { ...plan, launch: { ...plan.launch, environment_names: ["SERVICE_KEY", "NPM_TOKEN", "PHOTO_API_KEY"] },
+    environment: { ...plan.environment, NPM_TOKEN: "fixture-npm-token", PHOTO_API_KEY: "fixture-photo-key" } };
+  const result = await connectLocalMcp(home.home, accepted, { beforeDispatch() {} });
+  assert.equal(result.status, "connected");
+  assert.equal(existsSync(join(home.home, "child-pid")), true, "the child started despite the credential-looking names");
+  assert.deepEqual(result.tools.map(tool => tool.name), ["record"]);
+});
+
+test("RAC-1352 a stored local connection carrying a newly refused loader name is refused on launch by both the management check and its registered tool, before any child starts", async t => {
+  const home = await openTestHome(t), plan = input(home.home);
+  const connected = await connectLocalMcp(home.home, plan, { beforeDispatch() {} });
+  // Read it once while the configuration is still valid, so its tool is registered; the launch below is a real second launch.
+  await home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: connected.connectionId });
+  const childPid = join(home.home, "child-pid");
+  assert.equal(existsSync(childPid), true, "the checked connection launched once");
+  rmSync(childPid);
+  // The stored connection predates the rule: give it a loader name and its stored value the way an older setup would have.
+  const readProtocol = () => withConnectorProtocols(home.home, store => store.get<ConnectorProtocolConfiguration & { launch: { environment_names: string[] } }>(connected.connectionId));
+  const beforeProtocol = readProtocol();
+  const beforeSecrets = connectorProtocolSecrets(home.home, connected.connectionId).get("environment");
+  const launch = beforeProtocol?.launch;
+  assert.ok(launch, "the stored protocol config exists");
+  withConnectorProtocols(home.home, store => store.save({ ...beforeProtocol!, launch: { ...launch, environment_names: [...launch.environment_names, "NPM_CONFIG_PREFIX"] } }));
+  const values = JSON.parse(beforeSecrets ?? "{}") as Record<string, string>;
+  connectorProtocolSecrets(home.home, connected.connectionId).put("environment", JSON.stringify({ ...values, NPM_CONFIG_PREFIX: "--prefix=/tmp/old" }));
+  const storedProtocol = readProtocol();
+  const storedSecrets = connectorProtocolSecrets(home.home, connected.connectionId).get("environment");
+  const storedConnection = withConnectorConnections(home.home, store => store.require(connected.connectionId));
+  // 先红：改正则之前这两条路都会真的拉起子进程（把新名字放行），所以两条「没有新子进程」都会先红。
+  const checked = await home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: connected.connectionId })
+    .then(() => undefined, (error: unknown) => error);
+  assert.equal(existsSync(childPid), false, "the management check starts no child");
+  assert.ok(checked instanceof ActionError, "the management check is refused");
+  assert.equal(checked.code, "connector.mcp.configuration");
+  // Each path proves the refusal changed nothing on its own: the management check's own inspection observations are not one of the three.
+  assert.deepEqual(calls(home.home), [], "the management check reaches no business call");
+  assert.deepEqual(readProtocol(), storedProtocol, "the management check leaves the stored protocol configuration unchanged");
+  assert.deepEqual(connectorProtocolSecrets(home.home, connected.connectionId).get("environment"), storedSecrets,
+    "the management check leaves the stored credential value unchanged");
+  assert.deepEqual(withConnectorConnections(home.home, store => store.require(connected.connectionId)), storedConnection,
+    "the management check leaves the connection record unchanged");
+  const called = await home.host.homeActionClient().invoke(caller, reference(connected.connectionId), { text: "must not run" })
+    .then(() => undefined, (error: unknown) => error);
+  assert.equal(existsSync(childPid), false, "the registered tool starts no child either");
+  assert.ok(called instanceof ActionError, "the tool call is refused");
+  assert.equal(called.code, "actions.connection_unavailable", "the tool call sees the wrapper's code; the inner refusal is the declared configuration one");
+  assert.deepEqual(calls(home.home), [], "no business tool call reached the child");
+  assert.deepEqual(readProtocol(), storedProtocol, "the stored protocol configuration is unchanged");
+  assert.deepEqual(connectorProtocolSecrets(home.home, connected.connectionId).get("environment"), storedSecrets, "the stored credential value is unchanged");
+  assert.deepEqual(withConnectorConnections(home.home, store => store.require(connected.connectionId)), storedConnection, "the connection record is unchanged");
 });

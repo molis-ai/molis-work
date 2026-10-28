@@ -34,7 +34,16 @@ export function handleLocalMcpRequest(message: Record<string, unknown>, signal: 
   // The Host creates the operation number; a client's metadata cannot supply it.
   return requests.run({ signal }, () => withCallId(newCallId(), async () => {
     signal?.throwIfAborted();
-    const tools = message.method === "tools/list" ? await ports.tools() : [];
+    // A refused discovery is one JSON-RPC error for this request; the server must stay alive for the rest.
+    let tools: readonly McpToolDefinition[] = [];
+    if (message.method === "tools/list") {
+      try {
+        tools = await ports.tools();
+      } catch (error) {
+        signal?.throwIfAborted();
+        return { jsonrpc: "2.0", id: message.id, error: { code: -32603, message: formatMcpToolError(error, recordedCallId()) } };
+      }
+    }
     signal?.throwIfAborted();
     return handleMcpMessage(message, { serverInfo: MCP_SERVER_INFO, tools,
       callTool: async (name, input, context) => withCallIdMeta(await ports.callTool(name, input, context)),

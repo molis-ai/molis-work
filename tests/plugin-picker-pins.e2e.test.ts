@@ -560,3 +560,47 @@ test("SH1303-01 Alt digits use visible Dock and rail entries while extension con
   await press(nextIndex + 1);
   assert.equal(await evaluate("window.__shortcutClick"), after[nextIndex]!.id, "the next visible plugin follows the same click route");
 });
+
+test("RAC-1311 RAC-1312 the market says what adding and removing brings, from the directory, before the button is pressed", { timeout: 120_000 }, async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, click, waitFor } = b;
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await click('.plugin-picker-extend [data-plugin-id="market"]');
+  await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').disabled", 10_000);
+  const title = (id: string) => evaluate<string>(`document.querySelector('[data-market-plugin="${id}"] [data-market-add]').getAttribute("title") || ""`);
+  const label = (id: string) => evaluate<string>(`document.querySelector('[data-market-plugin="${id}"] [data-market-add]').getAttribute("aria-label") || ""`);
+  // RAC-1312: neither of the pair is in this project yet; the buttons already say what the operation does.
+  assert.match(await title("feed"), /添加会同时添加：Inbox/);
+  assert.match(await title("inbox"), /依赖它的插件不会一并添加：Feed/);
+  assert.equal(await label("feed"), "添加 Feed");
+  assert.equal(await label("inbox"), "添加 Inbox");
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added' && document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  // RAC-1311: both in now. Taking Inbox out takes Feed with it; taking Feed out takes nothing else.
+  assert.match(await title("inbox"), /移除会同时移除：Feed/);
+  assert.equal(await title("feed"), "");
+  assert.equal(await label("inbox"), "移除 Inbox");
+  assert.equal(await label("feed"), "移除 Feed");
+  // RAC-1316: a plugin with no companions says nothing, and has no empty title either.
+  assert.equal(await evaluate("document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]').hasAttribute(\"title\")"), false);
+});
+
+test("RAC-1317 the market's longest status line lays out cleanly at 390 in light and dark", { timeout: 180_000 }, async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, click, waitFor, command, sessionId, frames } = b;
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await click('.plugin-picker-extend [data-plugin-id="market"]');
+  await waitFor("Boolean(document.querySelector('[data-market-status]')) && (document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden)");
+  const longest = "已添加到 另一个项目；同时添加了：知识库、工作流程；依赖它的插件不会一并添加：成果库";
+  for (const scheme of ["light", "dark"] as const) {
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+    await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await frames(); await frames();
+    await evaluate(`document.querySelector('[data-market-status]').textContent = ${JSON.stringify(longest)}`);
+    await frames(); await frames();
+    await assertLayoutClean(evaluate, `RAC-1317 market status · 390 · ${scheme}`);
+  }
+});

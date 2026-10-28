@@ -30,6 +30,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-018 | T-017 二审的两条建议：A3 的写法、PG-017 的行号、pg017 片里 BL-490 的旧状态 | 丙 | 池 | 3 | T-017 | `specs/repository-anti-corruption/slices/w5-08-workbench-exports.md`（只「A3 已合入」两处）、`specs/repository-anti-corruption/privileges.md`（只 PG-017 状态格；T-014 改 PG-093 格）、`specs/repository-anti-corruption/slices/pg017-sandbox-services.md`（只第 30、117、118 行） |
 | T-019 | CI 装依赖不再现场去 nodejs.org 下载 Node 头文件，挂住了快速失败（【方案】要用户批） | 甲 | 池 | 1 | — | `.github/workflows/ci.yml`、`.github/workflows/full-suite.yml`、`tests/ci-install.test.ts`（新）、`tests/fixtures/ci-workflow.ts`（只加读取函数） |
 | T-020 | 给 Goals 加一项生命周期用例 | 乙 | A | 5 | T-005 | `tests/shipped-plugin-lifecycle.test.ts`；`tests/fixtures/shipped-lifecycle.ts` 只在【方案】批了之后才锁；`docs/system/RUNTIME-MIGRATION.md`（只第 242 行那一句） |
+| T-021 | 删掉三条已经做完的 BACKLOG 行（BL-172、BL-522、BL-568） | 丙 | 池 | 4 | — | `specs/repository-anti-corruption/slices/pg031-remaining.md`（只第 41 行附近那一句；第 35 行是 T-014 的） |
+| T-022 | 安装器里 Runtime 的显示名改读统一的那张表（BL-392 的一半） | 乙 | A | 6 | — | `apps/local-host/src/installer/runtime-config-adapters.ts`、`tests/runtime-integration.test.ts` |
+| T-023 | 插件开发 Skill 补上动作之间的引用规则，改正结果对象的推断规则（BL-130） | 丙 | 池 | 5 | — | `skills/molis-plugin-dev/continuity.md`、`skills/molis-plugin-dev/host.md` |
 
 ## 在途，不走任务书
 

@@ -52,6 +52,17 @@ test("RAC-164 every word the Shelf page's client and drawn list say has a stable
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the list directly");
 });
 
+test("RAC-1320 the Shelf package no longer declares the xterm packages it does not import", () => {
+  const manifest = JSON.parse(readFileSync("plugins/native/shelf/package.json", "utf8")) as {
+    dependencies?: Record<string, string>;
+    "molis-work"?: { extraDependencies?: Record<string, string> };
+  };
+  const xterm = (names: readonly string[]) => names.filter(name => name.startsWith("@xterm/"));
+  assert.deepEqual(xterm(Object.keys(manifest.dependencies ?? {})), []);
+  assert.deepEqual(xterm(Object.keys(manifest["molis-work"]?.extraDependencies ?? {})), []);
+  assert.throws(() => statSync(join(SRC, "xterm-css.d.ts")), /ENOENT/);
+});
+
 test("RAC-165 the Shelf page's client is typed browser code bundled by esbuild, asks the Host only through the shared request helper and names no plugin", () => {
   for (const file of browserFiles) {
     const source = readFileSync(file, "utf8");

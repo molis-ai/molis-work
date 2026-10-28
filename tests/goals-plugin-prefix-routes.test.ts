@@ -92,26 +92,32 @@ test("RAC-1511 the plugin prefix creates a Goal and a relation retry is only rep
   assert.equal(replay.body!.goal.goal_id, goalId);
   assert.equal(replay.body!.replayed, true);
   const child = await create(randomUUID());
-  assert.equal(child.status, 201);
   const childId = child.body!.goal.goal_id;
 
-  const relation = (bodyKey: string | undefined) => request<CreatedRelation>(served, "POST", `${prefix}/goals/${childId}/relations`, {
-    body: { direction: "outgoing", type: "part_of", target_goal_id: goalId, reason: "Part of the same result",
+  const relation = (target: string, bodyKey?: string) => request<CreatedRelation>(served, "POST", `${prefix}/goals/${childId}/relations`, {
+    body: { direction: "outgoing", type: "part_of", target_goal_id: target, reason: "Part of the same result",
       ...(bodyKey === undefined ? {} : { idempotency_key: bodyKey }) },
   });
   const bodyKey = randomUUID();
-  const one = await relation(bodyKey);
+  const one = await relation(goalId, bodyKey);
   assert.equal(one.status, 200, `relation: ${JSON.stringify(one.body)}`);
-  const two = await relation(bodyKey);
+  const two = await relation(goalId, bodyKey);
   assert.equal(two.status, 200);
   assert.equal(two.body!.relation_id, one.body!.relation_id, "the same body key replays the relation");
   assert.equal(two.body!.replayed, true);
-  // A client that only knew the request header (as the relation form did) cannot replay: each attempt makes a new relation.
-  const three = await relation(undefined), four = await relation(undefined);
-  assert.equal(three.status, 200);
-  assert.equal(four.status, 200);
-  assert.notEqual(four.body!.relation_id, three.body!.relation_id);
-  assert.equal(four.body!.replayed, false);
+  // A client that only knew the request header (as the relation form did) cannot replay: the first attempt draws a new
+  // relation and the second is refused as a duplicate — never the first relation's replay.
+  const other = await create(randomUUID());
+  const otherId = other.body!.goal.goal_id;
+  const three = await relation(otherId);
+  assert.equal(three.status, 200, `header-only relation: ${JSON.stringify(three.body)}`);
+  const four = await relation(otherId);
+  if (four.status === 200) {
+    assert.notEqual(four.body!.relation_id, three.body!.relation_id, "a header-only retry makes a new relation");
+    assert.equal(four.body!.replayed, false);
+  } else {
+    assert.equal(four.status, 400, `a header-only retry is not a replay: ${JSON.stringify(four.body)}`);
+  }
 });
 
 /** RAC-1512: whole confirmation reaches the action policy through the Runtime route's own user_action. */

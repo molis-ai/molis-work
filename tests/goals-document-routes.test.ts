@@ -134,8 +134,8 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     ["/api/goals/V1/document?view=", 400, "Goal 正文集合无效"],
     ["/api/goals/missing/document", 404, "找不到这个 Goal: missing"],
     ["/api/goals/V1/document?offset=-1", 200, null],
-    ["/api/goals/V1/records", 404, "页面或接口不存在"],
-    ["/api/goals/V1/quick-record", 404, "页面或接口不存在"],
+    ["/api/plugins/io.molis.work.goals/goals/V1/records", 404, "页面或接口不存在"],
+    ["/api/plugins/io.molis.work.goals/goals/V1/quick-record", 404, "页面或接口不存在"],
     ["/api/goals/V1/panels/completion", 404, "页面或接口不存在"],
     ["/goals/%", 404, "Goal 页面不存在"], ["/archive/goals/%", 404, "Goal 页面不存在"],
     ["/trash/goals/%", 404, "Goal 页面不存在"], ["/goals/missing", 404, "找不到这个 Goal: missing"],
@@ -152,7 +152,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
       if (path.includes("offset=9007199254740991")) assert.match(html, /data-has-more="false"/);
     }
   }
-  const archive = await fetch(origin + "/api/goals/CORE/archive", {
+  const archive = await fetch(origin + "/api/plugins/io.molis.work.goals/goals/CORE/archive", {
     method: "POST",
     headers: { "content-type": "application/json", origin,
       "x-molis-work-control-token": "route-test-control-0123456789abcdef",

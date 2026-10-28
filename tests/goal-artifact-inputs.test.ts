@@ -36,12 +36,12 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
     producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
     content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [] } } }, ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, String(version)),
     ...(version > 1 ? { supersedes_version: 1 } : {}) });
-  const post = (body: unknown) => fetch(`${origin}/api/goals/V1/artifact-inputs`, { method: "POST",
+  const post = (body: unknown) => fetch(`${origin}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`, { method: "POST",
     headers: { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
   const detail = async (version: number) => await (await fetch(`${origin}/artifacts/pages-brief/versions/${version}`, { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
 
   // The picker lists the project's Goals; the detail offers the control for a usable version.
-  const goals = (await (await fetch(`${origin}/api/goals/directory`)).json() as { goals: Array<{ goal_id: string; title: string }> }).goals;
+  const goals = (await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/directory`)).json() as { goals: Array<{ goal_id: string; title: string }> }).goals;
   const v1 = goals.find(goal => goal.goal_id === "V1");
   assert.ok(v1?.title, JSON.stringify(goals));
   assert.match(await detail(2), /data-artifact-goal-input-form[^>]*data-artifact-reference="\{&quot;artifact_id&quot;:&quot;pages-brief&quot;,&quot;version&quot;:2\}"/);
@@ -61,7 +61,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   assert.equal(archived.status, 400);
   assert.equal((await archived.json() as { code: string }).code, "goals.artifact_input_unavailable");
   assert.equal((await (await post({ reference: { artifact_id: "pages-brief", version: 2 }, used: false })).json() as { removed: boolean }).removed, true);
-  assert.deepEqual((await (await fetch(`${origin}/api/goals/V1/artifact-inputs`)).json() as { inputs: unknown[] }).inputs, []);
+  assert.deepEqual((await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`)).json() as { inputs: unknown[] }).inputs, []);
   assert.ok(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-brief", version: 2 }));
 });
 
@@ -82,7 +82,7 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   const created = await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "访谈纪要", markdown: "用户最在意交付时间" }) })).json() as { document: { id: string } };
 
-  const pinned = await fetch(`${origin}/api/goals/V1/artifact-inputs`, { method: "POST", headers: headers(),
+  const pinned = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`, { method: "POST", headers: headers(),
     body: JSON.stringify({ subject: { kind: "pages_document", id: created.document.id }, used: true }) });
   assert.equal(pinned.status, 200, await pinned.clone().text());
   const input = (await pinned.json() as { input: GoalDeliverable }).input;
@@ -141,7 +141,7 @@ test("a proposed Feed input shows on the Goal as pending with 认可 and 移除;
   coordinator.goalInputs.register(receipt("binding-feed-b", "item-b", "proposed"));
   coordinator.goalInputs.register(receipt("binding-feed-c", "item-c", "confirmed"));
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
-  const post = (body: unknown) => fetch(`${origin}/api/goals/V1/inputs`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+  const post = (body: unknown) => fetch(`${origin}/api/plugins/io.molis.work.goals/goals/V1/inputs`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
   const page = async (locale?: "en") => (await fetch(`${origin}/api/goals/V1/document`, locale ? { headers: { cookie: `molis_work_locale=${locale}` } } : undefined)).text();
   const rowOf = (html: string, binding: string) => html.match(new RegExp(`<article[^>]*data-goal-input-binding="${binding}"[\\s\\S]*?</article>`))?.[0] ?? "";
 

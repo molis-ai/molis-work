@@ -16,7 +16,7 @@ async function post(origin: string, path: string, body: object, key: string) {
 }
 
 async function addGoal(origin: string, goalId: string) {
-  await post(origin, "/api/goals", {
+  await post(origin, "/api/plugins/io.molis.work.goals/goals", {
     goal_id: goalId, title: goalId, outcome: "Appear after another user's update",
     why: "Exercise refresh against real changed state", business_logic: "Read the new Goal without starting work",
     priority: 10, acceptance_criteria: ["The updated directory is visible"],
@@ -29,7 +29,7 @@ test("background refresh follows external archive and restore without changing t
   const { store, origin, sessionId, command, evaluate, waitFor, navigate } = browser;
   await navigate(() => command("Page.navigate", { url: origin + "/goals/CORE" }, sessionId));
   for (const archived of [true, false]) {
-    await post(origin, "/api/goals/CORE/archive", { archived, reason: "Another user's archive action" }, "refresh-archive-" + archived);
+    await post(origin, "/api/plugins/io.molis.work.goals/goals/CORE/archive", { archived, reason: "Another user's archive action" }, "refresh-archive-" + archived);
     const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
     await navigate(() => evaluate("document.dispatchEvent(new Event('visibilitychange'))"));
     const path = archived ? "/archive/goals/CORE" : "/goals/CORE";

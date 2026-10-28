@@ -26,7 +26,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
     form.elements.parent_goal_id.dispatchEvent(new Event('change', {bubbles:true}));
     form.elements.title.focus(); form.elements.title.setSelectionRange(2, 7);
   })()`);
-  const response = await fetch(origin + "/api/goals", {
+  const response = await fetch(origin + "/api/plugins/io.molis.work.goals/goals", {
     method: "POST", headers: { "content-type": "application/json", origin,
       "x-molis-work-control-token": "goals-risk-test-control-token-0123456789",
       "x-molis-work-idempotency-key": "refresh-dialog-external-goal" },
@@ -80,7 +80,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   const dependencyTitle = before.goals.find(item => item.goal_id === "INTERFACES")!.title;
   assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新 Goal → 属于 → 「" + parentTitle + "」。这是目录层级，不需要等待它完成。");
   assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新 Goal → 依赖 → 「" + dependencyTitle + "」；这些 Goal 完成前，新 Goal 还不能收尾。普通笔记和准备仍可先做。");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/plugins/io.molis.work.goals/goals"] }, sessionId);
   const createSubmit = '[data-create-form] button[type="submit"]';
   await click(createSubmit);
   await waitFor("!" + dom("[data-create-error]") + ".hidden && !" + dom(createSubmit) + ".disabled");
@@ -128,7 +128,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.equal(await evaluate(dom(reason) + ".validity.valueMissing"), true);
   assert.deepEqual(goal(), saved);
   await evaluate(dom(reason) + ".value='Package migration browser test'");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/" + goalId + "/trash"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/plugins/io.molis.work.goals/goals/" + goalId + "/trash"] }, sessionId);
   await click(trashSubmit);
   await waitFor("!" + dom("[data-goal-trash-error]") + ".hidden && !" + dom(trashSubmit) + ".disabled");
   assert.equal(await evaluate(dom(reason) + ".value"), "Package migration browser test");

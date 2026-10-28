@@ -36,7 +36,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   register("pages-plan", 1, "计划初稿");
   register("pages-plan", 2, "计划终稿");
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken };
-  const post = (body: unknown) => fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/deliverables`, { method: "POST", headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+  const post = (body: unknown) => fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/deliverables`, { method: "POST", headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
 
   // The picker lists the latest available version of each 成果, named as its owner declares the type.
   const versions = await (await fetch(`${origin}/api/artifacts/versions`)).json() as { versions: Array<{ reference: { artifact_id: string; version: number }; title: string; type_title: string }> };
@@ -47,7 +47,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   assert.equal(added.status, 200, await added.clone().text());
   assert.equal((await added.json() as { replayed: boolean }).replayed, false);
   assert.equal((await (await post({ reference: { artifact_id: "pages-plan", version: 2 }, delivered: true })).json() as { replayed: boolean }).replayed, true, "recording it again returns the same deliverable");
-  const listed = await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/deliverables`)).json() as { deliverables: Array<{ reference: { version: number }; title: string }> };
+  const listed = await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/deliverables`)).json() as { deliverables: Array<{ reference: { version: number }; title: string }> };
   assert.deepEqual(listed.deliverables.map(item => [item.reference.version, item.title]), [[2, "计划终稿"]]);
   const page = await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/document`)).text();
   assert.match(page, /<h3>交付物<\/h3>/);
@@ -58,7 +58,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   assert.equal((await post({ reference: { artifact_id: "pages-plan", version: 1 }, delivered: true })).status, 400);
   assert.equal((await post({ reference: { artifact_id: "missing", version: 1 }, delivered: true })).status, 400);
   assert.equal((await (await post({ reference: { artifact_id: "pages-plan", version: 2 }, delivered: false })).json() as { removed: boolean }).removed, true);
-  assert.deepEqual((await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/deliverables`)).json() as { deliverables: unknown[] }).deliverables, []);
+  assert.deepEqual((await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/deliverables`)).json() as { deliverables: unknown[] }).deliverables, []);
   assert.ok(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-plan", version: 2 }), "the 成果 itself is untouched");
 });
 
@@ -85,7 +85,7 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   coordinator.goalInputs.register({ binding_id: "bind-plan", project_id: DEMO_PROJECT_ID, goal_id: "V1", input_name: "交付方案",
     source_type: GOAL_PLUGIN_OBJECT_SOURCE, source_ref: goalPluginObjectRef(subject), snapshot_digest: null, state: "confirmed",
     reason: "fixture", created_by: "web-user", created_at: new Date().toISOString() });
-  const deliverables = `${origin}/api/goals/V1/deliverables`;
+  const deliverables = `${origin}/api/plugins/io.molis.work.goals/goals/V1/deliverables`;
 
   // The closure lists the Goal's bound document as something Pages can pin.
   const before = await (await fetch(deliverables)).json() as { candidates: Array<{ subject: typeof subject; title: string }>; deliverables: unknown[] };

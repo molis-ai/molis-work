@@ -68,7 +68,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await openConcern();
     await click(`${form} .form-disclosure > summary`);
     await fill('scope_action', 'complete');
-    await command('Network.setBlockedURLs', { urls: [origin + '/api/goals/' + goalId + '/event-concern'] }, sessionId);
+    await command('Network.setBlockedURLs', { urls: [origin + '/api/plugins/io.molis.work.goals/goals/' + goalId + '/event-concern'] }, sessionId);
     await click(`${form} button[type=submit]`);
     await waitFor(`!document.querySelector('${form} [data-form-status]').hidden && !document.querySelector('${form} button[type=submit]').disabled`);
     assert.match(await evaluate<string>(`document.querySelector('${form} [data-form-status]').textContent`), /输入已保留/);

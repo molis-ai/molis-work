@@ -57,7 +57,7 @@ test("W4-2-13 Proposal UI preserves other drafts during forced refresh, retries 
   assert.equal(await evaluate(dom(adoptForm + ' textarea[name="reason"]') + ".getAttribute('aria-invalid')"), "true");
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
   await command("Input.insertText", { text: "确认这两个变化，断网后也保留这段意见。" }, sessionId);
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goal-tree-proposals/" + adopted.proposal_id + "/decision"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/plugins/io.molis.work.goals/goal-tree-proposals/" + adopted.proposal_id + "/decision"] }, sessionId);
   await click(adoptForm + ' button[value="confirm"]');
   await waitFor("!" + dom(adoptForm + " [data-decision-error]") + ".hidden && !" + dom(adoptForm + ' button[value="confirm"]') + ".disabled");
   assert.equal(await evaluate(dom(adoptForm + ' textarea[name="reason"]') + ".value"), "确认这两个变化，断网后也保留这段意见。");

@@ -361,7 +361,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   await openClosure();
   await evaluate(`(() => { const original=window.fetch; window.__pinPosts=0; window.__pinLost=true; window.__rejectDeliverableRead=false;
     window.fetch=async(url, options)=>{
-      const endpoint=String(url).endsWith(${JSON.stringify("/api/goals/" + goal.goal_id + "/deliverables")});
+      const endpoint=String(url).endsWith(${JSON.stringify("/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/deliverables")});
       if(endpoint && options?.method === 'POST' && JSON.parse(options.body).subject){
         window.__pinPosts++; const response=await original(url,options);
         if(window.__pinLost && response.ok){window.__pinLost=false; await response.text(); throw new TypeError('reply lost after commit');} return response;
@@ -374,7 +374,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   await click(submit);
   await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('尚未核对') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   const versions = () => openProjectVersionStores(store).artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(row => row.version);
-  const linked = async () => (await (await fetch(origin + "/api/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
+  const linked = async () => (await (await fetch(origin + "/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
   assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
   await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   assert.equal(await evaluate("window.__pinPosts"), 1);
@@ -475,7 +475,7 @@ test("timeline pagination retries in place and preserves dates, type markers and
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   if (await evaluate("document.querySelector('[data-document-pane]').hidden")) await click("[data-goal-details-toggle]");
   await waitFor("document.querySelector('[data-load-more-timeline]') && !document.querySelector('[data-load-more-timeline]').hidden");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/" + goal.goal_id + "/event-timeline*"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/event-timeline*"] }, sessionId);
   await click("[data-load-more-timeline]");
   await waitFor("!document.querySelector('[data-load-more-timeline]').disabled && document.querySelector('[data-toast]').textContent.length > 0");
   assert.equal(await evaluate("document.querySelectorAll('[data-timeline-item]').length"), 40);

@@ -58,7 +58,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(changed, /第一稿/);
 
   // Goals that take it as input or hand it in are listed under 「被谁引用」, each opening the Goal.
-  await post("/api/goals/V1/deliverables", { reference: pinned, delivered: true });
+  await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
     source: { module: "goals", id: "PLATFORM", version: null, scope }, target: { module: "artifacts", id: pinned.artifact_id, version: pinned.version, scope } });

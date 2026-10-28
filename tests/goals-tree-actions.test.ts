@@ -191,11 +191,15 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     // The page's one-time key for an act (a retry reuses it) and the header only its "confirm the whole proposal" control sends.
-    const keys = new Map<string, string>();
-    const keyOf = (name: string) => { if (!keys.has(name)) keys.set(name, randomUUID()); return keys.get(name)!; };
-    const request = (proposalId: string, body: { idempotency_key: string; [field: string]: unknown }, authorized = true) => fetch(`${origin}/projects/${project.project_id}/api/goal-tree-proposals/${proposalId}/decision`, {
-      method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-whole-confirmation": "1", "x-molis-work-idempotency-key": keyOf(body.idempotency_key),
-        ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
+    // The body's key names the act (a retry replays); the Host's one-time key is fresh for each attempt, so a retry is not the same
+    // mutation key submitted twice. `lastHostKey` is the one the most recent request carried into the recorded provenance.
+    let lastHostKey = "";
+    const request = (proposalId: string, body: { idempotency_key: string; [field: string]: unknown }, authorized = true) => {
+      lastHostKey = randomUUID();
+      return fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.goals/goal-tree-proposals/${proposalId}/decision`, {
+        method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-whole-confirmation": "1", "x-molis-work-idempotency-key": lastHostKey,
+          ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
+    };
     const decision = { confirm_all_pending: true, reason: "Approve from protected Web", idempotency_key: "web-decision" };
     const before = await snapshot();
     assert.equal((await request(id, decision, false)).status, 403);
@@ -206,7 +210,7 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     const response = await request(id, { ...decision, authority: { actor_id: "forged" }, runtime_actor_id: "forged" });
     assert.equal(response.status, 200, await response.clone().text());
     const result = await response.json() as { proposal: { decisions: { actor_id: string; authority_source: string; runtime_actor_id: string | null; message_ref: string }[] }; replayed: boolean };
-    assert.ok(result.proposal.decisions.every(d => d.actor_id === "web-user" && d.authority_source === "web" && d.runtime_actor_id === null && d.message_ref === `web:${keyOf("web-decision")}`));
+    assert.ok(result.proposal.decisions.every(d => d.actor_id === "web-user" && d.authority_source === "web" && d.runtime_actor_id === null && d.message_ref === `web:${lastHostKey}`));
     assert.equal((await (await request(id, decision)).json() as { replayed: boolean }).replayed, true);
     const conflict = await actions.invoke(goalsActions.treeSubmit, proposalInput("conflict"));
     await actions.invoke(goalsActions.create, { goal_id: "conflict-child", title: "Created elsewhere", idempotency_key: "conflicting-create" });

@@ -18,6 +18,7 @@ import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plug
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
+import { randomUUID } from "node:crypto";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
 export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; reaches(pluginId: string): boolean } | null>;
@@ -143,7 +144,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       if (!project || !prefixed) return;
       const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
       if (found instanceof ActionError) throw found;
-    }, caller);
+    }, caller, { id: randomUUID() });
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       execution: routed?.control ?? plain,
       stop,

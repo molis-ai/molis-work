@@ -94,7 +94,7 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   await waitFor("document.querySelector('[data-goal-view=" + JSON.stringify("CORE") + "]')");
   await click('.goal-more > summary');
   await waitFor("document.querySelector('[data-goal-archive=" + JSON.stringify("true") + "]')");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/CORE/archive"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/plugins/io.molis.work.goals/goals/CORE/archive"] }, sessionId);
   await click('[data-goal-archive="true"]');
   await waitFor("!document.querySelector('[data-goal-archive]').disabled && document.querySelector('[data-toast]').textContent.length > 0");
   assert.equal(boardSnapshot(store, DEMO_PROJECT_ID).goals.find(g => g.goal_id === "CORE")!.archived_at, null);

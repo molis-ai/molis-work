@@ -42,7 +42,7 @@ test("a request the client abandons keeps its key in flight while the handler ru
   const web = await fixture(() => 200, () => web.executions() === 1 ? held : Promise.resolve());
   try {
     // An event command path allows replay once it completed (the domain's own idempotency key decides).
-    const path = "/api/goals/g1/event-progress";
+    const path = "/api/plugins/io.molis.work.goals/goals/g1/event-progress";
     const page = new AbortController();
     const abandoned = web.send(path, "abandoned-key-1", page.signal).then(() => assert.fail("the page gave up"), () => undefined);
     await until(() => web.executions() === 1, "the first attempt reaches its handler");

@@ -27,6 +27,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-012 | 置物架终端井的两处尾巴：删掉没人引用的 xterm 依赖，两句恢复提示进 `messages.ts` | 乙 | B | 4 | — | `plugins/native/shelf/package.json`、`plugins/native/shelf/src/xterm-css.d.ts`、`plugins/native/shelf/src/browser/terminal.ts`、`plugins/native/shelf/src/messages.ts`、`tests/shelf-terminal-recovery.test.ts`、`tests/shelf-client-bundle.test.ts`、`pnpm-lock.yaml`（只 shelf 的 importer 块）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-013 | 删除项目与 MCP 授权设置两个出口的状态改由错误的种类决定 | 乙 | B | 5 | — | `apps/local-host/src/web-project-deletion.ts`、`apps/local-host/src/web-mcp-action-settings.ts`、`tests/project-settings-deletion.test.ts`、`tests/mcp-action-settings.test.ts`、`docs/system/CALL-CHAINS.md`（只第 82、271、275 行讲这两条路由状态的句子） |
 | T-014 | 信息助手按能力 id 取 Feed 与 Inbox，不再 import 两个插件包 | 乙 | 池 | 2 | — | `apps/local-host/src/information-actions.ts`、`apps/local-host/src/information-planner.ts`、`tests/plugin-query-consumers.test.ts`、`tests/information-plan-capability-ids.test.ts`、`specs/repository-anti-corruption/slices/pg031-remaining.md`（只第 35 行）、`specs/repository-anti-corruption/privileges.md`（只 PG-093 状态格）、`docs/system/RUNTIME-MIGRATION.md`（只第 126 行那一句） |
+| T-018 | T-017 二审的两条建议：A3 的写法、PG-017 的行号、pg017 片里 BL-490 的旧状态 | 丙 | 池 | 3 | T-017 | `specs/repository-anti-corruption/slices/w5-08-workbench-exports.md`（只「A3 已合入」两处）、`specs/repository-anti-corruption/privileges.md`（只 PG-017 状态格；T-014 改 PG-093 格）、`specs/repository-anti-corruption/slices/pg017-sandbox-services.md`（只第 30、117、118 行） |
 
 ## 在途，不走任务书
 

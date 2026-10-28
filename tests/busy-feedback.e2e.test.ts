@@ -93,12 +93,15 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
   // them at a known time (240ms in, just inside the wait, then past delay plus duration) and read both states in one script, as
   // tests/menu-exit-motion.e2e.test.ts does.
   await views.files!.evaluate(`document.head.append(Object.assign(document.createElement('style'), { textContent: '.mw-btn[data-loading], .mw-btn[data-loading] > * { animation-play-state: paused !important; }' }))`);
+  const clicked = Date.now();
   await views.files!.evaluate("document.querySelector('[data-files-refresh]').click()"); const held = await barrier.next();
   const seen = await views.files!.evaluate<{ motions: string[]; early: Refresh; late: Refresh }>(`(() => {
     const motions = document.querySelector('[data-files-refresh]').getAnimations({ subtree: true }).filter((motion) => ['mw-loading-in', 'mw-loading-out'].includes(motion.animationName));
     const at = (time) => { for (const motion of motions) motion.currentTime = time; return ${parts}; };
     return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), early: at(240), late: at(600) };
   })()`);
+  // The animations are held at a known time, so how long the click took to reach the held request shows a slow runner in the log without failing the test.
+  t.diagnostic(`VUX-31 files refresh: the held read and the pinned states were taken ${Date.now() - clicked}ms after the click (the wait ends at 250ms)`);
   assert.deepEqual(seen.motions, ["mw-loading-in", "mw-loading-out"], "the label and the spinner both wait on a real animation");
   assert.deepEqual(seen.early, { busy: true, label: 1, spinner: 0 }, "just after the click the label stays and no spinner shows");
   assert.deepEqual(seen.late, { busy: true, label: 0, spinner: 1 }, "past the wait the spinner shows in the label's place");

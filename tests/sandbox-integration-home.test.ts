@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
@@ -63,7 +64,7 @@ async function installer(home: TestHome) {
 
 const pull = async (home: { home: string }, integrationId = "example-feed") => {
   const bound = await (await homeIntegrationRegistry(home.home)).bind(integrationId, "source", SOURCE);
-  return bound.connector_driver.poll({ cursor: null });
+  return bound.connector_driver.poll({ cursor: null }, connectorControl());
 };
 
 test("RAC-894 RAC-1000: an integration package installs in the Home's sandbox instance, lists its origins first, and its sources pull through the Host's proxy", mac, async t => {

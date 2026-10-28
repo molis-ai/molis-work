@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
@@ -130,15 +131,15 @@ test("Gmail scoped refresh preserves credentials on failure, rotates one account
     async () => Response.json({ error_description: "private-provider-token" }, { status: 401 }),
   ];
   for (const fetchImpl of failures) {
-    const result = await flow.resolveUsableGmailAccessToken({ tokenRefs, nowMs, fetchImpl });
+    const result = await flow.resolveUsableGmailAccessToken({ control: connectorControl(), tokenRefs, nowMs, fetchImpl });
     assert.equal(result.ok, false);
     assert.ok(!result.ok && result.status === "needs_auth");
     assert.doesNotMatch(JSON.stringify(result), /private-|malformed-provider-secret/);
     assert.deepEqual([...values], before);
     assert.deepEqual(writes, []);
   }
-  assert.deepEqual(await flow.resolveUsableGmailAccessToken({ tokenRefs: refs("missing"), nowMs, fetchImpl: async () => assert.fail("missing account refreshed") }), { ok: false, status: "none" });
-  const result = await flow.resolveUsableGmailAccessToken({ tokenRefs, nowMs, fetchImpl: async (url, init) => {
+  assert.deepEqual(await flow.resolveUsableGmailAccessToken({ control: connectorControl(), tokenRefs: refs("missing"), nowMs, fetchImpl: async () => assert.fail("missing account refreshed") }), { ok: false, status: "none" });
+  const result = await flow.resolveUsableGmailAccessToken({ control: connectorControl(), tokenRefs, nowMs, fetchImpl: async (url, init) => {
     assert.equal(url, "https://oauth2.googleapis.com/token");
     assert.deepEqual(Object.fromEntries(new URLSearchParams(String(init?.body))), { client_id: "client-a", grant_type: "refresh_token", refresh_token: "old-refresh" });
     return Response.json({ access_token: "new-access", refresh_token: "new-refresh", expires_in: 3600 });
@@ -149,7 +150,7 @@ test("Gmail scoped refresh preserves credentials on failure, rotates one account
   assert.equal(values.get(tokenRefs.expiresAt), new Date(nowMs + 3600000).toISOString());
   assert.equal(values.get(otherAccess), "other-account-access");
   assert.deepEqual(writes, [tokenRefs.access, tokenRefs.refresh, tokenRefs.expiresAt]);
-  assert.deepEqual(await flow.resolveUsableGmailAccessToken({ tokenRefs, nowMs, fetchImpl: async () => assert.fail("fresh access refreshed again") }), result);
+  assert.deepEqual(await flow.resolveUsableGmailAccessToken({ control: connectorControl(), tokenRefs, nowMs, fetchImpl: async () => assert.fail("fresh access refreshed again") }), result);
 });
 
 
@@ -167,7 +168,7 @@ test("Gmail authorization and forced refresh retain each account's original OAut
       return Response.json({ emailAddress: `${account}@example.test` });
     } });
   }
-  const refreshed = await flow.resolveUsableGmailAccessToken({ tokenRefs: refs("a"), forceRefresh: true, fetchImpl: async (_url, init) => {
+  const refreshed = await flow.resolveUsableGmailAccessToken({ control: connectorControl(), tokenRefs: refs("a"), forceRefresh: true, fetchImpl: async (_url, init) => {
     assert.equal(new URLSearchParams(String(init?.body)).get("client_id"), "client-a");
     return Response.json({ access_token: "fresh-a", expires_in: 3600 });
   } });

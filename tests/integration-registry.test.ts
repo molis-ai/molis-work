@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -93,8 +94,8 @@ test("RAC-488 a plugin nothing names is registered and bound the way the built-i
   assert.ok(connectorDirectory(registry).some(entry => entry.connector_id === "ext-feed" && entry.feed_available === true));
   const key = integrationKeyOf({ sync_kind: "connector", kind: "ext-feed" })!;
   const bound = await registry.bind(key, "source", binding("source-ext"));
-  assert.equal((await bound.connector_driver.health()).ok, true);
-  assert.equal((await bound.connector_driver.poll({ cursor: null })).ok, true);
+  assert.equal((await bound.connector_driver.health(connectorControl())).ok, true);
+  assert.equal((await bound.connector_driver.poll({ cursor: null }, connectorControl())).ok, true);
 });
 
 test("RAC-489 one start per plugin, one provider per bound source, and a source's failure stays that source's", async () => {
@@ -113,8 +114,8 @@ test("RAC-489 one start per plugin, one provider per bound source, and a source'
   assert.notEqual(first.connector_driver, second.connector_driver);
   await assert.rejects(registry.bind("shared", "source", binding("bad")), /cannot be built/u);
   const third = await registry.bind("shared", "source", binding("three"));
-  assert.equal((await first.connector_driver.health()).ok, true, "a source that was bound earlier is untouched");
-  assert.equal((await third.connector_driver.health()).ok, true, "one source failing does not stop the integration for the others");
+  assert.equal((await first.connector_driver.health(connectorControl())).ok, true, "a source that was bound earlier is untouched");
+  assert.equal((await third.connector_driver.health(connectorControl())).ok, true, "one source failing does not stop the integration for the others");
   assert.equal(starts, 1);
   assert.deepEqual(providers.map(item => item.source_id), ["one", "two", "bad", "three"]);
 });
@@ -140,7 +141,7 @@ test("RAC-489 a disabled plugin leaves its sources with an integration-unavailab
   await assert.rejects(registry.bind("gone", "source", binding("one")), { code: "plugin.integration_unavailable" });
   assert.equal(registry.integration("gone"), undefined);
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "gone"), false);
-  assert.equal((await (await registry.bind("stays", "source", binding("two"))).connector_driver.health()).ok, true);
+  assert.equal((await (await registry.bind("stays", "source", binding("two"))).connector_driver.health(connectorControl())).ok, true);
 });
 
 test("RAC-490 a later plugin that declares a held id fails to enable naming the id and the holder, and the holder is untouched", async () => {
@@ -158,7 +159,7 @@ test("RAC-490 a later plugin that declares a held id fails to enable naming the 
   assert.equal(registry.integration("contested")?.plugin_id, "io.molis.work.example.first");
   assert.equal(registry.connectionServices().find(entry => entry.declaration.service_id === "contested")?.owner, "io.molis.work.example.first");
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "rival-service"), false, "a refused plugin records nothing");
-  assert.equal((await (await registry.bind("contested", "source", binding("one"))).connector_driver.health()).ok, true);
+  assert.equal((await (await registry.bind("contested", "source", binding("one"))).connector_driver.health(connectorControl())).ok, true);
 });
 
 test("RAC-490 installed plugins restore oldest first: the earlier install holds the id and the later one is reported refused", async () => {
@@ -265,7 +266,7 @@ const fixtureProvider = () => ({
 });
 
 test("RAC-890 a source's account reads the way its integration plugin says; the Host picks no integration's account function", async () => {
-  const host = source("apps/local-host/src/feed-connector-sync.ts");
+  const host = source("apps/local-host/src/connector-source-pull.ts");
   assert.doesNotMatch(host, /AccountPresentation|sync_kind\s*===/u, "the Feed's Host side names no integration's account");
   const registry = await homeIntegrationRegistry("unused-home", fixtureProvider);
   const github = await registry.bind("github", "source", binding("gh"));
@@ -300,4 +301,36 @@ test("RAC-892 the SDK refuses connection_methods missing, empty, repeated or unk
   assert.throws(() => parsePluginManifest(base({ integration_id: "methods", kind: "source", service_id: "methods", connection_methods: ["token"] })),
     { code: "plugin.declaration_invalid", message: /只有文档导入才写 connection_methods/u });
   assert.ok(parsePluginManifest(documents({ connection_methods: ["token", "oauth", "cli"] })));
+});
+
+// W5-11 slice 3 §2.8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): until installs are trusted by
+// signature, an OAuth flow as data is the Host's build's alone. A signed sandbox package that carries one is refused before anything of
+// its install or its ids is held; the bare kind (the platform's table) and its other methods stay as they were.
+test("RAC-1081 a signed package's data-bearing oauth method is refused at attach and at the install preview, and holds nothing", async () => {
+  // A flow the SDK's own checks pass (asana's identity address is in the platform's table), so what refuses it is the registry.
+  const flow = { kind: "oauth", grant: "authorization_code", authorize_url: "https://app.asana.com/-/oauth_authorize", token_url: "https://app.asana.com/-/oauth_token",
+    scopes: [], identity: { url: "https://app.asana.com/api/1.0/users/me", account_id: [[], ["identity:/data/gid"]], label: ["identity:/data/name"] } } as const;
+  const carrying = manifestOf("io.molis.work.example.oauth-carrier", [service("asana", { auth: { methods: [{ kind: "token", label: "token" }, flow] } })],
+    [{ integration_id: "oauth-carrier", kind: "source", service_id: "asana" }]);
+  assert.ok(parsePluginManifest(carrying), "the Manifest itself is well formed");
+  const registry = new IntegrationRegistry();
+  let asked = 0;
+  assert.throws(() => registry.assertFree(carrying), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
+  await assert.rejects(registry.attach(carrying, () => { asked += 1; return null; }, () => true), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
+  assert.equal(asked, 0, "the package's instance is never asked for a contribution");
+  assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "asana"), false);
+  assert.equal(registry.integration("oauth-carrier"), undefined);
+  assert.equal(registry.oauthOwner("asana"), undefined);
+  // The bare kind is the platform's table, not a flow the package chose: attached, but no OAuth owner, so no authorization can start.
+  const bare = manifestOf("io.molis.work.example.oauth-bare", [service("oauth-bare", { auth: { methods: [{ kind: "oauth" }] } })], [{ integration_id: "oauth-bare", kind: "source", service_id: "oauth-bare" }]);
+  assert.equal(await registry.attach(bare, () => null, () => true), true);
+  assert.ok(registry.connectionServices().some(entry => entry.declaration.service_id === "oauth-bare"));
+  assert.equal(registry.oauthOwner("oauth-bare"), undefined, "a package's service has no OAuth owner");
+  // The Host's own build may carry the flow: it is enabled, and is the owner with its install, publisher and method.
+  await registry.enable(fixturePlugin("io.molis.work.example.oauth-built", [service("asana", { auth: { methods: [flow] } })], []));
+  const owner = registry.oauthOwner("asana");
+  assert.equal(owner?.plugin_id, "io.molis.work.example.oauth-built");
+  assert.equal(owner?.publisher_id, "io.example");
+  assert.ok(owner?.install_id);
+  assert.deepEqual(owner?.method, flow);
 });

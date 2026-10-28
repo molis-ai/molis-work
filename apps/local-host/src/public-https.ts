@@ -46,6 +46,7 @@ export interface PublicHttpsRequest {
   readonly signal: AbortSignal;
   /** Rechecked after the address is known, right before the connection opens. */
   beforeEffect?(): Promise<void>;
+  current(): void;
   /** How names resolve; the default is the system resolver. Tests pass their own. */
   readonly lookup?: PublicLookup;
   /** Only for tests: which addresses a connection may use (a local server), and that server. The request still opens its own connection. */
@@ -60,25 +61,33 @@ export interface PublicHttpsResponse {
   readonly body: string;
 }
 
-export function sendPublicHttps(request: PublicHttpsRequest): Promise<PublicHttpsResponse> {
+export async function sendPublicHttps(request: PublicHttpsRequest): Promise<PublicHttpsResponse> {
   const { url, method, body, signal, failure } = request;
-  const resolve: PublicLookup = request.lookup ?? ((hostname, callback) => dnsLookup(hostname, { all: true, verbatim: true }, callback));
+  signal.throwIfAborted();
   const allowed = request.allowAddress ?? publicAddress;
+  const resolve: PublicLookup = request.lookup ?? ((hostname, callback) => dnsLookup(hostname, { all: true, verbatim: true }, callback));
   const headers = { ...request.headers, ...(body === undefined ? {} : { 'content-length': String(Buffer.byteLength(body)) }) };
-  return new Promise((done, fail) => {
-    const timeout = AbortSignal.timeout(TIMEOUT_MS), stop = AbortSignal.any([signal, timeout]);
-    // The connection's own lookup: whatever address it is about to use must be public.
-    // Node asks for every address when it races the families (`all`), otherwise for one.
-    const lookup = (hostname: string, lookupOptions: { all?: boolean } | undefined, callback: (error: Error | null, address: string | LookupAddress[], family?: number) => void) => resolve(hostname, (error, addresses) => {
-      if (error) return callback(error, []);
-      if (!addresses.length || addresses.some(item => !allowed(item.address))) return callback(Object.assign(new Error('不能访问本机或内网地址'), { code: 'PRIVATE_ADDRESS' }), []);
-      // DNS is asynchronous. Recheck the original invocation before allowing the socket to connect.
-      Promise.resolve().then(async () => {
-        stop.throwIfAborted(); await request.beforeEffect?.(); stop.throwIfAborted();
-        if (lookupOptions?.all) callback(null, addresses); else callback(null, addresses[0]!.address, addresses[0]!.family);
-      }).catch(() => callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []));
-    });
-    // `agent: false`: a connection of its own, closed after the answer, so the lookup above (and its recheck) runs for every request.
+  const timeout = AbortSignal.timeout(TIMEOUT_MS), stop = AbortSignal.any([signal, timeout]);
+  let abort!: () => void;
+  const stopped = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(timeout.aborted ? failure('timeout', '网站在 15 秒内没有响应') : signal.reason);
+    stop.addEventListener('abort', abort, { once: true });
+  });
+  try {
+    const addresses = await Promise.race([new Promise<LookupAddress[]>((done, fail) => resolve(url.hostname, (error, rows) => {
+      if (error) fail(failure('connect', '网站地址解析失败')); else done(rows);
+    })), stopped]);
+    if (!addresses.length || addresses.some(item => !allowed(item.address))) throw failure('private_address', '不能访问本机或内网地址');
+    await Promise.race([Promise.resolve(request.beforeEffect?.()), stopped]);
+    stop.throwIfAborted(); request.current();
+    // No wait between the final current check and constructing the actual request. DNS is pinned to the addresses checked above.
+    return await Promise.race([new Promise<PublicHttpsResponse>((done, fail) => {
+      const lookup = (_hostname: string, lookupOptions: { all?: boolean } | undefined, callback: (error: Error | null, address: string | LookupAddress[], family?: number) => void) => {
+        try {
+          stop.throwIfAborted(); request.current();
+          if (lookupOptions?.all) callback(null, addresses); else callback(null, addresses[0]!.address, addresses[0]!.family);
+        } catch { callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []); }
+      };
     const outgoing = httpsRequest({ protocol: 'https:', hostname: url.hostname, port: request.testServer?.port ?? 443, path: url.pathname + url.search, method, headers,
       lookup: lookup as never, signal: stop, agent: false, ...(request.testServer ? { ca: request.testServer.ca } : {}) }, response => {
       const chunks: Buffer[] = []; let size = 0;
@@ -99,5 +108,6 @@ export function sendPublicHttps(request: PublicHttpsRequest): Promise<PublicHttp
     });
     if (body !== undefined) outgoing.write(body);
     outgoing.end();
-  });
+    }), stopped]);
+  } finally { stop.removeEventListener('abort', abort); }
 }

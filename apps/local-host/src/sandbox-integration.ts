@@ -1,3 +1,4 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 /**
  * The Host's proxy for a sandboxed integration (BL-530): what the Home's registry binds a source to when the integration's code runs in the
  * sandbox. The proxy is the platform's code; the plugin's runs only in its sandboxed process, reached as the operations its contract has
@@ -26,7 +27,7 @@ export interface SandboxIntegrationProxyInput {
   /** One operation in the sandboxed process; the proxy gives each call its own signal and connections. */
   call(operationId: string, input: SandboxJson, control: SandboxCallControl): Promise<SandboxJson>;
   /** The call's own connections for a source (S-95), alive while `signal` is. */
-  connections(binding: IntegrationBinding, signal: AbortSignal): PluginConnectionsClient;
+  connections(binding: IntegrationBinding, control: ConnectorCallControl): PluginConnectionsClient;
   now?: () => Date;
 }
 
@@ -42,26 +43,30 @@ export function sandboxIntegrationContribution(input: SandboxIntegrationProxyInp
       if (Buffer.byteLength(config_json, 'utf8') > SANDBOX_INTEGRATION_LIMITS.configLength) throw sandboxIntegrationErrors.integration_source_invalid(`来源 ${binding.source_id} 的设置太大，集成插件收不下`);
       const source = { source_id: binding.source_id, config_json, has_connection: binding.connection_id !== null };
       // The connection lives exactly as long as the call: once the operation settles, the plugin's requests through it are refused.
-      const call = async (operationId: string, extra: Answer): Promise<Answer> => {
-        const ended = new AbortController();
+      const call = async (operationId: string, extra: Answer, parent: ConnectorCallControl): Promise<Answer> => {
+        const ended = new AbortController(), signal = AbortSignal.any([parent.signal, ended.signal]);
+        const current = () => { signal.throwIfAborted(); parent.current(); signal.throwIfAborted(); };
+        const control = { signal, current, beforeEffect: async () => { current(); await parent.beforeEffect(); current(); } };
         try {
-          const answer = await input.call(operationId, { ...source, ...extra }, { signal: ended.signal, connections: input.connections(binding, ended.signal) });
+          await control.beforeEffect(); current();
+          const answer = await input.call(operationId, { ...source, ...extra }, { signal, beforeEffect: control.beforeEffect, connections: input.connections(binding, control) });
+          await control.beforeEffect(); current();
           return answer as Answer;
         } finally { ended.abort(); }
       };
       const accounts = new Map<string, IntegrationAccountPresentation | null>();
       const provider: IntegrationProviderPort = {
         type: 'sandbox',
-        async health() {
-          const answer = await call(SANDBOX_INTEGRATION_OPERATIONS.health, {});
+        async health(control) {
+          const answer = await call(SANDBOX_INTEGRATION_OPERATIONS.health, {}, control);
           return { ok: answer.ok as boolean, status: answer.status as 'connected' | 'disconnected' | 'error' | 'needs_auth', message: answer.message as string,
             ...(typeof answer.action === 'string' ? { action: answer.action } : {}) };
         },
-        async sync({ cursor, mode }) {
-          const answer = await call(SANDBOX_INTEGRATION_OPERATIONS.poll, { ...(typeof cursor === 'string' ? { cursor } : {}), rebuild: mode === 'rebuild_cursor' });
+        async sync({ cursor, mode }, control) {
+          const answer = await call(SANDBOX_INTEGRATION_OPERATIONS.poll, { ...(typeof cursor === 'string' ? { cursor } : {}), rebuild: mode === 'rebuild_cursor' }, control);
           const result = pullResult(answer);
           // Read with the pull, so the Feed's account step after it has the answer without a second call into the sandbox.
-          if (result.ok && answersAccount) accounts.set(result.cursor as string, accountOf(await call(SANDBOX_INTEGRATION_OPERATIONS.account, { cursor: result.cursor as string })));
+          if (result.ok && answersAccount) accounts.set(result.cursor as string, accountOf(await call(SANDBOX_INTEGRATION_OPERATIONS.account, { cursor: result.cursor as string }, control)));
           return result;
         },
       };
@@ -101,16 +106,18 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
         async call(operationId, input, control) {
           live();
           const pending = open();
-          try { return await (await pending).call(operationId, input, { ...control, beforeEffect: live }); }
+          const beforeEffect = async () => { await control.beforeEffect?.(); control.signal?.throwIfAborted(); live(); };
+          try { const active = await pending; await beforeEffect(); return await active.call(operationId, input, { ...control, beforeEffect }); }
           catch (error) {
             // A dead process starts again at the next call; this one is not replayed.
             if (GONE.has((error as { code?: string }).code ?? '') && runner === pending) runner = undefined;
             throw error;
           }
         },
-        connections: (binding, signal) => createCallConnectionsClient(host.connections,
+        connections: (binding, control) => createCallConnectionsClient(host.connections,
           { plugin_id: release.pluginId, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
-          SANDBOX_INTEGRATION_SOURCE_SLOT, { signal, beforeEffect: async () => live() }) });
+          SANDBOX_INTEGRATION_SOURCE_SLOT, { signal: control.signal,
+            current: () => { control.current(); live(); }, beforeEffect: async () => { await control.beforeEffect(); control.current(); live(); } }) });
     },
     async stop() { const current = runner; runner = undefined; await current?.then(item => item.stop(), () => undefined); },
   };

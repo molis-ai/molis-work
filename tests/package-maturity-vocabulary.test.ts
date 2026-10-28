@@ -28,13 +28,14 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
     assert.match(String(maturityWordError("apps/desktop", retired)),
       /^apps\/desktop: package maturity must be one of production\/experimental\/slice, got /u);
   }
-  // S11 moved the two production Modules (Goals and Governance) into their plugin; re-measured distribution, 2026-10-26.
+  // S11 moved the two production Modules (Goals and Governance) into their plugin; FI-5 merged four production packages (the Feed, Sources
+  // and Signals Modules, the listener host) into the Feed plugin; re-measured distribution, 2026-10-28.
   const counts = {};
   for (const item of WORKSPACE_PACKAGES) {
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
-  assert.deepEqual(counts, { production: 52, experimental: 2, slice: 14 });
+  assert.deepEqual(counts, { production: 48, experimental: 2, slice: 14 });
 });
 
 const manifestOf = (packagePath: string) =>

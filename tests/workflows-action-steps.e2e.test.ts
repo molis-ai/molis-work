@@ -5,13 +5,14 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-wo
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-workflows';
 import { molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
-import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/content-action-providers.js';
+import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/native-content-permissions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
-import { createLocalFeedApplication, createLocalFeedSourceService } from '@molis-ai/molis-work-app-local-host';
+
 import { openTestShelfStore } from './shelf-direct-actions.js';
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test('real browser creates a Feed → Shelf action workflow, maps fields, and writes the original material', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);

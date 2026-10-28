@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { connectorUsagesAction, createLocalFeedApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionClient, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorUsage } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { imagesActions } from "@molis-ai/molis-work-plugin-images";
-import { feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { functionAuthoringActions } from "@molis-ai/molis-work-module-functions";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const caller: ActionCallContext = { actor_id: "consumer-reader", audience: "agent", project_id: null,
   permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "images:files:write", "model:invoke", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };
@@ -88,7 +89,11 @@ test("ASC-10 ASC-13 ASC-21: Feed reports only this project's account sources and
     config: { connection_id: account.connection_id }, schedule: { mode: "manual", enabled: false }, cursor: {}, credential_ref: account.credential_ref,
     account_label: "Work", last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: "2026-10-16T00:00:00.000Z", updated_at: "2026-10-16T00:00:00.000Z",
   }));
-  const context = { ...caller, project_id: a.project_id }, client = home.host.actionClient(a.reference);
+  // Registering a source and the sync a usage offers ask what the Runtime Feed asks of the platform too (`sources:pull_*`, `connections:use`,
+  // `evidence:read`, `artifact:write`…, feed-inbox-runtime-plugins §11–§12): the caller holds all of Feed, so an unavailable sync below is the
+  // source's or the account's state, not a missing grant.
+  const feedCaller = { ...caller, permissions: [...caller.permissions, ...FEED_ACTION_PERMISSIONS] };
+  const context = { ...feedCaller, project_id: a.project_id }, client = home.host.actionClient(a.reference);
   await client.invoke(context, feedSourceActions.register, { kind: "custom_rss", name: "Public feed", feed_url: "https://example.com/feed.xml" });
   const result = await read(client, account.connection_id, context);
   assert.equal(result.usages.length, 1); assert.equal(result.usages[0]?.title, "A notifications");
@@ -97,10 +102,10 @@ test("ASC-10 ASC-13 ASC-21: Feed reports only this project's account sources and
   assert.doesNotMatch(JSON.stringify(result), /B notifications|Public feed|fixture-feed-usage-key|credential_ref/);
   await client.invoke(context, feedSourceActions.enabled, { source_id: "usage-A", enabled: false });
   assert.equal((await read(client, account.connection_id, context)).usages[0]?.actions[0]?.available, false);
-  const other = await read(home.host.actionClient(b.reference), account.connection_id, { ...caller, project_id: b.project_id });
+  const other = await read(home.host.actionClient(b.reference), account.connection_id, { ...feedCaller, project_id: b.project_id });
   assert.equal(other.usages[0]?.actions[0]?.available, true);
   withConnectorConnections(home.home, store => store.setEnabled(account.connection_id, false));
-  assert.equal((await read(home.host.actionClient(b.reference), account.connection_id, { ...caller, project_id: b.project_id })).usages[0]?.actions[0]?.available, false);
+  assert.equal((await read(home.host.actionClient(b.reference), account.connection_id, { ...feedCaller, project_id: b.project_id })).usages[0]?.actions[0]?.available, false);
 });
 
 test("ASC-13 ASC-16: usage reporters are discovered by contract and a withdrawn owner cannot return a late association", async t => {

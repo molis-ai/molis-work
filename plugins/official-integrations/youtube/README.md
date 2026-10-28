@@ -17,7 +17,7 @@ createYoutubeIntegrationPlugin 注册注入的 Provider；channel 中的辅助�
 | [src/index.ts](src/index.ts) | Manifest 与 Integration 工厂 |
 | [src/channel.ts](src/channel.ts) | 频道来源处理 |
 
-可对照现有调用方 [apps/local-host/src/feed-source-runtime.ts](../../../apps/local-host/src/feed-source-runtime.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/source-pull-runtime.ts](../../../apps/local-host/src/source-pull-runtime.ts) 阅读装配方式。
 
 ## 接入与边界
 

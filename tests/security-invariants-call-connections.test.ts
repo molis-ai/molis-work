@@ -1,16 +1,22 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import type { PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import { SANDBOX_INTEGRATION_SOURCE_SLOT, type SandboxIdentity, type SandboxOperationContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, SANDBOX_INTEGRATION_SOURCE_SLOT, type SandboxIdentity, type SandboxOperationContract, type SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createCallConnectionsClient, type CallConnection, type CallConnectionsPort, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
-import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
-import { createCallConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createSandboxRunner, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
+import { createCallConnectionsPort, sandboxIntegrationContribution, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { ConnectorProtocolStore } from "@molis-ai/molis-work-service-connector-host";
+import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 // S-95 (BL-530, RAC-896): a sandboxed integration's pull uses the account the person chose for the source it pulls, given by the Host's
 // proxy for that one call. The plugin names no connection and no origin; the only slot is the platform's reserved one, read-only, without a
@@ -35,7 +41,7 @@ const github: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", s
 
 test("S-95: the call's own connection takes only the reserved slot, no record key, reads only, never releases", async () => {
   const { sent, port } = fakePort(), ended = new AbortController();
-  const client = createCallConnectionsClient(port, github, SLOT, { signal: ended.signal });
+  const client = createCallConnectionsClient(port, github, SLOT, { ...connectorControl(), signal: ended.signal });
   await assert.rejects(client.request("github", { url: "https://api.github.com/user" }), code("plugin.connections_slot_undeclared"));
   await assert.rejects(client.request(SLOT, { url: "https://api.github.com/user", record_key: "src-1" }), code("plugin.connections_record_key_invalid"));
   await assert.rejects(client.request(SLOT, { url: "https://api.github.com/user", method: "POST", body: "{}" }), code("plugin.connections_read_only"));
@@ -48,12 +54,12 @@ test("S-95: the call's own connection takes only the reserved slot, no record ke
 
 test("S-95: once the call ends its connection answers nothing, and a call that ends mid-request sends nothing more", async () => {
   const { sent, port } = fakePort(), ended = new AbortController();
-  const client = createCallConnectionsClient(port, github, SLOT, { signal: ended.signal });
+  const client = createCallConnectionsClient(port, github, SLOT, { ...connectorControl(), signal: ended.signal });
   ended.abort();
   await assert.rejects(client.request(SLOT, { url: "https://api.github.com/user" }), code("plugin.connections_call_ended"));
   await assert.rejects(client.describe(SLOT), code("plugin.connections_call_ended"));
   const midway = new AbortController();
-  const late = createCallConnectionsClient(port, github, SLOT, { signal: midway.signal, beforeEffect: async () => { midway.abort(); } });
+  const late = createCallConnectionsClient(port, github, SLOT, { ...connectorControl(), signal: midway.signal, beforeEffect: async () => { midway.abort(); } });
   await assert.rejects(late.request(SLOT, { url: "https://api.github.com/user" }));
   assert.equal(sent.length, 0);
 });
@@ -66,14 +72,14 @@ test("S-95: the broker uses the call's connections only for an operation declari
   const signal = new AbortController().signal, args = [SLOT, { url: "https://api.github.com/user" }];
   // Without the proxy's connections for the call there is no account service at all.
   await assert.rejects(broker.invoke(operation([SLOT]), signal, "connections.request", args), code("sandbox.service_unavailable"));
-  const call = createCallConnectionsClient(port, github, SLOT, { signal });
+  const call = createCallConnectionsClient(port, github, SLOT, { ...connectorControl(), signal });
   await assert.rejects(broker.invoke(operation([]), signal, "connections.request", args, undefined, undefined, call), code("sandbox.not_authorized"));
   assert.equal(sent.length, 0);
   assert.deepEqual(await broker.invoke(operation([SLOT]), signal, "connections.request", args, undefined, undefined, call), { ...ok, headers: {} });
   assert.equal(sent.length, 1);
 });
 
-async function standIn(t: TestContext, hosts: readonly string[]) {
+async function standIn(t: TestContext, hosts: readonly string[], status = 200) {
   const dir = await mkdtemp(join(tmpdir(), "call-connections-")); t.after(() => rm(dir, { recursive: true, force: true }));
   execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", `/CN=${hosts[0]}`, "-addext", `subjectAltName=${hosts.map(host => `DNS:${host}`).join(",")}`,
     "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem")], { stdio: "ignore" });
@@ -81,7 +87,7 @@ async function standIn(t: TestContext, hosts: readonly string[]) {
   const seen: Array<{ host: string | undefined; authorization: string | undefined }> = [];
   const server = createServer({ key, cert }, (request, response) => {
     seen.push({ host: request.headers.host?.replace(/:\d+$/u, ""), authorization: request.headers.authorization });
-    response.writeHead(200, { "content-type": "application/json", "set-cookie": "s=1" });
+    response.writeHead(status, { "content-type": "application/json", "set-cookie": "s=1" });
     response.end("{}");
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -91,7 +97,7 @@ async function standIn(t: TestContext, hosts: readonly string[]) {
   return { seen, testServer, lookup };
 }
 
-const dispatch = (url: string): PluginConnectionDispatch => ({ url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
+const dispatch = (url: string): PluginConnectionDispatch => ({ ...connectorControl(), url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
 
 async function home(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "call-connections-home-")); t.after(() => rm(directory, { recursive: true, force: true }));
@@ -147,4 +153,87 @@ test("S-95: a service the platform's table does not have reaches only the origin
   // A platform service keeps the table's origins, whatever a call says.
   await assert.rejects(port.request({ ...github, connection_id: token("github"), origins: ["https://evil.example.com"] }, dispatch("https://evil.example.com/x")), code("connector.plugin_requests.origin_refused"));
   assert.equal(seen.length, before);
+});
+
+// This covers the shared registered-service OAuth transport branch, not admission of a second package claiming GitHub's service id.
+// The process, SDK proxy, connections broker, Host port, TLS request and OAuth resolver below are all the production implementations.
+test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or resend after its call is withdrawn", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
+  const { seen, testServer, lookup } = await standIn(t, ["api.github.com"], 401);
+  const { directory } = await home(t);
+  await runWithMolisWorkHome(directory, async () => {
+    const id = randomUUID(), prefix = `connector-protocol:${id}:`, secret = createFileSecretStore();
+    const saved = { [`${prefix}access`]: `fixture-${randomUUID()}`, [`${prefix}oauth`]: `fixture-${randomUUID()}`,
+      [`${prefix}expires`]: String(Date.now() + 3600000), [`${prefix}client`]: JSON.stringify({ clientSecret: randomUUID() }) };
+    for (const [ref, value] of Object.entries(saved)) secret.put(ref, value);
+    const account = withConnectorConnections(directory, store => store.upsertOAuth({ connectionId: id, serviceId: "github", displayName: "Sandbox OAuth",
+      accessRef: `${prefix}access`, refreshRef: `${prefix}oauth`, expiresRef: `${prefix}expires` }));
+    const db = new DatabaseSync(homeSqlitePath(directory, "connectors")), protocols = new ConnectorProtocolStore(db);
+    t.after(() => { if (db.isOpen) db.close(); });
+    const configuration = { connectionId: id, sessionId: id, serviceId: "github", protocol: "oauth" as const,
+      displayName: "Sandbox OAuth", clientId: "fixture-client", origin: "http://localhost:19358", redirectUri: "http://localhost:19358/callback", context: {}, settings: {} };
+    protocols.save(configuration);
+    let entered!: () => void, release!: () => void, tokenSignal: AbortSignal | null | undefined, exchanges = 0;
+    const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
+    t.mock.method(globalThis, "fetch", async (input, init) => {
+      assert.equal(new URL(String(input)).href, "https://github.com/login/oauth/access_token");
+      exchanges += 1; tokenSignal = init?.signal; entered(); await wait;
+      return Response.json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 });
+    });
+    const port = createCallConnectionsPort(directory, { testServer, lookup, allowAddress: () => true }), requests: Promise<void>[] = [];
+    const observed: CallConnectionsPort = { describe: connection => port.describe(connection), request(connection, dispatch) {
+      const pending = port.request(connection, dispatch); requests.push(pending.then(() => undefined, () => undefined)); return pending;
+    } };
+    const pluginId = github.plugin_id;
+    const contract: SandboxPluginContract = { version: 1, pluginId, revision: "fi-c-02", entities: [], pages: [], acceptance: [], operations: [{
+      id: SANDBOX_INTEGRATION_OPERATIONS.poll, ...structuredClone(SANDBOX_INTEGRATION_CONTRACT.poll), errors: [],
+      examples: [{ input: { source_id: "source-a", config_json: "{}", has_connection: true, rebuild: false }, outputIncludes: {} }] }] };
+    const bundlePath = join(directory, "controlled-integration.mjs");
+    await writeFile(bundlePath, `export const operations = { 'integration.poll': async (_input, sdk) => {
+      await sdk.connections.request('source', { url: 'https://api.github.com/user' });
+      return { ok: true, items: [], cursor: 'late-cursor' };
+    } };`);
+    const runner = await createSandboxRunner({ bundlePath, contract, grants: { connections: [SLOT] }, services: {},
+      identity: { projectId: "home", installationId: "fixture-integration", pluginId, namespace: "installed" } });
+    const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Controlled integration", kind: "integration",
+      publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };
+    const proxy = sandboxIntegrationContribution({ manifest, operations: [SANDBOX_INTEGRATION_OPERATIONS.poll],
+      call: (operation, input, control) => runner.call(operation, input, control),
+      connections: (_binding, control) => createCallConnectionsClient(observed, { ...github, connection_id: id }, SLOT, control) });
+    const bound = proxy.bind({ source_id: "source-a", connection_id: id, credential_ref: null, config: {} }), abort = new AbortController();
+    const pending = bound.connector_driver.poll({ cursor: null }, connectorControl({ signal: abort.signal }));
+    const rejected = assert.rejects(pending, /cancel|withdrawn|abort|取消|结束/iu);
+    try {
+      await reached;
+      assert.equal(seen.length, 1, "the original TLS request reached the service and returned 401");
+      abort.abort(new Error("sandbox call withdrawn")); release();
+      await rejected;
+      // SandboxRunner can answer cancellation first; the real Host request must also finish before checking its storage effects.
+      await Promise.all(requests);
+      assert.equal(tokenSignal?.aborted, true);
+      assert.equal(exchanges, 1);
+      assert.equal(seen.length, 1, "the cancelled refresh did not send the second data request");
+      assert.deepEqual(Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)])), saved);
+      assert.deepEqual(protocols.get(id), configuration);
+      assert.equal(withConnectorConnections(directory, store => store.require(id)).updated_at, account.updated_at);
+      assert.equal(port.describe({ ...github, connection_id: id }).state, "connected", "cancellation is not a refresh refusal");
+    } finally { release(); await runner.stop(); }
+  });
+});
+
+test("S-95 S-97 FI-C-02: current is checked after the final DNS authorization wait before sending", { timeout: 30_000 }, async t => {
+  const { seen, testServer, lookup } = await standIn(t, ["api.github.com"]), { directory, token } = await home(t);
+  let dns = false, afterEffect = false, valid = true, armed = false, refusedAfterWait = false;
+  const signal = new AbortController().signal;
+  const port = createCallConnectionsPort(directory, { testServer, allowAddress: () => true, lookup(host, done) { lookup(host, done); dns = true; } });
+  const current = () => {
+    if (!valid) { refusedAfterWait = true; throw new Error("late authority withdrawn"); }
+    if (afterEffect && !armed) { armed = true; queueMicrotask(() => { valid = false; }); }
+  };
+  const request = { ...dispatch("https://api.github.com/user"), signal, current, beforeEffect: async () => { if (dns) afterEffect = true; } };
+  await assert.rejects(port.request({ ...github, connection_id: token("github") }, request), /late authority withdrawn/u);
+  assert.equal(armed, true);
+  assert.equal(refusedAfterWait, true);
+  assert.equal(signal.aborted, false, "the synchronous current check, not an aborted signal, refused it");
+  assert.equal(seen.length, 0);
 });

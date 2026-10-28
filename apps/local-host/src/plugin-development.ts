@@ -27,6 +27,9 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
   const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };
   let release: (() => void) | undefined;
   let result: Omit<PluginDevelopmentResult, "installation">;
+  const ended = new AbortController();
+  const current = () => { ended.signal.throwIfAborted(); if (runtime.get(id)?.state !== "running") throw new Error("开发插件已停止"); };
+  const control = { signal: ended.signal, current, beforeEffect: async () => current() };
   try {
     release = options.bindInstallation?.({ alive: () => true, effectiveManifests: () => inEffect() ? [definition.manifest] : [], knownPluginIds: () => [definition.manifest.plugin_id] });
     await runtime.start(id);
@@ -37,8 +40,8 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     }
     // One source with no account: the run shows what the plugin does with nothing bound to it.
     const { connector_driver } = contribution.bind({ source_id: "development", connection_id: null, credential_ref: null, config: {} });
-    const health = await connector_driver.health();
-    const poll = await connector_driver.poll({ cursor: null });
+    const health = await connector_driver.health(control);
+    const poll = await connector_driver.poll({ cursor: null }, control);
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
         surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));
@@ -47,6 +50,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
       .filter(value => value.producer_plugin_id === definition.manifest.plugin_id
         && value.producer_binding_signature === definition.manifest.publisher.signature && value.created_by === options.actor_id) };
   } finally {
+    ended.abort();
     try { await runtime.uninstall(id, { retain_private_data: true }); }
     finally { release?.(); }
   }

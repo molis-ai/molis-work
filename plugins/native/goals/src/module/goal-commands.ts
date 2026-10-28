@@ -48,7 +48,7 @@ export class GoalCommands {
       );
       if (replay) return { ...replay, replayed: true };
 
-      this.context.requireBoard(projectId);
+      this.context.requireGoalsLibrary(projectId);
       const goalId = input.goal_id?.trim() || `goal-${randomUUID()}`;
       if (repository.getGoal(goalId)) {
         throw goalErrors["goals.goal.exists"](`Goal 已存在: ${goalId}`);
@@ -190,7 +190,7 @@ export class GoalCommands {
         observed_event_cursor: number;
       }>(projectId, write.actor_id, "deactivate_relation", write.idempotency_key, hash);
       if (replay) return { ...replay, replayed: true };
-      this.context.requireBoard(projectId);
+      this.context.requireGoalsLibrary(projectId);
       const relation = repository.getRelation(projectId, input.relation_id);
       if (!relation) {
         throw goalErrors["goals.relation.not_found"](`找不到关系: ${input.relation_id}`);

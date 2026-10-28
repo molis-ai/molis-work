@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
+import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
@@ -29,6 +30,17 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.doesNotMatch(html, /plugin-market-grid/);
   assert.doesNotMatch(html, /仅看已添加/);
   assert.doesNotMatch(html, /plugin-market-controls/);
+});
+
+test("RAC-1310 a market card says what it brings and what it takes, from the directory's companions", () => {
+  const marked = (marks: Readonly<Record<string, { companions?: readonly string[] }>>) =>
+    builtinPluginDirectory().map(entry => ({ ...entry, ...marks[entry.id] }));
+  const card = (html: string, id: string) => html.match(new RegExp(`<article[^>]*data-market-plugin="${id}"[^>]*>`))?.[0] ?? "";
+  const related = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, {}, marked({ feed: { companions: ["inbox"] } }));
+  assert.match(card(related, "feed"), /data-market-needs="inbox"/, "adding Feed brings Inbox");
+  assert.match(card(related, "inbox"), /data-market-needed-by="feed"/, "removing Inbox takes Feed with it");
+  const plain = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, {}, marked({}));
+  assert.doesNotMatch(plain, /data-market-needs|data-market-needed-by/, "no companions, no attributes");
 });
 
 test("the Dock menu reserves a live update-count marker on the market entry", () => {

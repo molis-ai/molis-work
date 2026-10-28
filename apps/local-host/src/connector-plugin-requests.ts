@@ -154,9 +154,11 @@ async function sendThrough(home: string, service_id: string, service: ConnectorR
   const { connection_id, auth_method } = connection, scheme = service.credential[auth_method]!;
   return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
     // The token, refreshed or not, stays here: a refusal names no credential, and the refreshed token is not in the answer.
+    const current = () => { signal.throwIfAborted(); dispatch.current(); };
+    const control = { signal, current, beforeEffect: async () => { current(); await dispatch.beforeEffect(); current(); } };
     const access = async <T>(read: Promise<T>): Promise<T> => {
       try { return await read; }
-      catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
+      catch { await control.beforeEffect(); current(); throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
     };
     // An OAuth connection to a gateway service goes to the gateway of the site it was authorized for; the credential as its scheme writes it.
     const sendWith = async ({ token, authExtras }: { token: string; authExtras?: Record<string, string> }) => {
@@ -164,11 +166,11 @@ async function sendThrough(home: string, service_id: string, service: ConnectorR
       let header: Record<string, string>;
       try { if (!url) throw new Error("no gateway"); header = credentialHeader(scheme, service_id, auth_method, token); }
       catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号缺少发请求要用的信息，请在设置里重新连接"); }
-      return send({ ...dispatch, url, signal }, header, options);
+      return send({ ...dispatch, ...control, url }, header, options);
     };
-    const first = await sendWith(await access(resolveApiConnection(home, connection_id, service_id)));
+    const first = await sendWith(await access(resolveApiConnection(home, connection_id, control, service_id)));
     if (first.status !== 401 || service.refresh !== "host" || auth_method !== "oauth") return first;
-    const refreshed = await access(resolveApiConnection(home, connection_id, service_id, "if_available"));
+    const refreshed = await access(resolveApiConnection(home, connection_id, control, service_id, "if_available"));
     if (refreshed === null) return first;
     // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
     return sendWith(refreshed);
@@ -220,7 +222,7 @@ function usableConnection(home: string, store: ConnectorConnectionStore, connect
 async function send(dispatch: PluginConnectionDispatch, credential: Record<string, string> | undefined, options: PluginConnectionsPortOptions): Promise<PluginConnectionResponse> {
   const headers = { "user-agent": "Molis-Work", ...dispatch.headers, ...credential };
   const response = await sendPublicHttps({ url: dispatch.url, method: dispatch.method, headers, ...(dispatch.body === undefined ? {} : { body: dispatch.body }),
-    signal: dispatch.signal, beforeEffect: dispatch.beforeEffect, ...(options.lookup ? { lookup: options.lookup } : {}),
+    signal: dispatch.signal, beforeEffect: dispatch.beforeEffect, current: dispatch.current, ...(options.lookup ? { lookup: options.lookup } : {}),
     ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
     failure: (reason, detail) => FAILURES[reason](detail) });
   const visible: Record<string, string> = {};

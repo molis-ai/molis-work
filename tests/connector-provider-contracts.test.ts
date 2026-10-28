@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -112,16 +113,16 @@ for (const mode of ["direct", "broker"] as const) for (const c of contracts) tes
     const result = await completeApiOAuth(home, { origin, state, code }, transport);
     assert.ok(result.connection.account_label);
     assert.equal(apiOAuthContext(home, start.connection_id)?.account_id, c.account);
-    assert.equal(await resolveApiOAuthToken(home, start.connection_id, false, transport), "access-original");
+    assert.equal(await resolveApiOAuthToken(home, start.connection_id, connectorControl(), false, transport), "access-original");
     assert.equal(exchanges, 1); assert.equal(identities, 1);
     const secrets = connectorProtocolSecrets(home, start.connection_id);
     if (mode === "broker") assert.doesNotMatch(secrets.get("client")!, /secret-test/);
     if (!c.noRefresh) {
-      assert.equal(await resolveApiOAuthToken(home, start.connection_id, true, transport), "access-refreshed");
+      assert.equal(await resolveApiOAuthToken(home, start.connection_id, connectorControl(), true, transport), "access-refreshed");
       assert.equal(refreshes, 1); assert.equal(secrets.get("access"), "access-refreshed");
       if (mode === "broker") assert.notEqual(secrets.get("oauth"), "refresh-rotated");
       else assert.equal(secrets.get("oauth"), "refresh-rotated");
-    } else { assert.equal(secrets.get("oauth"), null); await assert.rejects(resolveApiOAuthToken(home, start.connection_id, true, transport), /重新授权/); }
+    } else { assert.equal(secrets.get("oauth"), null); await assert.rejects(resolveApiOAuthToken(home, start.connection_id, connectorControl(), true, transport), /重新授权/); }
   } finally {
     keys.forEach((k, i) => { if (old[i] === undefined) delete process.env[k]; else process.env[k] = old[i]; });
     rmSync(home, { recursive: true, force: true });
@@ -144,7 +145,7 @@ test("Sentry reauthorization rejects a different user in the same organization a
     user = "other";
     const second = await startApiOAuth(home, { ...args, connectionId: first.connection_id });
     await assert.rejects(complete(second.authorization_url), /原账号/);
-    assert.equal(await resolveApiOAuthToken(home, first.connection_id), "access-original");
+    assert.equal(await resolveApiOAuthToken(home, first.connection_id, connectorControl()), "access-original");
     assert.equal(apiOAuthContext(home, first.connection_id)?.account_id, ":org:original");
     user = undefined;
     const missing = await startApiOAuth(home, args);
@@ -167,6 +168,6 @@ for (const serviceId of ["outlook", "dropbox", "gitlab", "airtable", "x", "cloud
       }
       assert.equal(String(input), c.identity); return Response.json(c.profile);
     }) as typeof fetch);
-    assert.equal(await resolveApiOAuthToken(home, start.connection_id), "public-access");
+    assert.equal(await resolveApiOAuthToken(home, start.connection_id, connectorControl()), "public-access");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

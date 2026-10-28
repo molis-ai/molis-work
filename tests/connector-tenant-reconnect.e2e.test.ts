@@ -44,7 +44,7 @@ test("S-57 S-69 RAC-654 RAC-657 a visible old tenant account reconnects through 
   const slot = { plugin_id: probe.id, install_id: install.install_id, slot_id: "github", service_id: "jira" };
   await localHost.homeActionClient().invoke(person(["connectors:management:write"]), connectorPluginSlotActions.bind, { ...slot, connection_id: saved.old.connection_id });
   const bound = () => withConnectorConnections(home, store => store.binding(pluginSlotScope(install.install_id), probe.id, "github"));
-  const request = (url: string) => port.request(slot, { url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
+  const request = (url: string) => port.request(slot, { url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, current: () => {} });
   await assert.rejects(request("https://acme.atlassian.net/rest/api/3/myself"), error => code("connector.plugin_requests.connection_unavailable")(error) && /服务连接.*重新连接/.test((error as Error).message));
   assert.equal(network.seen.length, 0);
   assert.deepEqual(await port.describe(slot), { bound: true, display_name: "旧站点账号", state: "reauth_required" });
@@ -105,7 +105,7 @@ test("S-57 S-69 RAC-654 RAC-657 a visible old tenant account reconnects through 
   await assert.rejects(request("https://acme.atlassian.net/rest/api/3/myself"), code("connector.plugin_requests.origin_refused"));
   assert.equal(network.seen.length, 1);
   const anonymous = await port.request({ ...slot, install_id: "unbound-fixed-service", service_id: "github" },
-    { url: new URL("https://api.github.com/user"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
+    { url: new URL("https://api.github.com/user"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, current: () => {} });
   assert.equal(anonymous.authenticated, false);
   assert.deepEqual(network.seen.at(-1), { host: "api.github.com", authorization: undefined });
   assert.equal(await evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(renewedSecret)})`), false);

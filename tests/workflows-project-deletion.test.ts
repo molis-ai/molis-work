@@ -5,11 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_PLUGIN_ID, manualLink, newStation, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /**
  * docs/system/RUNTIME-MIGRATION.md section 6, item 10 for Workflows: the "project deleted" step clears the workflows and their runs of the

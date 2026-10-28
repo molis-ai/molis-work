@@ -7,6 +7,7 @@ import { inspectActionDeclarations, projectReachPermissionProblems } from "./act
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
+import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
@@ -204,6 +205,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["actions", manifest.actions],
     ["action_scenes", manifest.action_scenes],
     ["background", manifest.background],
+    ["notifications", manifest.notifications],
     ["connections", manifest.connections],
     ["connection_services", manifest.connection_services],
     ["integrations", manifest.integrations],
@@ -260,6 +262,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...artifactDeclarationProblems(parsed));
   problems.push(...inspectContextDeclarations(parsed));
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
+  problems.push(...notificationDeclarationProblems(parsed.notifications, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));

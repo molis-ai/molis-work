@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { connectorMethodsFor } from "../apps/local-host/dist/host-connector-methods.js";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -9,7 +10,8 @@ import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext 
 import { inspectApiConnection, resolveApiConnection } from "../apps/local-host/dist/connector-access.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createCatalogProvider, catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
 import { handleConnectorApiMethodsHttp } from "../apps/local-host/dist/web-connector-api-methods.js";
 import { handleConnectorConnectionsHttp } from "../apps/local-host/dist/web-connector-connections.js";
@@ -67,7 +69,7 @@ test("API OAuth connects, survives host reload, refreshes with its own app and r
     const complete = await completeApiOAuth(directory, callback(a.authorization_url), transport("account-a", "Alex", calls));
     const b = await startApiOAuth(directory, { serviceId: "asana", displayName: "B", clientId: "app-b", clientSecret: "secret-b", origin });
     await completeApiOAuth(directory, callback(b.authorization_url), transport("account-b"));
-    assert.equal(await resolveApiOAuthToken(directory, a.connection_id, true, transport("account-a", "Alex", calls)), "access-account-a");
+    assert.equal(await resolveApiOAuthToken(directory, a.connection_id, connectorControl(), true, transport("account-a", "Alex", calls)), "access-account-a");
     assert.equal(calls[1]!.get("client_id"), "app-a");
     assert.equal(calls[1]!.get("client_secret"), "secret-a");
     assert.equal(calls[1]!.get("refresh_token"), "refresh-account-a-1");
@@ -87,7 +89,7 @@ test("ASC-19 ASC-35: disabling and reenabling during API refresh refuses stale t
     await completeApiOAuth(directory, callback(first.authorization_url), transport("work"));
     const secrets = connectorProtocolSecrets(directory, first.connection_id);
     const before = [secrets.get("access"), secrets.get("oauth"), secrets.get("expires")];
-    const refreshing = resolveApiOAuthToken(directory, first.connection_id, true, async () => {
+    const refreshing = resolveApiOAuthToken(directory, first.connection_id, connectorControl(), true, async () => {
       entered(); await waiting;
       return json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 });
     });
@@ -116,7 +118,7 @@ for (const service of ["gmail", "notion"] as const) test(`ASC-19 ASC-35: ${servi
         entered(); await waiting;
         return json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
       });
-      const refreshing = resolveApiConnection(directory, id, service, true);
+      const refreshing = resolveApiConnection(directory, id, connectorControl(), service, true);
       const rejected = assert.rejects(refreshing);
       await reached;
       withConnectorConnections(directory, store => { store.setEnabled(id, false); store.setEnabled(id, true); });
@@ -206,7 +208,7 @@ test("OAuth without refresh token is usable, and disconnect during refresh never
     let entered!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const wait = new Promise<void>(resolve => { release = resolve; });
-    const refreshing = resolveApiOAuthToken(directory, start.connection_id, true, (async () => { entered(); await wait; return json({ access_token: "late-token", refresh_token: "late-refresh" }); }) as typeof fetch);
+    const refreshing = resolveApiOAuthToken(directory, start.connection_id, connectorControl(), true, (async () => { entered(); await wait; return json({ access_token: "late-token", refresh_token: "late-refresh" }); }) as typeof fetch);
     await started;
     withConnectorConnections(directory, store => store.disconnect(start.connection_id));
     release();
@@ -214,11 +216,11 @@ test("OAuth without refresh token is usable, and disconnect during refresh never
     for (const name of ["access", "oauth", "client", "expires"]) assert.equal(connectorProtocolSecrets(directory, start.connection_id).get(name), null);
     const noRefresh = await startApiOAuth(directory, { serviceId: "clickup", displayName: "No refresh", clientId: "app", clientSecret: "secret", origin });
     await completeApiOAuth(directory, callback(noRefresh.authorization_url), (async url => String(url).includes("oauth/token") ? json({ access_token: "permanent-access" }) : String(url).endsWith("/team") ? json({ teams: [{ id: "team-one" }] }) : json({ user: { id: 9, username: "ClickUp user" } })) as typeof fetch);
-    assert.equal(await resolveApiOAuthToken(directory, noRefresh.connection_id), "permanent-access");
+    assert.equal(await resolveApiOAuthToken(directory, noRefresh.connection_id, connectorControl()), "permanent-access");
     // RAC-349: the plugin's optional refresh must not change existing API readers' boolean force-refresh contract.
-    assert.equal((await resolveApiConnection(directory, noRefresh.connection_id)).token, "permanent-access");
-    await assert.rejects(resolveApiOAuthToken(directory, noRefresh.connection_id, true), /重新授权/u);
-    await assert.rejects(resolveApiConnection(directory, noRefresh.connection_id, "clickup", true), /重新授权/u);
+    assert.equal((await resolveApiConnection(directory, noRefresh.connection_id, connectorControl())).token, "permanent-access");
+    await assert.rejects(resolveApiOAuthToken(directory, noRefresh.connection_id, connectorControl(), true), /重新授权/u);
+    await assert.rejects(resolveApiConnection(directory, noRefresh.connection_id, connectorControl(), "clickup", true), /重新授权/u);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("expired and denied authorization removes temporary app credentials; HTTPS manual callback matches exactly", async () => {
@@ -262,7 +264,7 @@ test("invalid identity payload cannot report connected and identity-only APIs ne
   assert.equal(missing.ok, false);
   for (const service of ["figma", "adobe", "linkedin", "loom"]) {
     let reads = 0;
-    const result = await createCatalogProvider({ connectorId: service, token: "sample-access", fetchImpl: async () => { reads++; return json({ id: "user", name: "User" }); } }).sync({ cursor: null });
+    const result = await createCatalogProvider({ connectorId: service, token: "sample-access", fetchImpl: async () => { reads++; return json({ id: "user", name: "User" }); } }).sync({ cursor: null }, connectorControl());
     assert.equal(result.ok, false); assert.equal(reads, 0);
   }
 });
@@ -360,4 +362,62 @@ test("the market pulse sends an OAuth token that does not expire as it is", asyn
   await port.fetch(GITHUB_SEARCH, {});
   assert.deepEqual(sent, ["Bearer permanent-access"]);
   assert.equal(refreshes.length, 0);
+});
+
+test("S-97 FI-C-02: a withdrawn refresh preserves credentials, protocol and prior refusal state", { timeout: 30_000 }, async t => {
+  for (const priorRefusal of [false, true]) await t.test(`prior-refusal=${priorRefusal}`, async t => {
+    const directory = home();
+    let release!: () => void, entered!: () => void, first = priorRefusal;
+    const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
+    t.after(() => { release(); rmSync(directory, { recursive: true, force: true }); });
+    const started = await startApiOAuth(directory, { serviceId: "asana", displayName: "Controlled", clientId: "fixture-client", clientSecret: "fixture-app", origin });
+    await completeApiOAuth(directory, callback(started.authorization_url), transport("controlled"));
+    const id = started.connection_id, secrets = connectorProtocolSecrets(directory, id);
+    const target = { install_id: "fixture-api-refusal", plugin_id: "io.molis.work.example.refusal", slot_id: "account", service_id: "asana" };
+    withConnectorConnections(directory, store => store.bind({ scopeId: pluginBindingScope(target), pluginId: target.plugin_id, slotId: target.slot_id, serviceId: target.service_id, connectionId: id }));
+    const port = createPluginConnectionsPort(directory), state = () => port.describe(target).state;
+    t.mock.method(globalThis, "fetch", async () => {
+      if (first) { first = false; return json({ error: "invalid_grant" }, 400); }
+      entered(); await wait;
+      return priorRefusal ? json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 }) : json({ error: "invalid_grant" }, 400);
+    });
+    if (priorRefusal) await assert.rejects(resolveApiConnection(directory, id, connectorControl(), "asana", true));
+    assert.equal(state(), priorRefusal ? "reauth_required" : "connected");
+    const before = Object.fromEntries(["access", "oauth", "expires", "client"].map(key => [key, secrets.get(key)]));
+    const protocol = withConnectorProtocols(directory, store => store.get(id));
+    const connection = withConnectorConnections(directory, store => store.require(id));
+    const abort = new AbortController(), control = connectorControl({ signal: abort.signal });
+    const pending = resolveApiConnection(directory, id, control, "asana", true);
+    const rejected = assert.rejects(pending, /call withdrawn/u);
+    try { await reached; abort.abort(new Error("call withdrawn")); } finally { release(); }
+    await rejected;
+    assert.deepEqual(Object.fromEntries(Object.keys(before).map(key => [key, secrets.get(key)])), before);
+    assert.deepEqual(withConnectorProtocols(directory, store => store.get(id)), protocol);
+    assert.equal(withConnectorConnections(directory, store => store.require(id)).updated_at, connection.updated_at);
+    assert.equal(state(), priorRefusal ? "reauth_required" : "connected", "withdrawal neither sets nor clears the refusal mark");
+  });
+});
+
+test("S-97 FI-C-02: a cancelled refresh waiting in the existing queue never dispatches", { timeout: 30_000 }, async t => {
+  const directory = home();
+  let release!: () => void, entered!: () => void, calls = 0;
+  const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
+  t.after(() => { release(); rmSync(directory, { recursive: true, force: true }); });
+  const started = await startApiOAuth(directory, { serviceId: "asana", displayName: "Queued", clientId: "fixture-client", clientSecret: "fixture-app", origin });
+  await completeApiOAuth(directory, callback(started.authorization_url), transport("queued"));
+  const id = started.connection_id;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1; entered(); await wait;
+    return json({ access_token: "first-access", refresh_token: "first-refresh", expires_in: 3600 });
+  });
+  const first = resolveApiOAuthToken(directory, id, connectorControl(), true);
+  await reached;
+  const abort = new AbortController(), second = resolveApiOAuthToken(directory, id, connectorControl({ signal: abort.signal }), true);
+  const rejected = assert.rejects(second, /queued call withdrawn/u);
+  abort.abort(new Error("queued call withdrawn")); release();
+  assert.equal(await first, "first-access"); await rejected;
+  assert.equal(calls, 1);
+  const secrets = connectorProtocolSecrets(directory, id);
+  assert.equal(secrets.get("access"), "first-access");
+  assert.equal(secrets.get("oauth"), "first-refresh");
 });

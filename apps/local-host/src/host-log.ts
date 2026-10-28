@@ -90,6 +90,22 @@ export function repeatingFailure(area: string, event: string) {
   };
 }
 
+const failingListeners = new WeakSet<object>();
+
+/**
+ * Tells every listener of `of` (a store's changes, a desk's frames): one that throws does not stop the others or the code that
+ * told them, and is written as `<area>.listener_failed` when it starts failing, and again only once it has worked since.
+ */
+export function eachListener<L extends object>(area: string, of: string, listeners: Iterable<L>, tell: (listener: L) => void): void {
+  for (const listener of listeners) {
+    try { tell(listener); failingListeners.delete(listener); }
+    catch (error) {
+      if (failingListeners.has(listener)) continue;
+      failingListeners.add(listener); hostLog.warn(area, "listener_failed", error, { of });
+    }
+  }
+}
+
 /**
  * The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. They run after
  * every write, so one failure is written once per pass and error code for the life of the process.

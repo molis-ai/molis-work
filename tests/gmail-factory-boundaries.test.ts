@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -83,7 +84,7 @@ test("RAC-125: refresh calls the original beforePersist receiver and commits syn
   ports.store.values.set(refs.access, "old-access");
   ports.store.values.set(refs.refresh, "old-refresh");
   ports.store.values.set(refs.expiresAt, new Date(nowMs).toISOString());
-  const options = {
+  const options = { control: connectorControl(),
     tokenRefs: refs, nowMs,
     permitted: false,
     async fetchImpl() { return Response.json({ access_token: "new-access", refresh_token: "new-refresh", expires_in: 120 }); },
@@ -114,13 +115,13 @@ test("RAC-125: a changed refresh token during the request refuses stale persiste
   }
   let release!: () => void;
   const blocked = new Promise<void>((resolve) => { release = resolve; });
-  const first = createGmailOAuth(a).resolveUsableGmailAccessToken({
+  const first = createGmailOAuth(a).resolveUsableGmailAccessToken({ control: connectorControl(),
     tokenRefs: refs, forceRefresh: true,
     fetchImpl: async () => { await blocked; return Response.json({ access_token: "stale-access" }); },
     beforePersist: () => assert.fail("stale refresh reached the commit guard"),
   });
   a.store.values.set(refs.refresh, "replacement-refresh");
-  const second = await createGmailOAuth(b).resolveUsableGmailAccessToken({
+  const second = await createGmailOAuth(b).resolveUsableGmailAccessToken({ control: connectorControl(),
     tokenRefs: refs, forceRefresh: true,
     fetchImpl: async () => Response.json({ access_token: "fresh-b" }),
   });
@@ -170,9 +171,9 @@ test("RAC-127 / RAC-128: provider preserves resolver receivers, per-call tokens,
     },
   };
   const provider = createGmailProvider(options);
-  assert.equal((await provider.health()).ok, true);
+  assert.equal((await provider.health(connectorControl())).ok, true);
   phase = "sync";
-  const result = await provider.sync({ cursor: null });
+  const result = await provider.sync({ cursor: null }, connectorControl());
   assert.equal(result.ok, true, JSON.stringify(result));
   if (!result.ok) assert.fail("full sync failed");
   assert.deepEqual(paths, ["/gmail/v1/users/me/profile", "/gmail/v1/users/me/profile", "/gmail/v1/users/me/messages", "/gmail/v1/users/me/messages/m1"]);
@@ -199,10 +200,10 @@ test("RAC-127: auth-ref methods remain instance-bound and absent optional resolv
     resolveAuthRef(ref: string) { assert.equal(ref, this.authRef); this.reads += 1; return null; },
   };
   const provider = createGmailProvider(options);
-  assert.equal((await provider.health()).ok, false);
-  assert.equal((await provider.sync({ cursor: null })).ok, false);
+  assert.equal((await provider.health(connectorControl())).ok, false);
+  assert.equal((await provider.sync({ cursor: null }, connectorControl())).ok, false);
   assert.equal(options.reads, 2);
   const absent = createGmailProvider({ getNowMs: () => assert.fail("absent resolver evaluated its arguments") });
-  assert.equal((await absent.health()).ok, false);
-  assert.equal((await absent.sync({ cursor: null })).ok, false);
+  assert.equal((await absent.health(connectorControl())).ok, false);
+  assert.equal((await absent.sync({ cursor: null }, connectorControl())).ok, false);
 });

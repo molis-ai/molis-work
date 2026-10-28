@@ -27,7 +27,7 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
 | Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，S-91）；项目里拒 |
 | 私有文件 `services.files` | `plugin-files-entries.ts:12` | 条目 `files` | **只在条目上**（PG-102、PG-104） |
 | 主人文件 `ownerFiles` | `plugin-owner-files-entries.ts:40` | 条目 `owner_files` | **只在条目上**（PG-102、PG-103） |
-| 模型设置 `services.model.configuration` | `services.ts` 的 `NOT_GIVEN`（S-60 启动拒绝） | Manifest `model_configuration` + 宿主启动名单绑定 | Manifest 已有声明；沙箱尚不给（BL-490/491） |
+| 模型设置 `services.model.configuration` | `services.ts` 的 `NOT_GIVEN`（S-60 启动拒绝） | Manifest `model_configuration` + 宿主启动名单绑定 | Manifest 已有声明；沙箱尚不给（BL-491） |
 | 生图 `services.imageGeneration` | `plugin-image-generation-entries.ts:10`、`plugin-image-generation-service.ts:15` | 条目 `image_generation` | **只在条目上**（PG-102） |
 | 项目清理 | `plugin-project-cleanup.ts:36` | 条目 `project_data`（`purge` 是宿主调的函数）；PG-106 的 `onProjectDeleted` 钩子已在 C4（10-21）删掉 | **只在条目上**（PG-022、§4 m） |
 
@@ -106,7 +106,7 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
 - **Home 库（`database`）**（BL-490，S-91，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
-- **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
+- **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
 
 ### 3.8 仍不给的清单
@@ -114,8 +114,8 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
 | 项 | 为什么 | 什么时候再看 |
 | --- | --- | --- |
 | 方法与角色的正文 | 进别的 Agent 的一轮，没有安装确认页能列出 | 外部插件安装确认（PG-001）之后，BL-493 |
-| Home 库、`files`、生图、项目清理的 `purge` | 声明只在宿主条目上，沙箱插件没有条目 | PG-022/102 之后，BL-490/491 |
-| 模型设置 | Manifest `model_configuration` 已有；沙箱未提供对应端口与 broker 方法，声明即带码拒绝 | BL-490/491 |
+| `files`、生图、项目清理的 `purge` | 声明只在宿主条目上，沙箱插件没有条目 | PG-022/102 之后，BL-491 |
+| 模型设置 | Manifest `model_configuration` 已有；沙箱未提供对应端口与 broker 方法，声明即带码拒绝 | BL-491 |
 | `model.complete` 的 `onText`/`images`、材料的字节输入大对象 | 回调/大字节过不了有界 JSON | 第二批，视需要 |
 
 ## 4. 前提与顺序

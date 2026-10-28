@@ -1,12 +1,10 @@
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { hostLog } from "./host-log.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { closeProjectClock, scheduleServiceFor } from "./project-clock.js";
-import { createProjectFeedScheduler } from "./workflow-feed-options.js";
-import type { FeedSchedulerRuntime } from "./web-types.js";
+import type { ProjectScheduleRuntime } from "./web-types.js";
 
 type Composition = {
-  runtimes: Map<string, FeedSchedulerRuntime>;
+  runtimes: Map<string, ProjectScheduleRuntime>;
   changed(databasePath: string): void;
 };
 type Project = { runtime: MolisWorkProjectRuntime; reference: LocalHostProjectReference };
@@ -22,7 +20,7 @@ function stateFor(host: MolisWorkLocalHost): State {
 export function openProjectSchedulers(host: MolisWorkLocalHost, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): void {
   const state = stateFor(host);
   state.projects.set(reference.storage_key, { runtime, reference });
-  if (state.composition) activate(host, state.composition, runtime, reference);
+  if (state.composition) activate(state.composition, runtime, reference);
 }
 
 /** The service binds existing instances and all later action-created instances, before any page is requested. */
@@ -30,11 +28,10 @@ export function bindProjectSchedulers(host: MolisWorkLocalHost, composition: Com
   const state = stateFor(host);
   if (state.composition) throw new Error("项目后台调度已绑定到这个 Host");
   state.composition = composition;
-  for (const { runtime, reference } of state.projects.values()) activate(host, composition, runtime, reference);
+  for (const { runtime, reference } of state.projects.values()) activate(composition, runtime, reference);
   return async () => {
     if (state.composition !== composition) return;
     state.composition = undefined;
-    for (const { scheduler } of composition.runtimes.values()) scheduler.close?.();
     composition.runtimes.clear();
     await Promise.all([...state.projects.values()].map(({ runtime }) => closeProjectClock(runtime.store.db)));
   };
@@ -44,18 +41,14 @@ export function bindProjectSchedulers(host: MolisWorkLocalHost, composition: Com
 export async function closeProjectSchedulers(host: MolisWorkLocalHost, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): Promise<void> {
   const state = owners.get(host);
   state?.projects.delete(reference.storage_key);
-  state?.composition?.runtimes.get(reference.storage_key)?.scheduler.close?.();
   state?.composition?.runtimes.delete(reference.storage_key);
   await closeProjectClock(runtime.store.db);
 }
 
 
-function activate(host: MolisWorkLocalHost, composition: Composition, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): void {
+function activate(composition: Composition, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): void {
   if (composition.runtimes.has(reference.storage_key)) return;
-  const scheduler = createProjectFeedScheduler(host, runtime, reference);
   const schedule = scheduleServiceFor(runtime.store.db);
   if (!schedule.active) schedule.start();
-  composition.runtimes.set(reference.storage_key, { scheduler, schedule });
-  void scheduler.tick().then(result => { if (result.completed || result.failed) composition.changed(reference.storage_key); })
-    .catch(error => { hostLog.warn("schedule", "round_failed", error, { schedule: "feed", first: true }); });
+  composition.runtimes.set(reference.storage_key, { schedule });
 }

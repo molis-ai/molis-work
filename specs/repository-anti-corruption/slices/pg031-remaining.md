@@ -32,13 +32,13 @@ Feed/Inbox 正由 ac-sandbox-sched 迁 Runtime（FI-3～6，分支 `claude/ac-fe
 - `content-action-providers.ts`：Feed 的处理器、`linkedContext` 钉 `feedManifest.plugin_id`、`NATIVE_CONTENT_PERMISSIONS` import Pages、Lingguang、Inbox 包取权限。
 - `feed-goal-promotion.ts`（钉 `FEED_PLUGIN_ID`）、`inbox-actions.ts`（import Inbox、Feed、Pages 包）。
 - `plugins/native/inbox/src/actions.ts`、`plugins/native/inbox/src/pages.ts`（Inbox 声明的跨插件依赖，原按裁定保留精确提供方）。
-- 宿主里其余 import Feed、Inbox 包的 `feed-*`、`inbox-scene.ts`、`information-planner.ts`、`workflow-feed-options.ts`、`official-integrations.ts`、`research-library-source.ts`、`demo-plugin-seed.ts`，以及 `web-request.ts`、`web-view.ts`、`web-panel.ts`、`web-types.ts` 里的 Feed/Inbox 部分。
+- 宿主里其余 import Feed、Inbox 包的 `feed-*`、`inbox-scene.ts`、`workflow-feed-options.ts`、`official-integrations.ts`、`research-library-source.ts`、`demo-plugin-seed.ts`，以及 `web-request.ts`、`web-view.ts`、`web-panel.ts`、`web-types.ts` 里的 Feed/Inbox 部分。
 
 ## 4. 别的线，或不属于本行
 
 - **Goals 的宿主私路**（`goal-project-application.ts`、`personal-planning-actions.ts`、`project-database.ts`、`web-goals-read.ts`、`web-planning.ts`，以及 `web-*` 里的 Goals 部分）：随 Goals 的 S 线删宿主私路。MCP 直接 import Goals 的三个文件已在 #1218 改用 contracts 的 `goalEntryActions`，main 上已不存在这种 import。
 - **Alchemist 的旧装配路径**（`alchemist-native-plugin-http.ts`、`alchemist-prologue.ts`、`alchemist-search.ts`、`alchemist-service-host.ts`）：在 `tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单里，随 Alchemist 迁 Runtime。
-- **Coding 设置页的宿主特例**（`web-catalog.ts` import `codingAgentManifest` 与 `CODING_SETTINGS_UI_CONTRIBUTION_ID`，为 Coding 单独拼设置页的模型）：这是给一个插件在宿主里开的私路，要改成插件设置贡献的通用路径。`web-catalog.ts` 是巨大单元，单独做，记 BL-522。
+- **Coding 设置页的宿主特例**（`web-catalog.ts` import `codingAgentManifest` 与 `CODING_SETTINGS_UI_CONTRIBUTION_ID`，为 Coding 单独拼设置页的模型）：这是给一个插件在宿主里开的私路，要改成插件设置贡献的通用路径。`web-catalog.ts` 是巨大单元，单独做，记 BL-522（已做：#1300，`fc1e03c3c`，2026-10-25）。
 - **创作台**（`agent-definitions/builtin-instructions.ts` import plugin-builder）：2026-10-18 起创作台不算插件，是平台能力，不在本行。
 - **`project-plugins.ts`、`web-assets.ts`**：Plugin Runtime 监督器的装配与插件客户端包的分发，是规定的装配口，不是特权。
 

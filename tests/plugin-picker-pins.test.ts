@@ -125,6 +125,22 @@ test("DOCK-06 what adding adds along, and what removing takes with it, is writte
   assert.doesNotMatch(tileOf(all, "text-stats").wrapper, /data-dependents|data-along/, "nothing depends on Text Stats, and it is already in");
 });
 
+test("RAC-1315 DOCK-06 an addable plugin says which plugins that depend on it will not come with it", () => {
+  const missing = renderPluginRail(primitives, ["goals"], "", "", marked());
+  assert.match(tileOf(missing, "inbox").toggle, /；依赖它的插件不会一并添加：Feed/, "adding Inbox alone does not bring Feed");
+  const withFeed = renderPluginRail(primitives, ["goals", "feed"], "", "", marked());
+  assert.doesNotMatch(tileOf(withFeed, "inbox").toggle, /依赖它的插件不会一并添加/, "Feed is already here");
+  const all = renderPluginRail(primitives, ["goals", "files", "text-stats", "inbox", "feed"], "", "", marked());
+  assert.match(tileOf(all, "inbox").wrapper, /data-dependents="Feed"/, "the removal path is unchanged");
+});
+
+test("RAC-1316 DOCK-06 a plugin with no companions has no relation text and no empty title", () => {
+  const html = renderPluginRail(primitives, ["goals"], "", "", marked());
+  const schedule = tileOf(html, "schedule");
+  assert.doesNotMatch(schedule.toggle, /添加会同时添加|依赖它的插件不会一并添加|移除会同时移除/);
+  assert.match(schedule.toggle, /title="[^"]+"/, "no empty title");
+});
+
 test("DOCK-08 no plugin brings the page back: the list of those that cannot change in place is empty, and the switcher carries it for the client", () => {
   const html = renderPluginRail(primitives, ["goals"], "");
   assert.match(html, new RegExp(`<div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">`));

@@ -16,6 +16,9 @@ const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, 
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
 const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源"));
+// The shape the baseline describes never changes: built once (it runs the whole baseline in a scratch database). The store's own shape is read every time.
+let baselineShape: string | undefined;
+const expectedHomeStoreShape = () => baselineShape ??= JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE));
 
 function openWritableHomePluginDatabase(home: string) {
   try { return openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE); }
@@ -29,7 +32,7 @@ function openWritableHomePluginDatabase(home: string) {
 export function openHomePluginStore(home: string) {
   const db = openWritableHomePluginDatabase(home);
   try {
-    if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
+    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape()) {
       throw invalidHomeStoreShape();
     }
     return { db, storage: new SqlitePluginPrivateStorage(db) };
@@ -49,7 +52,7 @@ export function openReadOnlyHomePluginStore(home: string) {
     db.exec("BEGIN");
     const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
     if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version));
-    if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
+    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape()) {
       throw invalidHomeStoreShape();
     }
     return db;

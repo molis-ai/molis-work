@@ -3184,3 +3184,40 @@ test("R-GOALS-OWNER-02: create-intent rejects unpermitted fields before facts or
     assert.deepEqual(data.store.readEventsDescending(BOARD), afterEvents);
   } finally { close(data); }
 });
+
+test("RAC-1261: an unreadable project human-approval rule stops completion instead of letting it through", () => {
+  const data = fixture();
+  try {
+    requireProjectApproval(data.app, "policy-unreadable");
+    const goalId = supportedGoal(data.app, "unreadable", "unreadable-req");
+    const corrupt = data.store.db.prepare("UPDATE policy_bindings SET policy_json = ? WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'");
+    corrupt.run('{"human_approval": true,', BOARD);
+    assert.throws(
+      () => tryComplete(data.app, goalId, "close-unreadable", { actor_id: "web-user", actor_kind: "user" }),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.storage.record_unreadable" && error.kind === "internal",
+      "规则读不出来时不能当成没有人审批、也不能当成需要审批",
+    );
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
+    corrupt.run('{"human_approval": true}', BOARD);
+    const held = tryComplete(data.app, goalId, "close-unreadable-restored", { actor_id: "web-user", actor_kind: "user" });
+    assert.equal(held.completion_applied, false);
+    assert.deepEqual(reasonCodes(held), [APPROVAL_REQUIRED]);
+  } finally { close(data); }
+});
+
+test("RAC-1264: an unreadable Goal event type stops readState", () => {
+  const data = fixture();
+  try {
+    const created = data.app.goalEvents.createIntent({
+      project_id: BOARD, title: "事件类型读不出来", outcome: "读状态时报错",
+      actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-unreadable-type",
+    });
+    const goalId = created.goal.goal_id;
+    configure(data.app, goalId, "cfg-unreadable-type");
+    data.store.db.prepare("UPDATE goal_event_types SET fields_json = ? WHERE project_id = ? AND goal_id = ?").run('{"unreadable":', BOARD, goalId);
+    assert.throws(
+      () => data.app.goalEvents.readState(BOARD, goalId),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.storage.record_unreadable" && error.kind === "internal",
+    );
+  } finally { close(data); }
+});

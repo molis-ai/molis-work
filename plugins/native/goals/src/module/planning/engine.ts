@@ -44,7 +44,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
   ) {}
 
   validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     const projectedId = "projected:new-relation";
     const issue = this.validateGraph(this.context.repository.listGoals(projectId),
       this.projectRelations(this.context.repository.listRelations(projectId), [{
@@ -59,7 +59,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
   }
 
   effectiveMethods(projectId: string): PlanningMethodPack[] {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     return resolvePlanningMethodPacks(
       this.readPersonalMethods(),
       this.context.repository.listPlanningMethodPacks(projectId),
@@ -67,7 +67,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
   }
 
   proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[] {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     const goals = this.context.repository.listGoals(projectId), relations = this.context.repository.listRelations(projectId);
     const existing = new Set(validatePlanningGraph(goals, relations).map(issue => `${issue.code}:${issue.path.join("\u0000")}`));
     return validatePlanningProposalGraph(goals, relations, items)
@@ -93,7 +93,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     projectId: string,
     requested: GoalEventAdoptedPlanningRequest[],
   ): ResolvedPlanningEventAdoption {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     const personal = this.readPersonalMethods();
     const project = this.context.repository.listPlanningMethodPacks(projectId);
     return resolvePlanningEventAdoption(
@@ -106,7 +106,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     method: PlanningMethodPack;
     observed_event_cursor: number;
   } {
-    this.context.requireBoard(input.project_id);
+    this.context.requireGoalsLibrary(input.project_id);
     if (input.user_confirmed !== true) {
       throw goalErrors["goals.planning.user_confirmation_required"]("项目方法会改变后续 Goal 的拆分和依赖判断，必须由用户确认");
     }
@@ -136,7 +136,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
   }
 
   analyzeChange(projectId: string, changedGoalIds: readonly string[]): GoalChangeImpact {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     for (const goalId of changedGoalIds) this.context.requireGoal(projectId, goalId);
     return analyzeGoalChangeImpact(
       this.context.repository.listGoals(projectId),
@@ -150,7 +150,7 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     issues: PlanningGraphIssue[];
     observed_event_cursor: number;
   } {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     return {
       issues: validatePlanningGraph(
         this.context.repository.listGoals(projectId),

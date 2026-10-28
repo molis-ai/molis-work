@@ -2,10 +2,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { getScheduleReminder, getScheduledOperation, listScheduledOperationOccurrences, reminderActions, scheduledOperationActions } from "@molis-ai/molis-work-plugin-schedule";
+import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { scheduleRuntimeFixture } from "./fixtures/schedule-runtime.js";
 
+/**
+ * Feed keeps its own job on the platform's clock (FI-6), set due at once a moment after the project opens. It is not Schedule's: once Feed
+ * has set it, it is moved past the rounds below, which then count only Schedule's jobs (a running Feed leaves a current job of its own alone).
+ */
+async function parkFeedClock(f: Awaited<ReturnType<typeof scheduleRuntimeFixture>>): Promise<void> {
+  const { db } = await f.store(), count = () => (db.prepare("SELECT COUNT(*) AS count FROM schedule_jobs WHERE plugin_id = ?").get(FEED_PLUGIN_ID) as { count: number }).count;
+  for (const deadline = Date.now() + 10_000; count() !== 1;) {
+    assert.ok(Date.now() < deadline, "Feed set its clock job when the project opened");
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  db.prepare("UPDATE schedule_jobs SET next_due_at = '9999-12-31T00:00:00.000Z' WHERE plugin_id = ?").run(FEED_PLUGIN_ID);
+}
+
 test("SYS-15-D1/N1: a normal Runtime plugin schedules its own reminder and public operation; reopening preserves bindings and delivers once", { timeout: 60_000 }, async t => {
-  const f = await scheduleRuntimeFixture(t), at = new Date(Date.now() + 1000).toISOString();
+  const f = await scheduleRuntimeFixture(t);
+  await parkFeedClock(f);
+  const at = new Date(Date.now() + 1000).toISOString();
   const reminder = await f.sdk.invoke(reminderActions.add, { at, text: "复习第一章" });
   await assert.rejects(f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { unexpected: true } }), { code: "actions.input_invalid" });
   const operation = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "今天的汇总" }, inbox: true });

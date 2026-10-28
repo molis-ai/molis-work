@@ -121,6 +121,8 @@ export const SHELF_MESSAGES = {
   "shelf.tui.agent-sent-to-the-terminal": { zh: "{agent} · 发给终端不是副本沙箱", en: "{agent} · sent to the terminal, not to a copy sandbox" },
   "shelf.tui.no-terminal-agent-found": { zh: "未发现终端 Agent。", en: "No terminal agent found." },
   "shelf.tui.no-terminal-agent-found-the": { zh: "未发现终端 Agent。文件已留在架子上。", en: "No terminal agent found. The files stayed on the shelf." },
+  "shelf.tui.terminal-dropped": { zh: "终端连接已断开，未发送的输入已恢复。", en: "The terminal connection dropped. Your unsent input was restored." },
+  "shelf.tui.terminal-ended": { zh: "终端会话已结束，未发送的输入已恢复。", en: "The terminal session ended. Your unsent input was restored." },
   "shelf.tui.the-terminal-is-not-connected": { zh: "终端尚未连接，输入已保留。", en: "The terminal is not connected yet. Your input is retained." },
   "shelf.ui.search-materials": { zh: "搜索材料", en: "Search materials" },
   "shelf.ui.add-files": { zh: "添加材料", en: "Add files" },

@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -145,7 +146,7 @@ async function proxied(body: string, names: Array<keyof typeof SANDBOX_INTEGRATI
     identity: { projectId: "home", installationId: "install-probe", pluginId: PLUGIN_ID, namespace: "installed" } });
   const contribution = sandboxIntegrationContribution({ manifest: manifest(), operations: declared.operations.map(item => item.id),
     call: (id, input, control) => runner.call(id, input, control),
-    connections: (binding, signal) => { signals.push(signal); return createCallConnectionsClient(port, { plugin_id: PLUGIN_ID, service_id: "example-feed", connection_id: binding.connection_id, origins: ["https://api.example-feed.com"] }, SANDBOX_INTEGRATION_SOURCE_SLOT, { signal }); },
+    connections: (binding, control) => { signals.push(control.signal); return createCallConnectionsClient(port, { plugin_id: PLUGIN_ID, service_id: "example-feed", connection_id: binding.connection_id, origins: ["https://api.example-feed.com"] }, SANDBOX_INTEGRATION_SOURCE_SLOT, control); },
     now: () => new Date("2026-10-26T00:00:00.000Z") });
   const bound = contribution.bind({ source_id: "src-1", connection_id: "c-1", credential_ref: null, config: { repo: "a" } });
   return { bound, sent, signals, async close() { await runner.stop(); await rm(directory, { recursive: true, force: true }); } };
@@ -160,7 +161,7 @@ const POLL = (answer: string, account = true) => `export const operations = {
 test("RAC-895: a source's pull goes through the sandbox and the call's own account and reaches the Feed as any integration's", mac, async () => {
   const f = await proxied(POLL(`{ ok: true, items: [{ externalId: 'e1', title: 'T', summary: JSON.parse(me.body).login + ':' + input.config_json, url: 'https://example-feed.com/e1', kind: 'issue' }], cursor: 'c2' }`));
   try {
-    const result = await f.bound.connector_driver.poll({ cursor: "c1" });
+    const result = await f.bound.connector_driver.poll({ cursor: "c1" }, connectorControl());
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.cursor_after, "c2");
@@ -171,7 +172,7 @@ test("RAC-895: a source's pull goes through the sandbox and the call's own accou
     assert.equal(f.sent.length, 1);
     assert.equal(f.sent[0]!.url.href, "https://api.example-feed.com/me");
     assert.ok(f.signals.length >= 2 && f.signals.every(signal => signal.aborted), "every call's connection ended with the call");
-    assert.deepEqual(await f.bound.connector_driver.health(), { ok: true, status: "connected", message: "ok" });
+    assert.deepEqual(await f.bound.connector_driver.health(connectorControl()), { ok: true, status: "connected", message: "ok" });
   } finally { await f.close(); }
 });
 
@@ -188,11 +189,11 @@ test("RAC-895: a pull that does not fit is refused whole, and nothing of it reac
   ];
   for (const [answer, refused] of cases) {
     const f = await proxied(POLL(answer));
-    try { await assert.rejects(f.bound.connector_driver.poll({ cursor: null }), refused, answer); } finally { await f.close(); }
+    try { await assert.rejects(f.bound.connector_driver.poll({ cursor: null }, connectorControl()), refused, answer); } finally { await f.close(); }
   }
   const failed = await proxied(POLL("{ ok: false, failure: 'needs_auth', message: '请重新连接', http_status: 401 }", false), ["health", "poll"]);
   try {
-    assert.deepEqual(await failed.bound.connector_driver.poll({ cursor: null }), { ok: false, mode: "live", failure: "needs_auth", message: "请重新连接", http_status: 401 });
+    assert.deepEqual(await failed.bound.connector_driver.poll({ cursor: null }, connectorControl()), { ok: false, mode: "live", failure: "needs_auth", message: "请重新连接", http_status: 401 });
     assert.equal(failed.bound.account, undefined, "no account step without integration.account");
   } finally { await failed.close(); }
 });

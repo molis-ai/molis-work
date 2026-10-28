@@ -549,6 +549,36 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
+W5-13 第三片（2026-10-28，`apps/local-host/src` 里失败后什么都不留的几类 catch，已合入（#1330，main `8a72df336`）；统筹 10-28 裁定合成一片）：门禁能数的空 catch 与 `console` 在范围内已是 0，余下的是 catch 里只有注释、或吞掉任意错误的写法。逐行看过 local-host 的约 230 处，大多是合理兜底（解析失败当找不到、探测文件或进程、回给调用方的拒绝、回滚时保住原错误），不改；本片只收「失败了没人知道」的四类，行为都不变，只是失败写进 `hostLog`（只记错误名或码、区域、事件和调用处自己定的 id 与计数，不记消息、输入文字和路径，同 W5-13-03、09）。
+- 监听者与观察者：`host-log.ts` 加一个共用的 `eachListener(区域, 听的是什么, 监听者, 告诉)`，一个监听者抛错不挡其他监听者和告诉它们的代码，开始失败时记一条 `<区域>.listener_failed`（字段 `of`），好过之后再失败才再记。用在助理库的变化（`assistant-store.ts`）、电脑桌面的状态与画面（`computer-desk.ts`）、辅助程序的事件（`helper-connection.ts`）。宿主对动作提供方的观察者（`local-host.ts:106`）不在本片：改它命中 affected 的 assembly、要跑全量，留给 W6-01（装配冻结名单清零），那一片本来就动宿主装配、跑全量，到时顺手补（统筹 10-28）。
+- 主操作不等的次要记录：提示词使用记录（`agent-definitions.ts`，`agents` / `prompt_use_unrecorded`，字段 `owner` 与 `prompt`）、命令成功后的关系与 Send 时的材料关系（`assistant-authority.ts`、`assistant-relations.ts`，`assistant` / `relation_unrecorded`，`step` 为 `command` 或 `send`）。任务卡片收尾（`assistant-jobs.ts` 的 `#settleCards`）按错误码分：`assistant.conflict`（卡片已被改）是预期，不记；别的记 `job_card_unsettled`。
+- 后台循环：续接的监视（`assistant-continuations.ts`，每 5 秒重试，按范围记 `continuation_watch_failed`）、新材料的来源（`assistant-material-scan.ts`，按项目和 `capability_id` 记 `material_source_failed`）、到期提醒的来源（`assistant-followups.ts`，`reminder_source_failed`，这段时间下次照旧再问）用 `repeatingFailure`，按来源的 `capability_id` 或范围记，开始失败时一条；发布者账本的记法（RAC-1113）每个 `publisherStanding` 各一份。
+- 发布者账本读不了（`installed-publisher-standing.ts`）：仍是谁都不信任，拒绝不变（S-87 的「账本读不出来时谁都不信任」，安全不变量的表和测试都没改，不新增 S 行）；开始读不了时记一条 `plugins` / `publisher_ledger_unreadable`，读通后再读不了才再记。
+- 验收：`tests/host-log-listeners.test.ts`：
+  - `RAC-1110` / `W5-13-12`：一个监听者抛错，其他监听者照常收到、写入照常成功，日志里一条 `<区域>.listener_failed`，只带错误名或码；依次是共用的 `eachListener`（辅助程序的事件经它）、助理库、电脑桌面。
+  - `RAC-1111` / `W5-13-13`：次要记录写不进（命令后的关系、Send 时的材料关系、模型调用的提示词使用记录）：主操作照常返回或继续，日志里一条 warn，不带人写的字；提示词按主人与 id 分两个字段记（合起来的键带 `/`，不像键）。
+  - `RAC-1112` / `W5-13-14`：任务卡片收尾，版本冲突不记，别的失败记一条，库里的卡片保持原样。
+  - `RAC-1113` / `W5-13-15`：发布者账本读不了，固定的安装照旧被拒、宿主自己的照旧可跑，只记一条；读通后照常信任；人此后改了同意（如撤销另一个发布者），同一个 standing 再读不了，再记一条；另一个 standing 各记各的。
+  - `RAC-1114` / `W5-13-16`：新材料来源、提醒来源、续接监视一直失败，开始时按键记一条，查看照常继续；提醒来源没答的那段不记为已看过。
+- 不在本片、各记一处：
+  - 「`store.get` 失败就当已删」一类（助理里约 15 处）改成只认 `assistant.not_found`：BL-810，见下一节。
+  - 平台包（`horizontal/*`、`modules/*`、`packages/*`）不能 import `hostLog`，要记日志得先定注入的日志端口：BL-812（随 BL-169；`horizontal/agent-host` 的 32 处归 AI 手册线）。
+  - Promise 上的 `.catch(() => 默认值)` 约 243 处门禁不数，大多是进程清理与收尾关闭，不整体清，只在碰到的片里顺手收。
+  - `alchemist-service-host.ts`、`plugin-builder/*` 不改：用户 10-21 定了炼金台与插件创作台以后删掉重做。
+  - 浏览器脚本模板字符串里的 9 处空 catch（读写 localStorage、匹配媒体查询的兜底）：页面里没有 `hostLog`，页面错误要不要报给宿主是另一件事，要用户定。
+
+BL-810（2026-10-28，T-009，分支 `task/T009-m`，#1335）：助理读一项可能已被删的工作时，只有 `assistant.not_found` 算「不在了」；库读不了不再冒充删除。
+- 写法：`assistant-errors.ts` 加 `whenThere(read)`：读到就返回，`assistant.not_found` 返回 null，别的错误照抛，不新写 Error 子类。用在 14 处：续接的变化监听与「是不是还是当前」（`assistant-continuations.ts`；读不了时，监听器的失败由 `eachListener` 记，监视的失败由 `continuation_watch_failed` 记）、用量结算（`assistant-budget.ts`）、执行器会话的占用（`assistant-executor-session.ts`：读不了不当作会话空着）、跟进后台任务（`assistant-jobs.ts` 的 `follow` 与 `#follower`）、记忆工具读这一轮说过的话（`assistant-memory-bridge.ts`）、已处理通知的结算（`assistant-notices.ts`：一项工作读不了，按 work_id 记一条 `assistant.notice_work_unreadable` 再跳过它，别的工作照常结算）、定时跟进（`assistant-followups.ts`：宿主启动排队时读不了，按 follow-up 记一条 `assistant.followup_work_unreadable` 再跳过；到点时读不了，同样按 follow-up 记一条 `assistant.followup_work_unreadable`（与启动时同一个键，已记过的不重复），再抛出、不写这条跟进，不再写「这项工作已不存在」；队列把这一次记为失败，它的错误没有别的读者，所以以日志那条为准。下次启动按同一条宽限规则重判：还在宽限内就照常开始，晚了就记 `missed`，一次性的照样停用，通知里的原因写的是「当时 Molis Work 没有在运行」，不是实情（库读不了），通知文字这次不改）、工作记录、相关工作与诊断（`assistant-work-reads.ts`）、子任务交回后接着做（`assistant-delegation.ts`，读不了时交回的通知写明原因）。读不了时，同步的调用带着库自己的错误失败，监听器与监视由已有的日志记下，通知结算与定时跟进的两处如上另记一条。列表类读取（相关工作、诊断）一行读不了整次读取失败，用量结算读不了就拦住发送：这几处给不出完整答案就不答，是有意的。照实写明：`follow` 的两个调用处（`assistant-outcomes.ts` 的 `.catch(() => undefined)`、`assistant-offers.ts` 在 `started` 里的调用）、子任务交回写通知那一处（`assistant-delegation.ts` 的 `.catch(() => undefined)`），以及二审（#1335 第二轮）请作者核出的两处——后台任务结束的监听（`assistant-jobs.ts` 的 `onJobEnded(… .catch(() => undefined))`，经 `#follower` 读工作；每次启动会再听一遍）、读一项工作时附带的用量（`assistant-service.ts` 的 `workUsage(…).catch(() => null)`，经用量结算读工作；这次读不到用量，下次再读）——仍会把这类错误吞掉、不留日志，按下一条的 Promise 一条处理。
+- 不在本片：`assistant-http.ts` 的两处已经只认这个码，不动；Promise 上的 `.catch(() => 默认值)`（如 `assistant-outcomes.ts` 跟进后台任务那一处）照 W5-13 第三片「不在本片」的 Promise 一条处理。
+- 二审（#1335）顺手改的：`assistant-followups.ts` 的 `reminder_source_failed` 记法从模块级改为每个实例一份（与账本那份同一类）；`assistant-jobs.ts` 两行同源导入合成一行。
+- 并入 #1330 评审（`b70faf1ed`）的四条：新材料来源按「项目:capability_id」去重、字段带 `project_id`；每个 `publisherStanding` 各一份账本失败的记法；RAC-1112 断言库里的卡片；`docs/system/SECURITY-INVARIANTS.md` S-87 行「只在本机跑」一列引用 RAC-1113（只加引用，不改条文）。
+- 验收：`tests/assistant-not-found.test.ts`：
+  - `RAC-1140`：工作记录，不在了是 null，库读不了抛出库自己的错误。
+  - `RAC-1141`：相关工作，指向已删工作的关系不列出，库读不了时读取失败。
+  - `RAC-1142`：已处理通知的结算，已删工作的通知原样留着、不记失败；一项工作读不了，记一条 `assistant.notice_work_unreadable`（两轮只记一次），每一轮都接着读它后面那项读得通的工作，它的通知仍开着。
+  - `RAC-1143`：续接听到变化时库读不了，记一条 `assistant.listener_failed`（`of` 为 `work_changes`），写入照常成功。
+  - `RAC-1144`：定时跟进，宿主启动时读不了工作记一条 `assistant.followup_work_unreadable`（启动两次只记一次，到点时不再记第二条）；启动时读得通、到点时读不了，到点时记这一条；两种情形到点都抛出库自己的错误，这条跟进原样不动。
+
 W5-01-PAGES 正式 Runtime 迁移（2026-10-20，#847，叠在平台片 PG-050（#846）上）：
 - 范围：Pages 从构建期宿主适配器迁到每个项目一个 Plugin Runtime 实例；库仍是 `{home}/pages/pages.db` 的 `PAGES_DATABASE`（version 2，原 schema 不变），17 个动作的处理器、17 条 HTTP 路由（走 Manifest 的 `routes` 与 `bindPluginActionRoute`）、成果发布（`services.artifacts`）、写作模型（`services.model.complete` 的完整结果）和上传文件读取（`services.materials.readDocuments`）都由 Runtime 服务供给；删除宿主 `pages-actions.ts`、`pages-native-plugin-http.ts`、`pages-artifact.ts`、`pages-import.ts` 及 `project-host.ts`/`web-request.ts`/`web-catalog.ts`/`index.ts` 里的接线，目录条目只留 UI/client/styles 与 `project_data`。新增 `plugin.ts`（`createPagesPlugin`、`PAGES_DATABASE` 经 `index.ts` 导出）。
 - 平台前置（③ 裁定成独立一片 PG-050，分支 `feat/pg-050-materials-read-documents`，先于 Pages 合入主线）：`services.materials` 加 `readDocuments`（`materials:read`，只能在插件自己声明了该权限的 concurrent 动作里调；宿主端直接用 `readMaterialUploads`）。偏离 RUNTIME-MIGRATION §6 第 1 项「迁移 PR 不加平台服务」，原因是 Pages 导入按上传文件批量读文档（ZIP/DOCX/编码），Runtime 此前没有对应服务；`W5-01-PAGES-01` 与 S-39 登记；公开 API 快照只多 `PluginMaterialsClient.readDocuments` 与 `PluginMaterialDocumentsRequest` 共 3 行。
@@ -1724,6 +1754,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | `projects/<project_id>/molis-work.db` | 7 → 8 | L1b（`feat/project-library-l1b`，叠在 #857 上；与 S8 同一批） | 维护八，未做：每个项目库一个事务跑 `tests/fixtures/project-maintenance-v8.sql`，建 `project_root` 并抄 Board 的那一行，重建 `boards`（去掉 `title`，外键指 `project_root`，行与 rowid 不变，S8）和外键指向 `boards` 的 11 张表改指 `project_root`（行、rowid 与自增序号不变），建插件库账本写 Coding、Feed、Goals、Schedule 四行（Goals 一行与 `boards` 的改建是 S8 加进同一份脚本的两步），写 `user_version = 8`；前置或后置核对任一不对整库回滚。演练 `tests/project-maintenance-v8.test.ts`（一次性 Home）；做法见检查清单第 4.3 节维护八。2026-10-20 本机没有真实 Home |
 | `projects/<project_id>/molis-work.db` | 8 → 9 | `feature/system-review-fixes`（SYS-15 公共调度安装绑定，待提交） | 未维护真实 Home：备份副本严格核对 v8，事务中新增 `schedule_action_bindings`、暂停未绑定闹钟、保留业务数据与历史，写 v9；错误版本和失败整笔回滚。SYS-15-S6 临时库演练已通过（`tests/project-maintenance-v9.test.ts`，脚本 `tests/fixtures/project-maintenance-v9.sql`），切换真实 Home 前另定维护窗口。 |
 | `projects/<project_id>/molis-work.db` | 9 → 10 | ac-trust T1（[PR #1250](https://github.com/molis-ai/molis-work/pull/1250)）与 S9-0b（[PR #1245](https://github.com/molis-ai/molis-work/pull/1245)，[slice](slices/goals-s9-0b-attention-ledger-services.md)）合成同一版（batch-36） | 未维护真实 Home，动之前弹窗问用户，时段与 W5-17 同一次：备份副本严格核对 v9（两张 Attention 表的列数也要正好是 v9 的，多一列整笔拒绝），一个事务里重建 `plugin_runtime_installs`（多 `publisher_trust` 列，按记录的 `execution` 写：`host` → `host`，`sandbox` → `unsigned`，别的取值整笔回滚），再重建 `inbox_entries` 与 `attention_events`（多 `owner_plugin_id`，旧行全部保留、rowid 不变、owner 为 null，不按 ID 或 kind 猜；按 owner 区分的两条部分唯一索引），写 v10。演练是 `tests/project-maintenance-v10.test.ts`，脚本 `tests/fixtures/project-maintenance-v10.sql`；设计 [slices/ac-trust-install.md](slices/ac-trust-install.md) §6。 |
+| `projects/<project_id>/molis-work.db` | 10 → 11 | FI-5（`claude/ac-feed-inbox-designs`；Feed 的表归 Feed 声明，[slice](slices/feed-inbox-store-into-feed.md)；版本号暂定，别的分支先合入则顺延） | 未维护真实 Home，动之前弹窗问用户，时段与 W5-17 同一次：备份副本严格核对 v10（11 张表和 11 条索引都在、Feed 的账本行正好是版本 1 的那一行，任一不对整笔拒绝），一个事务里把 `plugin_project_databases` 的 Feed 行改成版本 2 与 12 张表的 `tables_json`、`user_version` 写 11；表和行一行不动，没有数据搬迁。演练是 `tests/project-maintenance-v11.test.ts`，脚本 `tests/fixtures/project-maintenance-v11.sql`。 |
+| `projects/<project_id>/molis-work.db#feed` | 1 → 2 | FI-5（同上一行，同一次维护） | 未维护真实 Home，随上一行同一个事务：Feed 的声明从只有 `feed_out_rules` 与它的索引，变为 12 张表（加 Feed 条目、Sources、Signals、Listener Host 的 11 张）与它们的索引；账本行改成版本 2 和新的 `tables_json`，表与行不动。演练同上一行（`tests/project-maintenance-v11.test.ts`）。 |
 | `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 同上一行，同一次：事务中重建 `plugin_runtime_installs` 并建同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`，写 v3。演练是 `tests/plugin-runtime-maintenance-v3.test.ts`（用本构建的 Home 退回 v2 再维护、再打开），脚本 `tests/fixtures/plugin-runtime-maintenance-v3.sql`。 |
 | `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/characters-maintenance-v2.sql`（只核对 `user_version` 正好是 1，不比表结构；只加 `character_runs` 表与索引，草稿不动），演练是 `tests/characters-maintenance-v2.test.ts`；以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。与装新构建同一步做，动真实 Home 之前弹窗问用户 |
 | `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](slices/platform-scenes-judgments-services.md)） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/functions-maintenance-v4.sql`（只核对 `user_version` 正好是 3；给 `function_judgments` 加 `install_id` 列，写 4；已有的判断都留着，`install_id` 为空，即宿主自己记的），演练是 `tests/functions-maintenance-v4.test.ts`。Feed、Inbox 现在经宿主私路记的判断都是空；它们迁到 Runtime（FI-6）后读 `latest()` 只看自己安装记的，要不要把旧行按场景号补成插件的安装号（`plugin-install-` 加 `plugin_id` 与发布者签名算出的号，逐项目一致）由 FI-6 那一步定，不补则旧判断不再被采用、重新判断一次。与装下一个版本同一步做，动真实 Home 之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。 |
@@ -1776,7 +1808,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
 | `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `horizontal/listener-host` | 横向 | 1 | 768 | `index.ts` 768 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/placement` | 横向 | 2 | 650 | `index.ts` 613 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
@@ -1786,13 +1817,10 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/feed` | 模块 | 8 | 811 | `ingest.ts` 208 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/functions` | 模块 | 17 | 1,969 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `modules/signals` | 模块 | 1 | 359 | `index.ts` 359 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/sources` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 23 | 1,730 | `views.ts` 168 | 1 | 3 | 3 | 在用 | 中 | 已审 |
@@ -1809,13 +1837,13 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/diff` | 内置插件 | 18 | 829 | `comparison.ts` 192 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/feed` | 内置插件 | 48 | 5,545 | `ui.ts` 644 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/feed` | 内置插件 | 85 | 9,735 | `store/listener.ts` 779 | 3 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/files` | 内置插件 | 31 | 1,697 | `actions.ts` 167 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/form` | 内置插件 | 36 | 3,245 | `store.ts` 466 | 3 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 32 | 2,655 | `browser/source.ts` 249 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 220 | 25,273 | `event-document-client.ts` 742 | 4 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/images` | 内置插件 | 34 | 2,092 | `service.ts` 181 | 3 | 3 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/inbox` | 内置插件 | 15 | 1,191 | `ui.ts` 189 | 2 | 1 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/inbox` | 内置插件 | 19 | 1,443 | `scene-runtime.ts` 190 | 2 | 1 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/issues` | 内置插件 | 28 | 1,908 | `browser/capture.ts` 183 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/jelly` | 内置插件 | 56 | 4,517 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/lingguang` | 内置插件 | 28 | 2,264 | `store.ts` 362 | 3 | 2 | 2 | Runtime | 中 | 已审 |
@@ -1989,7 +2017,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | PMR-12 | 核实中 | **状态不准**：助理会话 9-30 已修（c48a8608，在 main）：左栏看不到时对话顶部一行给出状态与暂停、继续、停止；抽屉开着时点对话区先收起抽屉。当时用替身在 800、1440 核对，**没有自动守护用例**（9.4 #9） | `git merge-base --is-ancestor c48a8608 main`；`assistant-dock.ts` 的 `data-assistant-strip` |
 | PMR-13 | 已关闭 | 不适用 | — |
 | PMR-14 | 已修（W2-02） | `assistant-island.ts` 的 `L("正在看") + "："` 已改成 `L("正在看：{title}", { title })`；同类拼接还有 66 处，并进 W5-03 | `git grep`、`tests/assistant-island-script.test.ts` |
-| PMR-15 | 已定，交第二步 | 状态准确：BL-088 未做 | `tests/builtin-plugin-assembly-gate.test.ts` 名单未减 |
+| PMR-15 | 已做 | 已做（BL-088，2026-10-27）：动作、路由与 MCP 的拒绝是 PG-013（S-72）；移除 Pages 后项目搜索不再命中、助理与 MCP 调不到、加回后都恢复且文档还在，由 RAC-1116 证明；切换器上「移除」的说明改成「在本项目停用；数据保留，加回即恢复」 | `tests/plugin-remove-reach.test.ts`、`tests/security-invariants-hidden-personal-plugin.test.ts` |
 | PMR-16 | 已修 #144 | 未复发 | `system-search`、`todo-actions`（全量通过） |
 | PMR-17 | 已关闭（未复现） | 不适用；第二步重跑场景 1 时留意 | — |
 | PMR-18 | 已修 #146 | 未复发 | `jelly-outside-changes.e2e`（全量通过） |

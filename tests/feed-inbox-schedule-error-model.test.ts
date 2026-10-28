@@ -1,3 +1,5 @@
+import { FEED_API, handleFeedTestHttp } from "./fixtures/feed-http.js";
+import { handleInboxTestHttp } from "./fixtures/inbox-http.js";
 import { handleScheduleTestHttp } from "./fixtures/schedule-http.js";
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 import assert from "node:assert/strict";
@@ -10,13 +12,6 @@ import test from "node:test";
 
 import Database from "better-sqlite3";
 
-import {
-  handleFeedNativePluginHttp,
-  handleInboxNativePluginHttp,
-  type FeedNativePluginHttpOptions,
-  type LocalProjectDatabase,
-} from "@molis-ai/molis-work-app-local-host";
-import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -64,7 +59,7 @@ const FEED: OwnerCodes = { prefix: "feed", status: {
   connector_wrong_sync_kind: 400, connector_needs_auth: 400, connector_failed: 400,
   custom_rss_url_invalid: 400, youtube_channel_invalid: 400, source_use_youtube_channel: 400, source_use_official_reddit: 400,
 } };
-const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400 } };
+const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400, revision_conflict: 409 } };
 const SCHEDULE: OwnerCodes = { prefix: "schedule", status: { task_not_found: 404, task_invalid: 400, job_not_found: 404, job_invalid: 400 } };
 
 /** Where each owner's declaration lives: Feed's and Inbox's in the contracts the two plugins, the Host and the RSS and YouTube integrations share, Schedule's in the plugin. */
@@ -85,14 +80,11 @@ interface Answer { readonly status: number; readonly body: Record<string, unknow
 async function failingEdge(owner: "feed" | "inbox" | "schedule") {
   const failure: { current: unknown } = { current: undefined };
   const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
-  // The route under test runs one action and fails; the page renderer, the web view and the store are never reached.
-  const feedOptions: FeedNativePluginHttpOptions = { actions, projectId: "p", routePrefix: "/projects/p", invalidateWebView: () => undefined,
-    renderer: { renderFeedWorkbenchFragment: () => "", renderPersistedFeedItemDetail: () => "" }, readWebView: async () => ({} as MolisWorkWebView), store: {} as LocalProjectDatabase };
-  const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedNativePluginHttp(request, response, url, feedOptions)
-    : owner === "inbox" ? handleInboxNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined })
+  const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedTestHttp(request, response, url, actions)
+    : owner === "inbox" ? handleInboxTestHttp(request, response, url, actions)
       : handleScheduleTestHttp(request, response, url, actions);
   // A route of the plugin whose handler calls one action, so the failure comes out of the action and goes through the edge.
-  const route = { feed: ["POST", "/api/feed/items/item-1/read"], inbox: ["POST", "/api/inbox/entries/entry-1/status"], schedule: ["POST", "/api/plugins/io.molis.work.schedule/tasks"] }[owner] as [string, string];
+  const route = { feed: ["POST", `${FEED_API}/items/item-1/read`], inbox: ["POST", "/api/plugins/io.molis.work.inbox/entries/entry-1/status"], schedule: ["POST", "/api/plugins/io.molis.work.schedule/tasks"] }[owner] as [string, string];
   const server = createServer((request, response) => {
     handle(request, response, new URL(request.url ?? "/", "http://127.0.0.1")).then(handled => {
       if (!handled) { response.statusCode = 404; response.end("{}"); }
@@ -165,13 +157,14 @@ test("a platform code answers one status at Feed, Inbox and Schedule, with the o
 test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", async () => {
   for (const owner of ["feed", "inbox", "schedule"] as const) {
     const edge = await failingEdge(owner);
-    const message = (text: string) => owner === "schedule" ? "请求未能完成，请重试。" : text;
+    // Feed's routes are the Runtime's like the others' (FI-7), so its uncoded failures are hidden behind the same sentence.
+    const hidden = "请求未能完成，请重试。";
     try {
-      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: message("boom"), code: "actions.execution_failed" } }, `${owner}: a plain Error`);
-      assert.deepEqual(await edge.fail(Object.assign(new Error("没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: message("没有这个文件"), code: "actions.execution_failed" } }, `${owner}: a system error code`);
+      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: hidden, code: "actions.execution_failed" } }, `${owner}: a plain Error`);
+      assert.deepEqual(await edge.fail(Object.assign(new Error("没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: hidden, code: "actions.execution_failed" } }, `${owner}: a system error code`);
       // The names the three owners used before are not codes of ours any more: a stray one is a bug, not a caller's mistake.
-      assert.deepEqual(await edge.fail(Object.assign(new Error("找不到"), { code: "feed_item_not_found" })), { status: 500, body: { error: message("找不到"), code: "actions.execution_failed" } }, `${owner}: an old snake code`);
-      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: message("能力执行失败"), code: "actions.execution_failed" } }, `${owner}: not an Error`);
+      assert.deepEqual(await edge.fail(Object.assign(new Error("找不到"), { code: "feed_item_not_found" })), { status: 500, body: { error: hidden, code: "actions.execution_failed" } }, `${owner}: an old snake code`);
+      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: hidden, code: "actions.execution_failed" } }, `${owner}: not an Error`);
     } finally { await edge.close(); }
   }
 });

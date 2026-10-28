@@ -47,8 +47,8 @@ test("rejects an unpublished deep import", () => {
 test("rejects a Module implementation or Store import from another Module", () => {
   const target = boundaryPackage("@molis-ai/molis-work-module-goals", "modules/goals", "module");
   const importer = boundaryPackage(
-    "@molis-ai/molis-work-module-feed",
-    "modules/feed",
+    "@molis-ai/molis-work-module-shelf",
+    "modules/shelf",
     "module",
     [target.name],
   );
@@ -57,7 +57,7 @@ test("rejects a Module implementation or Store import from another Module", () =
     importer,
     target,
     specifier: `${target.name}/store`,
-    sourceFile: "modules/feed/src/promote.ts",
+    sourceFile: "modules/shelf/src/promote.ts",
   });
   assert.ok(codes.has("cross-module-implementation"));
   assert.ok(codes.has("deep-import"));
@@ -163,8 +163,8 @@ test("allows explicit public Contract subpaths", () => {
     [".", "./modules/goals"],
   );
   const importer = boundaryPackage(
-    "@molis-ai/molis-work-module-feed",
-    "modules/feed",
+    "@molis-ai/molis-work-module-shelf",
+    "modules/shelf",
     "module",
     [contracts.name],
   );
@@ -174,7 +174,7 @@ test("allows explicit public Contract subpaths", () => {
       importer,
       target: contracts,
       specifier: "@molis-ai/molis-work-contracts/modules/goals",
-      sourceFile: "modules/feed/src/index.ts",
+      sourceFile: "modules/shelf/src/index.ts",
     }),
     [],
   );
@@ -186,7 +186,7 @@ test("extracts static, dynamic, re-export, and CommonJS imports", () => {
     export { capability } from "@molis-ai/molis-work-kernel";
     const lazy = import("@molis-ai/molis-work-plugin-goals/internal");
     const legacy = require("better-sqlite3");
-    // import ignored from "@molis-ai/molis-work-module-feed";
+    // import ignored from "@molis-ai/molis-work-module-shelf";
     const example = 'import ignored from "@molis-ai/molis-work-module-actions"';
   `;
 
@@ -399,8 +399,8 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     [contracts.name],
   );
   const listener = boundaryPackage(
-    "@molis-ai/molis-work-service-listener-host",
-    "horizontal/listener-host",
+    "@molis-ai/molis-work-service-search",
+    "horizontal/search",
     "horizontal",
     [contracts.name],
   );
@@ -484,13 +484,13 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
       importer: listener,
       target: contracts,
       specifier: "@molis-ai/molis-work-contracts/modules/signals",
-      sourceFile: "horizontal/listener-host/src/index.ts",
+      sourceFile: "horizontal/search/src/index.ts",
     },
     {
       importer: listener,
       target: contracts,
       specifier: "@molis-ai/molis-work-contracts/services/listener-host",
-      sourceFile: "horizontal/listener-host/src/index.ts",
+      sourceFile: "horizontal/search/src/index.ts",
     },
     {
       importer: runtimeHost,

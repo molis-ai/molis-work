@@ -261,7 +261,8 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
     const installedByHand = new Set<PluginDefinition>(); // BL-588: an unsigned in-process definition the test starts by hand
     const started = await ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: project.project_id, actorId: "web-user",
       homeDirectory: home, installedByHand, dependencyCheck: hostDependencyCheck(host.client(reference)),
-      actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
+      // The ports the Host gives a project's platform, scenes included: Feed and the Inbox, Runtime plugins since FI-6, start only with them.
+      actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: project.project_id } });
     assert.ok(started.platform);
     const definition: PluginDefinition = {
       manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Web Note",

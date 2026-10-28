@@ -4,6 +4,7 @@ import { rm } from "node:fs/promises";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import { alchemistManifest, createAlchemistActionHandlers, createAlchemistStudioRuntime,
   type AlchemistAiPort, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistModelChoices, createAlchemistProloguePort } from "./alchemist-prologue.js";
@@ -50,10 +51,11 @@ export class AlchemistHostService {
   /**
    * Whether the Home has a model Alchemist could use, without opening a studio: the list the Prologue port offers is not empty. An
    * embedding that brings its own model port (`options.ai`) is not judged by the Home's settings: only the default port reads them.
+   * Every model action of a directory asks it, so the settings are read once per pass (`rememberInDirectoryPass`; a failed read is not kept).
    */
   private modelAvailability(): ActionAvailability {
     if (this.options.ai) return { available: true };
-    try { if (alchemistModelChoices(this.home).length) return { available: true }; }
+    try { if (rememberInDirectoryPass(AlchemistHostService, this.home, () => alchemistModelChoices(this.home).length)) return { available: true }; }
     catch { return { available: false, code: "actions.connection_required", reason: "模型配置无法读取，请到模型设置检查。" }; }
     return { available: false, code: "actions.connection_required", reason: "没有可用模型，请先在 Molis Work 的模型设置中启用模型并配置凭据。" };
   }

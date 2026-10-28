@@ -1,4 +1,4 @@
-PRAGMA user_version=10;
+PRAGMA user_version=11;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE goals (
@@ -1128,7 +1128,7 @@ CREATE TABLE plugin_project_databases (
       created_at TEXT NOT NULL
     );
 INSERT INTO plugin_project_databases VALUES('io.molis.work.coding','official-coding-binding','coding',1,'["coding_plan_drafts","coding_sessions","coding_sessions_project_updated_idx"]','2026-10-20T09:46:22.272Z');
-INSERT INTO plugin_project_databases VALUES('io.molis.work.feed','official-feed-binding','feed',1,'["feed_out_rules","feed_out_rules_project_enabled_idx"]','2026-10-20T09:46:22.272Z');
+INSERT INTO plugin_project_databases VALUES('io.molis.work.feed','official-feed-binding','feed',2,'["feed_item_events","feed_item_events_project_item_idx","feed_items","feed_items_project_signal_idx","feed_items_project_source_external_idx","feed_items_project_updated_idx","feed_materials","feed_materials_project_item_idx","feed_out_rules","feed_out_rules_project_enabled_idx","feed_source_runs","feed_source_runs_project_source_idx","feed_sources","feed_sources_project_updated_idx","listener_deliveries","listener_deliveries_recovery_idx","listener_instances","signal_events","signal_events_project_source_idx","signal_revisions","signals","signals_project_source_observed_idx","source_events","source_events_project_source_idx"]','2026-10-20T09:46:22.272Z');
 INSERT INTO plugin_project_databases VALUES('io.molis.work.goals','official-goals-binding','goals',1,'["acceptance_criteria","acceptance_goal_idx","boards","goal_event_agreements","goal_event_applied_decisions","goal_event_applied_decisions_goal_idx","goal_event_closures","goal_event_closures_goal_idx","goal_event_concerns","goal_event_concerns_goal_idx","goal_event_config_versions","goal_event_configs","goal_event_decision_requests","goal_event_decision_requests_goal_idx","goal_event_progress_summaries","goal_event_progress_summaries_goal_idx","goal_event_requirement_bindings","goal_event_requirement_conclusions","goal_event_requirement_conclusions_latest_idx","goal_event_requirements","goal_event_requirements_goal_idx","goal_event_state_owners","goal_event_state_owners_project_idx","goal_event_trusted_decisions","goal_event_trusted_decisions_goal_idx","goal_event_types","goal_event_types_goal_idx","goal_event_work_status","goal_relations","goal_trash_one_open_per_goal","goal_trash_records","goal_trash_records_goal_idx","goal_trash_relation_records","goal_trash_relation_records_relation_idx","goal_tree_proposal_decisions","goal_tree_proposal_decisions_item_idx","goal_tree_proposal_items","goal_tree_proposal_items_project_idx","goal_tree_proposal_items_proposal_idx","goal_tree_proposals","goal_tree_proposals_project_idx","goal_tree_proposals_supersedes_idx","goal_work_event_judgments","goal_work_event_judgments_requirement_idx","goal_work_events","goal_work_events_goal_seq_idx","goals","goals_archive_idx","goals_project_idx","goals_ready_idx","goals_trash_idx","input_bindings","planning_method_packs","policies_scope_idx","policy_bindings","project_guidance_entries","project_guidance_project_idx","project_guidance_revisions","project_guidance_revisions_project_idx","relations_from_idx","relations_to_idx"]','2026-10-20T09:46:22.272Z');
 INSERT INTO plugin_project_databases VALUES('io.molis.work.schedule','official-schedule-binding','schedule',1,'["schedule_conversation_tasks","schedule_conversation_tasks_enabled_idx","schedule_conversation_turns","schedule_conversation_turns_task_idx","schedule_operation_occurrences","schedule_operations","schedule_plugin_reminders","schedule_plugin_reminders_owner"]','2026-10-20T09:46:22.272Z');
 CREATE TABLE schedule_action_bindings (
@@ -1137,6 +1137,24 @@ CREATE TABLE schedule_action_bindings (
   installation_generation TEXT NOT NULL,
   action_version INTEGER NOT NULL CHECK (action_version > 0)
 );
+CREATE TABLE plugin_notifications (
+      notification_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      sender_plugin_id TEXT NOT NULL,
+      sender_install_id TEXT NOT NULL,
+      sender_generation TEXT NOT NULL,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      body TEXT NOT NULL,
+      open_plugin_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      item_id TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
+      UNIQUE (sender_install_id, sender_generation, key)
+    );
 INSERT INTO sqlite_sequence VALUES('events',48);
 CREATE INDEX goals_project_idx ON goals(project_id);
 CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
@@ -1249,4 +1267,5 @@ CREATE INDEX library_artifacts_project_idx
     ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX process_items_project_idx
     ON process_items(project_id, created_at DESC, artifact_id);
+CREATE INDEX plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
 COMMIT;

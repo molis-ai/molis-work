@@ -7,8 +7,9 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
-import { createLocalFeedApplication, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const origin = "http://localhost:19358";
 const app = { serviceId: "asana", displayName: "Review account", clientId: "review-app", clientSecret: "review-fixture-secret", origin };
@@ -62,6 +63,8 @@ test("generic OAuth reconnect restores its bound Feed source after disconnect", 
     const retry = await startApiOAuth(home, { ...app, connectionId: first.connection_id });
     await complete(home, retry.authorization_url);
     assert.equal(withConnectorConnections(home, store => store.state(store.require(first.connection_id))), "connected");
+    // The Runtime Feed brings its sources in step when the Host announces the change (feed-runtime-plugin.test.ts); this Home has no running Feed.
+    refreshFeedConnectionState(home, first.connection_id);
     assert.equal(feed.getSource(DEMO_PROJECT_ID, "review-source").status, "active");
   } finally { board.close(); rmSync(home, { recursive: true, force: true }); }
 });

@@ -81,6 +81,12 @@ export interface PluginPlatformOptions {
   processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
+  sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+  /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
+  sourcePullGit?: import("./research-repository-read.js").ResearchGit;
+  /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
+  sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
   deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -169,6 +175,9 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     dualInstance: identity.dualInstance,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.projects ? { projects: options.projects } : {}),
+    ...(options.sourcePullFetch ? { sourcePullFetch: options.sourcePullFetch } : {}),
+    ...(options.sourcePullGit ? { sourcePullGit: options.sourcePullGit } : {}),
+    ...(options.sourcePullIntegrations ? { sourcePullIntegrations: options.sourcePullIntegrations } : {}),
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,

@@ -6,6 +6,7 @@ import test, { type TestContext } from "node:test";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginDefinition, PluginHostServices, PluginManifest, PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createEvidenceContentStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
@@ -16,13 +17,15 @@ import { openTestHome } from "./fixtures/test-home.js";
  * and stops at the next one (or answers), so the refusal is the instance check's and nothing else's.
  *
  * Which half has what: the Host gives the project half the action dependencies, Agent, installations, notifications and scheduler,
- * the Home half the terminal (it needs the Home's owner files), and both halves an authorized directory.
+ * the Home half the terminal (it needs the Home's owner files), its own installations (RAC-495a: which projects hold the plugin) and the
+ * evidence collector (S-98 provisional: the Home's evidence store, which only the ledger half deletes from),
+ * and both halves an authorized directory.
  */
 
 const NAME = "dualservices", PLUGIN = `io.molis.work.example.${NAME}`;
 const FILES_READ = `${NAME}:files-read`, FILES_WRITE = `${NAME}:files-write`, DATA_READ = `${NAME}:data-read`, DATA_WRITE = `${NAME}:data-write`;
 /** What the probe actions declare: every permission a service below asks its calling action for. */
-const USED = ["actions:invoke", "agent:run", "terminal:run", "plugins:read", "notifications:write", "schedule:read", "directory:read"];
+const USED = ["actions:invoke", "agent:run", "terminal:run", "plugins:read", "notifications:write", "schedule:read", "directory:read", "evidence:collect"];
 type Half = "home" | "project";
 type Use = (services: Record<Half, PluginHostServices>, caller: ActionExecutionContext) => unknown;
 type Outcome = { outcome: string; message?: string; value?: unknown };
@@ -111,6 +114,18 @@ test("BL-368, DUAL-16, S-48: the project half's installations are refused inside
   assert.ok((own.value as Array<{ plugin_id: string }>).some(item => item.plugin_id === PLUGIN));
 });
 
+test("RAC-495a, S-48: only the Home half is told which projects hold its plugin, and neither half's installations are used inside the other's action", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  assert.deepEqual(await s.run("home", services => services.home.installations!.projects()), { outcome: "ok", value: { project_ids: [s.project.project_id], complete: true } });
+  assert.deepEqual(await s.run("project", services => services.project.installations!.projects()),
+    { outcome: "actions.forbidden", message: "只有 Home 一半能查询本插件装在哪些项目" }, "a project instance knows its own project and no other");
+  assert.ok(otherInstance(await s.run("project", services => services.home.installations!.projects())));
+  assert.ok(otherInstance(await s.run("project", services => services.home.installations!.list())));
+  const own = await s.run("home", services => services.home.installations!.list());
+  assert.equal(own.outcome, "ok", own.message);
+  assert.ok(Array.isArray(own.value));
+});
+
 test("BL-368, DUAL-16, S-48: the project half's notifications are refused inside the Home half's action", { timeout: 60_000 }, async t => {
   const s = await open(t), notice = { key: "one", title: "提醒", summary: "", body: "结果好了。" };
   // The Home half has no project library, so it has no transaction to pass: the service refuses before it looks at one.
@@ -140,4 +155,31 @@ test("BL-368, DUAL-16, S-48: a directory granted to the project half is not read
     { outcome: "ok", value: { outcome: "denied" } });
   const own = await s.run("project", services => services.project.directory!.read({ grant_id: grant.grant_id }));
   assert.equal((own.value as { outcome: string }).outcome, "directory", JSON.stringify(own));
+});
+
+test("S-98 (provisional), S-48: only the Home half is given the evidence collector, only inside its own action, and it deletes what the owner says nothing refers to", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
+  const held = bodies.write("held body").contentRef, free = bodies.write("free body").contentRef, foreign = "research:not-a-body-of-this-store";
+  const collect = (services: Record<Half, PluginHostServices>) => services.home.evidenceCollector!.collect({ candidates: [held, free, foreign, held], isReferenced: ref => ref === held });
+  // A project instance is given none: the store is the Home's and the ledger it answers for is the Home half's.
+  assert.deepEqual(await s.run("project", services => services.project.evidenceCollector === undefined), { outcome: "ok", value: true });
+  assert.ok(otherInstance(await s.run("project", collect)), "the Home half's handle, inside the project half's action");
+  assert.ok(bodies.has(free), "nothing was deleted by the refused call");
+  const answered = await s.run("home", collect);
+  assert.deepEqual(answered, { outcome: "ok", value: { deleted: [free], kept: [held] } }, JSON.stringify(answered));
+  assert.deepEqual([bodies.has(held), bodies.has(free)], [true, false], "the body the owner holds stays, the one nothing refers to goes, the foreign reference is left alone");
+  // The request is closed: a judgment and a bounded list of references.
+  assert.equal((await s.run("home", services => services.home.evidenceCollector!.collect({ candidates: [held], isReferenced: undefined as never }))).outcome, "actions.input_invalid");
+  assert.equal((await s.run("home", services => services.home.evidenceCollector!.collect({ candidates: Array.from({ length: 10_001 }, (_, index) => `x${index}`), isReferenced: () => true }))).outcome, "actions.input_invalid");
+});
+
+test("S-98 (provisional): a collector handle kept past its call is refused outside every action", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
+  const body = bodies.write("kept body").contentRef;
+  let kept: PluginHostServices["evidenceCollector"];
+  await s.run("home", services => { kept = services.home.evidenceCollector; return null; });
+  assert.throws(() => kept!.collect({ candidates: [body], isReferenced: () => false }), { code: "actions.forbidden" });
+  assert.ok(bodies.has(body), "a call outside every action deleted nothing");
 });

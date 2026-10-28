@@ -2,9 +2,13 @@ import { isSubjectReader, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type 
 import type { PersonActions } from "./assistant-executor.js";
 import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import { repeatingFailure } from "../host-log.js";
 
 /** Notices older than this are no longer news: resolved quietly rather than shown late. A look for new material goes no further back. */
 export const NOTICE_TTL_MS = 48 * 60 * 60 * 1000;
+
+/** A source of new items that fails every look, by project and capability: written when it starts failing, and again only once it has answered since. */
+const materialSourceFailures = repeatingFailure("assistant", "material_source_failed");
 
 /** One project in a look for new material: how far the look got there. */
 export interface ScanLook { project_id: string; works: number; capabilities?: number; sources?: number; goals?: number; events?: number; problem?: string }
@@ -78,7 +82,8 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
     for (const provider of providers) {
       let collection: HomeEventCollection;
       try { collection = await withinTime(actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window)) as HomeEventCollection; }
-      catch { continue; }
+      catch (error) { materialSourceFailures.failed(`${projectId}:${provider.capability_id}`, error, { project_id: projectId, capability_id: provider.capability_id }); continue; }
+      materialSourceFailures.worked(`${projectId}:${provider.capability_id}`);
       // New items (occurred) and newly open attention items (active); standing status lines (today) are not material.
       for (const event of collection.events.filter(item => item.placement === "occurred" || item.placement === "active").slice(0, 100)) {
         looked.events = (looked.events ?? 0) + 1;

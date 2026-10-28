@@ -5,6 +5,7 @@
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
 import { comparePluginVersions } from '@molis-ai/molis-work-plugin-sdk';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
@@ -160,7 +161,14 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     // A 常开 agreement that stands keeps the installation on: asked before anything is withdrawn, revoked or stopped.
     const refusal = action === 'disable' || action === 'uninstall' ? leaveRefusal(platform.consents ?? undefined, record, action === 'disable' ? '停用' : '卸载') : undefined;
     if (refusal) throw refusal;
-    if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
+    if (action === 'disable') {
+      c.withdraw(pluginId); platform.supervisor.revoke(pluginId);
+      // A crash or a quarantine already left the installation not running; the person's switch-off still stands, and the Runtime keeps that state.
+      await platform.runtime.stop(record.install_id).catch((error: unknown) => {
+        if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
+      });
+      c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return;
+    }
     if (action === 'enable') {
       if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
       const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;

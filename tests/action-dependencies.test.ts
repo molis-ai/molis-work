@@ -62,6 +62,20 @@ test("invalid dependency declarations fail activation and cycles fail discovery 
   assert.equal(await service.invoke(caller, recovered, {}), 1, "checks cannot leave stale stack state");
 });
 
+test("FI-7: a delegated caller's authority check that reads its original's availability is not a dependency cycle", () => {
+  const service = new ActionService();
+  const b = action("authority.b"), a = action("authority.a", [b]);
+  // A plugin action's availability re-checks the caller's authority, and a delegated caller's authority is its original's: the original's
+  // own availability, which reads the same dependency under the original's context.
+  service.registerProvider({ provider, definitions: [a, b], handlers: [a, b].map(definition => ({ ...definition, handle: () => 1,
+    availability: context => { context.assert_authority_current?.(); return { available: true }; } })) });
+  const delegated: ActionCallContext = { ...caller, assert_authority_current: () => {
+    const original = service.discover(caller).find(view => view.capability_id === a.capability_id)!.availability;
+    if (!original.available) throw new Error((original as { code: string }).code);
+  } };
+  assert.deepEqual(service.discover(delegated).find(view => view.capability_id === a.capability_id)!.availability, { available: true });
+});
+
 test("Host propagates async dependency lifecycle by project, including revocation while a call is queued", async () => {
   const leaf = action("runtime.leaf"), middle = action("runtime.middle", [leaf]), root = action("runtime.root", [middle]);
   const ref = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });

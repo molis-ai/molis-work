@@ -7,6 +7,8 @@ import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js"
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
+import { runningProjectPlatform } from "./project-plugins.js";
+import type { PluginPlatform } from "./plugin-platform.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -65,14 +67,28 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     return true;
   }
   const install = host.homePlugins.installation(pluginId);
-  if (split && projectHalfRoute(platform, install, request.method, url.pathname)) return false;
+  // A running Home half that does not bind the route leaves it to the project's half, unchanged. A Home half that binds nothing
+  // (stopped, revoked or uninstalled) leaves it only to a project half that binds it; one that does not, or whose platform cannot be
+  // started, is not this route's to answer: the Home answers it as it answers any stopped Home plugin's (RAC-1300, RAC-1301).
+  let earlyProject: (LocalHostProjectReference & { display_name?: string }) | undefined;
+  if (split && projectHalfRoute(platform, install, request.method, url.pathname)) {
+    if (install?.state === "running" || !prefixed) return false;
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
+    if (!(found instanceof ActionError)) {
+      earlyProject = found;
+      const projectPlatform = await projectPluginPlatform(host, found);
+      // A project whose plugins cannot run is the project chain's to refuse, as it does for any project plugin route today.
+      if (!projectPlatform) return false;
+      if (projectHalfBinds(projectPlatform, pluginId, request.method, url.pathname)) return false;
+    }
+  }
   if (route && !install) {
     const missing = actionErrorResponse(new ActionError("actions.missing", "这个 Home 插件未安装"));
     sendLocalWebJson(response, missing.status, missing.body); return true;
   }
   if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
-  let project: (LocalHostProjectReference & { display_name?: string }) | undefined;
-  if (prefixed) {
+  let project = earlyProject;
+  if (prefixed && !project) {
     const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
     if (found instanceof ActionError) { const refused = actionErrorResponse(found); sendLocalWebJson(response, refused.status, refused.body); return true; }
     project = found;
@@ -166,9 +182,33 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
  */
 function projectHalfRoute(platform: HomePluginPlatform, install: PluginInstanceRecord | null, method: string | undefined, pathname: string): boolean {
   const match = platform.router().match(method ?? "GET", pathname);
-  if (!match) return false;
+  return match ? !binds(platform, install, match.route_id) : false;
+}
+
+/** Whether a running installation's app contribution binds this route: each half binds only the routes of its own installation. */
+function binds(platform: Pick<PluginPlatform, "runtime">, install: PluginInstanceRecord | null, routeId: string): boolean {
   const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
-  return !(contribution?.kind === "app" && (contribution.routes ?? []).some(binding => binding.route_id === match.route_id));
+  return Boolean(contribution?.kind === "app" && (contribution.routes ?? []).some(binding => binding.route_id === routeId));
+}
+
+/**
+ * The project's plugin platform, started through the Host's own preparation path when nothing has started it yet. Null when it still
+ * does not run: the route is then the project chain's to answer, as it answers any project plugin route whose platform cannot start.
+ */
+async function projectPluginPlatform(host: MolisWorkLocalHost, project: LocalHostProjectReference): Promise<PluginPlatform | null> {
+  const running = () => host.withProject(project, runtime => runningProjectPlatform(runtime.store, project.project_id));
+  const started = await running();
+  if (started) return started;
+  await host.actionClient(project).discover(await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS));
+  return running();
+}
+
+/** Whether the project's half answers this declared route now: its installation runs and its contribution binds the route. */
+function projectHalfBinds(platform: PluginPlatform, pluginId: string, method: string | undefined, pathname: string): boolean {
+  const match = platform.router().match(method ?? "GET", pathname);
+  if (!match) return false;
+  const state = platform.supervisor.state(pluginId);
+  return binds(platform, state?.install_id ? platform.runtime.get(state.install_id) : null, match.route_id);
 }
 
 /** The browser's same-origin page locator is a client report; it does not prove what was on screen. */
@@ -204,11 +244,13 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   const registered = host.registered().flatMap(entry => {
     const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
     if (registration && !declaredStageContributionId(registration)) return [];
-    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
+    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench, shipped: registration !== undefined }];
   });
   const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
   const unavailable: UnavailablePluginStage[] = [];
-  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
+  // A shipped dual-instance plugin's page is its project half's (`renderProjectRuntimeStages` draws the shipped ones): its Home half draws
+  // none. Any other dual-instance plugin's page stays its Home half's.
+  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id) && !(entry.shipped && host.dualInstance(entry.manifest.plugin_id))).flatMap(entry => {
     const stage = stageContributionId(entry.manifest);
     if (stage) ids.push(stage);
     const install = host.installation(entry.manifest.plugin_id);

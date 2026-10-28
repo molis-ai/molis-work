@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
-import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox entry and a 灵光 become todos that keep where they came from; neither original is handled for the person`, { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null);

@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -173,7 +174,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const contribution = runtime.contribution(installId)!;
     assert.ok(contribution.kind === "integration");
     const binding = { source_id: "sample", connection_id: null, credential_ref: null, config: {} };
-    const first = await contribution.bind(binding).connector_driver.poll({ cursor: null });
+    const first = await contribution.bind(binding).connector_driver.poll({ cursor: null }, connectorControl());
     assert.equal(first.ok, true);
     assert.equal(first.events.length, 1);
     const reference = { artifact_id: installId + ":sample-result", version: 1 };
@@ -195,7 +196,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     await runtime.recover(installId);
     assert.match(render(), /Saved results: 1/);
     const recovered = runtime.contribution(installId)!; assert.ok(recovered.kind === "integration");
-    assert.equal((await recovered.bind(binding).connector_driver.poll({ cursor: first.cursor_after })).ok, true);
+    assert.equal((await recovered.bind(binding).connector_driver.poll({ cursor: first.cursor_after }, connectorControl())).ok, true);
     assert.match(render(), /Saved results: 2/);
     assert.equal(artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, reference.artifact_id).length, 2);
     assert.deepEqual(await actions.client.invoke(caller, publishResult, {}), { artifact_id: reference.artifact_id, version: 3, payload: { title: "Local sample result", sequence: 3 } });

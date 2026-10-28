@@ -15,8 +15,6 @@ import { activateConnectorConnection, type ConnectorActivation } from "./connect
 import { verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
-export { refreshFeedConnectionState } from "./connector-source-state.js";
-
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
 

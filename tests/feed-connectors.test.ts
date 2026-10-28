@@ -1,10 +1,11 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createLocalFeedApplication, createLocalFeedConnectorSync } from "@molis-ai/molis-work-app-local-host";
+
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { createGithubConnector } from "@molis-ai/molis-work-app-local-host";
 import { createGmailConnector } from "@molis-ai/molis-work-app-local-host";
@@ -17,6 +18,7 @@ import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-wo
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
 
 /** A sync the provider reported as failed is one Feed code, and the provider's own code (what a run and a source fault store) rides in its details. */
 function providerFailure(error: unknown, providerCode: string): boolean {
@@ -130,9 +132,9 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
     },
   });
 
-  const health = await connector.health();
+  const health = await connector.health(connectorControl());
   assert.deepEqual({ ok: health.ok, status: health.status }, { ok: true, status: "connected" });
-  const synced = await connector.sync({ cursor: null });
+  const synced = await connector.sync({ cursor: null }, connectorControl());
   assert.equal(synced.ok, true);
   if (synced.ok) {
     assert.equal(synced.mode, "live");
@@ -172,7 +174,7 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
       account_login: "molis-work-user",
     });
     const callsBeforeEarlyPoll = requests.length;
-    const early = await connector.sync({ cursor: synced.cursor });
+    const early = await connector.sync({ cursor: synced.cursor }, connectorControl());
     assert.equal(early.ok, true);
     assert.equal(requests.length, callsBeforeEarlyPoll, "poll boundary must stop before provider access");
   }
@@ -215,7 +217,7 @@ test("GitHub notification adapter revalidates with Last-Modified and accepts 304
       next_poll_at: "2026-08-30T10:02:00.000Z",
       synced_at: "2026-08-30T10:00:00.000Z",
     },
-  });
+  }, connectorControl());
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.deepEqual(result.items, []);
@@ -232,7 +234,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
       status: 200,
       headers: { "x-oauth-scopes": "read:user" },
     }),
-  }).sync({ cursor: null });
+  }).sync({ cursor: null }, connectorControl());
   assert.equal(missingScope.ok, false);
   if (!missingScope.ok) {
     assert.equal(missingScope.failure, "needs_auth");
@@ -242,7 +244,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
   const expiredAuth = await createGithubConnector({
     token: "github-expired-token",
     fetchImpl: async () => new Response("", { status: 401 }),
-  }).sync({ cursor: null });
+  }).sync({ cursor: null }, connectorControl());
   assert.equal(expiredAuth.ok, false);
   if (!expiredAuth.ok) {
     assert.equal(expiredAuth.failure, "needs_auth");
@@ -252,7 +254,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
   const offline = await createGithubConnector({
     token: "github-offline-token",
     fetchImpl: async () => { throw new Error("provider token must not escape"); },
-  }).sync({ cursor: null });
+  }).sync({ cursor: null }, connectorControl());
   assert.equal(offline.ok, false);
   if (!offline.ok) assert.equal(offline.failure, "network");
 
@@ -271,7 +273,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
             "x-ratelimit-reset": String(Date.parse("2026-08-30T10:05:00.000Z") / 1_000),
           },
         }),
-  }).sync({ cursor: null });
+  }).sync({ cursor: null }, connectorControl());
   assert.equal(rateLimited.ok, false);
   if (!rateLimited.ok) {
     assert.equal(rateLimited.failure, "rate_limited");
@@ -313,7 +315,7 @@ test("Gmail live adapter advances only a provider-backed cursor and redacts fail
       return new Response("{}", { status: 404 });
     },
   });
-  const synced = await connector.sync({ cursor: null });
+  const synced = await connector.sync({ cursor: null }, connectorControl());
   assert.equal(synced.ok, true);
   if (synced.ok) {
     assert.equal(synced.mode, "live");
@@ -360,7 +362,7 @@ test("Gmail live adapter advances only a provider-backed cursor and redacts fail
   const failed = await createGmailConnector({
     accessToken: token,
     fetchImpl: async () => new Response(JSON.stringify({ access_token: token }), { status: 401 }),
-  }).sync({ cursor: null });
+  }).sync({ cursor: null }, connectorControl());
   assert.equal(failed.ok, false);
   if (!failed.ok) {
     assert.equal(failed.failure, "needs_auth");
@@ -431,7 +433,7 @@ test("Gmail incremental sync enforces the configured range and preserves account
       scope: "is:starred",
       account_email: "owner@example.com",
     },
-  });
+  }, connectorControl());
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.deepEqual(result.items.map((item) => item.externalId), ["gmail-msg-starred-1"]);
@@ -484,7 +486,7 @@ test("Gmail range changes force one bounded full sync instead of reusing the old
       scope: "is:starred",
       account_email: "owner@example.com",
     },
-  });
+  }, connectorControl());
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.equal((result.cursor as { provenance?: string }).provenance, "full_sync");

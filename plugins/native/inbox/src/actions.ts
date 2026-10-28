@@ -43,7 +43,8 @@ function action<Input, Output>(id: string, title: string, description: string, o
     permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), ...(requiredActions ? { required_actions: requiredActions } : {}),
     subject_kinds: ["inbox_entry"], input_schema: input, output_schema: output,
     // Writing a document waits on a model through Pages and writes nothing of its own here.
-    ...(["inbox.pages.generate", "inbox.judgment.evaluate"].includes(id) ? { scheduling: "concurrent" as const } : {}) } };
+    // The status change asks Feed whether the item may come back, and `services.attention` writes only from a waiting action.
+    ...(["inbox.pages.generate", "inbox.judgment.evaluate", "inbox.entry.status"].includes(id) ? { scheduling: "concurrent" as const } : {}) } };
 }
 
 export interface InboxStatusInput { entry_id: string; status: AttentionStatus; expected_revision: number }
@@ -60,7 +61,7 @@ export const inboxActions = {
   setStatus: action<InboxStatusInput, { entry: InboxActionEntry }>("inbox.entry.status", "更新事项状态", "按读取到的版本更新事项；版本过期时拒绝覆盖", "command", {
     type: "object", properties: { entry_id: { type: "string", minLength: 1 }, status: { enum: ["open", "in_progress", "done", "dismissed"] },
       expected_revision: { type: "integer", minimum: 1 } }, required: ["entry_id", "status", "expected_revision"], additionalProperties: false,
-  }, { type: "object", properties: { entry: entrySchema }, required: ["entry"] }, ["inbox:write"]),
+  }, { type: "object", properties: { entry: entrySchema }, required: ["entry"] }, ["inbox:write", "attention:write"]),
   pagesResults: action<Record<string, never>, { results: readonly InboxPagesResult[] }>("inbox.pages.results", "生成的文稿", "读取当前项目由 Inbox 材料生成的文稿和运行状态", "query",
     empty, { type: "object", properties: { results: { type: "array", items: generationSchema } }, required: ["results"] }, ["inbox:read", "pages:read"], undefined,
     [{ capability_id: "pages.generations.list", version: 1, provider_id: PAGES_PROVIDER_ID }]),
@@ -74,34 +75,38 @@ export const inboxActions = {
     required: ["request_id", "entry_ids", "title", "instructions"], additionalProperties: false,
   }, { type: "object", properties: { document: documentSchema, replayed: { type: "boolean" }, request_id: text, entry_ids: strings },
     required: ["document", "replayed", "request_id", "entry_ids"] }, ["inbox:read", "pages:read", "pages:write", "model:invoke"], undefined,
-    ["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PROVIDER_ID })), { cost: "metered" }),
+    // The material is Feed's, read again before the document is written: a client granted the generation must be granted Feed's material read with it.
+    [...["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PROVIDER_ID })),
+      { capability_id: "feed.items.material", version: 1 }], { cost: "metered" }),
   readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
     type: "object", properties: { summary: { type: "object", properties: { name: nullableText, enabled: { type: "boolean" }, available: { type: "boolean" }, reason: nullableText }, required: ["name", "enabled", "available", "reason"] }, function_key: functionKey, functions: { type: "array", items: { type: "object",
       properties: { function_key: { type: "string" }, name: { type: "string" } }, required: ["function_key", "name"] } } }, required: ["function_key", "functions"],
   }, ["inbox:read"]),
   recommendations: action<Record<string, never>, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.recommendations", "当前下一步建议", "读取仍对应当前事项、绑定及授权的判断；旧记录保留在历史中", "query", empty,
-    { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read"]),
+    { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "feed:read"]),
   writeJudgment: action<{ function_key: string | null }, { function_key: string | null }>("inbox.judgment.write", "设置下一步判断", "绑定一个已发布规则；传空值解除绑定", "command", {
     type: "object", properties: { function_key: functionKey }, required: ["function_key"], additionalProperties: false,
   }, { type: "object", properties: { function_key: functionKey }, required: ["function_key"] }, ["inbox:write"]),
   evaluateJudgment: action<{ entry_ids: string[] }, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.evaluate", "判断下一步", "对选择的事项执行已绑定规则并保存判断结果", "command", {
     type: "object", properties: { entry_ids: ids }, required: ["entry_ids"], additionalProperties: false,
-  }, { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "model:invoke"], { scene_id: INBOX_NEXT_SCENE_ID, version: 1 }, undefined, { cost: "metered" }),
+  }, { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "model:invoke", "feed:read"], { scene_id: INBOX_NEXT_SCENE_ID, version: 1 },
+    // The text the judgment reads is Feed's: a client granted the judgment must be granted Feed's content action with it.
+    [{ capability_id: "feed.items.content", version: 1 }], { cost: "metered" }),
 } as const;
 
 export const INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(inboxActions);
-export const INBOX_ACTION_PERMISSIONS = ["inbox:read", "inbox:write", "pages:read", "pages:write", "model:invoke", "functions:invoke"] as const;
+export const INBOX_ACTION_PERMISSIONS = ["inbox:read", "inbox:write", "pages:read", "pages:write", "model:invoke", "functions:invoke", "feed:read", "attention:write", "judgments:write"] as const;
 
 export interface InboxActionPorts {
   listEntries(): readonly InboxActionEntry[];
-  setStatus(entryId: string, status: AttentionStatus, revision: number): InboxActionEntry;
+  setStatus(entryId: string, status: AttentionStatus, revision: number, caller: ActionExecutionContext): InboxActionEntry | Promise<InboxActionEntry>;
   pagesResults?(caller: ActionCallContext): readonly InboxPagesResult[] | Promise<readonly InboxPagesResult[]>;
   preparePages?(input: SubjectOffersInput, caller: ActionCallContext): Promise<InboxPagesInput | null>;
   generatePages?(input: InboxPagesInput, caller: ActionExecutionContext): Promise<InboxGeneratedPages>;
   readJudgment?(caller: ActionCallContext): InboxJudgmentState | Promise<InboxJudgmentState>;
   recommendations?(caller: ActionCallContext): Promise<{ judgments: readonly JudgmentRecord[] }>;
   writeJudgment?(key: string | null, caller: ActionCallContext): { function_key: string | null } | Promise<{ function_key: string | null }>;
-  evaluateJudgment?(ids: readonly string[], caller: ActionCallContext): Promise<{ judgments: readonly JudgmentRecord[] }>;
+  evaluateJudgment?(ids: readonly string[], caller: ActionExecutionContext): Promise<{ judgments: readonly JudgmentRecord[] }>;
 }
 
 /** Business ports are supplied once at activation; every consumer calls these registered handlers. */
@@ -131,7 +136,7 @@ export function createInboxActionHandlers(ports: InboxActionPorts): ActionHandle
       return { offers };
     }),
     bind(inboxActions.list, () => ({ entries: ports.listEntries() })),
-    bind(inboxActions.setStatus, input => ({ entry: ports.setStatus(input.entry_id, input.status, input.expected_revision) })),
+    bind(inboxActions.setStatus, async (input, caller) => ({ entry: await ports.setStatus(input.entry_id, input.status, input.expected_revision, caller) })),
     bind(inboxActions.pagesResults, async (_input, caller) => ({ results: await ports.pagesResults!(caller) }), !!ports.pagesResults),
     bind(inboxActions.generatePages, (input, caller) => ports.generatePages!(input, caller), !!ports.generatePages),
     bind(inboxActions.readJudgment, (_input, caller) => ports.readJudgment!(caller), !!ports.readJudgment),

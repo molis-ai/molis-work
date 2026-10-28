@@ -18,11 +18,81 @@ export interface IntegrationBinding {
 
 export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
+export declare const OAUTH_CLIENT_AUTHS: readonly ["basic", "post", "none"];
+
+export declare const OAUTH_GRANTS: readonly ["authorization_code", "device"];
+
+export declare const OAUTH_PLATFORM_HEADERS: readonly ["authorization", "proxy-authorization", "cookie", "host", "content-length", "content-type", "transfer-encoding", "connection", "accept", "user-agent", "private-token", "x-figma-token"];
+
+export declare const OAUTH_RESERVED_PARAMETERS: readonly ["client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "response_type"];
+
+export declare const OAUTH_SETTING_USES: readonly ["path", "scope", "client_auth", "tenant"];
+
+export type OAuthClientAuth = (typeof OAUTH_CLIENT_AUTHS)[number];
+
+export interface OAuthContextDeclaration extends OAuthTokenRequestDeclaration {
+    readonly key: string;
+    readonly pick: {
+        readonly kind: "ids";
+        readonly pointer: string;
+    } | {
+        readonly kind: "match_setting";
+        readonly setting: string;
+        readonly match: string;
+        readonly take: string;
+        readonly pattern: string;
+    };
+}
+
+export type OAuthGrant = (typeof OAUTH_GRANTS)[number];
+
+export interface OAuthIdentityDeclaration extends Partial<OAuthTokenRequestDeclaration> {
+    readonly list?: {
+        readonly min_by: string;
+    };
+    readonly account_id: readonly (readonly OAuthValueSource[])[];
+    readonly label: readonly OAuthValueSource[];
+    readonly label_prefix?: string;
+    readonly keep?: readonly OAuthKeepDeclaration[];
+}
+
+export interface OAuthKeepDeclaration {
+    readonly key: string;
+    readonly pointer: string;
+    readonly check?: "tenant" | {
+        readonly pattern: string;
+    };
+    readonly required?: boolean;
+}
+
+export interface OAuthSettingDeclaration {
+    readonly key: string;
+    readonly label: string;
+    readonly placeholder?: string;
+    readonly required?: boolean;
+    readonly default?: string;
+    readonly use: OAuthSettingUse;
+    readonly pattern?: string;
+    readonly enum?: readonly string[];
+}
+
+export type OAuthSettingUse = (typeof OAUTH_SETTING_USES)[number];
+
+export interface OAuthTokenRequestDeclaration {
+    readonly url: string;
+    readonly method?: "GET" | "POST";
+    readonly body?: unknown;
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly query?: Readonly<Record<string, string>>;
+}
+
+export type OAuthValueSource = `identity:/${string}` | `context:${string}` | `literal:${string}`;
+
 export type PluginAuthMethodDeclaration = {
     readonly kind: "token";
     readonly label: string;
     readonly placeholder?: string;
-} | {
+} | PluginOAuthMethodDeclaration | {
     readonly kind: Exclude<ConnectorMethodKind, "token">;
 };
 
@@ -48,4 +118,32 @@ export interface PluginIntegrationDeclaration {
     readonly service_id: string;
     readonly document_source?: string;
     readonly connection_methods?: readonly ConnectorMethodKind[];
+}
+
+export interface PluginOAuthMethodDeclaration {
+    readonly kind: "oauth";
+    readonly grant: OAuthGrant;
+    readonly authorize_url?: string;
+    readonly token_url: string;
+    readonly refresh_url?: string;
+    readonly device_authorization_url?: string;
+    readonly issuer?: string;
+    readonly scopes: readonly string[];
+    readonly pkce?: "S256";
+    readonly client_auth?: OAuthClientAuth | {
+        readonly setting: string;
+    };
+    readonly token_format?: "form" | "json";
+    readonly client_secret?: "required" | "optional";
+    readonly parameters?: Readonly<Record<string, string>>;
+    readonly settings?: readonly OAuthSettingDeclaration[];
+    readonly identity: OAuthIdentityDeclaration;
+    readonly keep?: readonly OAuthKeepDeclaration[];
+    readonly context?: readonly OAuthContextDeclaration[];
+    readonly quirks?: {
+        readonly refresh_redirect_uri?: true;
+        readonly omit_token_params?: readonly ("grant_type" | "redirect_uri")[];
+        readonly expiry?: "jwt_exp";
+    };
+    readonly note?: string;
 }

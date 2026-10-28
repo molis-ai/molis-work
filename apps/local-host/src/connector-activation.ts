@@ -5,15 +5,18 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
-import { refreshFeedConnectionState } from "./connector-source-state.js";
+import { connectionChanged } from "./connection-change-events.js";
 import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
+import type { OAuthServiceOwner } from "./integration-registry.js";
 
 type Input<K extends "createToken" | "upsertOAuth" | "saveProtocol" | "saveCli"> = Parameters<ConnectorConnectionStore[K]>[0];
 type Target = { connectionId: string; expectedRevision?: string };
 /** Private completion material. Stored only in the encrypted authorization record; never an action input or output. */
 export type ConnectorActivation =
   | { kind: "token"; input: Input<"createToken">; target?: Target }
-  | { kind: "oauth"; input: Input<"upsertOAuth">; target: Target; credentials: Record<string, string | null>; protocol?: ConnectorProtocolConfiguration }
+  | { kind: "oauth"; input: Input<"upsertOAuth">; target: Target; credentials: Record<string, string | null>; protocol?: ConnectorProtocolConfiguration;
+    /** The generic flow's pins (W5-11 §3.2), judged again before a held result takes effect; never saved with the connection. */
+    declaration?: { plugin: Omit<OAuthServiceOwner, "method">; fingerprint: string } }
   | { kind: "mcp"; input: Input<"saveProtocol">; target: Target; credentials: Record<string, string | null>; protocol: ConnectorProtocolConfiguration }
   | { kind: "cli"; input: Omit<Input<"saveCli">, "expectedRevisions">; revisions: Array<[string, string]>; binary: string; fingerprint: string; installation_id?: string };
 
@@ -68,6 +71,6 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
     if (completion.protocol) withConnectorProtocols(home, store => store.save(completion.protocol!));
   }
   const cleanup = cleanupConnectorInstallation(home, oldInstallation);
-  refreshFeedConnectionState(home, row.connection_id);
+  connectionChanged(home, row.connection_id);
   return { ...withConnectorConnections(home, store => store.view(row)), ...(cleanup ? { cleanup } : {}) };
 }

@@ -78,7 +78,7 @@ export class GoalsQueryService implements GoalsQueryApi {
     projectId: string,
     options: { include_archived?: boolean; include_trashed?: boolean } = {},
   ): GoalRecord[] {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     const includeArchived = options.include_archived ?? true;
     const includeTrashed = options.include_trashed ?? true;
     return this.#repository.listGoals(projectId).filter((goal) =>
@@ -88,13 +88,13 @@ export class GoalsQueryService implements GoalsQueryApi {
   }
 
   listRelations(projectId: string, goalId?: string): GoalRelationRecord[] {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     if (goalId != null) this.requireGoal(projectId, goalId);
     return this.#repository.listRelations(projectId, goalId);
   }
 
   listTrashedGoals(projectId: string): GoalRecord[] {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     return this.#repository.listTrashedGoals(projectId);
   }
 
@@ -114,7 +114,7 @@ export class GoalsQueryService implements GoalsQueryApi {
   }
 
   resolvePolicy(projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy {
-    this.context.requireBoard(projectId);
+    this.context.requireGoalsLibrary(projectId);
     this.requireGoal(projectId, goalId);
     return resolveGoalPolicy(this.#repository.listActivePolicyBindings(projectId, goalId), strengthen);
   }

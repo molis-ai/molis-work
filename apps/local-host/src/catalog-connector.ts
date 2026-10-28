@@ -21,9 +21,9 @@ export function createCatalogConnector(opts: {
     fetchImpl: opts.fetchImpl,
     now: opts.now,
     authExtras: oauthId ? () => apiOAuthContext(home, oauthId) : undefined,
-    resolveToken: opts.token || !id ? undefined : async (forceRefresh?: boolean) => {
+    resolveToken: opts.token || !id ? undefined : async (forceRefresh, control) => {
       // A connection that cannot be read reports as no account; the source's connection check names why.
-      try { return (await resolveApiConnection(home, id, opts.connectorId, forceRefresh)).token; } catch { return null; }
+      try { return (await resolveApiConnection(home, id, control, opts.connectorId, forceRefresh)).token; } catch { await control.beforeEffect(); control.current(); return null; }
     },
   });
 }

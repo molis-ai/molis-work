@@ -4,8 +4,7 @@ import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-modu
 import { DEMO_PROJECT_ID } from "./demo-project-id.js";
 import { DEMO_CORE_ARTIFACT_ID, registerDemoDeliverableVersions } from "./demo-deliverable.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { createLocalFeedApplication } from "./feed-application.js";
-import { createLocalFeedSourceService } from "./feed-source-service.js";
+import { createDemoFeedApplication, createDemoFeedSourceService } from "./demo-feed-library.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
@@ -30,8 +29,8 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
   const store = new LocalProjectDatabase(databasePath);
   try {
     if (!listProjectRoots(store.db).some(root => root.project_id === projectId)) return;
-    const feed = createLocalFeedApplication(store.db);
-    const sources = createLocalFeedSourceService(store.db, projectId);
+    const feed = createDemoFeedApplication(store.db);
+    const sources = createDemoFeedSourceService(store.db, projectId);
     const rss = sources.register({ kind: "rss", definition_id: "solidot" }).source;
     const youtube = sources.register({
       kind: "youtube_channel",
@@ -219,7 +218,7 @@ export async function seedDemoHomeSamples(actions: Pick<BoundActionClient, "invo
 }
 
 function upsertConnectorSource(
-  feed: ReturnType<typeof createLocalFeedApplication>,
+  feed: ReturnType<typeof createDemoFeedApplication>,
   input: {
     source_id: string;
     kind: "github" | "gmail";
@@ -263,7 +262,7 @@ function upsertConnectorSource(
 }
 
 function ingestOnce(
-  feed: ReturnType<typeof createLocalFeedApplication>,
+  feed: ReturnType<typeof createDemoFeedApplication>,
   source: FeedSourceRecord,
   input: {
     externalId: string;

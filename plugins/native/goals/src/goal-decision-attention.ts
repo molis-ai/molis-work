@@ -16,7 +16,7 @@ interface GoalDecisionAttentionPorts {
   goalExists(projectId: string, goalId: string): boolean;
 }
 
-/** Goals owns Goal-decision Attention. Inbox only reads the resulting reference. */
+/** Goals owns Goal-decision Attention, and the entries say so: they are created and found under Goals' own plugin id, which is how the Inbox lists them. */
 export class GoalDecisionAttentionSync {
   constructor(private readonly ports: GoalDecisionAttentionPorts) {}
 

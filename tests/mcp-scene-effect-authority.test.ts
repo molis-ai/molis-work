@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { recordedCallId, subjectOfferChoices, withCallId } from "@molis-ai/molis-work-kernel";
-import { createLocalFeedApplication, createLocalFeedSourceService, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
+import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // The time limit only catches a hang: 13-16 s on macOS, and Linux CI runs about 2.3-2.5 times slower (user, 2026-10-15).
 test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its independent scene permission is revoked", { timeout: 90_000 }, async t => {

@@ -40,7 +40,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 22（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。存各项目库的绝对路径（`modules/projects/src/project-service.ts:61`），只能恢复到原路径（`docs/installation.md` 离线备份一节） | purge（`installer/uninstall.ts:46`） |
-| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 19 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 8，插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
+| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 11，插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
@@ -126,9 +126,9 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`） |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref` |
 
-### 4.2 `projects/<id>/molis-work.db`（v8）
+### 4.2 `projects/<id>/molis-work.db`（v11）
 
-基线是 19 段建表语句，来自 12 个目录（`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE`）；项目的身份是 `project_root` 的那一行，引用项目的外键指向它。Goals 和 governance 的表不在基线里（S8），由 Goals 的声明建（见下）：
+基线是 15 段建表语句，来自 8 个目录（`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE`）；项目的身份是 `project_root` 的那一行，引用项目的外键指向它。Goals、governance 和 Feed（含 Sources、Signals、Listener Host）的表不在基线里（S8、FI-5），由各自插件的声明建（见下）：
 
 | owner | 段 | 表 |
 | --- | --- | --- |
@@ -138,11 +138,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `packages/storage` | `LOCAL_JOURNAL_SCHEMA_SQL` | `events`、`idempotency_records`（共享日志，见 4.5） |
 | | `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | `feed_runtime_blobs` |
 | `modules/context-ledger` | `CONTEXT_LEDGER_SCHEMA` | `context_edges` |
-| `modules/sources` | `SOURCES_SCHEMA_SQL` | `feed_sources`、`source_events` |
-| `modules/signals` | `SIGNALS_SCHEMA_SQL` | `signals`、`signal_revisions`、`signal_events` |
-| `horizontal/listener-host` | `LISTENER_HOST_SCHEMA_SQL` | `listener_instances`、`listener_deliveries`、`feed_source_runs` |
 | `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `inbox_entries`、`attention_events` |
-| `modules/feed` | `FEED_SCHEMA_SQL` | `feed_items`、`feed_materials`、`feed_item_events` |
 | `packages/plugin-runtime` | `PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL` | `plugin_runtime_installs`（含 `publisher_trust` 列） |
 | | `PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL` | `plugin_runtime_release_artifacts` |
 | | `PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL` | `plugin_private_values`（每个启用的 Runtime 插件的私有值） |
@@ -161,7 +157,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 插件 | 库名 | 表 |
 | --- | --- | --- |
 | Coding（`plugins/native/coding/src/database.ts`） | `coding` | `coding_sessions`、`coding_plan_drafts` |
-| Feed（`plugins/native/feed/src/database.ts`） | `feed` | `feed_out_rules` |
+| Feed（`plugins/native/feed/src/database.ts`；语句分在 `out-rules.ts` 与 `store/` 下） | `feed`（版本 2，FI-5） | `feed_out_rules`、`feed_items`、`feed_materials`、`feed_item_events`、`feed_sources`、`source_events`、`signals`、`signal_revisions`、`signal_events`、`listener_instances`、`listener_deliveries`、`feed_source_runs` |
 | Goals（`plugins/native/goals/src/project-database.ts`；语句分在同目录的 `project-database-{goals,event-facts,event-state,governance}.ts`） | `goals` | `boards`、`goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs`、`input_bindings`、`goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments`、`goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status`、`goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions`（31 张，含 governance 的 4 张） |
 | Schedule（`plugins/native/schedule/src/database.ts`） | `schedule` | `schedule_conversation_tasks`、`schedule_conversation_turns`、`schedule_plugin_reminders`、`schedule_operations`、`schedule_operation_occurrences` |
 
@@ -188,7 +184,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
   - `apps/local-host/src/demo-seed.ts` 更新 Goals 的 `boards`：改用 `setActiveGoal`，所以演示项目的日志里多一条 `board.active_goal_changed`（与用户在界面上设当前目标是同一条路径）。
   - `apps/local-host/src/im-server.ts` 读 `server` 的 `mw_projects`、`mw_members`：`server` 包的 `ContinuityService.projectOwner` 给出项目的所有者。`apps/server/src/main.ts` 的同类 SQL（`mw_access`、`mw_members`、`mw_projects`、`mw_codes`）改成 `Identity.roleOf`、`hasMember`、`memberAccess` 和 `ContinuityService.closeProjectsExcept`。
   - `modules/projects/src/installation-inspection.ts` 读 storage 的 `catalog_meta`：模块只列目录里的项目（`listCatalogProjectsForUninstall`），目录是不是 Molis Work 的由宿主用 storage 的 `LocalCatalogMetadata` 判断。一个没有 `catalog_meta` 表的 `catalog.db` 现在报「项目 catalog 不属于 Molis Work」，以前报「无法安全读取项目 catalog」，两者都是冲突、都挡住卸载。
-  - 门禁多量到的：`apps/local-host/src/feed-history-release.ts` 读 Feed 的 `feed_materials` 和 Listener Host 的 `feed_source_runs`：改用 `listFeedMaterialContentRefs`（`modules/feed`）和 `listListenerRunReceipts`（`horizontal/listener-host`）。后者遇到读不出的回执就抛错，不当成没有引用，所以删正文时仍然「证明不了就不删」。
+  - 门禁多量到的：`apps/local-host/src/feed-history-release.ts` 读 Feed 的 `feed_materials` 和 Listener Host 的 `feed_source_runs`：改用 `listFeedMaterialContentRefs`（`modules/feed`）和 `listListenerRunReceipts`（`horizontal/listener-host`）。后者遇到读不出的回执就抛错，不当成没有引用，所以删正文时仍然「证明不了就不删」。2026-10-28（T-001）再改：宿主这个文件随 FI-6 删了，`listFeedMaterialContentRefs` 和 `listListenerRunReceipts` 没有了调用方，也删了。
 
 ## 5. 派生库与锁库
 

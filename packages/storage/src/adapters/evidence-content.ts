@@ -26,6 +26,11 @@ interface SealedEvidenceBlob {
   ct: string;
 }
 
+/** The reference `write` gives a body, known before it is written: content-addressed, so a caller can record that it holds a body before the body exists. */
+export function evidenceContentRef(markdown: string): string {
+  return `molis-work-feed/sha256/${createHash("sha256").update(markdown).digest("hex")}`;
+}
+
 export interface EvidenceContentStore {
   write(markdown: string): { contentRef: string };
   read(contentRef: string): string;
@@ -113,8 +118,7 @@ export function createEvidenceContentStore(options: {
       if (Buffer.byteLength(markdown, "utf8") > MAX_CONTENT_BYTES) {
         throw new Error("feed evidence content exceeds local retention limit");
       }
-      const digest = createHash("sha256").update(markdown).digest("hex");
-      const contentRef = `molis-work-feed/sha256/${digest}`;
+      const contentRef = evidenceContentRef(markdown);
       const destination = blobPath(root, contentRef);
       if (fs.existsSync(destination)) {
         let existing: string | null = null;

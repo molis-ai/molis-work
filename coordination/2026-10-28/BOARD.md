@@ -71,6 +71,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-057 | Runtime 项目绑定的五个错误码有用例钉住 | 丙 | B | 24 | — | `tests/runtime-binding-error-codes.test.ts`（新）、`modules/private-work-context/README.md`（只 `:39`、`:42`、`:58`） |
 | T-072 | 终端重放只留最后 20 万字、再接入拿到最新那段，补护栏用例 | 丙 | B | 25 | — | `tests/runtime-host.test.ts` |
 | T-073 | 流程交给问卷的超长标题和题目列表截到上限后收下，补护栏用例 | 丙 | 池 | 26 | — | `tests/form-actions.test.ts` |
+| T-076 | Coding 摘要超时用例：类型对齐、去多余变量、清掉多活 12 秒的计时器、迟到之后再回读一次请求数（T-026 二审建议） | 丙 | B | 27 | — | `tests/coding-history-requirements.test.ts` |
+| T-074 | 写进「1.0.0 之前都是开发版本」、BL-812 改为后续做、spec 一处过时句 | 丙 | B | 28 | — | `docs/system/CONTRACT-CHANGES.md`、`specs/repository-anti-corruption/c-end-readiness.md`、`specs/repository-anti-corruption/spec.md`、`docs/releases/CHECKLIST.md`（`specs/BACKLOG.md` 只 BL-812 行，不锁） |
+| T-078 | 删项目两个路由的路径写坏答 400（decodeLocalWebPathPart），RAC-1333 改用删除端口抛普通 Error 造（T-013 二审观察 5） | 乙 | A | 29 | T-013 | `apps/local-host/src/web-project-deletion.ts`、`tests/project-settings-deletion.test.ts` |
 
 ## 在途，不走任务书
 

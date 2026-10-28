@@ -41,16 +41,15 @@ test("Characters' page is the Host's Settings › 角色 with the user glyph, no
   assert.equal(pluginMarketCards().find((item) => item.id === "characters"), undefined);
 });
 
-test("Characters is not among the plugins; the market and the studio live in the Dock menu", () => {
+test("Characters is not among the plugins", () => {
   const primitives = {
     L: (value: string) => value,
     escapeHtml: (value: unknown) => String(value),
     icon: (name: string) => `<svg data-icon="${name}"></svg>`,
   };
-  const account = `<footer class="personal-sidebar-footer"><button class="personal-account"></button><details data-global-menu><summary></summary><div><!-- account-global-items --><button data-plugin-id="settings"></button></div></details></footer>`;
   const island = `<div class="assistant-island" data-assistant-island><button data-plugin-id="lingguang"></button></div>`;
-  const html = renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"], account, island);
-  const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("personal-sidebar-footer"));
+  const html = renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"], island);
+  const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("</nav>"));
   // Backbone first, then this project's plugins in groups, and the toggle that opens them all.
   // Groups read as purposes (plugin-e2e-review §3.1): 推进 holds the backbone, 写与做 the things one makes, 研究 the research tools.
   assert.match(items, /data-rail-zone="core"[^>]*data-plugin-id="home"[\s\S]*>推进<[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*写与做[\s\S]*data-rail-zone="tool"[^>]*data-plugin-id="pages"[\s\S]*研究[\s\S]*data-plugin-id="alchemist"[\s\S]*data-rail-tools-toggle/);
@@ -58,18 +57,13 @@ test("Characters is not among the plugins; the market and the studio live in the
   assert.match(items, /data-plugin-id="pages"[^>]*>[\s\S]*?<span>Pages<\/span><small class="plugin-rail-hint">[^<]+<\/small>/);
   // 角色 is a settings page (Settings › 角色), not a plugin to switch to.
   assert.doesNotMatch(items, /data-plugin-id="(market|plugin-builder|characters)"|data-work-surface-open="characters"|__SYSTEM_CAPABILITIES__/);
-  // The ways to extend the workbench sit in the Dock menu; capabilities moved to the project button with the person.
-  const footer = html.slice(html.indexOf("personal-sidebar-footer"));
-  assert.match(footer, /data-global-menu[\s\S]*data-plugin-id="market"[\s\S]*data-plugin-id="plugin-builder"[\s\S]*data-icon="wand"/);
-  assert.doesNotMatch(footer, /__SYSTEM_CAPABILITIES__/);
   assert.match(html, /data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*plugin-rail-items/);
   assert.doesNotMatch(html, /plugin-rail-rule|navigation-labels-toggle/);
 
-  const without = renderPluginRail(primitives, ["goals"], account);
+  const without = renderPluginRail(primitives, ["goals"]);
   assert.doesNotMatch(without, /data-plugin-id="characters"|data-plugin-tile="characters"|>创作</);
   // 更多 now lists what the project could add: grey entries that open nothing, never a Character.
   const more = without.slice(without.indexOf(">更多<"), without.indexOf("data-rail-tools-toggle"));
   assert.match(more, /data-plugin-tile="files"/);
   assert.doesNotMatch(more, /data-plugin-id=|data-plugin-tile="characters"/, "a plugin the project does not have opens nothing");
-  assert.match(without, /data-plugin-id="goals"[\s\S]*data-global-menu[\s\S]*data-plugin-id="market"/);
 });

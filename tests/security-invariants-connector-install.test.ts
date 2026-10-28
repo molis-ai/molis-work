@@ -58,3 +58,13 @@ test("S-36 ASC-17: installation and cleanup refuse symlinks or a directory witho
   assert.throws(() => removeManagedConnectorTool(another.home, id), /所有权记录不符/);
   assert.equal(existsSync(join(directory, "keep.txt")), true);
 });
+
+// RAC-1493: a directory that exists without its ownership record is not an installation we can remove, and the refusal is
+// the same declared invalid refusal every other "not our install" answer is — not the raw ENOENT the record read throws.
+test("S-36 ASC-17 RAC-1493: a managed install directory without its ownership record is refused as a declared invalid install and left untouched", async t => {
+  const home = await openTestHome(t), id = "0e3b1d6a-4b5f-4c47-9a58-2f0f9d6b9f11", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  assert.throws(() => removeManagedConnectorTool(home.home, id), { code: "connector.install.invalid", kind: "invalid" });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in a directory we cannot own is removed");
+});

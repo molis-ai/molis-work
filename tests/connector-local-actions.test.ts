@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connectorLocalActions, connectorManagementActions, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -85,4 +85,20 @@ test("S-37 ASC-34 ASC-35: local execution reports the current intent hold before
   assert.deepEqual(JSON.parse(readFileSync(join(home.home, "mcp-notes.jsonl"), "utf8")), { note: "only after the latest intent" });
   assert.equal(withConnectorConnections(home.home, store => store.list().length), 1);
   assert.doesNotMatch(JSON.stringify([held, submitted, accepted]), /fixture-page-only/);
+});
+
+// RAC-1494: the same directory through the cleanup action is a declared invalid refusal, and the refusal itself carries no
+// local path (the record read's ENOENT text used to).
+test("RAC-1494 cleanup of a managed install without its ownership record is a declared invalid refusal without the home path", async t => {
+  const home = await openTestHome(t), id = "0e3b1d6a-4b5f-4c47-9a58-2f0f9d6b9f11", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorLocalActions.cleanup, { installation_id: id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "安装所有权记录缺失，未移除任何文件", "the action passes the declared refusal's own sentence on");
+    assert.ok(!(error.message ?? "").includes(home.home), "the refusal does not name the local path");
+    return true;
+  });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in a directory we cannot own is removed");
 });

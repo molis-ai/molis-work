@@ -95,6 +95,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-093 | Issue 起名时模型给的标题、追问和编辑中的描述按 Unicode 字数数上限，与动作 schema 一致 | 乙 | 池 | 46 | T-092（只排合并） | `plugins/native/issues/src/naming.ts`、`plugins/native/issues/src/actions.ts`、`tests/issue-naming.test.ts` |
 | T-095 | 「AI 生成题目」的要求按 Unicode 字数数 500 字上限，与动作 schema 一致 | 乙 | B | 47 | — | `plugins/native/form/src/drafting.ts`、`tests/form-draft-questions.test.ts` |
 | T-097 | 选中的内容「记下灵光」时，第一行超过 40 个字按整字截取 | 乙 | 池 | 48 | — | `plugins/native/lingguang/src/actions.ts`、`tests/contextual-interaction.test.ts` |
+| T-098 | 提醒的「插件名：文字」超过 200 个单元时到点送不进收件箱：补用例确认，钉住现状 | 丙 | 池 | 49 | — | `tests/agent-built-plugins-reminders.test.ts` |
 
 ## 在途，不走任务书
 

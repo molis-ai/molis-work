@@ -49,13 +49,13 @@
 
 | 编号 | 事项 | 来源 | 为什么还没做 | 优先级 |
 | --- | --- | --- | --- | --- |
-| BL-022 | 多人协作项目里项目记忆的可见性、形成和修改；个人记忆不因项目共享自动公开 | [team-collaboration](team-collaboration/spec.md)、[原记忆需求](archive/memory-system/spec.md) | 项目共享边界已定，共享记忆规则仍待决定 | 低 |
 | BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
 
 ## 3. 助理、记忆与动态交互
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-022 | 团队记忆：成员选择有权分享的记忆发布到团队，团队管理员管理；个人记忆不自动公开 | [team-collaboration §2.4](team-collaboration/spec.md#24-成员发布记忆团队管理员管理2026-10-28-用户决定)、[现行记忆方案](prologue-memory-strategy/spec.md) | 明确后续做 | 发布与管理原则已定，交互、版本更新与同步仍待实施验证 | 团队身份／访问、个人同步与现行记忆公开合同 | 低 | 需求维护 Codex，实现待分配 |
 | BL-030 | 关闭应用后的持续执行与按时提醒：定时与委托只在服务进程活着时运行，Todo 提醒在关闭期间也不送达 | [system-assistant/implementation.md §4、§16 AC24](archive/system-assistant/implementation.md)、[todo-plugin D09](archive/todo-plugin/implementation.md) | 已知缺口 | 本机单进程的环境边界 | 常驻服务或系统级唤醒 | 低 | 未分配 |
 | BL-031 | Prologue：停止时为等待审批的工具补记取消；真正发出后没回执的修改只能显示「结果未确认」 | [system-assistant/implementation.md §4](archive/system-assistant/implementation.md)、[prologue-capability-matrix 缺口 7](archive/system-assistant/prologue-capability-matrix.md) | 已知缺口 | 需改 SDK | Prologue 上游 | 中 | 未分配 |
 | BL-032 | 「只说不做」自动续做一次：真实模型下的复现验证 | [system-assistant/implementation.md §4](archive/system-assistant/implementation.md) | 部分实现 | 待真实复现 | 无 | 低 | 未分配 |

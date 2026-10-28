@@ -3,12 +3,19 @@ import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HomeConsentLedger, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
+
+/** A Home package that is already installed refuses a second confirmation with the declared state code and a pointed message. */
+const describeInstallResult = (result: unknown): string => result instanceof ActionError
+  ? `ActionError ${result.code}: ${result.message}`
+  : result instanceof Error ? `${result.name}: ${result.message}` : `value ${JSON.stringify(result)}`;
+/** The refusal the task asks for: its declared code, and a message that tells the person to uninstall first. */
+const refusedInstalledHomePackage = (result: unknown): boolean => result instanceof ActionError && result.code === "plugin.state_invalid" && /先卸载/.test(result.message);
 
 // BL-628 (S-80, S-84, S-91; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): a signed package whose Manifest says
 // `runtime: { scope: "home" }` is installed in the Home: one sandboxed instance every project shares, started and recovered by the Home's
@@ -145,6 +152,51 @@ test("RAC-970 RAC-971 a Home package is switched and removed by the install life
   await install();
   assert.deepEqual(await operate(client, caller, await operationsOf(client, caller), "notes.list", {}), [], "a fresh installation starts empty");
 });
+test("RAC-1505 RAC-1506 RAC-1507 a Home package already installed refuses a second confirmation with plugin.state_invalid and changes nothing", mac, async t => {
+  const h = await fixture(t), publisher = newPublisher(), first = homePackage(publisher);
+  await h.install(first);
+  const installation = () => h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+  const approvals = () => valuesOf(h.home, "agent-studio:~home").filter(key => key.startsWith(APPROVED));
+  const observed = (error: unknown) => ({ unavailable: error instanceof ActionError ? error.code : String(error) });
+  const notes = async () => operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.list", {}).catch(observed);
+  const readState = async () => ({
+    install_id: installation().install_id,
+    version: installation().version,
+    state: installation().state,
+    approvals: approvals(),
+    publishers: h.ledger.publishers().length,
+    has_package: h.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID),
+    notes: await notes(),
+  });
+  await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "kept" });
+  const installed = await readState();
+  // Both refusals are collected as values first, and the guardrail state is read after each one, so one
+  // failing code assertion cannot hide the other scenario or the state that RAC-1507 has to report.
+  const newerResult = await h.install(homePackage(publisher, { version: "1.1.0" })).catch(error => error);
+  const afterNewer = await readState();
+  const sameResult = await h.install(first).catch(error => error);
+  const afterSame = await readState();
+  const actionResult = await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "after" }).then(value => ({ value }), observed);
+  const afterActions = await readState();
+
+  assert.equal(installed.version, "1.0.0", "the test starts from a genuinely installed 1.0.0 Home package");
+  assert.equal(installed.state, "running", "the package is genuinely running before the refusals");
+  assert.equal(installed.has_package, true, "the installed package is there before the refusals");
+  assert.ok(installed.approvals.length >= 1, "the Home holds the person's approval before the refusals");
+  assert.deepEqual(installed.notes, [{ id: "1", text: "kept" }], "the data written before the refusals is there");
+
+  assert.deepEqual(afterNewer, installed, `RAC-1507: a refused newer version must change nothing (got ${JSON.stringify(afterNewer)})`);
+  assert.deepEqual(afterSame, installed, `RAC-1507: the second refusal must change nothing (got ${JSON.stringify(afterSame)})`);
+  assert.equal("unavailable" in actionResult, false, `RAC-1507: the package still answers actions after the refusals (got ${JSON.stringify(actionResult)})`);
+  assert.deepEqual(afterActions.notes, [{ id: "1", text: "kept" }, { id: "2", text: "after" }], "RAC-1507: the data written after the refusals is read back");
+
+  assert.deepEqual(
+    [refusedInstalledHomePackage(newerResult), refusedInstalledHomePackage(sameResult)],
+    [true, true],
+    `RAC-1505/RAC-1506: both confirmations must be refused with plugin.state_invalid and tell the person to uninstall first; got ${describeInstallResult(newerResult)} | ${describeInstallResult(sameResult)}`,
+  );
+});
+
 
 test("RAC-970 only a package installed in the Home can be removed through the Home's plugin route; a plugin of the Host's build cannot", mac, async t => {
   const home = await openTestHome(t);

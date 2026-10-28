@@ -31,3 +31,5 @@
 | T-057 起草 | `tests/ci-product-subset.txt` | `tests/runtime-binding-error-codes.test.ts` 快、纯 Node，可进产品子集。等 #1371（T-041）合入、T-057 合入后另开一行 | 2026-10-29 |
 | T-071 起草 | `apps/local-host/src/assistant/assistant-rule-actions.ts:92-97`、`assistant-followups.ts:140-145` | 人自己（不在工作里）取消不存在的定时 id 照样成功、什么都不删，`assistant.rules.remove` 同理。要不要改成 404 是产品决定，问用户后再定开不开单 | 2026-10-29 |
 | 估算核对 | `specs/repository-anti-corruption/spec.md:1481` | 说 `skills/molis-plugin-dev/search.md` 没写 Home 级模式，`search.md:35` 已写，句子过时。下次改这份 spec 的任务带上 | 2026-10-29 |
+| 用户裁定 10-29 | `specs/BACKLOG.md` 的 BL-812 行 | 用户 10-29：BL-812（平台包日志端口）不算进防腐完成标准，记录在案，后续做。BACKLOG 那一行的「待你决定」改成这句（仍随 BL-169）。下次改 BACKLOG 的丙档带上 | 2026-10-29 |
+| 用户裁定 10-29 | `docs/system/CONTRACT-CHANGES.md:3-5`、`:80`，`specs/repository-anti-corruption/c-end-readiness.md` 的 D1 与 `:262`，`specs/repository-anti-corruption/spec.md:2790` | 用户 10-29：「1.0.0 之前都是开发版本」，0.3.0 不是第一个外部版本，读取兼容的起点不早于 1.0.0；发版（W5-15 余下）不算进防腐完成标准。三份文档写进这句。要尽快开一单丙档 | 2026-10-29 |

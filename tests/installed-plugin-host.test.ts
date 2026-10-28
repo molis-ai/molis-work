@@ -837,3 +837,103 @@ test('RAC-392 S-87 a Host restarted right after a publisher was taken back, befo
     assert.match(restarted.recoveryErrors.get(PACKAGE_PLUGIN_ID) ?? '', /撤销/, 'the person is told why');
   } finally { await h.close(); }
 });
+
+// RAC-1150 T-032: a crashed installation is still something the person can switch off: the disable withdraws its prompts and actions,
+// keeps the crash on the record, and succeeds instead of refusing with plugin.state_invalid.
+test('RAC-1150 disabling a crashed installation withdraws it and keeps the crash on the record', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-crashed-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime;
+    await runtime.reportCrash(fixture.install.install_id);
+    assert.equal(runtime.get(fixture.install.install_id)?.state, 'crashed');
+    await installed.lifecycle('disable', fixture.release);
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'disabled');
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false);
+    assert.equal(await rig.generated(), 0);
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id)?.state, 'crashed', 'disabling it does not pretend the process stopped cleanly');
+    // Leave a stop the Host's own close can do: recover it, then switch it off again.
+    await runtime.recover(fixture.install.install_id); await installed.lifecycle('disable', fixture.release);
+  } finally {
+    // A crashed installation cannot be stopped on the way out; the record is what this case is about.
+    await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+// RAC-1150 T-032: the same for an installation the Runtime already quarantined after repeated crashes.
+test('RAC-1150 disabling a quarantined installation withdraws it and keeps the quarantine on the record', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-quarantined-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime;
+    for (let attempt = 0; attempt < 3; attempt++) { await runtime.reportCrash(fixture.install.install_id); await runtime.recover(fixture.install.install_id); }
+    await runtime.reportCrash(fixture.install.install_id);
+    await assert.rejects(runtime.recover(fixture.install.install_id), { code: 'plugin.quarantined' });
+    assert.equal(runtime.get(fixture.install.install_id)?.state, 'quarantined');
+    await installed.lifecycle('disable', fixture.release);
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'disabled');
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false);
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id)?.state, 'quarantined');
+    await runtime.recover(fixture.install.install_id, { release_quarantine: true }); await installed.lifecycle('disable', fixture.release);
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1152 T-032: only plugin.state_invalid is let through by the disable; a stop that really failed (plugin.executor_failed here) is still
+// reported to the person and the prompts stay enabled.
+test('RAC-1152 disabling an installation whose stop fails reports the failure instead of swallowing it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-stop-failed-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, stop = runtime.stop.bind(runtime);
+    runtime.stop = async () => { throw new ActionError('plugin.executor_failed', '停止钩子失败'); };
+    await assert.rejects(installed.lifecycle('disable', fixture.release), (error: unknown) => error instanceof ActionError && error.code === 'plugin.executor_failed');
+    runtime.stop = stop;
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'enabled', 'a disable that did not stop it leaves the prompts on');
+    // The Host still owns a running instance, so switch it off for real before closing the Home.
+    await installed.lifecycle('disable', fixture.release);
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1151 T-032: an exposure that fails reports its own error even when the cleanup's stop is refused because the installation crashed
+// while the exposure was reading the catalog; the crash is not a second failure to report over the first.
+test('RAC-1151 an exposure failure keeps its own error when the cleanup stop is refused', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-exposure-refused-'));
+  const fixture = await publishedFixture(home, 'project'), store = new LocalProjectDatabase(fixture.databasePath), service = new ActionService();
+  let armed = false;
+  let runtime: { reportCrash(installId: string): Promise<unknown> } | undefined;
+  try {
+    const installed = await ensureInstalledPlugins({ store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID,
+      inspect: async actor => {
+        const snapshot = service.inspect(actor);
+        if (armed) { armed = false; void runtime?.reportCrash(fixture.install.install_id); throw new Error('controlled exposure failure'); }
+        return snapshot;
+      } } });
+    runtime = installed.platform.runtime;
+    await installed.lifecycle('disable', fixture.release);
+    armed = true;
+    await assert.rejects(installed.lifecycle('enable', fixture.release, {}), (error: unknown) => error instanceof Error && error.message === 'controlled exposure failure');
+    assert.match(installed.recoveryErrors.get(fixture.release.pluginId) ?? '', /controlled exposure failure/);
+    // The failed exposure left nothing of its own registered: the cleanup withdrew the plugin before the stop was refused.
+    assert.deepEqual(
+      service.inspect(caller).filter(view => view.provider.plugin_id === fixture.release.pluginId),
+      [],
+      'the failed exposure withdraws the actions it had exposed',
+    );
+    // Leave a stop the Host's own close can do: recover the crashed record, then switch it off again.
+    await runtime.recover(fixture.install.install_id); await installed.lifecycle('disable', fixture.release);
+  } finally {
+    try { await releaseInstalledPlugins(store, DEMO_PROJECT_ID); } catch { /* the case already reported its failure */ }
+    try { store.close(); } catch { /* the case already reported its failure */ }
+    await rm(home, { recursive: true, force: true });
+  }
+});

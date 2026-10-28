@@ -91,22 +91,23 @@ test("RAC-1270 pulled Feed items read back without the source marker tag, keepin
     assert.equal(synced.created, 1);
     const item = data.service.feed.snapshot(DEMO_PROJECT_ID).feed_items.find(candidate => candidate.source_id === data.source.source_id);
     assert.ok(item, "the pull leaves one item for its source");
-    assert.ok(item.tags.includes("custom_rss"), "the source kind stays readable");
-    assert.deepEqual(item.tags.filter(tag => tag.startsWith(MARKER)), [], "the pull's own marker is not part of what a person reads");
+    // The pull writes the source kind plus one marker of its own: a person reading it sees exactly the kind, so a changed marker written by
+    // source-sync shows up here as an extra tag instead of staying hidden.
+    assert.deepEqual(item.tags, ["custom_rss"], "the pull's own marker is not part of what a person reads");
     const read = data.service.feed.getFeedItem(DEMO_PROJECT_ID, item.item_id);
-    assert.deepEqual(read.tags, item.tags);
+    assert.deepEqual(read.tags, ["custom_rss"], "the single-item read makes the same choice as the snapshot");
 
     const human = data.service.feed.ingestItem({
       source: data.source,
       externalId: "human-tags-1",
       title: "Person tags this",
       summary: "People keep their own tags",
-      tags: ["a", "feed-source:handmade"],
+      tags: ["zeta", "feed-source:handmade", "alpha"],
       occurredAt: "2026-09-15T00:00:00.000Z",
       attention: false,
     });
-    assert.deepEqual(human.item.tags, ["a"], "only the marker goes; a person's tag keeps its place");
-    assert.deepEqual(data.service.feed.getFeedItem(DEMO_PROJECT_ID, human.item.item_id).tags, ["a"]);
+    assert.deepEqual(human.item.tags, ["zeta", "alpha"], "only the marker goes; a person's tags keep their places");
+    assert.deepEqual(data.service.feed.getFeedItem(DEMO_PROJECT_ID, human.item.item_id).tags, ["zeta", "alpha"]);
   } finally {
     close(data);
   }
@@ -153,14 +154,16 @@ test("RAC-1272 the search summary of a pulled item leaves the marker out and kee
     const entry = page.entries.find(candidate => candidate.subject.kind === "feed_item" && candidate.subject.id === pulled.item_id);
     assert.ok(entry);
     assert.doesNotMatch(entry.summary, new RegExp(MARKER));
-    assert.match(entry.summary, /可核对摘要/);
-    assert.match(entry.summary, /custom_rss/);
+    // Written out from the fixture's own facts (its preview, the source's display name, the pull's author and kind), not rebuilt from the
+    // projection under test: a search summary that drops the source name or the author now fails here.
+    assert.equal(entry.summary, "可核对摘要 · 自定义 RSS · Example · custom_rss");
 
     const human = data.service.feed.ingestItem({
       source: data.source,
       externalId: "search-visible-1",
       title: "Visible tags only",
       summary: "Plain summary",
+      author: "Person Author",
       tags: ["visible"],
       occurredAt: "2026-09-15T00:00:00.000Z",
       attention: false,
@@ -171,8 +174,8 @@ test("RAC-1272 the search summary of a pulled item leaves the marker out and kee
     assert.ok(plainEntry);
     assert.equal(
       plainEntry.summary,
-      [plain.summary, plain.source_label, plain.author, "visible"].filter(Boolean).join(" · "),
-      "an item without the marker keeps the summary it has today",
+      "Plain summary · 自定义 RSS · Person Author · visible",
+      "an item without the marker keeps the summary it has today, author included",
     );
   } finally {
     close(data);
@@ -205,8 +208,8 @@ test("RAC-1273 an out rule naming the internal marker matches nothing, and captu
     const launch = data.service.feed.ingestItem({
       source: data.source,
       externalId: "launch-with-marker-1",
-      title: "Launch notes",
-      summary: "Ship the launch notes",
+      title: "Release notes",
+      summary: "Nothing here names the word",
       tags: ["launch", "feed-source:internal"],
       occurredAt: "2026-09-15T00:00:00.000Z",
       attention: false,

@@ -882,7 +882,6 @@ test('RAC-1150 disabling a crashed installation withdraws it and keeps the crash
     // A crashed installation cannot be stopped on the way out; the record is what this case is about.
     await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
     await rm(home, { recursive: true, force: true });
-    setTimeout(() => { process.stderr.write('HANDLES ' + (process as unknown as { _getActiveHandles(): Array<{ constructor: { name: string } }> })._getActiveHandles().map(handle => handle.constructor.name).join(',') + '\n'); }, 3000).unref();
   }
 });
 

@@ -273,6 +273,52 @@ test("a command that gets no reply times out at the given limit and the error na
   });
 });
 
+test("a reply that arrived before its timer still wins, even when the timer runs first (RAC-1450)", async () => {
+  await withHarness((message, reply) => {
+    if (message.method !== "Slow") { reply({ result: {} }); return; }
+    // Put the reply on the wire first, then block this thread past the command's limit: by the time the event loop
+    // comes back the timer is overdue while the reply is already in the socket, so the timer must not decide the outcome.
+    reply({ result: { value: 42 } });
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+  }, {}, async (harness) => {
+    assert.deepEqual(await harness.command("Slow", {}, undefined, 50), { value: 42 });
+    // The deferred timer decision does not reject anything after the reply settled the command.
+    assert.deepEqual(await harness.command("After", {}, undefined, 500), {});
+  });
+});
+
+test("a timed-out command carries how much Chrome said while it waited (RAC-1451)", async () => {
+  await withHarness((message, reply, push) => {
+    if (message.method !== "Quiet") { reply({ result: {} }); return; }
+    for (let index = 0; index < 200; index++) push({ method: "Page.frameNavigated", params: { frame: { id: String(index) } } });
+  }, {}, async (harness) => {
+    await assert.rejects(harness.command("Quiet", {}, undefined, 120), (error) => {
+      assert.match(error.message, /^CDP timeout: Quiet \(elapsed \d+ms; limit 120ms\)$/);
+      assert.deepEqual(Object.keys(error.cause).sort(), ["eventLoopActiveMs", "eventLoopIdleMs", "nodeCpuMs"]);
+      const diagnostics = error.diagnostics;
+      assert.ok(diagnostics, "a timeout error carries diagnostics");
+      assert.ok(diagnostics.chromeMessages >= 200, `saw ${diagnostics.chromeMessages} messages`);
+      assert.equal(diagnostics.chromeTopMethods[0].method, "Page.frameNavigated");
+      assert.ok(diagnostics.chromeTopMethods[0].count >= 200);
+      return true;
+    });
+  });
+});
+
+test("a timeout is still a timeout: the limit, the message and the requests do not change (RAC-1452)", async () => {
+  await withHarness((message, reply) => {
+    if (message.method !== "Never") reply({ result: {} });
+  }, {}, async (harness, devtools) => {
+    assert.equal(harness.commandTimeoutMs, 20_000);
+    await harness.command("Ping");
+    const started = Date.now();
+    await assert.rejects(harness.command("Never", {}, undefined, 120), /CDP timeout: Never/);
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed >= 120 && elapsed <= 370, `failed after ${elapsed}ms`);
+    assert.equal(devtools.received.length, 2, "only the two commands were sent to Chrome: the timeout adds no requests");
+  });
+});
+
 test("the default command limit comes from the options", async () => {
   await withHarness(() => {}, { commandTimeoutMs: 120 }, async (harness) => {
     const started = Date.now();

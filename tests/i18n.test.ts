@@ -29,6 +29,18 @@ test("safe next path only allows same-origin relative locations", () => {
   assert.equal(safeNextPath(undefined), "/");
 });
 
+test("RAC-1317 the market's relation sentences have English", () => {
+  const sentences: ReadonlyArray<readonly [string, string]> = [
+    ["移除会同时移除：{list}", "Removing also removes: {list}"],
+    ["依赖它的插件不会一并添加：{list}", "Plugins that depend on it are not added with it: {list}"],
+    ["；依赖它的插件不会一并添加：{list}", "; plugins that depend on it are not added with it: {list}"],
+  ];
+  for (const [zh, en] of sentences) {
+    assert.equal(EN[zh], en, zh);
+    runWithLocale("en", () => assert.equal(L(zh), en, zh));
+  }
+});
+
 test("L translates chrome in an English request and keeps Chinese as source", () => {
   assert.equal(L("设置"), "设置");
   assert.equal(L("未登录"), "未登录");

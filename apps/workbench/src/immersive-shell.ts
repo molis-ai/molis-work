@@ -114,6 +114,20 @@ const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入�
  * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
  * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
  */
+/**
+ * The plugin keys that go when one goes: `id` plus every member whose companions name something already going. The Projects service
+ * applies the same closure on removal, so the Dock and the market both say it from the directory alone.
+ */
+function dependentPlugins(id: string, members: ReadonlySet<string> | readonly string[], companionsOf: (id: string) => readonly string[]): string[] {
+  const going = new Set([id]);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const other of members) if (!going.has(other) && companionsOf(other).some(companion => going.has(companion))) { going.add(other); changed = true; }
+  }
+  going.delete(id);
+  return [...going];
+}
+
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
@@ -144,15 +158,7 @@ export function renderPluginRail(
   const marks = new Map(directory.map(entry => [entry.id, entry]));
   const companionsOf = (id: string): readonly string[] => marks.get(id)?.companions ?? [];
   const alongWith = (id: string): string[] => companionsOf(id).filter(other => other !== id && !have.has(other));
-  const dependentsOf = (id: string): string[] => {
-    const going = new Set([id]);
-    for (let changed = true; changed;) {
-      changed = false;
-      for (const other of have) if (!going.has(other) && companionsOf(other).some(companion => going.has(companion))) { going.add(other); changed = true; }
-    }
-    going.delete(id);
-    return [...going];
-  };
+  const dependentsOf = (id: string): string[] => dependentPlugins(id, have, companionsOf);
   const named = (ids: readonly string[]) => ids.map(id => names.get(id) ?? id).join("|");
   // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project.
   const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
@@ -166,10 +172,13 @@ export function renderPluginRail(
     const locked = owned && marks.get(plugin.id)?.always_on === true;
     const sites = sitesOf.get(plugin.id) ?? [];
     const alongNote = along.length ? say(L, "；添加会同时添加：{list}", { list: join(along.map(id => names.get(id) ?? id)) }) : "";
+    // What adding it will not bring although it depends on it: an addable plugin cannot add them for it (RAC-1315).
+    const needed = owned ? [] : addable.filter(id => id !== plugin.id && companionsOf(id).includes(plugin.id));
+    const dependNote = needed.length ? say(L, "；依赖它的插件不会一并添加：{list}", { list: join(needed.map(id => names.get(id) ?? id)) }) : "";
     const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
       label: say(L, owned ? "移除：{name}" : "添加：{name}", { name: plugin.label }),
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? L("常开插件不能从项目移除") : owned ? L("在本项目停用；数据保留，加回即恢复") : `${L("添加到本项目")}${alongNote}${sites.length ? say(L, "；会在侧栏浏览器里使用：{sites}", { sites: join(sites) }) : ""}` } });
+        title: locked ? L("常开插件不能从项目移除") : owned ? L("在本项目停用；数据保留，加回即恢复") : `${L("添加到本项目")}${alongNote}${dependNote}${sites.length ? say(L, "；会在侧栏浏览器里使用：{sites}", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
@@ -351,7 +360,16 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
     ? `<small class="plugin-market-sites" data-market-sites>${say(L, "会在侧栏浏览器里使用：{sites}", { sites: join(plugin.sites.map(site => escapeHtml(site))) })}</small>` : "";
-  const rows = pluginMarketCards(options, directory).map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  // What adding one brings, and what removing one takes, in the same words the Projects service applies (W5-02 B1 marks, RAC-1310).
+  const cards = pluginMarketCards(options, directory), cardIds = new Set(cards.map(card => card.id));
+  const marks = new Map(directory.map(entry => [entry.id, entry]));
+  const companionsOf = (id: string): readonly string[] => marks.get(id)?.companions ?? [];
+  const related = (ids: readonly string[]) => ids.filter(id => cardIds.has(id));
+  const rows = cards.map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => {
+    const needs = related(companionsOf(plugin.id).filter(id => id !== plugin.id));
+    const neededBy = dependentPlugins(plugin.id, cardIds, companionsOf);
+    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`;
+  }).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

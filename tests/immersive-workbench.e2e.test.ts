@@ -194,3 +194,80 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
+
+test("RAC-1313 RAC-1314 a market change to another project says what came or went with it, and what did not come", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "user");
+  if (!browser) return;
+  const { projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  const status = () => evaluate<string>("document.querySelector('[data-market-status]').textContent || ''");
+  const selectProject = (id: string) => evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(id)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const other = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
+  await click('[data-work-surface-open="market"]');
+  await waitFor("!document.querySelector('[data-market-project]').disabled");
+  await selectProject(other);
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').disabled", 10_000);
+  // RAC-1313: adding Feed to another project says Inbox came with it.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.match(await status(), /^已添加到 另一个项目；同时添加了：Inbox$/);
+  // RAC-1313: removing Inbox from it takes Feed with it.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  assert.match(await status(), /^已移除自 另一个项目；同时移除了：Feed$/);
+  // RAC-1314: adding Inbox to that project (no Feed now) says Feed does not come with it.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.match(await status(), /^已添加到 另一个项目；依赖它的插件不会一并添加：Feed$/);
+  // RAC-1314: once Feed is in it too, the Inbox card is a removal and says nothing about a plugin not coming with it.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title') || ''"), /依赖它的插件不会一并添加/);
+  // RAC-1313: in this project the same two things are done in place, and the line stays the one sentence: the toast says
+  // what came along, once. The current project starts with Feed and Inbox; taking Inbox out takes Feed with it.
+  await selectProject(projectId!);
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]'))", 10_000);
+  const here = await evaluate<string>("document.querySelector('[data-market-project-label]').textContent");
+  const membership = () => evaluate<string[]>(`fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects.find(p=>p.project_id===${JSON.stringify(projectId)})?.plugins || [])`);
+  if ((await evaluate("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership")) === "added") {
+    await click('[data-market-plugin="inbox"] [data-market-add]');
+    await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  }
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)), [], "neither is in this project now");
+  // Every write of the status line from here on, wherever the market's own surface is redrawn: the writer the page keeps holds
+  // the element it was made with, so a line written after a redraw would be invisible — record the writes themselves.
+  await evaluate(`(() => {
+    window.__marketStatusWrites = [];
+    const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, "textContent");
+    Object.defineProperty(Node.prototype, "textContent", {
+      configurable: true,
+      get() { return descriptor.get.call(this); },
+      set(value) {
+        if (this instanceof Element && this.hasAttribute("data-market-status")) window.__marketStatusWrites.push(String(value));
+        descriptor.set.call(this, value);
+      },
+    });
+    return true;
+  })()`);
+  // Adding Feed in this project brings Inbox with it: the membership shows both, the toast says so once, the line does not.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  await waitFor("(() => { const t = document.querySelector('[data-toast]'); return t && /同时添加了：Inbox/.test(t.textContent || ''); })()", 10_000);
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)).sort(), ["feed", "inbox"], "Inbox came along");
+  const addedWrites: string[] = await evaluate("window.__marketStatusWrites");
+  assert.ok(addedWrites.includes("已添加到 " + here), "the one existing sentence was written: " + JSON.stringify(addedWrites));
+  assert.deepEqual(addedWrites.filter(line => /同时添加了|同时移除了|依赖它的插件不会一并添加/.test(line)), [],
+    "the line never repeats what the toast says: " + JSON.stringify(addedWrites));
+  // Removing Inbox takes Feed with it: same rule, the other way.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  await waitFor("(() => { const t = document.querySelector('[data-toast]'); return t && /同时移除了：Feed/.test(t.textContent || ''); })()", 10_000);
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)), [], "Feed went with Inbox");
+  const removedWrites: string[] = await evaluate("window.__marketStatusWrites");
+  assert.ok(removedWrites.includes("已移除自 " + here), "the one existing sentence was written: " + JSON.stringify(removedWrites));
+  assert.deepEqual(removedWrites.filter(line => /同时添加了|同时移除了|依赖它的插件不会一并添加/.test(line)), [],
+    "the line never repeats what the toast says: " + JSON.stringify(removedWrites));
+});

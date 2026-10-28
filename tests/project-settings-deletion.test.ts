@@ -41,7 +41,7 @@ async function fixture(t: TestContext) {
   return { directory, homeDirectory, catalog, project, other, localHost, origin, post };
 }
 
-test("project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
+test("RAC-1330 project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
   const { directory, homeDirectory, catalog, project, other, localHost, origin, post } = await fixture(t);
   const prefix = `/projects/${project.project_id}`;
   const deletePath = `/api/settings/projects/${project.project_id}/delete`;
@@ -115,6 +115,7 @@ test("project settings deletion requires authorization and confirmation, closes 
   assert.deepEqual(await replay.json(), { ...result, replayed: true });
   const conflict = await post(`/api/settings/projects/${other.project_id}/delete`, body);
   assert.equal(conflict.status, 400);
+  assert.equal(((await conflict.json()) as { code?: string }).code, "catalog.deletion_idempotency_conflict");
   assert.equal(existsSync(other.database_path), true);
   const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
@@ -149,7 +150,7 @@ test("project deletion reports incomplete physical cleanup and retries the same 
   assert.equal(existsSync(join(dirname(dirname(project.database_path)), staged[0])), false);
 });
 
-test("project deletion refuses a live terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
+test("RAC-1330 project deletion refuses a live terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
   const { directory, catalog, project, origin, post } = await fixture(t);
   const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "test-terminal-goal", runtime_kind: "generic",
     launch_command: "/bin/cat", cwd: directory, actor_id: "test-user", user_confirmed: true });
@@ -178,7 +179,9 @@ test("project deletion refuses a live terminal and succeeds after the user close
     const body = { delete_confirmed: true, idempotency_key: "live-terminal-delete" };
     const blocked = await post(deletePath, body);
     assert.equal(blocked.status, 409);
-    assert.match((await blocked.json() as { error: string }).error, /关闭.*终端/);
+    const blockedBody = await blocked.json() as { error: string; code?: string };
+    assert.match(blockedBody.error, /关闭.*终端/);
+    assert.equal(blockedBody.code, "catalog.project_terminal_live");
     assert.equal(existsSync(project.database_path), true);
     socket.send(JSON.stringify({ type: "kill", panelId: panel.panel_id }));
     const detached = await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned");
@@ -187,4 +190,22 @@ test("project deletion refuses a live terminal and succeeds after the user close
     assert.equal(existsSync(project.database_path), false);
     assert.deepEqual(catalog.listDesktopPanels(project.project_id), []);
   } finally { socket.terminate(); }
+});
+
+test("RAC-1330 project deletion of a project that is not in the catalog answers 404 with its code", async t => {
+  const { post } = await fixture(t);
+  const response = await post("/api/settings/projects/no-such-project/delete", { delete_confirmed: true, idempotency_key: "missing-project-delete" });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json() as { code?: string }).code, "catalog.project_not_found");
+});
+
+test("RAC-1333 a deletion failure that is not an ActionError keeps its text out of the response", async t => {
+  const { post } = await fixture(t);
+  // A project id whose percent-encoding does not decode is a plain URIError on the way in, not a refusal: the exit rethrows it,
+  // the Host's unhandled answer logs it and answers with a diagnostic id, never with the internal text.
+  const response = await post("/api/settings/projects/%zz/delete", { delete_confirmed: true, idempotency_key: "malformed-project-id" });
+  assert.equal(response.status, 500);
+  const body = await response.json() as { error?: string; diagnostic_id?: string };
+  assert.equal(typeof body.diagnostic_id, "string", JSON.stringify(body));
+  assert.doesNotMatch(body.error ?? "", /URI|malformed/i);
 });

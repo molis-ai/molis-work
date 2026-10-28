@@ -81,6 +81,29 @@ test("Terminal PTY forwards Ctrl-C and killAll terminates every active process",
   } finally { host.killAll(); }
 });
 
+test("RAC-1604: a terminal's replay keeps only its newest 200,000 characters, while the live output carries everything", async () => {
+  // horizontal/runtime-host/README.md「重放缓冲有上限」: REPLAY_LIMIT in src/adapters/terminal-pty.ts:16.
+  const LIMIT = 200_000;
+  let output = "";
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit() { /* the terminal stays open until killAll */ },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  try {
+    host.spawn({
+      panelId: "long", command: "/bin/sh", cwd: os.tmpdir(),
+      args: ["-c", `head -c ${LIMIT + 100_000} /dev/zero | tr '\\000' x; printf END; exec cat`],
+    });
+    await waitUntil(() => output.endsWith("END"), tick);
+    assert.equal(output, "x".repeat(LIMIT + 100_000) + "END", "the live output is never clipped");
+    const attached = host.spawn({ panelId: "long", attachOnly: true });
+    assert.equal(attached.attached, true);
+    assert.equal(attached.replay.length, LIMIT, "the replay stops at the limit");
+    assert.equal(attached.replay, "x".repeat(LIMIT - 3) + "END", "the replay keeps the newest output");
+  } finally { host.killAll(); }
+});
+
 function processExited(pid: number): boolean {
   try { process.kill(pid, 0); return false; }
   catch (error) {

@@ -165,8 +165,8 @@ Work 扫描全部 72 个 workspace 包、开始基线的 2405 份产品 TypeScri
 | `apps/local-host/src/project-plugins.ts` | `ProjectStageView` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |
 | `apps/workbench/src/immersive-shell.ts` | `InstalledRailEntry`, `renderPickerExtend` | 开放 PR #970, #934 的实际修改文件。 |
 | `apps/workbench/src/settings-connector-guide.ts` | `methodLabel`, `officialLinks` | 开放 PR #970, #946 的实际修改文件。 |
-| `apps/workbench/src/settings-directory.ts` | `SettingsDirectoryPrimitives`, `renderPluginRailAccountFooter` | 开放 PR #970, #946 的实际修改文件。 |
-| `apps/workbench/src/side-view-document.ts` | `sideViewKeys` | 开放 PR #970, #934 的实际修改文件。 |
+| `apps/workbench/src/settings-directory.ts` | `SettingsDirectoryPrimitives`, `renderPluginRailAccountFooter`（已删，#1353） | 开放 PR #970, #946 的实际修改文件。 |
+| `apps/workbench/src/side-view-document.ts` | `sideViewKeys`（已删，#1353） | 开放 PR #970, #934 的实际修改文件。 |
 | `horizontal/agent-host/src/adapters/prologue-documents.ts` | `parsePrologueDocument` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |
 | `horizontal/agent-host/src/adapters/prologue-inputs.ts` | `SteerInput`, `deliverSteer` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |
 | `horizontal/agent-host/src/adapters/prologue-stream.ts` | `PrologueTokenCount` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |

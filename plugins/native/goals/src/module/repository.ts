@@ -379,7 +379,7 @@ function json(value: unknown): string {
 const unreadableStoredJson = Symbol("unreadable-stored-json");
 const unreadableStoredJsonMessage = "Goals 存的一条记录读不出来（JSON 已损坏），读取已停止，没有按空值处理";
 
-function parseJson<T>(value: unknown, fallback: T): T {
+export function parseJson<T>(value: unknown, fallback: T): T {
   if (value == null) return fallback;
   let parsed: unknown = unreadableStoredJson;
   if (typeof value === "string" && value.length > 0) {

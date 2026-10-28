@@ -1,5 +1,5 @@
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalsSqliteDatabase } from "../repository.js";
+import { parseJson, type GoalsSqliteDatabase } from "../repository.js";
 import { normalizePlanningMethodPack } from "./method-packs.js";
 
 /** Personal scope shares Planning semantics, but never writes project method facts. */
@@ -9,7 +9,7 @@ export class PersonalPlanningMethods {
   list(): PlanningMethodPack[] {
     return (this.db.prepare("SELECT pack_json FROM personal_planning_method_packs ORDER BY method_id")
       .all() as Array<{ pack_json?: unknown }>)
-      .map(row => parsePack(row.pack_json))
+      .map(row => parseJson<PlanningMethodPack | null>(row.pack_json, null))
       .filter((pack): pack is PlanningMethodPack => pack != null);
   }
 
@@ -35,10 +35,4 @@ export class PersonalPlanningMethods {
   delete(methodId: string): boolean {
     return this.db.prepare("DELETE FROM personal_planning_method_packs WHERE method_id = ?").run(methodId).changes > 0;
   }
-}
-
-function parsePack(value: unknown): PlanningMethodPack | null {
-  if (typeof value !== "string" || !value) return null;
-  try { return JSON.parse(value) as PlanningMethodPack; }
-  catch { return null; }
 }

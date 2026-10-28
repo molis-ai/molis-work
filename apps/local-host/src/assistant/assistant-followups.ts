@@ -210,8 +210,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (!current()) return;
     const now = ports.now(), due = followUp.next_at!;
     let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
-    // Gone is said so. A store that cannot be read is thrown and writes nothing: the queue keeps this time failed with the error, and the next start runs it again.
-    const work = whenThere(() => ports.work(followUp.work_id)) ?? undefined;
+    // Gone is said so. A store that cannot be read writes nothing to the follow-up: it is written to the Host log (once, the same key as at
+    // start) and thrown, so the queue keeps this time failed and the next start decides it again by the same grace rule.
+    let work: W | undefined;
+    try { work = whenThere(() => ports.work(followUp.work_id)) ?? undefined; this.#unreadableWorks.worked(followUp.followup_id); }
+    catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); throw error; }
     if (!work) { outcome = "failed"; detail = "这项工作已不存在"; }
     else if (work.archived) { outcome = "skipped"; detail = "这项工作已归档，这一次没有开始"; }
     else if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {

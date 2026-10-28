@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { connectorSetupAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectorSetupAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -15,7 +15,7 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   assert.ok(localHost);
   const caller: ActionCallContext = { actor_id: "assistant:protected-form", runtime_session_id: "protected-form", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ] };
   const prepare = (name: string, service = "model-api") => localHost.homeActionClient().invoke(caller, connectorSetupAction, { service_id: service, method: "token", display_name: name, expected_revision: null }) as Promise<{ authorization_id: string; url: string }>;
-  const read = (id: string) => localHost.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: id }) as Promise<{ status: string; connection_id: string }>;
+  const read = async (id: string) => (await fetch(`${origin}/api/settings/connectors/authorizations/${id}`)).json() as Promise<{ status: string; connection_id: string }>;
   const open = async (url: string) => {
     await navigate(() => command("Page.navigate", { url: origin + url }, sessionId));
     await waitFor("document.querySelector('[data-setup-id]')?.dataset.connectorsBound === '1'", 15_000);

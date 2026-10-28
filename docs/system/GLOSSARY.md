@@ -121,7 +121,7 @@
 **推荐选项（recommendation option）**
 
 - 定义：判断结果里「建议做什么」的一项。一项要么是一个动作引用（`recommended_actions`，精确的 `ActionReference` 加 `provider_id`），要么是消费场景在 `result_schema` 里列出的符号（`suggested_behavior_ids`，只在该场景内有意义，由场景所有者映射到自己的按钮或动作）。推荐不授予执行权限。
-- 代码里这一概念一直叫 behavior：结果类型 `molis.behavior-recommendation.v1`，字段 `suggested_behavior_ids`（也存在 `function_judgments.suggested_json` 里），编辑器目录 `FunctionAuthoringBehavior`（`packages/contracts/src/modules/functions.ts`）、`apps/local-host/src/behavior-catalog.ts`。Manifest 的 `behaviors` 已在 2026-10 删除。
+- 代码里这一概念一直叫 behavior：结果类型 `molis.behavior-recommendation.v1`，字段 `suggested_behavior_ids`（也存在 `function_judgments.suggested_json` 里），编辑器目录 `JudgmentRuleAuthoringBehavior`（`packages/contracts/src/modules/functions.ts`）、`apps/local-host/src/recommendation-catalog.ts`。Manifest 的 `behaviors` 已在 2026-10 删除。
 - 旧称：行为。文档不再用这个词指它。
 
 ### 2.3 AI 执行体系
@@ -251,7 +251,7 @@
 | --- | --- | --- |
 | `project_plugin_id` | 项目里启用与隐藏、插件切换器、工作面都用的短 id（`ProjectPluginId`） | `goals`、`form`、`plugin-builder` |
 | `manifest.plugin_id` | 插件的身份键，安装记录、事件订阅、发行物留存、提示词覆盖（`owner_id`）等都以它为键；签名变了同样视为另一个插件，旧授权、存储和绑定不继承（`docs/platform/PLUGIN-PLATFORM.md` §2） | `io.molis.work.todo` |
-| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口里的 `plugin_title` 取它（`apps/workbench/src/plugin-catalog.ts:305,313,322`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:61`），动作提供方的标题也取它（`apps/local-host/src/content-action-providers.ts:33`），所以会出现在界面上 | `Forms`、`待办` |
+| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口里的 `plugin_title` 取它（`apps/local-host/src/artifact-type-registry.ts:172,155,163`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:78`），动作提供方的标题也取它（`packages/plugin-runtime/src/action-provider.ts:34`），所以会出现在界面上 | `Forms`、`待办` |
 | 界面显示名 | `manifest.ui.views[].title`，插件切换器和标签页标题用它 | `Forms`、`角色` |
 | 目录与包名 | `plugins/native/<目录>`，`@molis-ai/molis-work-plugin-<目录>` | `plugins/native/todo` |
 
@@ -322,7 +322,7 @@
 
 **U3　Skill 在界面叫「方法」**
 
-- 现状：Coding 的「项目方法」「安装方法」「方法」（`plugins/native/coding/src/ui.ts`、`settings-client.ts`、`client.ts`），助理里的「用一个能力或方法」和物料类型「方法」（`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`）；同一界面的 Character 流程却写「本轮使用的 Skills」（`plugins/native/coding/src/characters-client.ts`）。而「方法」还指规划方法、研究方法、连接方式。
+- 现状：Coding 的「项目方法」「安装方法」「方法」（`plugins/native/coding/src/messages.ts`、`settings-messages.ts`），助理里的「用一个能力或方法」和物料类型「方法」（`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`）；同一界面的 Character 流程却写「本轮使用的 Skills」（`plugins/native/coding/src/panels-messages.ts` 的 `coding.character.skills`）。而「方法」还指规划方法、研究方法、连接方式。
 - 建议：上面这些指 Skill 的地方统一写「Skill」；规划方法、研究方法、连接方式保持全名。
 - 备选：界面保留「方法」，把 Character 流程里的「Skills」也改成「方法」；保持现状。
 

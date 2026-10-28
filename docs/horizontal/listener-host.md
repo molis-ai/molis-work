@@ -10,8 +10,8 @@
 
 **恢复规则：** Draft 未被 Signals 接受前不能推进 cursor；重复投递必须可去重；暂停、进程重启、乱序和 adapter 升级都要有明确恢复结果。
 
-**当前来源与 Goal：** `horizontal/listener-host` 管技术状态；Native Feed SourceScheduler 与 ConnectorSync 编排轮询；Local Host Web timer 管运行生命周期。FD1/Cutover 已完成旧路径退出。
+**当前来源与 Goal：** Feed 插件里的 `ListenerHost`（`plugins/native/feed/src/store/listener.ts`）管技术状态；Native Feed SourceScheduler 与 ConnectorSync 编排轮询；Local Host Web timer 管运行生命周期。FD1/Cutover 已完成旧路径退出。
 
-**FD1 当前实现：** `@molis-ai/molis-work-service-listener-host` 已保存独立 cursor、lease、durable delivery、attempt、retry、quarantine 与 Run。Raw Event 先落盘，再交 Adapter 形成 Draft；只有收到 Signals Receipt 后才确认 delivery 和推进 cursor。同 operation 可在重启后恢复，终态 replay 不再调用 Provider。
+**FD1 当前实现：** `ListenerHost` 已保存独立 cursor、lease、durable delivery、attempt、retry、quarantine 与 Run。Raw Event 先落盘，再交 Adapter 形成 Draft；只有收到 Signals Receipt 后才确认 delivery 和推进 cursor。同 operation 可在重启后恢复，终态 replay 不再调用 Provider。
 
 异步调用可携带 `signal` 与 `beforeEffect`。Listener 在 Provider 返回、接收回调返回以及写失败记录前复查；拒绝后不接受新 Signal、不推进游标或补写失败状态，只释放活动租约以便后续恢复。Feed Host 同时按来源配置快照复查，并按数据库/项目/来源共享本进程租约，避免不同工厂实例重复拉取。

@@ -1,6 +1,6 @@
 # Modules
 
-Molis Work 是本地优先的插件基座加多个插件，每项事实只有一个 owner（见 [SSOT](../SSOT-MATRIX.md)）。Module 是正式业务事实（Goal、治理、成果库等）的 owner；插件在 Module 之上组合界面与动作，Pages、Cognia 等插件自有的私人库由插件自己保管（SSOT 第 7 节）。每个 Module 自己保存状态、执行业务规则，并通过 Query、Command、Event 的公开 Contract 与外界协作；它不能直接导入另一个 Module 的实现或 Store。
+Molis Work 是本地优先的插件基座加多个插件，每项事实只有一个 owner（见 [SSOT](../SSOT-MATRIX.md)）。Module 是正式业务事实（成果库、项目、置物架等）的 owner；插件在 Module 之上组合界面与动作，Pages、Cognia 等插件自有的私人库由插件自己保管（SSOT 第 7 节）。每个 Module 自己保存状态、执行业务规则，并通过 Query、Command、Event 的公开 Contract 与外界协作；它不能直接导入另一个 Module 的实现或 Store。
 
 ## 模块地图
 
@@ -13,6 +13,8 @@ Molis Work 是本地优先的插件基座加多个插件，每项事实只有一
 | 协作与自动化 | [Governance & Collaboration](governance-collaboration.md)、[Automation](automation.md) |
 
 Identity, Team & Access、Sync & Replication、Automation 目前没有包（`absent`，见 [SSOT](../SSOT-MATRIX.md)），对应文档只记录目标边界；Actions 页描述的是已在用的系统级动作服务（`packages/kernel` 与 Local Host），个人/外部 Action 请求的 `modules/actions` 同样没有包。
+
+Sources、Signals、Feed 三页写的是边界，代码已并入 Feed 插件（`plugins/native/feed/src/store/`，FI-5）；Goals 与 Governance & Collaboration 两页同理，代码在 Goals 插件（`plugins/native/goals/src/module/`、`src/governance/`，S9-3）。`modules/` 下现有 8 个包：`artifacts`、`attention-resumption`、`characters`、`context-ledger`、`functions`、`private-work-context`、`projects`、`shelf`。
 
 共同边界、部署与调用规则见 [`docs/system/ARCHITECTURE.md`](../system/ARCHITECTURE.md)。逐包完整 Contract 见 [`specs/molis-work-architecture-reorganization/spec.md`](../../specs/molis-work-architecture-reorganization/spec.md) 第 20 节。
 

@@ -1,6 +1,6 @@
 # 防腐跨设备协同（2026-10-28 起）
 
-状态：现行（用户 2026-10-28 确认；同日按省 token、不断流、不空槽位重审后改；同日下午按第一天的数据再改：丙档不走一审、常备 3 份、加急、认领提醒与收回、交接前自查、二审建议的去处；10-29 按用户「每个环节都要加速」改：乙档【方案】贴完就写代码，乙档、丙档任务书用短版 `tasks/TEMPLATE.md`）。`coordination/2026-10-14/` 里 `CODEX-SESSION-ROLES.md`、`CODEX-TASKS.md`、`MERGE-QUEUE.md`、`SLICE-RULES.md` 讲分工、评审与合并的部分作废，以这里为准；`LINES.md`、`RISKS-AND-DEFERRED.md`、`known-red-main.md` 照旧由统筹记账。
+状态：现行（用户 2026-10-28 确认；同日按省 token、不断流、不空槽位重审后改；同日下午按第一天的数据再改：丙档不走一审、常备 3 份、加急、认领提醒与收回、交接前自查、二审建议的去处；10-29 按用户「每个环节都要加速」改：乙档【方案】贴完就写代码；任务书不变短，照完整版写，给 DeepSeek 的每一步写死（用户 10-29：「还是不要变短了，尤其是给 deepseek 的，还是写死」），提速靠几份同时起草）。`coordination/2026-10-14/` 里 `CODEX-SESSION-ROLES.md`、`CODEX-TASKS.md`、`MERGE-QUEUE.md`、`SLICE-RULES.md` 讲分工、评审与合并的部分作废，以这里为准；`LINES.md`、`RISKS-AND-DEFERRED.md`、`known-red-main.md` 照旧由统筹记账。
 
 仓库：`molis-ai/molis-work`。协同分支：`coordination/handoff-2026-10-14`，本目录 `coordination/2026-10-28/`。
 

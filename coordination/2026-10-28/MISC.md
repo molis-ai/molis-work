@@ -35,7 +35,6 @@
 | T-072 起草 | `horizontal/runtime-host/src/adapters/terminal-pty.ts:393-397` | 终端进程自己退出时只删 `sessions`，不删 `replay`（只有 `kill` 删，`:416`）；从外面看不到（退出后接入拿空串），但表一直留着。要不要退出时也删是行为改动，另开一行再议 | 2026-10-29（已进 T-088，合入后删） |
 | 起草线 10-29 | `modules/shelf/README.md:61` | 写着「CLI 能力探测只缓存完成的结果，超时或启动失败下次重新探测」，代码里没有：`detectShelfRuntime`（`runtimes.ts:146`）只找可执行文件、不启动 CLI，`store.ts:72-82` 每次重找、不缓存。改成「只找可执行文件，不启动 CLI」或删掉。下次改 Shelf README 的任务带上 | 2026-10-29（已进 T-081，合入后删） |
 | 起草线 10-29 | `specs/dual-instance-plugins/spec.md:87`、`:167` | 说 DUAL-14 页面一层「要浏览器」才能验，已过时：PG094-STAGE-01（`tests/runtime-plugin-http-discovery.test.ts:641`）在纯 Node 里查服务端 HTML。T-127 或下次改这份 spec 的任务带上 | 2026-10-29 |
-| T-013 二审 @fdfddeb81 观察 5 | `apps/local-host/src/web-project-deletion.ts:50`、`:63` | 两处仍直接 `decodeURIComponent`，路径百分号写坏得 500；仓库已有 `decodeLocalWebPathPart`（`web-http.ts:50`，抛 `host.request_path_invalid`，6 处在用）。改用它以后写坏是 400，RAC-1333（`/api/settings/projects/%zz/delete` 当非 ActionError）要换一种造法（让删除端口抛普通 Error）。单独一个乙档小任务，等 T-013 #1360 合入 | 2026-10-29（已进 T-078，合入后删） |
 | T-078 起草 | `apps/local-host/README.md:185` | T-078 合入后（删项目两条路由的路径写坏答 400），这一行补一句。#1360 和 #1101 都改这一行，等两者不再锁再补 | 2026-10-29 |
 | T-074 起草 | `specs/repository-anti-corruption/c-end-readiness.md:92`、`:347` | 「W1-13，未合入」已过时：`spec.md:2100` 写了 W1-13 由 #314 做完。下次改这份文件的丙档带上 | 2026-10-29 |
 | T-051 二审 @6ef27f517 登记 1 | `tests/mcp-tools-list-refusal.test.ts:196` | 方案写的是外来监听桩「无 control-token 与 authorization」，这里只断言了 `x-molis-work-control-token`。补一句 `authorization` 为 `undefined` | 2026-10-29（已进 T-082，合入后删） |

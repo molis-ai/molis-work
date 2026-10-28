@@ -39,11 +39,12 @@ export function forgetInstallationConnections(home: string, installId: string, s
  * read all the way through) must not come back to the new installation: when no place has the identity installed they go first; while
  * one place has it installed, its slots are that place's and stay (BL-596). Nothing is read unless the identity has a binding. A Home that
  * still cannot be read refuses the install, as the installs that name things do: it is not guessed whether the old bindings are in use.
+ * The refusal says why, so the person mends the library rather than retrying: every attempt is refused until it can be read.
  */
 export function forgetLeftoverInstallationBindings(home: string, installId: string, scope: InstallScope): void {
   if (!installationIdsWithBindings(home).includes(installId)) return;
   const installed = installedIdentities(home, { scope, install_id: installId });
-  if (!installed) throw new Error("读不了 Home 里已装的插件，不能确认这个插件早先留下的连接绑定是否还有安装在用");
+  if (!installed) throw pluginErrors.executor_failed("Home 里有插件库读不了（日志 installation_holders_unreadable），不能确认这个插件早先留下的连接绑定还有没有安装在用；修好那个库后再装");
   if (!installed.has(installId)) forgetInstallationBindings(home, installId);
 }
 

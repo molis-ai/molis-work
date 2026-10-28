@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { captureHostLog, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, HomePluginHost, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
@@ -53,8 +56,21 @@ async function world(t: TestContext, projectCount: number) {
   const account = () => withConnectorConnections(home, store => store.get(connection.connection_id));
   /** Installs without starting: what the Runtime says of the install itself. */
   const attempt = (index: number) => open(index).platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.withoutFiles(), deployment: "local", grants: probe.permissions });
-  return { home, projects, probe, other, install, attempt, uninstall, bind, bound, account, closeProject, connection };
+  /** The Runtime's records of the plugin in one project: what a refused install left there. */
+  const records = (index: number) => open(index).platform.runtime.list().filter(record => record.plugin_id === probe.id);
+  return { home, projects, probe, other, install, attempt, uninstall, bind, bound, account, records, closeProject, connection };
 }
+
+/**
+ * A Home that still cannot be read refuses the install with the platform's code, and tells the person to mend the library: retrying is
+ * refused the same way until it can be read (BL-596 review, #1311 comment 6408434114).
+ */
+const refusedUnreadable = (run: () => unknown, message?: string) => assert.throws(run, (error: { code?: string; message?: string }) => {
+  assert.equal(error.code, "plugin.executor_failed");
+  assert.match(error.message ?? "", /读不了.*修好/u);
+  assert.doesNotMatch(error.message ?? "", /重试/u, "a retry is refused the same way: the message names what to mend instead");
+  return true;
+}, message);
 
 test("S-71 RAC-861 the installation slot and the record bindings stay while another place has the identity installed, and go with the last one", { timeout: 120_000 }, async t => {
   const w = await world(t, 2), id = await w.install(0);
@@ -134,8 +150,9 @@ test("S-71 RAC-866 an identity no place has installed starts again without the b
   await unreadable(() => w.uninstall(0, id, false));
   assert.deepEqual(both(), [true, true], "the last uninstall kept the bindings: the Home could not be read");
   // A first install in another place: nobody has the identity installed, so what was kept goes before it starts.
-  await unreadable(async () => assert.throws(() => w.attempt(1), /清理失败/u, "a Home that still cannot be read refuses the install rather than guess"));
+  await unreadable(async () => refusedUnreadable(() => w.attempt(1), "a Home that still cannot be read refuses the install rather than guess"));
   assert.deepEqual(both(), [true, true], "the refused install took nothing");
+  assert.deepEqual(w.records(1), [], "the refused first install left no installation in that project");
   assert.equal(await w.install(1), id);
   assert.deepEqual(both(), [false, false], "the new installation starts with no account of the old one's");
 
@@ -143,8 +160,9 @@ test("S-71 RAC-866 an identity no place has installed starts again without the b
   bindBoth();
   await unreadable(() => w.uninstall(1, id, false));
   assert.deepEqual(both(), [true, true]);
-  await unreadable(async () => assert.throws(() => w.attempt(1), /清理失败/u));
+  await unreadable(async () => refusedUnreadable(() => w.attempt(1)));
   assert.deepEqual(both(), [true, true]);
+  assert.deepEqual(w.records(1).map(record => record.state), ["uninstalled"], "the refused reinstall left the uninstalled row as it was");
   assert.equal(await w.install(1), id);
   assert.deepEqual(both(), [false, false], "a reinstall binds again, whether or not the Home could be read at the uninstall");
 
@@ -153,4 +171,38 @@ test("S-71 RAC-866 an identity no place has installed starts again without the b
   assert.equal(await w.install(2), id);
   assert.deepEqual(both(), [true, true], "project 1 still has it installed");
   assert.equal(w.account()?.connection_id, w.connection.connection_id, "the account itself stays");
+});
+
+test("S-71 RAC-1700 the Home's own install takes the bindings a Home that could not be read let its last uninstall keep; while it still cannot be read the install is refused and says what to mend", { timeout: 120_000 }, async t => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "installation-bindings-home-")));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "项目", actor_id: "test-user" });
+  const probe = ownerFilesProbe("bindingshome", "home"), definition: PluginDefinition = probe.withoutFiles(), actions = new ActionService();
+  // BL-588: the unsigned in-process definition installed into the Home Host by hand is the test's own object, so the Host is told which.
+  const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [], installed: new Set([definition]) });
+  t.after(async () => { try { await host.close(); } finally { catalog.close(); rmSync(home, { recursive: true, force: true }); } });
+  const runtime = (await host.ready()).runtime;
+  const attempt = () => runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: probe.permissions }).install;
+  const id = attempt().install_id;
+  await runtime.start(id);
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: randomUUID() }));
+  const slot = pluginBindingScope({ install_id: id }), record = pluginBindingScope({ install_id: id, project_id: project.project_id, record_key: "src-1" });
+  const bindBoth = () => {
+    for (const [scope, binding] of [[slot, "account"], [record, "feed"]] as const)
+      withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId: probe.id, slotId: binding, serviceId: "github", connectionId: connection.connection_id }));
+  };
+  const both = () => [[slot, "account"], [record, "feed"]].map(([scope, binding]) => withConnectorConnections(home, store => store.binding(scope!, probe.id, binding!)) !== null);
+  // The project's library is away for a moment: whether it installs this identity cannot be told, so nothing is taken from anyone.
+  const library = project.database_path;
+  const unreadable = async <T>(run: () => Promise<T> | T): Promise<T> => { renameSync(library, library + ".away"); try { return await run(); } finally { renameSync(library + ".away", library); } };
+
+  bindBoth();
+  await unreadable(() => runtime.uninstall(id, { retain_private_data: false }));
+  assert.deepEqual(both(), [true, true], "the Home's last uninstall kept the bindings: the Home could not be read");
+  await unreadable(async () => refusedUnreadable(attempt, "the Home executor refuses its own install rather than guess"));
+  assert.deepEqual(both(), [true, true], "the refused install took nothing");
+  assert.equal(runtime.get(id).state, "uninstalled", "the refused install left the Home's uninstalled row as it was");
+  assert.equal(attempt().install_id, id);
+  assert.deepEqual(both(), [false, false], "the Home's installation starts with no account of the old one's");
+  assert.equal(withConnectorConnections(home, store => store.get(connection.connection_id))?.connection_id, connection.connection_id, "the account itself stays");
 });

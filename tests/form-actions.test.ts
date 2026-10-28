@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
-import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
+import { formActions as actions, formContentActions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -297,4 +297,19 @@ test("the store itself refuses an answer-file import from anyone but the person 
   const rows = store.listSubmissions(form.id, "p");
   assert.equal(rows.length, 2 + outside.length + 1, "a refused call leaves no answer behind");
   assert.ok(rows.every(row => row.source === "file"), "imported answers are answer files whoever imports them");
+});
+
+test("RAC-1605 RAC-1606: a title and question list a workflow hands over are cut to what a form holds instead of being refused", async t => {
+  // plugins/native/form/README.md:「流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。」
+  const f = await fixture(t);
+  const workflow = bindActionClient(f.client, (): ActionCallContext => ({ ...f.caller, audience: "workflow" }));
+  const lines = Array.from({ length: 60 }, (_, index) => `- 第 ${index + 1} 题？`);
+  lines.splice(2, 0, "- " + "长".repeat(201));
+  const received = await workflow.invoke(formContentActions.receive, { title: "  " + "题".repeat(100) + "  ", body: lines.join("\n"), request_id: "workflow:run-1:1" });
+  assert.equal(received.plugin, "form");
+  const { form } = await f.bound.invoke(actions.get, { id: received.item_id });
+  assert.equal(form.title, "题".repeat(80), "RAC-1605: the title is cut to 80 characters");
+  assert.deepEqual(form.questions.map(question => question.title), Array.from({ length: 40 }, (_, index) => `第 ${index + 1} 题？`),
+    "RAC-1606: the first 40 questions are kept and a line too long to be a question is left out");
+  assert.ok(form.questions.every(question => question.type === "text" && !question.required), "every question is an optional fill-in");
 });

@@ -59,7 +59,7 @@ export const issuesActions = {
 export const ISSUES_ACTIONS = Object.values(issuesActions);
 /** Words and screenshots being edited on a saved record, checked as a capture's are; nothing about them is kept. */
 function editing(input: IssueNamingInput): IssueNamingInput {
-  if (typeof input.description !== "string" || input.description.length > 100000 || !input.description.trim() && !input.images?.length) throw new ActionError("actions.input_invalid", "请描述问题或添加图片");
+  if (typeof input.description !== "string" || [...input.description].length > 100000 || !input.description.trim() && !input.images?.length) throw new ActionError("actions.input_invalid", "请描述问题或添加图片");
   validateIssueImages([...input.images ?? []]);
   return input;
 }

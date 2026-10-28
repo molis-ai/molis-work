@@ -1,7 +1,7 @@
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import { judgmentRecommendationKeys, subjectOfferChoices } from "@molis-ai/molis-work-kernel";
-import { ActionError, actionSourceIdentity, requireSynchronous, matchesActionDiscovery, type ActionDiscoveryFilter, type ActionAvailability, type ActionCallContext, type ActionReference, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionSourceIdentity, requireSynchronous, type ActionDiscoveryFilter, type ActionAvailability, type ActionCallContext, type ActionReference, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { admitPluginCall } from "./plugin-callers.js";
 import type { ActionAvailabilityPolicy, DiscoveryPass, LocalHostOptions } from "./local-host-types.js";
 
@@ -17,8 +17,9 @@ export class HostAvailability {
   ) {}
 
   async discover(caller: ActionCallContext, filter?: ActionDiscoveryFilter): Promise<ActionView[]> {
-    const views = this.actionService.discover(caller);
-    return this.views(caller, filter ? views.filter(view => matchesActionDiscovery(view, filter)) : views, views);
+    const views = this.actionService.discover(caller, filter);
+    // Filtered roots are not a dependency directory. The existing pass loads the full directory only if needed.
+    return this.views(caller, views, filter ? undefined : views);
   }
 
   async views(caller: ActionCallContext, views: ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {

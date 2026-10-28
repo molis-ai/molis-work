@@ -32,6 +32,8 @@
 
 初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
 
+Home 插件运行库只复用当前声明 SQL/version 成功编译出的期望结构字符串，声明值变化重算，失败不留存；不按对象身份假定声明不变。每次打开仍保留原路径、版本和完整结构核验；只读打开仍逐次 BEGIN，安装、consent 与权限照常现读，不缓存库或开放连接。公开读取、声明变化与预热后拒绝/恢复见 `tests/security-invariants-always-on-records.test.ts`、`tests/home-plugin-private-store.test.ts`。
+
 Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contribution ID（打开 stage 的那个视图指的贡献：`stage` 视图，否则目录入口，`stageContributionId`）；项目装配将它们与项目 stage ID 合并，工作台按 Manifest 画 stage 时只画尚未提供的。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。项目级 Runtime 实例同样（W5-06 第 3 片）：`project-plugin-stages.ts` 用运行中实例的视图画它们的 stage，模型取渲染器的 `declaredStageModel`；没在运行的画 `data-project-plugin-unavailable` 占位并报同一个 ID。项目平台在启动前就记下自己该跑的插件（`ProjectPluginState.plugins`），整个平台没起来也照样画占位。项目与 Home 的不可用状态经 `unavailable_plugin_stages` 结构化字段交给工作台，和插件 HTML 分开；占位不申请 page grant、不启动客户端，插件不能用 HTML 标记选择宿主渲染。回归见 `tests/runtime-plugin-http-discovery.test.ts` 的 S-47、RAC-79。
 `plugin_stage_ids` 只在真实页面渲染的读取回调中提供，用于内部补位去重；通用读取与 `/api/board` 保持原返回合同，路由快照不包含该字段。
 
@@ -45,7 +47,7 @@ Host 在业务库、插件与后台初始化前持有同一 `agent-runtime/.moli
 
 ## 一次典型调用
 
-来源协议读取可通过 `ActionClient.discover(context, filter?)` 收窄本次目录 roots。Host 保留原 Runtime 准备、身份校验和完整 Kernel 目录，再筛 roots 交给 `HostAvailability.views`；完整目录继续供 required_actions/场景依赖解析。每次仍重新核查当前策略，不跨等待复用。准备与项目包装透传筛选；网关保持原 HTTP DTO，在完整授权响应末端本地筛选，不把此冷路径称为投影优化。回归见 `tests/action-directory-pass.test.ts`、`tests/action-subject-retention.test.ts`。
+来源协议读取可通过 `ActionClient.discover(context, filter?)` 收窄本次目录 roots。Host 保留原 Runtime 准备和身份校验，将 filter 传入 Kernel，先按冻结声明选根再完整检查所选动作；无依赖/场景时不执行无关 provider 或 handler availability。有 required_actions 或 required_scene 时，原 DiscoveryPass 惰性读取完整授权目录并检查依赖、场景、绑定与实时 Host 策略，筛后集合不能替代依赖目录。无 filter 保持原完整路径。同一同步 directory pass 内提供方状态按原规则共享，读取失败不缓存，失效后重读；一次异步 discover 可能经过多轮，依赖及场景可能再次计算所选动作的 availability，不承诺每个 provider 整次只查一次或原子快照。不缓存权限，不跨 await 延长同步 pass，owner 返回后的重新 discover、captureSources 与最终 guard 不变。准备与项目包装透传筛选；网关保持原 HTTP DTO，在完整授权响应末端本地筛选，不把此冷路径称为投影优化。回归见 `tests/action-directory-pass.test.ts`、`tests/action-subject-retention.test.ts`。
 
 createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；Goals 的用例由它自己的插件组合（`plugins/native/goals/src/plugin.ts`），宿主不持有（PG-094 S12）。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService, forgetInDirectoryPass, inDirectoryPass, rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
-import { ActionError, defineSubjectContextAction, resolveActionSubject, subjectContext, type ActionCallContext, type ActionDefinition, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineSubjectContextAction, resolveActionSubject, subjectContext, type ActionCallContext, type ActionDefinition, type ActionReference, type ActionSceneDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "project-one", audience: "user", permissions: [] };
@@ -110,10 +110,16 @@ test("DIRECTORY-MEM-01 initial permission matching preserves exact references, v
   const dynamic: ActionCallContext = { ...base, allowed_actions: dynamicGrants, allowed_capability_ids: [permission.capability_id],
     get permissions() { dynamicGrants.length = 0; return ["notes.read"]; } };
   assert.deepEqual(visible(dynamic), [], "a caller getter that withdraws grants must use the live matcher");
+  dynamicGrants.push(permission);
+  assert.deepEqual(service.discover(dynamic, { provider_id: "notes" }), [], "metadata filtering preserves the selected caller's getter/live-matcher fallback");
+  assert.deepEqual(service.discover({ ...restricted, permissions: [] }, { input_type: "missing" }), []);
+  assert.deepEqual(service.discover({ ...restricted, allowed_capability_ids: [permission.capability_id] }, { provider_id: "notes" }), [], "selected metadata cannot supply a missing permission");
+  assert.deepEqual(service.discover({ ...context, audience: "agent" }, { provider_id: "notes" }), [], "selected roots retain audience checks");
+  assert.deepEqual(service.discover(context, { provider_id: "foreign" }), [], "metadata filtering cannot expose a different project");
 });
 
 test("DIRECTORY-MEM-02 availability can revoke or replace grants after initial filtering; invoke never writes", async () => {
-  for (const replacement of [[], [action(2)]] satisfies ActionReference[][]) {
+  for (const filter of [undefined, { provider_id: "notes" }]) for (const replacement of [[], [action(2)]] satisfies ActionReference[][]) {
     const service = new ActionService();
     const definition: ActionDefinition = { ...action(1), operation: "command", action: { ...action(1).action, kind: "operation" } };
     const grants: ActionReference[] = [definition];
@@ -123,7 +129,7 @@ test("DIRECTORY-MEM-02 availability can revoke or replace grants after initial f
     service.registerProvider({ provider, definitions: [definition],
       availability: () => { checks++; grants.splice(0, grants.length, ...replacement); return { available: true }; },
       handlers: [{ ...definition, handle: () => { writes.push("written"); return { ok: true }; } }] });
-    const views = service.discover(caller);
+    const views = service.discover(caller, filter);
     assert.equal(views.length, 1, "the initial grant admitted metadata before the callback");
     assert.equal(views[0]!.availability.available, false);
     assert.equal(views[0]!.availability.code, "actions.forbidden");
@@ -139,7 +145,8 @@ test("DIRECTORY-MEM-02 availability can revoke or replace grants after initial f
   }
 });
 
-test("source discovery filters intersect exact metadata after the Kernel's complete authorization pass", () => {
+// MEM-DIRECTORY-FILTER-01: exact root selection skips unrelated checks without widening authority.
+test("source discovery filters select exact metadata before authorizing the selected roots", () => {
   const service = new ActionService(), checked: string[] = [];
   const first = { ...action(1), action: { ...action(1).action, input_type: "note.request", output_type: "note.result", subject_kinds: ["note", "page"] } };
   const second = { ...action(2), action: { ...first.action, output_type: "note.other" } };
@@ -150,7 +157,13 @@ test("source discovery filters intersect exact metadata after the Kernel's compl
   const filter = { provider_id: "notes", input_type: "note.request", output_type: "note.result", subject_kind: "note" };
   const refs = (value: Parameters<typeof service.discover>[1], caller = context) => service.discover(caller, value).map(view => view.capability_id);
   assert.deepEqual(refs(filter), [first.capability_id]);
-  assert.deepEqual(checked.sort(), [first.capability_id, second.capability_id, action(3).capability_id], "Kernel still checks rows outside the projection");
+  assert.deepEqual(checked, [first.capability_id], "only the selected root's handler availability is evaluated");
+  checked.length = 0;
+  service.discover(context);
+  assert.deepEqual(checked.sort(), [first.capability_id, second.capability_id, action(3).capability_id], "unfiltered discovery retains the original complete pass");
+  checked.length = 0;
+  service.inspect(context);
+  assert.deepEqual(checked.sort(), [first.capability_id, second.capability_id, action(3).capability_id], "inspect retains its original complete availability pass");
   assert.deepEqual(refs({ ...filter, subject_kind: "page" }), [first.capability_id]);
   for (const key of ["provider_id", "input_type", "output_type", "subject_kind"] as const) {
     for (const value of ["", "*", "missing"]) assert.deepEqual(refs({ ...filter, [key]: value }), [], `${key} is exact, not a wildcard`);
@@ -161,6 +174,35 @@ test("source discovery filters intersect exact metadata after the Kernel's compl
   assert.deepEqual(refs(filter, { ...context, allowed_actions: [{ ...first, provider_id: "notes" }] }), [first.capability_id]);
 });
 
+test("Host filtered roots without dependencies never call unrelated provider, handler or Host availability", async t => {
+  const seen = { provider: [] as string[], handler: [] as string[], host: [] as string[] };
+  const reference = { project_id: context.project_id!, storage_key: "memory:filtered-roots" };
+  let selectedOpen = true, writes = 0;
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} },
+    actionAvailability: (_caller, view) => { seen.host.push(view.provider.provider_id); return { available: true }; } });
+  t.after(() => host.close());
+  const selected = action(71), unrelated = action(72);
+  for (const [id, definition] of [["selected", selected], ["unrelated", unrelated]] as const) {
+    host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: id }, definitions: [definition],
+      availability: () => { seen.provider.push(id); return id === "selected" && !selectedOpen
+        ? { available: false, code: "fixture.closed", reason: "Selected owner closed" } : { available: true }; },
+      handlers: [{ ...definition, availability: () => { seen.handler.push(id); return { available: true }; }, handle: () => { writes++; return null; } }] });
+  }
+  const client = host.actionClient(reference), filter = { provider_id: "selected" };
+  const first = await client.discover(context, filter);
+  assert.deepEqual(first.map(view => view.capability_id), [selected.capability_id]);
+  assert.equal(first[0]!.availability.available, true);
+  for (const phase of Object.values(seen)) {
+    assert.ok(phase.includes("selected"), "the actual selected root still passes each layer");
+    assert.ok(!phase.includes("unrelated"), "unrelated roots are never evaluated");
+  }
+  selectedOpen = false;
+  assert.equal((await client.discover(context, filter))[0]!.availability.code, "fixture.closed", "the next directory reads current state again");
+  await assert.rejects(client.invoke(context, { ...selected, provider_id: "selected" }, {}), { code: "fixture.closed" });
+  assert.equal(writes, 0);
+});
+
+// MEM-DIRECTORY-FILTER-02: outside dependencies, scenes and awaited authority changes retain their original refusals.
 test("Host source projection keeps dependencies outside the filter and rechecks current policy and grants", async t => {
   const projected: string[] = [], reference = { project_id: context.project_id!, storage_key: "memory:source-projection" };
   let dependencyOpen = true, opened = 0, invoked = 0;
@@ -173,9 +215,11 @@ test("Host source projection keeps dependencies outside the filter and rechecks 
   t.after(() => host.close());
   const dependency = action(20), unrelated = action(30), root = { ...action(10), action: { ...action(10).action,
     required_actions: [{ capability_id: dependency.capability_id, version: dependency.version, provider_id: "dependency" }] } };
+  let stopDependency!: () => void;
   for (const [providerId, definition] of [["selected", root], ["dependency", dependency], ["unrelated", unrelated]] as const) {
-    host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: providerId }, definitions: [definition],
+    const stop = host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: providerId }, definitions: [definition],
       handlers: [{ ...definition, handle: () => { invoked++; return null; } }] });
+    if (providerId === "dependency") stopDependency = stop;
   }
   const client = host.actionClient(reference), filter = { provider_id: "selected" };
   const first = await client.discover(context, filter);
@@ -194,10 +238,106 @@ test("Host source projection keeps dependencies outside the filter and rechecks 
   assert.equal(projectedRestricted[0]!.availability.code, "actions.forbidden", "Kernel rejects the registered dependency outside allowed_actions");
   assert.deepEqual(projectedRestricted, fullRestricted, "projection preserves the complete directory's denial for the same caller");
   assert.deepEqual(await client.discover({ ...context, allowed_actions: [dependency] }, filter), []);
+  stopDependency();
+  const stopReplacement = host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: "replacement" }, definitions: [dependency],
+    handlers: [{ ...dependency, handle: () => { invoked++; return null; } }] });
+  assert.equal((await client.discover(context, filter))[0]!.availability.code, "actions.provider_changed", "an outside dependency cannot borrow a different provider's registration");
+  await assert.rejects(client.invoke(context, root, {}), { code: "actions.provider_changed" });
+  stopReplacement();
+  const nextVersion = { ...dependency, version: 2 };
+  host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: "dependency" }, definitions: [nextVersion],
+    handlers: [{ ...nextVersion, handle: () => { invoked++; return null; } }] });
+  assert.equal((await client.discover(context, filter))[0]!.availability.code, "actions.dependency_missing", "an outside dependency still needs the exact version");
+  await assert.rejects(client.invoke(context, root, {}), { code: "actions.dependency_missing" });
+  assert.equal(invoked, 0);
   const home = { ...action(40), action: { ...action(40).action, scope: "home" as const } };
   host.actionRegistry().registerProvider({ provider: { provider_id: "home", title: "Home", kind: "system" }, definitions: [home], handlers: [{ ...home, handle: () => null }] });
   assert.deepEqual((await host.homeActionClient().discover({ ...context, project_id: null }, { provider_id: "home" })).map(view => view.capability_id), [home.capability_id]);
 });
+
+test("Host filtered roots still resolve an outside scene, its saved binding and current judgment policy", async t => {
+  const reference = { project_id: context.project_id!, storage_key: "memory:filtered-scene" };
+  let sceneOpen = true, judgmentOpen = true, writes = 0;
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} },
+    actionAvailability: (_caller, view) => view.provider.provider_id === "judgment" && !judgmentOpen
+      ? { available: false, code: "fixture.judgment_revoked", reason: "Judgment revoked" } : { available: true },
+    sceneAvailability: () => sceneOpen ? { available: true } : { available: false, code: "fixture.scene_revoked", reason: "Scene revoked" },
+  });
+  t.after(() => host.close());
+  const judgment: ActionDefinition = { ...action(80), operation: "command", action: { ...action(80).action, kind: "judgment", output_schema: { type: "number" } } };
+  const scene: ActionSceneDefinition = { scene_id: "outside.scene", version: 1, title: "Consumer", description: "Outside the root filter",
+    trigger: "requested", scope: "project", subject_kinds: [], permissions: [],
+    input_schema: judgment.action.input_schema, result_schema: judgment.action.output_schema! };
+  const root: ActionDefinition = { ...action(81), action: { ...action(81).action, required_scene: { scene_id: scene.scene_id, version: scene.version } } };
+  let binding: ActionSceneBinding | undefined;
+  host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: "selected" }, definitions: [root],
+    handlers: [{ ...root, handle: () => { writes++; return null; } }] });
+  host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: "judgment" }, definitions: [judgment],
+    handlers: [{ ...judgment, handle: () => 3 }] });
+  host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: "consumer" }, definitions: [], handlers: [], scenes: [scene],
+    scene_handlers: [{ ...scene, bindings: () => binding ? [binding] : [], bind: (_caller, value) => { binding = value; }, consume: () => null }] });
+  const client = host.actionClient(reference), filter = { provider_id: "selected" };
+  assert.equal((await client.discover(context, filter))[0]!.availability.code, "actions.binding_required");
+  await host.sceneClient(reference).bind(context, { binding_id: "real-binding", title: "Selected judgment", scene_id: scene.scene_id, scene_version: scene.version,
+    project_id: reference.project_id, function: { capability_id: judgment.capability_id, version: judgment.version, provider_id: "judgment" }, enabled: true });
+  const available = await client.discover(context, filter);
+  assert.deepEqual(available.map(view => view.capability_id), [root.capability_id]);
+  assert.equal(available[0]!.availability.available, true);
+  sceneOpen = false;
+  assert.equal((await client.discover(context, filter))[0]!.availability.code, "fixture.scene_revoked");
+  await assert.rejects(client.invoke(context, { ...root, provider_id: "selected" }, {}), { code: "fixture.scene_revoked" });
+  sceneOpen = true; judgmentOpen = false;
+  assert.equal((await client.discover(context, filter))[0]!.availability.code, "fixture.judgment_revoked");
+  await assert.rejects(client.invoke(context, { ...root, provider_id: "selected" }, {}), { code: "fixture.judgment_revoked" });
+  assert.equal(writes, 0);
+});
+
+test("Host filtered roots retain cycles through dependencies outside the result", async t => {
+  const reference = { project_id: context.project_id!, storage_key: "memory:filtered-cycle" };
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  t.after(() => host.close());
+  let writes = 0;
+  const first = action(91), second = action(92);
+  const root = { ...first, action: { ...first.action, required_actions: [{ ...second, provider_id: "outside" }] } };
+  const outside = { ...second, action: { ...second.action, required_actions: [{ ...first, provider_id: "selected" }] } };
+  for (const [id, definition] of [["selected", root], ["outside", outside]] as const) {
+    host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: id }, definitions: [definition],
+      handlers: [{ ...definition, handle: () => { writes++; return null; } }] });
+  }
+  const client = host.actionClient(reference);
+  assert.equal((await client.discover(context, { provider_id: "selected" }))[0]!.availability.code, "actions.dependency_cycle");
+  await assert.rejects(client.invoke(context, { ...root, provider_id: "selected" }, {}), { code: "actions.dependency_cycle" });
+  assert.equal(writes, 0);
+});
+
+for (const change of ["revoke", "replace"] as const) {
+  test(`Host filtered discovery does not preserve permission or registration across an awaited ${change}`, async t => {
+    const reference = { project_id: context.project_id!, storage_key: `memory:filtered-${change}` };
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let open = true, writes = 0;
+    const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} },
+      actionAvailability: () => open ? { available: true } : { available: false, code: "fixture.revoked", reason: "Current authority revoked" } });
+    t.after(async () => { release.resolve(); await host.close(); });
+    const definition: ActionDefinition = { ...action(90), operation: "command", action: { ...action(90).action, kind: "operation" } };
+    const register = () => host.actionRegistry(reference).registerProvider({ provider: { ...provider, provider_id: "selected" }, definitions: [definition],
+      handlers: [{ ...definition, handle: async caller => { entered.resolve(); await release.promise; await caller.beforeEffect(); writes++; return null; } }] });
+    let stop = register();
+    try {
+      const client = host.actionClient(reference), filter = { provider_id: "selected" };
+      assert.equal((await client.discover(context, filter))[0]!.availability.available, true);
+      const pending = client.invoke(context, { ...definition, provider_id: "selected" }, {});
+      const rejected = assert.rejects(pending, { code: change === "revoke" ? "fixture.revoked" : "actions.provider_changed" });
+      await Promise.race([entered.promise, pending.then(() => { throw new Error("The operation returned before its real effect boundary"); })]);
+      if (change === "revoke") open = false;
+      else { stop(); stop = register(); }
+      release.resolve();
+      await rejected;
+      assert.equal(writes, 0, "the previously discovered root cannot write with stale authority or a replacement registration");
+      const fresh = await client.discover(context, filter);
+      assert.equal(fresh[0]!.availability.available, change === "replace", "a fresh query observes the current registration and current permission");
+    } finally { release.resolve(); stop(); }
+  });
+}
 
 test("subject protocol projection checks all matching owners and keeps ambiguity and caller restrictions", async t => {
   const projected: string[] = [], calls: string[] = [];

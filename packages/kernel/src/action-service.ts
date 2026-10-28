@@ -4,7 +4,7 @@ import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
 import { ActionSourceRevisions } from "./action-source-revisions.js";
 import {
-  ActionError, requireSynchronous, matchesActionDiscovery, type ActionDiscoveryFilter,
+  ActionError, requireSynchronous, type ActionDiscoveryFilter,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ExactActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -282,8 +282,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   discover(context: ActionCallContext, filter?: ActionDiscoveryFilter): ActionView[] {
-    const directory = this.directory(context, false);
-    return filter ? directory.filter(view => matchesActionDiscovery(view, filter)) : directory;
+    return this.directory(context, false, filter);
   }
 
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */
@@ -291,10 +290,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return this.directory(context, true);
   }
 
-  private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Visibility is checked with the rest of the directory's checks, before any row is made. One pass: a provider is asked once for all its actions.
+  private directory(context: ActionCallContext, inspection: boolean, filter?: ActionDiscoveryFilter): ActionView[] {
+    // Visibility is checked before rows are made. Provider state is shared within this synchronous pass; failed reads are not retained.
     const visible = inspection ? undefined : directoryActionVisibility(context);
-    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
+    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible, filter).map(metadata =>
       ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) })));
   }
 

@@ -46,7 +46,7 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 492,
+      "lines": 491,
       "methods": 19
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {

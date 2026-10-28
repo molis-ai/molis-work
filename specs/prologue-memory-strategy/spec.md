@@ -4094,7 +4094,13 @@ Retention前后两次discover仅按provider筛选，以保留“可见system缺r
 
 **范围与不变项。** 仅Kernel现有action-metadata/action-service、HostAvailability的filter接线、原合同与相应回归，不加模块、权限缓存、策略快照或新协议；不延长inDirectoryPass到await之后。所选动作仍与allowed_actions、permissions、audience、项目范围求交，provider回调后的live matcher及getter回退不变；过滤外的真实依赖、版本/provider不匹配、循环、场景和绑定继续检查。owner返回后的重新discover、captureSources及最终来源/原卡guard不变；unavailable行、同kind多owner歧义与system缺retention的拒绝不能被过滤掉。无存储格式或数据迁移，回滚只撤销本刀代码及合同。
 
-**验收。** 保留精确筛选、回调后撤权/停用/重装、真实Host的无依赖/过滤外依赖/场景路径，以及实际invoke和副作用拒绝；新测试明确证明有filter时无关availability零调用，不能以空目录或跳过所选授权达标。原505条、列表12项、相关Kernel/Host必跑及最终Full均沿原时限/断言/重试；没有下一刀的收益或通过证据。已通过的线性核验修正先独立提交到同一PR，下一刀并行准备；不借本提案扩大SQLite诊断。
+**验收。** MEM-DIRECTORY-FILTER-01：精确筛选不扩大原权限，真实Host无依赖查询的未选根provider/handler/Host availability均零调用，所选根三层实际经过。MEM-DIRECTORY-FILTER-02：getter/live matcher、回调后撤权/停用/重装、过滤外依赖/版本/提供方/循环、真实场景绑定和异步Host策略继续拒绝；原invoke/beforeEffect与来源最终检查不借用目录授权。用例对应 `tests/action-directory-pass.test.ts`。原505条、列表12项、相关Kernel/Host必跑及最终Full均沿原时限/断言/重试；新收益和完整通过必须另有实际证据。已通过的线性核验修正先独立提交到同一PR；不借本提案扩大SQLite诊断。
+
+本刀静态深审未发现新增权限边界阻塞。复用registeredActionMetadata新增可选第四filter参数，保持原第三also及旧调用顺序；无新DTO/缓存/入口。同步directory pass内仍按原规则共享provider状态，失败不缓存、失效重读；一次异步discover可能执行多轮，依赖/场景可能重复selected availability，不承诺整次每provider一次或跨等待原子快照。Kernel导出不在现有API生成器范围（仅contracts/plugin-sdk），运行原api:update为0写入，没有伪造快照或扩大门禁。
+
+旧实现红测：首轮13项10过3败，一败为judgment夹具operation错误；按原合同改为command并保留原日志后，13项11过2预期红，证实Kernel与Host仍调用未选中availability。应用实现后原整体构建成功，直接11文件133项零重试通过；初次原生构建先遇cache权限及SwiftPM嵌套sandbox限制，保留失败，使用隔离cache和获准原构建后成功，没有改脚本。日志 `/private/tmp/memory-directory-filter-red-20261028.log`、`/private/tmp/memory-directory-filter-red-fixture-fixed-20261028.log`、`/private/tmp/memory-directory-filter-build-native-20261028.log`、`/private/tmp/memory-directory-filter-direct-11-20261028.log`。原列表12项随后零重试为11过1败，两个Knowledge筛选/分页已通过；505项侧栏已越过原首次files-more加载门，在后续刷新20秒内未显示新资料，失败位置为原测试297行。原日志 `/private/tmp/memory-directory-filter-lists-20261028.log` 保留；不能把失败阶段后移写成页面闭环，下一轮仅缩小到该单例并记录真实请求/DOM结构。其余包必跑待最终相关修改确定后执行。
+
+上一交付头f281866d7已推至#1101，普通CI 40621227284成功，14任务通过、原可选Linux probe跳过。未更新integration分支触发重复Full，先修已知本地列表失败。最新主干dc902156e造成冲突尚未集成，旧头CI不覆盖新主干或本刀。
 
 #### 一次 SQLite 分段诊断已结束，候选仍停止
 
@@ -4105,3 +4111,21 @@ Retention前后两次discover仅按provider筛选，以保留“可见system缺r
 结论仅为读取完整链路仍占主要成本，SQL点查方法时间不足以解释全部时间，不能将差距全归为磁盘。CPU暖读栈可见get、memoryAccessTarget、checkMany、freezeMemoryValue等；profile与hrtime时钟原点不同，首采样包含控制阶段，不能裁成精确recall CPU毫秒。业务段、SQL和CPU栈嵌套，不能相加；构造/open次数、物理读盘量及JS/native边界仍未归属。单副本顺序含缓存/GC/探针效应，不是正式重验或可精确扣除的探针成本。已按授权结束，不追加采样、不重启实现、不采用候选；原冻结1000条失败门与当前App合并阻塞保持不变。
 
 本批资料线性核验的最终门禁：health对main merge-base通过并将原KnowledgeService442行快查降至441；包边界与页面资源门通过。后续main b333cc179只有busy-feedback动画采样测试变化，已合入2028bc9db并单项复验通过，未改变生产构建；此证明CSS动画进度，不证明原生响应时延。提交秘密扫描和新头CI另记。
+
+
+#### 列表刷新后续：复用固定声明的期望结构，实际库仍每次核验
+
+原505项单例增加临时被动诊断后仍失败：刷新完成33.051s、原截止53.051s；states请求33.533→52.093s，fresh Artifacts entries在53.126s才到Response暂停点。其真实首500已有4个新资料，断言失败时仍busy；迟到旧页尚未释放，不能归因于覆盖错误或缺数据。诊断完成即按原补丁精确撤下，原断言、20秒与释放顺序保持。证据 `/private/tmp/memory-side-refresh-diagnostic-20261028/trace.json` 与原单例日志保留，未无变化重跑。
+
+整轮CPU样本中固定声明的describeSqliteBaseline累计5.017s，它每次构造内存SQLite并重新描述同一创建语句。调用来自alwaysOnCatalogEntries，再经projectReachablePlugins供项目启用刷新与Action可用性使用。此为整轮嵌套/异步采样，不能直接分摊states的18.560s，也不作减少5秒的承诺。最小变化仅在Home插件库owner复用当前声明schema/version成功编译的期望结构字符串；不改通用Storage、不加模块或新的格式识别机制。导出baseline对象是同引用，必须按当前primitive声明值判断，变化重算、失败不记入；不冻结公开对象，不把对象identity当不可变证据。
+
+- MEM-HOME-EXPECTED-01：同声明重复查询不重建期望内存库，但实际Home每次lstat/open、BEGIN、版本、完整结构与业务授权读取仍执行；不缓存实际库、安装、consent、权限、错误或开放连接。
+- MEM-HOME-EXPECTED-02：已预热后实际撤权/重授、版本/结构破坏仍立即拒绝，修复后才可继续；公开声明SQL/version变化不借旧期望，编译失败不污染后续。复用 `tests/security-invariants-always-on-records.test.ts` 原真实Home拒绝/恢复，并补最窄声明变更反例；没有真实Home操作。
+
+独立深审确认上述边界可沿现结构实现；生产范围仅 `apps/local-host/src/home-plugin-store.ts`，同步原Host合同与已有回归。不删原检查，不提高页面/性能时限、不增加重试。原505单例与完整列表12项须以撤下诊断的正式代码验证；仍失败则保留失败并回到实际链，不能把纯编译减少等同产品完成。项目库版本衔接待本段收束后实施。
+
+
+该小刀旧实现20项19过1预期红：两次公开目录都重新读取真实版本/完整结构、独立连接关闭且文件原样，唯一失败是期望声明SQL被执行2次而非1次。应用最小helper后整体构建通过，6文件66项零重试通过，包含暖读后的撤权、损坏拒绝、恢复、声明更改与失败编译。独立实际diff深审无新增权限或生命周期阻塞。原日志 `/private/tmp/memory-home-expected-red-20261028.log`、`/private/tmp/memory-home-expected-build-20261028.log`、`/private/tmp/memory-home-expected-direct-6-20261028.log`；不以这些结果代替原页面20秒门，完整列表仍在原正式路径验证。
+
+
+撤下全部临时诊断后，目录+Home期望复用的原列表12项正式回归全部通过、零重试（`/private/tmp/memory-directory-home-lists-20261028.log`）。505项侧栏保留原30秒首次加载、20秒刷新与原迟到页释放/计数断言，实际走完新资料可见且旧页不覆盖；不把含造数和初载的49.181秒case总时长当点击时延。原11/12和诊断失败保留，不隐藏失败阶段的推进；相关包剩余66文件622/622通过、零重试（`/private/tmp/memory-directory-home-required-66-20261028.log`）；与先前目录11文件133/133、Home直接6文件66/66分段记录，不冒充一次全量。health、boundary与资源门通过；48资源合计7,463,008 B，无新增资源额度，ActionService实际行数492→491同步收紧既有例外。最终主干集成及Full尚未覆盖。

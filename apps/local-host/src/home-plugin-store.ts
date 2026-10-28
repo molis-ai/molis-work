@@ -10,6 +10,17 @@ const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 
+// Only the declaration's successful compilation is shared; every open still validates the actual database in full.
+let expectedSchema: { schema: string; version: number; serializedShape: string } | undefined;
+function expectedHomePluginSchema(): string {
+  const { schema, version } = HOME_PLUGIN_RUNTIME_BASELINE;
+  if (!expectedSchema || expectedSchema.schema !== schema || expectedSchema.version !== version) {
+    const serializedShape = JSON.stringify(describeSqliteBaseline({ schema, version }));
+    expectedSchema = { schema, version, serializedShape };
+  }
+  return expectedSchema.serializedShape;
+}
+
 // Only this store can identify its own refusals. A page must not mistake another database's version error or an arbitrary action failure for these.
 const homeStoreRefusal = Symbol("Home plugin store refusal");
 const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
@@ -29,7 +40,7 @@ function openWritableHomePluginDatabase(home: string) {
 export function openHomePluginStore(home: string) {
   const db = openWritableHomePluginDatabase(home);
   try {
-    if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
+    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomePluginSchema()) {
       throw invalidHomeStoreShape();
     }
     return { db, storage: new SqlitePluginPrivateStorage(db) };
@@ -49,7 +60,7 @@ export function openReadOnlyHomePluginStore(home: string) {
     db.exec("BEGIN");
     const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
     if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version));
-    if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
+    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomePluginSchema()) {
       throw invalidHomeStoreShape();
     }
     return db;

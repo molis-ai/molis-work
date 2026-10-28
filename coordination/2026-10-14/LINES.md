@@ -128,13 +128,13 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）、#1316（`341b4d9cc`）、#1317（`b932beb9d`）。还剩：5 个未标明的巨大单元，都在等别的线（C 等），W5-10 会话暂无批次 |
 | W5-11 | 进行中 | 已落地：第 1、2 片 #1322（`31c3ff04d`）。还剩：第 3 片起等 C 合入 |
 | W5-12 | 收尾时统筹核 | — |
-| W5-13 | 部分 | 已落地：#570、第二片、#754、RAC113、RAC114。已落地第 3 片 #1330（`8a72df336`，RAC-1110～1114）。在开发：BL-810（assistant not-found 码，加 #1330 评审的四条建议），`ac-sweep`。还剩：BL-810（assistant store 的 not-found 码）排其后；BL-812（平台包日志端口）并入 BL-169，W6 收尾前不开 |
+| W5-13 | 部分 | 已落地：#570、第二片、#754、RAC113、RAC114。已落地第 3 片 #1330（`8a72df336`，RAC-1110～1114）。在开发：BL-810（assistant not-found 码，加 #1330 评审的四条建议），`ac-sweep`。还剩：BL-810（assistant store 的 not-found 码）排其后；BL-812（平台包日志端口）并入 BL-169，W6 收尾前不开；调用点含 Inbox `plugin.ts` 的 `briefs`（读 Feed 失败整个吞掉，C 里不改） |
 | W5-14 | 部分 | 已落地：片 1～4 与 W11-1 随 A+B。还剩：余下改名，等 C 与 W5-10 合入后开 |
 | W5-15 | 部分 | 成熟度词表已有；发版与版本号归用户 |
 | W5-16 | 部分 | 已落地：B1、快照（#1271，batch-40）。还剩：B2b（CLI 必要状态、同 Home lease、全库与非 SQLite 快照恢复）；碰真实 Home 的部分进维护时段 |
 | W5-17 | 等维护时段 | 用户 10-24 定：和 Goals S9 同一时段，先在真实 Home 拷贝上跑 `list` 交用户，维护做完前不合 |
 | W6-01 | 部分 | 已落地：`740f09d4f`（含删 by-key）随 A+B。还剩：冻结名单清零（C 去掉了 Feed 的宿主文件；其余等各族迁完）、AGENTS 改写；顺手补 `local-host.ts:106` 观察者失败的 `hostLog`（W5-13 第 3 片让出：动装配会命中 full） |
-| W6-02 | 进行中 | 已落地：Todo、Jelly、Pages、灵光的走查随 A+B。其余 13 个插件 #1325（`aa88b6e96`）。还剩：置物架（BL-804），等 C |
+| W6-02 | 进行中 | 已落地：Todo、Jelly、Pages、灵光的走查随 A+B。其余 13 个插件 #1325（`aa88b6e96`）。BL-806 #1329（`ff81fd7cb`）用户已放行，在合并队列里。还剩：置物架（BL-804），等 C |
 | W6-03 | 部分 | 已落地：「现在就能改的」16 条随 batch-40（#1308）。还剩：54 条，等 W6 统一改 |
 | W6-04～06 | 未开 | 等 W5 各项与 C 合入 |
 
@@ -723,4 +723,14 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 合 main 后门禁文件重新量完，PR 分支和 carrier 只推一次；
     - Inbox 跳过 `dependency_missing` 收窄到「项目里确实没有 Feed」，两边都要有测试。
   - 评审线评 `8daec3ff7..新头` 的增量。
-
+- 10-28 统筹：#1329 用户已在 `ac-lifecycle` 会话放行，排进合并队列（头 `ff81fd7cb`）。出队后由 `ac-lifecycle` 报新提交号、清工作树，再盯 main 夜间 Full 的 busy-feedback（R-71）。
+- 10-28 统筹：C 推 `e1cae360c` 到 PR 分支和 `integration/carrier-1028-c`，各推一次。第三次 Full 是 run 40615370984。
+  - Inbox 跳过没有收窄，整个撤回了。统筹接受，理由：
+    - 诊断第 3 条走不到：Attention 的 Inbox 投影只列正在运行、声明了 `attention.inbox` 的插件的条目；Feed 一停，`feed_item` 条目就离开 Inbox，建议在读内容之前已经去掉。上一条「诊断第 3 条成立」作废。
+    - 反证：`feedAbsent` 强制为假，用例照绿；把跳过放回去，集成用例 6/7、单元用例 7/8 转红。
+    - 不跳过，就不会盖住 Feed 在时真实的 `actions.dependency_missing`。
+  - RAC-483 两边都有用例：`optional-areas-call-log` 的集成用例，`feed-inbox-scene-runtime` 的单元用例。
+  - `e1cae360c` 也补了 CHANGELOG 升级须知，即上一轮评审的必修。
+  - Inbox `briefs` 吞错：C 里不改，并进 BL-812 的调用点。
+  - 评审线评 `8daec3ff7..e1cae360c`，请求在 `review-c-e1cae360-request.md`，和 Full 并行。
+  - 远端 `integration/carrier-1028-c2`（run 40564017246 已结束，头 `8daec3ff7` 在 C 的历史里）：统筹删除被自动模式拦为「Git Destructive」，留着等用户定，不绕。

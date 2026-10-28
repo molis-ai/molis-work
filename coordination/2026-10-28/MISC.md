@@ -12,6 +12,6 @@
 | T-039 起草 | `docs/system/GLOSSARY.md:415` | R-A5 里 `behavior_id`「31 个文件、23 个」、`*_BEHAVIOR_ID`「5 个、3 个」两组数的口径没记下；起草时按 `git grep -l … ':!*.md' ':!tests'` 再加 `-- tests` 量到 40 与 29、8 与 6。先定口径、写进那一格，再改数 | 2026-10-28 |
 | T-040 起草 | `apps/workbench/src/immersive-shell.ts` 的 `renderAccountGlobalItems`、`personalIsland` 参数和对应 CSS | `renderAccountGlobalItems` 在 T-040 之后没有生产调用方，只剩 `tests/plugin-market-catalog.test.ts:4`、`:36`；`personalIsland` 生产两处都传 `""`，只有 `tests/characters-appearance.test.ts:52` 传非空。等 T-040 合入再开单 | 2026-10-28 |
 | T-044 起草 | `specs/post-anticorruption-roadmap/spec.md:181` | 这一行提到 BL-393。T-044 合入、BL-393 删行后，这一句改成已做完（#1324 在改这份文件，等它不再锁再改） | 2026-10-28 |
-| T-046 起草 | `apps/local-host/src/connector-local-actions.ts:39-42` | `connectors.local.cleanup@1` 按 `installation_id` 删受管理安装，不核谁装的；对象是安装不是请求，T-046 不做。统筹查它的受众和调用者，再定要不要另开任务 | 2026-10-28 |
+| cleanup@1 调查（统筹 10-28） | `apps/local-host/src/connector-tool-install.ts:85` | 受管理安装目录在、`installation.json` 不在时，`removeManagedConnectorTool` 抛原生 `ENOENT`，不是 `toolInstallErrors`。改成 `toolInstallErrors.invalid` 一类的码，补一条用例 | 2026-10-28 |
 | T-045 起草 | BL-544（`apps/workbench/src/side-view-document.ts:56`、`tests/plugin-frame-readiness.e2e.test.ts:46-98`） | 侧视图插件框在加载期间没有 `inert`、`aria-busy`、`data-ui-client-state=loading`，VUX-16 也没在加载窗口里点。统筹另写任务：产品守护加真实点击的用例，改页面脚本要看 `page-assets.json` 预算（涨超 10 KB 先问用户） | 2026-10-28 |
 | T-045 起草 | `specs/repository-anti-corruption/slices/w5-03-pages.md:71` | 还写评论侧栏用原生 `fetch(`；#1300（PG-056）之后 `comment-side-client.ts` 已走 `molisWorkRequest`。改成现状 | 2026-10-28 |

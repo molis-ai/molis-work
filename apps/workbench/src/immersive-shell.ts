@@ -106,7 +106,7 @@ const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 
 /**
- * The person's entries, the backbone, this project's tools (recent first, the rest one click away), the account.
+ * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
  *
  * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
  * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
@@ -131,7 +131,6 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
-  accountFooter: string,
   personalIsland = "",
   directory: PluginDirectory = builtinPluginDirectory(),
   options: PluginMarketOptions = {},
@@ -210,7 +209,6 @@ export function renderPluginRail(
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
     ${personalIsland}
     <div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_GROUP_LABELS[UI_VIEW_GROUPS[0]])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
-    ${accountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabled))}
   </nav>`;
 }
 

@@ -1,10 +1,24 @@
 import { composeInstructedPrompt, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { INFORMATION_PLANNER } from "./agent-definitions/system-prompts.js";
-import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import { textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 
+/** What the plan reads from Inbox's list. */
+export interface InformationPlanEntry {
+  entry_id: string;
+  subject_type: string;
+  subject_id: string;
+  status: string;
+}
+
+/** What the plan reads from Feed's snapshot; Feed's directory action returns it without `inbox_entries`, which the Inbox list supplies. */
+export interface InformationPlanSnapshot {
+  sources: ReadonlyArray<{ source_id: string; name: string; enabled: boolean }>;
+  feed_items: ReadonlyArray<{ item_id: string; source_id: string; title: string; summary: string }>;
+  inbox_entries: ReadonlyArray<InformationPlanEntry>;
+}
+
 /** Read-only proposals. Confirmed actions run through the existing plugin HTTP contracts. */
-export async function planInformationWork(snapshot: FeedSnapshot, projectId: string, body: Record<string, unknown>, completeText?: HostCompleteText, authority?: Parameters<HostCompleteText>[1],
+export async function planInformationWork(snapshot: InformationPlanSnapshot, projectId: string, body: Record<string, unknown>, completeText?: HostCompleteText, authority?: Parameters<HostCompleteText>[1],
   /** The registered instructions as the person left them; without it, the shipped default. */
   resolve?: (prompt: InstructedPrompt) => string) {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";

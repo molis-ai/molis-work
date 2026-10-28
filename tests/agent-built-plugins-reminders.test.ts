@@ -79,3 +79,22 @@ test("a reused installation id cannot cancel or deliver a previous generation's 
   assert.equal((await f.tick(at)).failed, 0); assert.deepEqual((await f.inbox()).map(item => item.summary), ["current owner"]);
   assert.equal(getScheduleReminder(store.db, fresh.reminderId), null);
 });
+test("RAC-1670 a reminder whose 「plugin name：text」 passes 200 UTF-16 units is taken but never delivered: the wakeup fails, its one-shot job stops, the reminder stays (known defect, pinned until its fix is chosen)", { timeout: 60_000 }, async t => {
+  // reminders.add takes up to 200 UTF-16 units of text (plugins/native/schedule/src/reminders.ts:67), delivery titles the notification
+  // 「plugin name：text」 (runtime-wakeups.ts:37), and the notification service refuses a title over 200 units
+  // (apps/local-host/src/plugin-notification-service.ts:39-41). 「定时笔记：」 is 5 units, so 195 fits and 196 does not.
+  // The fix (cut the title, or tighten the text) turns the second reminder's assertions around.
+  const f = await scheduleRuntimeFixture(t), store = await f.store(), clock = scheduleServiceFor(store.db), at = next();
+  const fits = await f.sdk.invoke(reminderActions.add, { at, text: "提".repeat(195) });
+  const over = await f.sdk.invoke(reminderActions.add, { at, text: "提".repeat(196) });
+  const job = getScheduleReminder(store.db, over.reminderId)!.jobId;
+  assert.equal((await f.tick(at)).failed, 1, "only the reminder whose title would be 201 units fails");
+  assert.deepEqual((await f.inbox()).map(item => item.title), ["定时笔记：" + "提".repeat(195)], "a 200-unit title reaches the Inbox");
+  assert.equal(getScheduleReminder(store.db, fits.reminderId), null, "the delivered one-shot reminder is consumed");
+  assert.equal(getScheduleReminder(store.db, over.reminderId)?.text, "提".repeat(196), "the refused reminder stays");
+  assert.deepEqual([clock.get(job)?.enabled, clock.get(job)?.last_wakeup?.status], [false, "failed"], "its one-shot job has fired and stopped");
+  assert.match(clock.get(job)?.last_wakeup?.detail ?? "", /通知字段无效：title/, "the notification service refused the title");
+  assert.equal(new PluginNotificationQueue(store.db).pending(f.project.project_id).length, 0, "nothing is left queued for it");
+  await f.tick(new Date(Date.parse(at) + 60_000).toISOString());
+  assert.equal((await f.inbox()).length, 1, "a later tick does not deliver it either");
+});

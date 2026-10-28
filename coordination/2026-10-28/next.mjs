@@ -249,7 +249,9 @@ function analyse(pr, issueStages, tier) {
     lastChange,
     full: last(stages.filter((s) => s.full))?.full ?? null,
     verify: checkState(pr, (n) => n === "Verify"),
-    fullRun: checkState(pr, (n) => n === "Full suite"),
+    // While a Full runs only its shards "Full suite (n/16)" are on the head; the summary "Full suite" appears when it ends. Reading only
+    // the summary called a running Full "none" and offered to re-add the label, which cancels it.
+    fullRun: checkState(pr, (n) => n === "Full suite" || /^Full suite \(\d+\/\d+\)$/.test(n)),
     security: (pr.files ?? []).some((f) => SECURITY_FILES.test(f.path)) ? checkState(pr, (n) => n.startsWith("Security invariants")) : null,
     askOpen: lastAsk && (!lastAnswer || lastAnswer.time < lastAsk.time) ? lastAsk : null,
     planOpen: lastPlan && (!lastAnswer || lastAnswer.time < lastPlan.time) ? lastPlan : null,

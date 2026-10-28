@@ -741,3 +741,14 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 本机只构建、typecheck、lint，一次 heavy.sh。证据看今晚 17:00 UTC 的夜间 Full。
     - 在那之前 Goal 切换那条用例若在别处再红，BL-807 先停。
   - known-red-main.md 的 busy-feedback 行留到夜间 Full 过了再移。
+- 10-28 统筹：评审线评完 C @ `e1cae360c`（`review-c-e1cae360.md`）。
+  - 一处必修：CHANGELOG 升级须知不全，要照动作快照 diff 整条重写。
+    - 开放给 MCP 的动作里，22 个改了权限集合，另有 2 条 `scenes.enable` 行；MCP 授权要求集合逐项相同，所以这些动作都要重新授权。
+    - 不全的根子在上一轮评审的清单：只数了那一段增量，没有拿整条 C 和 main 比。
+  - 合 main、门禁数字、`02f3b4c58`、`scene-runtime.ts` 回退、RAC-483 及其反证，都没问题。
+  - 采纳一条建议：RAC-483 集成用例补走 BL-800 的真实路径（移除 Inbox → Feed 连带移除 → 加回 Inbox）。
+  - 第三次 Full 的第 9/16 片已红，等 run 结束由 C 归因。C 的分支合的是 `aa88b6e96`，没有 #1329，busy-feedback 照旧会红。
+  - 怎么推：
+    - 只剩已登记的红：CHANGELOG 和用例补充合成一次推送，只推 PR 分支，不再跑 Full。
+    - 有新红要改代码：同一次 heavy.sh，按 affected-tests 的 `full` 字段报统筹定要不要再跑 Full。
+    - 推完由评审线复核这段增量，复核 CHANGELOG 时拿整条 C 和 main 比。

@@ -18,6 +18,10 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-005 | 双实例插件 Home 一半停用后不再答裸 404，加回置物架走查 | 甲 | B | 2 | — | `apps/local-host/src/home-plugin-http.ts`、`tests/dual-instance-routes.test.ts`、`tests/fixtures/shipped-lifecycle.ts`、`tests/shipped-plugin-lifecycle-personal.test.ts`、`specs/dual-instance-plugins/spec.md` |
 | T-004 | 公开来源拉取已提交后判断失败，对外报原来的错误 | 乙 | A | 3 | — | `plugins/native/feed/src/source-sync.ts`、`tests/feed-sync-concurrency.test.ts`、`tests/feed-inbox-lifecycle.test.ts`、`tests/feed-runtime-plugin.test.ts` |
 | T-006 | 插件市场与 Dock 说明添加、移除会连带什么 | 乙 | B | 3 | — | `apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/scripts/client/plugin-workbench.ts`、`apps/workbench/src/i18n/gap-en.ts`、`tests/plugin-market-catalog.test.ts`、`tests/plugin-picker-pins.test.ts`、`tests/immersive-workbench.e2e.test.ts`、`tests/plugin-picker-pins.e2e.test.ts` |
+| T-007 | 崩掉、没启用的安装被启停刷新去停后，页面请求全部失败（R-70 / BL-813） | 甲 | 本机 | 1 | — | 开工时补 |
+| T-008 | Runtime 动作调用路径的成本（BL-814） | 甲 | 本机 | 2 | T-007 | 开工时补 |
+| T-009 | 助理只认 not-found 码（BL-810） | 甲 | 本机 | 1 | — | `apps/local-host/src/assistant/`，其余开工时补 |
+| T-010 | W5-11 第 3 片（A1～A4） | 甲 | 本机 | 1 | — | 开工时补 |
 
 ## 在途，不走任务书
 
@@ -25,7 +29,4 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 在途 | 线 | 锁定的文件 |
 | --- | --- | --- |
-| BL-810 助理只认 not-found 码 | 本机 ac-sweep | `apps/local-host/src/assistant/` |
-| R-70 / BL-813，BL-814 Runtime 动作调用路径的成本 | 本机 C 线 | 开工时补 |
-| W5-11 第 3 片起 | 本机 OAuth 线 | 开工时补 |
 | W5-16 B2b，不碰真实 Home 的部分 | Codex | 开工时在 #1332 报 |

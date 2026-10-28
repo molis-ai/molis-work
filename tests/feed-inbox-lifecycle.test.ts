@@ -369,7 +369,7 @@ const COMMITTED_MATERIAL = {
 };
 
 // RAC-1214 BL-801: a scheduled pull that committed and then failed in its judgments spends its slot and reports the failure as a result, not a refusal.
-test("a scheduled pull that fails judging after it committed spends its slot and raises no source fault", { timeout: 15_000 }, async () => {
+test("RAC-1214 a scheduled pull that fails judging after it committed spends its slot and raises no source fault", { timeout: 15_000 }, async () => {
   await withProject("molis-work-feed-sched-judged-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z"), renaming = "";
     const runtimeFactory = (): SourcePullRuntime => ({
@@ -400,9 +400,14 @@ test("a scheduled pull that fails judging after it committed spends its slot and
       const schedule = service.feed.getSource(DEMO_PROJECT_ID, source.source_id).schedule;
       return schedule.mode === "interval" ? schedule.next_pull_at : null;
     };
+    const sourceFaults = () => service.feed.listInboxEntries(DEMO_PROJECT_ID)
+      .filter(entry => entry.subject_type === "source_fault" && entry.subject_id === source.source_id)
+      .map(entry => entry.entry_id);
+    const faultsBefore = sourceFaults();
     now = new Date("2026-08-30T09:15:00.000Z");
     const first = await scheduler.tick(now);
     assert.equal(first.failed, 1, "the failure is a result of the tick, not a refusal of the whole tick");
+    assert.deepEqual(sourceFaults(), faultsBefore, "a judgment failure is not an actionable source fault, so no inbox entry is raised");
     assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot is spent");
     const runs = service.feed.snapshot(DEMO_PROJECT_ID).runs.filter(run => run.source_id === source.source_id);
     assert.deepEqual(runs.map(run => run.phase), ["terminal"], "the pull's own result is the only run");

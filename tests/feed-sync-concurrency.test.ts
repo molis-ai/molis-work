@@ -213,7 +213,7 @@ async function committedPull(refuse: () => ActionError) {
 }
 
 // RAC-1210 BL-801: a pull that committed and then failed in a judgment reports that failure; the guard must not read the pull's own source write as an edit.
-test("a judgment that fails after the pull committed reports its own failure and keeps the committed rows", { timeout: 15_000 }, async () => {
+test("RAC-1210 a judgment that fails after the pull committed reports its own failure and keeps the committed rows", { timeout: 15_000 }, async () => {
   const pull = await committedPull(() => new ActionError("actions.execution_failed", "判断失败"));
   try {
     await assert.rejects(
@@ -225,7 +225,7 @@ test("a judgment that fails after the pull committed reports its own failure and
 });
 
 // RAC-1211 BL-801: a pull that committed but failed in its judgments replays its terminal run under the same key instead of pulling again.
-test("a pull whose judgment failed after the commit replays its terminal run under the same key", { timeout: 15_000 }, async () => {
+test("RAC-1211 a pull whose judgment failed after the commit replays its terminal run under the same key", { timeout: 15_000 }, async () => {
   const pull = await committedPull(() => new ActionError("actions.execution_failed", "判断失败"));
   try {
     await assert.rejects(pull.service.sync(pull.source.source_id, { idempotencyKey: "committed-judgment-replay" }), { code: "actions.execution_failed" });
@@ -236,7 +236,7 @@ test("a pull whose judgment failed after the commit replays its terminal run und
 });
 
 // RAC-1213 BL-801: a caller cancelled while judging a committed pull gets the cancellation, and the commit is all that remains.
-test("a cancellation during the judgment of a committed pull reports the cancellation and writes nothing further", { timeout: 15_000 }, async () => {
+test("RAC-1213 a cancellation during the judgment of a committed pull reports the cancellation and writes nothing further", { timeout: 15_000 }, async () => {
   const pull = await committedPull(() => new ActionError("actions.cancelled", "调用已取消"));
   try {
     await assert.rejects(

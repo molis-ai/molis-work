@@ -125,9 +125,15 @@ export class PluginInstallService {
     await this.assertIntegrationsFree(held.pkg.manifest);
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
-    // A package of a plugin that is already installed here is its upgrade, and only its own publisher's: another publisher's is refused before it can be pinned.
-    const present = (await this.ports.installed(held.project_id)).find(item => item.record.plugin_id === held.pkg.manifest.plugin_id);
-    if (present && present.record.publisher_signature !== held.key_id) throw pluginErrors.definition_conflict('这个插件已经由另一个发布者装进了这个项目，两边不能互相替换：先卸载，再装');
+    // A package of a plugin that is already installed where it goes is its upgrade, and only its own publisher's: another publisher's is refused
+    // before it can be pinned or kept. A Home package looks at the Home's installations of signed packages (the Host's own Home plugins are the
+    // Runtime's to refuse), a project's at the project's.
+    const inHome = held.runtime_scope === 'home';
+    const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
+    const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
+    if (present && present.record.publisher_signature !== held.key_id) {
+      throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
+    }
     if (!pin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');

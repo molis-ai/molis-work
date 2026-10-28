@@ -18,7 +18,6 @@ import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plug
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
-import { hostErrors } from "./host-errors.js";
 import { randomUUID } from "node:crypto";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
@@ -48,13 +47,6 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
   const operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
-  // A segment that is not valid percent-encoding cannot name any declared route of either half; the caller's 400, before a half's
-  // matcher decodes the path (the same answer the retired Host dispatcher gave, BL-386).
-  if (operation.split("/").some((segment) => { try { decodeURIComponent(segment); return false; } catch { return true; } })) {
-    const refusal = actionErrorResponse(hostErrors.request_path_invalid("请求路径里有无效的编码"));
-    sendLocalWebJson(response, refusal.status, refusal.body);
-    return true;
-  }
   // The Host's lifecycle operations are the Home's: under a project's path they are not there, and nothing starts or retries.
   if (prefixed && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) {
     const missing = actionErrorResponse(new ActionError("actions.missing", "插件没有这个入口"));
@@ -190,7 +182,15 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
  * is not running binds none). A path the Manifest does not declare stays the Home's, which answers it as for any Home plugin.
  */
 function projectHalfRoute(platform: HomePluginPlatform, install: PluginInstanceRecord | null, method: string | undefined, pathname: string): boolean {
-  const match = platform.router().match(method ?? "GET", pathname);
+  let match;
+  try { match = platform.router().match(method ?? "GET", pathname); }
+  catch (error) {
+    // Bad percent-encoding throws before the matcher can say whose route this is. The request is handed to the project chain (true means
+    // it is the project half's, as for a declared route this half does not bind): the project and its enablement are judged first, then
+    // the Runtime's own declared-shape answer. The Home half neither answers it nor refuses it on its own. Other failures propagate.
+    if (error instanceof URIError) return true;
+    throw error;
+  }
   return match ? !binds(platform, install, match.route_id) : false;
 }
 
@@ -214,7 +214,13 @@ async function projectPluginPlatform(host: MolisWorkLocalHost, project: LocalHos
 
 /** Whether the project's half answers this declared route now: its installation runs and its contribution binds the route. */
 function projectHalfBinds(platform: PluginPlatform, pluginId: string, method: string | undefined, pathname: string): boolean {
-  const match = platform.router().match(method ?? "GET", pathname);
+  let match;
+  try { match = platform.router().match(method ?? "GET", pathname); }
+  catch (error) {
+    // Same malformed path: the project chain decides (it judges the project, enablement and then the Runtime's declared-shape answer).
+    if (error instanceof URIError) return true;
+    throw error;
+  }
   if (!match) return false;
   const state = platform.supervisor.state(pluginId);
   return binds(platform, state?.install_id ? platform.runtime.get(state.install_id) : null, match.route_id);

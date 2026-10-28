@@ -172,14 +172,9 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
   const home = serverOptions.homeDirectory, reach = runtimePluginRoute ? reachEntry(home, runtimePluginRoute[1]!) : undefined;
   const reachable = !runtimeUpdatesRoute && reach && options.project
     ? await composition.withCatalog({ homeDirectory: home }, catalog => projectReachablePlugins(catalog, options.project!.project_id, homePluginsOutsideBuild(home))) : null;
-  // A single database served as its own board (the fixture mode `createMolisWorkWebServer({ databasePath })` gives tests) presents no
-  // project installation records: its configured board is the authority, as it already is for the project's action availability
-  // (`web-server.ts`), so every plugin the Host registers for projects is reachable there. No project route reaches this mode.
-  const configuredBoard = !options.project && serverOptions.databasePath !== undefined && serverOptions.projectId === options.projectId;
   const enabled = runtimeUpdatesRoute
     ? Boolean(options.project)
-    : configuredBoard ? reach !== undefined
-      : reach ? pluginReachable(reach, reachable) : Boolean(options.project);
+    : reach ? pluginReachable(reach, reachable) : Boolean(options.project);
   if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return true; }
   return handleProjectPluginHttp(request, response, url, pluginPorts);
 } };

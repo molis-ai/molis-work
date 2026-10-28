@@ -3,18 +3,19 @@ import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { AddressInfo } from "node:net";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
-const BOARD = "board-http-events";
 const TOKEN = "molis-work-event-http-token-0123456789abcdef";
 
 function listen(server: Server): Promise<string> {
@@ -27,10 +28,11 @@ function listen(server: Server): Promise<string> {
   });
 }
 
-test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
@@ -102,23 +104,27 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   });
   assert.equal(closed.recorded, true);
 
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   try {
-    const stateRes = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`);
+    const stateRes = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`);
     assert.equal(stateRes.status, 200);
     const state = await stateRes.json() as { owner: { kind: string }; latest_reports: Array<{ title: string }>; current_decisions: unknown[] };
     assert.equal(state.owner.kind, "event_work");
     assert.equal(state.latest_reports[0]?.title, "开场已经能走进去");
-    const timelineRes = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-timeline?limit=20`);
+    const timelineRes = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-timeline?limit=20`);
     const timeline = await timelineRes.json() as { items: Array<{ event_id: string; title: string }>; next_cursor: number | null };
     assert.ok(timeline.items.length >= 4);
     const ids = timeline.items.map((item) => item.event_id);
     assert.equal(new Set(ids).size, ids.length);
-    const bodyRes = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/events/${encodeURIComponent(timeline.items[0]!.event_id)}`);
+    const bodyRes = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/events/${encodeURIComponent(timeline.items[0]!.event_id)}`);
     const body = await bodyRes.json() as { title: string; payload?: { piece?: string } };
     assert.ok(body.title);
-    const conflict = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-close`, {
+    const conflict = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-close`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -134,7 +140,6 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
     const conflictBody = await conflict.json() as { code: string };
     assert.match(conflictBody.code, /stale_version|version_conflict/);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
   }
 
@@ -144,13 +149,13 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   assert.equal(restored.latest_reports[0]?.title, "开场已经能走进去");
   assert.equal(restored.owner?.kind, "event_work");
   reopened.close();
-  rmSync(directory, { recursive: true, force: true });
 });
 
-test("HTTP event-close rejects unknown kind without recording an event", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-kind-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP event-close rejects unknown kind without recording an event", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-kind" });
@@ -158,11 +163,15 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
     project_id: BOARD, title: "无效收尾", outcome: "不能默认为完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-kind",
   });
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   try {
     const before = app.goalEvents.readState(BOARD, created.goal.goal_id);
-    const response = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}/event-close`, {
+    const response = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}/event-close`, {
       method: "POST",
       headers: { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "bogus-kind" },
       body: JSON.stringify({
@@ -176,7 +185,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
     const after = app.goalEvents.readState(BOARD, created.goal.goal_id);
     assert.equal(after.work_status, before.work_status);
     assert.equal(after.observed_event_cursor, before.observed_event_cursor);
-    const missing = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}/event-close`, {
+    const missing = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}/event-close`, {
       method: "POST",
       headers: { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "missing-kind" },
       body: JSON.stringify({
@@ -190,16 +199,15 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
     const afterMissing = app.goalEvents.readState(BOARD, created.goal.goal_id);
     assert.equal(afterMissing.observed_event_cursor, before.observed_event_cursor);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("PG094-09: the Host serves Goals' declared routes by method and path; a bad encoding in one is the caller's 400, a read refuses a POST with 404", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-routes-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("PG094-09: the Host serves Goals' declared routes by method and path; a bad encoding in one is the caller's 400, a read refuses a POST with 404", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-routes" });
@@ -208,37 +216,55 @@ test("PG094-09: the Host serves Goals' declared routes by method and path; a bad
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-routes",
   });
   const goalPath = `/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}`;
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const read = await fetch(`${origin}${goalPath}/event-state`, { headers });
+    const read = await fetchProject(`${origin}${goalPath}/event-state`, { headers });
     assert.equal(read.status, 200);
     assert.equal((await read.json() as { owner: { kind: string } }).owner.kind, "event_work");
 
-    const badEncoding = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/%E0%A4%A/event-state`, { headers });
+    // A declared shape with a bad percent-encoding is the caller's invalid path: 400 before any handler runs (nothing is written).
+    const beforeBad = app.goalEvents.listEvents(BOARD, created.goal.goal_id, { limit: 100 });
+    const badEncoding = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/%E0%A4%A/event-state`, { headers });
     assert.equal(badEncoding.status, 400);
     assert.equal((await badEncoding.json() as { code?: string }).code, "host.request_path_invalid");
+    assert.deepEqual(app.goalEvents.listEvents(BOARD, created.goal.goal_id, { limit: 100 }), beforeBad, "the handler did not run for the malformed path");
 
     // Expected change: the read is declared GET only, so a POST finds no route (it used to answer 400 for the body's fields).
-    const posted = await fetch(`${origin}${goalPath}/event-state`, { method: "POST", headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ note: "不是读" }) });
+    const posted = await fetchProject(`${origin}${goalPath}/event-state`, { method: "POST", headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ note: "不是读" }) });
     assert.equal(posted.status, 404);
     await posted.body?.cancel();
 
-    // A bad encoding outside Goals' declared routes is not Goals' to refuse.
-    const elsewhere = await fetch(`${origin}/api/not-goals/%E0%A4%A`, { headers });
+    // An undeclared shape with a bad encoding is not this plugin's route: it falls through to the Host's own answer, not a 400 here and
+    // never a 500 (the Runtime matcher's URIError is taken by the same declared-shape rule).
+    const undeclared = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/not-declared/%E0%A4%A`, { headers });
+    assert.notEqual(undeclared.status, 400, await undeclared.clone().text());
+    assert.notEqual(undeclared.status, 500, await undeclared.clone().text());
+    assert.doesNotMatch(await undeclared.text(), /host\.request_path_invalid/);
+
+    // A path outside the plugin prefix is not Goals' to refuse.
+    const elsewhere = await fetchProject(`${origin}/api/not-goals/%E0%A4%A`, { headers });
     assert.doesNotMatch(await elsewhere.text(), /host\.request_path_invalid/);
+
+    // A project that is not there is the project chain's own refusal, before any plugin-shape answer: not this 400.
+    const unreachable = await fetch(`${origin}/projects/not-a-project/api/plugins/io.molis.work.goals/goals/%E0%A4%A/event-state`, { headers });
+    assert.notEqual(unreachable.status, 400);
+    assert.doesNotMatch(await unreachable.text(), /host\.request_path_invalid/);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-write-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-write" });
@@ -247,15 +273,19 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-write",
   });
   const goalId = created.goal.goal_id;
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = {
     "content-type": "application/json",
     origin,
     "x-molis-work-control-token": TOKEN,
   };
   try {
-    const configure = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-configure`, {
+    const configure = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-configure`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-cfg" },
       body: JSON.stringify({
@@ -268,7 +298,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     });
     assert.equal(configure.status, 200, await configure.clone().text());
     const configuredState = app.goalEvents.readState(BOARD, goalId);
-    const agree = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
+    const agree = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-agree" },
       body: JSON.stringify({
@@ -278,7 +308,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
       }),
     });
     assert.equal(agree.status, 200, await agree.clone().text());
-    const report = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
+    const report = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-rep" },
       body: JSON.stringify({
@@ -286,7 +316,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
       }),
     });
     assert.equal(report.status, 200, await report.clone().text());
-    const concern = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-concern`, {
+    const concern = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-concern`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-concern" },
       body: JSON.stringify({
@@ -296,7 +326,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     });
     assert.equal(concern.status, 200, await concern.clone().text());
     const concernBody = await concern.json() as { concern: { concern_id: string } };
-    const decision = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-decision`, {
+    const decision = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-decision`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-dec" },
       body: JSON.stringify({
@@ -307,7 +337,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     });
     assert.equal(decision.status, 200, await decision.clone().text());
     const decided = await decision.json() as { decision: { decision_id: string } };
-    const accept = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-concern`, {
+    const accept = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-concern`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-accept" },
       body: JSON.stringify({
@@ -316,10 +346,10 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
       }),
     });
     assert.equal(accept.status, 200, await accept.clone().text());
-    const state = await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`)).json() as {
+    const state = await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`)).json() as {
       agreement: { version: number }; config: { version: number }; latest_reports: Array<{ title: string }>;
     };
-    const closed = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-close`, {
+    const closed = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-close`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-close" },
       body: JSON.stringify({
@@ -329,23 +359,22 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
       }),
     });
     assert.equal(closed.status, 200, await closed.clone().text());
-    const timeline = await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-timeline?limit=20`)).json() as {
+    const timeline = await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-timeline?limit=20`)).json() as {
       items: Array<{ event_id: string; source?: string; title: string }>;
     };
     const ids = timeline.items.map((item) => item.event_id || item.title);
     assert.equal(new Set(ids).size, ids.length);
     assert.ok(timeline.items.some((item) => item.title.includes("HTTP 已经写下报告") || item.source === "event_work"));
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP progress uses the Goal cursor and legal field ids stay content", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-cursor-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP progress uses the Goal cursor and legal field ids stay content", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-cursor" });
@@ -354,13 +383,17 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-cursor",
   });
   const goalId = created.goal.goal_id;
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const state = await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`)).json() as { goal_event_cursor: number };
+    const state = await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`)).json() as { goal_event_cursor: number };
     assert.ok(state.goal_event_cursor >= 1);
-    const progress = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-progress`, {
+    const progress = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-progress`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "blank-progress" },
       body: JSON.stringify({ summary: "空白目标第一次记录进展", based_on_cursor: state.goal_event_cursor }),
@@ -377,7 +410,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
         })),
       }],
     });
-    const report = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
+    const report = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "special-report" },
       body: JSON.stringify({
@@ -391,7 +424,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     const reportBody = await report.json() as { work_status?: string; events?: Array<{ journal_seq: number }>; goal_event_cursor?: number };
     assert.equal(reportBody.work_status, "open");
     const beforeScalar = app.goalEvents.listEvents(BOARD, goalId, { limit: 100 });
-    const scalarProgress = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
+    const scalarProgress = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "scalar-progress" },
       body: JSON.stringify({
@@ -431,14 +464,14 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     });
     assert.equal(closed.completion_applied, true);
     // A retry names the act in the body and carries a fresh Host one-time key each time; only the body key repeats.
-    const firstResume = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-resume`, {
+    const firstResume = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-resume`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() },
       body: JSON.stringify({ reason: "明确开启下一轮", idempotency_key: "resume-replay" }),
     });
     assert.equal(firstResume.status, 200, await firstResume.clone().text());
     const firstBody = await firstResume.json() as { event_id: string };
-    const secondResume = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-resume`, {
+    const secondResume = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-resume`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() },
       body: JSON.stringify({ reason: "明确开启下一轮", idempotency_key: "resume-replay" }),
@@ -450,7 +483,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
       goal_id: "old-guard-first", title: "创建入口的业务幂等", outcome: "", why: "", business_logic: "",
     };
     // The business key travels in the body; the Host's one-time key is new for every attempt, so the handler answers the retry.
-    const postCreate = (body: Record<string, unknown>, key: string) => fetch(`${origin}/api/plugins/io.molis.work.goals/goals`, {
+    const postCreate = (body: Record<string, unknown>, key: string) => fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() },
       body: JSON.stringify({ ...body, idempotency_key: key }),
@@ -475,16 +508,15 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     assert.equal(boardSnapshot(store, BOARD).goals.filter((goal) => goal.goal_id === "old-guard-first").length, 1);
     assert.equal(boardSnapshot(store, BOARD).goals.some((goal) => goal.goal_id === "old-guard-second"), false);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-draft-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-draft-http" });
@@ -497,16 +529,20 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     business_logic: "旧编辑", definition_state: "draft", decomposition_state: "abstract",
     acceptance_criteria: [],
   }, { actor_id: "web-user", idempotency_key: "legacy-http-create" });
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const page = await (await fetch(`${origin}/goals/${encodeURIComponent(created.goal.goal_id)}`)).text();
+    const page = await (await fetchProject(`${origin}/goals/${encodeURIComponent(created.goal.goal_id)}`)).text();
     assert.match(page, /data-goal-event-document/);
     assert.doesNotMatch(page, /data-draft-editor/);
     const before = boardSnapshot(store, BOARD).goals.find((goal) => goal.goal_id === created.goal.goal_id)!;
     const beforeState = app.goalEvents.readState(BOARD, created.goal.goal_id);
-    const rejected = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}/draft`, {
+    const rejected = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(created.goal.goal_id)}/draft`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-draft-hijack" },
       body: JSON.stringify({
@@ -523,11 +559,11 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     assert.deepEqual(after.acceptance_criteria, before.acceptance_criteria);
     assert.equal(afterState.agreement.outcome, beforeState.agreement.outcome);
     assert.equal(afterState.agreement.version, beforeState.agreement.version);
-    const legacyPage = await (await fetch(`${origin}/goals/legacy-http-draft`)).text();
+    const legacyPage = await (await fetchProject(`${origin}/goals/legacy-http-draft`)).text();
     assert.match(legacyPage, /未转交草稿/);
     assert.match(legacyPage, /旧结果/);
     assert.doesNotMatch(legacyPage, /data-draft-editor|data-open-goal-edit|data-event-form-open="note"|data-event-form="note"|data-event-form="type"|data-event-form="agreement"|data-event-form="closure"|data-event-form="continue"/);
-    const saved = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/legacy-http-draft/draft`, {
+    const saved = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/legacy-http-draft/draft`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-legacy-draft" },
       body: JSON.stringify({
@@ -541,16 +577,15 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     assert.equal(legacyAfter.title, "未转交草稿");
     assert.equal(legacyAfter.outcome, "旧结果");
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-definition-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-definition-http" });
@@ -578,10 +613,14 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
   };
   app.goals.commands.createGoal(BOARD, goal, { actor_id: "definition-fixture", idempotency_key: "legacy-definition-http-create", reason: "隔离验收原字段读取" });
   const before = boardSnapshot(store, BOARD);
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   try {
-    const page = await (await fetch(`${origin}/goals/${encodeURIComponent(goal.goal_id)}`)).text();
+    const page = await (await fetchProject(`${origin}/goals/${encodeURIComponent(goal.goal_id)}`)).text();
     const start = page.indexOf('data-event-panel="description"');
     const end = page.indexOf('data-event-panel="requirements"');
     assert.ok(start >= 0 && end > start, "description panel must be in the Goal document");
@@ -604,23 +643,22 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
     assert.doesNotMatch(details, /90 分/);
     assert.match(details, /original-report/);
     assert.doesNotMatch(details, /当前满足|尚未满足/);
-    const fragment = await (await fetch(`${origin}/api/goals/${encodeURIComponent(goal.goal_id)}/document`)).text();
+    const fragment = await (await fetchProject(`${origin}/api/goals/${encodeURIComponent(goal.goal_id)}/document`)).text();
     for (const value of [...goal.constraints, ...goal.required_inputs, ...goal.promised_outputs]) {
       assert.match(fragment, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
     assert.deepEqual(boardSnapshot(store, BOARD).goals, before.goals);
     assert.equal(app.goalEvents.isEventStateOwner(BOARD, goal.goal_id), false);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-agree-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-agree" });
@@ -629,12 +667,16 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-agree-http",
   });
   const goalId = created.goal.goal_id;
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const before = app.goalEvents.readState(BOARD, goalId);
-    const unknown = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
+    const unknown = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "unknown-agree" },
       body: JSON.stringify({
@@ -647,7 +689,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
     assert.equal(unknown.status, 400);
     const unknownBody = await unknown.json() as { code?: string };
     assert.equal(unknownBody.code, "goals.event_http.unexpected_field");
-    const omitted = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-close`, {
+    const omitted = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-close`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "omit-agreement" },
       body: JSON.stringify({
@@ -659,16 +701,15 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
     assert.equal(after.agreement.outcome, before.agreement.outcome);
     assert.equal(after.observed_event_cursor, before.observed_event_cursor);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP outcome replacement expires all current supports; stale agreement_change approval has no write", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-expire-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP outcome replacement expires all current supports; stale agreement_change approval has no write", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-expire" });
@@ -714,12 +755,16 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     ...versions(),
   });
   assert.equal(closed.completion_applied, true);
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const beforeChange = app.goalEvents.readState(BOARD, goalId);
-    const replace = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
+    const replace = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-outcome-replace" },
       body: JSON.stringify({ ...versions(), outcome: "展示购买按钮即可", idempotency_key: "http-outcome-replace" }),
@@ -753,7 +798,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
       proposed_change: { retire_requirement_ids: ["r-one"] },
     });
     assert.equal(staleRequest.decision_request.commitment?.requirements[0]?.statement, "真实完成购买");
-    const freshPage = await (await fetch(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
+    const freshPage = await (await fetchProject(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
     assert.match(freshPage, /name="agreement_change_decision" value="authorize"/);
     assert.match(freshPage, /name="agreement_change_decision" value="deny"/);
     assert.doesNotMatch(freshPage, /name="agreement_change_decision"[^>]*checked/);
@@ -766,11 +811,11 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
       idempotency_key: "http-revise-before-approve", ...versions(),
       revise_requirements: [{ requirement_id: "r-one", statement: "真实购买并处理退货" }],
     });
-    const stalePage = await (await fetch(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
+    const stalePage = await (await fetchProject(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
     assert.match(stalePage, /已经变化/);
     assert.match(stalePage, /刷新或重新请求/);
     const beforeStale = app.goalEvents.readState(BOARD, goalId);
-    const staleApproval = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-decision`, {
+    const staleApproval = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-decision`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-stale-approve" },
       body: JSON.stringify({
@@ -792,16 +837,15 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.equal(afterStale.requirements.find((item) => item.requirement_id === "r-one")?.statement, "真实购买并处理退货");
     assert.equal(afterStale.applied_decisions.length, beforeStale.applied_decisions.length);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP create receipt has no retired state aliases and covers requirements and relations", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-create-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP create receipt has no retired state aliases and covers requirements and relations", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-create" });
@@ -813,10 +857,14 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     project_id: BOARD, title: "实际付款", outcome: "付款完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "http-dependency", source_kind: "web",
   });
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   try {
-    const createdResponse = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals`, {
+    const createdResponse = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -845,7 +893,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     }
     const finalCursor = Number(store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE project_id=?").get(BOARD)?.n);
     assert.equal(created.observed_event_cursor, finalCursor);
-    const replayResponse = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals`, {
+    const replayResponse = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -869,7 +917,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.goal.goal_id, created.goal.goal_id);
     assert.equal(replayed.observed_event_cursor, created.observed_event_cursor);
-    const failedParent = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals`, {
+    const failedParent = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -884,7 +932,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
       }),
     });
     assert.equal(failedParent.status, 400, await failedParent.clone().text());
-    const recovered = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals`, {
+    const recovered = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -907,9 +955,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     const childCount = boardSnapshot(store, BOARD).goals.filter((goal) => goal.title === "付款与收据").length;
     assert.equal(childCount, 1);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
@@ -962,10 +1008,11 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
   }
 });
 
-test("HTTP goal-tree decisions replay the original result with a stable business key", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-tree-retry-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-tree-http" });
@@ -994,11 +1041,15 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     items: [treeItem("HTTP-TREE-PART-A"), treeItem("HTTP-TREE-PART-B")],
     idempotency_key: "http-tree-part-propose",
   });
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const decide = (proposalId: string, body: Record<string, unknown>, key: string) => fetch(
+    const decide = (proposalId: string, body: Record<string, unknown>, key: string) => fetchProject(
       `${origin}/api/plugins/io.molis.work.goals/goal-tree-proposals/${encodeURIComponent(proposalId)}/decision`,
       {
         method: "POST",
@@ -1056,29 +1107,28 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     // A Host one-time key that a successful write already settled is refused on any address the Host does not replay: the page's own
     // retry spends a fresh Host key (the body key replays the act), so this repeat can only be a duplicate mutation.
     const settledKey = randomUUID();
-    const settled = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(boardSnapshot(store, BOARD).goals[0]!.goal_id)}/event-note`, {
+    const settled = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(boardSnapshot(store, BOARD).goals[0]!.goal_id)}/event-note`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": settledKey },
       body: JSON.stringify({ note: "这个键已经用过", idempotency_key: "settle-guard-note" }),
     });
     assert.equal(settled.status, 200, await settled.clone().text());
-    const blocked = await fetch(`${origin}/api/non-idempotent-management-probe`, {
+    const blocked = await fetchProject(`${origin}/api/non-idempotent-management-probe`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": settledKey },
       body: JSON.stringify({}),
     });
     assert.equal(blocked.status, 409, await blocked.clone().text());
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-tree-conflict-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "project.db");
+test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const BOARD = project.project_id;
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-rel-conflict" });
@@ -1132,11 +1182,15 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     idempotency_key: "rel-conflict-check",
   });
   assert.deepEqual(checked.conflict_item_ids, ["item-rel-deactivate"]);
-  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  const TOKEN = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix
+  // now that the old `/api` rewrite is gone. (The Host/Origin checks still see the plain origin.)
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(BOARD)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const page = await (await fetch(`${origin}/goals/${encodeURIComponent(child.goal.goal_id)}`)).text();
+    const page = await (await fetchProject(`${origin}/goals/${encodeURIComponent(child.goal.goal_id)}`)).text();
     assert.match(page, /退回理由已按下方问题预填，可以直接提交，也可以改写/);
     assert.match(page, /已按下方问题预填，可以直接采用，也可以改写/);
     assert.doesNotMatch(page, /Molis Work 会自动附上上方问题/);
@@ -1147,7 +1201,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     const prefilled = decisionForm.match(/<textarea name="reason"[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? "";
     assert.match(prefilled, /不能安全写入|不一致/);
     const path = `/api/plugins/io.molis.work.goals/goal-tree-proposals/${encodeURIComponent(submitted.proposal.proposal_id)}/decision`;
-    const emptyReject = await fetch(`${origin}${path}`, {
+    const emptyReject = await fetchProject(`${origin}${path}`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-empty" },
       body: JSON.stringify({
@@ -1168,7 +1222,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
       reason: rewritten,
       idempotency_key: "rel-conflict-rewrite",
     };
-    const rejected = await fetch(`${origin}${path}`, {
+    const rejected = await fetchProject(`${origin}${path}`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-rewrite" },
       body: JSON.stringify(rejectBody),
@@ -1181,7 +1235,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
       project_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
     }).proposals[0];
     assert.equal(stored?.items[0]?.decision?.reason, rewritten);
-    const replay = await fetch(`${origin}${path}`, {
+    const replay = await fetchProject(`${origin}${path}`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-rewrite-new-http" },
       body: JSON.stringify(rejectBody),
@@ -1195,9 +1249,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     }).proposals[0];
     assert.equal(replayedStored?.items[0]?.decision?.reason, rewritten);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 

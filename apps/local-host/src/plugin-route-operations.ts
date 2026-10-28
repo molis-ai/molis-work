@@ -60,13 +60,6 @@ export async function dispatchRuntimePluginRoute(
   pluginId: string, operation: string, request: IncomingMessage, response: ServerResponse,
   url: URL, actorId: string, hooks: RuntimePluginRouteHooks = {}, controls: RuntimePluginRouteControls = {},
 ): Promise<boolean> {
-  // The Runtime matcher decodes each path segment and throws on bad percent-encoding; the caller's mistake is the retired Host
-  // dispatcher's 400 (`host.request_path_invalid`), never a Host fault. A bad segment cannot be one of the plugin's routes.
-  if (operation.split("/").some((segment) => { try { decodeURIComponent(segment); return false; } catch { return true; } })) {
-    const refusal = actionErrorResponse(hostErrors.request_path_invalid("请求路径里有无效的编码"));
-    sendLocalWebJson(response, refusal.status, refusal.body);
-    return true;
-  }
   const active = platform.supervisor.state(pluginId);
   // Native adapters and unrelated routes retain their own ownership. Runtime
   // registration, rather than a second list of built-in IDs, decides this boundary.
@@ -106,7 +99,23 @@ export async function dispatchRuntimePluginRoute(
     sendLocalWebJson(response, 200, { revision: platform.viewRevision(pluginId) });
     return true;
   }
-  const match = router.match(request.method ?? "GET", url.pathname);
+  let match;
+  try {
+    match = router.match(request.method ?? "GET", url.pathname);
+  } catch (error) {
+    // The Runtime matcher decodes every segment before it decides, so a path with bad percent-encoding throws before it can say
+    // whether it is one of the plugin's routes. The retired Host dispatcher answered exactly that case: re-encode the segments and, when
+    // the path is then one of this plugin's declared routes, refuse it as the caller's invalid path (`host.request_path_invalid`, 400);
+    // an undeclared shape is not this plugin's route and the caller falls through as before. Only the matcher's own URIError is taken;
+    // every other failure still propagates.
+    if (!(error instanceof URIError)) throw error;
+    const literal = url.pathname.split("/").map((part) => {
+      try { return encodeURIComponent(decodeURIComponent(part)); } catch { return encodeURIComponent(part); }
+    }).join("/");
+    const declared = router.match(request.method ?? "GET", literal);
+    if (declared && declared.plugin_id === pluginId) throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+    return false;
+  }
   if (!match) return false;
   // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
   // Host-made control carries it, and only to this installation's actions.

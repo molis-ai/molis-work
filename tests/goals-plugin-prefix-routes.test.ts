@@ -149,14 +149,22 @@ test("RAC-1512 a whole proposal confirmation at the plugin prefix reaches the ac
     "a body that claims the confirmation was prompted is not read");
 });
 
-/** RAC-1513: a Goal written through the plugin prefix shows up in the project page's next read. */
+/** RAC-1513: a Goal written through the plugin prefix shows up on the project page's next read, cache included. */
 test("RAC-1513 a Goal written at the plugin prefix is visible to the project page's next read", async t => {
   const served = await openTestHome(t);
   const project = await served.createProject("Goals prefix reads");
   const base = page(served, project.project_id);
-  const created = await request<CreatedGoal>(served, "POST", `${base}${GOALS_PREFIX}/goals`, { body: { title: "Seen on the next read", idempotency_key: randomUUID() } });
+  // Warm the project page's cached view first (the project page is what the old rewrite invalidated through `changed()`): the Goal's
+  // title is not on it yet. The Host keeps that view per project (`cachedMolisWorkWebView`) until the journal cursor or a fingerprint
+  // changes, so a stale invalidation would hide the write from the page even though the capsule can see it.
+  const pageRead = async () => await (await fetch(served.origin + base, { headers: { accept: "text/html" } })).text();
+  const before = await pageRead();
+  assert.doesNotMatch(before, /Seen on the page's next read/u, "the page was read before the write and does not carry it");
+  const created = await request<CreatedGoal>(served, "POST", `${base}${GOALS_PREFIX}/goals`, { body: { title: "Seen on the page's next read", idempotency_key: randomUUID() } });
   assert.equal(created.status, 201);
   const goalId = created.body!.goal.goal_id;
+  const after = await pageRead();
+  assert.match(after, new RegExp(goalId), "the project page's next read carries the Goal written at the plugin prefix");
   const capsule = await served.web.get<CapsuleReply>(`${base}/api/capsule`);
   assert.ok(capsule.tabs.some(tab => tab.items.some(item => item.goal_id === goalId)),
     "the capsule the page reads lists the Goal written at the plugin prefix");

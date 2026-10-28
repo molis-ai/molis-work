@@ -1,41 +1,53 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { copyFileSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
-import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openTestHome } from "./fixtures/test-home.js";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
-// The immutable v35 dump predates the current demo project ID.
-const DEMO_PROJECT_ID = "goalboard-v1-demo";
+// The immutable v35 dump predates the current demo project ID and names the project it was made under.
+const LEGACY_PROJECT_ID = "goalboard-v1-demo";
+
+/** The dump keeps the id its old Home wrote; the project created here has its own, so every `project_id` column follows it. */
+function renameProject(path: string, from: string, to: string): void {
+  const db = new DatabaseSync(path);
+  try {
+    db.exec("PRAGMA foreign_keys = OFF");
+    const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => String(row.name));
+    for (const table of tables) {
+      const columns = (db.prepare(`PRAGMA table_info(${JSON.stringify(table)})`).all() as Array<{ name: string }>).map(column => String(column.name));
+      if (!columns.includes("project_id")) continue;
+      db.prepare(`UPDATE ${JSON.stringify(table)} SET project_id = ? WHERE project_id = ?`).run(to, from);
+    }
+  } finally { db.close(); }
+}
 const TOKEN = "molis-work-history-contract-token-0123456789abcdef";
 
-function listen(server: Server): Promise<string> {
-  return new Promise((resolve, reject) => {
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address() as AddressInfo;
-      resolve(`http://127.0.0.1:${address.port}`);
-    });
-    server.once("error", reject);
-  });
-}
-
-test("public document timeline is bounded and keeps the journal", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-event-history-http-"));
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const fixture = materializeGoalEventHistory("legacy", directory);
-  const databasePath = fixture.path;
+test("public document timeline is bounded and keeps the journal", async t => {
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Goal event history", actor_id: "test" }));
+  const DEMO_PROJECT_ID = project.project_id;
+  // The catalog made the project and its file; the legacy dump, renamed to this project's id, replaces that file with its journal.
+  const fixture = materializeGoalEventHistory("legacy");
+  renameProject(fixture.path, LEGACY_PROJECT_ID, DEMO_PROJECT_ID);
+  rmSync(project.database_path, { force: true });
+  rmSync(`${project.database_path}-wal`, { force: true });
+  rmSync(`${project.database_path}-shm`, { force: true });
+  copyFileSync(fixture.path, project.database_path);
+  rmSync(fixture.directory, { recursive: true, force: true });
+  const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken: TOKEN });
-  const origin = await listen(server);
+  const origin = served.origin;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   try {
     const page = async (goalId: string, query: Record<string, string>) => {
-      const response = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${goalId}/event-timeline?${new URLSearchParams(query)}`);
+      const response = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${goalId}/event-timeline?${new URLSearchParams(query)}`);
       assert.equal(response.status, 200, await response.clone().text());
       return response.json() as Promise<{ items: Array<{ item_id: string; original_id: string; source: string; actor_id: string; actor_kind: string | null; relation?: { from_id: string; to_id: string; from_title: string; to_title: string; label: string }; status_label: string | null }>; next_cursor: string | null }>;
     };
@@ -46,7 +58,7 @@ test("public document timeline is bounded and keeps the journal", async () => {
     const coreHistory = await page("CORE", { limit: "100" });
     assert.ok(coreHistory.items.every((item) => item.source === "event_work" || item.source === "journal"));
 
-    const fragment = await (await fetch(origin + "/api/goals/V1/document")).text();
+    const fragment = await (await fetchProject(origin + "/api/goals/V1/document")).text();
     const renderedIds = [...fragment.matchAll(/data-timeline-item="([^"]+)"/g)].map((match) => match[1]);
     const v1History = await page("V1", { limit: "100" });
     assert.ok(renderedIds.length > 0);
@@ -56,7 +68,7 @@ test("public document timeline is bounded and keeps the journal", async () => {
     assert.equal(relationEntry.relation.from_title, snapshot.goals.find(goal => goal.goal_id === relationEntry.relation!.from_id)?.title);
     assert.equal(relationEntry.relation.to_title, snapshot.goals.find(goal => goal.goal_id === relationEntry.relation!.to_id)?.title);
     assert.equal(relationEntry.status_label, "已建立");
-    const relationBody = await (await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/V1/history/${encodeURIComponent(relationEntry.item_id)}`)).json() as { html: string };
+    const relationBody = await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/V1/history/${encodeURIComponent(relationEntry.item_id)}`)).json() as { html: string };
     assert.match(relationBody.html, /history-relation-flow/);
     assert.ok(relationBody.html.includes(`data-select-goal="${relationEntry.relation.from_id}"`));
     assert.ok(relationBody.html.includes(`data-select-goal="${relationEntry.relation.to_id}"`));
@@ -87,20 +99,20 @@ test("public document timeline is bounded and keeps the journal", async () => {
     assert.equal(second.items.filter((item) => first.items.some((prior) => prior.item_id === item.item_id)).length, 0);
     const record = coreHistory.items.find((item) => item.source === "journal");
     assert.ok(record, "the Goal's journal records stay in its history");
-    const body = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/CORE/history/${encodeURIComponent(record.item_id)}`);
+    const body = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/CORE/history/${encodeURIComponent(record.item_id)}`);
     assert.equal(body.status, 200);
     const payload = await body.json() as { html: string; item: { original_id: string; source: string; actor_id: string } };
     assert.equal(payload.item.source, "journal");
     assert.equal(payload.item.original_id, record.original_id);
     assert.match(payload.html, new RegExp(record.actor_id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    const byOriginal = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/CORE/history/${encodeURIComponent(record.original_id)}`);
+    const byOriginal = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/CORE/history/${encodeURIComponent(record.original_id)}`);
     assert.equal(byOriginal.status, 200);
     const originalPayload = await byOriginal.json() as { html: string; item: { original_id: string; source: string } };
     assert.equal(originalPayload.item.original_id, record.original_id);
     assert.equal(originalPayload.item.source, "journal");
     assert.equal(originalPayload.html, payload.html);
 
-    const refresh = await fetch(`${origin}/api/board/refresh?view=current&goal_id=CORE`);
+    const refresh = await fetchProject(`${origin}/api/board/refresh?view=current&goal_id=CORE`);
     assert.equal(refresh.status, 200);
     const refreshHtml = await refresh.text();
     assert.match(refreshHtml, /data-current-summary/);
@@ -141,8 +153,6 @@ test("public document timeline is bounded and keeps the journal", async () => {
     assert.ok(pages >= 2, "a full 100-item work window must not look like the end of history");
     assert.equal(ids.has(oldest.event_id), true);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });

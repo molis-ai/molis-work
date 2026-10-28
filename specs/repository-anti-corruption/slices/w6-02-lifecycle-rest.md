@@ -47,7 +47,6 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 
 | 插件 | 原因 | 谁拿走 |
 | --- | --- | --- |
-| Feed、Inbox | C 线 `feature/anticorruption-closeout-c` 正在改，合入后再加 | BL-805 |
 | Goals | C 线与 W5-10 仍在改 | BL-756 |
 | Alchemist、插件创作台 | 绕过 Plugin Runtime，先不迁、之后删掉重做 | BL-376、BL-377 |
 | 成果库 Artifacts | PG-077 第二步 | PG-077 |
@@ -86,4 +85,4 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 
 ## 6. 落入 `specs/BACKLOG.md` 的行
 
-BL-804（置物架）、BL-805（Feed、Inbox）已落入 `specs/BACKLOG.md` 第 8 节。
+BL-804（置物架）由 T-005（#1345，仍在评审）完成实施，BL-805（Feed、Inbox）由 T-003（#1336，已合入 main `dc902156e`）完成实施；两行都已从 `specs/BACKLOG.md` 删掉。

@@ -4,10 +4,9 @@ import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-con
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantBackgroundJob } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
 import { hostLog } from "../host-log.js";
-import { whenThere } from "./assistant-errors.js";
 
 const RUNTIME = "prologue";
 /** How long a job is followed: one not done by then is no longer followed, and its step fails as not done in time. */

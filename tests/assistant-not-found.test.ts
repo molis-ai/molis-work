@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AssistantService, AssistantStore, captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 
 /**
@@ -23,6 +24,12 @@ function assistant(t: { after: (fn: () => void) => void }) {
   return { store, service, work, breakReads };
 }
 
+async function logged<T>(run: () => T | Promise<T>): Promise<HostLogEntry[]> {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try { await run(); return entries; } finally { restore(); }
+}
+
 test("RAC-1140 BL-810 a work record: a work that is gone is null; a store that cannot be read throws its own error", t => {
   const { service, work, breakReads } = assistant(t);
   const kept = work();
@@ -42,15 +49,37 @@ test("RAC-1141 BL-810 the works related to an object: a related work that is gon
   await assert.rejects(service.reads.related("project", subject), { code: "storage.unreadable" });
 });
 
-test("RAC-1142 BL-810 settling handled notices: a notice of a work that is gone stays as it is; a store that cannot be read fails the pass", async t => {
+test("RAC-1142 BL-810 settling handled notices: a notice of a work that is gone stays as it is; a work that cannot be read is written once and passed over", async t => {
+  const gone = assistant(t);
+  gone.store.raiseNotice("web-user", { kind: "result", work_id: "work-deleted", work_title: "已删", text: "完成了" }, "deleted:1");
+  assert.deepEqual(await logged(async () => assert.equal(await gone.service.notices.settleHandledNotices(), 0)), [], "gone is no failure");
   const { store, service, work, breakReads } = assistant(t);
-  store.raiseNotice("web-user", { kind: "result", work_id: "work-deleted", work_title: "已删", text: "完成了" }, "deleted:1");
-  assert.equal(await service.notices.settleHandledNotices(), 0);
   const kept = work();
   store.raiseNotice("web-user", { kind: "result", work_id: kept.work_id, work_title: kept.title, text: "完成了" }, "kept:1");
   breakReads();
-  // The page's caller writes this one (assistant.handled_notices_settlement_failed); before BL-810 it passed for a deletion.
-  await assert.rejects(service.notices.settleHandledNotices(), { code: "storage.unreadable" });
+  // Before BL-810 it passed for a deletion; now the pass carries on past it, so the other works' notices still settle.
+  const entries = await logged(async () => { assert.equal(await service.notices.settleHandledNotices(), 0); assert.equal(await service.notices.settleHandledNotices(), 0); });
+  assert.deepEqual(entries.map(entry => [entry.area, entry.event, entry.fields?.work_id, entry.error?.code]), [["assistant", "notice_work_unreadable", kept.work_id, "storage.unreadable"]], "once, not on every pass");
+  assert.equal(store.openNotices("web-user").length, 1, "its notice stays open");
+});
+
+test("RAC-1144 BL-810 a timed round: a work that cannot be read is written once when the Host starts, and at its due time fails without writing the follow-up", async t => {
+  const { store, service, work, breakReads } = assistant(t);
+  const kept = work();
+  const due = new Date(Date.now() + 3_600_000).toISOString();
+  store.followUps.save("web-user", { followup_id: "fu-1", work_id: kept.work_id, label: "每天汇总", text: "汇总", repeat: "daily", next_at: due, time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
+  const before = service.followUps.list(kept.work_id);
+  let run: ((task: AgentScheduledTask) => Promise<void>) | undefined;
+  const schedule: AgentScheduleCapability = { claim: () => ({ survives_window_close: false, why: "测试" }), enqueue: async () => { throw new Error("not queued here"); },
+    cancel: async () => null, find: () => null, list: () => [], handle: (_kind, runner) => { run = runner; return () => undefined; } };
+  breakReads();
+  const started = await logged(async () => { await service.followUps.attach(schedule); await service.followUps.attach(schedule); });
+  assert.deepEqual(started.map(entry => [entry.area, entry.event, entry.fields?.followup_id, entry.error?.code]), [["assistant", "followup_work_unreadable", "fu-1", "storage.unreadable"]],
+    "written once, not taken for a deletion");
+  // Its time comes: thrown for the queue to keep as failed; the follow-up is not stopped nor told the work no longer exists.
+  await assert.rejects(run!({ task_id: "t-1", key: `fu-fu-1-${Date.parse(due)}`, session_id: "s-1", kind: "assistant.follow-up", payload: { followup_id: "fu-1" }, due_at: due,
+    state: "running", attempts: 1, runs: 0 }), { code: "storage.unreadable" });
+  assert.deepEqual(service.followUps.list(kept.work_id), before);
 });
 
 test("RAC-1143 BL-810 a change heard by the continuations: a store that cannot be read is written as the listener's failure, and the write still went through", async t => {

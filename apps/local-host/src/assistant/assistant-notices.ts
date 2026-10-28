@@ -7,6 +7,7 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, type ScanLook } from "./assistant-m
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { type AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
+import { repeatingFailure } from "../host-log.js";
 import { identity } from "./assistant-relations.js";
 import { memoryLearningSources } from "./assistant-inputs.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
@@ -109,6 +110,8 @@ export class AssistantNotices {
   }
 
   #scanning = false;
+  /** A work with handled notices that cannot be read, by the work: written when it starts failing. */
+  #unreadableWorks = repeatingFailure("assistant", "notice_work_unreadable");
 
   /** What the last look saw in each project, kept with its record (for diagnostics). */
   private scanLooks: ScanLook[] = [];
@@ -151,7 +154,10 @@ export class AssistantNotices {
     const open = this.store.openNotices(this.actorId).filter(notice => notice.kind === "completed" || notice.kind === "result");
     let settled = 0;
     for (const workId of [...new Set(open.map(notice => notice.work_id))].slice(0, 5)) {
-      const work = whenThere(() => this.store.get(this.actorId, workId));
+      // A work that is gone leaves its notices as they are; one that cannot be read is written once and passed over, so the others still settle.
+      let work: StoredWork | null;
+      try { work = whenThere(() => this.store.get(this.actorId, workId)); this.#unreadableWorks.worked(workId); }
+      catch (error) { this.#unreadableWorks.failed(workId, error, { work_id: workId }); continue; }
       if (!work) continue;
       const objects = await this.link.workObjects(work).catch(() => [] as AssistantWorkObject[]);
       if (!objects.some(object => object.relation === "result" && (object.state === "changed" || object.state === "missing"))) continue;

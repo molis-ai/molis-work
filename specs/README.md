@@ -4,6 +4,8 @@
 
 ## 在做的
 
+- [sessions-rebuild](sessions-rebuild/spec.md)：Sessions 重做，覆盖国内外主流 AI 开发工具的会话查看、搜索、恢复与交接；2026-10-28 覆盖范围已定，交互与技术方案待细化，尚未实现或验收。需求维护 Codex，实现待分配。
+
 - [product-flow-governance](product-flow-governance/spec.md)：全平台产品与架构系统性审查和优化——覆盖全部功能、入口、设置、交互与公共机制，核功能完整性、流程依赖、AI 效果和检查审查；Onboarding 与服务连接为已暴露案例，全平台覆盖与优化验证后才算专项完成。2026-10-27 首轮静态盘点已完成，具体发现与五批优化顺序见[核查记录](product-flow-governance/audit-2026-10-27.md)；真实路径实操与整改未完成。需求维护/本轮核查 Codex，后续整改统筹待分配。
 
 - [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。

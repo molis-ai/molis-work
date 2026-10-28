@@ -184,7 +184,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
   - `apps/local-host/src/demo-seed.ts` 更新 Goals 的 `boards`：改用 `setActiveGoal`，所以演示项目的日志里多一条 `board.active_goal_changed`（与用户在界面上设当前目标是同一条路径）。
   - `apps/local-host/src/im-server.ts` 读 `server` 的 `mw_projects`、`mw_members`：`server` 包的 `ContinuityService.projectOwner` 给出项目的所有者。`apps/server/src/main.ts` 的同类 SQL（`mw_access`、`mw_members`、`mw_projects`、`mw_codes`）改成 `Identity.roleOf`、`hasMember`、`memberAccess` 和 `ContinuityService.closeProjectsExcept`。
   - `modules/projects/src/installation-inspection.ts` 读 storage 的 `catalog_meta`：模块只列目录里的项目（`listCatalogProjectsForUninstall`），目录是不是 Molis Work 的由宿主用 storage 的 `LocalCatalogMetadata` 判断。一个没有 `catalog_meta` 表的 `catalog.db` 现在报「项目 catalog 不属于 Molis Work」，以前报「无法安全读取项目 catalog」，两者都是冲突、都挡住卸载。
-  - 门禁多量到的：`apps/local-host/src/feed-history-release.ts` 读 Feed 的 `feed_materials` 和 Listener Host 的 `feed_source_runs`：改用 `listFeedMaterialContentRefs`（`modules/feed`）和 `listListenerRunReceipts`（`horizontal/listener-host`）。后者遇到读不出的回执就抛错，不当成没有引用，所以删正文时仍然「证明不了就不删」。
+  - 门禁多量到的：`apps/local-host/src/feed-history-release.ts` 读 Feed 的 `feed_materials` 和 Listener Host 的 `feed_source_runs`：改用 `listFeedMaterialContentRefs`（`modules/feed`）和 `listListenerRunReceipts`（`horizontal/listener-host`）。后者遇到读不出的回执就抛错，不当成没有引用，所以删正文时仍然「证明不了就不删」。2026-10-28（T-001）再改：宿主这个文件随 FI-6 删了，`listFeedMaterialContentRefs` 和 `listListenerRunReceipts` 没有了调用方，也删了。
 
 ## 5. 派生库与锁库
 

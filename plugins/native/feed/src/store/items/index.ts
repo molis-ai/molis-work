@@ -8,18 +8,11 @@ import { FeedDispositions } from "./dispositions.js";
 import { FeedGoalLinks } from "./goal-links.js";
 import { FeedIngest } from "./ingest.js";
 import { FeedRecords } from "./records.js";
-import { text, type Row } from "./rows.js";
 import type { FeedSql } from "../sql.js";
 import type { FeedAttentionPort, FeedModuleOptions } from "./types.js";
 
 export type { FeedAttentionPort, FeedJournalEvent, FeedLedgerPort, FeedModuleOptions } from "./types.js";
 export { FEED_ITEMS_SCHEMA_SQL } from "./schema.js";
-
-/** The evidence bodies the Feed materials in this database point at (`content_ref`), each once. */
-export function listFeedMaterialContentRefs(db: Pick<FeedSql, "all">): string[] {
-  return (db.all("SELECT DISTINCT content_ref FROM feed_materials WHERE content_ref IS NOT NULL") as Row[])
-    .map((row) => text(row.content_ref));
-}
 
 export class FeedModule implements FeedApi {
   readonly query: FeedApi["query"];

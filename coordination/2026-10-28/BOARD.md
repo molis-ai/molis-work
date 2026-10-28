@@ -16,6 +16,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-002 | privileges 状态列收口与 BACKLOG 清理 | 丙 | B | 1 | — | `specs/repository-anti-corruption/privileges.md` |
 | T-003 | 给 Feed、Inbox 各加一项生命周期用例 | 乙 | A | 2 | — | `tests/shipped-plugin-lifecycle-feed.test.ts` |
 | T-005 | 双实例插件 Home 一半停用后不再答裸 404，加回置物架走查 | 甲 | B | 2 | — | `apps/local-host/src/home-plugin-http.ts`、`tests/dual-instance-routes.test.ts`、`tests/fixtures/shipped-lifecycle.ts`、`tests/shipped-plugin-lifecycle-personal.test.ts`、`specs/dual-instance-plugins/spec.md` |
+| T-004 | 公开来源拉取已提交后判断失败，对外报原来的错误 | 乙 | A | 3 | — | `plugins/native/feed/src/source-sync.ts`、`tests/feed-sync-concurrency.test.ts`、`tests/feed-inbox-lifecycle.test.ts`、`tests/feed-runtime-plugin.test.ts` |
+| T-006 | 插件市场与 Dock 说明添加、移除会连带什么 | 乙 | B | 3 | — | `apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/scripts/client/plugin-workbench.ts`、`apps/workbench/src/i18n/gap-en.ts`、`tests/plugin-market-catalog.test.ts`、`tests/plugin-picker-pins.test.ts`、`tests/immersive-workbench.e2e.test.ts`、`tests/plugin-picker-pins.e2e.test.ts` |
 
 ## 在途，不走任务书
 

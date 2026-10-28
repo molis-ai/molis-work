@@ -923,6 +923,12 @@ test('RAC-1151 an exposure failure keeps its own error when the cleanup stop is 
     armed = true;
     await assert.rejects(installed.lifecycle('enable', fixture.release, {}), (error: unknown) => error instanceof Error && error.message === 'controlled exposure failure');
     assert.match(installed.recoveryErrors.get(fixture.release.pluginId) ?? '', /controlled exposure failure/);
+    // The failed exposure left nothing of its own registered: the cleanup withdrew the plugin before the stop was refused.
+    assert.deepEqual(
+      service.inspect(caller).filter(view => view.provider.plugin_id === fixture.release.pluginId),
+      [],
+      'the failed exposure withdraws the actions it had exposed',
+    );
     // Leave a stop the Host's own close can do: recover the crashed record, then switch it off again.
     await runtime.recover(fixture.install.install_id); await installed.lifecycle('disable', fixture.release);
   } finally {
@@ -931,4 +937,3 @@ test('RAC-1151 an exposure failure keeps its own error when the cleanup stop is 
     await rm(home, { recursive: true, force: true });
   }
 });
-

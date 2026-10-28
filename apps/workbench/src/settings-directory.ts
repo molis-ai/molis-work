@@ -24,19 +24,6 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`;
 }
 
-export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimitives): string {
-  const { L, icon } = primitives;
-  // The ways to extend the workbench. Which plugins stay in the Dock is chosen on the switcher's own entries, not here.
-  return `<footer class="personal-sidebar-footer">
-    <details class="account-global-menu" data-global-menu>
-      <summary class="account-global-trigger" aria-label="${L("Dock 与插件")}" title="${L("Dock 与插件")}">${icon("package")}</summary>
-      <div class="account-global-popover">
-        <!-- account-global-items -->
-      </div>
-    </details>
-  </footer>`;
-}
-
 /** Personal entries under the project button: the future sign-in entry, then capabilities and settings. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;

@@ -82,6 +82,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-081 | 扩展点清单与 Shelf README 的三处陈旧话：标题栏的客户端脚本已改名，F6 的调用编号与诊断界面指错了文件，Shelf 早已不探测 CLI | 丙 | 池 | 35 | — | `docs/system/EXTENSION-POINTS.md`、`modules/shelf/README.md` |
 | T-075 | 角色页没保存的修改留在这个窗口、重新载入还在，别处存了新修订时既不覆盖也不丢：补浏览器护栏用例 | 丙 | A | 36 | — | `tests/characters-window-drafts.e2e.test.ts` |
 | T-084 | 删掉没人调用的 renderAccountGlobalItems，市场更新数标记的用例改看切换器头部的按钮 | 丙 | 池 | 37 | — | `apps/workbench/src/immersive-shell.ts`、`tests/plugin-market-catalog.test.ts` |
+| T-085 | Pages 评论按 Unicode 字数数上限，与发送评论的动作 schema 一致 | 乙 | B | 38 | — | `plugins/native/pages/src/comments-store.ts`、`tests/pages-comments.test.ts` |
 
 ## 在途，不走任务书
 

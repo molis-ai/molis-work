@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
@@ -16,10 +16,9 @@ export function ownerLabel(owner: Pick<ProjectDeletedOwner, "label" | "label_val
   return owner.words_of ? withPluginWords(owner.words_of, draw) : draw();
 }
 
-/** How the settings page hears a refused or failed deletion: a live terminal is a conflict the person can resolve (409, with its code), anything else a 400. */
+/** How the settings page hears a refused or failed deletion: the answer every Host exit gives a failure, chosen by its kind (SDK `actionErrorResponse`), so a missing project is the not-found 404 a live terminal is the 409. */
 export function sendDeletionFailure(response: ServerResponse, error: unknown): void {
-  const live = error instanceof ActionError && error.code === "catalog.project_terminal_live";
-  sendJson(response, live ? 409 : 400, { error: error instanceof Error ? error.message : String(error), ...(live ? { code: error.code } : {}) });
+  respondLocalWebRefusal({ respond: (status, body) => sendJson(response, status, body) }, error);
 }
 
 /**

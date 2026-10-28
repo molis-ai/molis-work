@@ -41,7 +41,7 @@ async function fixture(t: TestContext) {
   return { directory, homeDirectory, catalog, project, other, localHost, origin, post };
 }
 
-test("project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
+test("RAC-1330 project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
   const { directory, homeDirectory, catalog, project, other, localHost, origin, post } = await fixture(t);
   const prefix = `/projects/${project.project_id}`;
   const deletePath = `/api/settings/projects/${project.project_id}/delete`;
@@ -149,7 +149,7 @@ test("project deletion reports incomplete physical cleanup and retries the same 
   assert.equal(existsSync(join(dirname(dirname(project.database_path)), staged[0])), false);
 });
 
-test("project deletion refuses a live terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
+test("RAC-1330 project deletion refuses a live terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
   const { directory, catalog, project, origin, post } = await fixture(t);
   const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "test-terminal-goal", runtime_kind: "generic",
     launch_command: "/bin/cat", cwd: directory, actor_id: "test-user", user_confirmed: true });

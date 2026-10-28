@@ -31,7 +31,7 @@ function decode(row: PluginSqlRow): IssueSummary {
     created_at: String(row.created_at), updated_at: String(row.updated_at), version: Number(row.version), image_count: Number(row.image_count) };
 }
 function text(value: unknown, name: string, maximum: number, nonempty = false): asserts value is string {
-  if (typeof value !== "string" || value.length > maximum || nonempty && !value.trim()) throw new ActionError("actions.input_invalid", `${name}格式不正确或太长`);
+  if (typeof value !== "string" || [...value].length > maximum || nonempty && !value.trim()) throw new ActionError("actions.input_invalid", `${name}格式不正确或太长`);
 }
 function fields(input: Partial<IssueCreate>): void {
   if (input.title !== undefined) text(input.title, "标题", 200, true);

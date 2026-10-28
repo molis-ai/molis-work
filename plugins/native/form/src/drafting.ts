@@ -112,7 +112,7 @@ export function createFormDrafting(ports: FormDraftPorts) {
       forget();
       const prior = input.interaction ? answered(input, form) : null;
       const request = prior ? prior.row.prompt : input.prompt.trim();
-      if (!request || request.length > 500) throw formErrors.invalid("生成要求须为 1 到 500 个字");
+      if (!request || [...request].length > 500) throw formErrors.invalid("生成要求须为 1 到 500 个字");
       // The form's own questions stay on this computer: only the request and the answers go to the model.
       const data = { request, ...(prior ? { answers: heard(prior.row.questions, prior.answers) } : {}) };
       const reply = parsed(await ports.completeText(instructed(FORM_DRAFT_QUESTIONS, JSON.stringify(data)), { signal: call.signal, beforeDispatch: call.beforeEffect }));

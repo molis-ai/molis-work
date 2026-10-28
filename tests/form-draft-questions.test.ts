@@ -126,3 +126,16 @@ test("AC-26 「AI 生成题目」 is a well-formed metered model action that wai
   assert.equal(formActions.draft.action.scheduling, "concurrent");
   assert.ok(formActions.draft.action.permissions.includes("model:invoke"));
 });
+test("RAC-1667 a drafting request is counted in Unicode characters like the action schema: 500 go to the model whole, 501 are refused before it is asked", async t => {
+  // FORM_DRAFT_INPUT_SCHEMA (src/drafting.ts) counts characters; one 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const f = await fixture(t, [DONE, DONE]);
+  const done = await f.call({ prompt: wide(500) });
+  assert.equal(done.status, "done", "a 500-character request is drafted");
+  assert.equal(done.form.questions.length, 3);
+  assert.equal(f.heard.length, 1);
+  assert.equal(JSON.parse(JSON.parse(f.heard[0]!).data).request, wide(500), "the request goes to the model whole");
+  await assert.rejects(f.call({ prompt: wide(501) }), { code: "form.invalid", message: "生成要求须为 1 到 500 个字" }, "501 characters is still past the limit");
+  assert.equal(f.heard.length, 1, "the refused request did not reach the model");
+  assert.equal(f.forms.get(f.form.id, "p").questions.length, 3, "and wrote nothing");
+});

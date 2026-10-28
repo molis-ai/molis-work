@@ -233,6 +233,7 @@ function analyse(pr, issueStages, tier) {
   return {
     pr,
     phase,
+    label: phase === "待一审" && (!needYi || yi) ? "待验证" : phase,
     since,
     head9: head.slice(0, 9),
     needYi,
@@ -364,7 +365,7 @@ function plan(snap) {
         else out.push(item(`wait:${s.pr.number}:${s.head9}:${missing.join(",")}`, `待合但差：${ref(s)}：${missing.join("；")}`, s.pr.url, 8));
       }
       if (s.since && hoursSince(s.since) > STALE_HOURS && s.phase !== "开发中")
-        out.push(item(`stale:${s.pr.number}:${s.head9}:${s.phase}`, `${ref(s)} 在「${s.phase}」等了 ${hoursSince(s.since).toFixed(1)} 小时`, s.pr.url, 4));
+        out.push(item(`stale:${s.pr.number}:${s.head9}:${s.phase}`, `${ref(s)} 在「${s.label}」等了 ${hoursSince(s.since).toFixed(1)} 小时`, s.pr.url, 4));
     }
     for (const id of new Set(issue.filter((s) => s.task).map((s) => s.task))) {
       if (open.some((p) => p.id === id)) continue;
@@ -397,7 +398,7 @@ function status(snap, { states, claimedIds }) {
     const phase = snap.merged.has(row.id)
       ? "已合"
       : s
-        ? `${s.phase} #${s.pr.number} @${s.head9}${s.since ? ` ${hoursSince(s.since).toFixed(1)}h` : ""}`
+        ? `${s.label} #${s.pr.number} @${s.head9}${s.since ? ` ${hoursSince(s.since).toFixed(1)}h` : ""}`
         : claimedIds.has(row.id)
           ? `开发中（${snap.branches.filter((b) => b.id === row.id).map((b) => b.branch).join("、")}）`
           : row.deps.every((d) => snap.merged.has(d))

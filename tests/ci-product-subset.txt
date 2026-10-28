@@ -197,6 +197,7 @@ tests/feed-contract.test.ts
 tests/feed-goal-promotion.test.ts
 tests/feed-goal-query.test.ts
 tests/feed-inbox-pages-loop.test.ts
+tests/feed-item-tags.test.ts
 tests/feed-local-history-delete.test.ts
 tests/feed-module-repositories.test.ts
 tests/feed-native-plugin.test.ts

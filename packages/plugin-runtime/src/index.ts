@@ -438,7 +438,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     return attempt;
   }
 
-  /** A user stop disables; Host shutdown retains an enabled install in the startable installed state. */
+  /** A user stop disables, also a crashed or never-started install, whose crash stays on the record; Host shutdown retains an enabled install in the startable installed state. */
   stop(installId: string, options: { preserve_enabled?: boolean } = {}): Promise<PluginLifecycleReceipt> {
     this.revokeContext(installId, true); // Withdraw authority now; retain the context for the queued cleanup hook.
     return this.locks.run(installId, () => this.stopOnce(installId, options.preserve_enabled === true));
@@ -493,7 +493,11 @@ export class PluginRuntime implements PluginRuntimeApi {
   private async stopOnce(installId: string, preserveEnabled = false): Promise<PluginLifecycleReceipt> {
     const current = requireInstall(this.repository, installId);
     if (current.state === "disabled") return this.receipt("stop", current, true);
-    if (current.state !== "running") {
+    // Nothing runs in a crashed or never-started install; the person's stop still switches it off. A shutdown stop (preserve_enabled)
+    // of one is refused, since it would erase the crash or decide for the person, and so is any stop of a quarantine: only an explicit
+    // release lifts that.
+    const idle = current.state === "crashed" || current.state === "installed";
+    if (current.state !== "running" && !(idle && !preserveEnabled)) {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能停止`);
     }
     // Nothing in this process was activated. Do not grant a context just to stop it.
@@ -502,7 +506,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const updated = {
         ...current,
         state: preserveEnabled ? "installed" as const : "disabled" as const,
-        last_error_code: null,
+        last_error_code: idle ? current.last_error_code : null,
         updated_at: this.now(),
       };
       this.repository.save(updated);

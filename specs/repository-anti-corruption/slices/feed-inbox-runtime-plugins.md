@@ -710,7 +710,7 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   12. `goals-navigation.e2e` 第三例（添加来源后对话框不关）：用例跑在没有项目的单库模式里。Feed 现在是 Runtime 插件，平台只在启用它的项目里接它的请求，所以没有项目时 `/api/plugins/io.molis.work.feed/sources` 被拒为 `actions.plugin_disabled`。产品只按项目启动（`apps/desktop/launchers/web/server.ts`：`--db`、`--project-id`、`--demo` 已不支持），所以这是用例要跟上，不是产品问题。这一例改到示例项目里跑（`openGoalBrowser(t, true)`，示例项目启用了 Feed），路径加上项目前缀，断言不变。本机不跑浏览器用例，由 CI 验证。
   13. 同批另跟上的（这一批 CI 作业没报，按代码核到的）：`home-library-declaration` 的 Home 库名单加 `feed-content`；`package-maturity-vocabulary` 的分布改成 48/2/14（FI-5 把四个 production 包并进 Feed 插件）；`feed-inbox-scene-runtime` 的 RAC-480 改成核宿主的两个场景文件都不存在（FI-6 删了 `feed-scene.ts`）。
   - **跟进（不在 C 里修，列给统筹排）**：
-    - 已修（T-007，R-70 / BL-813）：`projectPluginEnablementRefresh` 原来也去停项目没启用、但已崩掉的安装，`runtime.stop` 抛 `plugin.state_invalid`，撞上那次刷新的页面请求跟着失败（停之前已经撤销，下一次刷新不再去停它）。现在刷新只把 Runtime 拒停一个不在跑的安装（`plugin.state_invalid`）当作「保持原样」，别的错照抛；同一处也挡住了撤销自己排的那次停止在插件停止钩子里出错、把安装记成 crashed 之后刷新再停的窗口。崩掉的，加回名单时按恢复流程重启（多次恢复失败会进隔离）；隔离中的保持隔离，要显式解除隔离。用例 `tests/project-plugin-enablement-refresh.test.ts`（RAC-1120，crashed 与 quarantined 各一条）。
+    - 已修（T-007，R-70 / BL-813）：`projectPluginEnablementRefresh` 原来也去停项目没启用、但已崩掉的安装，`runtime.stop` 抛 `plugin.state_invalid`，撞上那次刷新的页面请求跟着失败（停之前已经撤销，下一次刷新不再去停它）。现在刷新只把 Runtime 拒停（`plugin.state_invalid`）当作「保持原样」，别的错照抛。崩掉的，T-034 起 Runtime 不再拒停，这次停止把它记成 disabled，加回名单时走启动；撤销自己排的那次停止在插件停止钩子里出错、把安装记成 crashed 的，刷新再停时同样记成 disabled。隔离中的仍被拒停、保持隔离，要显式解除隔离。用例 `tests/project-plugin-enablement-refresh.test.ts`（RAC-1120，crashed 与 quarantined 各一条）。
     - 内置的和不在目录里的双实例插件，页面归哪一半画不一样（见第 2 条）。
     - `listFeedMaterialContentRefs` 没有调用方了（它的宿主调用方随 FI-6 删了），只剩 `owner-readers` 在测。
   - **验证**：一次 heavy.sh 预约，`--jobs 1`，不跑浏览器用例，5 分钟。

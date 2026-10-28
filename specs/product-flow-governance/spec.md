@@ -165,7 +165,7 @@
 
 - 基线为 main `9efbf8d044`。[Onboarding 服务](../../apps/local-host/src/context-onboarding-service.ts)同时含中断恢复、来源修改的阶段限制和读取结果复用逻辑；[前端](../../apps/workbench/src/scripts/context-onboarding.ts)还维护视图、编辑和忙碌状态。这些事实说明需要联查前后端的转换与恢复，不能只改文案；本轮没有证明某条限制就是上述故障原因。
 - [既有动线走查](../repository-anti-corruption/frontend-flow-walk.md)标为部分完成，2026-10-09 的测试没有模型与连接，配置后回到任务也未验证。它是历史线索，不证明当前完整路径通过或仍有同样缺陷。
-- [真人批准门](../agent-approval/spec.md)把各类 Agent 变更列入批准范围，并写有多票默认值；[AI 开发手册](../ai-development-handbook/spec.md)强调 context over control，且明确不是新增审批系统。两者的适用范围及衔接应核对；这里不推断所有规划已经成为生产行为。
+- 10-27 核查时，[真人批准门](../agent-approval/spec.md)原稿把各类 Agent 变更列入批准范围，并写有多票默认值；[AI 开发手册](../ai-development-handbook/spec.md)强调 context over control，且明确不是新增审批系统。10-28 已按用户决定将需求对齐为有效授权复用、显式人审及可选 Coding 低风险 AI 代批；当前生产执行与完整实操仍待验证，不因文档更新标为治理完成。
 
 2026-10-27 补充静态核对（main `e5b173438d`）：[连接引导](../../apps/workbench/src/settings-connector-guide.ts)已有按接入准备状态推荐登录及高级配置的分支，同时保留应用信息、回调、令牌和本机客户端配置；[连接页面](../../apps/workbench/src/settings-connectors.ts)已有直接登录入口，但部分连接后说明仍要求去 Coding 等处选择账号或工具。存在按钮和高级折叠不证明默认连接及后续工作完整；本轮未逐服务实测，不能据此断言所有服务均无可用登录路径。
 

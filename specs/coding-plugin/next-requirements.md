@@ -308,7 +308,7 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 | B3-2 | 钩子走**现有 hook bus** | Prologue `runtime.hooks` | 复用 `tool-before/after/failed`、`session-stop`、`prompt-submit` 等事件；插件 manifest 与项目规则都注册到同一条 bus；归属/作用域/阻断语义沿用现有实现 | 平台钩子与用户钩子同时生效；停用后立即不再触发 |
 | D2-1 | PR 评审是**多代理工作流**，不是单个动作 | `claude-code/plugins/code-review`、`pr-review-toolkit` | 资格检查 → 读根/修改目录的 AGENTS.md → 5 个并行评审（规范、bug、git 历史、旧 PR 评论、代码注释）→ 独立置信分 0–100，低于 80 丢掉 → 只评改动行 → inline comment 或 review 卡 | 种子 bug 被抓到、已知误报被过滤、意见带文件/行 |
 | D2-2 | 评论产线化 | `claude-code-action` 的 `classify_inline_comments`、`include_fix_links`、sticky progress | 未确认评论先缓冲并分类“真评审/测试探测”；每条意见带“去修复”链接；长任务用一条进度评论更新，不发多条 | 子代理测试评论不发到 PR；点“去修复”能带着上下文进入新一轮 |
-| D4 | **Agent 产出的 PR 真人批准门** | `claude-code-action/agent-approval-check` | N 个有写权限的不同真人批准；`/approve <sha>` 绑定 head；push 后旧批准过期；Agent/bot 不计；分支名不作信任依据 | 未达 N 票不能合并；push 后需要重新批准 |
+| D4 | **明确启用的 PR 真人批准门** | `claude-code-action/agent-approval-check` | 仅在配置适用范围要求 N 个有写权限的不同真人批准；`/approve <sha>` 绑定 head，push 后过期；Agent/bot 与 AI 低风险代批不计票，分支名不作信任依据；其余工作复用有效授权 | 适用人审范围未达 N 票不能合并，push 后重新批准；已授权且无该人审要求的工作不被统一阻塞 |
 | D5 | 提交签名与身份 | Claude Code Action 的 `use_commit_signing` / `ssh_signing_key` | Coding 推的 commit 可配置 GitHub API 签名或 SSH 签名；bot 身份可配置；审查卡显示这次提交是谁签的 | 真实 PR 上 commit 显示 verified；身份与配置一致 |
 | D6 | PR 场景的**配置来源与注入清洗** | Claude Code Action 的安全模型 | 评审/CI 场景先从 base 分支恢复 `.molis/`、`.mcp.json`、`AGENTS.md` 等项目配置，PR head 的版本只作参考；清洗 HTML 注释、不可见字符、alt、隐藏属性、实体 | PR 作者改配置不能提权；隐藏指令不进模型上下文 |
 | D7 | 非交互结构化输出 | Claude Code Action 的 `--json-schema` | D1 的 `molis-work coding run` 支持 JSON Schema，结果按 schema 校验后作为单一 JSON 输出；用于 flaky 判定、发布说明、Issue 分诊 | 脚本/CI 能稳定消费；schema 不符时失败而不是猜 |
@@ -316,4 +316,4 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 | E7 | 计划即页面 | `claude-plugins-community/html-plan`、`playground` | 实施计划可生成为一张交互页：claim 树 + 每种 claim 一个 exhibit + 决策放在它影响的 claim 上；用户在页面里勾选/评论，最后把一份 response 交回 Coding | 计划页能评审、能回答决策、能把结果带回新一轮 |
 | E8 | 代码简化与安全评审作为专科角色 | `code-simplifier`、`claude-security` | 评审面板可选“简化但不改行为”“安全 finding + 独立 verifier + 只出 patch”；安全评审不自动应用 | 简化不改行为；安全 finding 经过复核才进待处理项 |
 
-补充项与现有 A–E 的关系：A4-1/A4-2 是 A4 的实现方式；A6 是 A 期新增的内容层；B3-1/B3-2 是 B3 的实现方式；D2-1/D2-2 是 D2 的评审形态；D4 是 D2 的信任门；D5–D7 是 D 期的交付与安全细节；E6–E8 是 E 期的体验/质量补充。各项的详细需求与验收见 [coding-quality-assurance](../coding-quality-assurance/spec.md)、[agent-approval](../agent-approval/spec.md)、[skill-packs](../skill-packs/spec.md)。
+补充项与现有 A–E 的关系：A4-1/A4-2 是 A4 的实现方式；A6 是 A 期新增的内容层；B3-1/B3-2 是 B3 的实现方式；D2-1/D2-2 是 D2 的评审形态；D4 是 D2 明确启用时的人审门；D5–D7 是 D 期的交付与安全细节；E6–E8 是 E 期的体验/质量补充。各项的详细需求与验收见 [coding-quality-assurance](../coding-quality-assurance/spec.md)、[agent-approval](../agent-approval/spec.md)、[skill-packs](../skill-packs/spec.md)。

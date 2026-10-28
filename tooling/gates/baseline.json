@@ -1,5 +1,5 @@
 {
-  "giantUnits": 49,
+  "giantUnits": 47,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -16,6 +16,10 @@
       "lines": 266,
       "methods": 40
     },
+    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
+      "lines": 304,
+      "methods": 22
+    },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/browser/knowledge/settings-page.ts#bindKnowledgeSettings": 155,
@@ -23,12 +27,11 @@
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/i18n/en.ts": 3266,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 1999,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "class horizontal/knowledge/src/index.ts#KnowledgeService": {
-      "lines": 367,
-      "methods": 23
+      "lines": 442,
+      "methods": 24
     },
     "file horizontal/memory/src/service.ts": 905,
     "class horizontal/memory/src/service.ts#MemoryService": {
@@ -37,14 +40,14 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 301,
+      "lines": 316,
       "methods": 21
     },
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 437,
-      "methods": 17
+      "lines": 492,
+      "methods": 19
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
@@ -76,23 +79,15 @@
     },
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 267,
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 241,
-    "class plugins/native/goals/src/module/event-facts-repository.ts#GoalEventFactsRepository": {
-      "lines": 371,
-      "methods": 29
-    },
     "class plugins/native/goals/src/module/event-facts.ts#GoalEventFacts": {
-      "lines": 545,
-      "methods": 34
+      "lines": 193,
+      "methods": 30
     },
     "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
       "lines": 515,
       "methods": 11
     },
     "function plugins/native/goals/src/module/event-state-effects.ts#recordTrustedDecision": 152,
-    "class plugins/native/goals/src/module/event-state-repository.ts#GoalEventStateRepository": {
-      "lines": 408,
-      "methods": 30
-    },
     "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": 155,
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": 245,
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {

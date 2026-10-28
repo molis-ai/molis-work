@@ -245,13 +245,14 @@ const headErrors = (measured, budget, base) => {
 // #1101 carries the same approved Memory features onto main 9efbf8d04. Main's allowances are consumed.
 // Coding +1776 B = archive +570 B and user-approved restore +1206 B (2026-10-27).
 // Workbench's original approved features allow +32893 B and CSS +680 B; shrink to actual build measurements.
+// Main aa88 reduces both baseline and built Workbench by 52 B; actual feature growth stays +32828 B.
 // User approved 2026-10-27: explicit source association, confirmation and original-request recovery add 4656 B.
 // Reuses the existing dialog, request client and styles. Main still starts at 26940: prior approved 125 + this 4656 = 4781 B.
 // These two exact allowances are combined for this PR; no future growth is covered.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-knowledge.js": [26940, 31721],
   "/assets/molis-work-plugins/coding.js": [289674, 291450],
-  "/assets/molis-work-workbench.js": [1147241, 1180134],
+  "/assets/molis-work-workbench.js": [1147189, 1180017],
   "/assets/molis-work-workbench.css": [1236101, 1236781],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

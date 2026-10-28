@@ -5,6 +5,7 @@ import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { hostLog } from "../host-log.js";
 import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
@@ -254,7 +255,7 @@ export class AgentDefinitions {
     try {
       this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller) VALUES (?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller);
       this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, USES_KEPT);
-    } catch { /* A use that fails to record never stops the call. */ }
+    } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // A use that fails to record never stops the call; written as owner and prompt, since a key has no `/`.
   }
 
   private nextRevision(key: string): number {

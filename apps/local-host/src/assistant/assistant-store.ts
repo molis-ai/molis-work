@@ -9,6 +9,7 @@ import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { eachListener } from "../host-log.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -185,7 +186,7 @@ export class AssistantStore {
   }
 
   #changed(workId: string): void {
-    for (const listener of this.#changes) { try { listener(workId); } catch { /* a listener never fails a write */ } }
+    eachListener("assistant", "work_changes", this.#changes, listener => listener(workId)); // A listener never fails a write.
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;

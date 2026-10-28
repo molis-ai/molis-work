@@ -9,6 +9,7 @@ import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/mo
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
+import { hostLog } from "../host-log.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
 const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -142,7 +143,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         }
         const output = await call;
         if (view && view.operation === "command") {
-          try { changed?.(view, input, output); } catch { /* The change happened; a relation that failed to record is not a failed change. */ }
+          // The change happened; a relation that failed to record is not a failed change.
+          try { changed?.(view, input, output); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: view.capability_id }); }
         }
         return output;
       },

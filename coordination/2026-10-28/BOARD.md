@@ -21,7 +21,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-007 | 崩掉、没启用的安装被启停刷新去停后，页面请求全部失败（R-70 / BL-813） | 甲 | 本机 | 1 | — | 开工时补 |
 | T-008 | Runtime 动作调用路径的成本（BL-814） | 甲 | 本机 | 2 | T-007 | 开工时补 |
 | T-009 | 助理只认 not-found 码（BL-810） | 甲 | 本机 | 1 | — | `apps/local-host/src/assistant/`，其余开工时补 |
-| T-010 | W5-11 第 3 片（A1～A4） | 甲 | 本机 | 1 | — | 开工时补 |
+| T-010 | W5-11 第 3 片：OAuth 通用回调与判断顺序 | 甲 | 本机 | 1 | — | `apps/local-host/src/connector-api-oauth.ts`、`apps/local-host/src/connector-oauth-targets.ts`、`apps/local-host/src/connector-oauth-callbacks.ts`、`apps/local-host/src/web-connector-api-methods.ts`、`apps/local-host/src/integration-registry.ts`、`apps/local-host/src/connector-protocol-store.ts`、`tests/connector-api-oauth.test.ts`、`tests/integration-registry.test.ts`、`tests/security-invariants-connector-oauth-callback.test.ts`、`docs/system/SECURITY-INVARIANTS.md`、`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` |
 
 ## 在途，不走任务书
 

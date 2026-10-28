@@ -25,23 +25,38 @@ interface Cleanup {
   push(close: () => Promise<void> | void): void;
 }
 
-/** Teardown never hides the test's own failure: every step runs, even when an earlier one throws. */
-function cleanup(t: TestContext): Cleanup {
+interface Cleanup {
+  push(close: () => Promise<void> | void): void;
+}
+
+/** Runs the test body, then every teardown in reverse order; body and teardown failures are reported together. */
+async function withCleanup(body: (dispose: Cleanup) => Promise<void>): Promise<void> {
   const closes: (() => Promise<void> | void)[] = [];
-  t.after(async () => {
-    for (const close of closes.reverse()) {
-      try {
-        await close();
-      } catch {
-        /* Teardown is best-effort; the assertion failure stays the reported one. */
-      }
-    }
-  });
-  return {
+  const dispose: Cleanup = {
     push(close) {
       closes.push(close);
     },
   };
+  let bodyFailure: unknown;
+  let bodyFailed = false;
+  try {
+    await body(dispose);
+  } catch (error) {
+    bodyFailure = error;
+    bodyFailed = true;
+  }
+  const cleanupFailures: unknown[] = [];
+  for (const close of closes.reverse()) {
+    try {
+      await close();
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+  }
+  if (!bodyFailed && cleanupFailures.length === 0) return;
+  const failures = bodyFailed ? [bodyFailure, ...cleanupFailures] : cleanupFailures;
+  const details = failures.map(failure => (failure instanceof Error ? `${failure.name}: ${failure.message}` : String(failure))).join(" | ");
+  throw new AggregateError(failures, `测试失败：${details}`);
 }
 
 async function tempHome(dispose: Cleanup): Promise<string> {
@@ -133,8 +148,8 @@ async function readLine(reader: { next(): Promise<string> }, serving: Promise<vo
   return JSON.parse(line) as Reply;
 }
 
-test("RAC-1470: a control-token refusal answers tools/list with one JSON-RPC error", { timeout: 30_000 }, async t => {
-  const dispose = cleanup(t);
+test("RAC-1470: a control-token refusal answers tools/list with one JSON-RPC error", { timeout: 30_000 }, async () => {
+  await withCleanup(async dispose => {
   const home = await tempHome(dispose);
   const resident = await stub(dispose, (_request, response) => {
     const body = JSON.stringify(REFUSED);
@@ -145,10 +160,11 @@ test("RAC-1470: a control-token refusal answers tools/list with one JSON-RPC err
   const reply = await server.handleMessage({ jsonrpc: "2.0", id: 7, method: "tools/list" }) as Reply | null;
   refusal(reply, "host.request_refused");
   assert.ok(resident.requests.some(request => request.method === "POST"), "the resident was asked and refused the forwarded context");
+  });
 });
 
-test("RAC-1470: a listener that cannot prove this Home answers tools/list with the transport error", { timeout: 30_000 }, async t => {
-  const dispose = cleanup(t);
+test("RAC-1470: a listener that cannot prove this Home answers tools/list with the transport error", { timeout: 30_000 }, async () => {
+  await withCleanup(async dispose => {
   const home = await tempHome(dispose);
   const resident = await stub(dispose, (request, response) => {
     assert.equal(request.method, "GET");
@@ -166,10 +182,11 @@ test("RAC-1470: a listener that cannot prove this Home answers tools/list with t
   refusal(reply, "actions.transport_invalid");
   assert.equal(resident.requests.length, 1, "only the read-only health probe reached the other listener");
   assert.equal(resident.requests[0]?.headers["x-molis-work-control-token"], undefined, "the probe sent no credentials");
+  });
 });
 
-test("RAC-1471: a refused discovery keeps the stdio server answering the next request", { timeout: 30_000 }, async t => {
-  const dispose = cleanup(t);
+test("RAC-1471: a refused discovery keeps the stdio server answering the next request", { timeout: 30_000 }, async () => {
+  await withCleanup(async dispose => {
   const home = await tempHome(dispose);
   const resident = await stub(dispose, (_request, response) => {
     const body = JSON.stringify(REFUSED);
@@ -208,10 +225,11 @@ test("RAC-1471: a refused discovery keeps the stdio server answering the next re
   input.end();
   await serving;
   assert.equal(settled, true);
+  });
 });
 
-test("RAC-1472: a cancelled discovery rejects with the cancellation and answers nothing", { timeout: 30_000 }, async t => {
-  const dispose = cleanup(t);
+test("RAC-1472: a cancelled discovery rejects with the cancellation and answers nothing", { timeout: 30_000 }, async () => {
+  await withCleanup(async dispose => {
   const home = await tempHome(dispose);
   let entered!: () => void;
   const reached = new Promise<void>(resolve => {
@@ -241,4 +259,5 @@ test("RAC-1472: a cancelled discovery rejects with the cancellation and answers 
   const error = await pending.then(() => assert.fail("the cancelled request resolved"), (failure: unknown) => failure);
   assert.equal(error, reason, "the cancellation keeps the original reason object");
   assert.equal(resident.requests.length, 1, "the cancelled request was not retried");
+  });
 });

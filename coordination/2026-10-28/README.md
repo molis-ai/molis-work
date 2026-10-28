@@ -318,7 +318,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role dev-a --wait --max 25
 - 挂载器与 BL-542：W5-06；
 - 插件样式按需加载：PG-070；
 - 冻结名单、AGENTS 改写：W6-01；
-- 54 条：W6-03；
+- W6-03 余项（「54 条」已大半随 #1310 进 main，见 `ESTIMATE.md` 第 1 节；剩 RAC-11 走查、隔离 Home smoke 和 W5 合完后的末一遍）；
 - 平台包日志端口方案（要用户定）：BL-812；
 - referrers 合同（合同改动）：BL-646；
 - Feed 规则收紧（改门禁脚本，要用户定）：BL-802；

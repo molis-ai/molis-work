@@ -25,3 +25,9 @@
 | T-054 起草 | `apps/local-host/src/plugin-install-service.ts:129-140` | S-84 的 Home 一侧还剩两种「先写后拒」：① 签名包占了宿主自己构建的 Home 插件的 ID，仍先固定发布者、先落盘，再回 `plugin.id_namespace_conflict`；② 同一发布者的包在 Home 已装时，先 `save` 一个新版本目录，再被 T-055 的 `plugin.state_invalid` 拒。等 T-054、T-055 都合入后开一单，把这两个拒绝挪到 `confirm` 里 | 2026-10-29 |
 | T-054 起草 | `docs/system/SECURITY-INVARIANTS.md` 的 S-84 行、`specs/repository-anti-corruption/slices/ac-trust-install.md:427` | S-84 的测试列补上 T-054 的新用例标题；`:427`「看项目里是不是已经有这个插件」补「Home 一样」。等 T-054 合入，且 #1101、#1378 不再改这份文档 | 2026-10-29 |
 | T-043 方案补充 | `apps/local-host/src/web-http.ts:75-81` | `isEventCommandReplayPath` 放行的旧 Goals 地址（`/api/goals…`、`/api/relations…`、`/api/goal-tree-proposals…`）在 T-043 删掉改写后，写请求不再走到；只剩 `/document`、`/panels`、`/advance-prompt` 要不要留，核过再删。等 T-043 合入 | 2026-10-29 |
+| T-057 起草 | `modules/private-work-context/src/project-binding-commands.ts:169-172`、`:175-178`、`project-binding-validation.ts:48-52` | 三处防御分支走不到（前面的守卫都先拒了），T-057 不测也不删。删它们要改源码，`full` 会变 true（`shared-core`、`storage`）；要删另开乙档 | 2026-10-29 |
+| T-057 起草 | `modules/private-work-context/src/binding-errors.ts` 的 `project_relation_missing` | 现在是 `invalid`（对外 400），实际是库内不一致，不是调用方输入错。改种类就改了对外状态，要有人裁定；T-057 合入后再议 | 2026-10-29 |
+| T-057 起草 | `catalog.unbindRuntimeContext`（`binding_scope: "workspace"`，目录已关联） | 「解除目录关联成功」那条路在 `tests/` 里没有用例（`git grep -n 'binding_scope: "workspace"' -- tests` 无输出），会碰 `unlinkWorkspaceMembership`。T-057 合入后开丙档补测试 | 2026-10-29 |
+| T-057 起草 | `tests/ci-product-subset.txt` | `tests/runtime-binding-error-codes.test.ts` 快、纯 Node，可进产品子集。等 #1371（T-041）合入、T-057 合入后另开一行 | 2026-10-29 |
+| T-071 起草 | `apps/local-host/src/assistant/assistant-rule-actions.ts:92-97`、`assistant-followups.ts:140-145` | 人自己（不在工作里）取消不存在的定时 id 照样成功、什么都不删，`assistant.rules.remove` 同理。要不要改成 404 是产品决定，问用户后再定开不开单 | 2026-10-29 |
+| 估算核对 | `specs/repository-anti-corruption/spec.md:1481` | 说 `skills/molis-plugin-dev/search.md` 没写 Home 级模式，`search.md:35` 已写，句子过时。下次改这份 spec 的任务带上 | 2026-10-29 |

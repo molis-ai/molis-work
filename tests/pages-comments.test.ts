@@ -85,3 +85,37 @@ test("PAS-08: generic thread declarations refuse agent audience, Home scope, wro
     { ...context.action, thread_source: { role: "reply", subject_kind: "pages_document" } },
   ]) assert.ok(inspectActionDeclarations([{ ...context, action }], undefined).some(problem => problem.includes("评论协议")));
 });
+test("RAC-1632: pages.comments.append takes a 20000-character comment, counted in Unicode characters as its schema counts", async () => {
+  // comment-actions.ts allows a 20000-character body; one 🟢 is one character but two UTF-16 units.
+  const home = await mkdtemp(join(tmpdir(), "pages-comments-unicode-")), store = openPagesStore(home);
+  const service = new ActionService(new CapabilityRegistry<ActionCallContext>());
+  service.registerProvider({ provider: { provider_id: "io.molis.work.pages", kind: "plugin", title: "Pages" }, definitions: Object.values(pagesCommentActions), handlers: createPagesCommentHandlers(ownPagesStores(run => run(store))) });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["pages:read", "pages:write"] };
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const page = store.create({ project_id: "a", title: "长评论", body: body(false) });
+    const input = { page_id: page.id, thread_id: "wide", request_id: "send-1", body: wide(20000), expected_version: page.version, anchor: { kind: "document" } };
+    const { thread } = await service.invoke(caller, pagesCommentActions.append, input) as { thread: PagesCommentThread };
+    assert.equal(thread.messages.at(-1)!.body, wide(20000), "a new thread keeps a 20000-character comment");
+    const next = await service.invoke(caller, pagesCommentActions.append, { ...input, request_id: "send-2", body: "评" + wide(19999) }) as { thread: PagesCommentThread };
+    assert.equal(next.thread.messages.at(-1)!.body, "评" + wide(19999), "a second comment in the thread keeps 20000 characters");
+    assert.deepEqual(store.comments.get(page.id, "wide", "a").messages.map(message => message.body), [wide(20000), "评" + wide(19999)], "the stored thread reads back whole");
+    await assert.rejects(service.invoke(caller, pagesCommentActions.append, { ...input, thread_id: "too-long", body: wide(20001) }), { code: "actions.input_invalid" }, "20001 characters is still past the schema");
+    assert.equal(store.comments.list(page.id, "a").length, 1, "the refused comment starts no thread");
+  } finally { store.close();await rm(home, { recursive: true, force: true }); }
+});
+
+test("RAC-1633: the Pages comment store counts the trimmed comment in Unicode characters and still refuses one past 20000 or a blank one", async () => {
+  // A caller that reaches the store without the action schema meets the same limit: trimmed, 1 to 20000 characters.
+  const home = await mkdtemp(join(tmpdir(), "pages-comments-store-unicode-")), store = openPagesStore(home);
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const page = store.create({ project_id: "a", title: "长评论", body: body(false) });
+    const input = { page_id: page.id, thread_id: "store-wide", expected_version: page.version, anchor: { kind: "document" as const } };
+    const kept = store.comments.append({ ...input, request_id: "send-1", body: "  " + wide(20000) + "\n" }, "a");
+    assert.equal(kept.messages.at(-1)!.body, wide(20000), "the trimmed 20000-character comment is kept");
+    assert.throws(() => store.comments.append({ ...input, request_id: "send-2", body: "评" + wide(20000) }, "a"), /评论须为 1 到 20000 个字/, "20001 characters is refused by the store too");
+    assert.throws(() => store.comments.append({ ...input, request_id: "send-3", body: " \n " }, "a"), /评论须为 1 到 20000 个字/, "a blank comment is refused");
+    assert.deepEqual(store.comments.get(page.id, "store-wide", "a").messages.map(message => message.body), [wide(20000)], "neither refused comment was saved");
+  } finally { store.close();await rm(home, { recursive: true, force: true }); }
+});

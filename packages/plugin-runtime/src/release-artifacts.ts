@@ -39,6 +39,8 @@ export const PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL = `
 
 /** Code shipped by a trusted Native factory, stored inside the project Runtime database. */
 export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRuntimeReleaseArtifactRepository {
+  /** `declaredAttention`'s statement, prepared once: the Inbox asks it of every running installation on each check. */
+  private attention?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
   constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {
     db.exec(PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL);
   }
@@ -55,8 +57,8 @@ export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRunti
    * installation, so it is read in SQLite without parsing the build's module source.
    */
   declaredAttention(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): PluginAttentionDeclaration | null {
-    const row = this.db.prepare(`SELECT json_extract(artifact_json, '$.manifest.attention') AS attention FROM plugin_runtime_release_artifacts
-      WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
+    const row = (this.attention ??= this.db.prepare(`SELECT json_extract(artifact_json, '$.manifest.attention') AS attention FROM plugin_runtime_release_artifacts
+      WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`))
       .get(pluginId, publisherSignature, version, manifestDigest) as { attention: string | null } | undefined;
     return row?.attention ? JSON.parse(row.attention) as PluginAttentionDeclaration : null;
   }

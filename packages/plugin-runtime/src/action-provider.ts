@@ -3,7 +3,7 @@ import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@
 import { pluginActionAvailability } from "./action-availability.js";
 import { pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
-import { pluginCallbackContext } from "./callback-context.js";
+import { pluginCallbackContext, withoutIssuedIdentity } from "./callback-context.js";
 
 /** The permission that lets a Home-level plugin's action be given the projects the person may reach (PG-014); the Manifest declares it, the person grants it. */
 export const PROJECT_REACH_PERMISSION = "projects:reach";
@@ -28,7 +28,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     (context: ActionCallContext): ActionAvailability => {
       const grants = state.record()?.grants ?? [];
       if (permissions.some(p => !grants.includes(p))) return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" };
-      return own?.(pluginCallbackContext(context)) ?? { available: true };
+      return own?.(withoutIssuedIdentity(context)) ?? { available: true };
     };
   return {
     provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",

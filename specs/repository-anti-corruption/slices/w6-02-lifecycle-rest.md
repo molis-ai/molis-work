@@ -60,7 +60,7 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 已修（2026-10-28，T-005）：`handleHomePluginHttp` 在 Home 一半不运行时先问项目一半绑不绑定这条路由（`projectPluginPlatform` 经宿主现成的准备路径把项目平台起来，`projectHalfBinds` 读它的 `install → contribution.routes`），只在项目一半绑定时才交给项目实例；项目一半也不绑定的路由由 Home 照停了的 Home 插件答。
 
 - 复现：把上一节的条目加回，跑 `node scripts/run-tests.mjs tests/shipped-plugin-lifecycle-personal.test.ts`；第 3 步撤回 `storage:private` 并停掉 Home 一半之后，`GET /projects/<项目>/api/plugins/io.molis.work.shelf/` 答 `404`（`{"error":"页面或接口不存在"}`，没有错误码）（2026-10-28 T-005 实测更正：原记的 `{"error":"插件没有这个入口"}` 不对），断言要的是 `503 actions.plugin_unavailable`。问题、知识库、图片同一步答 `503 actions.plugin_unavailable`。
-- 原因（读代码所得，除上面的失败外没有另行单独复现）：`apps/local-host/src/home-plugin-http.ts` 的 `projectHalfRoute`，Home 一半不在 `running` 时 `contribution` 为空，Home 路由表里匹配上的路径都被当作「项目那一半的路由」，`handleHomePluginHttp` 返回 `false`，交给项目实例的 `project-plugin-http.ts`；置物架的项目一半不绑定这条 Home 路由，`dispatchRuntimePluginRoute` 里 `router.match` 没有命中，也返回 `false`，最后由请求链的 `projectNotFoundRoute`（`apps/local-host/src/web-project-platform-routes.ts`）答 404。`specs/dual-instance-plugins/spec.md` 写的是「Home 那一半停用后……Home 的路由在项目路径下答 `actions.execution_failed`」，那里的夹具插件项目一半也声明这条路由所以成立；真实的置物架项目一半没有声明，答的是裸 404，两头都不是 `503`。
+- 原因（读代码所得，除上面的失败外没有另行单独复现）：`apps/local-host/src/home-plugin-http.ts` 的 `projectHalfRoute`，Home 一半不在 `running` 时 `contribution` 为空，Home 路由表里匹配上的路径都被当作「项目那一半的路由」，`handleHomePluginHttp` 返回 `false`，交给项目实例的 `project-plugin-http.ts`；置物架的列表路由是 `/`（`plugins/native/shelf/src/routes.ts` 的 `shelf.snapshot`），`handleProjectPluginHttp` 的正则（`project-plugin-http.ts:33`）要求 `/api/plugins/<id>/` 后至少一个字符，在 `:34` 就返回 `false`，走不到 `dispatchRuntimePluginRoute`，最后由请求链的 `projectNotFoundRoute`（`apps/local-host/src/web-project-platform-routes.ts`）答 404。`specs/dual-instance-plugins/spec.md` 写的是「Home 那一半停用后……Home 的路由在项目路径下答 `actions.execution_failed`」，那里的夹具插件项目一半也声明这条路由所以成立；真实的置物架项目一半没有声明，答的是裸 404，两头都不是 `503`。
 - 位置：`apps/local-host/src/home-plugin-http.ts`（`projectHalfRoute` 与 `handleHomePluginHttp` 里 `if (split && projectHalfRoute(…)) return false;` 一行）。
 - 建议改法：Home 一半没运行时，只在项目一半的路由表确实绑定这条路径时才放行给项目实例；没绑定就不放行，让请求走到 `dispatchRuntimePluginRoute`，由它按已停的安装答 `503 actions.plugin_unavailable`。改完同步 `specs/dual-instance-plugins/spec.md` 那一行（`actions.execution_failed` 在项目一半也声明这条路由的夹具里仍是那个答案），并跑 `tests/dual-instance-coverage.test.ts`、`tests/dual-instance-services.test.ts`。
 - 本线的处理：等 C 线合入后由 ac-lifecycle 线接（BL-804），不加进 C 线；修好时同步 `specs/dual-instance-plugins/spec.md` 那一行。置物架退出本轮通过的测试，不放宽断言；撤权之后的升级、卸载、重启三步因此没有在置物架上跑过，不能说它们通过。
@@ -74,7 +74,7 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 | 3 | 去掉置物架之后（四个文件） | 同上 | 4 个文件全部通过，共 18 项（原四插件 5 项、RAC-1090～1094 共 5 项、RAC-1095～1097 共 3 项、RAC-1099～1103 共 5 项） |
 | 4 | 评审后 Git 的读回改为读出所选改动的路径（只重跑这一个文件） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-coding.test.ts` | 通过，5 项（RAC-1099～1103） |
 | 5 | Feed、Inbox（RAC-1200、RAC-1201；夹具 `declared()` 补上场景声明的三项配置动作） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-feed.test.ts tests/shipped-plugin-lifecycle-content.test.ts`（经机器槽位） | 通过，7 项：Feed 2 项（RAC-1200、RAC-1201）与作为对照的 content 5 项 |
-| 6 | 加回置物架（RAC-1098）并修 Home 一半停用后的回落（T-005） | `node scripts/run-tests.mjs --jobs 2 tests/shipped-plugin-lifecycle-personal.test.ts tests/dual-instance-routes.test.ts` 与第 7 节全部 17 个文件 | 通过：置物架 RAC-1098 走完，撤权之后的升级、卸载、重启三步这次真的跑了（卸载先被 `plugin.always_on` 拒、撤回常开同意后卸载，重启后记录与同意都仍是那一步的结果）；RAC-1300、RAC-1301 冷启动（关掉项目后的项目一半路由）也通过 |
+| 6 | 加回置物架（RAC-1098）并修 Home 一半停用后的回落（T-005） | `node scripts/run-tests.mjs --jobs 2 tests/shipped-plugin-lifecycle-personal.test.ts tests/dual-instance-routes.test.ts` 与交接里列的 18 个文件（第 7 节 17 个 + main 新加的 `tests/shipped-plugin-lifecycle-feed.test.ts`） | 通过：置物架 RAC-1098 走完，撤权之后的升级、卸载、重启三步这次真的跑了（卸载先被 `plugin.always_on` 拒、撤回常开同意后卸载，重启后记录与同意都仍是那一步的结果）；RAC-1300、RAC-1301 冷启动（关掉项目后的项目一半路由）也通过 |
 
 没跑的：
 
@@ -85,4 +85,4 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 
 ## 6. 落入 `specs/BACKLOG.md` 的行
 
-BL-804（置物架）由 T-005（#1345，仍在评审）完成实施，BL-805（Feed、Inbox）由 T-003（#1336，已合入 main `dc902156e`）完成实施；两行都已从 `specs/BACKLOG.md` 删掉。
+BL-804（置物架）由 T-005（#1345）完成实施，BL-805（Feed、Inbox）由 T-003（#1336，已合入 main `dc902156e`）完成实施；两行都已从 `specs/BACKLOG.md` 删掉。

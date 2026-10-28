@@ -58,12 +58,16 @@ test("RAC-1300 RAC-1301 DUAL-09 a stopped Home half: the project half answers th
   const project = await s.call(`${s.inProject}/project`);
   assert.equal(project.status, 200, JSON.stringify(project.body));
   assert.equal(project.body.half, "project", "the project instance is independent of the Home instance");
-  // Cold: the Host has let the project go, so its plugin platform is not running; the project half still answers its own route —
-  // the Host starts that platform to see what it binds before leaving the route to it.
+  // Cold: the Host has let the project go, so its plugin platform is not running. The first request is a route only the Home
+  // declares: answering it with the Home's stopped-plugin answer means the Host started the project's platform to see that its
+  // half does not bind the route (RAC-1300), and the project's own route answers next (RAC-1301).
   await s.host.closeProject(s.current.reference);
-  const cold = await s.call(`${s.inProject}/project`);
-  assert.equal(cold.status, 200, JSON.stringify(cold.body));
-  assert.equal(cold.body.half, "project", "the project half answers while the Home half is stopped");
+  const coldHome = await s.call(`${s.inProject}/home`);
+  assert.equal(coldHome.status, 503, `${coldHome.status} ${JSON.stringify(coldHome.body)}`);
+  assert.deepEqual(coldHome.body, { error: "插件已撤销启用" }, "cold: the Home's answer for a switched-off Home plugin");
+  const coldProject = await s.call(`${s.inProject}/project`);
+  assert.equal(coldProject.status, 200, JSON.stringify(coldProject.body));
+  assert.equal(coldProject.body.half, "project", "cold: the project half answers its own route while the Home half is stopped");
   // A half that is not running binds nothing, but the project's own half is another installation: only a declared route it binds is
   // handed to it. A declared route it does not bind is answered by the Home as for any stopped Home plugin, not refused by the
   // project instance as a route it never had.

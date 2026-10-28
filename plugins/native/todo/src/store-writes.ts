@@ -205,7 +205,7 @@ export abstract class TodoStoreWrites extends TodoStoreBase {
     const subject = input.subject;
     if (!subject || !text(subject.kind, 80) || !text(subject.id, 200)) throw invalid("关联对象无效");
     const title = String(input.title ?? "").trim();
-    if (!title || title.length > 200) throw invalid("关联要有 1 到 200 字的名称");
+    if (!title || [...title].length > 200) throw invalid("关联要有 1 到 200 字的名称");
     if (input.kind === "todo") {
       if (subject.kind !== TODO_SUBJECT_KIND) throw invalid("关联待办时对象种类要是待办");
       if (subject.id === ownerId) throw invalid("不能关联自己");

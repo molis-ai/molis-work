@@ -18,3 +18,4 @@
 | T-031 二审 @4f322bff2 后续 1 | `specs/repository-anti-corruption/spec.md:2918` | T-031 合入后，`renderPluginRailAccountFooter` 这一句改成「已删（#1353）」；`specs/repository-cleanup/inventory.md:168-169` 里的两个名字一并改。先等 #1101、#1335 不再锁这个文件 | 2026-10-28 |
 | T-031 二审 @4f322bff2 后续 2 | `apps/workbench/src/i18n/gap-en.ts:54` | T-031 合入后 `"Dock 与插件"` 没人用了；先 grep 确认，再删这一条 | 2026-10-28 |
 | T-031 二审 @4f322bff2 后续 3 | `apps/workbench/src/immersive-shell.ts` 的 `accountFooter` 参数 | T-031 删了唯一的调用方，参数已经没人传；等 T-006（#1348，锁着这个文件）合入后再删 | 2026-10-28 |
+| T-032 【方案】问题 1 | `tests/installed-plugin-host.test.ts` | Runtime 在 `installed` 状态同样拒绝 `stop`（`packages/plugin-runtime/src/index.ts:496`），但活 Host 里找不到能稳定停在这个状态的办法，T-032 没补这条用例。找到造法再补 | 2026-10-28 |

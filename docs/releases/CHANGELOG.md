@@ -6,12 +6,18 @@
 
 ### 升级须知（需要动手）
 
-- **Feed、Inbox 迁到 Plugin Runtime，几个动作的权限集合变宽**（2026-10-28，批 C，[#1327](https://github.com/molis-ai/molis-work/pull/1327)，`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`）：动作 id 与版本不变。已经授权的 MCP 客户端、绑定了这些动作的工作流，要在设置页重新授权：
-  - `feed.sources.sync`、`feed.sources.tick`、`feed.sources.wake`、`feed.notifications.receive`、`feed.rules.evaluate`、`feed.content.receive` 多要 `artifact:write`（捕捉的成果与事项同一次提交）；`feed.content.receive` 另多要 `attention:write`。
-  - `feed.items.promote`、`feed.goals.context`、`feed.rules.recommendations` 多要 `evidence:read`。
-  - `inbox.judgment.evaluate` 的 `required_actions` 多了 `feed.items.content`，`inbox.pages.generate` 的多了 `feed.items.material`。只授权了这两个动作的客户端，要连同 Feed 的这两个读取一起授权。
+- **Feed、Inbox 迁到 Plugin Runtime，下列开放给 MCP 的动作权限集合变宽**（2026-10-28，批 C，[#1327](https://github.com/molis-ai/molis-work/pull/1327)，`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`）：动作 id 与版本不变，没有动作少权限或被删。MCP 授权要求权限集合与授权时逐项相同，所以已经授权这些动作的 MCP 客户端会显示「能力所需权限已变化」，要在设置页重新授权；固定了这些动作的工作流绑定，要重新确认。
+  - 多要 `attention:write`：`feed.content.receive`、`feed.items.disposition`、`feed.items.inbox`、`feed.items.promote`、`feed.items.restore`、`feed.rules.create`、`feed.rules.evaluate`、`feed.rules.preview-judgment`、`feed.rules.update`、`feed.sources.delete`、`feed.sources.sync`、`inbox.entry.status`。
+  - 多要 `evidence:read`：`feed.content.read`、`feed.content.receive`、`feed.home.events`、`feed.items.promote`、`feed.rules.evaluate`、`feed.rules.preview`、`feed.rules.preview-judgment`、`feed.rules.recommendations`、`feed.sources.sync`、`feed.subject.read`。
+  - 多要 `judgments:write`：`feed.rules.create`、`feed.rules.evaluate`、`feed.rules.preview-judgment`、`feed.rules.update`。
+  - 多要 `artifact:write`（捕捉的成果与事项同一次提交）：`feed.content.receive`、`feed.rules.evaluate`、`feed.sources.sync`。
+  - 多要 `context-ledger:write`：`feed.items.promote`、`feed.sources.delete`。
+  - 多要 `sources:pull_feed`：`feed.sources.delete`、`feed.sources.register`、`feed.sources.sync`、`feed.sources.update`。`feed.sources.sync` 另多要 `sources:pull_connector`、`sources:pull_query`、`sources:read_repository`、`connections:use`。
+  - 多要 `feed:read`：`inbox.content.receive`、`inbox.judgment.evaluate`、`inbox.judgment.recommendations`。
+  - 启用场景：`scenes.enable:feed.capture` 多要 `attention:write`、`judgments:write`，`scenes.enable:inbox.next` 多要 `judgments:write`。
+  - `required_actions`：`inbox.judgment.evaluate` 多了 `feed.items.content`，`inbox.pages.generate` 多了 `feed.items.material`，两者都是新加的 Feed 读取。只授权了这两个 Inbox 动作的客户端，要连同这两个读取一起授权；`inbox.judgment.evaluate` 自己也多要 `feed:read`，见上。
 
-  其中 `feed.sources.tick`、`feed.goals.context` 只给本人，`feed.sources.wake` 只给插件，`feed.notifications.receive` 只由平台投递通知时调用：这四个不涉及 MCP 客户端与工作流。
+  只给本人的 `feed.connections.status`、`feed.goals.context`、`feed.items.get`、`feed.snapshot`、`feed.sources.disconnect`、`feed.sources.tick` 权限也变宽了，不涉及 MCP 客户端。新加的 `feed.sources.wake` 只给插件，`feed.notifications.receive` 只由平台投递通知时调用，都不给 MCP。
 - **收口组合的安装合同正常升版本**（2026-10-26）：`plugins.install.preview@2` → `@3`，输出包含 Home/项目运行范围及集成包的来源；`plugins.installed.list@1` → `@2`，权限输出带当前 `granted`。界面、CLI 和测试改用新合同，旧版本拒绝、不留别名；这两个动作只给本人，没有 MCP 工具，不改产品/插件发行版本。下文原片在未采用时记录的「未再升版本」仅为历史，最终采用版本以本项为准。
 - **Coding 与 Shelf 的合同不再在 contracts 包里**（PG-111、PG-095，`specs/repository-anti-corruption/slices/pg111-plugin-contracts.md`）：删掉子路径 `@molis-ai/molis-work-contracts/modules/coding` 与 `…/modules/shelf`，不留转发。`codingResultDocument` 等改从 `@molis-ai/molis-work-plugin-coding/contract` 取，`SHELF_ADMIT_ACTION`、`ShelfItemRecord` 等改从 `@molis-ai/molis-work-module-shelf/contract` 取；调用 Shelf 的 `shelf.items.admit@2` 或 Coding 的 `coding.results.document@1` 的插件，在 Manifest 的 `capabilities.consumes` 写动作 id，用自己的视图经 `services.actions.invoke` 发问，不 import 对方的包。动作的 id、版本、权限与输入输出不变，已固定的引用不受影响。
 - **集成插件声明自己的服务与集成，一个 Home 一份登记**（PG-046：FI-3 `c98614235` 与 `claude/ac-registry-pg046`）：Integration Plugin 的 Manifest 新增 `connection_services`（设置页上的卡）和 `integrations`（`kind: "source"` 给 Feed 拉取，`"document_import"` 给成果库导入文档，后者必须写 `document_source` 和 `connection_methods`）。宿主不再写死 GitHub、Gmail、目录连接器，也不再写死 notion、feishu、lark、google-docs 四个文档来源。`PluginIntegrationContribution` 不再直接给 `connector_driver`、`signal_adapter`，改为 `bind(binding)` 按来源返回这一对，可以多给一个 `account(cursor, current_account_label)`，说拉取后账号怎样显示；SDK 的 `definePollingIntegrationPlugin` 相应改成 `createProvider(context, binding)`，并多一个可选的 `presentAccount`。三个集成包不再导出 `githubAccountPresentation`、`gmailAccountPresentation`、`catalogAccountPresentation`。自己写的集成插件要按新写法改：声明服务与集成，令牌引用从绑定里取，不在启动时固定。存量数据不动（来源表与连接记录的形状不变），不需要维护。

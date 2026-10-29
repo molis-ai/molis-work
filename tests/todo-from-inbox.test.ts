@@ -8,7 +8,7 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { renderInboxWorkbench, type InboxUiEntry } from "@molis-ai/molis-work-plugin-inbox";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_MESSAGES, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores, type TodoCreateInput } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
@@ -81,4 +81,30 @@ test("RAC-135 a whole object made into a todo lands where the call comes from; a
   assert.equal(await asked("object", "project-a"), "project", "the project is the caller's; nothing in the input names it");
   assert.equal(await asked("object", "personal"), "personal");
   assert.equal(await asked("range", "project-a"), undefined, "a passage leaves the place to the person");
+});
+test("RAC-1668 a selection made into a todo is cut in whole Unicode characters to the lengths todo.items.create counts, and todo.items.create takes it as offered", async t => {
+  // fieldInput and sourceInput in src/actions.ts count characters: a 200-character title, 10000 characters of notes, a 200-character source name and
+  // a 2000-character excerpt; a fragment's object name is 200 characters and each passage 4000. One 🟢 is one character but two UTF-16 units.
+  const home = mkdtempSync(join(tmpdir(), "todo-offers-wide-"));
+  const store = openTodoStore(home);
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
+  t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
+  const inA = bindActionClient(service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  const wide = (count: number) => "🟢".repeat(count);
+  const offered = (request_id: string, texts: string[]) => inA.invoke(todoActions.fragmentOffers, { request_id, fragment: {
+    object: { kind: "inbox_entry", id: "entry-w", title: wide(200) }, granularity: "range", targets: texts.map(text => ({ kind: "text_range" as const, text })) } })
+    .then(out => out.offers[0]!.input as TodoCreateInput);
+  const long = await offered("wide-1", [wide(80), wide(4000), wide(4000), wide(4000)]);
+  assert.equal(long.title, wide(80), "an 80-character first sentence is the whole title");
+  assert.equal(long.notes, [wide(80), wide(4000), wide(4000), wide(1917)].join("\n"), "the notes keep the first 10000 characters");
+  assert.equal(long.sources![0]!.title, wide(200), "the source keeps the object's 200-character name");
+  assert.equal(long.sources![0]!.excerpt, `${wide(80)}\n${wide(1919)}`, "the excerpt keeps the first 2000 characters");
+  const { item } = await inA.invoke(todoActions.create, long);
+  assert.deepEqual([item.title, item.notes, item.sources[0]!.title, item.sources[0]!.excerpt], [wide(80), long.notes, wide(200), long.sources![0]!.excerpt],
+    "todo.items.create takes the offer as it is");
+  const cut = await offered("wide-2", [wide(81)]);
+  assert.equal(cut.title, `${wide(79)}…`, "an 81-character first sentence is cut to 79 characters and an ellipsis");
+  assert.equal(cut.notes, wide(81), "the whole selection goes to the notes");
 });

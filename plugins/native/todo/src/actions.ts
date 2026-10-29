@@ -153,14 +153,14 @@ function prepareTodoFragmentOffers(input: FragmentOffersInput, project: string |
   const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n");
   if (!text) return [];
   const first = (text.split(/[。！？\n]/u)[0] ?? text).trim() || text;
-  const title = first.length > 80 ? first.slice(0, 79) + "…" : first;
+  const title = [...first].length > 80 ? [...first].slice(0, 79).join("") + "…" : first;
   const { object } = input.fragment;
   // A whole object (an Inbox entry, a 灵光) is made into a todo where that object lives, as its page does: the project the call comes from, else
   // the personal space. The project is the caller's, never read from the input. A passage leaves the place to the person.
   const placement = input.fragment.granularity === "object" ? { placement: project ? "project" : "personal" } : {};
   return [{ offer_id: "todo", title: "记成待办", action: { capability_id: "todo.items.create", version: 1 }, input: {
-    title, ...(text !== title ? { notes: text.slice(0, 10_000) } : {}), ...placement, request_id: input.request_id.slice(0, 160),
-    sources: [{ kind: "material", title: (object.title || "选中的内容").slice(0, 200), excerpt: text.slice(0, 2000), reason: "从选中的内容记成待办",
+    title, ...(text !== title ? { notes: [...text].slice(0, 10_000).join("") } : {}), ...placement, request_id: input.request_id.slice(0, 160),
+    sources: [{ kind: "material", title: [...(object.title || "选中的内容")].slice(0, 200).join(""), excerpt: [...text].slice(0, 2000).join(""), reason: "从选中的内容记成待办",
       subject: { kind: object.kind, id: object.id }, open: null }] },
     summary: `记一条待办：「${title}」（记下它出自${object.title ? `「${object.title}」` : "选中的内容"}）`, editable: ["title", "notes", "due_date"] }];
 }

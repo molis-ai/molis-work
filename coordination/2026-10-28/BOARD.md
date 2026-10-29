@@ -114,6 +114,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-163 | 待办整理读材料按整字取前 60000 个字，「只读了前 60000 字」按字数判断（防腐清理，MISC:42） | 乙 | B | 67 | — | `plugins/native/todo/src/organize-model.ts`、`plugins/native/todo/src/organize.ts`、`tests/todo-organize.test.ts` |
 | T-164 | 问卷里流程交来的标题与题目、先问的问题、导入文件名按整字截，离线填写页按字数查回答长度（防腐清理，MISC:38） | 乙 | A | 68 | — | `plugins/native/form/src/content-actions.ts`、`plugins/native/form/src/drafting.ts`、`plugins/native/form/src/store.ts`、`plugins/native/form/src/fillpage.ts`、`tests/form-actions.test.ts`、`tests/form-draft-questions.test.ts`、`tests/content-portable-regressions.e2e.test.ts` |
 | T-165 | Goals 里 board- 开头的三个源文件和一个测试改名，引用与文档跟着改（W5-14 片 6，R-A2） | 丙 | 池 | 65 | T-043 | 改名的四个文件新旧路径都锁：`plugins/native/goals/src/module/board-commands.ts`→`module/library-commands.ts`、`plugins/native/goals/src/board-actions.ts`→`library-actions.ts`、`plugins/native/goals/src/board-snapshot-query.ts`→`snapshot-query.ts`、`tests/goals-board-actions.test.ts`→`tests/goals-library-actions.test.ts`；`plugins/native/goals/src/module/index.ts`（只第 1 行）、`plugins/native/goals/src/actions.ts`（只第 27、32 行）、`plugins/native/goals/src/index.ts`（只第 4、87 行）、`plugins/native/goals/src/plugin.ts`（只第 6 行）、`tests/ci-product-subset.txt`（只第 35 行）、`plugins/native/goals/README.md`（只第 64、123 行）、`docs/system/GLOSSARY.md`（只第 189、337、411、412 行） |
+| T-166 | 定时操作的结果过长或全是空白时通知不再被拒，结果的 JSON 按整字截（防腐清理，MISC「T-162 起草」两行） | 乙 | B | 69 | — | `plugins/native/schedule/src/operations.ts`、`tests/schedule-runtime-delivery.test.ts`、`tests/schedule-operations.test.ts` |
 
 ## 在途，不走任务书
 

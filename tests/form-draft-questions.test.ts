@@ -153,3 +153,36 @@ test("RAC-1699 the questions it asks first are cut in whole characters: a prompt
   assert.equal(question!.options[0]!.label, "b" + wide(119), "a label past 120 characters is cut to 120 whole characters");
   assert.equal(question!.options[0]!.description, "c" + wide(149), "a description is cut to the 300 UTF-16 units the question rules count, in whole characters");
 });
+
+test("RAC-1849 a drafted question's title is counted in Unicode characters like the store: 200 are drafted whole, 201 refuse the draft", async t => {
+  // The store (src/store.ts normalizeQuestions) and the question schema (src/actions.ts questionFields) count a title in characters; one 🟢 is one character but two
+  // UTF-16 units, so `title.length > 200` refused a title of 101 to 200 characters that holds them as "the model returned no valid question".
+  const wide = (count: number) => "🟢".repeat(count);
+  const f = await fixture(t, [{ status: "done", questions: [{ title: wide(200), type: "text" }] }, { status: "done", questions: [{ title: "b" + wide(200), type: "text" }] }]);
+  const done = await f.call({});
+  assert.equal(done.status, "done");
+  assert.deepEqual(done.form.questions.map((question: { title: string }) => question.title), [wide(200)], "a 200-character title is drafted and kept whole");
+  await assert.rejects(f.call({}), { code: "form.invalid", message: "模型没有返回有效题目，请调整提示后重试" }, "201 characters is past the limit, refused by the draft itself");
+  assert.equal(f.heard.length, 2, "the second reply did reach the model");
+  assert.equal(f.forms.get(f.form.id, "p").questions.length, 1, "and wrote nothing");
+});
+
+test("RAC-1850 the option labels it drafts are cut in whole characters at 120, and a label of exactly 120 characters is kept whole", async t => {
+  // A label is counted nowhere downstream (src/store.ts normalizeQuestions, optionFields in src/actions.ts), so it is cut at 120 characters, not 120 UTF-16 units: one
+  // 🟢 is one character but two units, and a cut by units left half of one in the label.
+  const wide = (count: number) => "🟢".repeat(count);
+  const f = await fixture(t, [{ status: "done", questions: [{ title: "选一个", type: "singleChoice", options: ["a" + wide(130), wide(120), "c"] }] }]);
+  const done = await f.call({});
+  assert.equal(done.status, "done");
+  assert.deepEqual(done.form.questions[0]!.options?.map((option: { label: string }) => option.label), ["a" + wide(119), wide(120), "c"],
+    "a label past 120 characters is cut to 120 whole characters; one of exactly 120 and a short one are kept");
+});
+
+test("RAC-1851 the reason it gives for asking first is cut in whole characters at 300, and a reason of exactly 300 characters is kept whole", async t => {
+  // `why` is the shared card's question text (InteractionRequest.why) and counted nowhere downstream, so it is cut at 300 characters, not 300 UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const reply = (why: string) => ({ status: "needs_input", why, questions: [{ id: "size", prompt: "要几题？", options: [{ label: "3 题" }, { label: "5 题" }] }] });
+  const f = await fixture(t, [reply(wide(300)), reply("a" + wide(300))]);
+  assert.equal((await f.call({})).interaction.why, wide(300), "a reason of exactly 300 characters is kept whole");
+  assert.equal((await f.call({})).interaction.why, "a" + wide(299), "a longer one is cut to 300 whole characters");
+});

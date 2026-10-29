@@ -19,13 +19,12 @@ export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
 /**
  * One way to connect to a service. `token` carries its card text; `oauth` carries its whole flow as data (W5-11 §2.1), read by the
- * platform's one interpreter. Until the built-in plugins write that data (W5-11 slice 4), an `oauth` method may still be the bare kind,
- * and the platform reads it from its own table; `cli` and `mcp` are slots, their data still in the platform's tables.
+ * platform's one interpreter; `cli` and `mcp` are slots, their data still in the platform's tables.
  */
 export type PluginAuthMethodDeclaration =
   | { readonly kind: "token"; readonly label: string; readonly placeholder?: string }
   | PluginOAuthMethodDeclaration
-  | { readonly kind: Exclude<ConnectorMethodKind, "token"> };
+  | { readonly kind: Exclude<ConnectorMethodKind, "token" | "oauth"> };
 
 /** `authorization_code`: the browser comes back to the Host's callback; `device`: the person types a code on the service's page. */
 export const OAUTH_GRANTS = ["authorization_code", "device"] as const;
@@ -43,9 +42,10 @@ export const OAUTH_PLATFORM_HEADERS = ["authorization", "proxy-authorization", "
   "connection", "accept", "user-agent", "private-token", "x-figma-token"] as const;
 
 /**
- * A request the Host sends with the access token. `url` is `{service}/path` (the one origin of the platform's request table), a full
- * `https://` address whose origin is one of them, `{tenant}/path` (the tenant origin pinned to the connection) or `{gateway}/path`; the
- * path may hold `{context.<key>}` and `{setting.<key>}`. Header and query values are constants, `{client_id}` (adobe's API wants the public client id) or `{context.<key>}`.
+ * A request the Host sends with the access token. `url` is `{service}/path` (the one origin of the platform's request table),
+ * `{account}/path` (the one origin of its account table, `CONNECTOR_ACCOUNT_ORIGINS`), a full `https://` address whose origin is one of
+ * either, `{tenant}/path` (the tenant origin pinned to the connection) or `{gateway}/path`; the path may hold `{context.<key>}` and
+ * `{setting.<key>}`. Header and query values are constants, `{client_id}` (adobe's API wants the public client id) or `{context.<key>}`.
  */
 export interface OAuthTokenRequestDeclaration {
   readonly url: string;
@@ -141,6 +141,7 @@ export interface PluginOAuthMethodDeclaration {
   readonly settings?: readonly OAuthSettingDeclaration[];
   readonly identity: OAuthIdentityDeclaration;
   readonly keep?: readonly OAuthKeepDeclaration[];
+  /** On a service the platform reaches through a gateway (Atlassian), one of them is `cloud_id`: the site's id on the gateway. */
   readonly context?: readonly OAuthContextDeclaration[];
   /** The three known departures from the standard exchange. */
   readonly quirks?: {

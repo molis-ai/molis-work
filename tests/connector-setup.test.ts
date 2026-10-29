@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MolisWorkLocalHost, connectorSetupAction, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFileSecretStore, readSecretsFileMeta, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome, serveTestHost, type TestHome } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "assistant:setup", runtime_session_id: "setup-session", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE] };
@@ -38,9 +39,12 @@ for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: 
     if (String(url).startsWith(home.origin)) return realFetch(url, init);
     externalCalls++; throw new Error("cancelled OAuth must not reach its provider");
   });
+  // The generic flow's requests leave by `sendPublicHttps` (W5-11 slice 4).
+  const sent = oauthNetwork(t, () => { throw new Error("cancelled OAuth must not reach its provider"); });
   if (service === "asana") await assert.rejects(home.web.post("/api/settings/connectors/methods/oauth/complete", { returned_url: `${home.origin}/api/settings/connectors/methods/oauth/callback?state=${state}&code=fixture-code` }), { status: 400 });
   else await fetch(`${home.origin}${service === "gmail" ? "/api/feed/connectors/gmail/oauth/callback" : "/api/settings/connectors/notion/oauth/callback"}?state=${state}&code=fixture-code`, { redirect: "manual" });
   assert.equal(externalCalls, 0);
+  assert.deepEqual(sent, []);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
 });
 
@@ -103,8 +107,8 @@ test("ASC-08 ASC-09 ASC-35: OAuth binds the prepared id, can reopen, and a cance
   assert.doesNotMatch(html, /fixture-private-client/);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let identities = 0;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
-    if (String(input).includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-setup" }); }
+  oauthNetwork(t, async url => {
+    if (url.includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-setup" }); }
     identities++; return Response.json({ data: { gid: "work", name: "Work" } });
   });
   const returned = new URL(home.origin + "/api/settings/connectors/methods/oauth/callback");

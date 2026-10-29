@@ -93,7 +93,7 @@ export type PluginAuthMethodDeclaration = {
     readonly label: string;
     readonly placeholder?: string;
 } | PluginOAuthMethodDeclaration | {
-    readonly kind: Exclude<ConnectorMethodKind, "token">;
+    readonly kind: Exclude<ConnectorMethodKind, "token" | "oauth">;
 };
 
 export interface PluginConnectionServiceDeclaration {

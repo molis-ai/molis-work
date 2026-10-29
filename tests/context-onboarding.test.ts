@@ -13,6 +13,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { asOAuthAnswer, oauthNetwork } from "./fixtures/oauth-network.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
@@ -302,6 +303,8 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
       return Response.json({ payload: { mimeType: "text/plain", body: { data: Buffer.from("Selected account mail").toString("base64url") } } });
     };
     t.mock.method(globalThis, "fetch", transport);
+    // The generic flow's authorization and renewal leave by `sendPublicHttps` (W5-11 slice 4); the Gmail reads use `transport`.
+    oauthNetwork(t, asOAuthAnswer(transport));
     const authorize = async (account: string) => {
       const begun = await served.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start",
         { service_id: "gmail", display_name: account, client_id: `fixture-app-${account}`, client_secret: "fixture-only" });

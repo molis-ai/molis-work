@@ -1,3 +1,7 @@
+// The broker Worker's own copy of each service's OAuth endpoints (W5-11 §2.9). The Worker is deployed apart and reads no Manifest; the Host
+// reads each flow from the plugin that declares it and never imports this file. `tests/connector-oauth-broker.test.ts` holds every entry
+// equal to the declarations; a change here is a redeploy of the Worker.
+
 /** Official API OAuth protocols. MCP has its own resource authorization lifecycle. */
 interface ApiOAuthProvider {
   authorize: string;

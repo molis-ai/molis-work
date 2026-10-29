@@ -168,9 +168,9 @@ async function sendThrough(home: string, service_id: string, service: ConnectorR
       catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号缺少发请求要用的信息，请在设置里重新连接"); }
       return send({ ...dispatch, ...control, url }, header, options);
     };
-    const first = await sendWith(await access(resolveApiConnection(home, connection_id, control, service_id)));
+    const first = await sendWith(await access(resolveApiConnection(home, connection_id, control, service_id, false, options)));
     if (first.status !== 401 || service.refresh !== "host" || auth_method !== "oauth") return first;
-    const refreshed = await access(resolveApiConnection(home, connection_id, control, service_id, "if_available"));
+    const refreshed = await access(resolveApiConnection(home, connection_id, control, service_id, "if_available", options));
     if (refreshed === null) return first;
     // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
     return sendWith(refreshed);

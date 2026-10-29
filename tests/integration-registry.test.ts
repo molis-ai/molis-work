@@ -305,7 +305,7 @@ test("RAC-892 the SDK refuses connection_methods missing, empty, repeated or unk
 
 // W5-11 slice 3 §2.8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): until installs are trusted by
 // signature, an OAuth flow as data is the Host's build's alone. A signed sandbox package that carries one is refused before anything of
-// its install or its ids is held; the bare kind (the platform's table) and its other methods stay as they were.
+// its install or its ids is held. Since slice 4 a bare kind is refused by the Manifest checks.
 test("RAC-1081 a signed package's data-bearing oauth method is refused at attach and at the install preview, and holds nothing", async () => {
   // A flow the SDK's own checks pass (asana's identity address is in the platform's table), so what refuses it is the registry.
   const flow = { kind: "oauth", grant: "authorization_code", authorize_url: "https://app.asana.com/-/oauth_authorize", token_url: "https://app.asana.com/-/oauth_token",
@@ -321,11 +321,10 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "asana"), false);
   assert.equal(registry.integration("oauth-carrier"), undefined);
   assert.equal(registry.oauthOwner("asana"), undefined);
-  // The bare kind is the platform's table, not a flow the package chose: attached, but no OAuth owner, so no authorization can start.
+  // The bare kind named the platform's table, which is gone (W5-11 slice 4): the Manifest itself is refused, so nothing attaches.
   const bare = manifestOf("io.molis.work.example.oauth-bare", [service("oauth-bare", { auth: { methods: [{ kind: "oauth" }] } })], [{ integration_id: "oauth-bare", kind: "source", service_id: "oauth-bare" }]);
-  assert.equal(await registry.attach(bare, () => null, () => true), true);
-  assert.ok(registry.connectionServices().some(entry => entry.declaration.service_id === "oauth-bare"));
-  assert.equal(registry.oauthOwner("oauth-bare"), undefined, "a package's service has no OAuth owner");
+  assert.throws(() => parsePluginManifest(bare), { code: "plugin.declaration_invalid", message: /要把授权流程写成数据/u });
+  assert.equal(registry.oauthOwner("oauth-bare"), undefined);
   // The Host's own build may carry the flow: it is enabled, and is the owner with its install, publisher and method.
   await registry.enable(fixturePlugin("io.molis.work.example.oauth-built", [service("asana", { auth: { methods: [flow] } })], []));
   const owner = registry.oauthOwner("asana");

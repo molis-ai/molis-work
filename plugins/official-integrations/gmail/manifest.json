@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "plugin_id": "io.molis.work.integration.gmail",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "Gmail",
   "kind": "integration",
   "publisher": { "publisher_id": "io.adeptify", "signature": "adeptify-official-signature-v1" },
@@ -29,7 +29,18 @@
       "auth": {
         "methods": [
           {
-            "kind": "oauth"
+            "kind": "oauth",
+            "grant": "authorization_code",
+            "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_url": "https://oauth2.googleapis.com/token",
+            "scopes": ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"],
+            "pkce": "S256",
+            "parameters": { "access_type": "offline", "prompt": "consent" },
+            "identity": {
+              "url": "{account}/v1/userinfo",
+              "account_id": [["identity:/sub"]],
+              "label": ["identity:/email", "identity:/name", "identity:/sub"]
+            }
           }
         ]
       },

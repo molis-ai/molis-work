@@ -1,6 +1,7 @@
 // Gate: a table is read and written only by the package that creates it (specs/repository-anti-corruption §4.11, W2-06).
 //
-// "Owner" is a package: the nearest ancestor directory of a source file that holds a package.json. A table's owners are the
+// "Owner" is a package: the nearest ancestor directory of a source file that holds a package.json, or that is listed as an
+// area (below), whichever is nearer. A table's owners are the
 // packages whose SQL text has a `CREATE [VIRTUAL] TABLE <name>`. Any other package whose SQL text reads or writes that table
 // (SELECT … FROM, JOIN, INSERT INTO, REPLACE INTO, UPDATE, DELETE FROM, ALTER TABLE, DROP TABLE) fails, with no baseline: the
 // rule starts at zero. The fix is the owner's own API, never a number in a baseline. Two packages that each create a table of
@@ -8,7 +9,7 @@
 // are both owners of it, but only when tooling/gates/table-owners.json says so: a second package that adds its own
 // `CREATE TABLE <a table another package creates>` is not a way to become its co-owner.
 //
-// The allowance is tooling/gates/table-owners.json, with two sections, each checked against the code in both directions so
+// The allowance is tooling/gates/table-owners.json, with three sections, each checked against the code in both directions so
 // it cannot go stale:
 //   shared     tables that several packages write on purpose: the table, the package that creates it, every other package
 //              that may use it, and why. A listed package that no longer touches the table, an owner that is not the creator,
@@ -17,13 +18,21 @@
 //   same_name  tables that two packages each create, in different databases (`workspaces`, `jobs`): the table, the packages
 //              that create it, and why they are not one table. A table that more than one package creates and is not listed
 //              fails; so does an entry whose packages are not exactly the creators, or that only one package creates now.
+//   areas      directories inside a package that own their tables as a package would (BL-802: Feed's `src/store/` owns the
+//              Feed store's tables, and the rest of the Feed package goes through the store's functions): the directory and
+//              why. The rest of the package is then another owner, so its SQL on the area's tables fails like a second
+//              package's would, and so does a second `CREATE` of one of them. An area that does not exist, that holds a
+//              package.json (it is a package already), that sits inside another area, that no longer creates a table, or
+//              whose reason does not say anything fails.
 //
 // What it reads: the string and template-literal text of the TypeScript sources the entry calls sources (apps, horizontal,
 // modules, packages, plugins, server, tooling; not tests, fixtures or build output), found in the syntax tree, so a comment
 // never counts. SQL keywords are matched in upper case only (every SQL string in the repository is written that way, and a
-// case-blind match reads English: "from Pages"). What it does not see, a known limit and not a decision: a table name that
-// is not a literal (`FROM ${table}`: the Artifacts repository takes its table names as options, the assistant purge walks a
-// list), SQL built by concatenation, and SQL kept in files that are not TypeScript.
+// case-blind match reads English: "from Pages"). A table name may be quoted (`"t"`, `` `t` ``, `[t]`) and may carry the
+// `main.` or `temp.` schema (`FROM main.t` names t, not a table called main). What it does not see, a known limit and not a
+// decision: a table name that is not a literal (`FROM ${table}`: the Artifacts repository takes its table names as options,
+// the assistant purge walks a list), every table after the first in a comma join (`FROM a, t` reads only a), a schema other
+// than main and temp (an attached database), SQL built by concatenation, and SQL kept in files that are not TypeScript.
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -33,14 +42,15 @@ const ts = createRequire(fileURLToPath(import.meta.url))("typescript");
 export const TABLE_OWNERS_FILE = "tooling/gates/table-owners.json";
 const MIN_REASON_CHARACTERS = 20;
 const SQL_WORDS = /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\b/;
-const NAME = String.raw`["'\x60\[]?([A-Za-z_][A-Za-z0-9_]*)`;
+// `main.` and `temp.` (any case, quoted or not) are the schema, not the table: without it `FROM main.t` read a table "main".
+const NAME = String.raw`(?:["'\x60\[]?(?:[Mm][Aa][Ii][Nn]|[Tt][Ee][Mm][Pp])["'\x60\]]?\.)?["'\x60\[]?([A-Za-z_][A-Za-z0-9_]*)`;
 const CREATE = new RegExp(String.raw`\bCREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${NAME}`, "g");
 // Writes first: at one position the longer phrase (`DELETE FROM`) wins over the bare `FROM`.
 const ACCESS = new RegExp(String.raw`\b(DELETE\s+FROM|INSERT(?:\s+OR\s+[A-Z]+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+[A-Z]+)?|ALTER\s+TABLE|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|FROM|JOIN)\s+${NAME}`, "g");
 
-/** The package directory a file belongs to: the nearest ancestor holding a package.json ("." when none does). */
-function packageResolver(files) {
-  const packages = new Set(files.filter((file) => /(?:^|\/)package\.json$/.test(file)).map((file) => path.posix.dirname(file)));
+/** The owner a file belongs to: the nearest ancestor that holds a package.json or is an area ("." when none is). */
+function packageResolver(files, areas = []) {
+  const packages = new Set([...files.filter((file) => /(?:^|\/)package\.json$/.test(file)).map((file) => path.posix.dirname(file)), ...areas]);
   const cache = new Map();
   return (file) => {
     let directory = path.posix.dirname(file);
@@ -74,10 +84,11 @@ function literals(file, text) {
 
 /**
  * The tables the sources create and the accesses to them: { owners: Map<table, Set<package>>, accesses: [{ file, line, package,
- * table, writes }] } where `accesses` holds every access to a table another package creates, `table` lower-cased. Exported for the test.
+ * table, writes }] } where `accesses` holds every access to a table another package creates, `table` lower-cased. `areas` are the
+ * directories that own their tables as a package would. Exported for the test.
  */
-export function scanTables(snapshot, isSource) {
-  const packageOf = packageResolver(snapshot.files);
+export function scanTables(snapshot, isSource, areas = []) {
+  const packageOf = packageResolver(snapshot.files, areas);
   const owners = new Map();
   const seen = [];
   for (const file of snapshot.files.filter(isSource)) {
@@ -131,15 +142,40 @@ function readSection(parsed, section, fields, check) {
   return { entries, problems };
 }
 
-/** The allowance, parsed: { shared: Map<table, { owner, users, reason }>, sameName: Map<table, { packages, reason }>, problems }. */
+const AREA_PATH = /^[A-Za-z0-9_@-][A-Za-z0-9_.@-]*(?:\/[A-Za-z0-9_@-][A-Za-z0-9_.@-]*)*$/;
+
+/** The "areas" section: { areas: Map<directory, { reason }>, problems }. Keys are paths, so they keep their case. */
+function readAreas(parsed) {
+  const areas = new Map(), problems = [];
+  if (parsed.areas === undefined) return { areas, problems };
+  if (!isRecord(parsed.areas)) return { areas, problems: [`${TABLE_OWNERS_FILE} needs an "areas" object keyed by directory`] };
+  for (const [directory, entry] of Object.entries(parsed.areas)) {
+    const bad = [];
+    if (!AREA_PATH.test(directory) || directory.split("/").includes("..")) bad.push(`the key must be a directory relative to the repository root, without "./", ".." or a trailing "/"`);
+    if (!isRecord(entry)) bad.push(`the entry must be an object with "reason"`);
+    else {
+      for (const field of Object.keys(entry)) if (field !== "reason") bad.push(`unknown field "${field}"`);
+      const reason = reasonProblem(entry, "this directory owns its tables apart from the rest of its package");
+      if (reason) bad.push(reason);
+    }
+    if (bad.length) problems.push(...bad.map((problem) => `${TABLE_OWNERS_FILE}: areas: ${directory}: ${problem}`));
+    else areas.set(directory, entry);
+  }
+  return { areas, problems };
+}
+
+/**
+ * The allowance, parsed: { shared: Map<table, { owner, users, reason }>, sameName: Map<table, { packages, reason }>,
+ * areas: Map<directory, { reason }>, problems }.
+ */
 function readAllowance(snapshot) {
   const text = snapshot.read(TABLE_OWNERS_FILE);
-  const none = { shared: new Map(), sameName: new Map() };
+  const none = { shared: new Map(), sameName: new Map(), areas: new Map() };
   if (text === null) return { ...none, problems: [] };
   let parsed;
   try { parsed = JSON.parse(text); } catch { return { ...none, problems: [`${TABLE_OWNERS_FILE} is not valid JSON`] }; }
   if (!isRecord(parsed) || !isRecord(parsed.shared)) return { ...none, problems: [`${TABLE_OWNERS_FILE} needs a "shared" object keyed by table name`] };
-  const problems = Object.keys(parsed).filter((key) => !["note", "shared", "same_name"].includes(key)).map((key) => `${TABLE_OWNERS_FILE}: unknown section "${key}"`);
+  const problems = Object.keys(parsed).filter((key) => !["note", "shared", "same_name", "areas"].includes(key)).map((key) => `${TABLE_OWNERS_FILE}: unknown section "${key}"`);
   const shared = readSection(parsed, "shared", ["owner", "users", "reason"], (entry, bad) => {
     if (typeof entry.owner !== "string" || !entry.owner) bad.push(`"owner" must name the package directory that creates the table`);
     if (!packageList(entry.users, 1)) bad.push(`"users" must list the other package directories that use the table`);
@@ -151,13 +187,14 @@ function readAllowance(snapshot) {
     const reason = reasonProblem(entry, "these packages each create a table of this name and it is not one table");
     if (reason) bad.push(reason);
   });
-  return { shared: shared.entries, sameName: sameName.entries, problems: [...problems, ...shared.problems, ...sameName.problems] };
+  const areas = readAreas(parsed);
+  return { shared: shared.entries, sameName: sameName.entries, areas: areas.areas, problems: [...problems, ...shared.problems, ...sameName.problems, ...areas.problems] };
 }
 
 /** Problems in the working tree; every one is a failure and there is no baseline. `isSource` is the entry's own source test. */
 export function tableOwnerProblems(snapshot, { isSource }) {
-  const { owners, accesses } = scanTables(snapshot, isSource);
-  const { shared, sameName, problems } = readAllowance(snapshot);
+  const { shared, sameName, areas, problems } = readAllowance(snapshot);
+  const { owners, accesses } = scanTables(snapshot, isSource, [...areas.keys()]);
   const touching = new Map();
   const unlisted = new Map();
   for (const access of accesses) {
@@ -202,6 +239,14 @@ export function tableOwnerProblems(snapshot, { isSource }) {
     if (!creators) problems.push(`${TABLE_OWNERS_FILE}: ${table}: no package creates a table of this name; delete the entry from "same_name"`);
     else if (creators.size < 2) problems.push(`${TABLE_OWNERS_FILE}: ${table}: only ${[...creators][0]} creates this table now; delete the entry from "same_name" (a same-name list only shrinks)`);
     if (shared.has(table)) problems.push(`${TABLE_OWNERS_FILE}: ${table}: listed under both "shared" and "same_name"; a shared table has one creating package, a same-name table several`);
+  }
+  const created = new Set([...owners.values()].flatMap((creators) => [...creators]));
+  for (const directory of [...areas.keys()].sort()) {
+    const where = `${TABLE_OWNERS_FILE}: areas: ${directory}`;
+    if (!snapshot.files.some((file) => file.startsWith(`${directory}/`))) problems.push(`${where}: no such directory; delete the entry`);
+    else if (snapshot.files.includes(`${directory}/package.json`)) problems.push(`${where}: the directory holds a package.json, so it owns its tables already; delete the entry`);
+    else if ([...areas.keys()].some((other) => other !== directory && directory.startsWith(`${other}/`))) problems.push(`${where}: inside the area ${[...areas.keys()].find((other) => other !== directory && directory.startsWith(`${other}/`))}; one area per owner, delete the inner entry`);
+    else if (!created.has(directory)) problems.push(`${where}: no table is created in this directory any more; delete the entry (an area owns tables or is not an area)`);
   }
   return problems;
 }

@@ -97,7 +97,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 }
 
 export function formFillPageFilename(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷").slice(0, 80) + " · 填写页.html";
+  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 填写页.html";
 }
 
 /** Responses as a table a spreadsheet opens: one row per response, one column per question (UTF-8 with BOM for Excel). */
@@ -115,5 +115,5 @@ export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmi
 }
 
 export function formResultsCsvFilename(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷").slice(0, 80) + " · 答卷.csv";
+  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 答卷.csv";
 }

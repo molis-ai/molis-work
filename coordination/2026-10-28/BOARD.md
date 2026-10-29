@@ -104,6 +104,11 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-153 | 提醒与定时操作登记的闹钟名称按整字截到 120 个单元，不再留下半个字 | 乙 | 池 | 56 | — | `plugins/native/schedule/src/job-title.ts`、`plugins/native/schedule/src/reminders.ts`、`plugins/native/schedule/src/operations.ts`、`tests/schedule-operations.test.ts` |
 | T-154 | 待办的整理结果与到期提醒按整字截取，不再留下半个字 | 乙 | 池 | 57 | — | `plugins/native/todo/src/organize-model.ts`、`plugins/native/todo/src/organize.ts`、`plugins/native/todo/src/actions.ts`、`tests/todo-organize.test.ts`、`tests/todo-actions.test.ts` |
 | T-155 | Home 与项目里，签名包占了宿主插件的 ID 在预览就拒；Home 已装插件的同一发布者的包在保存之前就拒（S-84 的顺序，BL-628） | 甲 | A-Claude | 58 | — | `apps/local-host/src/plugin-install-service.ts`、`tests/security-invariants-plugin-install.test.ts`、`tests/security-invariants-sandbox-home-instance.test.ts` |
+| T-156 | 灵光把选中内容的正文、读到的文字与标题按整字截取，对话里的灵光按单元截、不切开字，不再留下半个字 | 乙 | 池 | 59 | — | `plugins/native/lingguang/src/actions.ts`、`tests/contextual-interaction.test.ts`、`tests/lingguang-material.test.ts`、`tests/lingguang-actions.test.ts`、`plugins/native/lingguang/README.md` |
+| T-157 | Pages 导入、从 Markdown 新建、整理出的任务卡与知识页、多篇合成的标题按整字截到 80，不再留下半个字 | 乙 | 池 | 60 | — | `plugins/native/pages/src/actions.ts`、`plugins/native/pages/src/import-content.ts`、`plugins/native/pages/src/extract.ts`、`plugins/native/pages/src/fragment-offers.ts`、`tests/pages-import-content.test.ts`、`tests/pages-actions.test.ts` |
+| T-158 | Pages 评论引用的原文摘录按整字截到 2000，不再留下半个字 | 乙 | 池 | 61 | — | `plugins/native/pages/src/comments-store.ts`、`tests/pages-comments.test.ts` |
+| T-160 | 读受管理安装时，目录不在、记录读不出或不完整、可执行文件不在，都报 `connector.install.invalid`，不再抛原生错误 | 乙 | B | 62 | — | `apps/local-host/src/connector-tool-install.ts`、`tests/connector-local-actions.test.ts` |
+| T-161 | 停在 installed 的安装插件也能停用，记 disabled 并撑过重启（补 T-032 的 Host 层用例） | 丙 | A | 63 | — | `tests/installed-plugin-host.test.ts` |
 
 ## 在途，不走任务书
 

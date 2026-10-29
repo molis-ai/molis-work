@@ -107,6 +107,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-156 | 灵光把选中内容的正文、读到的文字与标题按整字截取，对话里的灵光按单元截、不切开字，不再留下半个字 | 乙 | 池 | 59 | — | `plugins/native/lingguang/src/actions.ts`、`tests/contextual-interaction.test.ts`、`tests/lingguang-material.test.ts`、`tests/lingguang-actions.test.ts`、`plugins/native/lingguang/README.md` |
 | T-157 | Pages 导入、从 Markdown 新建、整理出的任务卡与知识页、多篇合成的标题按整字截到 80，不再留下半个字 | 乙 | 池 | 60 | — | `plugins/native/pages/src/actions.ts`、`plugins/native/pages/src/import-content.ts`、`plugins/native/pages/src/extract.ts`、`plugins/native/pages/src/fragment-offers.ts`、`tests/pages-import-content.test.ts`、`tests/pages-actions.test.ts` |
 | T-158 | Pages 评论引用的原文摘录按整字截到 2000，不再留下半个字 | 乙 | 池 | 61 | — | `plugins/native/pages/src/comments-store.ts`、`tests/pages-comments.test.ts` |
+| T-159 | 运行时下载断网、超时或正文中途断开时报 `connector.install.failed`，调用方取消原样通过，不再抛原生错误 | 乙 | A | 64 | — | `apps/local-host/src/connector-tool-download.ts`、`tests/security-invariants-connector-install.test.ts` |
 | T-160 | 读受管理安装时，目录不在、记录读不出或不完整、可执行文件不在，都报 `connector.install.invalid`，不再抛原生错误 | 乙 | B | 62 | — | `apps/local-host/src/connector-tool-install.ts`、`tests/connector-local-actions.test.ts` |
 | T-161 | 停在 installed 的安装插件也能停用，记 disabled 并撑过重启（补 T-032 的 Host 层用例） | 丙 | A | 63 | — | `tests/installed-plugin-host.test.ts` |
 

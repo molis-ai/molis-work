@@ -52,6 +52,13 @@ export async function openEntryEventStream(t: TestContext, origin: string, home:
   return { closed, ended: () => ended };
 }
 
+// The PTY child writes its pid with writeFileSync, which creates the file before it fills it: until the number is there, the file names
+// no process (Number("") is 0). The same reading as pidIn in tests/ci-linux-probe.test.ts and waitForPid in tests/ci-product-subset.test.ts.
+function pidIn(file: string): number {
+  const pid = existsSync(file) ? Number(readFileSync(file, "utf8")) : 0;
+  return Number.isSafeInteger(pid) && pid > 0 ? pid : 0;
+}
+
 function processAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; return false; }
@@ -75,9 +82,9 @@ export async function openEntryTerminal(t: TestContext, origin: string, home: st
   socket.send(JSON.stringify({ type: "spawn", panelId: "shutdown-fixture", command: process.execPath, args: ["-e", 'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)', pidFile], cwd: home }));
   assert.equal(JSON.parse(String((await spawned)[0])).type, "spawned");
   const until = Date.now() + 2000;
-  while (!existsSync(pidFile) && Date.now() < until) await delay(20);
+  while (pidIn(pidFile) === 0 && Date.now() < until) await delay(20);
   assert.ok(existsSync(pidFile), "the real PTY child started");
-  const observedPid = Number(readFileSync(pidFile, "utf8"));
+  const observedPid = pidIn(pidFile);
   assert.ok(Number.isSafeInteger(observedPid) && observedPid > 0 && processAlive(observedPid));
   pid = observedPid;
   const stopped = async () => {

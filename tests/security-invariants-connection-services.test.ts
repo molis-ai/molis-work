@@ -116,7 +116,8 @@ test("S-69 RAC-346 a request reaches only the registered origins of its service,
   // Another host of the same company, another port, another service's origin: refused before anything is sent, and the same for a slot
   // that is not bound.
   for (const [where, url] of [[cloudflare, "https://www.cloudflare.com/"], [cloudflare, "https://api.cloudflare.com:8443/"], [cloudflare, "https://gmail.googleapis.com/"],
-    [gmail, "https://www.googleapis.com/gmail/v1/users/me/profile"]] as const) {
+    // RAC-1082 (W5-11 slice 4, A2): the account origins are the platform's identity requests' alone, never a plugin's request.
+    [gmail, "https://www.googleapis.com/gmail/v1/users/me/profile"], [gmail, "https://openidconnect.googleapis.com/v1/userinfo"]] as const) {
     await assert.rejects(port(where.home).request(where.target, dispatch(url)), code("connector.plugin_requests.origin_refused"), url);
     await assert.rejects(port(where.home).request({ ...where.target, install_id: "install-unbound" }, dispatch(url)), code("connector.plugin_requests.origin_refused"), url);
   }

@@ -75,7 +75,7 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
       } };
     },
     deliver: (run, dueAt, outcome, text) => runtime.notify({ key: run.id + ":" + dueAt,
-      title: run.pluginTitle + "：" + (outcome.state === "succeeded" ? (text.replace(/\s+/g, " ").trim().slice(0, 80) || run.operationTitle) : run.operationTitle.slice(0, 40) + "没有完成"),
-      summary: text.slice(0, 280), body: text || "操作已结束", open_plugin_id: run.pluginId }),
+      title: notificationTitle(run.pluginTitle + "：" + (outcome.state === "succeeded" ? ([...text.replace(/\s+/g, " ").trim()].slice(0, 80).join("") || run.operationTitle) : [...run.operationTitle].slice(0, 40).join("") + "没有完成")),
+      summary: [...text].slice(0, 280).join(""), body: text || "操作已结束", open_plugin_id: run.pluginId }),
   });
 }

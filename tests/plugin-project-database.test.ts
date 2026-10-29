@@ -22,8 +22,9 @@ import { withLibrary } from "./fixtures/home-library.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // W3-06 D: a plugin the Host runs in a project's platform can have a library in the Home, through the one service main has for
-// it, `services.database`, when the Host's own start list declares one for it (`PluginPlatformEntry.database`). Nothing the
-// plugin holds picks the library: not its definition, not its id, not an action argument.
+// it, `services.database`, when its Manifest declares one (`databases.home`) and the Host's start list holds that definition
+// (`databaseFor` in apps/local-host/src/plugin-entry-identity.ts). Nothing the plugin holds gets it a library on its own: not
+// its Manifest, not its id, not an action argument.
 
 const STORAGE = { permission: "storage:private", required: true, reason: "插件把自己的数据存进 Home 里它自己的库" } as const;
 const READ = { permission: "dataprobe:read", required: true, reason: "读自己的库" } as const;

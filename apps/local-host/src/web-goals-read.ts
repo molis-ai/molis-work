@@ -19,6 +19,7 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L } from "./web-locale.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
+import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
 
 
@@ -38,7 +39,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
-    drawn: view.plugin_stage_ids ?? [], model: projectPluginId => model(projectPluginId, view) });
+    drawn: view.plugin_stage_ids ?? [], model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
   return { html: [characters, ...runtime.html], ids: runtime.ids, unavailable: runtime.unavailable,
     directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
@@ -51,7 +52,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
 async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[]; readonly workspaces: ProjectPluginSurfacePorts["workspaces"] };
-  pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems">;
+  pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">;
   stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
 }): Promise<MolisWorkWebView> {
   const { store, homeDirectory, pluginServices } = input;
@@ -150,7 +151,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
     store?: LocalProjectDatabase,
-    pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems">,
+    pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,

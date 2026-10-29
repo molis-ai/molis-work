@@ -40,14 +40,15 @@ async function authorize(home: string, access: string, connectionId?: string, re
   return started.connection_id;
 }
 
-/** The token endpoint, reached by the Host's refresh (global fetch); the plugin's own requests go to the stand-in below instead. */
+/**
+ * The token endpoint, reached by the Host's refresh: sent like every OAuth request by `sendPublicHttps` (W5-11 §2.2), so the stand-in
+ * below answers it on the service's own origin. An answer that throws drops the connection, as a network failure would.
+ */
+const tokenAnswers = new WeakMap<TestContext, { answer: () => Response; refreshes: URLSearchParams[] }>();
 function tokenEndpoint(t: TestContext, answer: () => Response) {
   const refreshes: URLSearchParams[] = [];
-  t.mock.method(globalThis, "fetch", async (input: string | URL, init?: RequestInit) => {
-    assert.equal(String(input), ASANA_TOKEN, "the refresh is the only fetch");
-    refreshes.push(new URLSearchParams(String(init?.body)));
-    return answer();
-  });
+  tokenAnswers.set(t, { answer, refreshes });
+  t.mock.method(globalThis, "fetch", async () => assert.fail("no OAuth request goes through the global fetch"));
   return refreshes;
 }
 
@@ -59,7 +60,19 @@ async function asana(t: TestContext, refused: readonly string[], hostname = "app
     "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem")], { stdio: "ignore" });
   const [key, cert] = await Promise.all([readFile(join(dir, "key.pem")), readFile(join(dir, "cert.pem"))]);
   const seen: Array<string | undefined> = [];
+  const token = tokenAnswers.get(t);
   const server = createServer({ key, cert }, (request, response) => {
+    if (token && `https://${hostname}${request.url}` === ASANA_TOKEN) {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        token.refreshes.push(new URLSearchParams(Buffer.concat(chunks).toString()));
+        let answer: Response;
+        try { answer = token.answer(); } catch { request.socket.destroy(); return; }
+        void answer.text().then(body => { response.writeHead(answer.status, { "content-type": "application/json" }); response.end(body); });
+      });
+      return;
+    }
     seen.push(request.headers.authorization);
     const status = refused.some(token => request.headers.authorization === `Bearer ${token}`) ? 401 : 200;
     response.writeHead(status, { "content-type": "application/json", "www-authenticate": status === 401 ? "Bearer" : "" });

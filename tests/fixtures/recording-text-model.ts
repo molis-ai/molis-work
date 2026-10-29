@@ -18,7 +18,8 @@ export async function recordingTextModel(t: TestContext, home: string, answer: (
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: ModelWire[] = [];
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②), and a project's pieces get background knowledge cards: both are answered aside, not recorded.
     const wire = JSON.parse(body) as ModelWire, review = asideReply(body); if (!review) requests.push(wire);
     response.writeHead(200, { "content-type": "text/event-stream" });
@@ -42,7 +43,7 @@ export async function recordingTextModel(t: TestContext, home: string, answer: (
     const connection = withConnectorConnections(home, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", base); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: base, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
   }));
-  return { requests };
+  return { requests, base };
 }
 
 /** The text of a request's messages, joined. */

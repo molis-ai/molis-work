@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { createServer } from "node:https";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -79,13 +80,15 @@ test("S-95: the broker uses the call's connections only for an operation declari
   assert.equal(sent.length, 1);
 });
 
-async function standIn(t: TestContext, hosts: readonly string[], status = 200) {
+/** `intercept` answers a request itself when it returns true (a token endpoint the test holds); every other request is answered `status`. */
+async function standIn(t: TestContext, hosts: readonly string[], status = 200, intercept?: (request: IncomingMessage, response: ServerResponse) => boolean) {
   const dir = await mkdtemp(join(tmpdir(), "call-connections-")); t.after(() => rm(dir, { recursive: true, force: true }));
   execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", `/CN=${hosts[0]}`, "-addext", `subjectAltName=${hosts.map(host => `DNS:${host}`).join(",")}`,
     "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem")], { stdio: "ignore" });
   const [key, cert] = await Promise.all([readFile(join(dir, "key.pem")), readFile(join(dir, "cert.pem"))]);
   const seen: Array<{ host: string | undefined; authorization: string | undefined }> = [];
   const server = createServer({ key, cert }, (request, response) => {
+    if (intercept?.(request, response)) return;
     seen.push({ host: request.headers.host?.replace(/:\d+$/u, ""), authorization: request.headers.authorization });
     response.writeHead(status, { "content-type": "application/json", "set-cookie": "s=1" });
     response.end("{}");
@@ -158,7 +161,19 @@ test("S-95: a service the platform's table does not have reaches only the origin
 // This covers the shared registered-service OAuth transport branch, not admission of a second package claiming GitHub's service id.
 // The process, SDK proxy, connections broker, Host port, TLS request and OAuth resolver below are all the production implementations.
 test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or resend after its call is withdrawn", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
-  const { seen, testServer, lookup } = await standIn(t, ["api.github.com"], 401);
+  // The refresh leaves by `sendPublicHttps` (W5-11 slice 4), so the token endpoint is answered on github.com by the same stand-in.
+  let entered!: () => void, release!: () => void, exchanges = 0, tokenAbandoned: Promise<boolean> | undefined;
+  const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
+  const { seen, testServer, lookup } = await standIn(t, ["api.github.com", "github.com"], 401, (request, response) => {
+    if (request.headers.host?.replace(/:\d+$/u, "") !== "github.com") return false;
+    assert.equal(request.url, "/login/oauth/access_token");
+    exchanges += 1;
+    tokenAbandoned = new Promise(done => response.on("close", () => done(!response.writableEnded)));
+    request.resume();
+    entered();
+    void wait.then(() => { if (!response.destroyed) response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 })); });
+    return true;
+  });
   const { directory } = await home(t);
   await runWithMolisWorkHome(directory, async () => {
     const id = randomUUID(), prefix = `connector-protocol:${id}:`, secret = createFileSecretStore();
@@ -172,13 +187,7 @@ test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or
     const configuration = { connectionId: id, sessionId: id, serviceId: "github", protocol: "oauth" as const,
       displayName: "Sandbox OAuth", clientId: "fixture-client", origin: "http://localhost:19358", redirectUri: "http://localhost:19358/callback", context: {}, settings: {} };
     protocols.save(configuration);
-    let entered!: () => void, release!: () => void, tokenSignal: AbortSignal | null | undefined, exchanges = 0;
-    const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
-    t.mock.method(globalThis, "fetch", async (input, init) => {
-      assert.equal(new URL(String(input)).href, "https://github.com/login/oauth/access_token");
-      exchanges += 1; tokenSignal = init?.signal; entered(); await wait;
-      return Response.json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 });
-    });
+    t.mock.method(globalThis, "fetch", async () => assert.fail("no OAuth request goes through the global fetch"));
     const port = createCallConnectionsPort(directory, { testServer, lookup, allowAddress: () => true }), requests: Promise<void>[] = [];
     const observed: CallConnectionsPort = { describe: connection => port.describe(connection), request(connection, dispatch) {
       const pending = port.request(connection, dispatch); requests.push(pending.then(() => undefined, () => undefined)); return pending;
@@ -206,11 +215,13 @@ test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or
     try {
       await reached;
       assert.equal(seen.length, 1, "the original TLS request reached the service and returned 401");
-      abort.abort(new Error("sandbox call withdrawn")); release();
+      abort.abort(new Error("sandbox call withdrawn"));
+      // The stand-in answers in this process: wait until it sees the connection go, or its answer would race the client's abort.
+      assert.equal(await tokenAbandoned, true, "the cancelled call ended the token request before its answer");
+      release();
       await rejected;
       // SandboxRunner can answer cancellation first; the real Host request must also finish before checking its storage effects.
       await Promise.all(requests);
-      assert.equal(tokenSignal?.aborted, true);
       assert.equal(exchanges, 1);
       assert.equal(seen.length, 1, "the cancelled refresh did not send the second data request");
       assert.deepEqual(Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)])), saved);

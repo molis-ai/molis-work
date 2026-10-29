@@ -186,3 +186,40 @@ test("RAC-1650 removing a membership the workspace really has: the membership go
     assert.equal(catalog.resolveRuntimeContext(member).project?.project_id, alpha.project_id);
   });
 });
+
+test("RAC-1813 binding from a Runtime with neither a Session id nor a project directory is refused and records nothing; the same call from a Session binds", async () => {
+  await withCatalog(async (catalog) => {
+    const alpha = await catalog.createProject({ display_name: "Alpha", actor_id: "owner" });
+    const nowhere: RuntimeWorkContext = { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false };
+    const bind = (context: RuntimeWorkContext) => catalog.bindRuntimeContext({ context, project_id: alpha.project_id,
+      actor_id: "runtime-codex", user_confirmed: true });
+    // (a)(b)(c) nothing to key the choice on: refused, no Session binding and no workspace membership recorded.
+    assert.throws(() => bind(nowhere), refused("work.context.stable_identity_required"));
+    assert.deepEqual(catalog.listRuntimeContextBindings(), []);
+    assert.deepEqual(catalog.listWorkspaceMemberships(), []);
+    // (d)(e) control: the same call from a Session binds.
+    assert.equal(bind(session("neither-control")).status, "bound");
+    assert.equal(catalog.listRuntimeContextBindings().length, 1);
+  });
+});
+
+test("RAC-1814 create-and-bind from a Runtime with only a project directory makes the directory a member of the new project, binds no Session, and replays the same project for the same key", async () => {
+  await withCatalog(async (catalog, directory) => {
+    const workspacePath = join(directory, "request-workspace");
+    await mkdir(workspacePath, { recursive: true });
+    const directoryOnly: RuntimeWorkContext = { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false,
+      workspace: { canonical_path: workspacePath, realpath_verified: false } };
+    const create = () => catalog.createProjectAndBindRuntimeContext({ context: directoryOnly, display_name: "Alpha",
+      actor_id: "runtime-codex", user_confirmed: true, idempotency_key: "directory-only" });
+    // (a)(b)(c) the project is created and reached through its directory: a workspace member, not a Session binding.
+    const created = await create();
+    assert.equal(created.status, "bound");
+    const projectId = created.connection!.project_id;
+    assert.deepEqual(catalog.listWorkspaceMemberships().map((membership) => membership.project_id), [projectId]);
+    assert.deepEqual(catalog.listRuntimeContextBindings(), []);
+    // (d)(e) the same key again returns that project and creates nothing.
+    const replay = await create();
+    assert.equal(replay.connection?.project_id, projectId);
+    assert.equal(catalog.listProjects().length, 1);
+  });
+});

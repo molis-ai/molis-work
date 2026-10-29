@@ -359,6 +359,3 @@ function decodeB64Url(value: string | undefined): Buffer {
   }
   return decoded;
 }
-
-// Deployed API aliases; ciphertext, cursor and database names remain unchanged.
-export { createSearchOpaqueBlobStore as createFeedSearchOpaqueBlobStore, createSearchAead as createFeedSearchAead, createSearchSecretStore as createFeedSearchSecretStore };

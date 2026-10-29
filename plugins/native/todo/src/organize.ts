@@ -2,7 +2,7 @@ import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlaceme
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "./contract.js";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
-import { normalizeForMatch, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
+import { materialReadText, normalizeForMatch, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { todoRequestKey, type TodoAccess, type TodoFields, type TodoSql, type TodoStore } from "./store.js";
 
 /** What the person chose for one candidate in the review. */
@@ -115,8 +115,8 @@ export class TodoOrganizer {
     const materials: StoredMaterial[] = input.materials.map((material, index) => ({
       index: index + 1, title: [...material.title].slice(0, 200).join("") || `材料 ${index + 1}`, subject: material.subject ?? null, open: material.open ?? null,
       received_at: material.received_at ?? null,
-      read: material.read === "failed" ? "failed" : material.read === "truncated" || material.text.length > TODO_ORGANIZE_MATERIAL_CHARS ? "truncated" : "read",
-      note: material.note ?? (material.text.length > TODO_ORGANIZE_MATERIAL_CHARS ? `只读了前 ${TODO_ORGANIZE_MATERIAL_CHARS} 字` : ""),
+      read: material.read === "failed" ? "failed" : material.read === "truncated" || materialReadText(material.text) !== material.text ? "truncated" : "read",
+      note: material.note ?? (materialReadText(material.text) !== material.text ? `只读了前 ${TODO_ORGANIZE_MATERIAL_CHARS} 字` : ""),
       source_key: materialSourceKey(material),
     }));
     const visibleItems = new Map(this.store.list(access).map(item => [item.id, item]));

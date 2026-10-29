@@ -13,6 +13,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { asOAuthAnswer, oauthNetwork } from "./fixtures/oauth-network.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
@@ -212,13 +213,80 @@ test('long source and project titles fit Pages while full titles, original bodie
   startContextJourney(dir,id,ports);const ready=await waitContextJourney(dir,id);assert.equal(ready.summary!.references[0]!.title,sourceTitle);
   const saved=await adoptContextJourney(dir,id,{title:projectTitle,body:ready.summary!.body},ports);assert.equal(saved.phase,'complete',saved.error??'');
   const pages=openPagesStore(dir);try{
-    const docs=pages.list(saved.project_id);assert.equal(docs.length,2);assert.ok(docs.every(d=>d.title.length<=80&&d.title.isWellFormed()));
-    const source=docs.find(d=>d.id!==saved.document_id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'…');
+    const docs=pages.list(saved.project_id);assert.equal(docs.length,2);assert.ok(docs.every(d=>[...d.title].length<=80&&d.title.isWellFormed()));
+    const source=docs.find(d=>d.id!==saved.document_id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'🙂…');
     const sourceBody=JSON.stringify(pages.get(source.id).body);assert.ok(sourceBody.includes(sourceTitle));assert.match(sourceBody,/Original mail body/);
     assert.ok(JSON.stringify(pages.get(saved.document_id!).body).includes(projectTitle));
     await adoptContextJourney(dir,id,{title:'Ignored retry'},ports);assert.equal(pages.list(saved.project_id).length,2);
   }finally{pages.close();}
   await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,projectTitle);});
+});
+
+/**
+ * A round over files that read as "# heading" and one line of body, adopted as `project`: the titles of the Pages documents it made (the source
+ * documents in label order, [S1], [S2]…; the summary), and the summary's body as JSON, where "项目：" marks the project's name leading it.
+ */
+async function adoptedTitles(t: Parameters<Parameters<typeof test>[1]>[0], headings: string[], project: string) {
+  const dir = await home(t), id = randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir, s => s.create(id));
+  const files: { path: string; staged: string }[] = [];
+  for (const [index, heading] of headings.entries()) files.push(await staged(dir, id, `m-${index + 1}.md`, `# ${heading}\n\nOriginal mail body.`));
+  selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files }] });
+  const ports = { ...pagesPorts(dir), model: async () => ({ completeText: async () => "# Work\nOriginal mail body. [S1]" }) };
+  startContextJourney(dir, id, ports);
+  const ready = await waitContextJourney(dir, id);
+  assert.equal(ready.phase, "review", ready.error ?? "");
+  const saved = await adoptContextJourney(dir, id, { title: project, body: ready.summary!.body }, ports);
+  assert.equal(saved.phase, "complete", saved.error ?? "");
+  const pages = openPagesStore(dir);
+  try {
+    const documents = pages.list(saved.project_id), summary = documents.find(document => document.id === saved.document_id)!;
+    return { sources: headings.map((_, index) => documents.find(document => document.title.startsWith(`[S${index + 1}] `))?.title),
+      summary: summary.title, body: JSON.stringify(pages.get(summary.id).body) };
+  } finally { pages.close(); }
+}
+
+// A source document's title in Pages is "[S<n>] " and the material's title, cut to the 80 whole characters Pages holds (a 🙂 is one, though two UTF-16 units).
+const SOURCE_TITLES = [
+  { name: "a 🙂 is the 79th character: kept, then …", heading: "A".repeat(73) + "🙂" + "B".repeat(40), rest: "A".repeat(73) + "🙂…" },
+  { name: "75 🙂 and the label are exactly 80 characters: kept whole", heading: "🙂".repeat(75), rest: "🙂".repeat(75) },
+  { name: "76 🙂 are one too many: cut to 74, then …", heading: "🙂".repeat(76), rest: "🙂".repeat(74) + "…" },
+  { name: "75 one-unit characters and the label are exactly 80: kept whole", heading: "题".repeat(75), rest: "题".repeat(75) },
+  { name: "76 one-unit characters are one too many: cut to 74, then …", heading: "题".repeat(76), rest: "题".repeat(74) + "…" },
+];
+
+test("RAC-2107 a source document's title in Pages is counted and cut in whole characters, 80 at most with its label", async t => {
+  const { sources } = await adoptedTitles(t, SOURCE_TITLES.map(c => c.heading), "Titles");
+  for (const [index, c] of SOURCE_TITLES.entries()) await t.test(c.name, () => assert.equal(sources[index], `[S${index + 1}] ${c.rest}`));
+});
+
+// The summary document is titled "<project> · 工作摘要" (the suffix is 7 characters). A project name is at most 120 UTF-16 units, so at most 60 🙂.
+const SUMMARY_FITS = [
+  { name: "60 🙂 and the suffix are 67 characters, 127 units: kept whole", project: "🙂".repeat(60) },
+  { name: "26 A, 47 🙂 and the suffix are exactly 80 characters: kept whole", project: "A".repeat(26) + "🙂".repeat(47) },
+  { name: "73 one-unit characters and the suffix are exactly 80: kept whole", project: "A".repeat(73) },
+];
+const SUMMARY_CUTS = [
+  { name: "74 characters of one and two units and the suffix are 81: cut to 79, then …", project: "A".repeat(50) + "🙂".repeat(24), title: "A".repeat(50) + "🙂".repeat(24) + " · 工作…" },
+  { name: "the 79th character is a 🙂: kept, then …", project: "A".repeat(78) + "🙂", title: "A".repeat(78) + "🙂…" },
+  { name: "74 one-unit characters and the suffix are 81: cut to 79, then …", project: "A".repeat(74), title: "A".repeat(74) + " · 工作…" },
+];
+
+test("RAC-2108 a summary title of 80 whole characters or fewer is the Pages title whole, and the body does not repeat the project's name", { timeout: 120_000 }, async t => {
+  for (const c of SUMMARY_FITS) await t.test(c.name, async st => {
+    const { summary, body } = await adoptedTitles(st, ["Brief"], c.project);
+    assert.equal(summary, `${c.project} · 工作摘要`);
+    assert.ok(!body.includes("项目："), "the title is whole, so the project's name does not lead the body");
+  });
+});
+
+test("RAC-2109 a summary title over 80 whole characters is cut to 79, then …, and the body opens with the project's name instead", { timeout: 120_000 }, async t => {
+  for (const c of SUMMARY_CUTS) await t.test(c.name, async st => {
+    const { summary, body } = await adoptedTitles(st, ["Brief"], c.project);
+    assert.equal(summary, c.title);
+    assert.ok(body.includes("项目：" + c.project), "the project's name leads the body");
+  });
 });
 
 test('missing model preserves imported bodies, restart/retry does not re-read, invalid citations cannot be adopted',async t=>{
@@ -302,6 +370,8 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
       return Response.json({ payload: { mimeType: "text/plain", body: { data: Buffer.from("Selected account mail").toString("base64url") } } });
     };
     t.mock.method(globalThis, "fetch", transport);
+    // The generic flow's authorization and renewal leave by `sendPublicHttps` (W5-11 slice 4); the Gmail reads use `transport`.
+    oauthNetwork(t, asOAuthAnswer(transport));
     const authorize = async (account: string) => {
       const begun = await served.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start",
         { service_id: "gmail", display_name: account, client_id: `fixture-app-${account}`, client_secret: "fixture-only" });

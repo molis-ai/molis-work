@@ -32,7 +32,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
       if ("stopped" in prepared) return d.changed({ instance: prepared.stopped });
       ({ instance: current, pending } = prepared);
     } else if (current.chain.links[from]!.kind === "manual" && input.body !== undefined
-      && ((input.title ?? "").trim().slice(0, 200) !== pending.output.title || (input.body ?? "").trim() !== pending.output.body)) {
+      && ([...(input.title ?? "").trim()].slice(0, 200).join("") !== pending.output.title || (input.body ?? "").trim() !== pending.output.body)) {
       throw workflowsErrors.conflict("这一步已经在交接另一份内容，已载入最新进度");
     }
     await caller.beforeEffect();

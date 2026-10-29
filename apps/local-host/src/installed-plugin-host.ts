@@ -15,6 +15,7 @@ import { SandboxError, effectsFromContract, type SandboxServices } from '@molis-
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
 import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platform.js';
+import { closePlugin, supervisedInstall } from './plugin-platform-close.js';
 import { configuredModelChoices } from './configured-models.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { generatedPluginManifest, installedSignature } from './plugin-builder/installed.js';
@@ -178,12 +179,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
-    for (const pluginId of platform.supervisor.enabledPluginIds()) {
-      const state = platform.supervisor.state(pluginId);
-      // The Supervisor does not see a crash on the Runtime's side: a record it restored as running may not be running there.
-      if (state?.status === 'running' && state.install_id) try { if (platform.runtime.get(state.install_id).state === 'running') await platform.runtime.stop(state.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
-      platform.supervisor.revoke(pluginId);
-    }
+    // Closing the Host is not switching a plugin off; closePlugin says what is stopped, and what is only revoked.
+    for (const pluginId of platform.supervisor.enabledPluginIds()) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');
   };
   try {

@@ -118,21 +118,6 @@ export function molisWorkOnboardingStatus(
   };
 }
 
-export function markMolisWorkOnboardingStarted(
-  homeDirectory: string | undefined,
-  lastPresentedStep = 0,
-  now = new Date(),
-): MolisWorkOnboardingState {
-  const current = readMolisWorkOnboardingState(homeDirectory);
-  const at = now.toISOString();
-  return writeMolisWorkOnboardingState(homeDirectory, {
-    ...current,
-    last_presented_step: lastPresentedStep,
-    started_at: current.started_at ?? at,
-    updated_at: at,
-  });
-}
-
 export function completeMolisWorkOnboarding(
   homeDirectory: string | undefined,
   projectId: string,

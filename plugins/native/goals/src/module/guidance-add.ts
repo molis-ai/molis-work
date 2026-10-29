@@ -13,6 +13,8 @@ import {
   normalizeProjectGuidanceContent,
   PROJECT_GUIDANCE_ENTRY_MAX_CHARS,
   PROJECT_GUIDANCE_TOTAL_MAX_CHARS,
+  projectGuidanceLength,
+  withinProjectGuidanceEntryLimit,
 } from "./guidance.js";
 import { guidanceContentHash, writeGuidanceRevision } from "./guidance-write.js";
 import { sqliteJson, type GoalsRepository } from "./repository.js";
@@ -43,7 +45,7 @@ function readAddRequest(input: AddProjectGuidanceInput): AddGuidanceRequest {
   if (!content || !reason || !confirmationSummary) {
     throw goalErrors["goals.project_guidance.invalid"]("项目说明内容、持久化原因和用户确认摘要不能为空");
   }
-  if (content.length > PROJECT_GUIDANCE_ENTRY_MAX_CHARS) {
+  if (!withinProjectGuidanceEntryLimit(content)) {
     throw goalErrors["goals.project_guidance.entry_too_large"](`单条项目说明不能超过 ${PROJECT_GUIDANCE_ENTRY_MAX_CHARS} 个字符`);
   }
   return { kind, content, contentHash: guidanceContentHash(content), sourceRefs, reason, confirmationSummary };
@@ -86,7 +88,7 @@ function createGuidanceEntry(
   const entries = repository.listProjectGuidanceEntries(input.project_id, true);
   const totalChars = entries
     .filter((entry) => entry.active)
-    .reduce((sum, entry) => sum + entry.content.length, 0) + request.content.length;
+    .reduce((sum, entry) => sum + projectGuidanceLength(entry.content), 0) + projectGuidanceLength(request.content);
   if (totalChars > PROJECT_GUIDANCE_TOTAL_MAX_CHARS) {
     throw goalErrors["goals.project_guidance.total_too_large"](`项目说明总长度不能超过 ${PROJECT_GUIDANCE_TOTAL_MAX_CHARS} 个字符`);
   }

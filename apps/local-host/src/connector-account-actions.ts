@@ -11,6 +11,7 @@ import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 
 import { resolveApiConnection } from "./connector-access.js";
+import { ApiOAuthError, apiOAuthConnectionId, readApiOAuthAccount } from "./connector-api-oauth.js";
 import { connectorManagementActions, connectorManagementHandlers } from "./connector-management-actions.js";
 import { connectorRecordActions, connectorRecordHandlers } from "./connector-record-actions.js";
 import { connectorLocalActions, connectorLocalHandlers } from "./connector-local-actions.js";
@@ -45,8 +46,11 @@ const failed = (failure: string | undefined, message: string | undefined, fallba
   failure === "needs_auth" ? accountErrors.needs_auth(message || fallback)
     : failure === "configuration" ? accountErrors.configuration(message || fallback) : accountErrors.unavailable(message || fallback);
 
-/** Account identity behind one connection, through the same resolver and provider calls its readers use. */
-export async function readConnectorAccount(home: string, connectionId: string, control: ConnectorCallControl): Promise<ConnectorAccount> {
+/**
+ * Account identity behind one connection, through the same resolver and provider calls its readers use. `oauthFetch` is for tests only:
+ * how an OAuth connection's identity request is sent, `sendPublicHttps` otherwise.
+ */
+export async function readConnectorAccount(home: string, connectionId: string, control: ConnectorCallControl, oauthFetch?: typeof fetch): Promise<ConnectorAccount> {
   let access: Awaited<ReturnType<typeof resolveApiConnection>>;
   try { access = await resolveApiConnection(home, connectionId, control); }
   catch (error) {
@@ -65,6 +69,19 @@ export async function readConnectorAccount(home: string, connectionId: string, c
     beforeEffect: () => account.beforeEffect().catch(keep) };
   const service = access.connection.service_id;
   const identity = { connection_id: connectionId, service_id: service };
+  // An OAuth connection of the generic flow is read by its declaration, the way its authorization read it (W5-11 §2.2).
+  if (apiOAuthConnectionId(access.connection.credential_ref ?? undefined)) {
+    try {
+      const account = await readApiOAuthAccount(home, connectionId, control, async refresh => {
+        if (refresh) access = await resolveApiConnection(home, connectionId, control, service, true);
+        return access.token;
+      }, { fetchImpl: oauthFetch });
+      return { ...identity, login: account.label, account_id: account.account_id };
+    } catch (error) {
+      if (error instanceof ActionError || signal.aborted) throw error;
+      throw error instanceof ApiOAuthError && error.refused ? accountErrors.needs_auth(error.message) : accountErrors.unavailable(error instanceof Error ? error.message : "无法读取账号");
+    }
+  }
   if (service === "github") {
     const result = await githubWhoami({ token: access.token, fetchImpl: controlledConnectorFetch(globalThis.fetch, control) });
     await control.beforeEffect(); control.current();

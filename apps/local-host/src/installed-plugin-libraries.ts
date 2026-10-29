@@ -138,16 +138,3 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
     ledger.close();
   }
 }
-
-/**
- * The directories of the libraries installed plugins made, for `uninstall --purge-user-data`. A row is only a name the Host wrote, but
- * it becomes a path that is deleted, so a name that is not one plain directory name, or that a registered store has, is not listed.
- */
-export function installedLibraryPaths(home: string, reserved: HomeStoreRegistry): string[] {
-  if (!existsSync(join(home, INSTALLED_LIBRARIES_HOME_STORE.path, `${INSTALLED_LIBRARIES_HOME_STORE.path}.db`))) return [];
-  const ledger = openReadOnlyHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path);
-  try {
-    const rows = ledger.prepare("SELECT store_name FROM plugin_home_libraries ORDER BY store_name").all() as Array<{ store_name: string }>;
-    return rows.map(row => row.store_name).filter(name => INSTALLED_LIBRARY_NAME.test(name) && holderOf(name, reserved) === undefined).map(name => join(home, name));
-  } finally { ledger.close(); }
-}

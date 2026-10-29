@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hostCompleteText, type HostTextOptions } from "@molis-ai/molis-work-app-local-host";
 import { markDispatchRefusal } from "../horizontal/agent-host/dist/inference.js";
+import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 const env = () => ({ MOLIS_WORK_TEXT_API_KEY: "private-fixture-key", MOLIS_WORK_TEXT_BASE_URL: "https://model.example/v1", MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions", MOLIS_WORK_TEXT_MODEL: "chosen-model" });
 type Resolver = NonNullable<HostTextOptions["resolveInference"]>;
 type Client = Awaited<ReturnType<Resolver>>;
@@ -43,6 +45,39 @@ test("bounded text uses Prologue's native protocol, fixed model, endpoint and cr
   assert.equal(calls, 0);
   assert.equal(await complete("original material"), "result");
   assert.equal(calls, 1);
+});
+
+// A prompt is counted in characters, like a schema's maxLength: 180_000 characters of text, the longest instruction a person can save and Pages' command line fit.
+const PROMPT_LIMIT = 180_000 + AGENT_PROMPT_MAX_CHARS + 100, ASTRAL = "\u{1F7E2}", TOO_LONG = { message: "写作输入为空或过长，请减少材料后重试" };
+const promptPort = (seen: string[]) => hostCompleteText({ env: env(), resolveInference: resolver(async input => { seen.push(input.prompt); return "ok"; }) })!;
+// What pages.ai sends (plugins/native/pages/src/ai-run.ts:22) with the longest instruction and the longest command name: 23 characters (2 + 3 + 16 + 2) around the text.
+const pagesPrompt = (text: string) => composeInstructedPrompt("规".repeat(AGENT_PROMPT_MAX_CHARS), `命令：比较异同（相同点、不同点、冲突）\n\n${text}`);
+
+test("RAC-1877 a prompt is counted in characters, not UTF-16 units: 180000 two-unit characters go to the model, and so does a prompt of exactly the limit in three shapes", async () => {
+  const seen: string[] = [], complete = promptPort(seen), sent = ASTRAL.repeat(180_000);
+  assert.equal(sent.length, 360_000);
+  assert.equal(await complete(sent), "ok");
+  assert.ok(seen[0] === sent, "the model got the prompt as written");
+  for (const prompt of ["a".repeat(PROMPT_LIMIT), ASTRAL.repeat(100) + "a".repeat(PROMPT_LIMIT - 100), ASTRAL.repeat(PROMPT_LIMIT)]) assert.equal(await complete(prompt), "ok");
+  assert.equal(seen.length, 4);
+});
+
+test("RAC-1878 the longest pages.ai prompt (longest instruction, longest command name, 180000 characters of text) is not refused, whether its characters are one unit or two", async () => {
+  const seen: string[] = [], complete = promptPort(seen);
+  for (const unit of ["字", ASTRAL]) {
+    const prompt = pagesPrompt(unit.repeat(180_000));
+    assert.equal([...prompt].length, 180_000 + AGENT_PROMPT_MAX_CHARS + 23);
+    assert.equal(await complete(prompt), "ok");
+    assert.ok(seen.at(-1) === prompt, "the model got the prompt as written");
+  }
+  assert.equal(seen.length, 2);
+});
+
+test("RAC-1879 a prompt one character over the limit, however it is made, and a blank prompt are refused with the same message, and nothing is sent", async () => {
+  const seen: string[] = [], complete = promptPort(seen);
+  const over = ["a".repeat(PROMPT_LIMIT + 1), ASTRAL.repeat(100) + "a".repeat(PROMPT_LIMIT - 99), ASTRAL.repeat(PROMPT_LIMIT + 1)];
+  for (const prompt of [...over, "", "   ", "\n\t "]) await assert.rejects(complete(prompt), TOO_LONG);
+  assert.deepEqual(seen, []);
 });
 
 test("W5-01-SHM-04 revoking a credential during Runtime initialization preserves the refusal and prevents model dispatch", async () => {

@@ -15,7 +15,6 @@ import type { scheduleRuntimeDatabase } from "./runtime-database.js";
 import { scheduleInstallations } from "./runtime-installations.js";
 
 export type ScheduleRuntime = ReturnType<typeof scheduleRuntimeDatabase>;
-export type ScheduleOwners = ReturnType<typeof scheduleInstallations>;
 
 export async function scheduleRuntimeActions(projectId: string, services: PluginHostServices, runtime: ScheduleRuntime,
   caller: ActionExecutionContext, capabilityId: string): Promise<ActionHandlerBinding[]> {

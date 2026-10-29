@@ -41,8 +41,8 @@ test("a request the client abandons keeps its key in flight while the handler ru
   const held = new Promise<void>(resolve => { finish = resolve; });
   const web = await fixture(() => 200, () => web.executions() === 1 ? held : Promise.resolve());
   try {
-    // An event command path allows replay once it completed (the domain's own idempotency key decides).
-    const path = "/api/goals/g1/event-progress";
+    // A Goals event command at its plugin address. No path allows a same-key replay (RAC-1805): the page's retry below spends a new key.
+    const path = "/api/plugins/io.molis.work.goals/goals/g1/event-progress";
     const page = new AbortController();
     const abandoned = web.send(path, "abandoned-key-1", page.signal).then(() => assert.fail("the page gave up"), () => undefined);
     await until(() => web.executions() === 1, "the first attempt reaches its handler");
@@ -54,8 +54,9 @@ test("a request the client abandons keeps its key in flight while the handler ru
     finish();
     await until(() => web.keys.get("abandoned-key-1") === "complete", "the first attempt settles");
     assert.equal(web.keys.get("abandoned-key-1"), "complete", "the handler finished and answered 200 into the closed socket");
-    const retry = await web.send(path, "abandoned-key-1");
-    assert.equal(retry.status, 200, "the retry of an idempotent command reaches the command again");
+    // The page's retry spends a new Host one-time key; the settled key is not reused (the body's business key would be the same one).
+    const retry = await web.send(path, "abandoned-key-1-retry");
+    assert.equal(retry.status, 200, "the retry after the abandoned attempt reaches the handler");
     assert.equal(web.executions(), 2);
   } finally { await web.close(); }
 });
@@ -94,5 +95,32 @@ test("a request that was answered keeps the behaviour it had: complete on succes
     status = 500;
     assert.equal((await web.send(path, "failed-key-4")).status, 500);
     assert.equal(web.keys.has("failed-key-4"), false);
+  } finally { await web.close(); }
+});
+
+test("RAC-1805 a key that has been served is refused with 409 at the old Goals addresses too, and the refusal leaves it used", async () => {
+  // The guard once let a served key through at these addresses so the old page could retry a Goals command with the same key. The page now sends
+  // a fresh key for every attempt, to /api/plugins/io.molis.work.goals/…, and these addresses answer 404: no path is an exception any more.
+  // The last one is another publisher's plugin route that merely ends the same way.
+  const web = await fixture(() => 200, 0);
+  try {
+    const oldAddresses = [
+      "/api/goals",
+      "/api/goals/g1/event-progress",
+      "/api/goals/g1/relations",
+      "/api/relations/r1/deactivate",
+      "/api/goal-tree-proposals/t1/decision",
+      "/projects/p1/api/goals/g1/event-close",
+      "/api/plugins/example.third-party/api/goals",
+    ];
+    for (const [index, path] of oldAddresses.entries()) {
+      const key = `served-key-${index}`;
+      assert.equal((await web.send("/api/example/items", key)).status, 200, `${path}: the key is served once, elsewhere`);
+      await until(() => web.keys.get(key) === "complete", `${path}: the first use settles`);
+      const replay = await web.send(path, key);
+      assert.equal(replay.status, 409, `${path}: a served key is refused`);
+      assert.equal(web.keys.get(key), "complete", `${path}: the refusal leaves the key used`);
+    }
+    assert.equal(web.executions(), oldAddresses.length, "no replay reached a handler");
   } finally { await web.close(); }
 });

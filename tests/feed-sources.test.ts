@@ -15,6 +15,7 @@ import { createSourcePullRuntime, type SourcePullRuntime } from "@molis-ai/molis
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
 import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -190,10 +191,17 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
     const store = new LocalProjectDatabase(databasePath);
     try {
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
-      assert.throws(
-        () => service.register({ kind: "custom_rss", feed_url: "http://127.0.0.1/feed.xml" }),
-        { code: "feed.custom_rss_url_invalid" },
-      );
+      // RAC-1753: what the integrations refuse is refused in their own names, and the Feed's own refusals keep Feed's; each answers 400.
+      const refusal = (run: () => unknown) => {
+        try { run(); } catch (error) { const { status, body } = actionErrorResponse(error); return [body.code, status]; }
+        return assert.fail("expected a refusal");
+      };
+      assert.deepEqual(refusal(() => service.register({ kind: "custom_rss", feed_url: "http://127.0.0.1/feed.xml" })), ["rss.custom_url_invalid", 400]);
+      assert.deepEqual(refusal(() => service.register({ kind: "custom_rss", feed_url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv" })), ["rss.use_youtube_channel", 400]);
+      assert.deepEqual(refusal(() => service.register({ kind: "custom_rss", feed_url: "https://www.reddit.com/r/news/.rss" })), ["rss.use_official_reddit", 400]);
+      assert.deepEqual(refusal(() => service.register({ kind: "youtube_channel", channel_id: "not a channel" })), ["youtube.channel_invalid", 400]);
+      assert.deepEqual(refusal(() => service.register({ kind: "web_query", query: "x" })), ["feed.source_query_invalid", 400]);
+      assert.deepEqual(refusal(() => service.register({ kind: "rss", definition_id: "no-such-feed" })), ["feed.source_definition_unavailable", 400]);
       const catalog = listFeedSourceCatalog()[0]!;
       assert.throws(
         () => service.register({ kind: "custom_rss", feed_url: catalog.feed_url }),

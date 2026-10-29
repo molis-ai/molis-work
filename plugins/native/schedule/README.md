@@ -64,6 +64,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
   - 提醒同时绑定安装 ID 与 Runtime 安装世代；重装复用存储 ID 也不能取消或投递旧世代提醒，投递失败并记下原因，提醒保留。
   - 重装前设下的提醒在详情核对内容、当前安装版本与发布方后，经公开 `schedule.reminders.recover` 明确恢复。预期安装 ID/世代只防止过期确认，实际目标由公共安装目录重新读取；普通启用不补权。恢复沿用原 job、时间、收据和固定间隔，过期补提醒一次，不运行插件代码；重复确认不能重新开启后来暂停的任务。
   - 提醒的 daily/weekly 是固定 24 小时/7 天间隔；创建、取消与 Scheduler job 同库事务，Inbox 投递与一次性消费也在同一事务内复查 lease。
+  - 提醒送达时通知标题是「插件名：文字」；超过通知服务的 200 个单元时按整字截到 199 个单元以内、以「…」结尾，不劈开代理对，摘要和正文仍是整段文字（`tests/agent-built-plugins-reminders.test.ts` 的 RAC-1670、RAC-1671）。
   - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。
   - `schedules.add/cancel` 由 Schedule 的 Runtime 实例拥有，实际 operation 仍由当前安装执行。首次派出前持久化 pending/running；只有尚未派出的 pending 能自动等待新唤醒，已派出结果未知时暂停，不能自动重放。
   - 执行入口注册不补跑任务。每次派出使用本次 Scheduler lease 和当前安装世代；结果、Inbox 与单次执行终态同事务提交。失败/未知不能报告成功；撤销后的迟到结果不能写业务状态或 Inbox。

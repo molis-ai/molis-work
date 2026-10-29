@@ -72,14 +72,6 @@ function refuse(response: ServerResponse): false {
   return false;
 }
 
-function isEventCommandReplayPath(pathname: string): boolean {
-  return /(?:^|\/)api\/goals\/[^/]+\/event-(?:configure|report|progress|concern|decision-request|decision|agree|close|resume|continue|note)$/.test(pathname)
-    || /(?:^|\/)api\/goals\/[^/]+\/relations$/.test(pathname)
-    || /(?:^|\/)api\/relations\/[^/]+\/deactivate$/.test(pathname)
-    || /(?:^|\/)api\/goals$/.test(pathname)
-    || /(?:^|\/)api\/goal-tree-proposals\/[^/]+\/decision$/.test(pathname);
-}
-
 /** The `host:port` the request was addressed to when that is this machine, else null (DNS rebinding; security invariant S-02). */
 export function requestHost(request: IncomingMessage): string | null {
   return loopbackHost(request.headers.host);
@@ -192,7 +184,7 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 409, { error: L("这次操作正在提交"), code: "request.in_flight" });
     return false;
   }
-  if (prior === "complete" && !isEventCommandReplayPath(url.pathname)) {
+  if (prior === "complete") {
     sendLocalWebJson(response, 409, { error: L("这次操作已经提交，不会重复执行") });
     return false;
   }

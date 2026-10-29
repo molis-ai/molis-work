@@ -49,12 +49,12 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 怎么判 | 包 = 源码文件向上最近的有 `package.json` 的目录。表的 owner = SQL 文本里有 `CREATE [VIRTUAL] TABLE <名>` 的包（同名表两个包各建一张，如 `workspaces`、`jobs`，两个都是 owner，库不同）。别的包的 SQL 里对它做 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`REPLACE INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE` 就失败 |
+| 怎么判 | 包 = 源码文件向上最近的有 `package.json` 的目录，或登记在 `areas` 里的目录，哪个近算哪个。表的 owner = SQL 文本里有 `CREATE [VIRTUAL] TABLE <名>` 的包（同名表两个包各建一张，如 `workspaces`、`jobs`，两个都是 owner，库不同）。别的包的 SQL 里对它做 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`REPLACE INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE` 就失败。表名可以带引号（`"t"`、`` `t` ``、`[t]`），也可以带 `main.`、`temp.` 库名：`FROM main.t` 读的是 t，不是一张叫 main 的表 |
 | 读什么 | `apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下 TypeScript 源码的字符串和模板字符串（语法树里找，注释不算；测试、夹具、`dist`、`.d.ts` 不看）。SQL 关键字只认大写：仓库里的 SQL 都这么写，不分大小写会把英文句子（`from Pages`）读成 SQL |
 | 失败时说什么 | `<文件>:<行> reads|writes table "<表>", which <owner 包> creates; go through that package's own API` |
 | 怎么办 | 让 owner 包导出一个函数（读就导出读取函数，写就走它的命令），宿主或别的包调用它。不要往基线或允许名单里加 |
-| 允许名单 | `tooling/gates/table-owners.json`，两节，都两头核对。`shared`：几个包有意共写的表，写 owner、用到它的其他包（`users`）、理由（至少 20 个字符）；用到而没登记的包失败，登记的包不再用它、owner 不是建表的包、没人建这张表、字段多余，都失败。`same_name`：两个包各建一张的同名表（不同库里的两张表，今天是 `workspaces`、`jobs`），写建它的包（`packages`，至少两个）和理由；一张表被不止一个包建而没登记就失败（所以给别的包的表自己再写一句 `CREATE TABLE` 不能让包变成共同 owner），登记的包和实际建表的包对不上、只剩一个包建了、同时登记在 `shared` 里，也失败 |
-| 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
+| 允许名单 | `tooling/gates/table-owners.json`，三节，都两头核对。`shared`：几个包有意共写的表，写 owner、用到它的其他包（`users`）、理由（至少 20 个字符）；用到而没登记的包失败，登记的包不再用它、owner 不是建表的包、没人建这张表、字段多余，都失败。`same_name`：两个包各建一张的同名表（不同库里的两张表，今天是 `workspaces`、`jobs`），写建它的包（`packages`，至少两个）和理由；一张表被不止一个包建而没登记就失败（所以给别的包的表自己再写一句 `CREATE TABLE` 不能让包变成共同 owner），登记的包和实际建表的包对不上、只剩一个包建了、同时登记在 `shared` 里，也失败。`areas`：一个包里自己当 owner 的目录，写目录和理由（BL-802：Feed 的 `src/store/` 是 Feed 那些表的主人，包里别的文件走 store 的函数）。登记以后，包里其余的文件算另一个 owner：它们的 SQL 碰到 store 的表就失败，再写一句 `CREATE TABLE` 也算第二个建表的。目录不存在、目录里有 `package.json`（它本来就是包）、在另一个 area 里面、已经不建任何表、理由不够 20 个字符、写法不是相对仓库根的目录，都失败 |
+| 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、逗号连接里第一张以后的表（`FROM a, t` 只读到 a）、`main`、`temp` 以外的库名（附加的库）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
 
 加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `events` 和 `idempotency_records` 在 `shared` 里的理由是依赖方向：Goals 插件包里的 Goal 与 Governance 存储模块（原 `modules/goals`、`modules/governance-collaboration`）只依赖 contracts、没法 import storage 的日志函数（`LocalSqliteJournal` 与模块的事务在同一条连接上，事务不是障碍）；去掉它们的办法是宿主注入日志端口，Artifacts 已经这样做了，登记随后删掉。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
 

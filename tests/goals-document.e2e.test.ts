@@ -22,7 +22,7 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   // A Goal opens on its Frame tab; the event document lives in its workspace view.
   await openGoalWork();
   assert.equal(await evaluate(dom("[data-goal-event-document]") + ".dataset.goalView"), "V1");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/V1/event-state*"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/plugins/io.molis.work.goals/goals/V1/event-state*"] }, sessionId);
   await evaluate(`document.querySelector(".goal-more").open = true; document.querySelector('.goal-more [data-event-reader="planning"]').click();`);
   await waitFor(dom("[data-event-reader-root]") + " && !" + dom("[data-event-reader-root]") + ".hasAttribute('hidden')");
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);

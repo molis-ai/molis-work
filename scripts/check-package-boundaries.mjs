@@ -193,25 +193,6 @@ function checkMigratedFeedOwnership(repositoryRoot) {
       errors.push(`${relativePath}: Relay import/compat must stay deleted`);
     }
   }
-  // Only Feed's store/ owns these tables. Every other Feed source file is a caller, the production assembly that the Host's
-  // feed-application.ts used to be (application-assembly.ts) among them; the named files are read as well so a move fails loudly.
-  const feedSource = "plugins/native/feed/src";
-  const feedCallers = filesUnder(path.join(repositoryRoot, feedSource), file => /\.(?:ts|tsx|mts)$/u.test(file))
-    .map(file => path.relative(repositoryRoot, file).split(path.sep).join("/"))
-    .filter(file => !file.startsWith(`${feedSource}/store/`));
-  const legacyCallers = [...new Set([
-    "apps/local-host/src/demo-feed-library.ts",
-    ...["application.ts", "application-assembly.ts", "source-service.ts", "source-sync.ts", "connector-sync.ts", "source-scheduler.ts"].map(file => `${feedSource}/${file}`),
-    ...feedCallers,
-    ...WEB_DISPATCH_FILES,
-  ])];
-  const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
-  for (const relativePath of legacyCallers) {
-    const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
-    for (const match of source.matchAll(directFactSql)) {
-      errors.push(`${relativePath}: direct ${match[1]} SQL must use the owning Module public API`);
-    }
-  }
   return { errors };
 }
 
@@ -239,9 +220,9 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
   const plugin = fs.readFileSync(path.join(repositoryRoot, pluginPath), "utf8");
   const hostPath = "apps/local-host/src/plugin-source-pull-service.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !plugin.includes("connector = sourcePull?.connector")
-    || !/connector:\s*createConnectorSourcePort\(\{[^}]*\bregistry:[^}]*\bhomeIntegrationRegistry\(home\)/u.test(host)) {
-    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry`);
+  const wiring = feedListenerWiringProblems({ service, runtime, plugin, host });
+  if (wiring.length > 0) {
+    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry (${wiring.join("; ")})`);
   }
 
   const listenerPath = "plugins/native/feed/src/store/listener.ts";
@@ -375,6 +356,47 @@ function checkCoordinatorStaysDeleted(repositoryRoot) {
   return fs.existsSync(path.join(repositoryRoot, RETIRED_COORDINATOR_PATH))
     ? [`${RETIRED_COORDINATOR_PATH}: the Host's Goals coordinator was deleted (PG-094 S12) and must stay deleted; Goals' application is composed by its plugin`]
     : [];
+}
+
+/**
+ * Goals' declared routes (PG094-09) are mounted by the plugin's own runtime registration, handed the person's BoundActionClient per
+ * request, and see it as `actions` in their context; no port, as a field or as a method, is a domain one. A route context's `query` is
+ * the request's query string (a string map), not the Goals query port (BL-386).
+ *
+ * The Host does not dispatch those routes itself any more: it must not mount the retired declared-route dispatcher, and must not keep
+ * `goalsRoutes` around at all — importing it or handing it on is enough to bring the old address back. The rule is a pure function so the
+ * boundary test can drive it with restored and mutated sources.
+ */
+export function checkGoalsCommandOwnership({ goalsPlugin, httpContext, hostSources }) {
+  const errors = [];
+  if (!/routes:\s*goalsRoutes\s*\(\{/u.test(goalsPlugin)
+    || !/actions:\s*request\s*=>/u.test(goalsPlugin)
+    || !/actions\.invoke\(definition,\s*input,\s*request\.execution\)/u.test(goalsPlugin)) {
+    errors.push("plugins/native/goals/src/plugin.ts: Goals' declared routes must be mounted by the plugin runtime (`routes: goalsRoutes({ … })`) and given the request's BoundActionClient (`actions: request =>`, `actions.invoke(definition, input, request.execution)`)");
+  }
+  if (!httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
+    || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
+    errors.push("plugins/native/goals/src/http/types.ts: Goals HTTP business operations must consume BoundActionClient without direct domain ports");
+  }
+  if (hostSources.length === 0) {
+    errors.push("apps/local-host/src: no Host source files were read while checking that Goals' declared routes are only mounted by the plugin");
+  }
+  for (const { file, source } of hostSources) {
+    if (/\bgoalsRoutes\b/u.test(source)) {
+      errors.push(`${file}: the Host must not mount, import or pass on Goals' declared routes (BL-386); the plugin's runtime mount is the only one`);
+    }
+    if (/\bdispatchDeclaredPluginRoutes\b/u.test(source)) {
+      errors.push(`${file}: the retired declared-route dispatcher must stay removed from the Host (BL-386)`);
+    }
+  }
+  return errors;
+}
+
+/** Every Host source file (`apps/local-host/src`, `.ts`, never `dist`) with its text: the declared-route mount must stay inside the plugin. */
+export function hostSourceFiles(repositoryRoot) {
+  return filesUnder(path.join(repositoryRoot, "apps/local-host/src"), filePath => filePath.endsWith(".ts")).map(filePath => ({
+    file: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8"),
+  }));
 }
 
 function checkMigratedGoalsCommandOwnership(repositoryRoot) {
@@ -553,16 +575,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`apps/${app}/src/goal-commands.ts: retired duplicate Goal command handler must stay removed`);
     }
   }
-  const webGoals = read("apps/local-host/src/web-request.ts");
-  const httpContext = read("plugins/native/goals/src/http/types.ts");
-  // Goals' declared routes (PG094-09) are handed the person's BoundActionClient per request by whoever mounts them, and see it as
-  // `actions` in their context; no port, as a field or as a method, is a domain one. A route context's `query` is the request's
-  // query string (a string map), not the Goals query port. When S9 drops the Host rewrite this rule follows the new mount (BL-386).
-  if (!webGoals.includes("actions: () => goalActions")
-    || !httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
-    || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
-    errors.push("Goals HTTP business operations must consume BoundActionClient without direct domain ports");
-  }
+  errors.push(...checkGoalsCommandOwnership({
+    goalsPlugin: read("plugins/native/goals/src/plugin.ts"),
+    httpContext: read("plugins/native/goals/src/http/types.ts"),
+    hostSources: hostSourceFiles(repositoryRoot),
+  }));
   // `relations` left the retired list when the workbench redesign brought Goal
   // relation editing back as a product feature. It stays here so it still has to
   // consume public operation ports instead of owning Store, SQL or Module rules.
@@ -1224,6 +1241,122 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
 
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;
+}
+
+/** The source with every comment blanked to spaces (offsets kept), so a comment that names the wiring does not count as it. */
+function withoutComments(source) {
+  const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
+  // TypeScript's offsets count UTF-16 code units, which is what split("") gives.
+  const text = source.split("");
+  const blank = ({ pos, end }) => {
+    for (let index = pos; index < end; index += 1) if (text[index] !== "\n") text[index] = " ";
+  };
+  const visit = node => {
+    for (const child of node.getChildren(file)) {
+      if (child.kind < ts.SyntaxKind.FirstNode || child.kind === ts.SyntaxKind.EndOfFileToken) {
+        for (const range of ts.getLeadingCommentRanges(source, child.getFullStart()) ?? []) blank(range);
+        for (const range of ts.getTrailingCommentRanges(source, child.getEnd()) ?? []) blank(range);
+      } else visit(child);
+    }
+  };
+  visit(file);
+  return text.join("");
+}
+
+function unwrapped(node) {
+  while (node && ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
+/** `() => homeIntegrationRegistry(home)`, parentheses aside. */
+function isHomeRegistryThunk(node) {
+  node = unwrapped(node);
+  if (!ts.isArrowFunction(node) || node.parameters.length > 0) return false;
+  const body = unwrapped(node.body);
+  return ts.isCallExpression(body) && ts.isIdentifier(body.expression) && body.expression.text === "homeIntegrationRegistry"
+    && body.arguments.length === 1 && ts.isIdentifier(body.arguments[0]) && body.arguments[0].text === "home";
+}
+
+const propertyNamed = (property, name) => property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) && property.name.text === name;
+/** A spread or a computed name (`[key]: …`) could be the property that was checked, written again: the name is not read, so it is refused. */
+const opaqueProperty = property => ts.isSpreadAssignment(property) || Boolean(property.name && ts.isComputedPropertyName(property.name));
+
+/** Why one `createConnectorSourcePort(…)` call does not take the Home's registry: one options object, no spread, exactly one `registry`. */
+function connectorPortProblems(call) {
+  const options = unwrapped(call.arguments[0]);
+  if (call.arguments.length !== 1 || !options || !ts.isObjectLiteralExpression(options)) {
+    return ["the Host's `createConnectorSourcePort` does not take one options object"];
+  }
+  if (options.properties.some(opaqueProperty)) return ["the Host's `createConnectorSourcePort` options have a spread or a computed name, which could replace `registry`"];
+  const registries = options.properties.filter(property => propertyNamed(property, "registry"));
+  if (registries.length !== 1 || !ts.isPropertyAssignment(registries[0])) {
+    return ["the Host's `createConnectorSourcePort` options do not have exactly one `registry: …`"];
+  }
+  const value = unwrapped(registries[0].initializer);
+  const fallback = ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? value.right : value;
+  return isHomeRegistryThunk(fallback) ? [] : ["the Host's `createConnectorSourcePort` registry is not `() => homeIntegrationRegistry(home)` (alone, or after `??`)"];
+}
+
+const isConnectorPortCall = node => {
+  node = unwrapped(node);
+  return node && ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "createConnectorSourcePort";
+};
+
+/** The object `createSourcePullPort` returns: the one site where the Host wires the Feed's Listener connector, or why there is not one. */
+function sourcePullPortObject(file) {
+  const ports = file.statements.filter(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === "createSourcePullPort" && statement.body);
+  const returns = [];
+  const visit = node => {
+    if (ts.isFunctionLike(node)) return;
+    if (ts.isReturnStatement(node)) returns.push(unwrapped(node.expression));
+    ts.forEachChild(node, visit);
+  };
+  if (ports.length === 1) ts.forEachChild(ports[0].body, visit);
+  return ports.length === 1 && returns.length === 1 && returns[0] && ts.isObjectLiteralExpression(returns[0]) ? returns[0] : undefined;
+}
+
+/**
+ * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802), read from
+ * the code, not the comments: the Feed service opens its Listener through `this.ports.createListener`, the Runtime Feed opens it with
+ * `services.connector.open(`, the plugin takes `connector = sourcePull?.connector`, and the Host's `createSourcePullPort` returns one
+ * object with no spread or computed name and exactly one `connector: createConnectorSourcePort({ … })`, whose options have neither and exactly one
+ * `registry`: `() => homeIntegrationRegistry(home)`, or `<a test's injected registry> ?? (() => homeIntegrationRegistry(home))`,
+ * parentheses aside. Every other `connector: createConnectorSourcePort({ … })` in the Host file takes the Home's registry as well.
+ */
+export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
+  const problems = [];
+  for (const [source, needle, owner] of [
+    [service, "this.ports.createListener", "the Feed service"],
+    [runtime, "services.connector.open(", "the Runtime Feed"],
+    [plugin, "connector = sourcePull?.connector", "the Feed plugin"],
+  ]) {
+    if (!withoutComments(source).includes(needle)) problems.push(`${owner} no longer has \`${needle}\` outside a comment`);
+  }
+  const file = ts.createSourceFile("host.ts", host, ts.ScriptTarget.Latest, true);
+  const port = sourcePullPortObject(file);
+  let wired;
+  if (!port) problems.push("the Host has no single `createSourcePullPort` returning one object literal");
+  else if (port.properties.some(opaqueProperty)) problems.push("the source-pull port `createSourcePullPort` returns has a spread or a computed name, which could replace its `connector`");
+  else {
+    const connectors = port.properties.filter(property => propertyNamed(property, "connector"));
+    if (connectors.length !== 1) problems.push("the source-pull port `createSourcePullPort` returns does not have exactly one `connector`");
+    else if (!ts.isPropertyAssignment(connectors[0]) || !isConnectorPortCall(connectors[0].initializer)) {
+      problems.push("the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`");
+    } else {
+      wired = unwrapped(connectors[0].initializer);
+      problems.push(...connectorPortProblems(wired));
+    }
+  }
+  const others = [];
+  const visit = node => {
+    if (ts.isPropertyAssignment(node) && propertyNamed(node, "connector") && isConnectorPortCall(node.initializer) && unwrapped(node.initializer) !== wired) {
+      others.push(unwrapped(node.initializer));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  for (const call of others) problems.push(...connectorPortProblems(call));
+  return [...new Set(problems)];
 }
 
 export function checkGoalReadOwnerSql(source) {

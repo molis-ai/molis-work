@@ -245,19 +245,30 @@ async function withHarness(handle, options, run) {
   finally { await harness.close(); await devtools.close(); }
 }
 
-/** Delays handing back the first `Profiler.stop` result, modelling a slow read of the sample. */
+/**
+ * Delays handing back the first `Profiler.stop` result, modelling a slow read of the sample. `run` gets `read`: `began`
+ * resolves when that read starts, `over` turns true when it hands the sample back, `disconnects` counts the
+ * `Session.disconnect()` calls made while `run` is going.
+ */
 async function withDelayedProfileStop(delayMs, run) {
-  const original = Session.prototype.post;
-  let delayed = false;
+  const original = Session.prototype.post, originalDisconnect = Session.prototype.disconnect;
+  let delayed = false, begin;
+  const read = { began: new Promise((resolve) => { begin = resolve; }), over: false, disconnects: 0 };
   Session.prototype.post = async function post(...args) {
     const result = await original.apply(this, args);
     if (args[0] === "Profiler.stop" && !delayed) {
       delayed = true;
+      begin();
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+      read.over = true;
     }
     return result;
   };
-  try { await run(); } finally { Session.prototype.post = original; }
+  Session.prototype.disconnect = function disconnect(...args) {
+    read.disconnects += 1;
+    return originalDisconnect.apply(this, args);
+  };
+  try { await run(read); } finally { Session.prototype.post = original; Session.prototype.disconnect = originalDisconnect; }
 }
 
 /** Holds the first `Profiler.stop` back until the test releases it, modelling a read whose request never answers. */
@@ -271,6 +282,13 @@ async function withHungProfileStop(run) {
     return original.apply(this, args);
   };
   try { return await run(() => release()); } finally { Session.prototype.post = original; }
+}
+
+/** What `promise` settles with, or "hung" when it has not settled after `ms`. */
+async function settledOrHung(promise, ms) {
+  let timer;
+  const hung = new Promise((resolve) => { timer = setTimeout(() => resolve("hung"), ms); });
+  try { return await Promise.race([promise, hung]); } finally { clearTimeout(timer); }
 }
 
 test("a command resolves with the result and an error reply rejects with the protocol error", async () => {
@@ -370,15 +388,15 @@ test("a timed-out command profiles what kept Node busy, without the script URL's
 test("a slow profile read cannot postpone the timeout past its grace, and elapsed says how long it waited (RAC-1452)", async () => {
   await withDelayedProfileStop(400, async () => {
     await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
-      const started = Date.now();
-      // RAC-1452 (task book 10a24449a): with B2 on the rejection still lands between the limit and limit + 250 ms,
-      // even when the single bounded profile read is slower than its grace.
+      const started = performance.now();
+      // RAC-1452: with `profileTimeouts` on the rejection still lands between the limit and limit + 250 ms, even when the
+      // bounded profile read is slower than its grace. Same clock as the harness, so `elapsed` can be held to the wait.
       await assert.rejects(harness.command("Never", {}, undefined, 100), (error) => {
-        const settledAfter = Date.now() - started;
-        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter}ms, outside limit..limit + 250`);
+        const settledAfter = performance.now() - started;
+        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter.toFixed(1)}ms, outside limit..limit + 250`);
         const stated = Number(/\(elapsed (\d+)ms; limit 100ms\)/.exec(error.message)?.[1]);
         assert.ok(stated >= 140, `elapsed ${stated}ms includes the profile wait`);
-        assert.ok(stated <= settledAfter, `elapsed ${stated}ms claims more than the ${settledAfter}ms the caller waited`);
+        assert.ok(stated <= settledAfter, `elapsed ${stated}ms claims more than the ${settledAfter.toFixed(1)}ms the caller waited`);
         assert.ok(error.diagnostics, "Chrome counters still ride along without the profile");
         assert.deepEqual(error.diagnostics.nodeSelfTime, [], "no samples without a profile");
         assert.equal(error.diagnostics.nodeSelfTimeComplete, false, "an unread profile does not claim coverage");
@@ -390,24 +408,52 @@ test("a slow profile read cannot postpone the timeout past its grace, and elapse
   });
 });
 
-test("a close during the bounded profile read still rejects the timed-out command (RAC-1452)", async () => {
-  await withDelayedProfileStop(400, async () => {
+test("a timeout's elapsed is the whole milliseconds the command waited, rounded down, never more (RAC-1674)", async () => {
+  // merge_group run 40790882078 (#1415): RAC-1452 read "elapsed 250ms" against the 249 ms its caller had waited, because
+  // the harness rounded to the nearest millisecond. Here the command starts on a whole millisecond and every later
+  // reading is 0.6 ms past one, so rounding would claim a millisecond the command never waited.
+  await withHarness(() => {}, {}, async (harness) => {
+    const real = performance.now.bind(performance), readings = [];
+    performance.now = () => {
+      const reading = Math.floor(real()) + (readings.length === 0 ? 0 : 0.6);
+      readings.push(reading);
+      return reading;
+    };
+    try {
+      await assert.rejects(harness.command("Never", {}, undefined, 50), (error) => {
+        const stated = Number(/\(elapsed (\d+)ms; limit 50ms\)/.exec(error.message)?.[1]);
+        const waited = readings.at(-1) - readings[0];
+        assert.equal(stated, Math.floor(waited), `elapsed ${stated}ms for ${waited.toFixed(1)}ms measured`);
+        return true;
+      });
+    } finally {
+      delete performance.now;
+    }
+  });
+});
+
+test("a close during the bounded profile read ends the profiler's session without waiting for the read, and the timed-out command still rejects (RAC-1829)", async () => {
+  await withDelayedProfileStop(400, async (read) => {
     const devtools = await fakeDevTools(() => {});
     const harness = await ChromeHarness.connect(devtools.url, { profileTimeouts: true });
     try {
-      const command = harness.command("Never", {}, undefined, 100);
-      // Past the timeout decision, while the bounded read is still waiting: closing must stop the read and keep the
-      // rejection the command already earned.
-      await new Promise((resolve) => setTimeout(resolve, 240));
-      const closing = harness.close();
-      const error = await command.then(
+      const command = harness.command("Never", {}, undefined, 100).then(
         () => { throw new Error("a timed-out command must not resolve"); },
         (rejection) => rejection,
       );
+      // The timeout is decided and the read has just started: 400 ms from handing back its sample, 150 ms from its grace.
+      // The wait is on the read starting, not on a clock, and only microtasks run between that and the close below, so
+      // this is a close during the read however slow the machine is.
+      assert.equal(await settledOrHung(read.began.then(() => "began"), 2_000), "began", "the profile read never started");
+      assert.equal(read.over, false, "the read was over before the close");
+      await harness.close();
+      assert.equal(read.over, false, "close() waited for the read to hand back its sample");
+      assert.equal(read.disconnects, 1, "close() left the profiler's session connected");
+      const error = await settledOrHung(command, 2_000);
+      assert.notEqual(error, "hung", "the timed-out command never rejected after the close");
       assert.match(error.message, /^CDP timeout: Never \(elapsed \d+ms; limit 100ms\)$/);
       assert.deepEqual(error.diagnostics.nodeSelfTime, []);
       assert.equal(error.diagnostics.nodeSelfTimeComplete, false);
-      await closing;
     } finally {
       await devtools.close();
     }
@@ -440,13 +486,16 @@ test("a close finishes while a diagnostic read waits for an inspector answer tha
   });
 });
 
-test("a profile read queued behind another times its window against the segment it was taken from (RAC-1451)", async () => {
-  await withDelayedProfileStop(80, async () => {
+test("a profile read queued behind another times its window against the segment it was taken from (RAC-1451, RAC-1830)", async () => {
+  await withDelayedProfileStop(75, async () => {
     await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
+      // Both timeouts are decided in the same check-phase turn, so the second read is asked for while the first, held
+      // 75 ms of its 150 ms grace, has not yet restarted the segment: 75 ms to spare either way, and no sleep between
+      // the commands for a slow machine to stretch.
       const first = harness.command("FirstSlow", {}, undefined, 30).catch((error) => error);
-      await new Promise((resolve) => setTimeout(resolve, 40));
       const second = harness.command("SecondSlow", {}, undefined, 30).catch((error) => error);
       const [firstError, secondError] = await Promise.all([first, second]);
+      assert.ok(firstError.diagnostics.profileReadMs >= 50, `the first read was held ${firstError.diagnostics.profileReadMs}ms, not the 75 ms the test needs`);
       assert.equal(firstError.diagnostics.nodeSelfTimeComplete, true);
       assert.equal(secondError.diagnostics.nodeSelfTimeComplete, false,
         "the second window started before the segment its profile came from");
@@ -465,13 +514,15 @@ test("a timeout is still a timeout: the limit, the message and the requests do n
   }, {}, async (harness, devtools) => {
     assert.equal(harness.commandTimeoutMs, 20_000);
     await harness.command("Ping");
-    const started = Date.now();
+    const started = performance.now();
     await assert.rejects(harness.command("Never", {}, undefined, 120), (error) => {
       assert.match(error.message, /^CDP timeout: Never \(elapsed \d+ms; limit 120ms\)$/);
       return true;
     });
-    const elapsed = Date.now() - started;
-    assert.ok(elapsed >= 120 && elapsed <= 370, `failed after ${elapsed}ms`);
+    const elapsed = performance.now() - started;
+    // Node fires a timer on whole-millisecond loop time, start and due both rounded down, so a 120 ms timer can settle
+    // up to 1 ms before 120 ms have passed on this clock: 119 is still the limit, an earlier timeout stays red.
+    assert.ok(elapsed >= 119 && elapsed <= 370, `failed after ${elapsed.toFixed(1)}ms`);
     // The late reply settles nothing: the command after it still works, and the timeout added no requests.
     await new Promise((resolve) => setTimeout(resolve, 200));
     assert.deepEqual(await harness.command("Ping"), {});

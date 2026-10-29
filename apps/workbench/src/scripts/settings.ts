@@ -127,6 +127,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     const routePrefix = (scope.closest && scope.closest("[data-route-prefix]"))?.dataset.routePrefix
       || scope.dataset?.routePrefix
       || document.body.dataset.routePrefix || "";
+    const goalsPluginApi = "/api/plugins/io.molis.work.goals";
     const state = JSON.parse(dataNode.textContent || "{}");
     const entries = [...(state.entries || []), ...(state.inactive_entries || [])];
     const fields = form.querySelector("[data-guidance-editor-fields]");
@@ -252,7 +253,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       submit.textContent = L("正在保存…");
       try {
         const isAdd = mode === "add";
-        await molisWorkRequest(isAdd ? routePrefix + "/api/project-guidance" : routePrefix + "/api/project-guidance/" + encodeURIComponent(guidanceId), {
+        await molisWorkRequest(routePrefix + goalsPluginApi + "/project-guidance" + (isAdd ? "" : "/" + encodeURIComponent(guidanceId)), {
           method: isAdd ? "POST" : "PATCH",
           body: {
             action: isAdd ? undefined : mode,

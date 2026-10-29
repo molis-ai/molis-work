@@ -14,6 +14,17 @@ export interface AppendPagesComment {
   expected_version?: number;
 }
 
+/** The first `limit` whole characters of `value`: never half of one (an emoji is one character, two UTF-16 units), and read no further than that. */
+function firstCharacters(value: string, limit: number): string {
+  let end = 0, count = 0;
+  for (const character of value) {
+    if (count === limit) break;
+    end += character.length;
+    count += 1;
+  }
+  return value.slice(0, end);
+}
+
 /** Reads the current document's marks; there is no text-search reattachment. */
 export function pageAnnotations(body: PagesRecord["body"]): Map<string, { text: string; excerpt: string }> {
   const marks = new Map<string, { text: string; excerpt: string }>();
@@ -22,7 +33,7 @@ export function pageAnnotations(body: PagesRecord["body"]): Map<string, { text: 
     const node = value as { text?: string; marks?: Array<{ type: string; attrs?: { id?: string; text?: string } }>; content?: unknown[] };
     for (const mark of node.marks ?? []) if (mark.type === "comment" && mark.attrs?.id) {
       const previous = marks.get(mark.attrs.id);
-      marks.set(mark.attrs.id, { text: String(mark.attrs.text ?? ""), excerpt: ((previous?.excerpt ?? "") + (node.text ?? "")).slice(0, 2000) });
+      marks.set(mark.attrs.id, { text: String(mark.attrs.text ?? ""), excerpt: firstCharacters((previous?.excerpt ?? "") + (node.text ?? ""), 2000) });
     }
     node.content?.forEach(visit);
   };

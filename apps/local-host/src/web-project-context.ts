@@ -46,8 +46,8 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly readWebView: () => Promise<MolisWorkWebView>;
 }
 
-/** The services every project plugin surface is given: the unified action client, the Home and settled reviews. */
-type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "observeReviewSettlements">;
+/** The services every project plugin surface is given: the unified action client, the Home, its plugins and settled reviews. */
+type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "homePlugins" | "observeReviewSettlements">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -88,6 +88,7 @@ export function projectPluginServices({ localHost, hostReference, options, agent
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
+    homePlugins: localHost.homePlugins,
     dependencyCheck: hostDependencyCheck(localHost.client(hostReference)),
   };
 }

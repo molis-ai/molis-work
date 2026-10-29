@@ -21,7 +21,8 @@ export const gmailIntegrationManifest = {
   schema_version: 2,
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
-  version: "1.1.0",
+  // 1.2.0: declares its OAuth flow as data (W5-11).
+  version: "1.2.0",
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
@@ -43,7 +44,13 @@ export const gmailIntegrationManifest = {
     group_id: "mail",
     summary: "本机账号。Feed 只读收信。",
     auth_kind: "gmail",
-    auth: { methods: [{ kind: "oauth" }] },
+    // The generic flow for a client of the person's own; Gmail's own sign-in goes on until W5-11 slice 6.
+    auth: { methods: [{
+      kind: "oauth", grant: "authorization_code", authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
+      token_url: "https://oauth2.googleapis.com/token", scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"], pkce: "S256",
+      parameters: { access_type: "offline", prompt: "consent" },
+      identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email", "identity:/name", "identity:/sub"] },
+    }] },
     capabilities: [
       { label: "Feed 只读收信", fulfillment: "live" },
       { label: "发送邮件", fulfillment: "unfulfilled" },

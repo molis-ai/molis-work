@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { SourceRecord } from "./contract/sources.js";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedSourceRunRecord, FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { assertSourceHistoryDecision } from "./application-errors.js";
 import { sourceRunRecord } from "./application-projection.js";

@@ -26,10 +26,6 @@
       "types": "./dist/modules/context-ledger.d.ts",
       "import": "./dist/modules/context-ledger.js"
     },
-    "./modules/feed": {
-      "types": "./dist/modules/feed.d.ts",
-      "import": "./dist/modules/feed.js"
-    },
     "./modules/functions": {
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
@@ -57,14 +53,6 @@
     "./modules/projects": {
       "types": "./dist/modules/projects.d.ts",
       "import": "./dist/modules/projects.js"
-    },
-    "./modules/signals": {
-      "types": "./dist/modules/signals.d.ts",
-      "import": "./dist/modules/signals.js"
-    },
-    "./modules/sources": {
-      "types": "./dist/modules/sources.d.ts",
-      "import": "./dist/modules/sources.js"
     },
     "./modules/workspace-artifacts": {
       "types": "./dist/modules/workspace-artifacts.d.ts",
@@ -193,10 +181,6 @@
     "./services/im": {
       "types": "./dist/services/im.d.ts",
       "import": "./dist/services/im.js"
-    },
-    "./services/listener-host": {
-      "types": "./dist/services/listener-host.d.ts",
-      "import": "./dist/services/listener-host.js"
     },
     "./services/runtime-host": {
       "types": "./dist/services/runtime-host.d.ts",

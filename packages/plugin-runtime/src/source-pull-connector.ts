@@ -2,10 +2,9 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import {
-  PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, type ConnectorPullReceipt, type ConnectorPullRequest, type ConnectorSignalDraft, type PluginConnectorSourceClient,
+  PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, type ConnectorPullReceipt, type ConnectorPullRequest, type ConnectorSignalDraft, type PluginConnectorSourceClient, type RawEventAdapter,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/services/listener-host";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly } from "./action-scope.js";
 import { slotTarget, type PluginConnectionTarget } from "./connections-service.js";
 import type { PluginSourcePullGate, PluginSourcePullRun } from "./source-pull-service.js";

@@ -1,4 +1,4 @@
-import { MolisWorkCommands } from "./board-commands.js";
+import { MolisWorkCommands } from "./library-commands.js";
 import type {
   AddGoalRelationInput,
   AddProjectGuidanceInput,

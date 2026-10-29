@@ -364,7 +364,7 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     "packages/contracts",
     "foundation",
     [],
-    [".", "./modules/goals", "./modules/artifacts", "./modules/signals", "./services/listener-host", "./platform/app-host", "./platform/kernel"],
+    [".", "./modules/goals", "./modules/artifacts", "./platform/plugin-source-pull", "./services/connector-host", "./platform/app-host", "./platform/kernel"],
   );
   const storage = boundaryPackage("@molis-ai/molis-work-storage", "packages/storage", "foundation");
   const goals = boundaryPackage("@molis-ai/molis-work-module-goals", "modules/goals", "module");
@@ -483,13 +483,13 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     {
       importer: listener,
       target: contracts,
-      specifier: "@molis-ai/molis-work-contracts/modules/signals",
+      specifier: "@molis-ai/molis-work-contracts/platform/plugin-source-pull",
       sourceFile: "horizontal/search/src/index.ts",
     },
     {
       importer: listener,
       target: contracts,
-      specifier: "@molis-ai/molis-work-contracts/services/listener-host",
+      specifier: "@molis-ai/molis-work-contracts/services/connector-host",
       sourceFile: "horizontal/search/src/index.ts",
     },
     {

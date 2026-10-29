@@ -1,14 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginExecutionControl, PluginManifest, PluginRouteBinding, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_ROUTE_PREFIX, pluginRouteMatcher, type PluginRouteMatch } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { hostErrors } from "./host-errors.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { offerRoutedOriginalFile, offerRoutedOriginalInput } from "./plugin-actions-client.js";
 import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
+import { hostErrors } from "./host-errors.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /** Host lifecycle entries are never provided by a plugin page, even if its Manifest reuses one of these paths. */
@@ -48,6 +47,29 @@ function takeOriginalInput(body: unknown, installId: string | null | undefined, 
   }
   offerRoutedOriginalInput(control, { ...(value.use === "supplement" ? { use: "supplement" as const } : {}), install_id: installId, input_id: value.input_id, text: value.text, written_by: "person", occurred_at: new Date().toISOString() });
   return input;
+}
+
+/**
+ * The Runtime matcher decodes every path segment before it decides, so a path with bad percent-encoding throws a URIError before it can
+ * say whether it is one of the plugin's routes. This asks the same matcher and answers that case as the retired Host dispatcher did:
+ * the segments are re-encoded literally and, when the path is then one of this plugin's declared routes, it is the caller's invalid
+ * path (`host.request_path_invalid`, 400); any other shape is not this plugin's route and answers null. Only the matcher's own
+ * URIError is taken; every other failure still propagates.
+ */
+export function matchPluginRoute<Match extends { readonly plugin_id: string }>(
+  match: (method: string, pathname: string) => Match | null, pluginId: string, method: string, pathname: string,
+): Match | null {
+  try {
+    return match(method, pathname);
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    const literal = pathname.split("/").map((part) => {
+      try { return encodeURIComponent(decodeURIComponent(part)); } catch { return encodeURIComponent(part); }
+    }).join("/");
+    const declared = match(method, literal);
+    if (declared && declared.plugin_id === pluginId) throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+    return null;
+  }
 }
 
 /**
@@ -100,7 +122,8 @@ export async function dispatchRuntimePluginRoute(
     sendLocalWebJson(response, 200, { revision: platform.viewRevision(pluginId) });
     return true;
   }
-  const match = router.match(request.method ?? "GET", url.pathname);
+  // Bad percent-encoding in the path is answered by `matchPluginRoute`: 400 for this plugin's declared shape, otherwise not its route.
+  const match = matchPluginRoute((method, pathname) => router.match(method, pathname), pluginId, request.method ?? "GET", url.pathname);
   if (!match) return false;
   // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
   // Host-made control carries it, and only to this installation's actions.
@@ -147,65 +170,3 @@ export async function dispatchRuntimePluginRoute(
   return true;
 }
 
-/**
- * Declared routes the Host serves from route handlers it holds itself, for a plugin not yet on the Plugin Runtime supervisor (until
- * that plugin's move, BL-386). Knows no plugin: whose routes these are comes from the caller.
- */
-export interface DeclaredPluginRoutes {
-  manifest: PluginManifest;
-  bindings: readonly PluginRouteBinding[];
-  /** The route's path inside the plugin, matched by the Runtime's own matcher as if it were under `/api/plugins/<plugin_id>/`. */
-  path: string;
-  /** From the request's context, never from its body or query. */
-  actor_id: string;
-  /**
-   * The grants of the installation behind the routes, read as the Host dispatches (S-15): a route that declares a permission not in
-   * here is refused, whoever calls. A plugin with no installation to read passes none, so its routes that declare one stay closed.
-   */
-  granted: readonly string[];
-}
-
-/**
- * Answers a declared route the way a Runtime route is answered: the handler gets the `PluginRouteRequest` a Runtime route would get,
- * with no execution control (S9 takes it from the platform), and answers JSON only. Returns false when no declared route matches,
- * true once it has answered; a refusal answers by its kind, any other failure goes on to the Host's unhandled answer.
- */
-export async function dispatchDeclaredPluginRoutes(
-  routes: DeclaredPluginRoutes, request: IncomingMessage, response: ServerResponse, url: URL,
-): Promise<boolean> {
-  const { manifest, bindings, path, actor_id, granted } = routes;
-  try {
-    const match = declaredRoute(manifest, request.method ?? "GET", `${PLUGIN_ROUTE_PREFIX}/${manifest.plugin_id}${path}`);
-    if (!match) return false;
-    if (match.permission !== null && !granted.includes(match.permission)) {
-      throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
-    }
-    const binding = bindings.find(candidate => candidate.route_id === match.route_id);
-    if (!binding) throw new Error(`插件 ${manifest.plugin_id} 声明了路由 ${match.route_id}，却没有处理它`);
-    const body = ["GET", "HEAD"].includes(match.method) ? null : await readLocalWebBody(request, match.max_body_bytes ?? undefined);
-    const result = await binding.handle({ method: match.method, pathname: url.pathname, params: match.params,
-      query: Object.fromEntries(url.searchParams), body, actor_id });
-    sendLocalWebJson(response, result.status, result.body);
-    return true;
-  } catch (error) {
-    if (!(error instanceof ActionError)) throw error;
-    const refusal = actionErrorResponse(error);
-    sendLocalWebJson(response, refusal.status, refusal.body);
-    return true;
-  }
-}
-
-/**
- * The declared route for this path, or none. A path with a part that is not valid percent-encoding is refused only when it has the
- * shape of a declared route (that part read as the literal text it is); any other such path is not this plugin's.
- */
-function declaredRoute(manifest: PluginManifest, method: string, pathname: string): PluginRouteMatch | null {
-  const match = pluginRouteMatcher(manifest);
-  try { return match(method, pathname); }
-  catch (error) {
-    if (!(error instanceof URIError)) throw error;
-    const literal = pathname.split("/").map(part => { try { return encodeURIComponent(decodeURIComponent(part)); } catch { return encodeURIComponent(part); } }).join("/");
-    if (match(method, literal)) throw hostErrors.request_path_invalid("请求路径里有无效的编码");
-    return null;
-  }
-}

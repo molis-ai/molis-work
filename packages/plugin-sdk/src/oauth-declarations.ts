@@ -4,7 +4,7 @@ import {
   OAUTH_RESERVED_PARAMETERS,
   OAUTH_SETTING_USES,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_ACCOUNT_ORIGINS, CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
 import {
   oauthDeclarableHeader,
   oauthKey,
@@ -19,8 +19,9 @@ import {
 
 // The shape of a `connection_services[].auth.methods` entry of `kind: "oauth"` that carries its flow as data (W5-11 §2.1, §2.1.1). Any
 // problem fails the whole Manifest (M5). Where the access token may go is read from the platform's request table, never from the
-// Manifest: `{service}` only for a service with one origin there, a full address only on one of those origins, `{tenant}` and
-// `{gateway}` only for a service the table puts on tenants' origins. Endpoints receive no access token and are not held to the table.
+// Manifest: `{service}` only for a service with one origin there, `{account}` only for one with one origin in the account table
+// (`CONNECTOR_ACCOUNT_ORIGINS`), a full address only on an origin of either, `{tenant}` and `{gateway}` only for a service the table
+// puts on tenants' origins. Endpoints receive no access token and are not held to the table.
 // The template and value rules are `oauth.ts`, the `/oauth` subpath, the same ones the Host's interpreter reads by.
 
 const METHOD_FIELDS = new Set(["kind", "grant", "authorize_url", "token_url", "refresh_url", "device_authorization_url", "issuer", "scopes",
@@ -36,18 +37,19 @@ const POINTER = /^(?:\/(?:[^~/]|~[01])*)+$/u;
 const SOURCE = /^(?:identity:(\/.*)|context:(.+)|literal:(.+))$/su;
 
 type Settings = ReadonlyMap<string, Record<string, unknown>>;
-interface Scope { readonly id: string; readonly service: ConnectorRequestService | undefined; readonly settings: Settings }
+interface Scope { readonly id: string; readonly service: ConnectorRequestService | undefined; readonly account: readonly string[]; readonly settings: Settings }
 
-/** The problems of one `oauth` method. A bare `{ kind: "oauth" }` is still read from the platform's table until W5-11 slice 4. */
+/** The problems of one `oauth` method; a bare `{ kind: "oauth" }` has its whole flow missing. */
 export function oauthMethodProblems(id: string, method: Record<string, unknown>): string[] {
-  if (Object.keys(method).length === 1) return [];
   const where = `连接服务 ${id} 的 oauth 接入方式`;
+  if (Object.keys(method).length === 1) return [`${where}要把授权流程写成数据（grant、token_url、scopes、identity 等），不能只写 kind`];
   const unknown = Object.keys(method).filter(field => !METHOD_FIELDS.has(field));
   if (unknown.length > 0) return [`${where}不认这些字段：${unknown.join("、")}`];
   const service = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, id) ? CONNECTOR_REQUEST_SERVICES[id] : undefined;
   const problems: string[] = [];
   const settings = settingMap(where, method.settings, service, problems);
-  const scope: Scope = { id, service, settings };
+  const account = Object.hasOwn(CONNECTOR_ACCOUNT_ORIGINS, id) ? CONNECTOR_ACCOUNT_ORIGINS[id]! : [];
+  const scope: Scope = { id, service, account, settings };
   problems.push(...grantProblems(where, method));
   for (const field of ENDPOINTS) {
     if (method[field] !== undefined) problems.push(...endpointProblems(`${where}的 ${field}`, method[field], scope));
@@ -67,6 +69,10 @@ export function oauthMethodProblems(id: string, method: Record<string, unknown>)
   problems.push(...identityProblems(where, method.identity, scope, tenantSetting || tenantKeeps > 0));
   if (method.keep !== undefined) problems.push(...keepProblems(`${where}的 keep`, method.keep, service));
   if (method.context !== undefined) problems.push(...contextProblems(where, method.context, scope, tenantSetting || tenantKeeps + identityTenantKeeps > 0));
+  // The platform works out the gateway base of the site from it, as its request check does.
+  if (service?.tenant?.gateway && !(Array.isArray(method.context) && method.context.some(entry => isRecord(entry) && entry.key === "cloud_id"))) {
+    problems.push(`${where}所在的服务经网关访问，要在 context 里留下 cloud_id`);
+  }
   if (method.quirks !== undefined) problems.push(...quirkProblems(where, method.quirks));
   if (method.note !== undefined && !text(method.note)) problems.push(`${where}的 note 必须是非空文字`);
   return problems;
@@ -259,8 +265,8 @@ function contextProblems(where: string, value: unknown, scope: Scope, tenantSour
 }
 
 /**
- * A request that carries the access token (identity, context): where it may go is the platform's request table, the Manifest only
- * picks which of its origins and the path. `{account}` comes with the account origins table (W5-11 slice 4).
+ * A request that carries the access token (identity, context): where it may go is the platform's request and account tables, the
+ * Manifest only picks which of their origins and the path.
  */
 function requestProblems(where: string, request: Record<string, unknown>, scope: Scope, tenantSource: boolean): string[] {
   const problems = urlProblems(`${where}的 url`, request.url, scope, tenantSource);
@@ -288,6 +294,7 @@ function urlProblems(where: string, value: unknown, scope: Scope, tenantSource: 
   if (template && "name" in template) {
     const base = template.head;
     if (base === "service" && scope.service?.origins.length !== 1) return [`${where}的 {service} 只给平台请求表里只有一个来源的服务；有几个来源的写完整地址`];
+    if (base === "account" && scope.account.length !== 1) return [`${where}的 {account} 只给平台账号来源表里只有一个来源的服务；有几个来源的写完整地址`];
     if (base === "tenant" && !tenant) return [`${where}的 {tenant} 只给平台请求表里放在租户来源上的服务`];
     if (base === "tenant" && !tenantSource) return [`${where}写了 {tenant}，但这个方法既没有 use: tenant 的 setting，也没有在这之前留下 check: tenant 的值`];
     if (base === "gateway" && !tenant?.gateway) return [`${where}的 {gateway} 只给平台请求表里有网关的服务`];
@@ -295,7 +302,9 @@ function urlProblems(where: string, value: unknown, scope: Scope, tenantSource: 
     return pathPlaceholderProblems(where, template.path, scope, ["setting", "context"]);
   }
   const url = template ? parse(template.origin) : undefined;
-  if (!template || !url || !fixedHttps(template.origin) || !scope.service?.origins.includes(url.origin)) return [`${where}写完整地址时，来源必须是平台请求表里这个服务的来源之一`];
+  if (!template || !url || !fixedHttps(template.origin) || !(scope.service?.origins.includes(url.origin) || scope.account.includes(url.origin))) {
+    return [`${where}写完整地址时，来源必须是平台请求表或账号来源表里这个服务的来源之一`];
+  }
   return pathPlaceholderProblems(where, template.path, scope, ["setting", "context"]);
 }
 

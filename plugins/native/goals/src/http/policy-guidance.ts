@@ -17,7 +17,6 @@ export function goalPolicyGuidanceRoutes(ports: GoalsRoutePorts): PluginRouteBin
         policy: body.policy as Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]["policy"],
         idempotency_key: String(body.idempotency_key ?? ""),
       });
-      context.changed();
       return { status: 200, body: result };
     }),
     goalsRoute("goals.guidance-read", ports, async (context) => ({ status: 200, body: await context.actions.invoke(goalsActions.guidanceRead, {}) })),

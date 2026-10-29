@@ -9,7 +9,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@mol
 import type { PluginInstanceRecord, PluginManifest, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { DEMO_PROJECT_ID, HomeConsentLedger, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
+import { DEMO_PROJECT_ID, HomeConsentLedger, HOST_PLUGIN_IDS, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
   pluginConsentProvider, pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { SECOND_PLUGIN_ID } from "./fixtures/home-sandbox.js";
@@ -278,18 +278,51 @@ test("RAC-1500 RAC-1501 RAC-1502 S-84 another publisher's package of a plugin th
   } finally { await h.done(); }
 });
 
-test("RAC-1503 S-84 the Home check refuses only another publisher's package: the same publisher's upgrade and an id the Host's own Home plugin holds pass it", async () => {
+test("RAC-1503 S-84 the other-publisher check refuses only another publisher's package: an id whose Home record the Host built passes it", async () => {
   const h = await harness(undefined, true);
   try {
     const a = newPublisher(), b = newPublisher();
     const confirm = confirmIn(h.service);
     assert.equal(await confirm(homeBundle(a)), "installed");
-    assert.equal(await confirm(homeBundle(a, { version: "1.1.0" })), "installed", "the same publisher's package reaches the Home's install");
-    assert.equal(h.installed.length, 2);
-    // A record the Host built itself is not a signed package's: this check leaves it to the Runtime.
+    // A record the Host built itself is not a signed package's (the Host's own ids are refused at the preview, RAC-1680): this check leaves it alone.
     for (const record of h.homeRecords) record.publisher_trust = "host";
     assert.notEqual(await confirm(homeBundle(b, { version: "2.0.0" })), "plugin.definition_conflict", "an id the Host's own plugin holds is not this check's");
-    assert.equal(h.installed.length, 3, "it went on to the Home's install");
+    assert.equal(h.installed.length, 2, "it went on to the Home's install");
+  } finally { await h.done(); }
+});
+
+test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, or sits on one's dotted path, is refused at the preview with plugin.id_namespace_conflict, in either range, before anything is written", async () => {
+  const h = await harness(undefined, true);
+  try {
+    for (const id of ["io.molis.work.todo", "io.molis.work.files", "io.molis.work.native.workflows"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
+    const publisher = newPublisher();
+    const cases: Array<[string, PluginPackageBundle]> = [
+      ["RAC-1680 a Home package with a Home plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo" })],
+      ["RAC-1680 a project package with a project plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.files" })],
+      ["RAC-1681 a Home package under a Host plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo.notes" })],
+      ["RAC-1681 a project package above a Host plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.native" })],
+    ];
+    const results: Record<string, string> = {};
+    for (const [name, bundle] of cases) results[name] = await h.service.preview({ bundle }, who).then(() => "previewed", (error: unknown) => error instanceof ActionError ? error.code : String(error));
+    assert.deepEqual(results, Object.fromEntries(cases.map(([name]) => [name, "plugin.id_namespace_conflict"])), "every one is refused at the preview");
+    h.nothingWritten();
+  } finally { await h.done(); }
+});
+
+test("RAC-1682 S-80 S-84 the Home's own publisher's package of a plugin the Home already holds is refused at the confirmation with plugin.state_invalid, before the package is kept, whether that installation runs or is switched off", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher();
+    const confirm = confirmIn(h.service);
+    const snapshot = async () => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), dirs: (await readdir(join(h.home, "plugin-packages"))).sort(), installs: h.installed.length });
+    assert.equal(await confirm(homeBundle(a)), "installed");
+    const step = async (bundle: PluginPackageBundle) => { const before = await snapshot(); return { code: await confirm(bundle), unchanged: isDeepStrictEqual(await snapshot(), before) }; };
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    results["a, a newer version"] = await step(homeBundle(a, { version: "1.1.0" }));
+    h.homeRecords.find(record => record.plugin_id === PACKAGE_PLUGIN_ID)!.state = "disabled";
+    results["a, installation switched off"] = await step(homeBundle(a, { version: "1.2.0" }));
+    const refusedUntouched = { code: "plugin.state_invalid", unchanged: true };
+    assert.deepEqual(results, { "a, a newer version": refusedUntouched, "a, installation switched off": refusedUntouched }, "refused, with no package kept and nothing installed");
   } finally { await h.done(); }
 });
 

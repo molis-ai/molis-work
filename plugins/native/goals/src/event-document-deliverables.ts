@@ -1,3 +1,4 @@
+import { GOALS_PLUGIN_API } from "./plugin-api.js";
 /** Closure reads, current-content pins and uncertain receipts in the existing document factory scope. */
 export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables (specs/artifact-positioning A5): versions in the 成果库, recorded before closing.
     const loadDeliverables = async (form, reconcile = false) => {
@@ -12,7 +13,7 @@ export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables
       try {
         const read = (path) => molisWorkRequest(route(path), { fallback: L("交付物清单未读回，请重新核对。") });
         const [library, current] = await Promise.all([read("/api/artifacts/versions"),
-          read("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables")]);
+          read("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/deliverables")]);
         if (goalId() !== currentGoal || !form.isConnected) return;
         const key = (reference) => reference.artifact_id + "@" + reference.version;
         const recorded = current.deliverables || [], listed = new Set(recorded.map(item => key(item.reference)));
@@ -65,9 +66,10 @@ export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables
         const pin = input.name === "deliverable-pin";
         if (pin) box.dataset.attemptedPins = JSON.stringify([...JSON.parse(box.dataset.attemptedPins || "[]"), input.value]);
         try {
-          await molisWorkRequest(route("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
-            headers: { accept: "application/json" }, key: globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random(),
-            body: { [pin ? "subject" : "reference"]: JSON.parse(input.value), delivered: input.checked }, fallback: L("交付物没有记下") });
+          const writeKey = globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random();
+          await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
+            headers: { accept: "application/json" },
+            body: { [pin ? "subject" : "reference"]: JSON.parse(input.value), delivered: input.checked, idempotency_key: writeKey }, fallback: L("交付物没有记下") });
           input.dataset.was = String(input.checked);
           // A pinned version is now an ordinary deliverable; pinning again would write another version.
           if (pin) input.disabled = true;

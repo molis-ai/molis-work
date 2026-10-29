@@ -64,7 +64,7 @@ test("W1-07: a draft fills words and dates, never a choice, a flag, a reference 
 
 // ---- T-230: the cuts drafting makes leave whole characters only ---------------------------------------------------------------
 /** A half of a two-unit character whose other half is missing: what a cut in the middle of one leaves at the end. */
-const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+const LONE_HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
 
 test("RAC-2195 the material placed in a field is cut to the schema's maxLength in whole characters: it stays valid, and no half one is left", async () => {
   const schema = { type: "object", additionalProperties: false, required: ["notes"], properties: { notes: { type: "string", maxLength: 10_000 } } } as const;
@@ -72,7 +72,7 @@ test("RAC-2195 the material placed in a field is cut to the schema's maxLength i
   // The 10000th character is a 🙂: cut in UTF-16 units it would keep only the high half of it.
   const split = await placed("x".repeat(9_999) + "🙂" + "tail");
   assert.equal(split, "x".repeat(9_999) + "🙂", "10000 whole characters, the 🙂 at the limit kept whole");
-  assert.deepEqual([[...split].length, split.length, LONE.test(split)], [10_000, 10_001, false], "10000 characters in 10001 units, no half one");
+  assert.deepEqual([[...split].length, split.length, LONE_HALF.test(split)], [10_000, 10_001, false], "10000 characters in 10001 units, no half one");
   assert.doesNotThrow(() => assertActionInput(schema, { notes: split }), "Ajv counts characters, so 10001 UTF-16 units are valid");
   // Exactly the limit, and one character over it: the whole characters that fit are kept.
   assert.equal(await placed("x".repeat(9_999) + "🙂"), "x".repeat(9_999) + "🙂", "exactly the limit in characters: the 🙂 on it stays whole");
@@ -89,14 +89,14 @@ test("RAC-2196 the data a drafting model reads is cut to its bounds without leav
   const data = JSON.parse(calls[0]!.prompt) as { 材料: string; 补充: string; 来源: { 标题: string } };
   assert.deepEqual([data.材料, data.补充, data.来源.标题], ["x".repeat(7_999), "y".repeat(599), "z".repeat(199)],
     "each part keeps its whole characters up to its bound of 8000, 600 and 200 UTF-16 units");
-  assert.equal(LONE.test(calls[0]!.prompt), false, "no half of a character anywhere in what the model reads");
+  assert.equal(LONE_HALF.test(calls[0]!.prompt), false, "no half of a character anywhere in what the model reads");
 });
 
 test("RAC-2197 the card's summary cuts a long first field at 39 units without leaving the half of a character", async () => {
   const { generate } = fake(() => ({ title: "x".repeat(38) + "🙂" + "tail" }));
   const draft = await draftIntake({ target: target(), material: material(), request_id: "r" }, ports(generate));
   assert.equal(draft.summary, `记成待办：「${"x".repeat(38)}…」`, "unit 39 is the high half of the 🙂: the half goes, the whole characters stay");
-  assert.equal(LONE.test(draft.summary!), false, "no half of a character reaches the card");
+  assert.equal(LONE_HALF.test(draft.summary!), false, "no half of a character reaches the card");
 });
 
 // ---- Q02/Q03: the model fills what the schema allows ----------------------------------------------------------

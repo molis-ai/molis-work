@@ -1,4 +1,4 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { HomePluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**

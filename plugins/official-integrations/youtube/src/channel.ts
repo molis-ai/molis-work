@@ -4,10 +4,14 @@
  * Channel IDs are product identifiers, not credentials. Inbox Source rows may
  * store them in plaintext; Activity / Run ledgers must not.
  */
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export const YOUTUBE_CHANNEL_DEFINITION_ID = "youtube-channel";
+
+/** What a YouTube channel is refused for: not a UC… channel id or a public channel address. */
+export const youtubeErrors = defineErrorCodes("youtube", {
+  channel_invalid: "invalid",
+});
 export const YOUTUBE_PUBLIC_FEED_HOST = "www.youtube.com";
 export const YOUTUBE_PUBLIC_FEED_PATH = "/feeds/videos.xml";
 
@@ -75,5 +79,5 @@ function channelIdFromPublicFeedUrl(url: URL): string | null {
 }
 
 function invalidYouTubeChannel(): ActionError {
-  return feedErrors.youtube_channel_invalid("YouTube channel must be a UC… channel id or a /channel/UC… URL");
+  return youtubeErrors.channel_invalid("YouTube channel must be a UC… channel id or a /channel/UC… URL");
 }

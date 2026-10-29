@@ -1,5 +1,5 @@
 import type { IntelligenceIntentClientV1, SearchIntentExactResultV1 } from "@adeptify/intelligence-client";
-import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceHistoryRelease } from "./source-history.js";

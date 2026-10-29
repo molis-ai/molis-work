@@ -132,12 +132,6 @@
       ],
       "reason": "The unified-diff parse the SDK's /diff-view gives Diff, Coding and third-party plugins, moved out of the Diff plugin (PG-062); its codes already start with diff."
     },
-    "feed": {
-      "paths": [
-        "packages/contracts/src/modules/feed.ts"
-      ],
-      "reason": "The Feed module and plugin (the Host's Feed files moved into the plugin, FI-5/FI-7); the feed_* snake codes become feed.* (spec W3-02 E)."
-    },
     "functions": {
       "paths": [
         "modules/functions/",
@@ -200,8 +194,7 @@
     },
     "listener": {
       "paths": [
-        "plugins/native/feed/src/store/listener.ts",
-        "packages/contracts/src/services/listener-host.ts"
+        "plugins/native/feed/src/store/listener.ts"
       ],
       "reason": "The listener host (inside Feed's store since FI-5): its listener_* codes become listener.*."
     },
@@ -260,6 +253,12 @@
       ],
       "reason": "The plugin builder (Studio) plugin and its Host side."
     },
+    "rss": {
+      "paths": [
+        "plugins/official-integrations/rss/"
+      ],
+      "reason": "The RSS official integration (the custom RSS address rules the platform's source vocabulary uses); its refusals were raised in Feed's name until PG-111 Feed (T-110)."
+    },
     "runtime_host": {
       "paths": [
         "horizontal/runtime-host/"
@@ -300,8 +299,7 @@
     },
     "sources": {
       "paths": [
-        "plugins/native/feed/src/store/sources.ts",
-        "packages/contracts/src/modules/sources.ts"
+        "plugins/native/feed/src/store/sources.ts"
       ],
       "reason": "The sources module (SourcesError; inside Feed's store since FI-5): its source_* codes become sources.*."
     },
@@ -335,6 +333,12 @@
         "apps/local-host/src/workspace-git-writers.ts"
       ],
       "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* (G3) and projects.workspace.writers.* (G4, workspace_git.writer.*) actions the Host registers for plugins, and the operations, writer worktrees (workspace_git.worktree.*) and integration behind them, renamed from git-*.ts (G5). Not the Git plugin, so not git.*; not Work's workspace.* either. workspace-git.ts and workspace-git-index.ts were the host owner's before G5 and stay so (the table only gets stricter)."
+    },
+    "youtube": {
+      "paths": [
+        "plugins/official-integrations/youtube/"
+      ],
+      "reason": "The YouTube official integration (the public channel rules the platform's source vocabulary uses); its refusal was raised in Feed's name until PG-111 Feed (T-110)."
     }
   }
 }

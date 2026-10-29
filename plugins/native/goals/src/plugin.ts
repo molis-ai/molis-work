@@ -3,7 +3,7 @@ import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient,
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createGoalsActionHandlers } from "./actions.js";
-import { readMolisWorkSnapshot } from "./board-snapshot-query.js";
+import { readMolisWorkSnapshot } from "./snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
 import { GOALS_CATCH_UP_JOB, goalsManifest } from "./manifest.js";
 import { personalPlanningActions } from "./personal-planning-actions.js";

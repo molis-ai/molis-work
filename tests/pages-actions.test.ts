@@ -325,3 +325,55 @@ test("RAC-1627: a workflow hand-off's long title is cut at whole Unicode charact
     assert.equal((await bound.invoke(actions.get, { id: received.item_id })).document.title, "收" + wide(79), "the stored title keeps 80 whole characters");
   });
 });
+
+test("RAC-1688: a document created from Markdown keeps a leading heading of 80 characters as its whole title", async () => {
+  // create in src/actions.ts takes the title from the Markdown's heading when none is given; one 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { document } = await bound.invoke(actions.create, { markdown: "# " + wide(80) + "\n\n正文" });
+    assert.equal(document.title, wide(80), "the 80-character heading is the whole title");
+  });
+});
+
+test("RAC-1688: extracting cuts a task card's title and a knowledge page's title at whole characters, and extracting again adds nothing", async () => {
+  // A task item past 80 characters becomes a card with its first 80; a section becomes a page named "<source> · <heading>", each part clipped
+  // to 32 characters (31 and "…"). One 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const text = (value: string) => [{ type: "text", text: value }];
+    const content = [
+      { type: "heading", attrs: { level: 2 }, content: text("节" + wide(40)) },
+      { type: "paragraph", content: text("Enough original text to form a knowledge page.") },
+      { type: "task_list", content: [{ type: "task_item", content: [{ type: "paragraph", content: text("务" + wide(80)) }] }] },
+    ];
+    const { document } = await bound.invoke(actions.create, { title: "源源" + wide(40), body: { type: "doc", content } });
+    const result = await bound.invoke(actions.extract, { id: document.id });
+    assert.equal(result.cards, 1);
+    assert.equal(result.created.length, 1);
+    assert.equal(result.created[0]!.title, "源源" + wide(29) + "… · 节" + wide(30) + "…", "the knowledge page's title keeps 31 whole characters of each part");
+    const cards = (result.document.body.content as readonly { type?: string; attrs?: { title?: string } }[]).filter((node) => node.type === "task_card");
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0]!.attrs?.title, "务" + wide(79), "the card's title is the task's first 80 whole characters");
+    const again = await bound.invoke(actions.extract, { id: document.id });
+    assert.equal(again.cards, 0, "the same task is not carded twice");
+    assert.equal(again.created.length, 0, "the same section is not paged twice");
+  });
+});
+
+test("RAC-1689: the synthesis offered for several documents is titled with 80 whole characters, never half of one", async () => {
+  // fragment-offers cuts "综合：" and the first three titles to the 80 characters pages.generate's title holds. One 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const make = async () => (await bound.invoke(actions.create, { title: wide(40) })).document;
+    const documents = [await make(), await make(), await make()];
+    const prepared = await bound.invoke(actions.fragmentOffers, { request_id: "wide-titles", fragment: {
+      object: { kind: "pages_document", id: documents[0]!.id, version: documents[0]!.version, title: documents[0]!.title },
+      granularity: "objects",
+      targets: documents.map((record) => ({ kind: "object" as const, role: "object", text: "正文",
+        ref: { kind: "pages_document", id: record.id, version: record.version, title: record.title } })),
+    } });
+    const synthesize = prepared.offers.find((offer) => offer.offer_id === "synthesize");
+    assert.ok(synthesize, "several documents offer a synthesis");
+    assert.equal((synthesize.input as { title: string }).title, `综合：${wide(40)} · ${wide(34)}`, "the title keeps 80 whole characters");
+  });
+});

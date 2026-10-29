@@ -1,4 +1,4 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { PluginSourcePullClient, SourcePullRequest, SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord } from "./projection.js";
 import { normalizeQuery } from "./source-input.js";

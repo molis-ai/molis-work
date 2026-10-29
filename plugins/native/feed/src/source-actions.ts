@@ -1,5 +1,5 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
+import { feedErrors } from "./contract/feed.js";
+import { isAccountConnectorSyncKind } from "./contract/sources.js";
 import { ActionError, retainActionAuthority, type ActionAudience, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedConnectorSync } from "./connector-sync.js";

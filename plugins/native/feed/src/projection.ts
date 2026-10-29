@@ -1,11 +1,11 @@
 import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import type { FeedUiPreset } from "./ui.js";
-import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "@molis-ai/molis-work-contracts/modules/feed";
-import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "./contract/feed.js";
+import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "./contract/sources.js";
 import type { AttentionEntryRecord, AttentionReason, AttentionStatus, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
-export type { FeedItemDisposition } from "@molis-ai/molis-work-contracts/modules/feed";
-export type { SourceHistoryDecision } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { ListenerRunRecord } from "./contract/listener.js";
+export type { FeedItemDisposition } from "./contract/feed.js";
+export type { SourceHistoryDecision } from "./contract/sources.js";
 
 /** Existing local read projection. These are owner-derived views, never a second store. */
 export type FeedItemType = FeedUiPreset;

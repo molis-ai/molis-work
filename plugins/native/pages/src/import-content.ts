@@ -49,18 +49,20 @@ export function convertImportContent(input: { name: string; format: PagesImportF
     throw invalid("不支持这种文档格式");
   }
   if (!blocks.length || !blocks.some(hasContent)) throw invalid("文档没有可导入的正文");
-  if (title.length > 80) warnings.add("页面标题超过 80 字，已缩短；正文中的原标题已保留。");
+  // Titles are counted in whole characters, as Pages' actions count them.
+  const characters = [...title];
+  if (characters.length > 80) warnings.add("页面标题超过 80 字，已缩短；正文中的原标题已保留。");
   const first = blocks[0];
   const firstText = first.content?.map((node) => node.text ?? (node.type === "hard_break" ? " " : "")).join("");
   const firstHasLink = first.content?.some((node) => node.marks?.some((mark) => mark.type === "link"));
-  if (title.length <= 80 && first.type === "heading" && first.attrs?.level === 1 && firstText === title && !firstHasLink) {
+  if (characters.length <= 80 && first.type === "heading" && first.attrs?.level === 1 && firstText === title && !firstHasLink) {
     blocks = blocks.length > 1 ? blocks.slice(1) : [paragraph([])];
   }
   const body = parsePagesBody({ type: "doc", content: blocks });
   try {
     const document = pagesSchema.nodeFromJSON(body);
     document.check();
-    return { title: title.slice(0, 80) || "导入的文档", body: parsePagesBody(document.toJSON()), warnings: [...warnings] };
+    return { title: characters.slice(0, 80).join("") || "导入的文档", body: parsePagesBody(document.toJSON()), warnings: [...warnings] };
   } catch (error) {
     if (error instanceof ActionError) throw error;
     throw invalid("文档结构无法转换为可编辑的 Pages 正文");

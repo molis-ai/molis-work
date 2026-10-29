@@ -464,12 +464,12 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   const job = jobBlock("product-subset");
   assert.match(job, /^    runs-on: ubuntu-latest$/m);
   assert.match(job, /^    continue-on-error: true$/m, "a red subset must not turn the workflow red (decision #14: not blocking at first)");
-  assert.match(job, /^    name: Product subset \(not required yet, \$\{\{ matrix\.shard \}\}\/2\)$/m);
+  assert.match(job, /^    name: Product subset \(not required yet, \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}\)$/m);
   assert.match(job, /^      fail-fast: false$/m, "a failure does not cancel the other shard");
-  assert.match(job, /^        shard: \[1, 2\]$/m, "both parts of the complete list run");
-  assert.ok(job.includes("--shard ${{ matrix.shard }}/2"));
+  assert.ok(job.includes("        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "both parts of the complete list run, unless a selection that succeeded found the files a pull request touches fit in one (T-130, tests/ci-test-selection.test.ts)");
+  assert.ok(job.includes("--shard ${{ matrix.shard }}/${{ strategy.job-total }}"));
   assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
-  assert.match(job, /run: exec node scripts\/ci-product-subset\.mjs --expect-platform linux /, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
+  assert.match(job, /^\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux /m, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
   assert.match(job, /run: pnpm build$/m, "the tests import the built packages");
   assert.ok(job.includes(`${TEST_CHROME}=`), "the browser smokes are told which Chrome to use");

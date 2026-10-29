@@ -790,3 +790,55 @@ test("RAC-1469 a project refresh that switches a plugin off during a Supervisor 
   const record = runtime.get(id);
   assert.deepEqual([record.state, record.recovery_count], ["disabled", before.recovery_count]);
 });
+
+/**
+ * T-124: a Runtime whose repository can lose one installation's record, over an executor that notes, at each stop hook, whether the
+ * instance still offered its contribution then (it must already be withdrawn) and can make the hook throw.
+ */
+function forgetting() {
+  const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor(), get = repository.get.bind(repository);
+  const seen = { gone: "", failStop: false, hooks: [] as Array<{ offered: boolean }> };
+  repository.get = installId => installId === seen.gone ? null : get(installId);
+  const executor: PluginExecutor = {
+    start: (definition, context) => native.start(definition, context),
+    async stop(definition, context) {
+      seen.hooks.push({ offered: runtime.contribution(context.install_id) !== null });
+      if (seen.failStop) throw new Error("stop hook failed");
+      return native.stop(definition, context);
+    },
+  };
+  const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
+  return { seen, runtime };
+}
+
+// RAC-1920 T-124: the installation record of a running plugin is deleted under the Runtime. The stop cannot record anything, so it
+// reports the missing record as before, but it still lets go of what this process activated: the contribution is withdrawn first, then
+// the stop hook runs once with the context it started with. A second stop finds nothing live, so no hook runs again.
+test("RAC-1920 a stop that finds no installation record withdraws the live instance, runs its stop hook once and reports the missing record", async () => {
+  const { seen, runtime } = forgetting();
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: probe("1.0.0"), deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(id);
+  assert.ok(runtime.contribution(id), "the started instance offers its contribution");
+  seen.gone = id;
+
+  assert.equal(await code(runtime.stop(id, { preserve_enabled: true })), "plugin.definition_missing");
+  assert.deepEqual(seen.hooks, [{ offered: false }], "one stop hook, after the contribution was withdrawn");
+  assert.equal(runtime.contribution(id), null, "nothing of the instance is kept");
+
+  assert.equal(await code(runtime.stop(id)), "plugin.definition_missing");
+  assert.equal(seen.hooks.length, 1, "nothing live is left to stop");
+});
+
+// RAC-1921 T-124: with no record there is nothing to mark crashed, so a failing stop hook still leaves the stop reporting the missing
+// record, and the instance is let go all the same.
+test("RAC-1921 when the stop hook of an instance without a record throws, the stop still reports the missing record and keeps nothing", async () => {
+  const { seen, runtime } = forgetting();
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: probe("1.0.0"), deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(id);
+  seen.gone = id;
+  seen.failStop = true;
+
+  assert.equal(await code(runtime.stop(id)), "plugin.definition_missing");
+  assert.equal(seen.hooks.length, 1);
+  assert.equal(runtime.contribution(id), null);
+});

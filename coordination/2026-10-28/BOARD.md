@@ -126,6 +126,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-177 | Pages 服务一侧的截取：存为文档、失败信息、写作输入与合成摘要按整字（防腐清理，MISC「T-157 起草」两行） | 乙 | 池 | 74 | T-157 | `plugins/native/pages/src/intake-offers.ts`、`plugins/native/pages/src/store-generations.ts`、`plugins/native/pages/src/fragment-offers.ts`、`tests/pages-actions.test.ts`、`tests/pages-generation-lease.test.ts` |
 | T-178 | 快照遇到安装目录里不认识的文件而安装记录不可用时，按无法分类的条目拒绝（防腐清理，MISC「T-160 起草」行） | 乙 | B | 76 | — | `apps/local-host/src/home-store-snapshot.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` |
 | T-179 | 「AI 生成题目」起草出的题目标题按字数查，选项文字与先问的说明按整字截（防腐清理，MISC「T-164 起草」两行里的 `drafting.ts`） | 乙 | B | 75 | T-164 | `plugins/native/form/src/drafting.ts`、`tests/form-draft-questions.test.ts` |
+| T-180 | 开始使用的 Todo 材料按整字分段，Pages 仍按单元（防腐清理，MISC「T-163 起草」） | 乙 | B | 81 | T-163（#1436） | `apps/local-host/src/context-onboarding-service.ts`、`tests/context-onboarding-todo.test.ts` |
 
 ## 在途，不走任务书
 

@@ -23,7 +23,7 @@ const DEPTH = 3;
 const PUSH_MINUTES = 60;
 const SUFFIX = { A: "a", B: "b", Codex: "cx", "A-Claude": "ca", 本机: "m" };
 const DEVICE = { a: "A", b: "B", cx: "Codex", ca: "A-Claude", m: "本机" };
-const SIGNATURE = { a: "DeepSeek（设备 A）", b: "DeepSeek（设备 B）", cx: "Codex（设备 A）", ca: "Claude（设备 A）", m: "Claude" };
+const SIGNATURE = { a: "DeepSeek（设备 A）", b: "DeepSeek（设备 B）", cx: "Codex（设备 B）", ca: "Claude（设备 A）", m: "Claude" };
 const STAGES = "方案|交接|一审|验证|修复|二审|问统筹|统筹答|合入|空闲|阻塞|main 红|设备";
 // 「【验证增量 T-xxx】」 and the like are the stage itself; 「【验证 T-xxx·执行中】」 progress notes are not stages.
 const HEADER = new RegExp(`^【(${STAGES})(?:增量)?(?:\\s*(T-\\d{3}))?】\\s*(.*)$`);

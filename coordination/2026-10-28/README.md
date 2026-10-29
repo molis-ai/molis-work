@@ -15,12 +15,12 @@
 | 重活线 A | 设备 A 的 Claude 会话，署名「Claude（设备 A）」，开工 prompt 是 `prompts/claude-a.md` | 统筹直接派的重活，像本机线：在派片范围里自己拆 PR、开发、自测、开 PR、修（用户 2026-10-29 定：「重活直接给设备 A 的 claude 来做，可以给一定自主权，像本机线即可。」） | 不合并、不加减标签、不改协同分支、不在设备上跑全量 |
 | 开发 A | 设备 A（一骏的电脑）DeepSeek | 按任务书开发、自测自审、开 PR、修 | 不合并、不碰别人的分支 |
 | 开发 B | 设备 B（用户另一台）DeepSeek | 同开发 A | 同开发 A |
-| 一审与验证 | 设备 A Codex | 一审、验证、小修、main 变红归因；空了做自己的任务 | 不合并、不做大修 |
+| 一审与验证 | 设备 B Codex（2026-10-29 起；用户：「codex的review任务要交接给设备B」，弹窗定由设备 B 上的 Codex 接；之前在设备 A） | 一审、验证、小修、main 变红归因；空了做自己的任务 | 不合并、不做大修 |
 
 | 设备 | GitHub 账号 | 上面的 AI | 浏览器用例、全量 |
 | --- | --- | --- | --- |
-| 设备 A（一骏的电脑） | `yijunw0212`（管理员） | DeepSeek、Codex、Claude | 都能跑 |
-| 设备 B（用户另一台） | `jingxusandra-gif` | DeepSeek | 都能跑 |
+| 设备 A（一骏的电脑） | `yijunw0212`（管理员） | DeepSeek、Claude（Codex 2026-10-29 起移到设备 B） | 都能跑 |
+| 设备 B（用户另一台） | `jingxusandra-gif` | DeepSeek、Codex（2026-10-29 起） | 都能跑 |
 | 本机 | `jingxusandra-gif` | Claude 统筹、二审、本机线 | 都不跑 |
 
 DeepSeek 跑在 DeepSeek 的 harness 里。一个账号上有两个 AI，靠署名分人（第 6 节）。
@@ -150,7 +150,7 @@ Codex：一审 + 验证（验证结论等 Verify 出来；Verify 红就退回开
 
 ## 6. 评论格式
 
-第一行是抬头，`next.mjs` 靠它认；最后一行是署名。设备 A 的 DeepSeek 和 Codex 共用 `yijunw0212`，设备 B 的 DeepSeek 和本机 Claude 共用 `jingxusandra-gif`，所以每条评论都要署名，PR 正文第二行写 `开发：<署名>`。全部用中文。
+第一行是抬头，`next.mjs` 靠它认；最后一行是署名。设备 A 的 DeepSeek 和 Claude 共用 `yijunw0212`，设备 B 的 DeepSeek 和 Codex 共用 `jingxusandra-gif`（2026-10-29 起；之前 Codex 在设备 A），所以每条评论都要署名，PR 正文第二行写 `开发：<署名>`。全部用中文。
 
 | 抬头 | 谁 | 必写的内容 |
 | --- | --- | --- |
@@ -165,7 +165,7 @@ Codex：一审 + 验证（验证结论等 Verify 出来；Verify 红就退回开
 | `【合入 T-012】main @<sha>` | 统筹 | — |
 | `【空闲】`、`【阻塞】`、`【main 红】`、`【设备】` | 任何人，在 #1332 | 设备、原因；main 红写文件、第一个红的提交、归因 |
 
-署名：`— DeepSeek（设备 A）`、`— DeepSeek（设备 B）`、`— Codex（设备 A）`、`— Claude 二审`、`— Claude 统筹`。
+署名：`— DeepSeek（设备 A）`、`— DeepSeek（设备 B）`、`— Codex（设备 B）`（2026-10-29 交接以前的帖子署「Codex（设备 A）」，同一条线）、`— Claude 二审`、`— Claude 统筹`。
 
 `@<头>` 一律写 PR 头的 9 位短 sha（`git rev-parse --short=9 HEAD`）。
 
@@ -209,7 +209,7 @@ gh pr merge <号> --match-head-commit <H 的完整 sha>
 | 谁 | 在哪 | 跑什么 |
 | --- | --- | --- |
 | 开发 | 自己的设备 | 任务书第 7 节的测试文件（含点名的浏览器用例）、affected-tests 给的用例、门禁 |
-| Codex | 设备 A | 第 4 节「验证」那一列 |
+| Codex | 设备 B（2026-10-29 起） | 第 4 节「验证」那一列 |
 | CI | GitHub | 每个 PR 的 `Verify`；`full=true` 的跑 Full |
 | 本机 | — | 只跑门禁 |
 
@@ -236,8 +236,9 @@ gh pr merge <号> --match-head-commit <H 的完整 sha>
 
 **其他。**
 
-- Codex 在本机跑全量会把设备 A 占住约一小时，只在统筹点名的时候跑；它只是提前发现问题，不替代 CI Full。
-- 设备 A 上 DeepSeek、Codex 和 Claude 共用一台机器：构建、浏览器用例包在 `node scripts/machine-slot.mjs run <build|browser> --label "<谁> <任务>" -- <命令>` 里排队；全量只由 Codex 跑。Claude 要全量时在 PR 上写 `full=true`，由统筹排 CI Full。
+- 任务书里写「留给设备 A 的验证」「设备 A 实跑浏览器」的，2026-10-29 起都由设备 B 上的验证线（Codex）跑；开发自己要跑的浏览器用例仍按派给的设备。
+- Codex 在本机跑全量会把设备 B 占住约一小时，只在统筹点名的时候跑；它只是提前发现问题，不替代 CI Full。
+- 同一台设备上的几个 AI 共用一台机器（设备 A：DeepSeek 与 Claude；设备 B：DeepSeek 与 Codex）：构建、浏览器用例包在 `node scripts/machine-slot.mjs run <build|browser> --label "<谁> <任务>" -- <命令>` 里排队；全量只由 Codex 跑。Claude 要全量时在 PR 上写 `full=true`，由统筹排 CI Full。
 - 改 `.github/workflows/*`（比如承载分支从 10 个 runner 降到 6 个、PR 上按改动的路径跳过作业）算 CI 改动：T-019 合入、观察一天后，统筹写方案，用户批了再改。
 
 ## 10. 号段

@@ -8,7 +8,7 @@
 
 ## 你是谁、和谁一起
 
-- 你在设备 A 上，用 GitHub 账号 `yijunw0212`。同一台机器、同一个账号上还有「DeepSeek（设备 A）」和「Codex（设备 A）」（一审与验证）。另一台设备上有「DeepSeek（设备 B）」。
+- 你在设备 A 上，用 GitHub 账号 `yijunw0212`。同一台机器、同一个账号上还有「DeepSeek（设备 A）」；Codex 2026-10-29 起在设备 B（一审与验证）。另一台设备上有「DeepSeek（设备 B）」。
 - 统筹是另一台机器上的 Claude，负责派活、答疑、排 Full 和合并。另有一个 Claude 二审。
 - 所有沟通都走 GitHub：协同 issue #1332 和你自己的 PR。每条评论最后一行署名 `— Claude（设备 A）`，不署名的评论别人分不出是谁写的。
 - 这个账号是仓库管理员，你绝不用管理员权限：不合并、不入队、不加减标签、不改仓库设置、不改分支保护。
@@ -50,7 +50,7 @@
 
 ## 机器槽位
 
-- 整台机器同一时间最多一个构建、一个浏览器用例批次，和 DeepSeek、Codex 共用。构建和浏览器用例一律包进：
+- 整台机器同一时间最多一个构建、一个浏览器用例批次，和 DeepSeek 共用（Codex 2026-10-29 起在设备 B）。构建和浏览器用例一律包进：
   ```bash
   node scripts/machine-slot.mjs run <build|browser> --label "Claude A T-0xx" -- <命令>
   ```

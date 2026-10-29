@@ -5,6 +5,7 @@ import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin
 import type { ScheduleTaskDatabase } from "./tasks.js";
 import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
+import { jobTitle } from "./job-title.js";
 
 export const SCHEDULE_OPERATION_WAKEUP = "schedule.operation.wakeup";
 export const OPERATIONS_PER_INSTALLATION = 20;
@@ -119,7 +120,7 @@ export function createScheduledOperations(options: {
         if (count >= OPERATIONS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的定时执行已经太多了，先取消一些");
         const id = randomUUID(), title = operation.description || operation.id, due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: projectId + "|" + id,
-          title: (current.title + "：" + title).slice(0, 120), due_at: due,
+          title: jobTitle(current.title + "：" + title), due_at: due,
           recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
         saveScheduledOperation(db, { id, projectId, pluginId: identity.pluginId, installationId: identity.installationId, installationGeneration: current.generation,
           pluginTitle: current.title, operationId: operation.id, operationTitle: title, input: input.input === undefined ? {} : input.input, inbox: input.inbox === true,

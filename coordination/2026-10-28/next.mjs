@@ -17,8 +17,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const COORD = "coordination/handoff-2026-10-14";
 const BOARD = "coordination/2026-10-28/BOARD.md";
-// README §3: one device develops at most two tasks at a time (user, 2026-10-29).
-const MAX_DEVELOPING = 2;
+// README §3: one device develops at most four tasks at a time (user, 2026-10-29: 3–4).
+const MAX_DEVELOPING = 4;
 const ISSUE = 1332;
 const STALE_HOURS = 2;
 const DEPTH = 3;

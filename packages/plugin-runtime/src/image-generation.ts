@@ -93,8 +93,14 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
   });
 }
 function text(value: unknown, max: number): string {
-  if (typeof value !== "string" || !value.trim() || value.length > max) throw errors.image_input_invalid("图片服务参数无效");
+  if (typeof value !== "string" || !value.trim() || !withinCharacters(value, max)) throw errors.image_input_invalid("图片服务参数无效");
   return value.trim();
+}
+/** Counted in characters, like a schema's maxLength (Ajv counts code points). UTF-16 units are never fewer than characters and never more than twice as many, so only a text in between needs its characters counted, once. */
+function withinCharacters(value: string, max: number): boolean {
+  if (value.length <= max) return true;
+  if (value.length > 2 * max) return false;
+  return [...value].length <= max;
 }
 function copyTarget(target: PluginImageTarget): PluginImageTarget {
   if (!target || typeof target !== "object") throw errors.image_input_invalid("缺少图片服务目标");

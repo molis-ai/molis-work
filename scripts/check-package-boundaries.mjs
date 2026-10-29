@@ -1243,8 +1243,23 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
   return errors;
 }
 
-/** The source with every comment blanked to spaces (offsets kept), so a comment that names the wiring does not count as it. */
-function withoutComments(source) {
+/** The tokens whose text is data, not code: a quoted string, a regular expression and every piece of a template's text. */
+const LITERAL_TEXT_KINDS = new Set([
+  ts.SyntaxKind.StringLiteral,
+  ts.SyntaxKind.RegularExpressionLiteral,
+  ts.SyntaxKind.NoSubstitutionTemplateLiteral,
+  ts.SyntaxKind.TemplateHead,
+  ts.SyntaxKind.TemplateMiddle,
+  ts.SyntaxKind.TemplateTail,
+]);
+
+/**
+ * The source with every comment, and every string, regular expression and piece of template text, blanked to spaces (offsets and line
+ * breaks kept), so a comment or a quoted text that names the wiring does not count as it. A literal is blanked whole: its quotes or
+ * backticks, a regular expression's slashes and flags, and the `${` and `}` around a template's pieces go with it. The code inside a
+ * template's `${ … }` is code and stays.
+ */
+function withoutCommentsAndLiterals(source) {
   const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
   // TypeScript's offsets count UTF-16 code units, which is what split("") gives.
   const text = source.split("");
@@ -1256,6 +1271,7 @@ function withoutComments(source) {
       if (child.kind < ts.SyntaxKind.FirstNode || child.kind === ts.SyntaxKind.EndOfFileToken) {
         for (const range of ts.getLeadingCommentRanges(source, child.getFullStart()) ?? []) blank(range);
         for (const range of ts.getTrailingCommentRanges(source, child.getEnd()) ?? []) blank(range);
+        if (LITERAL_TEXT_KINDS.has(child.kind)) blank({ pos: child.getStart(file), end: child.getEnd() });
       } else visit(child);
     }
   };
@@ -1316,12 +1332,31 @@ function sourcePullPortObject(file) {
 }
 
 /**
- * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802), read from
- * the code, not the comments: the Feed service opens its Listener through `this.ports.createListener`, the Runtime Feed opens it with
- * `services.connector.open(`, the plugin takes `connector = sourcePull?.connector`, and the Host's `createSourcePullPort` returns one
- * object with no spread or computed name and exactly one `connector: createConnectorSourcePort({ … })`, whose options have neither and exactly one
- * `registry`: `() => homeIntegrationRegistry(home)`, or `<a test's injected registry> ?? (() => homeIntegrationRegistry(home))`,
- * parentheses aside. Every other `connector: createConnectorSourcePort({ … })` in the Host file takes the Home's registry as well.
+ * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802). Two kinds
+ * of check are made, and nothing else is read.
+ *
+ * Text checks, one on each of three Feed files. The file's code (`withoutCommentsAndLiterals`: comments, strings, regular expressions
+ * and the text of templates blanked, the code inside a template's `${ … }` kept) must contain this text, as plain text:
+ * - the Feed service: `this.ports.createListener`;
+ * - the Runtime Feed: `services.connector.open(`;
+ * - the Feed plugin: `connector = sourcePull?.connector`.
+ * This is a substring match, not a reading of the syntax: it does not see what the line does, and a longer name that begins with the
+ * same text (`this.ports.createListenerOther`) matches too.
+ *
+ * Syntax checks on the Host file, read from the syntax tree, so a comment or a quoted text cannot stand in for them:
+ * - the file has exactly one top-level `function createSourcePullPort`, its body (nested functions not counted) has exactly one
+ *   `return`, and that returns an object literal, parentheses aside;
+ * - that object has no spread and no computed name, and exactly one property named `connector`, written
+ *   `connector: createConnectorSourcePort({ … })`;
+ * - every `connector: createConnectorSourcePort({ … })` property in the file, that one included, passes one options object with no
+ *   spread and no computed name and exactly one `registry: …` property, whose value is `() => homeIntegrationRegistry(home)`, or
+ *   `<any expression> ?? (() => homeIntegrationRegistry(home))`, parentheses aside.
+ *
+ * Not checked: the left of `??` is not read at all (T-125 ruling 3: a test may inject any registry there), so
+ * `fixtureRegistry ?? (() => homeIntegrationRegistry(home))` passes, and the check does not see which registry runs when the left has
+ * a value; it only makes the Home's registry the fallback. Nor is it checked that `createSourcePullPort` is the function the Host
+ * builds its source-pull port with, or that `home` and `homeIntegrationRegistry` are what the names say (aliases, shadowing and renamed
+ * imports are not followed).
  */
 export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
   const problems = [];
@@ -1330,7 +1365,7 @@ export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
     [runtime, "services.connector.open(", "the Runtime Feed"],
     [plugin, "connector = sourcePull?.connector", "the Feed plugin"],
   ]) {
-    if (!withoutComments(source).includes(needle)) problems.push(`${owner} no longer has \`${needle}\` outside a comment`);
+    if (!withoutCommentsAndLiterals(source).includes(needle)) problems.push(`${owner} no longer has \`${needle}\` in its code (a comment, a string, a regular expression or template text does not count)`);
   }
   const file = ts.createSourceFile("host.ts", host, ts.ScriptTarget.Latest, true);
   const port = sourcePullPortObject(file);

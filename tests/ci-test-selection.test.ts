@@ -11,7 +11,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { decideJob, FULL_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
-import { blockingJobs, blockingTestRuns, jobBlock, workflow } from "./fixtures/ci-workflow.js";
+import { blockingJobs, blockingTestRuns, evaluateExpression, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const directories: string[] = [];
@@ -302,21 +302,10 @@ test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
 
-/**
- * A GitHub expression of the two jobs evaluated for one event, one result of `test-selection` and the outputs it left. Only what these
- * expressions use is known (`!cancelled()`, the event, the result, the outputs, `fromJSON`, quoted strings, `==`, `!=`, `&&`, `||`);
- * anything else fails, so a new term in ci.yml is added here before it is trusted. GitHub's `&&` and `||` give back an operand as
- * JavaScript's do, and a missing output is the empty string.
- */
+/** A GitHub expression of the two jobs evaluated for one event, one result of `test-selection` and the outputs it left. */
 function evaluate(expression: string, scope: { event: string; result: string; outputs: Record<string, string> }): unknown {
-  const code = expression
-    .replace(/!cancelled\(\)/g, "true")
-    .replace(/github\.event_name/g, "scope.event")
-    .replace(/needs\.test-selection\.result/g, "scope.result")
-    .replace(/needs\.test-selection\.outputs\.([a-z_]+)/g, "scope.outputs.$1")
-    .replace(/fromJSON\(/g, "JSON.parse(");
-  assert.match(code.replace(/'[^']*'|scope\.(?:event|result|outputs\.[a-z_]+)|JSON\.parse|true/g, ""), /^[\s()]*(?:(?:==|!=|&&|\|\||!)[\s()]*)*$/, `only known terms: ${expression}`);
-  return new Function("scope", `return (${code});`)(scope);
+  const outputs = Object.fromEntries(Object.entries(scope.outputs).map(([name, value]) => [`needs.test-selection.outputs.${name}`, value]));
+  return evaluateExpression(expression, { "github.event_name": scope.event, "needs.test-selection.result": scope.result, ...outputs });
 }
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {

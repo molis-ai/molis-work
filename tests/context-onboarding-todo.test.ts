@@ -280,3 +280,37 @@ test("RAC-1855 pages parts stay counted in UTF-16 units and back off a pair the 
     assert.equal(body.split("🟢").length - 1, 250_000, "no 🟢 is split between the parts");
   } finally { pages.close(); }
 });
+
+// A Todo part's title is the material's name cut to the 200 whole characters Todo keeps (a 😀 is one character, though two UTF-16 units).
+const TODO_TITLES = [
+  { name: "150 😀 are 150 characters: kept whole", heading: "😀".repeat(150), title: "😀".repeat(150) },
+  { name: "the 199th character is a 😀: kept, then …", heading: "a".repeat(198) + "😀" + "b".repeat(50), title: "a".repeat(198) + "😀…" },
+  { name: "250 😀 are cut to 199, then …", heading: "😀".repeat(250), title: "😀".repeat(199) + "…" },
+  { name: "200 one-unit characters: kept whole", heading: "题".repeat(200), title: "题".repeat(200) },
+  { name: "201 one-unit characters are cut to 199, then …", heading: "题".repeat(201), title: "题".repeat(199) + "…" },
+];
+
+test("RAC-2105 a single-part material's title for Todo is counted and cut in whole characters, 200 at most", async t => {
+  const { ready, sent } = await journeyOver(t, TODO_TITLES.map((c, index) => [`t-${index + 1}.md`, `# ${c.heading}\n\n预算等小李确认。`] as [string, string]));
+  assert.equal(ready.todo?.status, "ready", ready.todo?.error ?? "");
+  assert.equal(sent.length, TODO_TITLES.length);
+  for (const [index, c] of TODO_TITLES.entries()) await t.test(c.name, () => assert.equal(sent[index]!.title, c.title));
+});
+
+// The number of a part, " · 第 k / 2 部分", is 13 characters, each one UTF-16 unit.
+const partOf2 = (k: number) => ` · 第 ${k} / 2 部分`;
+
+test("RAC-2106 the parts of a long material keep their number: the title is cut to leave room for it, in whole characters", { timeout: 120_000 }, async t => {
+  // A heading and 61,000 more characters are over the 60,000 a part holds, whatever the characters are: two parts each.
+  const body = "x".repeat(61_000);
+  const { ready, sent } = await journeyOver(t, [["fit.md", `# ${"😀".repeat(187)}\n\n${body}`], ["cut.md", `# ${"😀".repeat(188)}\n\n${body}`]]);
+  assert.equal(ready.todo?.status, "ready", ready.todo?.error ?? "");
+  const cases = [
+    { name: "187 😀 and the number are exactly 200 characters: part 1 kept whole", title: "😀".repeat(187) + partOf2(1) },
+    { name: "187 😀 and the number are exactly 200 characters: part 2 kept whole", title: "😀".repeat(187) + partOf2(2) },
+    { name: "188 😀 are one too many: cut to 186, then …, then the number: part 1", title: "😀".repeat(186) + "…" + partOf2(1) },
+    { name: "188 😀 are one too many: cut to 186, then …, then the number: part 2", title: "😀".repeat(186) + "…" + partOf2(2) },
+  ];
+  assert.equal(sent.length, cases.length);
+  for (const [index, c] of cases.entries()) await t.test(c.name, () => assert.equal(sent[index]!.title, c.title));
+});

@@ -15,6 +15,7 @@ import type { ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/
 import { createPluginConnectorSourceClient, runInPluginAction, type PluginConnectorPort } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // FI-4 step 4c-4 (S-97 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12): `services.sourcePull.connector` lets a
@@ -355,7 +356,8 @@ test("S-97 FI-C-01: ABA never revives an old pull and does not cancel another re
 
 test("S-97 RAC-1022: adapting uses the registry's adapter with no account, and accounts answers only whether the Home has one", { timeout: 60_000 }, async t => {
   const f = await hostRig(t);
-  assert.deepEqual(await f.port.open("github", "github"), { plugin_id: "io.molis.work.integration.github", version: "1.3.0" });
+  // The installed adapter as its Manifest says it now: the version moves with the package (1.4.0 since W5-11 slice 4), the assertion does not.
+  assert.deepEqual(await f.port.open("github", "github"), { plugin_id: "io.molis.work.integration.github", version: githubIntegrationManifest.version });
   const draft = await f.port.adapt(f.target, "github", { ...EVENT, payload: { externalId: "n1", title: "Review requested", summary: "s" } });
   assert.equal(typeof draft.kind, "string");
   assert.equal(f.bindings.at(-1)!.connection_id, null, "adapting touched no account");

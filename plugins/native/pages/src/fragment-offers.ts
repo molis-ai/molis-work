@@ -61,7 +61,7 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
       offer_id: choice.offer_id, title: choice.title,
       action: { ...choice.action, ...(providerId ? { provider_id: providerId } : {}) },
       input: choice.offer_id === "synthesize" ? synthesizeInput(input)
-        : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: joined.slice(0, 180_000), ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
+        : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: joined.length > 180_000 ? [...joined].slice(0, 180_000).join("") : joined, ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
       // Several documents in hand have no place to write back to: the card says which ones it works on.
       ...(fragment.granularity === "objects" ? { summary: objectsSummary(choice.offer_id, fragment.targets) } : {}),
       ...(choice.offer_id === "synthesize" ? { editable: ["title", "instructions"] } : {}),
@@ -70,7 +70,7 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
 
 function objectsSummary(offerId: string, targets: FragmentOffersInput["fragment"]["targets"]): string {
   const names = targets.map(target => `「${target.ref?.title ?? "无标题"}」`).join("");
-  return (offerId === "synthesize" ? `用 ${targets.length} 篇文档${names}合成一篇新文档，原文不变` : `并排比较 ${targets.length} 篇文档${names}的相同点、不同点和冲突`).slice(0, 600);
+  return [...(offerId === "synthesize" ? `用 ${targets.length} 篇文档${names}合成一篇新文档，原文不变` : `并排比较 ${targets.length} 篇文档${names}的相同点、不同点和冲突`)].slice(0, 600).join("");
 }
 
 /** `pages.generate` input for several selected documents: their current text as snapshots, one stable request per selection. */
@@ -82,6 +82,6 @@ function synthesizeInput(input: FragmentOffersInput): unknown {
   }));
   const titles = inputs.map(item => item.title).filter(Boolean);
   return { request_id: input.request_id, request_hash: input.request_id, inputs,
-    title: titles.length ? `综合：${titles.slice(0, 3).join(" · ")}`.slice(0, 80) : "综合文稿",
+    title: titles.length ? [...`综合：${titles.slice(0, 3).join(" · ")}`].slice(0, 80).join("") : "综合文稿",
     instructions: "提炼这些材料的共同结论、分歧和可执行建议，写成一篇结构清楚的新文档；引用时注明出自哪份材料。" };
 }

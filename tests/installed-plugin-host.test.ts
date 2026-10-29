@@ -1009,6 +1009,41 @@ test('RAC-1197 closing the Host does not reject for an installation stopped with
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// RAC-1696 T-161: an installation someone stopped with preserve_enabled is installed in the Runtime while the Supervisor's mirror still says
+// running (RAC-1197). The person's disable of it is a switch-off like a crashed one's (RAC-1150, RAC-1195): the Runtime records it disabled
+// with no error code, the prompts and actions are withdrawn, a restart leaves it off, and only an explicit enable runs it again.
+test('RAC-1696 disabling an installation stopped with preserve_enabled records it disabled, withdraws it, and it stays disabled after a Host restart', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-preserved-disable-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id;
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const promptState = () => { const source = registry.prompt(key).source; return source.kind === 'plugin' ? source.state : undefined; };
+    assert.equal(promptState(), 'enabled', 'it runs with its prompts enabled before anyone stops it');
+    await runtime.stop(id, { preserve_enabled: true });
+    assert.equal(runtime.get(id)?.state, 'installed', 'the stop keeps it startable');
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId)?.status, 'running', 'the Supervisor still counts it as running');
+    await installed.lifecycle('disable', fixture.release);
+    assert.equal(promptState(), 'disabled', 'the disable withdraws its prompts');
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false, 'and its actions from the catalog');
+    assert.equal(await rig.generated(), 0, 'nothing of it is offered');
+    const record = runtime.get(id);
+    assert.equal(record?.state, 'disabled', 'the record is what the person chose, not installed again');
+    assert.equal(record?.last_error_code, null, 'there was no crash to keep');
+
+    await rig.host.close(); rig.reopen();
+    const restored = await rig.control();
+    assert.equal(restored.installations()[0]?.state, 'disabled', 'the restart does not run it again');
+    assert.equal(promptState(), 'disabled', 'its prompts stay disabled');
+    assert.equal(await rig.generated(), 0, 'none of its actions is offered');
+    await restored.lifecycle('enable', fixture.release);
+    assert.equal(restored.installations()[0]?.state, 'running', 'only an explicit enable runs it');
+    assert.equal(promptState(), 'enabled', 'enable switches its prompts on again');
+    assert.equal(await rig.generated(), 3, 'enable offers its actions again');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 // RAC-1198 T-035: a running installation is still stopped by the close, exactly once, keeping the enabled bit; a restart runs it.
 test('RAC-1198 closing the Host stops a running installation exactly once with preserve_enabled and a restart runs it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-running-close-'));

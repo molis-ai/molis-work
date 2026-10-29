@@ -21,8 +21,9 @@ type Share = Omit<PluginAppContribution, "kind">;
  * stopped. `hold()` makes the next call of the `project` action wait in its handler until released, then check its authority again.
  * `inside(run)` makes the next call of the `home` or `project` action run `run` with its caller in its handler first, and fail with what it throws.
  * With `writes`, `home` and `project` are commands: a query writes nothing (`pluginInvocationReadOnly`), so what `inside` writes needs one.
+ * `viewIn` moves the stage view to the project half (T-127): the half that offers it is the one that draws the stage.
  */
-export function dualPlugin(name = "dualprobe", writes = false) {
+export function dualPlugin(name = "dualprobe", writes = false, viewIn: Half = "home") {
   const id = `io.molis.work.example.${name}`, read = `${name}:read`, changed = `${id}.changed`, view = `${id}.stage`;
   const action = (suffix: string, half: Half, audiences: Array<"user" | "mcp" | "workflow">, write = false): HalfAction => ({ capability_id: `${name}.${suffix}`,
     version: 1, operation: write ? "command" : "query", action: { title: `${half} 一半的 ${suffix}`, description: `双实例的 ${half} 一半`, scope: half, permissions: [read],
@@ -59,7 +60,7 @@ export function dualPlugin(name = "dualprobe", writes = false) {
       const reach = (definition: HalfAction) => ({ ...definition, handle: (caller: ActionExecutionContext, input: { call?: string }) =>
         input.call ? context.services!.actions!.invoke(target(input.call), {}, caller) : answer(caller) });
       const shares: Record<Half, Share> = {
-        home: { actions: [{ ...actions.home, handle: async caller => { await probe(caller); return answer(caller); } }, reach(actions.homeReach)], views: [stage],
+        home: { actions: [{ ...actions.home, handle: async caller => { await probe(caller); return answer(caller); } }, reach(actions.homeReach)], views: viewIn === "home" ? [stage] : [],
           routes: [{ route_id: "home", async handle(request) {
             try { return { status: 200, body: await context.services!.actions!.invoke(target(request.query.call ?? actions.home.capability_id), {}, request.execution) }; }
             catch (error) { return actionErrorResponse(error); }
@@ -69,7 +70,7 @@ export function dualPlugin(name = "dualprobe", writes = false) {
           const gate = held; held = undefined;
           if (gate) { gate.entered.resolve(); await gate.release.promise; await caller.beforeEffect(); }
           return answer(caller);
-        } }, reach(actions.reach)], routes: [bindPluginActionRoute(context, actions.project, () => ({}), "project")], onUpstreamReady: () => {} },
+        } }, reach(actions.reach)], routes: [bindPluginActionRoute(context, actions.project, () => ({}), "project")], views: viewIn === "project" ? [stage] : [], onUpstreamReady: () => {} },
       };
       const more = extra(actions);
       return { kind: "app", ...shares[which], ...more,

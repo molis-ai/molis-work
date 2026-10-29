@@ -52,7 +52,7 @@ Molis Work 不是另一个 Kanban，也不是替人分派工作的 Agent 调度�
 
 V1 在本机一个 Home（`~/.molis-work`）中运行：每个项目一个 SQLite 库，个人插件的内容放在 Home 级的库里，每项事实只由它的主人写入；CLI、MCP 和 Web UI 经同一个常驻宿主使用同一套动作。
 
-安装默认只把自包含程序、共享 Skill 和稳定启动器写入 `~/.molis-work`，不会修改项目或 Runtime 配置，也不会创建项目、关联 Session 或启动服务。Runtime 接入、项目管理和 Session 关联是安装后的独立显式流程，不能再用一个“安装后启用/启动项目”的总动作混在一起。Runtime 接入统一使用 adapter 的 `detect → plan → confirm → apply → validate → remove` 链路；当前配置 adapter 支持 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build；MCP 会话协议本身仍支持其他 Runtime。Pi 的 MCP 写入 `~/.pi/agent/mcp.json`，供官方推荐的 pi-mcp-adapter 读取。预览不返回用户配置全文，写入同时管理 MCP 与 Skill，失败自动回滚，移除只撤销 Molis Work ownership receipt 证明仍属于自己的字段和链接。macOS 常驻 Web 同样先预览再确认，使用 LaunchAgent 的 RunAtLoad/KeepAlive 和可诊断日志，并显式提供安装时 Node 的 PATH；“已加载”和“进程正在运行”必须分别判断。用户在当前对话调用 Skill 后，Molis Work 优先读取单次 MCP 调用元数据中的 Session ID，其次使用 Claude Code 等 adapter 的稳定 Session 信号；工作目录作为独立 workspace 用于查找用户以前明确关联过的项目，不伪装成 Session ID，也不是项目身份。普通选择只记录 workspace 历史；每个新 Session 仍须确认 Project，即使只有一个候选，Molis Work 不保存 workspace default。用户明确拒绝一个建议时，只在能识别该 Session 时记录本 Session 的拒绝；选择、切换、解绑和删除仍各自需要明确确认。每个 Molis Work 项目有自己的 SQLite DB，并按 `user`、`regenerable_demo` 分类；Web、CLI 和开发脚本共用同一 demo 生命周期。普通卸载先预览，只撤销 ownership receipt 仍能证明属于 Molis Work 的接入和程序，清理可再生 demo，保留用户项目、catalog、备份与日志；永久清除用户数据必须再确认精确 home 和用户项目数量。Web 可选；Runtime 不因为 Web 未打开而停止推进工作。服务或项目连接不可用时，Runtime 报告事实，不自行创建另一个真相源、猜测项目或改写配置。
+安装默认只把自包含程序、共享 Skill 和稳定启动器写入 `~/.molis-work`，不会修改项目或 Runtime 配置，也不会创建项目、关联 Session 或启动服务。Runtime 接入、项目管理和 Session 关联是安装后的独立显式流程，不能再用一个“安装后启用/启动项目”的总动作混在一起。Runtime 接入统一使用 adapter 的 `detect → plan → confirm → apply → validate → remove` 链路；当前配置 adapter 支持 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build；MCP 会话协议本身仍支持其他 Runtime。Pi 的 MCP 写入 `~/.pi/agent/mcp.json`，供官方推荐的 pi-mcp-adapter 读取。预览不返回用户配置全文，写入同时管理 MCP 与 Skill，失败自动回滚，移除只撤销 Molis Work ownership receipt 证明仍属于自己的字段和链接。macOS 常驻 Web 同样先预览再确认，使用 LaunchAgent 的 RunAtLoad/KeepAlive 和可诊断日志，并显式提供安装时 Node 的 PATH；“已加载”和“进程正在运行”必须分别判断。用户在当前对话调用 Skill 后，Molis Work 优先读取单次 MCP 调用元数据中的 Session ID，其次使用 Claude Code 等 adapter 的稳定 Session 信号；工作目录作为独立 workspace 用于查找用户以前明确关联过的项目，不伪装成 Session ID，也不是项目身份。当前已实现的 MCP 项目连接中，普通选择只记录 workspace 历史；每个新 Session 仍须确认 Project，即使只有一个候选，Molis Work 不保存 workspace default。用户明确拒绝一个建议时，只在能识别该 Session 时记录本 Session 的拒绝；选择、切换、解绑和删除仍各自需要明确确认。每个 Molis Work 项目有自己的 SQLite DB，并按 `user`、`regenerable_demo` 分类；Web、CLI 和开发脚本共用同一 demo 生命周期。普通卸载先预览，只撤销 ownership receipt 仍能证明属于 Molis Work 的接入和程序，清理可再生 demo，保留用户项目、catalog、备份与日志；永久清除用户数据必须再确认精确 home 和用户项目数量。Web 可选；Runtime 不因为 Web 未打开而停止推进工作。服务或项目连接不可用时，Runtime 报告事实，不自行创建另一个真相源、猜测项目或改写配置。
 
 ## Goals Plugin
 
@@ -133,7 +133,7 @@ Web 中没有左侧栏：项目入口在统一底栏，Goals 插件里是目标�
 
 Project 是内容范围。用户先选择项目，再在项目根目录中使用平级的插件与工作目录；全局 `/sessions` 与 `/workspaces` 不提供管理页面。
 
-Sessions 插件（Session 目录、普通消息、跨 Runtime 交接、会话搜索与首页「说一句」）已于 2026-10-23 下线，等重做时再提供；重做要求保留在 `specs/BACKLOG.md` 的 BL-177。现在 Runtime 仍可经 MCP 把自己的工作入口绑定到项目，绑定只记 Runtime 与项目的关系，不保存对话内容。旧的 `<home>/sessions/` 数据留在原处，不再被读取；备份仍包含它，卸载时选择清除用户数据才删除，单独清理另做。
+Sessions 插件（Session 目录、普通消息、跨 Runtime 交接、会话搜索与首页「说一句」）已于 2026-10-23 下线，等重做时再提供；重做要求见 [Sessions 需求](specs/sessions-rebuild/spec.md)与 `specs/BACKLOG.md` 的 BL-177。2026-10-28 已定的目标是平台能力：国内外主流工具的冷启动导入、持续了解进展与会话控制都要；获准后自动发现已有会话，明确且唯一的目录／仓库关联自动归入项目，不明确时由 AI 建议、用户确认，不自动建项目。这些是待实现要求，不代表当前 MCP 连接流程已改变；归属本身不授予工具访问或执行权限。现在 Runtime 仍可经 MCP 把自己的工作入口绑定到项目，绑定只记 Runtime 与项目的关系，不保存对话内容。旧的 `<home>/sessions/` 数据留在原处，不再被读取；备份仍包含它，卸载时选择清除用户数据才删除，单独清理另做。
 
 工作目录管理路径健康与显式 Project 关系；它不是 Project 身份，也不建立 Project 默认目录或目录默认 Project。当前产品不提供持久 workspace / Project 默认关系，普通选择只记录可追溯历史。
 

@@ -240,10 +240,18 @@ function asSourceKind(value: unknown): "web" | "onboarding" | "feed" | "runtime"
 export function parseGoalProgressSource(raw: unknown): GoalProgressArtifactSource | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const source = raw as Partial<GoalProgressArtifactSource>;
-  if (typeof source.artifact_id !== "string" || !source.artifact_id.trim() || source.artifact_id.length > 1000
-    || !Number.isInteger(source.version) || source.version! < 1 || typeof source.title !== "string" || !source.title.trim() || source.title.length > 1000
+  if (typeof source.artifact_id !== "string" || !source.artifact_id.trim() || !withinCharacters(source.artifact_id, 1000)
+    || !Number.isInteger(source.version) || source.version! < 1 || typeof source.title !== "string" || !source.title.trim() || !withinCharacters(source.title, 1000)
     || !source.origin || typeof source.origin.plugin_id !== "string" || !/^[a-z][a-z0-9.-]{0,99}$/.test(source.origin.plugin_id)
-    || typeof source.origin.item_id !== "string" || !source.origin.item_id.trim() || source.origin.item_id.length > 1000) return undefined;
+    || typeof source.origin.item_id !== "string" || !source.origin.item_id.trim() || !withinCharacters(source.origin.item_id, 1000)) return undefined;
   return { artifact_id: source.artifact_id, version: source.version!, title: source.title,
     origin: { plugin_id: source.origin.plugin_id, item_id: source.origin.item_id } };
+}
+
+/**
+ * Whether `value` holds at most `limit` characters (code points): a character may take two UTF-16 units. A string of more than
+ * `limit * 2` units is over the limit whatever it holds, so only a shorter one is spread; what a caller sends has no other bound.
+ */
+function withinCharacters(value: string, limit: number): boolean {
+  return value.length <= limit * 2 && [...value].length <= limit;
 }

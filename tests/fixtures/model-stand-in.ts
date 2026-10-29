@@ -18,8 +18,9 @@ export interface ModelStandIn {
 export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK"): Promise<ModelStandIn> {
   const requests: ModelStandIn["requests"] = [];
   const server: Server = createServer(async (request, response) => {
-    let body = "";
-    for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const offeredKey = String(request.headers.authorization ?? "").replace(/^Bearer /, "");
     const payload = body ? JSON.parse(body) as { model?: string; stream?: boolean } : {};
     // The Home's registered background calls get their own valid answer, without consuming a foreground request.

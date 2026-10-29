@@ -81,7 +81,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     var value = answers();
     var missing = data.questions.filter(function(q){ return q.required && !value[q.id]; });
     if (missing.length) { error.textContent = say("missing", "还有必填题没填：") + missing[0].title; return; }
-    var oversized = data.questions.find(function(q){ return value[q.id].trim().length > ${FORM_ANSWER_LIMIT}; });
+    var oversized = data.questions.find(function(q){ return Array.from(value[q.id].trim()).length > ${FORM_ANSWER_LIMIT}; });
     if (oversized) { error.textContent = say("tooLong", "每题回答最多 ${FORM_ANSWER_LIMIT} 个字：") + oversized.title; return; }
     error.textContent = "";
     var answer = { format: data.format, form_id: data.form_id, form_version: data.form_version, answer_id: uuid(), submitted_at: new Date().toISOString(), questions: data.questions, answers: value };
@@ -97,7 +97,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 }
 
 export function formFillPageFilename(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷").slice(0, 80) + " · 填写页.html";
+  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 填写页.html";
 }
 
 /** Responses as a table a spreadsheet opens: one row per response, one column per question (UTF-8 with BOM for Excel). */
@@ -115,5 +115,5 @@ export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmi
 }
 
 export function formResultsCsvFilename(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷").slice(0, 80) + " · 答卷.csv";
+  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 答卷.csv";
 }

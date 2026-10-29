@@ -286,3 +286,23 @@ for (const phase of ["dispatch", "result"] as const) test(`Jelly revocation at $
   assert.equal(dispatched, phase === "dispatch" ? 0 : 1);
   assert.deepEqual(await f.read(), state);
 });
+
+// A note's exported file name is cut to 100 whole characters (an emoji is one, as the action schemas count it), never between the two halves of one.
+const EXPORT_NAMES = [
+  { name: "the 100th character is a two-unit one", title: "a".repeat(99) + "😀" + "尾".repeat(10), file: "a".repeat(99) + "😀" },
+  { name: "150 two-unit characters", title: "😀".repeat(150), file: "😀".repeat(100) },
+  { name: "exactly 100 two-unit characters", title: "😀".repeat(100), file: "😀".repeat(100) },
+  { name: "250 plain characters", title: "尾".repeat(250), file: "尾".repeat(100) },
+  { name: "forbidden characters become dashes", title: '周报/第1周:草稿*?"<>|\\终', file: "周报-第1周-草稿-------终" },
+  { name: "short", title: "发布清单", file: "发布清单" },
+];
+
+test("RAC-1896 an exported note's file name is cut to 100 whole characters, in Markdown and in HTML", async t => {
+  const f = fixture(t);
+  for (const c of EXPORT_NAMES) {
+    const id = (await f.command("note.create", { title: c.title, markdown: "正文" })).notes.at(-1)!.id;
+    for (const [format, extension] of [["markdown", ".md"], ["html", ".html"]] as const) await t.test(`${format}: ${c.name}`, async () => {
+      assert.equal((await f.bound.invoke(actions.exportNote, { id, format })).filename, c.file + extension);
+    });
+  }
+});

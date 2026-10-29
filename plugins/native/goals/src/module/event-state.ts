@@ -253,7 +253,8 @@ export class GoalEventState implements GoalEventStateApi {
     });
     return mutateGoalEventState(this.writes, input, "record_goal_note", hash, (goal, actorKind) => {
       const body = requiredText(input.body, "goals.event_note.body_required", "补充需要原文");
-      const event = this.insertSystem(goal, input.actor_id, actorKind, body.slice(0, 80), {
+      // Whole characters, not UTF-16 units: unit 80 can fall inside a two-unit character. The first slice bounds what is spread (the body has no upper limit).
+      const event = this.insertSystem(goal, input.actor_id, actorKind, [...body.slice(0, 160)].slice(0, 80).join(""), {
         operation: "observation_note",
         body,
       });

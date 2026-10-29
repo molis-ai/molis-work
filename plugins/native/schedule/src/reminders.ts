@@ -65,7 +65,7 @@ export function createScheduleReminders(options: {
       if (at < now - 60_000) throw scheduleErrors.job_invalid("提醒时间已经过去了");
       if (at > now + 366 * DAY) throw scheduleErrors.job_invalid("提醒时间最多设在一年以内");
       if (!["none", "daily", "weekly"].includes(repeat)) throw scheduleErrors.job_invalid("未知的提醒重复方式");
-      if (typeof input.text !== "string" || !input.text.trim() || input.text.length > 200) throw scheduleErrors.job_invalid("提醒文字需要 1 到 200 字");
+      if (typeof input.text !== "string" || !input.text.trim() || [...input.text].length > 200) throw scheduleErrors.job_invalid("提醒文字需要 1 到 200 字");
       return db.transaction(() => {
         const descriptor = authorize(identity);
         const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")

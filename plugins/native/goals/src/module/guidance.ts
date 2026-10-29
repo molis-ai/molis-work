@@ -25,6 +25,22 @@ export function normalizeProjectGuidanceContent(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim();
 }
 
+/**
+ * How many characters (code points) `value` holds: one character may take two UTF-16 units. It spreads `value`, so give it a text
+ * that is already within the entry limit.
+ */
+export function projectGuidanceLength(value: string): number {
+  return [...value].length;
+}
+
+/**
+ * Whether `value` is within the entry limit. A text of more than twice the limit in UTF-16 units is over it whatever it holds,
+ * so only a shorter one is counted; what a caller sends has no other bound.
+ */
+export function withinProjectGuidanceEntryLimit(value: string): boolean {
+  return value.length <= PROJECT_GUIDANCE_ENTRY_MAX_CHARS * 2 && projectGuidanceLength(value) <= PROJECT_GUIDANCE_ENTRY_MAX_CHARS;
+}
+
 export function projectGuidanceView(input: {
   entries: readonly ProjectGuidanceEntryRecord[];
   revisions?: readonly ProjectGuidanceRevisionRecord[];

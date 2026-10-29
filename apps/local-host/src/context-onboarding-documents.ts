@@ -25,7 +25,7 @@ export async function prepareContextDocument(home: string, journeyId: string, ki
     if (extension === "pdf" && result.coverage.status !== "sufficient") throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
     const body = result.text.trim();
     if (!body) throw new Error("文件没有可读取的正文");
-    const title = (result.title || filename.replace(/\.[^.]+$/u, "")).slice(0, 500);
+    const title = [...(result.title || filename.replace(/\.[^.]+$/u, ""))].slice(0, 500).join("");
     return { reference: { source_id: createHash("sha256").update(JSON.stringify([kind, file.path, sha256])).digest("hex"),
       version: 1, label: "", title, path: file.path, text: await stageContextText(home, journeyId, body),
       original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length } } };
@@ -34,6 +34,7 @@ export async function prepareContextDocument(home: string, journeyId: string, ki
     // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
     if (diskFull(error)) throw error;
     const message = error instanceof Error ? error.message : "无法读取文件";
-    return { issue: { path: file.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : message.slice(0, 600)) } };
+    // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
+    return { issue: { path: file.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
   }
 }

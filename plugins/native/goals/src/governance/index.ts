@@ -65,7 +65,3 @@ function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi
       listGoalTreeProposals: (projectId) => repository.listGoalTreeProposals(projectId),
     };
 }
-
-export function createGovernanceReadServices(db: GovernanceSqliteDatabase, journal: GovernanceJournal): { query: GovernanceQueryApi } {
-  return { query: governanceQueries(new GovernanceRepository(db, journal)) };
-}

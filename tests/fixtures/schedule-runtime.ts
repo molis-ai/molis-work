@@ -9,15 +9,15 @@ import { openTestHome } from "./test-home.js";
 import { createLocalFeedApplication } from "./feed-library.js";
 
 /** A normal Runtime plugin consumes Schedule's public actions; the caller is the ordinary person, not a magic actor prefix. */
-export function scheduledOwnerPlugin() {
+export function scheduledOwnerPlugin(names: { name?: string; title?: string } = {}) {
   const id = "io.molis.work.example.scheduled-owner";
   const action: ActionDefinition = { capability_id: "scheduled-owner.summarize", version: 1, operation: "command", action: {
-    title: "汇总", description: "汇总当前内容", local_id: "summarize", kind: "operation", scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [], scheduling: "concurrent",
+    title: names.title ?? "汇总", description: "汇总当前内容", local_id: "summarize", kind: "operation", scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [], scheduling: "concurrent",
     input_schema: { type: "object", additionalProperties: false, properties: { text: { type: "string" } }, required: ["text"] }, output_schema: { type: "object" },
   } };
   const contexts: PluginStartContext[] = [];
   let calls = 0, execute: (caller: ActionExecutionContext, input: unknown) => Promise<unknown> = async (_caller, input) => input;
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: "定时笔记", version: "1.0.0", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: names.name ?? "定时笔记", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "scheduled-owner" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [...Object.values(reminderActions), ...Object.values(scheduledOperationActions)].map(item => item.capability_id) },
     actions: [action], artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
@@ -26,8 +26,8 @@ export function scheduledOwnerPlugin() {
   return { id, definition, context, actions: (projectId?: string) => context(projectId).services!.actions!, calls: () => calls, execute: (handler: typeof execute) => { execute = handler; } };
 }
 
-export async function scheduleRuntimeFixture(t: TestContext, plugins: readonly string[] = ["feed", "inbox"]) {
-  const owner = scheduledOwnerPlugin(), { id, definition } = owner;
+export async function scheduleRuntimeFixture(t: TestContext, plugins: readonly string[] = ["feed", "inbox"], names: { name?: string; title?: string } = {}) {
+  const owner = scheduledOwnerPlugin(names), { id, definition } = owner;
   const f = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } }), project = await f.createProject("Schedule public runtime", plugins);
   const client = f.host.actionClient(project.reference);
   const prepare = () => client.discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] });

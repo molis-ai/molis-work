@@ -50,3 +50,21 @@ test("releasing a reopened Home attempt cannot release the same request in anoth
     assert.equal(second.generation(record.project_id, record.request_id)?.updated_at, b.updated_at);
   } finally { reopened.close(); second.close(); }
 });
+
+test("RAC-1858: a failed generation's note keeps 500 whole characters, never half of one", t => {
+  // failGeneration cuts the message it records at 500. One 🟢 is one character but two UTF-16 units.
+  const home = mkdtempSync(join(tmpdir(), "pages-generation-fail-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const store = openPagesStore(home);
+  try {
+    const wide = (count: number) => "🟢".repeat(count);
+    const failed = (request_id: string, message: string) => {
+      store.failGeneration(store.beginGeneration({ ...record, request_id }), message);
+      return store.generation(record.project_id, request_id);
+    };
+    const whole = failed("fail-whole", wide(500));
+    assert.equal(whole?.status, "failed");
+    assert.equal(whole?.error, wide(500), "a note of exactly 500 characters is kept whole");
+    assert.equal(failed("fail-cut", "错" + wide(500))?.error, "错" + wide(499), "a longer one is cut to its first 500 whole characters");
+  } finally { store.close(); }
+});

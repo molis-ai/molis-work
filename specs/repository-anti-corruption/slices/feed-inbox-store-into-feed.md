@@ -32,7 +32,7 @@
 ### 1.3 不搬的
 
 - **Attention**（`ATTENTION_SCHEMA_SQL`）和**情境账**（`CONTEXT_LEDGER_SCHEMA`）：S9-0b 之后它们是平台服务（`services.attention`、`services.contextLedger`，已进 main），表仍在基线，归平台。Feed 的 Module 代码里对它们的调用（`AttentionModule`、`createContextLedger`）FI-5 **不动**，等 FI-6 换成服务。
-- **公开合同**（`packages/contracts` 里的 `modules/feed`、`modules/sources`、`modules/signals`、`services/listener-host`）：形状是对外的，留在 contracts；Feed 插件包今天已经在 import 它们。
+- **公开合同**（`packages/contracts` 里的 `modules/feed`、`modules/sources`、`modules/signals`、`services/listener-host`）：形状是对外的，留在 contracts；Feed 插件包今天已经在 import 它们。已由 [pg111-feed-contracts](pg111-feed-contracts.md) 取代：合同搬进了 Feed 插件包，平台只留拉取与适配器的形状。
 
 ## 2. 目标形状
 

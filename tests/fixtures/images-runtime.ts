@@ -30,7 +30,8 @@ export async function imageRuntimeFixture(t: TestContext, options: {
     },
     project_data: { owner_id: "images" }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const provider = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const input = JSON.parse(raw) as Record<string, unknown>; calls.push(input);
     await (options.respond ? options.respond(input, response, request) : imageReply(response));
   });

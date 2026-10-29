@@ -379,3 +379,30 @@ test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for a
     assert.equal(reads[0]!.audiences, "agent,mcp,user,workflow");
   }
 });
+
+// The heading of a record is the first 80 characters of what was said, as whole characters (an emoji is one): never half of one, never short of 80.
+const HEADINGS = [
+  { name: "the 80th character is a two-unit one", said: "a".repeat(79) + "😀" + "尾".repeat(10), heading: "a".repeat(79) + "😀" },
+  { name: "100 two-unit characters", said: "😀".repeat(100), heading: "😀".repeat(80) },
+  { name: "exactly 80 two-unit characters", said: "😀".repeat(80), heading: "😀".repeat(80) },
+  { name: "short", said: "接口先做完", heading: "接口先做完" },
+];
+
+test("RAC-1889 the heading of a note and of an acknowledgement is its first 80 whole characters", { timeout: 120_000 }, async t => {
+  const r = await hostRig("heading");
+  const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "heading-session-1");
+  try {
+    const goal_id = "ACK-HEADING", first = await r.newGoal(goal_id);
+    const headingOf = async (event_id: string) => (await r.events(goal_id)).find(event => event.event_id === event_id)?.title;
+    for (const [index, c] of HEADINGS.entries()) {
+      await t.test(`note: ${c.name}`, async () => {
+        const noted = await r.person.invoke(goalsActions.note, { goal_id, body: c.said, idempotency_key: `note-${index}` });
+        assert.equal(await headingOf(noted.event_id), c.heading);
+      });
+      await t.test(`acknowledgement: ${c.name}`, async () => {
+        const said = await r.actions.invoke(mcp, goalsActions.acknowledge, { ...r.input(goal_id, first.event_id, await r.cursor(goal_id), `ack-${index}`), note: c.said });
+        assert.equal(await headingOf(said.event_id), c.heading);
+      });
+    }
+  } finally { await r.close(); }
+});

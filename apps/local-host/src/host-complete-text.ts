@@ -3,6 +3,7 @@ import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } fro
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 import { L } from "./web-locale.js";
@@ -163,8 +164,19 @@ function assertVisionInput(request: HostTextRequestOptions | undefined, vision: 
   if (request?.images?.length && !vision) throw new ActionError("actions.connection_required", "请在模型设置中选择已声明支持图片的模型，原图未发送");
 }
 
+// A prompt is counted in characters, like a schema's maxLength (Ajv counts code points), so text a schema accepts is not refused here for having two UTF-16 units a character.
+// Around 180_000 characters of text sit the instruction (at most AGENT_PROMPT_MAX_CHARS), "\n\n" and Pages' command line (at most 21): 20_023 in all; the limit leaves 77 more.
+const PROMPT_MAX_CHARS = 180_000 + AGENT_PROMPT_MAX_CHARS + 100;
+
 function validatePrompt(prompt: string): void {
-  if (!prompt.trim() || prompt.length > 180_000) throw new Error("写作输入为空或过长，请减少材料后重试");
+  if (!prompt.trim() || promptTooLong(prompt)) throw new Error("写作输入为空或过长，请减少材料后重试");
+}
+
+/** UTF-16 units are never fewer than characters and never more than twice as many, so only a prompt in between needs its characters counted, once. */
+function promptTooLong(prompt: string): boolean {
+  if (prompt.length <= PROMPT_MAX_CHARS) return false;
+  if (prompt.length > 2 * PROMPT_MAX_CHARS) return true;
+  return [...prompt].length > PROMPT_MAX_CHARS;
 }
 
 async function completeTextRequest(config: TextConfiguration, credentialRef: string, credential: () => string, prompt: string,

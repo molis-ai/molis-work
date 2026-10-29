@@ -81,3 +81,4 @@
 | T-217 起草 | `scripts/ci-queue-verified.mjs`（queue-check 的「同一起点」规则） | #1460 评论 6494450067 建议认出一串连续的队列组（沿 `base_sha` 一直回到 `before`），一次 push 落多个组时也能跳过；这会放宽「同一起点」规则，要先过安全评审；甲，统筹定要不要做 | 统筹 2026-10-29 |
 | T-128 二审 登记 | `.github/workflows/ci.yml`（`secret-scan`、`native-checks`、`shell-checks`）、`tests/ci-timeouts.test.ts` | 这三个作业没有作业级 `timeout-minutes`；用例的 `blocking` 表是手写的，建议加一条断言：`blockingJobs()` 里凡有作业级时限的都不低于 30 分钟（`queue-check` 5 分钟是有意的例外，写明）。丙 | 统筹 2026-10-29 |
 | T-189 二审 建议 | `plugins/native/workflows/src/handoff.ts:49`、`plugins/native/workflows/src/model.ts:353` | 按整字截时先把整段展开成数组，没有上限，极大的 CJK 正文会吃很多瞬时内存（二审估算，没跑）。改成先截 2N 个单元再展开，同 `apps/local-host/src/material-text.ts:123`；丙 | 统筹 2026-10-29 |
+| T-198 二审 建议 | `packages/storage/README.md:52` | 「旧 Feed 名称仅导出同一实现」在 T-198 删掉三个别名后不对了；#1101 碰这份 README 但不碰第 52 行，可并进下一张丙档零碎文档单 | 统筹 2026-10-29 |

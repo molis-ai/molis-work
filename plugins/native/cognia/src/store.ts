@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { adopted, adoptedFrom, adoptedMaterial, KNOWLEDGE_SOURCE, viewDrafts, type StoredDraft } from "./drafts.js";
 import { contentHash, decodeFile, ignoredPath, linksFor, materialRole, metadata, safeRelativePath } from "./content.js";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, stringField, type Domain, type Draft, type ImportEntry, type ImportFile, type Material, type Preview, type Receipt, type Source } from "./types.js";
@@ -143,6 +142,3 @@ export class CogniaStore {
     });
   }
 }
-
-/** This plugin's store in the Home's store registry (W4-11): `cognia/cognia.db` at its one baseline. */
-export const COGNIA_HOME_STORE: HomeStoreDeclaration = { path: "cognia", library: { baseline: COGNIA_DATABASE } };

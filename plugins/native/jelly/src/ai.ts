@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { JELLY_DECOMPOSE } from "./prompts.js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { JellyPlan, JellyPlanAction, JellySchedule, JellyWorkspace } from "./contract.js";
 import { jellySourceHash } from "./content.js";
 import { jellyOccurrences } from "./calendar.js";
@@ -91,5 +91,3 @@ export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, por
   if (input.today) actions = scheduleJellyActions(state, actions, input.today, input.start_time, durations);
   return { plan: { id: randomUUID(), title: [...text.split("\n")[0]!.slice(0, 200)].slice(0, 100).join(""), source_type: input.source_type, source_id: input.source_id ?? null, source_hash: sourceHash, source_text: text, ...(input.selection ? { selection: structuredClone(input.selection) } : {}), ...(questions.length ? { clarification_questions: questions } : {}), actions, created_at: new Date().toISOString() }, method: input.manual ? "manual" : "model" };
 }
-
-export const jellyTextFingerprint = (text: string): string => createHash("sha256").update(text).digest("hex");

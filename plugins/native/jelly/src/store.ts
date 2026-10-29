@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { JellyCommand, JellyWorkspace } from "./contract.js";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
@@ -22,9 +21,6 @@ function decode(row: PluginSqlRow | null): JellyWorkspace {
 export interface JellyStores {
   read<T>(run: (store: JellyStore) => T): T;
   write<T>(caller: ActionExecutionContext, run: (store: JellyStore) => T): Promise<T>;
-}
-export function ownJellyStores(withStore: <T>(run: (store: JellyStore) => T) => T): JellyStores {
-  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(store => store.transaction(() => run(store))); } };
 }
 
 export class JellyStore {
@@ -106,6 +102,3 @@ export class JellyStore {
     this.db.run("DELETE FROM jelly_previews WHERE token = ?", [command.confirmation_token]);
   }
 }
-
-/** This plugin's store in the Home's store registry (W4-11): `jelly/jelly.db` at its one baseline. */
-export const JELLY_HOME_STORE: HomeStoreDeclaration = { path: "jelly", library: { baseline: JELLY_DATABASE } };

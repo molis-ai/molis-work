@@ -142,6 +142,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-191 | 删掉 Goals、Schedule 里四个没人用的导出（防腐清理，代码扫描二「码四」） | 丙 | A | 89 | — | `plugins/native/goals/src/governance/index.ts`、`plugins/native/goals/src/safety-ui-model.ts`、`plugins/native/schedule/src/runtime-actions.ts` |
 | T-192 | Home 库登记表之后，三份文档里已删的常量与“项目级未启用”改成现状（防腐清理，代码扫描二第 1 组） | 丙 | B | 90 | — | `docs/platform/PLUGIN-PLATFORM.md`（只第 154 行）、`docs/platform/STORAGE-AND-EXCHANGE.md`（只第 23 行）、`docs/system/RUNTIME-MIGRATION.md`（只 §2.1 标题下一句，和第 57、253 行） |
 | T-193 | 五份文档里已改名、已删的名字改成现行说法（扫描二文二；GLOSSARY、PACKAGE-BOUNDARIES 重核后不改） | 丙 | B | 88 | — | `docs/platform/LOCAL-HOST.md`、`docs/system/THIRD-PARTY-PLUGINS.md`、`modules/private-work-context/README.md`、`modules/shelf/README.md`、`plugins/native/diff/README.md` |
+| T-194 | 删掉 Jelly、Cognia 里六个没人用的导出（防腐清理，代码扫描二「码三」） | 丙 | 池 | 98 | T-190 | `plugins/native/cognia/src/store.ts`、`plugins/native/jelly/src/store.ts`、`plugins/native/jelly/src/ai.ts`、`plugins/native/jelly/src/service-actions.ts`、`plugins/native/jelly/src/ui.ts` |
 | T-195 | 情境请求里超限的标题和文字按整字截，不再留下半个字（防腐清理，收 MISC「T-183 发布」Host 一行） | 乙 | B | 95 | — | `apps/local-host/src/contextual/contextual-request.ts`、`tests/contextual-landing.test.ts` |
 | T-196 | 删掉 onboarding.ts 里没人用的 markMolisWorkOnboardingStarted（防腐清理，代码扫描二「码三」） | 丙 | A | 96 | — | `apps/local-host/src/onboarding.ts` |
 | T-199 | 产品子集运行器的两条用例读 pid 前先等文件里真有数字（防腐清理，MISC 的「统筹 main 红」行） | 丙 | B | 97 | — | `tests/ci-product-subset.test.ts` |

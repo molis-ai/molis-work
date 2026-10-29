@@ -138,7 +138,7 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/V1?desktop=1#goal-records-V1" }, sessionId));
   await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=\"feed\"]'))");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=\"feed\"]'))");
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
   await click('[data-feed-add-toggle]');
@@ -159,5 +159,5 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   assert.equal(await evaluate("document.querySelector('[data-feed-directory]').dataset.feedPreset"), "feed");
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE?desktop=1" }, sessionId));
   await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && Boolean(document.querySelector('[data-goal-view=RELEASE]'))");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('[data-goal-view=RELEASE]'))");
 });

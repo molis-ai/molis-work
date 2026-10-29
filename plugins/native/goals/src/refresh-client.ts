@@ -52,8 +52,8 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
         }
         documentPane.classList.add("is-syncing");
         if (treeScroll) treeScroll.innerHTML = nextTree.innerHTML;
-        const currentSurface = documentPane.querySelector('[data-work-surface="goal"]');
-        const nextSurface = nextDocument.querySelector('[data-work-surface="goal"]');
+        const currentSurface = documentPane.querySelector('[data-work-surface="goals"]');
+        const nextSurface = nextDocument.querySelector('[data-work-surface="goals"]');
         if (currentSurface && nextSurface) {
           currentSurface.replaceChildren(...nextSurface.childNodes);
         } else {

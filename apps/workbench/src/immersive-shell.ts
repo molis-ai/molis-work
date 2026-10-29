@@ -25,17 +25,14 @@ const say = (L: ImmersiveShellPrimitives["L"], template: string, values: Readonl
 
 /**
  * Navigation comes from the Plugin catalog's Manifests, not from a list kept
- * here. Adding a Plugin must never mean editing the shell.
- *
- * `surface` keeps the historical Goals value: the URL surface predates the
- * Manifest id and changing it would break existing links and saved tabs.
+ * here. Adding a Plugin must never mean editing the shell. A plugin's work
+ * surface is its id, Goals' too (T-114).
  */
-const SURFACE_OVERRIDES: Readonly<Record<string, string>> = { goals: "goal" };
 
 function directoryPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
   return railEntries(enabled, directory).map(entry => ({
     id: entry.id,
-    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    surface: entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
@@ -73,7 +70,7 @@ function currentListPlugin(directory: string): string {
 function islandPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
   return islandEntries(enabled, directory).map(entry => ({
     id: entry.id,
-    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    surface: entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
@@ -292,7 +289,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
     </div>
     <strong data-immersive-plugin-title hidden>Goals</strong>
-    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goal" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
+    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goals" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>

@@ -147,7 +147,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
               selected: result.goal_id,
               navigationVersion: desktopNavigationStateVersion,
               directory: "goals",
-              workSurface: "goal",
+              workSurface: "goals",
               workspaceMode: action === "start" ? "runtime" : "focus",
               mobileView: action === "start" ? "tui" : "document",
             }));
@@ -182,7 +182,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
       }
       const surfaceOpen = target.closest("[data-work-surface-open]");
       if (surfaceOpen) {
-        const surface = surfaceOpen.dataset.workSurfaceOpen || "goal";
+        const surface = surfaceOpen.dataset.workSurfaceOpen || "goals";
         if (surface === "feed") {
           setFeedPreset(surfaceOpen.dataset.feedPreset || "feed", true);
           const source = surfaceOpen.dataset.feedSource;
@@ -201,16 +201,12 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           }
         }
         const available = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface);
-        if (surface === "goal" && !available) {
+        if (surface === "goals" && !available) {
           saveUiState();
           restoreLastGoal(true);
           return;
         }
-        const directory = surface === "goal"
-          ? "goals"
-          : OWN_DIRECTORY_SURFACES.includes(surface)
-            ? surface
-            : "root";
+        const directory = surface === "goals" || OWN_DIRECTORY_SURFACES.includes(surface) ? surface : "root";
         const nextDirectory = directory !== "root" && document.querySelector('[data-directory-panel="' + directory + '"]')
           ? directory
           : "root";
@@ -284,7 +280,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           else stageListGestureTimer = setTimeout(() => { stageListGestureTimer = null; void selectGoal(goalId); }, 220);
           return;
         }
-        openDirectorySurface("goal", goalLink.dataset.selectGoal, goalLink.textContent?.trim(), event);
+        openDirectorySurface("goals", goalLink.dataset.selectGoal, goalLink.textContent?.trim(), event);
         return;
       }
       if (handleGoalDialogClick(target)) return;

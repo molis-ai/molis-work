@@ -160,7 +160,7 @@ function renderMolisWorkRefreshFragment(
   const bodyView = trashView ? "trash" : archiveView ? "archive" : "current";
   const html = `<!doctype html><html><body data-board-view="${bodyView}">
     ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection, renderGoalProposals(view))}
-    <section data-document-pane><section data-work-surface="goal">${document}</section></section>
+    <section data-document-pane><section data-work-surface="goals">${document}</section></section>
     ${renderCreateDialog(view)}
     <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   </body></html>`;
@@ -182,7 +182,7 @@ function renderMolisWorkWeb(
   const initialDesktopDirectory = "root";
   const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
   // Goals is a plugin like the others (ac-trust T3b, RAC-400): without it a project opens on its home; the stage stays hidden in the surface pool.
-  const initialDesktopSurface = goalsEnabled && (requestedGoalId || archiveView || trashView) ? "goal" : "home";
+  const initialDesktopSurface = goalsEnabled && (requestedGoalId || archiveView || trashView) ? "goals" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
@@ -197,7 +197,7 @@ function renderMolisWorkWeb(
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, true);
   const goalDocument = `<section class="document-pane" id="goal-document-pane" data-document-pane aria-label="${escapeHtml(collectionTitle)}">
-    <section class="desktop-work-surface" data-work-surface="goal" data-work-surface-label="Goals">${renderedDocumentContent}</section>
+    <section class="desktop-work-surface" data-work-surface="goals" data-work-surface-label="Goals">${renderedDocumentContent}</section>
   </section>`;
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection, renderGoalProposals(view));
   const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">

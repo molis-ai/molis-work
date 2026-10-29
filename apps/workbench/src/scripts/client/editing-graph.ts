@@ -130,7 +130,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       workspace.dataset.navigatorView = navigatorView;
       workspace.dataset.workspaceMode = nextMode;
       workspace.classList.toggle("is-graph-view", nextMode === "graph");
-      const canvasActive = Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goal";
+      const canvasActive = Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goals";
       if (canvasActive) {
         documentPane.hidden = false;
         if (tuiPane) tuiPane.hidden = false;

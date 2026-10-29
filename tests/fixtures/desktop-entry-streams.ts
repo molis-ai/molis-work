@@ -76,17 +76,19 @@ export async function openEntryTerminal(t: TestContext, origin: string, home: st
   let pid: number | undefined;
   t.after(async () => {
     socket.terminate(); await closed;
-    if (pid && processAlive(pid)) process.kill(pid, "SIGKILL");
+    const child = pid ?? pidIn(pidFile);
+    if (child && processAlive(child)) process.kill(child, "SIGKILL");
   });
   const spawned = once(socket, "message");
   socket.send(JSON.stringify({ type: "spawn", panelId: "shutdown-fixture", command: process.execPath, args: ["-e", 'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)', pidFile], cwd: home }));
-  assert.equal(JSON.parse(String((await spawned)[0])).type, "spawned");
+  const reply = JSON.parse(String((await spawned)[0]));
   const until = Date.now() + 2000;
   while (pidIn(pidFile) === 0 && Date.now() < until) await delay(20);
-  assert.ok(existsSync(pidFile), "the real PTY child started");
   const observedPid = pidIn(pidFile);
+  if (observedPid) pid = observedPid;
+  assert.equal(reply.type, "spawned");
+  assert.ok(existsSync(pidFile), "the real PTY child started");
   assert.ok(Number.isSafeInteger(observedPid) && observedPid > 0 && processAlive(observedPid));
-  pid = observedPid;
   const stopped = async () => {
     const deadline = Date.now() + 1500;
     while (processAlive(pid!) && Date.now() < deadline) await delay(20);

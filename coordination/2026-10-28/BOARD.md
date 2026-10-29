@@ -178,7 +178,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-228 | Pages 写作菜单的超限截取只算一次，生成文稿的长度上限按字数数（防腐清理，MISC「T-177 二审 建议」；短任务书） | 乙 | 池 | 127 | — | `plugins/native/pages/src/fragment-offers.ts`、`plugins/native/pages/src/generate.ts` |
 | T-229 | Jelly 笔记列表的预览按整字截，导入时显示的字数按字数数（防腐清理，MISC「T-190 二审 建议」；短任务书） | 乙 | A | 128 | — | `plugins/native/jelly/src/browser/notes.ts`、`plugins/native/jelly/src/browser/note-actions.ts` |
 | T-230 | 起草把段落填进字段、摘要截标题时按整字截，不再存下半个字（防腐清理，MISC「T-224 起草」；短任务书） | 乙 | B | 129 | — | `apps/local-host/src/drafting/fields.ts`、`apps/local-host/src/drafting/draft-data.ts`、`apps/local-host/src/drafting/draft-service.ts` |
-| T-231 | Host 另存下载的文件名、Shelf 存进成果库的名字按整字截，不再丢扩展名（防腐清理，MISC「T-223 起草」；短任务书） | 乙 | B | 130 | — | `apps/local-host/src/browser/browser-host.ts`、`plugins/native/shelf/src/home-plugin.ts` |
+| T-231 | Host 另存下载的文件名、Shelf 存进成果库的名字按整字截，不再丢扩展名（防腐清理，MISC「T-223 起草」；短任务书） | 乙 | B | 130 | — | `apps/local-host/src/browser/browser-host.ts`、`modules/shelf/src/item-names.ts`、`tests/shelf-item-names.test.ts`（统筹 10-29 批扩进 `modules/shelf`，full=true） |
 | T-232 | 测试夹具起终端时先记下 pid 再断言，断言失败也不留孤儿进程（防腐清理，MISC「T-209 起草」；短任务书） | 丙 | B | 131 | — | `tests/fixtures/desktop-entry-streams.ts` |
 | T-233 | 新建 Goal 的文字上限按字数数，含两单元字的内容不再被提前拒（防腐清理，MISC「T-211 起草」第二行；短任务书） | 乙 | 池 | 132 | — | `plugins/native/goals/src/http/create.ts` |
 | T-234 | 问卷填写页的回答框按字数封顶，与库同口径（防腐清理，MISC「T-086 起草」；短任务书） | 乙 | A | 133 | T-203 | `plugins/native/form/src/browser/fields.ts`、`plugins/native/form/src/store.ts`（只 `:198`） |

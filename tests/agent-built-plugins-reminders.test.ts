@@ -80,7 +80,7 @@ test("a reused installation id cannot cancel or deliver a previous generation's 
   assert.equal(getScheduleReminder(store.db, fresh.reminderId), null);
 });
 test("RAC-1670 a reminder whose 「plugin name：text」 passes 200 UTF-16 units is delivered: the notification title is cut to 199 units and 「…」, the summary keeps the whole text, the one-shot job finishes", { timeout: 60_000 }, async t => {
-  // reminders.add takes up to 200 UTF-16 units of text (plugins/native/schedule/src/reminders.ts:67), delivery titles the notification
+  // reminders.add takes up to 200 characters of text (plugins/native/schedule/src/reminders.ts:68), delivery titles the notification
   // 「plugin name：text」 (runtime-wakeups.ts), and the notification service refuses a title over 200 units
   // (apps/local-host/src/plugin-notification-service.ts:39-41). 「定时笔记：」 is 5 units: 195 fits as it is, 196 is cut.
   const f = await scheduleRuntimeFixture(t), store = await f.store(), clock = scheduleServiceFor(store.db), at = next();

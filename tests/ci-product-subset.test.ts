@@ -266,6 +266,13 @@ const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catc
 const until = async (done: () => boolean, ms: number, what: string) => {
   for (let waited = 0; !done(); waited += 50) { assert.ok(waited < ms, `gave up waiting for ${what}`); await new Promise((resolve) => setTimeout(resolve, 50)); }
 };
+// The test file the runner starts writes its pid with writeFileSync, which creates the file before it fills it: until the number is there,
+// the file names no process (Number("") is 0). The same reading as pidIn in tests/ci-linux-probe.test.ts.
+const waitForPid = async (file: string, ms: number, what: string) => {
+  let pid = 0;
+  await until(() => { pid = existsSync(file) ? Number(readFileSync(file, "utf8")) : 0; return Number.isInteger(pid) && pid > 0; }, ms, what);
+  return pid;
+};
 
 async function cutOff(signal: NodeJS.Signals) {
   const hang = path.join(state, `hang-${signal}`);
@@ -283,8 +290,7 @@ async function cutOff(signal: NodeJS.Signals) {
   const ended = new Promise<number | null>((resolve) => child.once("close", (code) => resolve(code)));
   let group = 0;
   try {
-    await until(() => existsSync(hang), 60_000, "the second smoke to start");
-    const pid = Number(readFileSync(hang, "utf8"));
+    const pid = await waitForPid(hang, 60_000, "the second smoke to start");
     group = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
     const before = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8")) as Report;
     child.kill(signal);
@@ -323,8 +329,8 @@ test("a report exists from the start: a run killed while its first file is runni
   const child = spawn(process.execPath, [script, "--root", root, "--out", out, "--retries", "0", "--timeout-seconds", "120", "--browser-timeout-seconds", "120"], { env: { ...process.env, SUBSET_STATE: state, GITHUB_STEP_SUMMARY: "" } });
   let group = 0;
   try {
-    await until(() => existsSync(hang), 60_000, "the first smoke to start");
-    group = Number(execFileSync("ps", ["-o", "pgid=", "-p", readFileSync(hang, "utf8")], { encoding: "utf8" }).trim());
+    const pid = await waitForPid(hang, 60_000, "the first smoke to start");
+    group = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
     const report = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8")) as Report;
     assert.equal(report.endedBy, "running");
     assert.equal(report.files.length, 4);

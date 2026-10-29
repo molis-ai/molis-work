@@ -65,3 +65,4 @@
 | T-183 发布 | `apps/workbench/src/scripts/client/context-actions.ts:27`、`:102` | 工作台按单元截：`quoted` 的 `.slice(0, 20000)`、选区 `clip` 的 `.slice(0, 2000)`，可能留半个字。先查下游是否再截，再定写法；动工作台脚本，要量页面资源 | 统筹 2026-10-29 |
 | T-185 发布 | `apps/local-host/src/host-complete-text.ts:176` | `request.system.length > 64_000` 按单元查，信息「模型指令过长」，没有 schema 对着它。T-185 只改提示的尺；要不要也按字数，先查哪些调用方传 `system`、各自的上限 | 统筹 2026-10-29 |
 | T-185 发布 | `packages/plugin-sandbox/src/model.ts:16`、`:65` | 沙箱 `MODEL_DATA_CHARS = 200_000` 按单元；数据加上最长 20_000 字的指令仍可能超过端口的 200_100 字，被端口拒。差距本来就有，T-185 不动。要对齐得动沙箱的模型请求检查，预计甲 | 统筹 2026-10-29 |
+| T-187 发布 | `tests/agent-built-plugins-reminders.test.ts:83-85` | 注释写 `reminders.add` 最多收 200 个 UTF-16 单元的文字（引的是 `reminders.ts:67`）。T-187 合入后上限按字数数，行号也差一行（现在是 `:68`）。文件在 #1435（T-162）里，等 #1435 和 T-187 都合入后改这句注释；丙，可并进别的单 | 统筹 2026-10-29 |

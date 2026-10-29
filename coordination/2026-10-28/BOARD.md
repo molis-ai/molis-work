@@ -138,7 +138,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | 在途 | 线 | 锁定的文件 |
 | --- | --- | --- |
 | W5-16 B2b，不碰真实 Home 的部分 | Codex | 开工时在 #1332 报 |
-| W5-10 余下的巨大单元（T-058～T-061） | Claude（设备 A） | T-058：`apps/workbench/src/feed-projection-ui.ts`、`apps/workbench/src/feed-projection-model.ts`（新）、`docs/system/HUGE-CLASS-MIGRATION.md`（只两行）。T-059：`plugins/native/feed/src/application.ts` 与新的 `application-sources.ts`、`application-out-rules.ts`、`application-capture.ts`，Feed 包内 14 个调用方（`connector-sync.ts`、`hand-in-sources.ts`、`inbox-actions.ts`、`notification-actions.ts`、`plugin.ts`、`research-library-sync.ts`、`runtime-reconcile.ts`、`source-actions.ts`、`source-removal.ts`、`source-service.ts`、`source-sync-guard.ts`、`source-sync.ts`、`rule-actions.ts`、`scene-runtime.ts`），`apps/local-host/src/demo-plugin-seed.ts`，约 30 个只改调用写法的测试（全表等 `tsc` 报出后在 #1332 补），`docs/system/HUGE-CLASS-MIGRATION.md`（只 Feed 三行）。T-060、T-061 等 #1101 |
+| W5-10 余下的巨大单元（T-060、T-061） | Claude（设备 A） | T-058（#1387）、T-059（#1410）已合入，它们的锁已放（统筹 2026-10-29 06:35Z）；T-060、T-061 等 #1101 |
 | W5-11 第 4～10 片（声明式 OAuth 余下，含 BL-790 第 10 片；号从 T-062 起） | Claude（设备 A） | 每片开工时在 #1332 的【方案】里报，统筹记到这里 |
 | 合同链 T-110～T-113（PG-111 Feed 加 MISC:19 → W5-14 R-A5/R-A6 → PG-111 Goals 加 BL-781 → BL-646，串行） | Claude（设备 A） | 每本开工时在 #1332 的【方案】里报，统筹记到这里；T-112 等 T-165（Goals board- 文件改名）合入后再开工（统筹 2026-10-29 03:40Z）；T-165 已合入（#1441，main `5a88022f7`），T-112 可开工 |
 | 工作台摘 Goals 链 T-114～T-118（PG-094 ② 加 PG-060 → PG-060 末片 → PG-064 → 小收尾，串行；不碰 T-043 的文件）。ESTIMATE 第 66、67 行即本链前两项（统筹 2026-10-29 05:00Z：T-170 不发，并入 T-114；起草线材料 `task-drafts/STOPPED-goal-aliases.md`） | Claude（设备 A） | 同上 |

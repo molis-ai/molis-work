@@ -101,3 +101,32 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     await rm(home, { recursive: true, force: true });
   }
 });
+
+// A step is cut at 80 characters (79 and an ellipsis), as the action schemas count characters (an emoji is one): never between the two halves of one.
+const STEPS = [
+  { name: "81 two-unit characters", text: "😀".repeat(81), step: "😀".repeat(79) + "…" },
+  { name: "exactly 80 two-unit characters", text: "😀".repeat(80), step: "😀".repeat(80) },
+  { name: "short", text: "整理本周的访谈结论", step: "整理本周的访谈结论" },
+];
+
+test("RAC-1890 a step is cut at 80 whole characters, and one that fits is kept as it is", async t => {
+  for (const c of STEPS) await t.test(c.name, () => {
+    assert.deepEqual(planSteps(fragment({ targets: [{ kind: "text_range", role: "paragraph", text: c.text }] }, "r")), [c.step]);
+  });
+});
+
+test("RAC-1891 the card line, the proposal's summary and the progress summary are cut at whole characters", async t => {
+  const offer = (over: Partial<FragmentOffersInput["fragment"]>, id: string) => prepareGoalsFragmentOffers(fragment(over, "r"), { cursor: () => 7 }).find(item => item.offer_id === id)!;
+  await t.test("the card names a step by its first 19 characters (the limit is 20)", () => {
+    const card = offer({ targets: [{ kind: "text_range", role: "paragraph", text: "😀".repeat(30) }] }, "breakdown");
+    assert.equal(card.summary, `在 Goals 里提交结构提案：新建 1 个步骤（“${"😀".repeat(19)}…”）。提交后要在 Goals 里确认才会生效。`);
+  });
+  await t.test("the proposal's summary is cut at 199 characters and an ellipsis (the limit is 200)", () => {
+    const proposal = offer({ object: { kind: "pages_document", id: "doc-1", version: 3, title: "😀".repeat(200) } }, "breakdown");
+    assert.equal((proposal.input as { summary: string }).summary, `把「${"😀".repeat(197)}…`);
+  });
+  await t.test("the progress summary is cut at 199 characters and an ellipsis (the limit is 200)", () => {
+    const progress = offer({ granularity: "block", goal: { id: "G-1", title: "提升留存" }, targets: [{ kind: "block", role: "task", text: "a" + "😀".repeat(200) }] }, "progress");
+    assert.equal((progress.input as { summary: string }).summary, `完成：a${"😀".repeat(195)}…`);
+  });
+});

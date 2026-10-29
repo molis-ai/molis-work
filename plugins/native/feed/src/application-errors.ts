@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { attentionErrors, inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { SourceHistoryDecision } from "./projection.js";
 
 /** An Attention module refusal reaches callers as a declared failure: the Inbox's for a missing entry, Feed's for the rest. */

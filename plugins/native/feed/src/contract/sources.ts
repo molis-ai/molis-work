@@ -1,14 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-import { defineErrorCodes } from "../platform/action-errors.js";
-
-export const modulesSourcesContract = {
-  contractId: "io.molis.work.module.sources.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/modules/sources.md",
-} as const satisfies ContractDescriptor;
-
 export type SourceStatus = "active" | "paused" | "error" | "disconnected";
 export type SourceSyncKind = "public_source" | "github" | "gmail" | "connector" | "manual";
 
@@ -91,25 +80,9 @@ export interface SourcesApi {
   readonly events: SourceEvents;
 }
 
-export const sourceErrors = defineErrorCodes("sources", {
-  not_found: "invalid",
-  invalid_schedule: "invalid",
-  invalid_transition: "invalid",
-});
-
 export function sourceDeletedAt(source: Pick<SourceRecord, "config">): string | null {
   const lifecycle = source.config._molis_work_lifecycle;
   if (!lifecycle || typeof lifecycle !== "object" || Array.isArray(lifecycle)) return null;
   const value = (lifecycle as Record<string, unknown>).deleted_at;
   return typeof value === "string" && value ? value : null;
-}
-
-export interface RssFetchReceipt {
-  readonly status: number;
-  readonly not_modified: boolean;
-  readonly etag?: string;
-  readonly last_modified?: string;
-  readonly final_url: string;
-  readonly feed_title?: string;
-  readonly home_url?: string;
 }

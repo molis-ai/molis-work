@@ -1,23 +1,6 @@
-import type { SignalDraft, SignalReceipt } from "../modules/signals.js";
-import type { ContractDescriptor } from "../platform/package.js";
-import type { ConnectorHostApi, ConnectorRawEvent } from "./connector-host.js";
-import { defineErrorCodes } from "../platform/action-errors.js";
-
-export const servicesListenerHostContract = {
-  contractId: "io.molis.work.service.listener-host.v1",
-  kind: "service",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/horizontal/listener-host.md",
-} as const satisfies ContractDescriptor;
-
-export interface RawEventAdapter {
-  readonly adapter: { plugin_id: string; version: string };
-  toSignalDraft(
-    event: ConnectorRawEvent,
-    context: { project_id: string; source_id: string },
-  ): Omit<SignalDraft, "project_id" | "source_id" | "provider_dedupe_id" | "raw_event_id" | "adapter">;
-}
+import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import type { ConnectorHostApi, ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { SignalReceipt } from "./signals.js";
 
 export interface ListenerCheckpoint {
   project_id: string;
@@ -71,10 +54,3 @@ export interface ListenerHostApi {
     beforeEffect?(): Promise<void>;
   }): Promise<ListenerRunReceipt>;
 }
-
-export const listenerErrors = defineErrorCodes("listener", {
-  lease_busy: "invalid",
-  delivery_failed: "invalid",
-  delivery_quarantined: "invalid",
-  connector_failed: "invalid",
-});

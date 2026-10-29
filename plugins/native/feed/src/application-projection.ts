@@ -1,6 +1,6 @@
-import type { FeedItemRecord as ModuleFeedItemRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedItemRecord as ModuleFeedItemRecord } from "./contract/feed.js";
 
-import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { ListenerRunRecord } from "./contract/listener.js";
 
 import type { FeedItemRecord, FeedSourceRunRecord } from "./projection.js";
 

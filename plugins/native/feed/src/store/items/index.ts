@@ -3,7 +3,7 @@ import type {
   FeedItemDisposition,
   FeedMaterialRecord,
   IngestFeedItemInput,
-} from "@molis-ai/molis-work-contracts/modules/feed";
+} from "../../contract/feed.js";
 import { FeedDispositions } from "./dispositions.js";
 import { FeedGoalLinks } from "./goal-links.js";
 import { FeedIngest } from "./ingest.js";

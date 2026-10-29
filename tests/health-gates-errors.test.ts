@@ -456,6 +456,6 @@ test("on this repository the owner table has no problems, and the scan follows t
   // by the mutation case "a bad code in the second argument of a class that takes its message first". What the repository shows live is that the scan reads
   // the codes of the declarations that replaced it.
   const codesIn = (file: string) => (found.sites as Record<string, Array<{ code: string }>>)[file]?.map((site) => site.code) ?? [];
-  assert.ok(codesIn("packages/contracts/src/modules/feed.ts").includes("feed.item_not_found"), "the codes of feedErrors (defineErrorCodes) are read");
+  assert.ok(codesIn("plugins/native/feed/src/contract/feed.ts").includes("feed.item_not_found"), "the codes of feedErrors (defineErrorCodes) are read");
   assert.ok(codesIn("plugins/native/schedule/src/error.ts").includes("schedule.task_invalid"), "the codes of scheduleErrors (defineErrorCodes) are read");
 });

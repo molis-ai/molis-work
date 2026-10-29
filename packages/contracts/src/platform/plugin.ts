@@ -1,7 +1,7 @@
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
-import type { RawEventAdapter } from "../services/listener-host.js";
+import type { RawEventAdapter } from "./plugin-source-pull.js";
 import type { ContractDescriptor } from "./package.js";
 import type { UiContribution } from "./ui.js";
 import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } from "./plugin-events.js";
@@ -244,7 +244,12 @@ export interface PluginRuntimeApi {
    */
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
   start(installId: string): Promise<PluginLifecycleReceipt>;
-  /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
+  /**
+   * Stop an installation without uninstalling it; restart goes back through `start`. A running one is stopped. A crashed or never-started
+   * one is switched off (disabled) without calling its stop hook, and keeps its crash code. An already disabled one answers as it is.
+   * With `preserve_enabled` (the Host's shutdown) only a running one is stopped, and it stays installed; a crashed or never-started one is
+   * then `plugin.state_invalid`, and a quarantined or uninstalled one is refused that way with or without the option.
+   */
   stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;
   reportCrash(installId: string, errorCode?: string): Promise<PluginLifecycleReceipt>;
   /** Quarantine release requires an explicit Host action; ordinary recovery never releases it. */

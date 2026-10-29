@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
@@ -11,7 +10,7 @@ import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isRssSourceKind, listRegis
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
 import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
-  FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,
+  FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedErrors, feedManifest, feedOwnedAttention,
   type FeedApplication, type FeedApplicationPorts, type FeedArtifactProducer, type FeedSourceRecord, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
 import { fromBetterSqlite, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";

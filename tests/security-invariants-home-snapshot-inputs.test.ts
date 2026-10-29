@@ -82,3 +82,27 @@ test("RAC-104-S-01/04 RAC-106-S-03: retired storage is strictly owner/meta v7 an
       kind === "wrong-version" || kind === "wrong-owner" ? /owner.*版本不符/u : undefined);
   });
 });
+
+const readyInstallRecord = (home: string, directory: string, id: string) => JSON.stringify({ id, ready: true, directory: join(home, directory), executable: join(home, directory, "tool"), runtime_path: [], source: { kind: "npm" } });
+
+test("RAC-1845 an unknown file in a managed install directory whose record cannot be used is refused as an unclassifiable entry, naming the file", async t => {
+  // Telling the install's own executable from a stranger reads the install record, and readManagedConnectorTool throws connector.install.invalid
+  // (connector-tool-install.ts) for each of these; the snapshot answers with its own code, the one every other unclassifiable entry gets.
+  const id = "8fe2d9f4-f9a8-4cd0-bd86-4c96a73d0abc";
+  for (const kind of ["record-missing", "record-not-json", "record-incomplete", "executable-gone", "invalid-id"] as const) await t.test(kind, async t => {
+    const f = await smallSnapshotHome(t), name = kind === "invalid-id" ? "not-an-installation" : id, directory = "runtime/connectors/installs/" + name;
+    await f.file(directory + "/stray.txt");
+    if (kind === "record-not-json") await f.file(directory + "/installation.json", "not json");
+    if (kind === "record-incomplete") await f.file(directory + "/installation.json", JSON.stringify({ id, ready: true }));
+    if (kind === "executable-gone") await f.file(directory + "/installation.json", readyInstallRecord(f.home, directory, id));
+    await assertSnapshotRefused(f, "host.home_snapshot.unknown_data", new RegExp("未生成快照: connectors/installs/" + name + "/stray\\.txt", "u"));
+  });
+});
+
+test("RAC-1846 an unknown file beside a usable install record is still refused by name, and the install's own executable is not refused", async t => {
+  // "tool" is the executable the record names and is let through; "zz-stray.txt" sorts after it, so it is the file the snapshot reaches and refuses.
+  const id = "8fe2d9f4-f9a8-4cd0-bd86-4c96a73d0abc", directory = "runtime/connectors/installs/" + id, f = await smallSnapshotHome(t);
+  await f.file(directory + "/installation.json", readyInstallRecord(f.home, directory, id));
+  await f.file(directory + "/tool"); await f.file(directory + "/zz-stray.txt");
+  await assertSnapshotRefused(f, "host.home_snapshot.unknown_data", new RegExp("未生成快照: connectors/installs/" + id + "/zz-stray\\.txt", "u"));
+});

@@ -56,12 +56,12 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
         ),
       ],
       requirements: acceptanceStatements.map((statement) => ({ statement })),
-      idempotency_key: String(body.idempotency_key ?? context.idempotencyHeader ?? `web-goal-${randomUUID()}`),
+      idempotency_key: String(body.idempotency_key ?? `web-goal-${randomUUID()}`),
       source_kind: "web",
     });
     return { status: 201, body: {
       goal: created.goal,
-      goal_path: `${context.routePrefix}/goals/${encodeURIComponent(created.goal.goal_id)}`,
+      goal_path: `/goals/${encodeURIComponent(created.goal.goal_id)}`,
       observed_event_cursor: created.observed_event_cursor,
       replayed: created.replayed,
     } };

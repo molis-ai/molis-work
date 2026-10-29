@@ -27,7 +27,6 @@ export function goalDeliverableRoutes(ports: GoalsRoutePorts): PluginRouteBindin
         : body.delivered
           ? await context.actions.invoke(goalsActions.deliverablesAdd, { goal_id: goalId, reference })
           : await context.actions.invoke(goalsActions.deliverablesRemove, { goal_id: goalId, reference });
-      context.changed();
       return { status: 200, body: result };
     }),
   ];
@@ -56,7 +55,6 @@ function goalArtifactInputRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
         ? await context.actions.invoke(goalsActions.artifactInputsPin, { goal_id: goalId, subject: { kind: String(subject.kind ?? ""), id: String(subject.id ?? "") } })
         : body.used ? await context.actions.invoke(goalsActions.artifactInputsAdd, { goal_id: goalId, reference })
           : await context.actions.invoke(goalsActions.artifactInputsRemove, { goal_id: goalId, reference });
-      context.changed();
       return { status: 200, body: result };
     }),
   ];

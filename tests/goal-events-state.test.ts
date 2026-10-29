@@ -672,7 +672,7 @@ test("protected Web user entry records a decision; Host-injected identity is req
     assert.ok(route);
     const { status, body } = await route.handle({
       method: "POST",
-      pathname: `/api/goals/${goalId}/event-decision`,
+      pathname: `/api/plugins/io.molis.work.goals/goals/${goalId}/event-decision`,
       params: { goalId },
       query: {},
       body: {

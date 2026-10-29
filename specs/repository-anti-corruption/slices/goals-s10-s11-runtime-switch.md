@@ -146,7 +146,7 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 
 **余项（S12 里还要做）**：
 
-1. `web-request.ts` 的 Goals 改写（BL-386）：按旧地址 `/api/<路径>` 经 `dispatchDeclaredPluginRoutes` 调 Goals 声明的路由，页面客户端改打插件前缀 `/api/plugins/io.molis.work.goals/…`，删改写，通用分发函数没有别的使用者时一起删；`scripts/check-package-boundaries.mjs` 的 goals-command-owner 规则对着新的挂载处。客户端有十来个文件、不能在没有浏览器批的环境里验证，所以单独一片，不跟这一批的代码混在一起。
+1. 已做（2026-10-29，T-043，BL-386）：删掉 `web-request.ts` 的 Goals 过渡改写，页面客户端改打插件前缀 `/api/plugins/io.molis.work.goals/…`，通用分发函数 `dispatchDeclaredPluginRoutes` 没有别的使用者、一起删；`scripts/check-package-boundaries.mjs` 的 goals-command-owner 规则改成认 `plugins/native/goals/src/plugin.ts` 的新挂载处，宿主不再出现旧函数与 `goalsRoutes(`；浏览器用例在 T-043 的 PR 里跑。
 2. **PG-029 剩下的一半（2026-10-25 统筹加，ac-kernel 不碰这几个文件）**：`goal-callers.ts` 的 `bindGoalsWebActions`、`bindGoalsManagementActions` 手写的 web 与管理出处，以及 `personal-planning-actions.ts` 那条，改成出处由宿主入口给（平台可信来源，#1117 已做内核一半：内核拒绝处理器里自写的 `user_action`，页面路由入口给 `web` 出处），删掉按动作手写的分支。做法：
    - 宿主一个通用函数 `entryUserAction(source, scope, message)`（`apps/local-host/src/entry-user-action.ts`，不含 Goals 的名字）：来源（`web` 或 `management`）、会话（`<来源>:<项目>`，管理入口带证据时用证据里的）、消息（Web 入口取这次请求头里的幂等键——传输层已要求所有改动请求带它，重试同一个键；管理入口取证据里的消息或幂等键）、整份确认依据（Web 入口取请求头 `x-molis-work-whole-confirmation`，只有页面里「整份确认」的控件会发；管理入口取证据）。重试保留的消息身份和整份确认依据都来自入口，不读动作的普通输入（#1117 的 S9 后续要求）。
    - 删：`bindGoalsWebActions` 里关系、策略、结构决定、事件决定四处按动作的分支，宿主对 `hostEventDecisionAuthority`/`managementEventDecisionAuthority`/`managementTreeAuthority` 的使用（后两个从包的导出里删）；Goals 一侧本来只读 `caller.user_action`，不改。管理入口对证据里带身份的拒绝仍在，错误码不变。

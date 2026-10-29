@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { bindActionClient, ActionError, requireSynchronous, type ActionAvailability, type ActionAudience, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { pluginErrors, type PluginActionClient, type PluginExecutionControl, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -8,6 +7,7 @@ import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginActionDependencies } from "./plugin-action-dependencies.js";
+import { entryUserAction, type EntryMessage } from "./entry-user-action.js";
 
 /**
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
@@ -41,8 +41,11 @@ export function offerRoutedOriginalInput(control: PluginExecutionControl, input:
  * one message per request, given here and nowhere else; what the caller or the route's body says about it is not read.
  */
 export function projectRouteControl(control: Omit<PluginExecutionControl, "project_id">, projectId: string | null, client: ActionClient,
-  current: () => Promise<void>, caller?: ActionCallContext): { control: PluginExecutionControl; end(): void } {
-  const state = { client, caller: caller && { ...caller, user_action: { source: "web", conversation_ref: `web:${projectId ?? "home"}`, message_ref: `web:request:${randomUUID()}` } },
+  current: () => Promise<void>, caller: ActionCallContext | undefined, message: EntryMessage): { control: PluginExecutionControl; end(): void } {
+  // The page's entry is the person (`actor_kind: "user"`, as the Host's own `/api` exits say) and the act it names is the one message
+  // this request carries: a retry with the same one-time key reports the same act, and only the whole-confirmation control flags the
+  // whole being confirmed. Plugins' bodies, queries and own callers never decide this.
+  const state = { client, caller: caller && { ...caller, actor_kind: "user" as const, user_action: entryUserAction("web", projectId ?? "home", message) },
     ended: false };
   const routed: PluginExecutionControl = Object.freeze({ ...control, ...(projectId ? { project_id: projectId } : {}),
     beforeEffect: async () => {

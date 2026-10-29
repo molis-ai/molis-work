@@ -825,12 +825,12 @@
     "code": "artifacts.workspace_unconfirmed",
     "error": "项目没有可确认的工作区"
   },
-  "GET <project>/api/goals": {
+  "GET <project>/api/plugins/io.molis.work.goals/goals": {
     "status": 404,
     "type": "application/json",
-    "error": "页面或接口不存在"
+    "error": "插件没有这个入口"
   },
-  "POST <project>/api/goals": {
+  "POST <project>/api/plugins/io.molis.work.goals/goals": {
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",

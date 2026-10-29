@@ -31,7 +31,7 @@ export interface GoalInputsCreatableKind {
 
 export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, renderReference }: GoalInputsPrimitives, creatable: readonly GoalInputsCreatableKind[]): string {
   const goalId = escapeHtml(item.goal.goal_id);
-  const goalRoute = escapeHtml(`/api/goals/${encodeURIComponent(item.goal.goal_id)}`);
+  const goalRoute = escapeHtml(`/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(item.goal.goal_id)}`);
   const follows = `<span class="goal-input-mode" data-goal-input-mode="live">${L("跟着原文")}</span>`;
   const live = item.input_bindings.filter((binding) => binding.state !== "inactive").map((binding) => {
     if (binding.source_type === "plugin_object") {

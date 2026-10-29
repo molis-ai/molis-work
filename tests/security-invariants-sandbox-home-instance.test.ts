@@ -122,7 +122,7 @@ test("RAC-966 RAC-967 S-91 a Home package's capability calls are the Home's: a r
   assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "running", "the other package is untouched");
 });
 
-test("RAC-1500 RAC-1501 RAC-1504 S-84 another publisher's package of a plugin installed in the Home is refused at the confirmation: no pin, no kept package, and the installation stays as it was", mac, async t => {
+test("RAC-1500 RAC-1501 RAC-1504 RAC-1683 S-84 a package of a plugin installed in the Home is refused at the confirmation, another publisher's and its own publisher's newer one: no pin, no kept package, and the installation stays as it was", mac, async t => {
   const h = await fixture(t), a = newPublisher(), b = newPublisher(), c = newPublisher();
   await h.install(homePackage(a));
   await h.install(homePackage(c, { pluginId: SECOND_PLUGIN_ID }));
@@ -135,15 +135,17 @@ test("RAC-1500 RAC-1501 RAC-1504 S-84 another publisher's package of a plugin in
       approvals: valuesOf(h.home, APPROVAL_OWNER).filter(key => key.startsWith(APPROVED)).sort() };
   };
   const installation = held();
-  // Each confirmation is compared with what was written just before it, and both in one assertion, so a failure shows each.
+  // Each confirmation is compared with what was written just before it, and all of them in one assertion, so a failure shows each.
   const results: Record<string, { code: string | undefined; unchanged: boolean }> = {};
-  for (const [rac, bundle] of [["RAC-1500 b, not pinned yet", homePackage(b, { version: "2.0.0" })], ["RAC-1501 c, pinned", homePackage(c, { version: "2.0.0" })]] as const) {
+  for (const [rac, bundle] of [["RAC-1500 b, not pinned yet", homePackage(b, { version: "2.0.0" })], ["RAC-1501 c, pinned", homePackage(c, { version: "2.0.0" })],
+    ["RAC-1683 a, its own newer version", homePackage(a, { version: "1.1.0" })]] as const) {
     const before = await written();
     const outcome = await h.install(bundle).then(() => ({ code: "installed" }), (caught: { code?: string }) => caught);
     results[rac] = { code: outcome.code, unchanged: isDeepStrictEqual(await written(), before) };
   }
   const refusedUntouched = { code: "plugin.definition_conflict", unchanged: true };
-  assert.deepEqual(results, { "RAC-1500 b, not pinned yet": refusedUntouched, "RAC-1501 c, pinned": refusedUntouched }, "refused, with no publisher pinned and no package kept");
+  assert.deepEqual(results, { "RAC-1500 b, not pinned yet": refusedUntouched, "RAC-1501 c, pinned": refusedUntouched,
+    "RAC-1683 a, its own newer version": { code: "plugin.state_invalid", unchanged: true } }, "refused, with no publisher pinned and no package kept");
 
   // RAC-1504: the installation that holds the id is the one it was, with its data and its actions.
   assert.deepEqual(held(), installation);

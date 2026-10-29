@@ -1,3 +1,4 @@
+import { GOALS_PLUGIN_API } from "./plugin-api.js";
 // These scripts run in the Host page, where the page-wide `L` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
 export const PROJECT_RULES_CLIENT_SCRIPT = `
   (() => {
@@ -50,7 +51,7 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
       submit.textContent = L("正在保存…");
       errorBox.hidden = true;
       try {
-        await molisWorkRequest(routePrefix + "/api/policy-bindings", {
+        await molisWorkRequest(routePrefix + "${GOALS_PLUGIN_API}/policy-bindings", {
           method: "POST",
           body: {
             user_confirmed: true,

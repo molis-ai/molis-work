@@ -808,3 +808,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - 协议在 `coordination/2026-10-28/README.md`，设备级通道是 issue #1332。CODEX-SESSION-ROLES、CODEX-TASKS、MERGE-QUEUE、SLICE-RULES 里讲分工与合并的部分作废。
   - 用户在统筹会话授权：「二审可合、第 8 节条件都齐的任务 PR，统筹可以直接合并」。
   - Codex 手上的 W5-16 B2b 作为它自己的任务继续，只做不碰真实 Home 的部分。
+- 10-29 统筹：统筹交给王一骏（`yijunw0212`），本机 Claude 统筹会话停止（用户：「手头任务做完，整体交接给yijunw0212吧」）。现状与后续事项见 `coordination/2026-10-28/HANDOFF-2026-10-29-yijunw0212.md`；10-29 当天的合入由接手人补记。

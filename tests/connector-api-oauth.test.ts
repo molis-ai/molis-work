@@ -517,5 +517,9 @@ test("RAC-1082 jira: the token, context and identity requests of an authorizatio
   await completeApiOAuth(directory, callback(start.authorization_url));
   assert.deepEqual(sent, ["https://auth.atlassian.com/oauth/token", "https://api.atlassian.com/oauth/token/accessible-resources",
     `https://api.atlassian.com/ex/jira/${cloud}/rest/api/3/myself`]);
-  assert.equal(apiOAuthContext(directory, start.connection_id)?.account_id, `${cloud}:a-1`);
+  const context = apiOAuthContext(directory, start.connection_id);
+  assert.equal(context?.account_id, `${cloud}:a-1`);
+  // The site the connection was authorized for and its base on the gateway: without them the platform's request check pins no site and
+  // the connection's requests are refused (second review of #1439).
+  assert.deepEqual({ site_url: context?.site_url, base: context?.base }, { site_url: "https://acme.atlassian.net", base: `https://api.atlassian.com/ex/jira/${cloud}` });
 });

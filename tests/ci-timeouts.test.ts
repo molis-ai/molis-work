@@ -19,7 +19,7 @@ const INSTALL_PNPM = { limit: 3, longest: 2 };
 const jobTimeout = (name: string) => /^    timeout-minutes: (\d+)$/m.exec(jobBlock(name))?.[1];
 const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step) => step.startsWith("name: Install pnpm\n"));
 
-test("RAC-1771 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit that is above twice their longest run and below five times it", () => {
+test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit that is above twice their longest run and below five times it", () => {
   for (const [name, { limit, longest }] of Object.entries(JOBS)) {
     assert.equal(jobTimeout(name), String(limit), `${name} has timeout-minutes: ${limit} at the job level`);
     assert.ok(limit * 60 >= 1.8 * longest, `${name}: ${limit} min leaves room over the longest run of ${longest} s`);
@@ -31,7 +31,7 @@ test("RAC-1771 ci.yml: the blocking jobs that build or test and security-invaria
   assert.equal(jobTimeout("product-subset"), "35");
 });
 
-test("RAC-1772 ci.yml: every Install pnpm step has a limit of a few minutes, except the Linux probe's, which another change is editing", () => {
+test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, except the Linux probe's, which another change is editing", () => {
   const names = [...workflow.matchAll(/^  ([a-z0-9-]+):\s*$/gm)].map((match) => match[1]!);
   let seen = 0;
   for (const name of names.slice(names.indexOf("queue-check"))) {

@@ -70,3 +70,4 @@
 | T-185 二审 建议 | `apps/local-host/src/host-complete-text.ts` 的端口上限 | 上限对所有调用方放宽约 11.2%；knowledge、memory、alchemist、onboarding、plugin-builder 各自的上限没人核过。核一遍各调用方拼进提示的长度，必要时各自收紧 | 统筹 2026-10-29 |
 | T-203 起草 | PPT `plugins/native/ppt/src/ui.ts:140`、Characters `ui.ts:59`、`import-ui.ts:14` | 同类：输入框 `maxlength` 按 UTF-16 单元数，库按字数。持久修法是插件框架桥里统一处理一个按字数的上限属性（甲，给设备 A 的 Claude）；逐个修是乙 | 统筹 2026-10-29 |
 | T-202 起草 | `apps/local-host/src/assistant/assistant-thread-types.ts:34`、`assistant-round-materials.ts:38`；`docs/platform/PLUGIN-DEVELOPMENT.md:479` | 助理按 18000 个单元分块，分块边界可能切开两单元字（#1101 在改这两个文件，等它不再锁）；开发手册没写宿主对 `text` 的 100000 个单元上限 | 统筹 2026-10-29 |
+| T-200 起草 | `plugins/native/goals/src/guidance-add.ts:46`、`guidance-update.ts:69` | `content.length > PROJECT_GUIDANCE_ENTRY_MAX_CHARS`（4000）按 UTF-16 单元查，报错却写「个字符」。先核动作 schema 和下游按什么数，再定改成按字数（乙，Goals 一包） | 统筹 2026-10-29 |

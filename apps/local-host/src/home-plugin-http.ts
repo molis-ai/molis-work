@@ -10,10 +10,11 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import { runningProjectPlatform } from "./project-plugins.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
+import type { HomeStageHalves } from "./project-plugin-stages.js";
 import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
@@ -244,22 +245,61 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   const registered = host.registered().flatMap(entry => {
     const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
     if (registration && !declaredStageContributionId(registration)) return [];
-    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench, shipped: registration !== undefined }];
+    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
   });
   const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
   const unavailable: UnavailablePluginStage[] = [];
-  // A shipped dual-instance plugin's page is its project half's (`renderProjectRuntimeStages` draws the shipped ones): its Home half draws
-  // none. Any other dual-instance plugin's page stays its Home half's.
-  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id) && !(entry.shipped && host.dualInstance(entry.manifest.plugin_id))).flatMap(entry => {
-    const stage = stageContributionId(entry.manifest);
+  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
+    const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest);
+    // A dual-instance plugin's stage is the half's that offers its view (`dualStageOwner`), shipped or not: here only when that is
+    // the Home half. Otherwise the project page draws it, and the Home's placeholder too when the Home half is the one to answer.
+    if (host.dualInstance(pluginId)) {
+      const view = stage ? homeStageView(host, platform, pluginId, stage) : undefined;
+      if (!view) return [];
+      ids.push(stage!);
+      return [view.render({ contribution_id: stage!, surface: "workbench", model: homeViewModel(pluginId) })];
+    }
     if (stage) ids.push(stage);
-    const install = host.installation(entry.manifest.plugin_id);
+    const install = host.installation(pluginId);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel(entry.manifest.plugin_id) })];
-    unavailable.push({ surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
-      reason: L(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) });
+    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel(pluginId) })];
+    unavailable.push(homeUnavailableStage(host, platform, failure, entry));
     return [];
   });
   return { html, ids, unavailable };
+}
+
+/** The Home's placeholder for a plugin's stage: the start failure, else the supervisor's message, else what the instance's state says. */
+function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform | undefined, failure: string | undefined,
+  entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
+  const install = host.installation(entry.manifest.plugin_id);
+  return { surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
+    reason: L(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) };
+}
+
+/** The running Home instance's view of this stage: the contribution the Manifest names, with its `workbench` surface. */
+function homeStageView(host: HomePluginHost, platform: HomePluginPlatform | undefined, pluginId: string, contributionId: string) {
+  const install = host.installation(pluginId);
+  const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
+  return contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.contribution_id === contributionId
+    && view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
+}
+
+/**
+ * The Home halves of the dual-instance plugins, read for one project page, which draws every such stage the Home half does not
+ * (`renderProjectRuntimeStages`). The Home dual-instance plugins outside the build are listed for it: the build's are its own catalog.
+ */
+export async function homeStageHalves(host?: HomePluginHost): Promise<HomeStageHalves | undefined> {
+  if (!host) return undefined;
+  let platform: HomePluginPlatform | undefined, failure: string | undefined;
+  try { platform = await host.ready(); }
+  catch (error) { failure = error instanceof Error ? error.message : String(error); }
+  const outsideCatalog = host.registered().filter(entry => host.dualInstance(entry.manifest.plugin_id)
+    && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id))
+    .map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
+  return { outsideCatalog,
+    dualInstance: pluginId => host.dualInstance(pluginId),
+    half: (pluginId, contributionId) => ({ running: host.installation(pluginId)?.state === "running", view: homeStageView(host, platform, pluginId, contributionId) !== undefined }),
+    unavailable: entry => homeUnavailableStage(host, platform, failure, entry) };
 }

@@ -119,6 +119,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-169 | 删掉三处走不到的防御分支，错误码 identity_required 一并删（防腐清理，MISC「T-057 起草」`project-binding-commands.ts` 一行） | 乙 | B | 73 | — | `modules/private-work-context/src/project-binding-commands.ts`、`project-binding-validation.ts`、`project-setup.ts`、`binding-errors.ts`、`tests/runtime-binding-error-codes.test.ts` |
 | T-174 | 补齐崩溃后停用再启用的 README 句子、停用注释，S-84 行与签名包设计稿补上 Home 一半（防腐清理，MISC「T-034 二审 登记 1」「T-161 起草」「T-054 起草」） | 丙 | 池 | 71 | — | `packages/plugin-runtime/README.md`（只 `:79`）、`apps/local-host/src/installed-plugin-lifecycle.ts`（只 `:166`）、`docs/system/SECURITY-INVARIANTS.md`（只 S-84 行）、`specs/repository-anti-corruption/slices/ac-trust-install.md`（只 `:427`） |
 | T-176 | 灵光页面把读到的标题、文件名和待办按钮带的标题与文字按整字截取，不再留下半个字（防腐清理，MISC「T-156 起草」） | 乙 | A | 72 | — | `plugins/native/lingguang/src/browser/material.ts`、`plugins/native/lingguang/src/browser/editor.ts`、`tests/lingguang-blank-discard.test.ts`、`tests/lingguang-one-place.e2e.test.ts`、`scripts/gates/page-assets.mjs`、`tooling/gates/page-assets.json` |
+| T-177 | Pages 服务一侧的截取：存为文档、失败信息、写作输入与合成摘要按整字（防腐清理，MISC「T-157 起草」两行） | 乙 | 池 | 74 | T-157 | `plugins/native/pages/src/intake-offers.ts`、`plugins/native/pages/src/store-generations.ts`、`plugins/native/pages/src/fragment-offers.ts`、`tests/pages-actions.test.ts`、`tests/pages-generation-lease.test.ts` |
+| T-179 | 「AI 生成题目」起草出的题目标题按字数查，选项文字与先问的说明按整字截（防腐清理，MISC「T-164 起草」两行里的 `drafting.ts`） | 乙 | B | 75 | T-164 | `plugins/native/form/src/drafting.ts`、`tests/form-draft-questions.test.ts` |
 
 ## 在途，不走任务书
 

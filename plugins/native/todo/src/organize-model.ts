@@ -151,7 +151,7 @@ export function organizeJson(raw: string): { candidates?: unknown; reference_onl
   throw new Error("整理结果不是有效 JSON");
 }
 
-const text = (value: unknown, max: number): string => typeof value === "string" ? value.replace(/\s+/gu, " ").trim().slice(0, max) : "";
+const text = (value: unknown, max: number): string => typeof value === "string" ? [...value.replace(/\s+/gu, " ").trim()].slice(0, max).join("") : "";
 
 /**
  * Keep only what the materials support: a passage that is really there, a due date only when its phrase is in the

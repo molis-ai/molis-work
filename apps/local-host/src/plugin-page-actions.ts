@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -40,7 +41,7 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
     await request.beforeEffect();
     const view = await pluginActionView(options.client, caller, { ...reference, ...(own ? { provider_id: options.provider } : {}) });
     const route = projectRouteControl(pluginRouteControl(request.signal, options.caller.assertActive, request.assertCurrent),
-      request.project_id, options.client, request.beforeBackgroundEffect);
+      request.project_id, options.client, request.beforeBackgroundEffect, undefined, { id: randomUUID() });
     try {
       const result = await options.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
         operation: view.operation, action: view.action }, request.input, route.control);

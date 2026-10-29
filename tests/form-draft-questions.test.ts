@@ -139,3 +139,17 @@ test("RAC-1667 a drafting request is counted in Unicode characters like the acti
   assert.equal(f.heard.length, 1, "the refused request did not reach the model");
   assert.equal(f.forms.get(f.form.id, "p").questions.length, 3, "and wrote nothing");
 });
+
+test("RAC-1699 the questions it asks first are cut in whole characters: a prompt to 300, a label to 120, an option's description to the 300 UTF-16 units the question rules count", async t => {
+  // The question rules (packages/plugin-sdk/src/question-rules.ts:132) count a description in UTF-16 units, so it is cut by whole characters within 300 units; a prompt and a
+  // label are counted nowhere downstream, so they are cut at 300 and 120 characters. One 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const f = await fixture(t, [{ status: "needs_input", why: "先确认问卷给谁填", questions: [{ id: "size", prompt: "a" + wide(300),
+    options: [{ label: "b" + wide(130), description: "c" + wide(200) }, { label: "d" }] }] }]);
+  const asked = await f.call({});
+  assert.equal(asked.status, "needs_input");
+  const [question] = asked.interaction.questions;
+  assert.equal(question!.prompt, "a" + wide(299), "a prompt past 300 characters is cut to 300 whole characters");
+  assert.equal(question!.options[0]!.label, "b" + wide(119), "a label past 120 characters is cut to 120 whole characters");
+  assert.equal(question!.options[0]!.description, "c" + wide(149), "a description is cut to the 300 UTF-16 units the question rules count, in whole characters");
+});

@@ -55,18 +55,29 @@ function drafted(value: unknown): FormQuestionInput[] {
   });
 }
 
+/** At most `units` UTF-16 units of `text`, in whole characters: the question rules count an option's description in units, not characters. */
+function clipUnits(text: string, units: number): string {
+  let kept = "", used = 0;
+  for (const character of text) {
+    if (used + character.length > units) break;
+    kept += character;
+    used += character.length;
+  }
+  return kept;
+}
+
 /** What it asks first, as questions the shared card draws: choice questions only, numbered in order, bounded and well formed. */
 function asked(value: unknown): AgentQuestion[] {
   const rows = Array.isArray(value) ? value.slice(0, 4) : [];
   const questions: AgentQuestion[] = rows.map((row, index) => {
     const item = row && typeof row === "object" ? row as Record<string, unknown> : {};
     const options = Array.isArray(item.options) ? item.options : [];
-    return { index, prompt: typeof item.prompt === "string" ? item.prompt.trim().slice(0, 300) : "", type: "choice", required: item.required !== false,
+    return { index, prompt: typeof item.prompt === "string" ? [...item.prompt.trim()].slice(0, 300).join("") : "", type: "choice", required: item.required !== false,
       ...(typeof item.id === "string" ? { id: item.id } : {}), multiple: item.multiple === true, allow_other: item.allow_other === true,
       options: options.map((option, at) => {
         const one: Record<string, unknown> = option && typeof option === "object" ? option as Record<string, unknown> : { label: option };
-        return { index: at, label: typeof one.label === "string" ? one.label.trim().slice(0, 120) : "",
-          ...(typeof one.description === "string" && one.description.trim() ? { description: one.description.trim().slice(0, 300) } : {}), ...(one.recommended === true ? { recommended: true } : {}) };
+        return { index: at, label: typeof one.label === "string" ? [...one.label.trim()].slice(0, 120).join("") : "",
+          ...(typeof one.description === "string" && one.description.trim() ? { description: clipUnits(one.description.trim(), 300) } : {}), ...(one.recommended === true ? { recommended: true } : {}) };
       }) };
   });
   if (!questions.length || questions.some(question => !question.prompt || question.options.some(option => !option.label)) || questionSetFlaw(questions)) {

@@ -21,5 +21,5 @@ export function createActivationContext(record: PluginInstanceRecord, definition
       }
     },
   });
-  return { context, revoke() { active = false; } };
+  return { context, revoke() { active = false; }, revoked() { return !active; } };
 }

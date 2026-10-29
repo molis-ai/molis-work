@@ -8,12 +8,14 @@ import { once } from 'node:events';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createScheduledOperationManagement, createScheduledOperations, getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences,
   prepareScheduledOperation, reconcileScheduledOperations, runScheduledOperation, setScheduledOperationEnabled,
+  createScheduleReminders, getScheduleReminder, SCHEDULE_REMINDER_WAKEUP, SCHEDULE_PROJECT_DATABASE,
   SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, type ScheduledOperation, type ScheduledOperationOutcome } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/services/scheduler';
 import { wakeupInstallation } from './fixtures/scheduler-owner.js';
+import Database from 'better-sqlite3';
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };
@@ -257,4 +259,42 @@ test('skipping an unknown interval keeps its original anchor and advances beyond
   manage.recover({ operation_id: id, decision: 'skip', expected_revision: v.revision, expected_installation_id: identity.installationId, expected_generation: 'first', expected_version: '1.0.0' });
   assert.equal(h.schedule.get(h.get(id).jobId)?.next_due_at, '2026-10-02T00:00:00.000Z');
   await h.schedule.tick(); assert.equal(calls, 1);
+});
+
+/** Schedule's real reminder and timed-operation services over one in-memory library, each offering its wakeup; returns what each registers its job as. */
+function jobTitles(t: TestContext) {
+  const db = new Database(':memory:'), now = Date.parse(at);
+  db.exec(SCHEDULE_PROJECT_DATABASE.schema);
+  const wake = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  wake.action(SCHEDULE_REMINDER_WAKEUP, async () => {});
+  wake.action(SCHEDULE_OPERATION_WAKEUP, async () => {});
+  const schedule = wake.scheduler(db, { now: () => new Date(now) });
+  t.after(async () => { await schedule.close(); db.close(); });
+  let plugin = { title: '定时笔记', description: '汇总' };
+  const reminders = createScheduleReminders({ db, projectId: identity.projectId, schedule, now: () => now,
+    describe: () => ({ title: plugin.title, link: '/original-plugin', generation: 'first' }) });
+  const operations = createScheduledOperations({ db, projectId: identity.projectId, schedule, now: () => now, link: () => '/original-plugin',
+    describe: () => ({ ...descriptor(), title: plugin.title, operations: [{ id: 'summarize', description: plugin.description }] }) });
+  return {
+    reminder: (text: string) => schedule.get(getScheduleReminder(db, reminders.add(identity, { at, text }).reminderId)!.jobId)?.title,
+    operation: (title: string, description: string) => {
+      plugin = { title, description };
+      return schedule.get(getScheduledOperation(db, identity.projectId, operations.add(identity, { at, operation: 'summarize' }).scheduleId)!.jobId)?.title;
+    },
+  };
+}
+
+test('a reminder names its job after at most 120 UTF-16 units of its text, never half a character (RAC-1675)', t => {
+  const titles = jobTitles(t);
+  assert.equal(titles.reminder('提'.repeat(150)), '提'.repeat(120), 'a long text still names the job with 120 units');
+  // 'a' and 99 emoji are 199 units, which reminders take; unit 120 is the first half of the 60th emoji.
+  assert.equal(titles.reminder('a' + '😀'.repeat(99)), 'a' + '😀'.repeat(59), 'a cut inside an emoji leaves the whole emoji out');
+});
+
+test('a timed operation names its job after at most 120 UTF-16 units of 「plugin：operation」, never half a character, so the Scheduler takes it (RAC-1676)', t => {
+  const titles = jobTitles(t);
+  assert.equal(titles.operation('提'.repeat(130), '汇总'), '提'.repeat(120), 'a long plugin name still names the job with 120 units');
+  // Neither the plugin name nor the operation's description has a limit: 150 emoji are 300 units, and 120 characters of
+  // them would be 240, past the 200 the Scheduler takes.
+  assert.equal(titles.operation('定时笔记', '😀'.repeat(150)), '定时笔记：' + '😀'.repeat(57), 'a cut inside an emoji leaves the whole emoji out');
 });

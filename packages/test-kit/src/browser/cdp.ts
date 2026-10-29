@@ -54,10 +54,10 @@ const CHROME_TOP_METHODS = 3;
 const PROFILE_SEGMENT_MS = 20_000;
 const PROFILE_SAMPLE_INTERVAL_US = 10_000;
 /**
- * How long an already-decided timeout may wait for one optional profile read (B2) before settling without samples.
+ * How long an already-decided timeout may wait for one optional profile read before settling without samples.
  * The timeout is still decided at the command's own limit (plus at most the check-phase turn); this bounded read only
- * delays the rejection and does not extend the decision, so B2-on failures stay inside `limit`..`limit + 250` and the
- * diagnostics report how long the read held them (`profileReadMs`). Approved in the task book at `10a24449a`.
+ * delays the rejection and does not extend the decision, so with `profileTimeouts` on failures stay inside
+ * `limit`..`limit + 250` and the diagnostics report how long the read held them (`profileReadMs`). Held by RAC-1452.
  */
 const DIAGNOSTICS_GRACE_MS = 150;
 const SELF_TIME_TOP = 5;
@@ -324,11 +324,11 @@ export class ChromeHarness {
             const counters = profile ? { ...diagnostics, ...profile }
               : profiling ? { ...diagnostics, nodeSelfTime: [], nodeSelfTimeComplete: false }
               : diagnostics;
-            // `elapsed` says how long the command actually stayed unsettled, including this optional read; `profileReadMs`
-            // says how much of it was the read, so the timer's own lateness can be told apart.
+            // `elapsed` is the whole milliseconds the command stayed unsettled, including this optional read, rounded down so
+            // it never claims more than the caller waited; minus `profileReadMs` and `limit` it leaves the timer's own lateness.
             if (profiling) failure.diagnostics = { ...counters, profileReadMs: Math.max(0, Math.round(performance.now() - decidedAt)) };
             else failure.diagnostics = counters;
-            failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
+            failure.message += ` (elapsed ${Math.floor(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
             reject(failure);
           };
           const profiler = this.profile;

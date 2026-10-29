@@ -16,6 +16,7 @@ import { consentsChanged } from './consent-revision.js';
 import { readKeptSandboxPackage, type KeptSandboxPackage } from './sandbox-package.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
+import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
 import { installedPermissionViews, installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
@@ -66,6 +67,15 @@ interface Held { bundle: PluginPackageBundle; pkg: KeptSandboxPackage; runtime_s
 
 const scopeOf = (manifest: KeptSandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
 
+/**
+ * A plugin id the Host's build ships, or one on its dotted path (`io.a.b` and `io.a.b.c`), is the Host's (S-75.2): a package takes neither,
+ * in either range. The Runtime refuses it again when it installs; here it is refused at the preview, before anything is written (S-84).
+ */
+const assertNotHostId = (pluginId: string): void => {
+  const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || id.startsWith(`${pluginId}.`) || pluginId.startsWith(`${id}.`));
+  if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
+};
+
 export class PluginInstallService {
   private readonly held = new Map<string, Held>();
   constructor(private readonly ports: PluginInstallPorts) {}
@@ -84,6 +94,7 @@ export class PluginInstallService {
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     await this.assertIntegrationsFree(manifest);
+    assertNotHostId(manifest.plugin_id);
     for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
     const preview_id = randomUUID();
@@ -125,15 +136,17 @@ export class PluginInstallService {
     await this.assertIntegrationsFree(held.pkg.manifest);
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
-    // A package of a plugin that is already installed where it goes is its upgrade, and only its own publisher's: another publisher's is refused
-    // before it can be pinned or kept. A Home package looks at the Home's installations of signed packages (the Host's own Home plugins are the
-    // Runtime's to refuse), a project's at the project's.
+    // In a project, a package of a plugin already installed there is its upgrade, and only its own publisher's: another publisher's is refused
+    // before it can be pinned or kept, in a project or the Home. A Home package looks at the Home's installations of signed packages (an id of
+    // the Host's own plugins was refused at the preview), a project's at the project's. The Home does not upgrade a package in place (S-80,
+    // BL-628): its own publisher's is refused here too, before it is kept, with the code the Home's install answers.
     const inHome = held.runtime_scope === 'home';
     const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
     const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
     if (present && present.record.publisher_signature !== held.key_id) {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
+    if (present && inHome) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
     if (!pin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');

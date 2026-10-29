@@ -83,3 +83,4 @@
 | T-189 二审 建议 | `plugins/native/workflows/src/handoff.ts:49`、`plugins/native/workflows/src/model.ts:353` | 按整字截时先把整段展开成数组，没有上限，极大的 CJK 正文会吃很多瞬时内存（二审估算，没跑）。改成先截 2N 个单元再展开，同 `apps/local-host/src/material-text.ts:123`；丙 | 统筹 2026-10-29 |
 | T-198 二审 建议 | `packages/storage/README.md:52` | 「旧 Feed 名称仅导出同一实现」在 T-198 删掉三个别名后不对了；#1101 碰这份 README 但不碰第 52 行，可并进下一张丙档零碎文档单 | 统筹 2026-10-29 |
 | T-216 问统筹（6497239622） | `tests/fixtures/assistant-text-model.ts:19`、`tests/fixtures/model-stand-in.ts:21-22`、`tests/stream-text.e2e.test.ts:120` | 这两个夹具按块拼字符串，多字节字会读坏。把 `assistant-text-model.ts` 改对以后，VUX-14/15 那一例红在 `.mw-fresh` 5 秒内不消失：说明这条浏览器用例靠旧的读坏行为才绿。先查是测试的时序假设、还是复盘回答之后的收尾有产品问题，再改夹具；乙，给设备 A（要浏览器） | 统筹 2026-10-29 |
+| T-188 二审 建议 | `plugins/native/feed/src/goal-promotion.ts:88`、`:91` | `.slice(0, 104)`、`.slice(0, 120)` 按单元截标题，同 T-188 一类，没有任务收；task/T112b-ca 与 goal-promotion.ts 有冲突，等它落地；乙 | 统筹 2026-10-29 |

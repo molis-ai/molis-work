@@ -4,7 +4,7 @@ import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
-import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
+import { inspectAgentDeclaration, inspectSkillDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
@@ -253,7 +253,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
     parsed.agent,
     (parsed.ports?.inputs ?? []).map((input) => input.port),
   ));
-  problems.push(...inspectMethodDeclarations(parsed.methods));
+  problems.push(...inspectSkillDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...messageDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));

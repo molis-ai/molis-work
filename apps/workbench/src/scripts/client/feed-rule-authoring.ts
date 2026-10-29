@@ -1,5 +1,5 @@
 import { FEED_PLUGIN_ID } from '@molis-ai/molis-work-plugin-feed';
-import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_BEHAVIOR_ID, INBOX_ADMIT_BEHAVIOR_ID } from '@molis-ai/molis-work-contracts/modules/functions';
+import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID } from '@molis-ai/molis-work-contracts/modules/functions';
 
 /** Feed reads judgment choices from the shared directory; system authoring owns natural-language drafts. */
 export const FEED_RULE_AUTHORING_SCRIPT = `
@@ -119,7 +119,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           name: rule.name, instructions: rule.instructions,
           criteria: { true_description: "符合用户描述，值得关注。", false_description: "不符合用户描述，无需关注。" },
           scene_id: ${JSON.stringify(FEED_CAPTURE_SCENE_ID)}, subject_kinds: ["feed_item"],
-          scene_map: { true: ${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)}, false: ${JSON.stringify(FEED_OPEN_BEHAVIOR_ID)} }
+          scene_map: { true: ${JSON.stringify(INBOX_ADMIT_OPTION_ID)}, false: ${JSON.stringify(FEED_OPEN_OPTION_ID)} }
         })).function;
         state.functionContent = content;
         delete state.previewContent;
@@ -169,7 +169,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
             } else if (rule.mode === "existing") {
               const evaluated = await api(feedApi + "/out-rules/preview-judgment", "POST", { judgment: rule.judgment, item_id: sample.item_id });
               needsReview = evaluated.status !== "ok";
-              matched = !needsReview && evaluated.suggested_behavior_ids.includes(${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)});
+              matched = !needsReview && evaluated.suggested_behavior_ids.includes(${JSON.stringify(INBOX_ADMIT_OPTION_ID)});
             }
             rows.push({ title: sample.title, matched, needsReview });
           }

@@ -1,5 +1,5 @@
 import {
-  AGENT_PROMPT_LAYERS, BUSINESS_HOST_TOOLS, METHOD_TOOLS,
+  AGENT_PROMPT_LAYERS, BUSINESS_HOST_TOOLS, SKILL_TOOLS,
   type AgentManifest, type AgentRoleDeclaration, type AgentSkillDeclaration, type AgentSubagentRoleDeclaration, type AgentSubagentsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
@@ -18,7 +18,7 @@ function validVersion(value: unknown): value is number {
 }
 
 /** A Plugin's methods for other Agents (Manifest `methods`): each a declared, versioned method for business work. */
-export function inspectMethodDeclarations(methods: unknown): string[] {
+export function inspectSkillDeclarations(methods: unknown): string[] {
   if (methods === undefined) return [];
   if (!Array.isArray(methods)) return ["方法声明必须是列表"];
   const problems: string[] = [], seen = new Set<string>();
@@ -28,8 +28,8 @@ export function inspectMethodDeclarations(methods: unknown): string[] {
     seen.add(method.skill_id);
     if (typeof method.name !== "string" || !method.name.trim() || method.name.length > 80) problems.push(`方法 ${method.skill_id} 需要名称（80 字以内）`);
     if (typeof method.summary !== "string" || !method.summary.trim() || method.summary.length > 300) problems.push(`方法 ${method.skill_id} 需要适用说明（300 字以内）`);
-    if (!Array.isArray(method.tools) || !method.tools.length || method.tools.some(tool => !(METHOD_TOOLS as readonly string[]).includes(tool))) {
-      problems.push(`方法 ${method.skill_id} 只能使用业务工具：${METHOD_TOOLS.join("、")}`);
+    if (!Array.isArray(method.tools) || !method.tools.length || method.tools.some(tool => !(SKILL_TOOLS as readonly string[]).includes(tool))) {
+      problems.push(`方法 ${method.skill_id} 只能使用业务工具：${SKILL_TOOLS.join("、")}`);
     }
   }
   return problems;

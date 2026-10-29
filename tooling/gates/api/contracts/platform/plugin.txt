@@ -2382,8 +2382,6 @@ export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
-
 export interface MaterialSourceContent {
     text: string;
     title?: string;
@@ -4332,6 +4330,8 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 };
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
+
+export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     type: string;

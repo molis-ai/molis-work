@@ -24,7 +24,7 @@ adapter 不自己解析角色，也不发明 Prompt。
 
 ## 显式选择的方法
 
-内置方法由插件 `agent.skills` 声明，正文来自 `agent_skills`。安装方法来自适配器的 `skillLibrary`，所有者由 Host 的 `method_owner` 固定为项目/插件。目录与正文按同一所有者读取；起跑时只接受精确 id/version 引用，拒绝重复、失效、未装配或请求比角色更宽工具的方法。请求自带的角色/方法正文不能替换发布定义。
+内置方法由插件 `agent.skills` 声明，正文来自 `agent_skills`。安装方法来自适配器的 `skillLibrary`，所有者由 Host 的 `skill_owner` 固定为项目/插件。目录与正文按同一所有者读取；起跑时只接受精确 id/version 引用，拒绝重复、失效、未装配或请求比角色更宽工具的方法。请求自带的角色/方法正文不能替换发布定义。
 
 Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准备有界文本方法，将正文固定到本轮指令，保留原任务和副作用审查。当前能力为 partial：内置和已安装方法可显式选择，安装管理已接通，模型自动调用和派生方法尚未接通。运行中选择变化只供下一轮，冻结结果必须与 Host 选择一致；已展开正文不代表任务已经执行或验收。
 

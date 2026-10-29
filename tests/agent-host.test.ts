@@ -722,11 +722,11 @@ test("MCP selections require declared authority, canonical provenance and exact 
   const host=new AgentHost();let starts=0,cancels=0;
   const adapter=adapterFor({runtimeId:'prologue',supported:['mcp','text-edit','command'],onCancel:()=>cancels++});
   const selected={server:'configured-server',tool:'write-note',version:'shape-1',configuration_version:3};
-  const granted={...authority,manifest:{...manifest,mcp:true},method_owner:{project_id:BOARD,plugin_id:PLUGIN}};
+  const granted={...authority,manifest:{...manifest,mcp:true},skill_owner:{project_id:BOARD,plugin_id:PLUGIN}};
   adapter.mcpLibrary={
     list:async()=>[],save:async()=>{throw new Error('unused');},control:async()=>{},
     validateSources:async(_owner,refs)=>[...refs],
-    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.method_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
+    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.skill_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
   };
   const original=adapter.start.bind(adapter);
   adapter.start=async request=>{starts++;assert.equal(request.mcp_tools?.[0]?.server_label,'Canonical service');const run=await original(request);run.frozen.mcp_tools=structuredClone(request.mcp_tools!);return run;};

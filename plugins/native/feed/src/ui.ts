@@ -13,11 +13,11 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  FEED_ARCHIVE_BEHAVIOR_ID,
+  FEED_ARCHIVE_OPTION_ID,
   FEED_CAPTURE_DISPOSITION_IDS,
-  FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_SAVE_BEHAVIOR_ID,
-  INBOX_ADMIT_BEHAVIOR_ID,
+  FEED_PROMOTE_OPTION_ID,
+  FEED_SAVE_OPTION_ID,
+  INBOX_ADMIT_OPTION_ID,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 
@@ -553,8 +553,8 @@ function renderItemActions(item: FeedUiItem, inboxActive: boolean, promoteAvaila
   }
   const shown = (inboxActive
     ? [...FEED_CAPTURE_DISPOSITION_IDS]
-    : visibleFeedDispositionIds(item.suggested_behavior_ids, true)).filter((id) => promoteAvailable || id !== FEED_PROMOTE_BEHAVIOR_ID);
-  const manualAdmission = !inboxActive && !shown.includes(INBOX_ADMIT_BEHAVIOR_ID)
+    : visibleFeedDispositionIds(item.suggested_behavior_ids, true)).filter((id) => promoteAvailable || id !== FEED_PROMOTE_OPTION_ID);
+  const manualAdmission = !inboxActive && !shown.includes(INBOX_ADMIT_OPTION_ID)
     ? `<button class="mw-btn mw-btn--secondary" type="button" data-feed-action="inbox" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.text("手动加入 Inbox")}</button>` : "";
   return shown.map((id, index) => dispositionButton(item, id, index === 0, inboxActive, p)).join("") + manualAdmission;
 }
@@ -568,20 +568,20 @@ function dispositionButton(
 ): string {
   const itemId = p.escape(item.item_id);
   const revision = item.revision;
-  if (behaviorId === INBOX_ADMIT_BEHAVIOR_ID) {
+  if (behaviorId === INBOX_ADMIT_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
     return `<button class="${cls}" type="button" data-feed-action="inbox" data-feed-item-id="${itemId}" data-feed-revision="${revision}"${inboxActive ? " disabled" : ""}>${p.icon("inbox")}${inboxActive ? p.text("已加入 Inbox") : p.text("加入 Inbox")}</button>`;
   }
-  if (behaviorId === FEED_SAVE_BEHAVIOR_ID) {
+  if (behaviorId === FEED_SAVE_OPTION_ID) {
     const saved = item.disposition === "saved";
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
     return `<button class="${cls}" type="button" data-feed-action="save" data-feed-item-id="${itemId}" data-feed-revision="${revision}"${saved ? " disabled" : ""}>${saved ? p.text("已保存为资料") : p.text("保存为资料")}</button>`;
   }
-  if (behaviorId === FEED_PROMOTE_BEHAVIOR_ID) {
+  if (behaviorId === FEED_PROMOTE_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
     return `<button class="${cls}" type="button" data-feed-action="promote" data-feed-item-id="${itemId}" data-feed-revision="${revision}">${p.icon("target")}${item.linked_goal_id ? p.text("查看 Goal") : p.text("升格为 Goal")}</button>`;
   }
-  if (behaviorId !== FEED_ARCHIVE_BEHAVIOR_ID) return "";
+  if (behaviorId !== FEED_ARCHIVE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
   return `<button class="${cls}" type="button" data-feed-action="archive" data-feed-item-id="${itemId}" data-feed-revision="${revision}">${p.text("忽略")}</button>`;
 }

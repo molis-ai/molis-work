@@ -19,7 +19,7 @@ import {
 } from "@molis-ai/molis-work-plugin-feed";
 import {
   FEED_CAPTURE_SCENE_ID,
-  INBOX_ADMIT_BEHAVIOR_ID,
+  INBOX_ADMIT_OPTION_ID,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { FEED_API, feedTestRoutes } from "./fixtures/feed-http.js";
@@ -81,7 +81,7 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
 });
 
 test("out-rule judgment records a suggestion without admitting the Feed Item", async () => {
-  const fixture = feedCaptureFixture(() => ({ status: "ok", suggested_behavior_ids: [INBOX_ADMIT_BEHAVIOR_ID] }));
+  const fixture = feedCaptureFixture(() => ({ status: "ok", suggested_behavior_ids: [INBOX_ADMIT_OPTION_ID] }));
   const data = harness(fixture.options);
   fixture.attach(data.feed, DEMO_PROJECT_ID);
   try {

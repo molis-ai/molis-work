@@ -1,7 +1,7 @@
 export * from "./personal-planning-actions.js";
 export * from "./decision-view.js";
 export * from "./actions.js";
-export type { InitializeBoardOutput } from "./board-actions.js";
+export type { InitializeBoardOutput } from "./library-actions.js";
 export * from "./decision-groups.js";
 export * from "./decision-results.js";
 export * from "./decision-results-ui.js";
@@ -84,7 +84,7 @@ export { GOALS_DOCUMENT_EN } from "./document-en.js";
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 
 
-export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";
+export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./snapshot-query.js";
 
 
 

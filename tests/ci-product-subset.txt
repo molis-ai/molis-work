@@ -32,7 +32,7 @@ tests/feed-item-actions.test.ts
 tests/files-product-http.test.ts
 tests/git-product-http.test.ts
 tests/goals-actions.test.ts
-tests/goals-board-actions.test.ts
+tests/goals-library-actions.test.ts
 tests/goals-command-actions.test.ts
 tests/goals-lifecycle-actions.test.ts
 tests/goals-web-actions.test.ts

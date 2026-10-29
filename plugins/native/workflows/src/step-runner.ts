@@ -37,7 +37,7 @@ function fieldsOf(view: ActionView): WorkflowActionField[] | null {
   const required = Array.isArray(schema.required) ? schema.required.filter((name): name is string => typeof name === "string") : [];
   const fields = Object.entries(schema.properties).map(([name, property]) => {
     const type = Array.isArray(property?.type) ? String(property.type.find(item => item !== "null") ?? "") : String(property?.type ?? (property?.enum ? "string" : ""));
-    return { name, type, required: required.includes(name), ...(typeof property?.title === "string" || typeof property?.description === "string" ? { title: String(typeof property.title === "string" ? property.title : property.description).slice(0, 120) } : {}),
+    return { name, type, required: required.includes(name), ...(typeof property?.title === "string" || typeof property?.description === "string" ? { title: [...String(typeof property.title === "string" ? property.title : property.description)].slice(0, 120).join("") } : {}),
       ...(Array.isArray(property?.enum) ? { enum: property.enum.filter((value): value is string | number | boolean => ["string", "number", "boolean"].includes(typeof value)) } : {}) };
   });
   // A step fills flat fields; a required object or list cannot be mapped from handed-over text.

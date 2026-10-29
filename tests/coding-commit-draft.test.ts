@@ -41,7 +41,8 @@ test("提交说明的材料：计划标题、每轮的要求与结论、实际�
 test("packed SDK: drafts share their owning Runtime, have no tools and leave no draft workspace", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-draft-")); const bodies: any[] = [];
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     bodies.push(JSON.parse(raw));
     const events: string[] = [], emit = (type: string, value: unknown) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value as object })}\n\n`);
     emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 120, output_tokens: 0 } } });

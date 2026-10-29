@@ -93,7 +93,8 @@ for (const protocol of ["http", "https"]) test(`configured Cognia model runs thr
   if (protocol === "https") setDefaultCACertificates([...priorCAs, readFileSync(certFile, "utf8")]);
   const server = protocol === "https" ? createServer({ key: readFileSync(keyFile), cert: readFileSync(certFile) }) : createHttpServer();
   server.on("request", async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const input = JSON.parse(body); requests++;
     assert.equal(req.url, "/v1/messages"); assert.equal(req.headers["x-api-key"], "cognia-fixture-secret");
     assert.equal(input.model, "fixture-model"); assert.equal(input.tools?.length ?? 0, 0); assert.match(JSON.stringify(input.messages), /NETWORK_EVIDENCE/);

@@ -116,7 +116,8 @@ test("Alchemist packed Prologue borrows the shared Home owner and fixed model, a
   const requests: Array<Record<string, any>> = [];
   let changeConfiguration: (() => void) | undefined;
   const server = http.createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     requests.push(JSON.parse(raw));
     assert.equal(request.headers["x-api-key"], "explicit-test-secret");
     const events: string[] = [];

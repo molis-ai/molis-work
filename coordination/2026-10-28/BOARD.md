@@ -110,6 +110,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-159 | 运行时下载断网、超时或正文中途断开时报 `connector.install.failed`，调用方取消原样通过，不再抛原生错误 | 乙 | A | 64 | — | `apps/local-host/src/connector-tool-download.ts`、`tests/security-invariants-connector-install.test.ts` |
 | T-160 | 读受管理安装时，目录不在、记录读不出或不完整、可执行文件不在，都报 `connector.install.invalid`，不再抛原生错误 | 乙 | B | 62 | — | `apps/local-host/src/connector-tool-install.ts`、`tests/connector-local-actions.test.ts` |
 | T-161 | 停在 installed 的安装插件也能停用，记 disabled 并撑过重启（补 T-032 的 Host 层用例） | 丙 | A | 63 | — | `tests/installed-plugin-host.test.ts` |
+| T-162 | 定时操作的通知标题按整字截到 200 个单元以内，长插件名不再被拒，结果与摘要不截出半个字（防腐清理，MISC:43） | 乙 | B | 66 | — | `plugins/native/schedule/src/runtime-wakeups.ts`、`tests/fixtures/schedule-runtime.ts`、`tests/agent-built-plugins-reminders.test.ts` |
+| T-163 | 待办整理读材料按整字取前 60000 个字，「只读了前 60000 字」按字数判断（防腐清理，MISC:42） | 乙 | B | 67 | — | `plugins/native/todo/src/organize-model.ts`、`plugins/native/todo/src/organize.ts`、`tests/todo-organize.test.ts` |
 | T-165 | Goals 里 board- 开头的三个源文件和一个测试改名，引用与文档跟着改（W5-14 片 6，R-A2） | 丙 | 池 | 65 | T-043 | 改名的四个文件新旧路径都锁：`plugins/native/goals/src/module/board-commands.ts`→`module/library-commands.ts`、`plugins/native/goals/src/board-actions.ts`→`library-actions.ts`、`plugins/native/goals/src/board-snapshot-query.ts`→`snapshot-query.ts`、`tests/goals-board-actions.test.ts`→`tests/goals-library-actions.test.ts`；`plugins/native/goals/src/module/index.ts`（只第 1 行）、`plugins/native/goals/src/actions.ts`（只第 27、32 行）、`plugins/native/goals/src/index.ts`（只第 4、87 行）、`plugins/native/goals/src/plugin.ts`（只第 6 行）、`tests/ci-product-subset.txt`（只第 35 行）、`plugins/native/goals/README.md`（只第 64、123 行）、`docs/system/GLOSSARY.md`（只第 189、337、411、412 行） |
 
 ## 在途，不走任务书

@@ -1,13 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesSignalsContract = {
-  contractId: "io.molis.work.module.signals.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/modules/signals.md",
-} as const satisfies ContractDescriptor;
-
 export interface SignalAdapterRef {
   plugin_id: string;
   version: string;

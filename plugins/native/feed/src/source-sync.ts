@@ -1,5 +1,5 @@
 import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";

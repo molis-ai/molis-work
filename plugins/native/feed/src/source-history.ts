@@ -1,4 +1,4 @@
-import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { SourceRecord } from "./contract/sources.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { FEED_CONTENT_LEDGER_BATCH, isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import type { FeedSnapshot, FeedSourceRecord, SourceHistoryDecision } from "./projection.js";

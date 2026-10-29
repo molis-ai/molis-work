@@ -8,7 +8,7 @@ import type {
   SignalRecord,
   SignalReceipt,
   SignalsApi,
-} from "@molis-ai/molis-work-contracts/modules/signals";
+} from "../contract/signals.js";
 
 type Row = Record<string, unknown>;
 const signalErrors = defineErrorCodes("signals", { not_found: "invalid", invalid_draft: "invalid" });

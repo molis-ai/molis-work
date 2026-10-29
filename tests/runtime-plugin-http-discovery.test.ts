@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
@@ -20,6 +20,7 @@ import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 import { FORM_PLUGIN_ID } from "@molis-ai/molis-work-plugin-form";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo";
+import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
@@ -638,7 +639,9 @@ test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale,
   assert.doesNotMatch(await page("en"), /data-home-plugin-unavailable/u);
 });
 
-test("PG094-STAGE-01 a non-catalog Home fixture keeps its running stage and unavailable placeholder", { timeout: 60_000 }, async t => {
+// T-127: whether a dual-instance plugin is in the build no longer decides which half draws its stage; this fixture is outside the
+// build with its view in its Home half, and the Home's placeholder is now drawn on the project page (`dualStageOwner`).
+test("PG094-STAGE-01 RAC-1740 RAC-1743 a dual-instance plugin whose stage view is in its Home half keeps its running stage and the Home's unavailable placeholder", { timeout: 60_000 }, async t => {
   const probe = dualPlugin("externalhomestage");
   const { host, project, request } = await serveHomeRuntime(t, { pluginFixtures: {
     home: [{ definition: probe.home, dual_instance: true }], project: [probe.project],
@@ -664,6 +667,98 @@ test("PG094-STAGE-01 a non-catalog Home fixture keeps its running stage and unav
   const missing = t.mock.method(platform.runtime, "contribution", id => id === install.install_id ? null : original(id));
   try { assert.ok((await unavailable()).includes("插件页面未注册")); } finally { missing.mock.restore(); }
   assert.ok((await page()).includes("<section>externalhomestage</section>"));
+});
+
+/** T-127: what a project page draws for one dual-instance plugin's stage: how many times its view, and each scope's placeholders. */
+function dualStage(page: string, probe: ReturnType<typeof dualPlugin>, name: string) {
+  const placeholders = (scope: "home" | "project") => [...page.matchAll(new RegExp(`<section\\b[^>]*data-work-surface="${probe.id.replaceAll(".", "\\.")}"[^>]*data-${scope}-plugin-unavailable[^>]*>[\\s\\S]*?<\\/section>`, "gu"))].map(match => match[0]);
+  return { views: page.split(`<section>${name}</section>`).length - 1, home: placeholders("home"), project: placeholders("project") };
+}
+
+async function dualStagePage(t: TestContext, name: string, viewIn: "home" | "project") {
+  const probe = dualPlugin(name, false, viewIn);
+  const { host, project, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: probe.home, dual_instance: true }], project: [probe.project] } });
+  const one = await project(`Dual stage ${name}`);
+  // The project's Runtime starts with its first page.
+  assert.equal((await request(`/projects/${one.project_id}`)).status, 200);
+  const home = await host.homePlugins!.ready(), projectPlatform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(projectPlatform);
+  assert.equal(host.homePlugins!.installation(probe.id)?.state, "running");
+  assert.equal(projectPlatform.supervisor.state(probe.id)?.status, "running");
+  const stage = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return dualStage(await response.text(), probe, name); };
+  return { probe, stage, stopHome: () => home.runtime.stop(host.homePlugins!.installation(probe.id)!.install_id),
+    stopProject: () => projectPlatform.runtime.stop(projectPlatform.supervisor.state(probe.id)!.install_id!),
+    restartHome: async () => assert.equal((await home.supervisor.restart(probe.id)).status, "running"),
+    restartProject: async () => assert.equal((await projectPlatform.supervisor.restart(probe.id)).status, "running") };
+}
+
+test("RAC-1741 a dual-instance plugin whose stage view is in its project half is drawn once, by its project half, with no placeholder", { timeout: 60_000 }, async t => {
+  const { stage } = await dualStagePage(t, "projectstage", "project");
+  assert.deepEqual(await stage(), { views: 1, home: [], project: [] });
+});
+
+test("RAC-1742 its project half stopped and its Home half running: one project placeholder, and a plain stop offers no restart", { timeout: 60_000 }, async t => {
+  const { stage, stopProject, restartProject } = await dualStagePage(t, "projectstopped", "project");
+  await stopProject();
+  const stopped = await stage();
+  assert.equal(stopped.views, 0);
+  assert.deepEqual(stopped.home, [], "a running Home half without the view does not answer for the stage");
+  assert.equal(stopped.project.length, 1);
+  assert.ok(stopped.project[0]!.includes("插件没有在运行"), stopped.project[0]);
+  // The placeholder's offer is the project's restartOffer, unchanged: only a failed, crashed or quarantined instance offers one.
+  assert.doesNotMatch(stopped.project[0]!, /data-project-plugin-restart=/u);
+  await restartProject();
+  assert.deepEqual(await stage(), { views: 1, home: [], project: [] });
+});
+
+test("RAC-1744 both halves stopped: one project placeholder; the project half back without the view hands the stage to the Home's placeholder", { timeout: 60_000 }, async t => {
+  const { stage, stopHome, stopProject, restartProject, restartHome } = await dualStagePage(t, "bothstopped", "home");
+  await stopHome(); await stopProject();
+  const stopped = await stage();
+  assert.equal(stopped.views, 0);
+  assert.deepEqual(stopped.home, []);
+  assert.equal(stopped.project.length, 1);
+  assert.ok(stopped.project[0]!.includes("插件没有在运行"), stopped.project[0]);
+  await restartProject();
+  const handed = await stage();
+  assert.equal(handed.views, 0);
+  assert.deepEqual(handed.project, [], "a running project half without the view proves the view is the Home half's");
+  assert.equal(handed.home.length, 1);
+  assert.ok(handed.home[0]!.includes("插件已停用"), handed.home[0]);
+  await restartHome();
+  assert.deepEqual(await stage(), { views: 1, home: [], project: [] });
+});
+
+// Feed is in the build and its view is in its project half. The same Feed with the view offered by its Home half instead is drawn by
+// the Home half: being in the build no longer keeps a dual-instance plugin's stage on its project half.
+test("RAC-1745 a dual-instance plugin in the build is drawn by the half that offers its view, the same rule as one outside the build", { timeout: 60_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Feed stage owner");
+  const page = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return response.text(); };
+  const first = await page();
+  const home = await host.homePlugins!.ready(), install = host.homePlugins!.installation(FEED_PLUGIN_ID);
+  const projectPlatform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(install && projectPlatform);
+  assert.equal(install.state, "running");
+  const feed = /<section\b[^>]*data-work-surface="feed"[^>]*data-(?:home|project)-plugin-unavailable[^>]*>/gu;
+  const stageId = "io.molis.work.native.feed.ui.v1";
+  assert.equal(first.match(feed), null, "Feed's own stage, from its project half, has no placeholder");
+  const ownHome = home.runtime.contribution.bind(home.runtime), ownProject = projectPlatform.supervisor.contribution.bind(projectPlatform.supervisor);
+  const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: [{ surface_id: "workbench", target_slot_id: "stage", format: "html" }], slots: [] },
+    render: () => "<section>feed-home-half</section>" };
+  const homeHalf = t.mock.method(home.runtime, "contribution", (id: string) => {
+    const contribution = ownHome(id);
+    return id === install.install_id && contribution?.kind === "app" ? { ...contribution, views: [...contribution.views ?? [], view] } : contribution;
+  });
+  const projectHalf = t.mock.method(projectPlatform.supervisor, "contribution", (id: string) => {
+    const contribution = ownProject(id);
+    return id === FEED_PLUGIN_ID && contribution?.kind === "app" ? { ...contribution, views: (contribution.views ?? []).filter(item => item.descriptor.contribution_id !== stageId) } : contribution;
+  });
+  try {
+    const moved = await page();
+    assert.equal(moved.split("<section>feed-home-half</section>").length - 1, 1, "the Home half that offers the view draws it");
+    assert.equal(moved.match(feed), null, "and no half answers with a placeholder");
+  } finally { homeHalf.mock.restore(); projectHalf.mock.restore(); }
 });
 
 // PG094-STAGE-01: a Home instance without a declared stage adds no Host placeholder; the opaque frame boundary remains enforced.

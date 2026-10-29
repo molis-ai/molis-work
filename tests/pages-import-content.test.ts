@@ -211,3 +211,22 @@ test("empty, oversized, excessively nested and expansion-heavy imports are rejec
   assert.throws(() => convert("<div>".repeat(90) + "正文" + "</div>".repeat(90), "html"), /嵌套过深/u);
   assert.throws(() => convert("a,".repeat(200) + "a\n" + "a\n".repeat(200), "csv"), /单元格过多/u);
 });
+
+test("RAC-1687: an imported title of exactly 80 characters is kept whole, and the leading heading it matches is dropped from the body", () => {
+  // One 🟢 is one character but two UTF-16 units: 80 of them are 80 characters and 160 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const { title, doc, warnings } = convert("# " + wide(80) + "\n\n正文");
+  assert.equal(title, wide(80), "the title keeps its 80 characters");
+  assert.ok(!warnings.some((warning) => warning.includes("80 字")), "an 80-character title is not warned about");
+  assert.equal(doc.firstChild?.type.name, "paragraph", "the heading that became the title is not repeated in the body");
+  assert.equal(doc.firstChild?.textContent, "正文");
+});
+
+test("RAC-1687: an imported title of 81 characters is cut to 80 whole characters, with a warning, and its heading stays in the body", () => {
+  // "题" is one unit, so unit 80 is the first half of the 40th 🟢: cutting by units would leave half of it.
+  const wide = (count: number) => "🟢".repeat(count);
+  const { title, doc, warnings } = convert("# 题" + wide(80) + "\n\n正文");
+  assert.equal(title, "题" + wide(79), "the title is cut to 80 whole characters");
+  assert.ok(warnings.some((warning) => warning.includes("80 字")), "the cut is warned about");
+  assert.equal(nodesOfType(doc, "heading")[0]?.textContent, "题" + wide(80), "the body keeps the full original heading");
+});

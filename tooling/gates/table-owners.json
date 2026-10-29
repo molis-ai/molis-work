@@ -1,14 +1,25 @@
 {
-  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). \"shared\" lists the tables several packages use on purpose; \"same_name\" lists the tables two packages each create, in different databases. Both are checked against the code in both directions: a package that uses a shared table and is not listed fails, a listed package that no longer uses it fails, a table that more than one package creates and is not under same_name fails, and a same_name entry that is not exactly the creating packages fails.",
+  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). \"shared\" lists the tables several packages use on purpose; \"same_name\" lists the tables two packages each create, in different databases. Both are checked against the code in both directions: a package that uses a shared table and is not listed fails, a listed package that no longer uses it fails, a table that more than one package creates and is not under same_name fails, and a same_name entry that is not exactly the creating packages fails. \"areas\" lists directories inside a package that own their tables as a package would (Feed’s src/store); the rest of that package then counts as another owner, and an area that does not exist, holds a package.json, sits inside another area or no longer creates a table fails.",
   "shared": {},
   "same_name": {
     "workspaces": {
-      "packages": ["modules/projects", "plugins/native/alchemist"],
+      "packages": [
+        "modules/projects",
+        "plugins/native/alchemist"
+      ],
       "reason": "Two different tables in two different databases: the project catalog's workspaces (modules/projects, the catalog database) and the Alchemist's workspaces (plugins/native/alchemist, one studio.sqlite per project). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
     },
     "jobs": {
-      "packages": ["plugins/native/alchemist", "plugins/native/images"],
+      "packages": [
+        "plugins/native/alchemist",
+        "plugins/native/images"
+      ],
       "reason": "Two different tables in two different databases: the Alchemist's jobs (plugins/native/alchemist, one studio.sqlite per project) and Images' jobs (plugins/native/images, images.db). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
+    }
+  },
+  "areas": {
+    "plugins/native/feed/src/store": {
+      "reason": "The Feed store owns the Feed tables it creates (items, materials, sources, Listener runs, signals and their events): the rest of the Feed package reads and writes them through the store's functions, so a Feed file outside src/store that names one of these tables in SQL fails (BL-802, which replaces the hand-written table list in scripts/check-package-boundaries.mjs)."
     }
   }
 }

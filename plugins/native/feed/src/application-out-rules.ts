@@ -1,4 +1,4 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedOutRuleRecord } from "./projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import type { FeedOutRuleWrite } from "./out-rules.js";

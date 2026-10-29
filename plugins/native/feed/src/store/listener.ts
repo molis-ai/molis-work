@@ -1,7 +1,7 @@
 import type { FeedSql } from "./sql.js";
 import { createHash } from "node:crypto";
 
-import type { SignalCommands, SignalReceipt } from "@molis-ai/molis-work-contracts/modules/signals";
+import type { SignalCommands, SignalReceipt } from "../contract/signals.js";
 import type {
   ConnectorHostApi,
   ConnectorRawEvent,
@@ -12,12 +12,18 @@ import type {
   ListenerHostApi,
   ListenerRunReceipt,
   ListenerRunRecord,
-  RawEventAdapter,
-} from "@molis-ai/molis-work-contracts/services/listener-host";
+} from "../contract/listener.js";
+import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 
 type Row = Record<string, unknown>;
-import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export const listenerErrors = defineErrorCodes("listener", {
+  lease_busy: "invalid",
+  delivery_failed: "invalid",
+  delivery_quarantined: "invalid",
+  connector_failed: "invalid",
+});
 
 const listenerFailures = {
   "listener.lease_busy": listenerErrors.lease_busy,

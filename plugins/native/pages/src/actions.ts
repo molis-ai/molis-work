@@ -334,7 +334,7 @@ function written<T extends WrittenFields>(input: T, caller: ActionCallContext, c
     if (rest.body !== undefined) throw pagesErrors.invalid("markdown 与 body 只给一个");
     const converted = convertImportContent({ name: rest.title || "未命名文档", format: "markdown", content: markdown });
     // Only a new document takes its title from the Markdown; rewriting a body must not rename what the person titled.
-    return { ...rest, ...(rest.title || !creating ? {} : { title: converted.title.slice(0, 80) }), body: converted.body };
+    return { ...rest, ...(rest.title || !creating ? {} : { title: [...converted.title].slice(0, 80).join("") }), body: converted.body };
   }
   if (rest.body === undefined || caller.audience === "user" || !rest.body.content?.length) return rest;
   try { pagesSchema.nodeFromJSON(rest.body).check(); }

@@ -1,7 +1,7 @@
 import type { ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { chosenCandidate } from "./contextual-choice.js";
-import { contextualErrors } from "./contextual-request.js";
+import { contextualErrors, cutHead } from "./contextual-request.js";
 
 /**
  * 「放进左边」 (specs/context-program §3.4, §21.8 steps 4–6): what is in hand goes into the object open on the left, at the
@@ -25,14 +25,14 @@ function attachInput(view: ActionView, focus: SurfaceFocus, landing: SurfaceLand
   const attach = view.action.attach;
   const fields = (view.action.input_schema as { properties?: Record<string, unknown> }).properties ?? {};
   const target = landing.targets?.find(item => Number.isInteger(item.anchor) && Number.isInteger(item.head));
-  const material = focus.targets.map(item => item.text).join("\n\n").slice(0, MAX_MATERIAL);
+  const material = cutHead(focus.targets.map(item => item.text).join("\n\n"), MAX_MATERIAL);
   if (!attach || !material.trim()) throw contextualErrors.empty("手上没有可以放进去的文字");
   const version = typeof landing.version === "number" ? landing.version : Number(landing.version);
   const input: Record<string, unknown> = { id: landing.object.id };
   if ("expected_version" in fields && Number.isInteger(version)) input.expected_version = version;
   if (target && "anchor" in fields && "head" in fields) { input.anchor = target.anchor; input.head = target.head; }
   if (attach.material_field) input[attach.material_field] = material;
-  if ("source" in fields) input.source = { title: (focus.object.title || focus.object.kind).slice(0, 200) };
+  if ("source" in fields) input.source = { title: cutHead(focus.object.title || focus.object.kind, 200) };
   return input;
 }
 

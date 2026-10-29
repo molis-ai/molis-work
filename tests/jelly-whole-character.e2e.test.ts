@@ -14,7 +14,7 @@ async function openJelly(t: { after: (fn: () => Promise<unknown>) => void }) {
   if (!browser) return null;
   const { command, sessionId, navigate, origin, projectId } = browser;
   const jelly = await pluginFrameBrowser(t, browser, "jelly");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 950);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
   await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");

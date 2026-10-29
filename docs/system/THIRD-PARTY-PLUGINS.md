@@ -15,7 +15,7 @@
 - `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径与超过 64 MiB 的包，不执行 glob 或生命周期脚本（`package-files.ts`）。
 - 发布者身份是 Ed25519 公钥的指纹：`ed25519:sha256:<spki 的哈希>`（`pluginPublisherIdentity`，`packages/plugin-runtime/src/package-verification.ts`），Manifest 的 `publisher.signature` 必须等于它，`signPluginPackage` 不一致就拒绝；`verifyPluginPackage(bundle, 可信公钥)` 验签，没签名的包「不是已验证发行物」。
 - Runtime 的安装、授权、升级、回滚、停用、卸载，安装记录有 `execution: "host" | "sandbox"`（`packages/contracts/src/platform/plugin.ts`）。`execution: "sandbox"` 的插件必须带明确的授权清单才能安装（`packages/plugin-runtime/src/index.ts`、`supervisor.ts`）。
-- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `UNSUPPORTED_PLATFORM`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
+- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `sandbox.unsupported_platform`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
 - 升级兼容声明：`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`（`docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」）。
 - 方针：`docs/platform/PLUGIN-PLATFORM.md` §2 写明「官方可安装生态由官方发布并审核；第三方源码由用户自行构建和安装」，签名变化视为新插件，旧授权、存储和提供方绑定不继承。
 
@@ -98,7 +98,7 @@ Manifest 里有三类声明会改变这个插件在别处的效果，安装预�
 - 第三方不能：在宿主进程里执行代码；在页面里放脚本；直接读写文件或联网；读别的插件的私有存储。
 - **`methods`**（2026-10-08 决定）：第三方 Manifest 声明的 `methods`（给其他 Agent 的方法）和内置插件一样登记：安装启动时登记，停用、卸载、升级时收回（切片 W4-02）。校验沿用 Manifest 的规则（`tools` 只能是业务工具），没有正文的方法不登记（`docs/platform/PLUGIN-DEVELOPMENT.md`「给其他 Agent 的方法」）。方法正文是文本不是代码，怎样随包携带由 W4-02 的设计定。
 - 需要扩展的地方：沙箱合同今天只表达 `operations`，而第三方包的 Manifest 可以有 `routes`、`ui.views`、`events`、`ports`。阶段一只接受 Manifest 里这些字段能映射到沙箱合同的子集（动作和平台目录里的界面），映射不了的在安装时明确拒绝并说明。`kind: "integration"`（轮询外部服务）需要一个「轮询操作加信号草稿」的沙箱合同，放到阶段二。
-- **平台限制**：Seatbelt 只在 macOS 上有；在别的系统上，第三方安装要明确拒绝（失败即关闭，沿用 `UNSUPPORTED_PLATFORM`），直到 C 端计划里的无 `sandbox-exec` 沙箱落地。
+- **平台限制**：Seatbelt 只在 macOS 上有；在别的系统上，第三方安装要明确拒绝（失败即关闭，沿用 `sandbox.unsupported_platform`），直到 C 端计划里的无 `sandbox-exec` 沙箱落地。
 
 ## 6. 市场入口
 

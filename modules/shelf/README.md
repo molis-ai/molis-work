@@ -56,7 +56,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
   - 架子上的文件只经注入的文件客户端读写（没有 `node:fs` 的路径）；每个逻辑操作是一次 `files.write(run)`，`run` 同步完成、先读现行目录再改，所以同时开始的两个操作不会互相覆盖目录行。`events.jsonl` 按整文件替换追加一行。仍直接用 `node:fs` 的只有运行时探测（`runtimes.ts`）；原件 Hash 的核对经平台读原件（`copy-checks.ts` 的 `assertOriginsUntouched`），不碰路径；另外交给模型的冻结 `input/` 是一条真实目录路径（模型读它），Module 自己不用 fs 去碰它。
   - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
-  - 首次读取快照时，若 `seeded_sample` 为假且架子为空，放入一份「试用示例.pdf」（`ensureSample` → `seedSample`，真实可抽字的 PDF，由 `src/pdf.ts` 生成，经 `admit` 上架）。这是有意的首次使用引导，不是演示数据：任何材料入库或示例放入后 `seeded_sample` 为真，之后删除、隐藏都不会自动放回；用户可在设置的「使用指南」主动再放一份；不写项目库。
+  - Shelf 插件的 Home 实例启动时、查询之前调 `initializeShelfFiles`（`src/shelve.ts`）：若 `seeded_sample` 为假且架子为空，放入一份「试用示例.pdf」（真实可抽字的 PDF，由 `src/pdf.ts` 生成，经 `shelveItem` 上架）；读快照不写。这是有意的首次使用引导，不是演示数据：任何材料入库或示例放入后 `seeded_sample` 为真，之后删除、隐藏都不会自动放回；用户可在设置的「使用指南」主动再放一份（动作 `shelf.sample.seed`，经 `seedSample`）；不写项目库。
   - 自动任务只通过注入的 ShelfAiPorts，冻结 input 副本只读；领域模块不启动模型或终端进程。
   - 不探测 CLI 能力：`ShelfStore.runtime()` 每次都经平台的本机工具服务重新找可执行文件（`detectShelfRuntime`，`src/runtimes.ts`），不启动 CLI、不缓存；找到的报 `capability_pending: true`，执行能力在执行时才检查。
   - 任务使用 SDK 的执行生命周期；在途执行按 Home/root/job 隔离。异步等待后复查原 Action、任务和原件/副本 hash，再写输出、成果或失败记录。已取消/撤权的执行不补写失败；终止或重启后的旧 running 记录不自动重跑，也不继续阻塞材料。显式取消可以关闭原记录。

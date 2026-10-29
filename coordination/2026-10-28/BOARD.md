@@ -200,6 +200,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-237 | 内核 `clip` 截情境请求的标题 120、目标 2000、最近 40 时按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」`contextual.ts:170` 一行；派片，方案自定，共享核心 full=true，RAC-2020～2029） | 甲 | Claude（设备 A） | 149 | — | `packages/kernel/src/contextual.ts`、对应用例文件（方案里列） |
 | T-238 | 沙箱模型请求的数据上限与端口上限对齐：数据加最长指令不再超过端口的上限、被端口拒（防腐清理，MISC「T-185 发布」`plugin-sandbox/src/model.ts` 一行；派片，方案自定，RAC-2030～2039；只许变严，若要放宽沙箱边界先问统筹） | 甲 | Claude（设备 A） | 150 | — | `packages/plugin-sandbox/src/model.ts`、对应用例文件（方案里列） |
 | T-239 | 内核动作结算记的失败信息按整字截到 200，不再留下半个字（防腐清理，T-237 二审建议 1，`packages/kernel/src/action-settlement.ts:95`；派片，方案自定，共享核心 full=true，RAC-2040～2049） | 甲 | Claude（设备 A） | 151 | — | `packages/kernel/src/action-settlement.ts`、对应用例文件（方案里列） |
+| T-227b | 项目与 Host 关闭在 `list()` 读不了时，Supervisor 记为 `failed` 而 Runtime 仍在跑的插件也按自己的安装停（`preserve_enabled`），不再被停成 `disabled`（防腐清理，MISC「T-227 二审 建议 1」，`apps/local-host/src/plugin-platform-close.ts:39`；接 T-227，方案自定，full 按方案判断，RAC-2050～2059） | 甲 | Claude（设备 A） | 152 | — | `apps/local-host/src/plugin-platform-close.ts`、对应用例文件（方案里列） |
 
 ## 在途，不走任务书
 

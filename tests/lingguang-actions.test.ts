@@ -358,3 +358,24 @@ test("RAC-1622: a brainstorm message of 2000 Unicode characters is kept with the
     assert.equal(prompts.length, 1, "the model was asked once, for the message that was kept");
   }, async prompt => { prompts.push(prompt); return "回应"; });
 });
+
+test("RAC-1686: a conversation gets each spark's first 12000 UTF-16 units, never half a character, and is told when the rest was left out", async () => {
+  // conversationPrompt (src/actions.ts) keeps SPARK_IN_PROMPT = 12000 UTF-16 units of a spark's body, its share of the prompt's 180000 units. One 🟢 is one character but
+  // two UTF-16 units: a spark of exactly 12000 units is whole; one of 12001 ("灵" and 6000 🟢) keeps "灵" and 5999 🟢, since the 6000th would end past unit 12000.
+  // The 12001-unit spark "边" (6000 🟢 then "灵") ends the 6000th 🟢 exactly at unit 12000, so it keeps all 6000 and says the rest was left out.
+  // The conversation lists its sparks in the order of their ids (store.ts:219 sorts spark_ids, :238 reads them back in that order), and ids are random, so the expected
+  // list follows the ids.
+  const prompts: string[] = [];
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const whole = (await bound.invoke(actions.create, { title: "整", body: wide(6_000) })).spark;
+    const long = (await bound.invoke(actions.create, { title: "长", body: "灵" + wide(6_000) })).spark;
+    const edge = (await bound.invoke(actions.create, { title: "边", body: wide(6_000) + "灵" })).spark;
+    const { conversation } = await bound.invoke(actions.openConversation, { spark_ids: [whole.id, long.id, edge.id] });
+    await bound.invoke(actions.message, { id: conversation.id, body: "接着想" });
+    const shown = new Map([[whole.id, { title: "整", body: wide(6_000) }], [long.id, { title: "长", body: "灵" + wide(5_999) + "\n（以下省略）" }],
+      [edge.id, { title: "边", body: wide(6_000) + "\n（以下省略）" }]]);
+    assert.deepEqual(conversationMaterial(prompts[0]!), { sparks: [whole.id, long.id, edge.id].sort().map(id => shown.get(id)!), history: [], message: "接着想" },
+      "the 12000-unit spark is whole, the 12001-unit ones keep their whole characters within 12000 units and say so");
+  }, async prompt => { prompts.push(prompt); return "回应"; });
+});

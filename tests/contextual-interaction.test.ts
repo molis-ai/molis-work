@@ -744,3 +744,16 @@ test("RAC-1669 灵光 cuts the first line of a selection in whole Unicode charac
   assert.equal(cut.title, `${wide(39)}…`, "a 41-character first line is cut to 39 characters and an ellipsis");
   assert.equal(cut.body, `${wide(41)}\n第二行`, "the body keeps the whole selection");
 });
+
+test("RAC-1684 灵光 keeps the body of a selection to the limit in whole Unicode characters: 200000 are kept whole, one more loses one whole character", () => {
+  // The limit is LINGGUANG_BODY_LIMIT (200000, plugins/native/lingguang/src/contract.ts), which lingguang.create's schema counts in characters. The fragment-offers
+  // schema lets a selection reach only 8 × 4000 characters, so no action call gets here and the function is called directly, as RAC-1669 does. One 🟢 is one character
+  // but two UTF-16 units; these bodies are 400000 units, so seen() says what a body is where a failing assert.equal would print all of it.
+  const wide = (count: number) => "🟢".repeat(count);
+  const offered = (text: string) => prepareLingguangFragmentOffers({ request_id: "wide", fragment: { object: { kind: "pages_document", id: "d1" }, granularity: "range",
+    targets: [{ kind: "text_range", text }] } })[0]!.input as { title: string; body: string; request_id: string };
+  const seen = (body: string, expected: string) => { const characters = [...body]; return { characters: characters.length, first: characters[0], last: characters.at(-1), same: body === expected }; };
+  assert.deepEqual(seen(offered(wide(200_000)).body, wide(200_000)), { characters: 200_000, first: "🟢", last: "🟢", same: true }, "a body of exactly the limit is kept whole");
+  assert.deepEqual(seen(offered("正" + wide(200_000)).body, "正" + wide(199_999)), { characters: 200_000, first: "正", last: "🟢", same: true },
+    "one character past the limit is cut to the limit in whole characters");
+});

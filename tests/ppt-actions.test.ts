@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pptActions as actions, PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions as actions, PPT_ACTION_PERMISSIONS, pptxFilename } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -164,4 +164,24 @@ test("RAC-1619: an outline cuts the deck title, slide title, bullets and notes a
   assert.equal(slide!.title, "页" + wide(79), "an outline's slide title keeps 80 whole characters");
   assert.deepEqual(slide!.bullets, ["点" + wide(199)], "an outline's bullet keeps 200 whole characters");
   assert.equal(slide!.notes, "注" + wide(1999), "an outline's notes keep 2000 whole characters");
+});
+
+test("RAC-1883: the .pptx file name keeps 80 whole characters of the deck title, never half of one", async t => {
+  // pptxFilename in src/pptx.ts cuts the title at 80; create allows 80 characters, and one 🟢 is one character but two UTF-16 units.
+  const f = await fixture(t), wide = (count: number) => "🟢".repeat(count);
+  for (const c of [{ name: "79 letters and an emoji", title: "a".repeat(79) + wide(1) }, { name: "80 emoji", title: wide(80) }]) await t.test(c.name, async () => {
+    const { presentation } = await f.bound.invoke(actions.create, { title: c.title });
+    assert.equal((await f.bound.invoke(actions.pptx, { id: presentation.id })).filename, c.title + ".pptx");
+  });
+});
+
+test("RAC-1884: pptxFilename cuts at 80 whole characters, and still replaces forbidden characters and falls back to a name", async t => {
+  const wide = (count: number) => "🟢".repeat(count);
+  for (const c of [
+    { name: "90 characters, the 80th an emoji", title: "a".repeat(79) + wide(1) + "尾".repeat(10), filename: "a".repeat(79) + wide(1) + ".pptx" },
+    { name: "81 emoji", title: wide(81), filename: wide(80) + ".pptx" },
+    { name: "a title that fits", title: "季度演示", filename: "季度演示.pptx" },
+    { name: "forbidden characters", title: "Q4 <评审> / 决定: 1?", filename: "Q4 _评审_ _ 决定_ 1_.pptx" },
+    { name: "only control characters", title: "\u0001\u0002", filename: "演示稿.pptx" },
+  ]) await t.test(c.name, () => assert.equal(pptxFilename(c.title), c.filename));
 });

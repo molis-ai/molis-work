@@ -65,7 +65,7 @@ export abstract class PagesGenerationStore {
   }
 
   failGeneration(record: PagesGenerationRecord, message: string): void {
-    const next = { ...record, status: "failed", error: message.slice(0, 500), updated_at: new Date(Math.max(Date.now(), Date.parse(record.updated_at) + 1)).toISOString() };
+    const next = { ...record, status: "failed", error: [...message].slice(0, 500).join(""), updated_at: new Date(Math.max(Date.now(), Date.parse(record.updated_at) + 1)).toISOString() };
     this.db.run("UPDATE page_generations SET updated_at = ?, record_json = ? WHERE project_id = ? AND request_id = ? AND updated_at = ? AND json_extract(record_json, '$.status') = 'running'",
       [next.updated_at, JSON.stringify(next), record.project_id, record.request_id, record.updated_at]);
     this.attempts.delete(attemptKey(record));

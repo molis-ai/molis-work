@@ -103,6 +103,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-152 | 超时消息里的 elapsed 按整毫秒向下取整，RAC-1452 不再因两个时钟各自取整而偶发红 | 乙 | 池 | 55 | — | `packages/test-kit/src/browser/cdp.ts`、`packages/test-kit/tests/browser.test.mjs`、`packages/test-kit/README.md` |
 | T-153 | 提醒与定时操作登记的闹钟名称按整字截到 120 个单元，不再留下半个字 | 乙 | 池 | 56 | — | `plugins/native/schedule/src/job-title.ts`、`plugins/native/schedule/src/reminders.ts`、`plugins/native/schedule/src/operations.ts`、`tests/schedule-operations.test.ts` |
 | T-154 | 待办的整理结果与到期提醒按整字截取，不再留下半个字 | 乙 | 池 | 57 | — | `plugins/native/todo/src/organize-model.ts`、`plugins/native/todo/src/organize.ts`、`plugins/native/todo/src/actions.ts`、`tests/todo-organize.test.ts`、`tests/todo-actions.test.ts` |
+| T-155 | Home 与项目里，签名包占了宿主插件的 ID 在预览就拒；Home 已装插件的同一发布者的包在保存之前就拒（S-84 的顺序，BL-628） | 甲 | A-Claude | 58 | — | `apps/local-host/src/plugin-install-service.ts`、`tests/security-invariants-plugin-install.test.ts`、`tests/security-invariants-sandbox-home-instance.test.ts` |
 
 ## 在途，不走任务书
 

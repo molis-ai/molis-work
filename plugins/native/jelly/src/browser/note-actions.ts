@@ -115,7 +115,7 @@ export async function importNoteFile(page: JellyPage, file: File | undefined): P
   const id = page.selected.id;
   const source = await file.text();
   const format = /\.html?$/i.test(file.name) ? "html" : "markdown";
-  openGeneric(page, "jelly.note.import-title", `<p class="jelly-muted">${esc(file.name)} · ${source.length} ${page.tx("jelly.note.import-chars")}</p><label class="jelly-check"><input class="mw-check" type="checkbox" data-jelly-import-replace>${page.tx("jelly.note.import-replace")}</label><pre class="jelly-import-preview">${esc(source.slice(0, 8000))}</pre>`, "jelly.import.confirm", async () => {
+  openGeneric(page, "jelly.note.import-title", `<p class="jelly-muted">${esc(file.name)} · ${[...source].length} ${page.tx("jelly.note.import-chars")}</p><label class="jelly-check"><input class="mw-check" type="checkbox" data-jelly-import-replace>${page.tx("jelly.note.import-replace")}</label><pre class="jelly-import-preview">${esc(source.slice(0, 8000))}</pre>`, "jelly.import.confirm", async () => {
     await command(page, { type: "note.import", id, source, format, mode: page.$<HTMLInputElement>("[data-jelly-import-replace]").checked ? "replace" : "append", expected_note_revision: page.editorRevision });
     openRecord(page, "note", id);
     showNote(page, page.L("jelly.note.imported"));

@@ -295,3 +295,4 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 
 - **设备 B 验证机上插件框架输入投递超时。** 现象：浏览器用例报 `Input was not delivered to plugin frame within 10000ms: [data-coding-workbench] / [data-jelly-block-text]`（`covered=undefined`）。Coding 两例在干净的 merge-base 上同样失败，T-229（#1511）的 `jelly-whole-character.e2e` 在设备 A 上 2/2 通过。判断：验证机的环境或夹具问题，不挡单。待办：找人在设备 B 上复现，查专用测试 Chrome、窗口焦点或隐藏页面节流。若 CI Full 也出现同一报错，升级为产品问题。来源 #1332 6507028399，统筹答在其后。
 - **T-171 视觉 6 像素。** settings-appearance@1440-light 卡片右上圆角差 1 个灰阶；B 在 merge-base 上复现出相同像素值，同场景比对零差异。按栅格差异收束，A 的 exit1 记录照留（#1493）。若别的单在同一位置再出现，查渲染的确定性。
+- **`tests/code-scale.e2e.test.ts`（SYS-49/VUX-33）在 CI Full 分片 7 上反复红在逐帧时长。** 2026-10-29 晚两次：T-231（#1504，run 40922685648）、T-237（#1518，run 40941415529，「75 frames, the longest 56.9 ms」），文件内重试一次都仍红；T-171 的 Full 里它重试后才过。两单都不碰代码着色。处置：先按偶发重跑失败作业。若再出现一次，按 `tests/quarantine.json` 的规矩隔离（带 owner 与到期日），并开一单查着色的分帧在 CI 机上的时长预算。不放宽断言。

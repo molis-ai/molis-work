@@ -28,7 +28,7 @@ const MAX_TARGET_TEXT = 4_000;
  * The limits count UTF-16 units, as `readString` does. A cut between the two halves of a character drops the lone half instead of
  * keeping it; text within the limit comes back as it was.
  */
-const cutHead = (text: string, max: number): string => text.length <= max ? text : text.slice(0, max).replace(/[\uD800-\uDBFF]$/u, "");
+export const cutHead = (text: string, max: number): string => text.length <= max ? text : text.slice(0, max).replace(/[\uD800-\uDBFF]$/u, "");
 const cutTail = (text: string, max: number): string => text.length <= max ? text : text.slice(-max).replace(/^[\uDC00-\uDFFF]/u, "");
 
 export function readString(value: unknown, field: string, max: number): string {

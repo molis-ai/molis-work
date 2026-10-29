@@ -298,3 +298,14 @@ test('a timed operation names its job after at most 120 UTF-16 units of 「plugi
   // them would be 240, past the 200 the Scheduler takes.
   assert.equal(titles.operation('定时笔记', '😀'.repeat(150)), '定时笔记：' + '😀'.repeat(57), 'a cut inside an emoji leaves the whole emoji out');
 });
+
+test('a timed operation whose result has no text keeps the first 2000 characters of its JSON, never half a character (RAC-1804)', async t => {
+  // The result has no string value of its own, so its text is its JSON: 「{"names":["」 (11 units) and 2000 🟢 (U+1F7E2, two units each). The first
+  // 2000 characters are those 11 and 1989 🟢 (3989 units); the first 2000 units would end on half of the 995th 🟢.
+  const h = await harness(t), id = h.operations.add(identity, { at, operation: 'summarize', inbox: true }).scheduleId;
+  t.after(h.bind({ describe: () => descriptor(), async call() { return { state: 'succeeded', value: { names: ['🟢'.repeat(2000)] } }; } }));
+  await h.schedule.tick();
+  const text = '{"names":["' + '🟢'.repeat(1989);
+  assert.equal(h.occurrences(id)[0]?.detail, text, 'the occurrence keeps the first 2000 characters of the JSON');
+  assert.deepEqual(h.inbox().map(item => item.summary), [text], 'the delivered text is the same');
+});

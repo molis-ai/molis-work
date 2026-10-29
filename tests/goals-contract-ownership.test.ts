@@ -44,6 +44,10 @@ test("RAC-1772: the event facts API holds facts, and the state and intent calls 
     export const state: Exact<keyof GoalEventStateApi, ${union(STATE_API)}> = true;
     export const intent: Exact<keyof GoalEventIntentApi, ${union(INTENT_API)}> = true;
     export const reached: Exact<GoalEventFactsApi["state"], GoalEventStateApi> = true;
+    export const reachedIntent: Exact<GoalEventFactsApi["intent"], GoalEventIntentApi> = true;
+    // The facade's public members are the contract types, not its concrete GoalEventState and GoalEventIntent.
+    export const facadeState: Exact<GoalEventFacts["state"], GoalEventStateApi> = true;
+    export const facadeIntent: Exact<GoalEventFacts["intent"], GoalEventIntentApi> = true;
     export const implemented: GoalEventFactsApi = null as unknown as GoalEventFacts;
   `), []);
   // The facade carries only what it composes; the 15 calls it used to forward are gone from it.

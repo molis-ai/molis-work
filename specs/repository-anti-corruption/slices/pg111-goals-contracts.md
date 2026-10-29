@@ -14,8 +14,8 @@
 
 选了「状态」「意图」两个接口，没有把意图三个并进状态：它们记的是 createIntent 这一个动作的幂等回放和它留下的东西，与 Goal 的工作状态不是一回事，`GoalEventIntent` 也早就是单独的类。`isEventStateOwner` 留在事实接口里，因为它先拒绝不存在的 Goal（`requireGoal`），那一步是门面的，状态类自己没有。
 
-- `GoalEventFacts` 的 `state`、`intent` 原来是私有字段，现在是公开的只读成员；门面从 29 个合同方法降到 14 个，加私有的 `readCompletionContext`，不再是巨大单元，`tooling/gates/giant-exceptions.json` 里的登记删掉（门禁说它「不再是巨大单元」）。
-- 调用方：只有 `goal-event-application.ts`（`GoalEventApplication`，Goals 自己的应用层）里 15 处 `this.ports.events.X` 改成 `.state.X`、`.intent.replay` 一类；`createGoalReadServices` 给宿主的只读服务把 `readWorkState` 挪到 `events.state` 下，这条宿主路径没有使用方在读它（仓库内逐个查过）。`app.goalEvents` 是应用层，方法名与状态方法同名，**不改**。
+- `GoalEventFacts` 的 `state`、`intent` 原来是私有字段，现在是公开的只读成员，类型是合同的 `GoalEventStateApi`、`GoalEventIntentApi`；具体的 `GoalEventState`、`GoalEventIntent` 留在私有字段里，门面外拿不到合同之外的方法（#1516 二审建议 3，在第二本里改）；门面从 29 个合同方法降到 14 个，加私有的 `readCompletionContext`，不再是巨大单元，`tooling/gates/giant-exceptions.json` 里的登记删掉（门禁说它「不再是巨大单元」）。
+- 调用方：只有 `goal-event-application.ts`（`GoalEventApplication`，Goals 自己的应用层）里 15 处 `this.ports.events.X` 改成 `.state.X`、`.intent.replay` 一类；`createGoalReadServices`（Goals 包导出、只有测试 `goals-query-module` 在用的只读装配；宿主自 S12 起不再持有它，`tests/goals-host-no-direct-reads.test.ts` 钉着）把 `readWorkState` 挪到 `events.state` 下。`app.goalEvents` 是应用层，方法名与状态方法同名，**不改**。
 - 测试：`tests/goal-events.test.ts` 里 6 处 `data.module.events.X` 改经 `.state`。
 - 不改：动作 id、版本、权限、输入输出 schema、Manifest、库结构；`tooling/gates/actions/` 没有差异。
 
@@ -58,7 +58,7 @@ Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路
 
 | 编号 | 可观察结果与证明 |
 | --- | --- |
-| RAC-1772 | `GoalEventFactsApi`、`GoalEventStateApi`、`GoalEventIntentApi` 的键与上表逐项相等，`state` 的类型就是 `GoalEventStateApi`，`GoalEventFacts` 可以赋给 `GoalEventFactsApi`（调 TypeScript 在构建出的 `.d.ts` 上做类型检查，不靠运行器）；`GoalEventFacts.prototype` 上只有事实方法和 `readCompletionContext`，那 15 个转发方法没有了（`tests/goals-contract-ownership.test.ts`） |
+| RAC-1772 | `GoalEventFactsApi`、`GoalEventStateApi`、`GoalEventIntentApi` 的键与上表逐项相等，`GoalEventFactsApi` 与 `GoalEventFacts` 的 `state`、`intent` 的类型就是 `GoalEventStateApi`、`GoalEventIntentApi`（不是具体类），`GoalEventFacts` 可以赋给 `GoalEventFactsApi`（调 TypeScript 在构建出的 `.d.ts` 上做类型检查，不靠运行器）；`GoalEventFacts.prototype` 上只有事实方法和 `readCompletionContext`，那 15 个转发方法没有了（`tests/goals-contract-ownership.test.ts`） |
 | RAC-1770 | `@molis-ai/molis-work-plugin-goals/contract` 的运行时导出名单（100 项）与取值不变：`goalPluginActions` 五项、`goalEntryActions` 十二项的 id、版本、读写，`goalEventWorkStatuses`、`goalIntentSourceKinds`、`goalRelationTypes`；平台合同的 `package.json` 不再有 `modules/goals`、`modules/goal-actions`、`modules/governance-collaboration` 出口，按包名导入得 `ERR_PACKAGE_PATH_NOT_EXPORTED`，`packages/contracts/src/modules` 里没有 `goal*`、`governance*` 文件（`tests/goals-contract-ownership.test.ts`） |
 | RAC-1771 | 除 Goals 自己的包和 `tooling/`，`apps`、`packages`、`plugins`、`server`、`horizontal`、`services`、`scripts` 里没有一个已跟踪的源文件写着旧三个子路径；CLI、MCP、Coding、Feed、`server/src` 的源文件不点名 Goals 包或它的源码路径（同上） |
 | RAC-1773 | CLI 的 `GOALS`（七项）、Feed 的 `GOALS`（三项）、MCP 的 `MANAGEMENT_GOAL_ACTIONS`（三项）与 Goals 注册的 `goalEntryActions` 同名项的 id 和版本逐项相等；Coding 的 `GOALS_ACTIONS` 五项与 `goalPluginActions` 的 id、版本、读写、kind、scope、权限相等；`MCP_TOOLS` 的名字与顺序、三个管理工具的描述、业务字段与 required 与动作目录一致（同上；动作快照另由 `tests/action-contract-snapshot.test.ts` 钉住无差异） |

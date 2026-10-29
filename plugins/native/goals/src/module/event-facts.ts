@@ -6,6 +6,7 @@ import type {
   GoalEventAdoptedPlanningRequest,
   GoalEventConfigView,
   GoalEventFactsApi,
+  GoalEventIntentApi,
   GoalEventHistoryPage,
   GoalEventHistoryQuery,
   GoalEventLatestReports,
@@ -13,6 +14,7 @@ import type {
   GoalEventListPage,
   GoalEventListQuery,
   GoalEventRequirementStatus,
+  GoalEventStateApi,
   GoalEventTimelinePage,
   GoalWorkEventRecord,
   ReportGoalEventsInput,
@@ -37,8 +39,11 @@ import { resolveGoalPolicy } from "./query.js";
 export class GoalEventFacts implements GoalEventFactsApi {
   private readonly records: GoalEventFactsRepository;
   private readonly configWrites: GoalEventFactsConfig;
-  readonly state: GoalEventState;
-  readonly intent: GoalEventIntent;
+  /** The concrete classes stay private; outside the facade only the contract's state and intent calls are reachable. */
+  private readonly eventState: GoalEventState;
+  private readonly eventIntent: GoalEventIntent;
+  readonly state: GoalEventStateApi;
+  readonly intent: GoalEventIntentApi;
   private readonly configuration: GoalEventConfiguration;
   private readonly reporting: GoalEventReporting;
   private readonly reads: GoalEventReads;
@@ -46,7 +51,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
   constructor(private readonly context: GoalsCommandContext) {
     this.records = new GoalEventFactsRepository(context.repository.db);
     this.configWrites = new GoalEventFactsConfig(context, this.records);
-    this.state = new GoalEventState(
+    this.eventState = new GoalEventState(
       context,
       this.records,
       new GoalEventStateRepository(context.repository.db),
@@ -59,9 +64,11 @@ export class GoalEventFacts implements GoalEventFactsApi {
         readCompletionContext: (projectId, goalId) => this.readCompletionContext(projectId, goalId),
       },
     );
-    this.intent = new GoalEventIntent(context, this.records, this.state, (kind) => eventActorKind(kind));
-    this.configuration = new GoalEventConfiguration(context, this.records, this.configWrites, this.state);
-    this.reporting = new GoalEventReporting(context, this.records, this.configWrites, this.state);
+    this.eventIntent = new GoalEventIntent(context, this.records, this.eventState, (kind) => eventActorKind(kind));
+    this.state = this.eventState;
+    this.intent = this.eventIntent;
+    this.configuration = new GoalEventConfiguration(context, this.records, this.configWrites, this.eventState);
+    this.reporting = new GoalEventReporting(context, this.records, this.configWrites, this.eventState);
     this.reads = new GoalEventReads(context, this.records);
   }
 
@@ -136,7 +143,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
   isEventStateOwner(projectId: string, goalId: string): boolean {
     this.context.requireGoal(projectId, goalId);
-    return this.state.isEventStateOwner(projectId, goalId);
+    return this.eventState.isEventStateOwner(projectId, goalId);
   }
 
   runImmediate<T>(operation: () => T): T {

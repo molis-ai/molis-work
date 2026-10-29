@@ -32,8 +32,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* The Goal document pane. It comes be
     body[data-desktop-shell="true"] .navigator-project-settings { -webkit-app-region: no-drag; }
     body[data-desktop-shell="true"] .document-pane { --focus-canvas-inset: 0px; padding-inline: 4px 12px; padding-bottom: 12px; grid-column: 3; grid-row: 2; background: var(--page); }
     body[data-desktop-shell="true"] .desktop-work-surface:has(> .goal-event-document) { display: flex; }
-    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goals"]) .tui-resizer,
-    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goals"]) .tui-pane { display: none !important; }
+    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goals"]) :is(.tui-resizer, .tui-pane) { display: none !important; }
   }
 
   /* One Codex-style desktop titlebar contract. The native controls and work

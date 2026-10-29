@@ -346,10 +346,14 @@ function partEndByCharacters(text: string, offset: number, size: number): number
   }
   return end < text.length && line >= 0 ? line : end;
 }
-/** A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. */
+/**
+ * A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. `max` counts whole characters
+ * (a 🙂 is one, though two UTF-16 units), the way Todo and Pages count a title, so a cut never ends inside a character.
+ */
 function partTitle(title: string, part: number, parts: number, max: number): string {
   const suffix = parts > 1 ? L(" · 第 {k} / {n} 部分", { k: part, n: parts }) : "";
-  return (title.length + suffix.length <= max ? title : title.slice(0, max - suffix.length - 1).replace(/[\uD800-\uDBFF]$/u, "") + "…") + suffix;
+  const characters = [...title], room = max - [...suffix].length;
+  return (characters.length <= room ? title : characters.slice(0, room - 1).join("") + "…") + suffix;
 }
 
 /**
@@ -507,7 +511,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
         const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
         const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
-        const summaryText = summaryTitle.length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
+        // Pages holds 80 whole characters of a title: a longer one is cut by pageTitle, and the project's name then leads the body instead.
+        const summaryText = [...summaryTitle].length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
         const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {

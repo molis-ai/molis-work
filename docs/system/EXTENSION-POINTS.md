@@ -1,6 +1,6 @@
 # 扩展点清单：怎么加、现在要改几处、目标几处
 
-状态：2026-10-08 按 origin/main `31c357df` 核实（数字都在这个提交上重量过）。全文没有重新核对：之后各次提交只改了当时点名的几处，名字、文件和数字要用先到代码核对。已知过时的两处：「现在：5 个代码文件 + 42 份词典」一段把 `plugins/native/goals/src/safety-ui-model.ts` 算作写了 `"zh" | "en"` 字面量的文件，它现在写的是 `currentLocale(): string`，不再算；「生成插件的沙箱」一行的 `UNSUPPORTED_PLATFORM` 现在是 `sandbox.unsupported_platform`（`packages/plugin-sandbox/src/runner.ts`）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
+状态：2026-10-08 按 origin/main `31c357df` 核实（数字都在这个提交上重量过）。全文没有重新核对：之后各次提交只改了当时点名的几处，名字、文件和数字要用先到代码核对。已知过时的两处：「现在：5 个代码文件 + 42 份词典」一段把 `plugins/native/goals/src/safety-ui-model.ts` 算作写了 `"zh" | "en"` 字面量的文件，该文件现在已不含这一字面量，不再算；「生成插件的沙箱」一行的 `UNSUPPORTED_PLATFORM` 现在是 `sandbox.unsupported_platform`（`packages/plugin-sandbox/src/runner.ts`）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
 
 用户决定见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-07 与 2026-10-08 各行；其中 2026-10-08 的第五批（宿主设置写入、界面翻译、调用编号上界面、右栏「讨论」页签与 IM、第三方插件信任、Characters 并进宿主、Runtime 插件的 methods 等）在 PR #312，合入前不在 main 上。
 

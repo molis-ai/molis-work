@@ -157,6 +157,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-207 | 六处过时的措辞改成现状：`shared` 已空、BL-802 已做、双实例舞台「在跑」的口径、扩展点清单头（防腐清理，MISC「T-125 二审 建议」「T-191 发布」，T-127 二审建议 2） | 丙 | B | 106 | — | `scripts/gates/README.md`、`tooling/gates/README.md`、`tooling/gates/table-owners.json`（只 `areas` 下 Feed 那条的 `reason`，不改任何 owner 条目）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（只第 3 行）、`specs/dual-instance-plugins/spec.md`（只 §12）、`docs/system/EXTENSION-POINTS.md`（只第 3 行） |
 | T-208 | Images 页面按整字截提示词：下载名、Shelf 来源说明、助理上下文标题不再留下半个字，含两单元字的提示词不再让结果页画不出来（防腐清理，MISC「T-186 发布」） | 乙 | B | 107 | T-176 | `plugins/native/images/src/browser/dom.ts`、`plugins/native/images/src/browser/result.ts`、`plugins/native/images/src/browser/page.ts`、`tests/images-result-whole-characters.e2e.test.ts`（新）、`scripts/gates/page-assets.mjs`（只 APPROVED_CEILINGS，与 T-176、T-183、T-203 互锁）、`tooling/gates/page-assets.json`（只经 --update --base） |
 | T-209 | 桌面入口用例的 PTY 夹具读 pid 前先等文件里真有数字，不再读到空串（防腐清理，MISC「T-199 发布」行） | 丙 | 池 | 108 | — | `tests/fixtures/desktop-entry-streams.ts` |
+| T-212 | 图片服务自己查的长度（提示词、请求号、尺寸、宽高比、服务名称、模型名）按字数数，与动作 schema 一致，含两单元字的内容不再被多拒（防腐清理，MISC「T-208 起草」service.ts 一行） | 乙 | 池 | 111 | T-213 | `plugins/native/images/src/service.ts`、`tests/images-service.test.ts` |
+| T-213 | 平台生图端口的提示词与请求字段按字数查，与 Images 动作 schema 一致（防腐清理，T-212 起草时发现；T-212 的平台一半） | 甲 | Claude（设备 A） | 112 | — | `packages/plugin-runtime/src/image-generation.ts`、`tests/plugin-image-generation.test.ts` |
 
 ## 在途，不走任务书
 

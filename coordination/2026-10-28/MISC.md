@@ -69,6 +69,7 @@
 | T-191 二审 建议 | `plugins/native/goals/src/safety-ui-model.ts` | 文件名是遗留名（里面已不是界面语言的安全模型），定改名还是并进别的文件；丙 | 统筹 2026-10-29 |
 | T-168 二审 建议 | `docs/system/SECURITY-INVARIANTS.md` S-47 行 | #1439 已合入，S-47 行那一句现在可以写；只等 #1101 不再锁这份登记表 | 统筹 2026-10-29 |
 | T-208 起草 | `plugins/native/images/README.md:48` | 「改动后必跑」补上新的 `tests/images-result-whole-characters.e2e.test.ts`（T-208 合入后；#1101 在改这份 README，等它不再锁） | 统筹 2026-10-29 |
-| T-208 起草 | `plugins/native/images/src/service.ts:94`、`:175-178`，`plugins/native/images/src/ui.ts:66`、`:68`、`:69`、`:91`、`:94` | 服务端按 UTF-16 单元查长度、输入框 `maxlength` 也按单元，而动作 schema 的 `maxLength` 按字数：schema 收下的会被服务端拒。同 T-203 一类（乙） | 统筹 2026-10-29 |
+| T-208 起草 | `plugins/native/images/src/ui.ts:66`、`:68`、`:69`、`:91`、`:94` | 服务端一半已进 T-212 / T-213。剩页面输入框五处按单元的 `maxlength`，对两单元字偏严（只会比服务端严，造不出「页面收、服务端拒」）；另 `ui.ts:68`、`:69` 写的 100 与服务端的 64、32 不一致（数字不一致，不是单位问题）。丙或乙，等 T-208 不再锁 Images 浏览器端 | 统筹 2026-10-29 |
 | T-208 起草 | `packages/contracts/src/platform/search-sources.ts:79-84`（`searchText`，Images `search.ts:15` 等在用） | 合同里的搜索文本按单元截，可能留下半个字；共享核心，甲，给设备 A 的 Claude | 统筹 2026-10-29 |
 | T-209 起草 | `tests/fixtures/desktop-entry-streams.ts:70-81` | `:81` 断言失败时 `pid` 还没赋值，`t.after`（`:70-73`）停不掉 PTY 子进程，会留孤儿。改法：先赋值再断言，失败路径会变，T-209 不收；丙 | 统筹 2026-10-29 |
+| T-212 起草 | `tests/fixtures/images-runtime.ts:33` | `raw += chunk` 按块拼字符串，被切开的四字节字会读成 U+FFFD；改成先收 Buffer 再解码。丙 | 统筹 2026-10-29 |

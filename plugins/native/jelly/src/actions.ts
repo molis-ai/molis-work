@@ -70,7 +70,8 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
     bind(jellyActions.exportNote, input => read(state => {
       const note = state.notes.find(n => n.id === input.id); if (!note) throw jellyErrors.not_found("笔记不存在");
       const html = input.format === "html";
-      return { content: html ? jellyNoteToHtml(note) : jellyNoteToMarkdown(note), filename: note.title.replace(/[\/\\:*?"<>|]/gu, "-").slice(0, 100) + (html ? ".html" : ".md"), mime: html ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" };
+      // Whole characters, not UTF-16 units: unit 100 can fall inside a two-unit character. The first slice bounds what is spread.
+      return { content: html ? jellyNoteToHtml(note) : jellyNoteToMarkdown(note), filename: [...note.title.replace(/[\/\\:*?"<>|]/gu, "-").slice(0, 200)].slice(0, 100).join("") + (html ? ".html" : ".md"), mime: html ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" };
     })),
     bind(jellyActions.previewImport, (input, caller) => ports.write(caller, store => ({ preview: store.previewImport(input.source) }))),
     bind(jellyActions.previewNoteDelete, (input, caller) => ports.write(caller, store => ({ preview: store.previewDelete(input.id) }))),

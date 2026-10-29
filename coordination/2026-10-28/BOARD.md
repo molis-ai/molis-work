@@ -101,6 +101,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-150 | 四处过时的文档说法改对：C 端方案的 W1-13、Observability 的日志、MCP 发现失败、停用隔离中的生成插件 | 丙 | 池 | 53 | — | `specs/repository-anti-corruption/c-end-readiness.md`、`docs/platform/CONTRACTS-AND-OPERATIONS.md`、`docs/system/CALL-CHAINS.md` |
 | T-151 | 终端被停掉或重启换下的旧进程，之后的输出不再进重放、不再转给面板 | 乙 | 池 | 54 | — | `horizontal/runtime-host/src/adapters/terminal-pty.ts`、`tests/runtime-host.test.ts`、`horizontal/runtime-host/README.md` |
 | T-152 | 超时消息里的 elapsed 按整毫秒向下取整，RAC-1452 不再因两个时钟各自取整而偶发红 | 乙 | 池 | 55 | — | `packages/test-kit/src/browser/cdp.ts`、`packages/test-kit/tests/browser.test.mjs`、`packages/test-kit/README.md` |
+| T-153 | 提醒与定时操作登记的闹钟名称按整字截到 120 个单元，不再留下半个字 | 乙 | 池 | 56 | — | `plugins/native/schedule/src/job-title.ts`、`plugins/native/schedule/src/reminders.ts`、`plugins/native/schedule/src/operations.ts`、`tests/schedule-operations.test.ts` |
 
 ## 在途，不走任务书
 

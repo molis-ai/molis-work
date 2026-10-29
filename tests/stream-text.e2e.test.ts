@@ -106,6 +106,8 @@ test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new
   await command("Page.addScriptToEvaluateOnNewDocument", { source: watch }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  // This case observes the motion itself; under automation `data-craft-still` freezes the `.mw-fresh` reveal animation, so `animationend` never comes.
+  await evaluate("document.documentElement.removeAttribute('data-craft-still')");
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "写一段说明" }, sessionId);
   await click("[data-assistant-send]");

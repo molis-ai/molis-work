@@ -370,15 +370,15 @@ test("a timed-out command profiles what kept Node busy, without the script URL's
 test("a slow profile read cannot postpone the timeout past its grace, and elapsed says how long it waited (RAC-1452)", async () => {
   await withDelayedProfileStop(400, async () => {
     await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
-      const started = Date.now();
-      // RAC-1452 (task book 10a24449a): with B2 on the rejection still lands between the limit and limit + 250 ms,
-      // even when the single bounded profile read is slower than its grace.
+      const started = performance.now();
+      // RAC-1452: with `profileTimeouts` on the rejection still lands between the limit and limit + 250 ms, even when the
+      // bounded profile read is slower than its grace. Same clock as the harness, so `elapsed` can be held to the wait.
       await assert.rejects(harness.command("Never", {}, undefined, 100), (error) => {
-        const settledAfter = Date.now() - started;
-        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter}ms, outside limit..limit + 250`);
+        const settledAfter = performance.now() - started;
+        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter.toFixed(1)}ms, outside limit..limit + 250`);
         const stated = Number(/\(elapsed (\d+)ms; limit 100ms\)/.exec(error.message)?.[1]);
         assert.ok(stated >= 140, `elapsed ${stated}ms includes the profile wait`);
-        assert.ok(stated <= settledAfter, `elapsed ${stated}ms claims more than the ${settledAfter}ms the caller waited`);
+        assert.ok(stated <= settledAfter, `elapsed ${stated}ms claims more than the ${settledAfter.toFixed(1)}ms the caller waited`);
         assert.ok(error.diagnostics, "Chrome counters still ride along without the profile");
         assert.deepEqual(error.diagnostics.nodeSelfTime, [], "no samples without a profile");
         assert.equal(error.diagnostics.nodeSelfTimeComplete, false, "an unread profile does not claim coverage");
@@ -387,6 +387,30 @@ test("a slow profile read cannot postpone the timeout past its grace, and elapse
         return true;
       });
     });
+  });
+});
+
+test("a timeout's elapsed is the whole milliseconds the command waited, rounded down, never more (RAC-1674)", async () => {
+  // merge_group run 40790882078 (#1415): RAC-1452 read "elapsed 250ms" against the 249 ms its caller had waited, because
+  // the harness rounded to the nearest millisecond. Here the command starts on a whole millisecond and every later
+  // reading is 0.6 ms past one, so rounding would claim a millisecond the command never waited.
+  await withHarness(() => {}, {}, async (harness) => {
+    const real = performance.now.bind(performance), readings = [];
+    performance.now = () => {
+      const reading = Math.floor(real()) + (readings.length === 0 ? 0 : 0.6);
+      readings.push(reading);
+      return reading;
+    };
+    try {
+      await assert.rejects(harness.command("Never", {}, undefined, 50), (error) => {
+        const stated = Number(/\(elapsed (\d+)ms; limit 50ms\)/.exec(error.message)?.[1]);
+        const waited = readings.at(-1) - readings[0];
+        assert.equal(stated, Math.floor(waited), `elapsed ${stated}ms for ${waited.toFixed(1)}ms measured`);
+        return true;
+      });
+    } finally {
+      delete performance.now;
+    }
   });
 });
 

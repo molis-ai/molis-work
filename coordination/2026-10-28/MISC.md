@@ -85,3 +85,4 @@
 | T-247 二审 建议（6504814560） | `modules/artifacts/src/artifact-actions.ts:187` | `.join("\n").slice(0, 4000)` 按单元截，可能截出半个字；改前就有。#1101 也搬这一行，等它定了再发；乙 | 统筹 2026-10-29 |
 | T-227 问统筹 选项 B | `tests/installed-plugin-host.test.ts`（`apps/local-host/src/installed-plugin-host.ts`） | Host 侧关闭途中记录被删时的用例（T-172 二审第 2 条），只加用例不改源码；该文件只在 mac 上跑；乙 | 统筹 2026-10-29 |
 | T-227 二审 建议 1（6505104712） | `apps/local-host/src/plugin-platform-close.ts:39`（项目、Host 同一处） | `list()` 读不了时，只有 Supervisor 记为 `running` 的插件才按自己的安装停；Supervisor 记为 `failed`（带 `install_id`，升级失败走 `supervisor.ts:429` 的 `#fail`）而 Runtime 仍 `running` 的，会被 `revoke` 不带 `preserve_enabled` 停成 `disabled`。main 上原有。可改用 `supervisor.state(pluginId)?.install_id`；甲，给设备 A 的 Claude | 统筹 2026-10-29 |
+| T-237 二审 登记（6505592217） | 「截后去掉落单高位代理」/「整字且不超过 N 单元」的写法 | T-195、T-197、T-202、T-214、T-220、T-221、T-237、T-247 等各写了一份；等在途的整字截单都落地后，统一成一个公开小函数（放哪一层要定：kernel 与 plugin-sdk 都要用），各处改调它；甲，统筹定 | 统筹 2026-10-29 |

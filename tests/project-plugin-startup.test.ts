@@ -189,6 +189,72 @@ test("RAC-1453 RAC-1922 a project plugin whose install record the Runtime cannot
   }
 });
 
+// RAC-1923 T-124: the close reads only the installation it is stopping. Another installation whose stored record cannot be parsed
+// is that installation's own failure: the plugins around it still get their shutdown stop (recorded installed), and the plugin whose
+// record is gone is still let go.
+test("RAC-1453 RAC-1922 RAC-1923 another installation's unreadable record fails only that installation: the others still stop and the one without a record is still let go", async () => {
+  const { home, store, ports } = await openProject();
+  let platform: RunningPlatform | undefined;
+  let running: RunningPlugin[] = [];
+  let saved: Record<string, unknown> | undefined;
+  let corrupt: { install_id: string; record_json: string } | undefined;
+  let failure: unknown;
+  try {
+    const opened = (await ensureProjectPlugins(ports)).platform;
+    assert.ok(opened);
+    platform = opened;
+    running = runningPlugins(opened);
+    assert.ok(running.length > 2, "a project has more than two running plugins");
+    const offered = (rows: ReadonlyArray<{ provider: { provider_id: string } }>, plugin: RunningPlugin) => rows.filter(row => [plugin.id, plugin.install].includes(row.provider.provider_id));
+    const directory = () => ports.actions.client.discover({ actor_id: ports.actorId, project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [] });
+    const before = await directory();
+    const gone = running.find(plugin => offered(before, plugin).length > 0);
+    assert.ok(gone, "a running plugin offers actions");
+    // The unreadable one comes after the gone one in the loop's order, and another plugin after it, when the order allows.
+    const later = running.slice(running.indexOf(gone) + 1, -1);
+    const broken = later[0] ?? running.find(plugin => plugin !== gone)!;
+    const rest = running.filter(plugin => plugin !== gone && plugin !== broken);
+    saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
+    corrupt = store.db.prepare("SELECT install_id, record_json FROM plugin_runtime_installs WHERE install_id = ?").get(broken.install) as typeof corrupt;
+    assert.ok(saved && corrupt);
+    store.db.prepare("DELETE FROM plugin_runtime_installs WHERE install_id = ?").run(gone.install);
+    store.db.prepare("UPDATE plugin_runtime_installs SET record_json = '{' WHERE install_id = ?").run(broken.install);
+    await assert.rejects(releaseProjectPlugins(store, DEMO_PROJECT_ID), error => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /项目插件停止失败/);
+      assert.equal(error.errors.length, 2, "one failure for the missing record, one for the unreadable one, none for the others");
+      assert.equal(error.errors.filter(item => (item as { code?: string }).code === "plugin.definition_missing").length, 1);
+      assert.equal(error.errors.filter(item => item instanceof SyntaxError).length, 1);
+      return true;
+    });
+    const rows = store.db.prepare("SELECT install_id, record_json FROM plugin_runtime_installs WHERE install_id <> ?").all(broken.install) as Array<{ install_id: string; record_json: string }>;
+    const states = new Map(rows.map(row => [row.install_id, (JSON.parse(row.record_json) as { state: string }).state]));
+    for (const plugin of rest) assert.equal(states.get(plugin.install), "installed", `${plugin.id} gets its shutdown stop`);
+    assert.equal(platform.runtime.contribution(gone.install), null, `${gone.id} keeps no contribution`);
+    assert.deepEqual(offered(await directory(), gone), [], `${gone.id} offers no action after the close`);
+    for (const plugin of running) assert.equal(platform.supervisor.state(plugin.id)?.code, "plugin.revoked", `${plugin.id} is revoked`);
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    // Both rows go back first, so each installation the close left running can be read and stopped in its own cleanup step.
+    const cleanup: Array<() => void | Promise<void>> = [() => {
+      if (corrupt) store.db.prepare("UPDATE plugin_runtime_installs SET record_json = ? WHERE install_id = ?").run(corrupt.record_json, corrupt.install_id);
+    }, () => {
+      if (!saved || store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(saved.install_id)) return;
+      const columns = Object.keys(saved);
+      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+    }];
+    const live = platform;
+    if (live) for (const plugin of running) cleanup.push(async () => {
+      if (live.runtime.get(plugin.install).state === "running") await live.runtime.stop(plugin.install);
+    });
+    cleanup.push(() => releaseProjectPlugins(store, DEMO_PROJECT_ID), () => store.close(), () => rmSync(home, { recursive: true, force: true }));
+    const errors = await collectCleanupErrors(cleanup);
+    throwCleanupErrors(failure, errors);
+  }
+});
+
 test("RAC-1454 a crashed installation the supervisor still counts running is not stopped, does not fail the close, and keeps its record", async () => {
   const { home, store, ports } = await openProject();
   let failure: unknown;

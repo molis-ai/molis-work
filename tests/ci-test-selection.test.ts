@@ -36,13 +36,13 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   whole("security", null, /affected-tests failed: boom/);
   whole("security", affected({ tests: someTests, full: [{ rule: "shared-core", detail: "packages/contracts/src/x.ts" }] }), /full suite \(shared-core\)/);
   whole("product", affected({ tests: someTests, uncovered: ["plugins/native/todo/src/new.ts"] }), /no test reads plugins\/native\/todo\/src\/new\.ts/, PRODUCT);
-  // Written out here, not read from FULL_WHEN, so that dropping one of them from the script is seen: what both jobs run with, and what
-  // the selection itself reads to choose (the READMEs' test lists, the browser marks, the product list's rules).
+  // Written out here, one file for each entry, not read from FULL_WHEN, so that dropping one of them from the script is seen: what both
+  // jobs run with, and what the selection and the runners import (the next test follows those imports on its own).
   const BOTH = [
     ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/molis-plugin-dev/SKILL.md",
     "vendor/prologue-sdk/README.md", "scripts/ci-test-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/select.mjs",
     "scripts/run-tests.mjs", "scripts/run-tests/pool.mjs", "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
-    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/ci-product-subset/plan.mjs",
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/run.mjs", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs",
   ];
   for (const file of BOTH) {
     for (const job of ["security", "product"] as const) whole(job, affected({ tests: someTests, changes: [{ path: file }] }), new RegExp(`runs whole when these change: ${file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
@@ -68,6 +68,34 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   assert.notEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: someTests, changes: [{ path: "tests/ci-product-subset.txt" }] }) }).mode, "whole");
   // A Markdown file at the root is a document, not a config; AGENTS.md is named on its own.
   assert.equal(decideJob({ job: "security", list: LIST, affected: affected({ tests: someTests, changes: [{ path: "README.md" }] }) }).mode, "some");
+});
+
+/** The repository's files a script loads, following its relative imports (`import … from`, `import()`, `export … from`) to the end. */
+function importClosure(entry: string): string[] {
+  const seen = new Set<string>();
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const text = readFileSync(path.join(repoRoot, file), "utf8");
+    for (const match of text.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["'](\.{1,2}\/[^"']+)["']/g)) visit(path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1]!)));
+  };
+  visit(entry);
+  return [...seen].sort();
+}
+
+test("RAC-1760 every file the selection, affected-tests and the two runners load is a trigger, followed from the code, not from FULL_WHEN", () => {
+  const someTests = touching(LIST[0]!);
+  const trigger = (job: "security" | "product", file: string) => decideJob({ job, list: job === "security" ? LIST : PRODUCT, affected: affected({ tests: someTests, changes: [{ path: file }] }) }).mode === "whole";
+  // Both jobs are chosen by the selection and affected-tests, and both run through run-tests.mjs (the product runner's pool is its own,
+  // but the probe's runner it shares is under scripts/ci-linux-probe/).
+  const shared = [...new Set(["scripts/ci-test-selection.mjs", "scripts/affected-tests.mjs", "scripts/run-tests.mjs"].flatMap(importClosure))];
+  for (const known of ["scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/ci-linux-probe/run.mjs", "scripts/machine-slot.mjs", "scripts/ci-product-subset/plan.mjs"]) {
+    assert.ok(shared.includes(known), `the import walk finds ${known} (it is not blind)`);
+  }
+  for (const file of shared) for (const job of ["security", "product"] as const) assert.ok(trigger(job, file), `${job}: ${file} is loaded by the selection or a runner, so changing it runs the job whole`);
+  const product = importClosure("scripts/ci-product-subset.mjs");
+  assert.ok(product.includes("scripts/ci-product-subset/report.mjs"), "the import walk follows the product runner");
+  for (const file of product) assert.ok(trigger("product", file), `product: ${file} is loaded by its runner`);
 });
 
 test("RAC-1761 none skips the job; some runs the touched files on one runner when they fit in one shard, the smokes counted apart", () => {
@@ -204,6 +232,11 @@ test("RAC-1763 end to end: a summary that cannot be written fails nothing, and a
   assert.equal(partial.code, 0, partial.text);
   assert.deepEqual([partial.outputs.security_mode, partial.outputs.product_mode], ["whole", "whole"], partial.text);
   assert.match(partial.text, /answered without uncovered/);
+  // What this scratch repository needs copied for the selection to run at all is a trigger of both jobs.
+  for (const item of SCRIPTS) for (const job of ["security", "product"] as const) {
+    const file = item.endsWith(".mjs") ? item : `${item}/index.mjs`;
+    assert.equal(decideJob({ job, list: job === "security" ? LIST : PRODUCT, affected: affected({ tests: touching(LIST[0]!), changes: [{ path: file }] }) }).mode, "whole", `${job}: ${file}`);
+  }
 });
 
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------

@@ -38,11 +38,12 @@ export const FULL_WHEN = {
     ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/", "vendor/",
     "scripts/ci-test-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/", "scripts/run-tests.mjs", "scripts/run-tests/",
     "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
-    // What this script and affected-tests read to choose: the READMEs' test lists, the browser marks, the product list's rules.
-    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/ci-product-subset/plan.mjs",
+    // What this script, affected-tests and the two runners import (tests/ci-test-selection.test.ts follows the imports and holds this):
+    // the READMEs' test lists, the browser marks and the probe's runner, the product list's rules, the machine slot.
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs",
   ],
   security: ["docs/system/SECURITY-INVARIANTS.md", "tests/security-invariants-", "scripts/gates/security-invariants.mjs"],
-  product: ["tests/ci-product-subset.txt", "tests/quarantine.json", "scripts/ci-product-subset.mjs", "scripts/ci-product-subset/", "scripts/ci-linux-probe.mjs", "scripts/ci-linux-probe/"],
+  product: ["tests/ci-product-subset.txt", "tests/quarantine.json", "scripts/ci-product-subset.mjs", "scripts/ci-product-subset/", "scripts/ci-linux-probe.mjs"],
 };
 /** A file at the root of the repository that is not a Markdown document (a config of the install, the build or the tests). */
 const ROOT_CONFIG = /^[^/]+$/;

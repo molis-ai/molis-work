@@ -449,12 +449,12 @@ jobs:
   # Which files of the two jobs below a pull request runs (T-130, scripts/ci-test-selection.mjs): the files of each job's own list
   # that scripts/affected-tests.mjs says the change touches (`--wide`), against HEAD^1, the base branch as GitHub merged it. A job runs
   # whole when affected-tests recommends the full suite, when a changed source file is read by no test, when a file the job runs with
-  # changed (its list, its runner, this workflow, package.json, the lockfile, skills/, vendor/; the security table and the
-  # security-invariants-* tests; the product list and quarantine), and when the selection fails; it is skipped when none of its files
-  # is touched. Only on a pull request: on a push to main, the nightly run and a manual run this job is skipped and both jobs run whole
-  # as before; the merge queue runs neither. The two jobs read its outputs only when it succeeded (`needs.test-selection.result`), in
-  # the `if`, the matrix and the file list alike: skipped, failed or cancelled, whatever it may have written, means the whole list on two
-  # legs. Not in `verify`'s needs: it decides nothing a merge waits for.
+  # changed (its list, its runner and what the runners and the selection import, this workflow, package.json, the lockfile, skills/,
+  # vendor/; the security table and the security-invariants-* tests; the product list and quarantine), and when the selection fails;
+  # it is skipped when none of its files is touched. Only on a pull request: on a push to main, the nightly run and a manual run this
+  # job is skipped and both jobs run whole as before; the merge queue runs neither. The two jobs read its outputs only when it
+  # succeeded (`needs.test-selection.result`), in the `if`, the matrix and the file list alike: skipped, failed or cancelled, whatever
+  # it may have written, means the whole list on two legs. Not in `verify`'s needs: it decides nothing a merge waits for.
   test-selection:
     name: PR test selection
     if: ${{ github.event_name == 'pull_request' }}

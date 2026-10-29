@@ -94,7 +94,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
   await reloadPage();
   await waitFor("document.body.dataset.desktopSurface === 'home' || document.body.dataset.desktopSurface === 'goals'");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "goal") {
+  if (await evaluate("document.body.dataset.desktopSurface") !== "goals") {
     await click('[data-plugin-strip] [data-plugin-id="goals"]');
   }
   await waitFor("document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");

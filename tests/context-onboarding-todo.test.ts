@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
@@ -201,4 +201,82 @@ test("ONB-LIM-06 after the person chooses other materials, the todo drafts are m
 
 test("RAC-822 the journey sends Todo's organizer parts of the size the organizer reads", () => {
   assert.equal(TODO_PART_CHARS, TODO_ORGANIZE_MATERIAL_CHARS);
+});
+
+// The text of each part as runs ("🟢×60000 \n×1 x×39999"), so a part of 60,000 characters is read at a glance and a cut inside a 🟢 shows as a run of its own.
+const runs = (text: string) => [...text].reduce<[string, number][]>((all, character) => {
+  if (all.at(-1)?.[0] === character) all.at(-1)![1]++; else all.push([character, 1]);
+  return all;
+}, []).map(([character, count]) => `${character === "\n" ? "\\n" : character}×${count}`).join(" ");
+const described = (sent: { title: string; text: string }[]) => sent.map(material => `${material.title}: ${runs(material.text)}`);
+
+// A journey over files named and filled as given: the parts the Host sends Todo's organizer, and the finished journey.
+async function journeyOver(t: Parameters<Parameters<typeof test>[1]>[0], files: [name: string, text: string][]) {
+  const { dir, id, ports } = await fixture(t, async () => TODOS);
+  const staged: { path: string; staged: string }[] = [];
+  for (const [name, text] of files) { const file = await stageContextFile(dir, id, name, Buffer.from(text)); staged.push({ path: file.path, staged: file.staged }); }
+  selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files: staged }] });
+  const sent: { title: string; text: string }[] = [];
+  const summarize = async (input: ModelPromptInput) => `# 新版方案\n要点 [${/"labels":\["(S\d+)"/u.exec(modelPromptText(input))?.[1] ?? "S1"}]`;
+  const run = { ...ports, model: async () => ({ completeText: summarize }), homeActions: (home: string, signal: AbortSignal): BoundActionClient => {
+    const client = ports.homeActions(home, signal);
+    return {
+      discover: () => client.discover(),
+      invoke: (definition, input, control) => {
+        if (definition.capability_id === "todo.organize.extract") sent.push(...(input as { materials: { title: string; text: string }[] }).materials);
+        return client.invoke(definition, input, control);
+      },
+    };
+  } };
+  startContextJourney(dir, id, run);
+  const ready = await waitContextJourney(dir, id);
+  assert.equal(ready.phase, "review", ready.error ?? "");
+  return { dir, id, run, ready, sent };
+}
+
+test("RAC-1853 todo parts of a long material hold 60,000 characters, a 🟢 counted as one, and none ends inside one", { timeout: 120_000 }, async t => {
+  // A 🟢 (U+1F7E2) is one character and two UTF-16 units: 90,000 of them are parts of 60,000 and 30,000 characters, not three of 30,000. After one
+  // "a", the first part is that "a" and 59,999 🟢, not 60,000, which would end inside a pair; the rest is 10,001.
+  const { sent } = await journeyOver(t, [["emoji.md", "🟢".repeat(90_000)], ["odd.md", "a" + "🟢".repeat(70_000)]]);
+  assert.deepEqual(described(sent), [
+    "emoji · 第 1 / 2 部分: 🟢×60000", "emoji · 第 2 / 2 部分: 🟢×30000",
+    "odd · 第 1 / 2 部分: a×1 🟢×59999", "odd · 第 2 / 2 部分: 🟢×10001",
+  ]);
+});
+
+test("RAC-1854 todo parts end after a line end in the second half of 60,000 characters, the half counted in characters, and a last part is left whole", { timeout: 120_000 }, async t => {
+  // The second half starts at 30,000 characters. late: the line end is after 40,000 🟢, which is 80,000 units, past the 60,000 a part may hold in units, so
+  //   only a cut by characters finds it. early: after 20,000 🟢, which is 40,000 units, in the second half by units but not by characters (20,000 < 30,000).
+  // half: after exactly 30,000 characters, which is in the second half. below: after 29,999, which is not. last: 55,001 characters are one part, so the line end
+  //   in it is not a cut.
+  const { sent } = await journeyOver(t, [
+    ["late.md", "🟢".repeat(40_000) + "\n" + "x".repeat(30_000)],
+    ["early.md", "🟢".repeat(20_000) + "\n" + "x".repeat(50_000)],
+    ["half.md", "x".repeat(30_000) + "\n" + "y".repeat(40_000)],
+    ["below.md", "x".repeat(29_999) + "\n" + "y".repeat(40_001)],
+    ["last.md", "x".repeat(50_000) + "\n" + "y".repeat(5_000)],
+  ]);
+  assert.deepEqual(described(sent), [
+    "late · 第 1 / 2 部分: 🟢×40000 \\n×1", "late · 第 2 / 2 部分: x×30000",
+    "early · 第 1 / 2 部分: 🟢×20000 \\n×1 x×39999", "early · 第 2 / 2 部分: x×10001",
+    "half · 第 1 / 2 部分: x×30000 \\n×1", "half · 第 2 / 2 部分: y×40000",
+    "below · 第 1 / 2 部分: x×29999 \\n×1 y×30000", "below · 第 2 / 2 部分: y×10001",
+    "last: x×50000 \\n×1 y×5000",
+  ]);
+});
+
+test("RAC-1855 pages parts stay counted in UTF-16 units and back off a pair the cut would split", { timeout: 180_000 }, async t => {
+  // Pages limits what a body encodes to, so its parts are 400,000 units, not characters. The text Pages gets is a 29-unit lead (原标题：long, 来源：long.md ·
+  // 版本 1, and their blank lines) and 250,000 🟢: 500,029 units, 250,014 characters. Unit 400,000 is half of a 🟢, so the first part ends one unit before it.
+  // Counted in characters it would be one part of 500,029 units.
+  const { dir, id, run, ready } = await journeyOver(t, [["long.md", "🟢".repeat(250_000)]]);
+  const adopted = await adoptContextJourney(dir, id, { title: "Pages parts", body: ready.summary!.body, todo_selected: [] }, run);
+  assert.equal(adopted.phase, "complete", adopted.error ?? "");
+  const pages = openPagesStore(dir);
+  try {
+    const parts = pages.list(adopted.project_id).filter(document => document.id !== adopted.document_id).sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true }));
+    assert.deepEqual(parts.map(part => part.title.replace(/^\[S\d+\] /u, "")), ["long · 第 1 / 2 部分", "long · 第 2 / 2 部分"]);
+    const body = parts.map(part => JSON.stringify(pages.get(part.id).body)).join("");
+    assert.equal(body.split("🟢").length - 1, 250_000, "no 🟢 is split between the parts");
+  } finally { pages.close(); }
 });

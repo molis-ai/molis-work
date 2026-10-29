@@ -1,6 +1,5 @@
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ContractDescriptor } from "@molis-ai/molis-work-contracts/platform/package";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialExtractor, MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -62,14 +61,6 @@ export interface ShelfTextMaterial {
   content_hash: string;
   source: { item_id: string; kind: ShelfItemKind; group: ShelfItemGroup; source_item_ids: string[]; job_id: string | null; artifact?: ShelfArtifactSource };
 }
-
-export const modulesShelfContract = {
-  contractId: "io.molis.work.module.shelf.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/modules/shelf.md",
-} as const satisfies ContractDescriptor;
 
 /** The input of `shelf.items.admit`: a text or a file copy. A link in the text is kept as a link; fetching its page is `shelf.items.capture`'s. */
 export interface ShelfAdmitActionInput {

@@ -334,14 +334,6 @@ export class AttentionModule implements AttentionApi {
   }
 }
 
-export function assertAttentionTransition(from: AttentionStatus, to: AttentionStatus): void {
-  assertTransition(from, to);
-}
-
-export function assertAttentionEntryShape(entry: AttentionEntryRecord): void {
-  assertShape(entry);
-}
-
 function assertReference(subjectType: AttentionSubjectType, subjectId: string): void {
   if (!subjectId.trim() || !["feed_item", "goal_decision", "source_fault"].includes(subjectType)) {
     throw attentionErrors.invalid_reference("Inbox Entry 必须引用一个有效对象");

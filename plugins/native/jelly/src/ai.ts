@@ -70,25 +70,26 @@ export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, por
   const text = sourceText(state, input);
   const sourceHash = jellySourceHash(state, input.source_type, input.source_id ?? null, text);
   if (input.kind !== "decompose") throw jellyErrors.invalid("未知的整理操作");
-  if (!text.trim() || text.length > 80_000) throw jellyErrors.invalid("需要一段不超过 8 万字的原文");
+  // Lengths count whole characters (a two-unit character such as an emoji is one). A string over twice the limit is too long without being spread; a cut spreads at most twice the limit.
+  if (!text.trim() || text.length > 160_000 || [...text].length > 80_000) throw jellyErrors.invalid("需要一段不超过 8 万字的原文");
   let entries: unknown[]; let questions: string[] = [];
-  if (input.manual) entries = text.split(/\n+/u).filter((line) => line.trim()).slice(0, 30).map((title) => ({ title: title.replace(/^[-*#\d.\s]+/u, "").slice(0, 200), notes: "", minutes: 30 }));
+  if (input.manual) entries = text.split(/\n+/u).filter((line) => line.trim()).slice(0, 30).map((title) => ({ title: [...title.replace(/^[-*#\d.\s]+/u, "").slice(0, 400)].slice(0, 200).join(""), notes: "", minutes: 30 }));
   else {
     if (!ports.completeJson) throw jellyErrors.ai_unavailable("尚未配置文字模型。可以使用手工拆解，再逐项编辑和安排。");
     const result = await complete(ports, instructed(JELLY_DECOMPOSE, `用户补充：${input.instructions ?? ""}\n<原文>\n${text}\n</原文>`));
     entries = result && typeof result === "object" && "actions" in result && Array.isArray(result.actions) ? result.actions : [];
-    questions = result && typeof result === "object" && "clarification_questions" in result && Array.isArray(result.clarification_questions) ? result.clarification_questions.filter((q): q is string => typeof q === "string" && !!q.trim()).slice(0, 3).map(q => q.slice(0, 500)) : [];
+    questions = result && typeof result === "object" && "clarification_questions" in result && Array.isArray(result.clarification_questions) ? result.clarification_questions.filter((q): q is string => typeof q === "string" && !!q.trim()).slice(0, 3).map(q => [...q.slice(0, 1000)].slice(0, 500).join("")) : [];
   }
   if ((!entries.length && !questions.length) || entries.length > 30) throw jellyErrors.ai_invalid("计划需要 1 至 30 个动作，请重试或手工拆解");
   const durations: number[] = [];
   let actions = entries.map((entry): JellyPlanAction => {
-    if (!entry || typeof entry !== "object" || !("title" in entry) || typeof entry.title !== "string" || !entry.title.trim() || entry.title.length > 500) throw jellyErrors.ai_invalid("计划里有无效事项，未写入日历");
+    if (!entry || typeof entry !== "object" || !("title" in entry) || typeof entry.title !== "string" || !entry.title.trim() || entry.title.length > 1000 || [...entry.title].length > 500) throw jellyErrors.ai_invalid("计划里有无效事项，未写入日历");
     durations.push("minutes" in entry && typeof entry.minutes === "number" ? entry.minutes : 30);
     const minutes = durations[durations.length - 1]!;
-    return { id: randomUUID(), title: entry.title.trim(), notes: "notes" in entry && typeof entry.notes === "string" ? entry.notes.slice(0, 10000) : "", duration_minutes: ([15,30,45,60,90].includes(minutes) ? minutes : 30) as JellyPlanAction["duration_minutes"], category_id: "uncategorized", priority: "none", schedule: null };
+    return { id: randomUUID(), title: entry.title.trim(), notes: "notes" in entry && typeof entry.notes === "string" ? [...entry.notes.slice(0, 20000)].slice(0, 10000).join("") : "", duration_minutes: ([15,30,45,60,90].includes(minutes) ? minutes : 30) as JellyPlanAction["duration_minutes"], category_id: "uncategorized", priority: "none", schedule: null };
   });
   if (input.today) actions = scheduleJellyActions(state, actions, input.today, input.start_time, durations);
-  return { plan: { id: randomUUID(), title: text.split("\n")[0]!.slice(0, 100), source_type: input.source_type, source_id: input.source_id ?? null, source_hash: sourceHash, source_text: text, ...(input.selection ? { selection: structuredClone(input.selection) } : {}), ...(questions.length ? { clarification_questions: questions } : {}), actions, created_at: new Date().toISOString() }, method: input.manual ? "manual" : "model" };
+  return { plan: { id: randomUUID(), title: [...text.split("\n")[0]!.slice(0, 200)].slice(0, 100).join(""), source_type: input.source_type, source_id: input.source_id ?? null, source_hash: sourceHash, source_text: text, ...(input.selection ? { selection: structuredClone(input.selection) } : {}), ...(questions.length ? { clarification_questions: questions } : {}), actions, created_at: new Date().toISOString() }, method: input.manual ? "manual" : "model" };
 }
 
 export const jellyTextFingerprint = (text: string): string => createHash("sha256").update(text).digest("hex");

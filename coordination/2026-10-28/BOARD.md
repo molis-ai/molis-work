@@ -191,6 +191,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-245 | 助理文字假模型读请求体先收字节、最后解码一次，查清流式回复那条浏览器用例为什么随之变红（防腐清理，MISC「T-216 问统筹（6497239622）」行；短任务书） | 乙 | A | 140 | — | `tests/fixtures/assistant-text-model.ts`、`tests/stream-text.e2e.test.ts`（#1101 也改，要改先在【方案】里问） |
 | T-246 | 开始使用的项目名称长度按字数数，页面输入框与 Host 检查同口径（防腐清理，MISC「T-210 起草」第一行；短任务书） | 乙 | A | 141 | T-214（#1498） | `apps/local-host/src/context-onboarding-service.ts`（只 `:458`、`:567`）、`apps/workbench/src/scripts/context-onboarding.ts`、`tests/context-onboarding.test.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与别的页面脚本任务互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-247 | 合同里的 searchText 截到上限时不留下半个字（防腐清理，MISC「T-208 起草」`search-sources.ts` 一行；短任务书） | 甲 | Claude（设备 A） | 142 | — | `packages/contracts/src/platform/search-sources.ts`、新测试文件 |
+| T-248 | Todo 整理用例里两个读法相同的辅助函数去重成一个（防腐清理，MISC「T-222 二审 建议」；短任务书） | 丙 | 池 | 143 | — | `tests/todo-organize.test.ts` |
+| T-249 | Pages 页面客户端里导入预览、侧栏标签、评论引文与编辑器交给助理的内容按整字截，不再留下半个字（防腐清理，MISC「T-157/T-158 起草」第二组；短任务书） | 乙 | A | 144 | T-203 | `plugins/native/pages/src/browser/import.ts`、`plugins/native/pages/src/comment-side-client.ts`、`plugins/native/pages/src/comment-editor-client.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-203、T-204 等互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 
 ## 在途，不走任务书
 

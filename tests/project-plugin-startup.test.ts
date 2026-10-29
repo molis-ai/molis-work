@@ -8,6 +8,7 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -315,6 +316,53 @@ test("RAC-1455 every running project plugin is stopped exactly once with preserv
     throw error;
   } finally {
     // The release below is the platform this test reopened; it cannot be skipped.
+    const errors = await collectCleanupErrors([
+      () => releaseProjectPlugins(store, DEMO_PROJECT_ID),
+      () => store.close(),
+      () => rmSync(home, { recursive: true, force: true }),
+    ]);
+    throwCleanupErrors(failure, errors);
+  }
+});
+
+// RAC-2051 T-227b: an upgrade that fails before the Runtime is asked anything leaves the Supervisor counting the plugin as failed, with the
+// installation the Runtime still runs. The project close stopped only what the Supervisor counted as running, so the revoke stopped that one as
+// switched off, and the project's next start did not run it. Now it is stopped kept enabled, as the running ones are (RAC-1455).
+test("RAC-2051 a project plugin the Supervisor counts as failed while the Runtime still runs it is stopped kept enabled and starts again when the project reopens", async () => {
+  const { home, store, ports } = await openProject();
+  let failure: unknown;
+  try {
+    const platform = (await ensureProjectPlugins(ports)).platform;
+    assert.ok(platform);
+    // One that publishes no events: the target below carries only the one event type its Manifest does not declare.
+    const running = runningPlugins(platform), failed = running.find(plugin => !platform.supervisor.manifest(plugin.id)?.events?.publishes?.length);
+    assert.ok(failed);
+    // Only the definition's Manifest and event types are read before the upgrade is refused; it is never started.
+    const target: PluginDefinition = { manifest: platform.supervisor.manifest(failed.id)!, event_types: [{ event_type_id: "closeprobe.undeclared", type_version: 1, validate: payload => payload }],
+      start: async () => { throw new Error("an upgrade refused before the Runtime is asked does not start its target"); } };
+    const upgraded = await platform.supervisor.upgrade(failed.id, target);
+    assert.deepEqual([upgraded.status, upgraded.install_id, upgraded.code], ["failed", failed.install, "plugin.event_type_undeclared"]);
+    assert.equal(platform.runtime.get(failed.install).state, "running", "the Runtime still runs it");
+    assert.ok(platform.supervisor.enabledPluginIds().includes(failed.id), "and it is still enabled");
+    const stop = platform.runtime.stop.bind(platform.runtime);
+    const stopped: Array<{ install: string; options: { preserve_enabled?: boolean } | undefined }> = [];
+    platform.runtime.stop = async (installId, options) => {
+      stopped.push({ install: installId, options });
+      return stop(installId, options);
+    };
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    assert.deepEqual(stopped.filter(entry => entry.install === failed.install), [{ install: failed.install, options: { preserve_enabled: true } }], "it is stopped once and kept enabled");
+    assert.deepEqual(stopped.map(entry => entry.install).sort(), running.map(plugin => plugin.install).sort(), "the running ones are stopped as before");
+    for (const entry of stopped) assert.deepEqual(entry.options, { preserve_enabled: true });
+    const records = installRecords(store);
+    for (const plugin of running) assert.equal(records.find(record => record.install_id === plugin.install)?.state, "installed");
+    const reopened = await ensureProjectPlugins(ports);
+    assert.ok(reopened.platform);
+    assert.equal(reopened.platform.supervisor.state(failed.id)?.status, "running", "a close is not switching it off");
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
     const errors = await collectCleanupErrors([
       () => releaseProjectPlugins(store, DEMO_PROJECT_ID),
       () => store.close(),

@@ -28,8 +28,9 @@ export async function closePlugin(platform: ClosingPlatform, pluginId: string, i
  * once. A plugin can have two records (a package uninstalled, then installed again under another signature), and revoking it on the older one
  * would have the Supervisor stop the installation it runs as switched off (T-227).
  *
- * The installation the Supervisor runs is read by its own id. A list the Runtime cannot give (one stored record it cannot parse) is one entry of
- * `failures`; the plugins the Supervisor runs are closed all the same, and only the records it does not run are left unvisited.
+ * The installation the Supervisor holds (supervisedInstall) is read by its own id. A list the Runtime cannot give (one stored record it cannot
+ * parse) is one entry of `failures`; the plugins the Supervisor holds are closed all the same, and only the records it does not hold are left
+ * unvisited.
  */
 export async function closeHomePlugins(platform: ClosingPlatform, failures: unknown[]): Promise<void> {
   let records: readonly PluginInstanceRecord[] = [];
@@ -42,10 +43,13 @@ export async function closeHomePlugins(platform: ClosingPlatform, failures: unkn
   }
 }
 
-/** The installation the Supervisor counts as running for the plugin; none when it counts it as anything else. */
+/**
+ * The installation the Supervisor holds for the plugin, whatever it counts it as: the one its revoke would stop. A failed upgrade can leave it
+ * counting the plugin as failed with the installation the Runtime still runs, and that one is stopped kept enabled too (T-227b); whether a
+ * close stops it is still the Runtime's answer (shutdownStops).
+ */
 export function supervisedInstall(platform: ClosingPlatform, pluginId: string): string | null {
-  const state = platform.supervisor.state(pluginId);
-  return state?.status === "running" ? state.install_id : null;
+  return platform.supervisor.state(pluginId)?.install_id ?? null;
 }
 
 /** The shutdown stop of one installation, when shutdownStops says so. The read is inside the try: a record the Runtime cannot give is one failure of this close, not the end of the loop. */

@@ -43,8 +43,8 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   /** For every model call: whose round it is, and which other rounds' tasks its request mentions. */
   const prompts: Array<{ task: string; others: string[] }> = [];
   const model = createServer(async (req, res) => {
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     res.writeHead(200, { "content-type": "text/event-stream" });

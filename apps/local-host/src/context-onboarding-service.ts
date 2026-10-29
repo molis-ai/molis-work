@@ -203,7 +203,8 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
     await drafts;
     journey.summary = parseContextSummary(raw, unique); journey.phase = "review"; journey.error = null; save();
   } catch (error) {
-    journey.phase = "failed"; journey.error = error instanceof Error ? error.message.slice(0, 600) : "整理失败，材料已保留"; save();
+    // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
+    journey.phase = "failed"; journey.error = error instanceof Error ? [...error.message.slice(0, 1_200)].slice(0, 600).join("") : "整理失败，材料已保留"; save();
   }
 }
 type Evidence = { body: string; labels: string[]; title?: string; part?: number };
@@ -413,7 +414,8 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
     }
     todo.status = "ready";
   } catch (error) {
-    todo.status = "failed"; todo.error = error instanceof Error ? error.message.slice(0, 300) : "待办草稿没整理成";
+    // Whole characters, not UTF-16 units: unit 300 can fall inside a two-unit character. The first slice bounds what is spread.
+    todo.status = "failed"; todo.error = error instanceof Error ? [...error.message.slice(0, 600)].slice(0, 300).join("") : "待办草稿没整理成";
   }
   save();
 }

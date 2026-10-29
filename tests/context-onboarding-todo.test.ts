@@ -314,3 +314,43 @@ test("RAC-2106 the parts of a long material keep their number: the title is cut 
   assert.equal(sent.length, cases.length);
   for (const [index, c] of cases.entries()) await t.test(c.name, () => assert.equal(sent[index]!.title, c.title));
 });
+
+// What a failed Todo draft keeps of the error is the first 300 whole characters of its message (a 🙂 is one character, though two UTF-16 units).
+const DRAFT_CUTS = [
+  { name: "the 300th character is a 🙂: kept whole", message: "x".repeat(299) + "🙂" + "tail", kept: "x".repeat(299) + "🙂" },
+  { name: "the first slice ends inside a 🙂: x and 400 🙂 are cut to x and 299 🙂", message: "x" + "🙂".repeat(400), kept: "x" + "🙂".repeat(299) },
+  { name: "400 🙂 are cut to 300", message: "🙂".repeat(400), kept: "🙂".repeat(300) },
+  { name: "301 one-unit characters are cut to 300", message: "x".repeat(301), kept: "x".repeat(300) },
+];
+// An error of 300 characters or fewer is kept whole, whatever its length in UTF-16 units.
+const DRAFT_FITS = [
+  { name: "299 one-unit characters and a 🙂 (300 characters, 301 units)", message: "x".repeat(299) + "🙂" },
+  { name: "300 🙂 (300 characters, 600 units)", message: "🙂".repeat(300) },
+  { name: "300 one-unit characters", message: "x".repeat(300) },
+  { name: "a short message", message: "待办整理服务暂时不可用" },
+];
+
+// A round whose Todo drafts fail where the organizer is called, with `thrown`: the Todo part of the journey as the Host kept it. The overview still comes.
+async function draftsFailing(t: Parameters<Parameters<typeof test>[1]>[0], thrown: unknown) {
+  const { dir, id, ports } = await fixture(t, async () => TODOS);
+  startContextJourney(dir, id, { ...ports, homeActions: (home: string, signal: AbortSignal): BoundActionClient => {
+    const client = ports.homeActions(home, signal);
+    return { discover: () => client.discover(), invoke: async () => { throw thrown; } };
+  } });
+  const ready = await waitContextJourney(dir, id);
+  assert.equal(ready.phase, "review", ready.error ?? "");
+  assert.equal(ready.todo?.status, "failed");
+  return ready.todo!;
+}
+
+for (const c of DRAFT_CUTS) test(`RAC-2122 a failed Todo draft keeps the first 300 whole characters of the error: ${c.name}`, async t => {
+  assert.equal((await draftsFailing(t, new Error(c.message))).error, c.kept);
+});
+
+for (const c of DRAFT_FITS) test(`RAC-2123 a failed Todo draft keeps an error of 300 characters or fewer whole: ${c.name}`, async t => {
+  assert.equal((await draftsFailing(t, new Error(c.message))).error, c.message);
+});
+
+test("RAC-2124 a failed Todo draft whose error is not an Error keeps the plain text of its own, not a cut of the value", async t => {
+  assert.equal((await draftsFailing(t, "x".repeat(700))).error, "待办草稿没整理成");
+});

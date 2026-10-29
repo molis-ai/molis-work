@@ -161,6 +161,11 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-213 | 平台生图端口的提示词与请求字段按字数查，与 Images 动作 schema 一致（防腐清理，T-212 起草时发现；T-212 的平台一半） | 甲 | Claude（设备 A） | 112 | — | `packages/plugin-runtime/src/image-generation.ts`、`tests/plugin-image-generation.test.ts` |
 | T-210 | 开始使用的分段标题与摘要标题按整字数和截，含两单元字的标题不再被截得太早（防腐清理，MISC「T-180 发布」第一行） | 乙 | B | 109 | T-180（#1465） | `apps/local-host/src/context-onboarding-service.ts`、`tests/context-onboarding-todo.test.ts`、`tests/context-onboarding.test.ts` |
 | T-211 | Goals 项目说明的单条上限与总长上限按字数数，含两单元字的说明不再被多拒（防腐清理，MISC「T-200 起草」行） | 乙 | B | 110 | — | `plugins/native/goals/src/module/guidance.ts`（normalizeProjectGuidanceContent 之后加两个函数；第 6 行的 import 归 task/T112b-ca，按行算锁）、`plugins/native/goals/src/module/guidance-add.ts`（import 列表第 11-16 行、第 46 行、第 89 行；第 7 行的 import 归 task/T112b-ca）、`plugins/native/goals/src/module/guidance-update.ts`（import 列表第 10-15 行、第 69 行、第 136 行；第 6 行的 import 归 task/T112b-ca）、`tests/goals-guidance-characters.test.ts`（新） |
+| T-214 | 开始使用的整理失败信息与待办草稿失败信息按整字截到 600、300 个字，不再存下半个字（防腐清理，MISC「T-210 起草」第二行） | 乙 | B | 113 | T-180（#1465）、T-210 | `apps/local-host/src/context-onboarding-service.ts`（只 organize 与 draftTodos 两个 catch 里各一行，加一行注释）、`tests/context-onboarding-todo.test.ts`（文件末尾追加）、`tests/context-onboarding.test.ts`（文件末尾追加） |
+| T-215 | Feed 的 Listener 接线检查去掉字符串、正则和模板文字再判断，JSDoc 写明查什么、不查什么（防腐清理，MISC「T-125 二审 建议」） | 乙 | B | 114 | — | `scripts/check-package-boundaries.mjs`（只 withoutComments 与 feedListenerWiringProblems 两块；同文件别的段归 task/T112b-ca，按块算锁）、`tests/feed-listener-wiring-boundaries.test.mjs` |
+| T-216 | 测试夹具读请求体先收字节、最后解码一次，被切在两个数据块之间的字不再读成 U+FFFD（防腐清理，MISC「T-212 起草」行） | 丙 | 池 | 115 | — | `tests/fixtures/images-runtime.ts`、`tests/fixtures/model-stand-in.ts`、`tests/fixtures/recording-text-model.ts`、`tests/fixtures/assistant-text-model.ts`、`tests/fixtures/plugin-model-runtime.ts`、`tests/fixture-request-text.test.ts`（新） |
+| T-217 | T-129 二审的三条建议：队列检查命令的两行输出有断言，runStep 注释改对，文档说明几个组一起落地后的推送全跑（防腐清理，MISC「T-129 二审 建议」） | 丙 | 池 | 116 | T-128（#1481） | `tests/ci-queue-verified.test.ts`、`docs/system/PARALLEL-DEVELOPMENT.md`（只第 68 行） |
+| T-218 | 插件页面关掉与插件中止自己的请求按取消处理（actions.cancelled），共享刷新不再丢新令牌；spec §2.6 写明中止点的用法（防腐清理，T-063 二审建议 1，王一骏 10-29 定） | 甲 | Claude（设备 A） | 117 | T-063（#1479） | `apps/local-host/src/plugin-page-authority.ts`、`apps/local-host/src/connections-service.ts` |
 
 ## 在途，不走任务书
 

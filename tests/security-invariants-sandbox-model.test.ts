@@ -6,11 +6,12 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { PLUGIN_MODEL_LIMITS, type PluginDefinition, type PluginManifest, type PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, type HostCompleteText, type HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeStores, hostCompleteText, seedDemoBoard, type HostCompleteText, type HostTextOptions, type HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 import { DEFAULT_SANDBOX_LIMITS, MODEL_DATA_CHARS, assertContract, SandboxBroker, modelDeadlines, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
@@ -210,4 +211,58 @@ test("S-66 RAC-233 a sandboxed definition that registers another owner's instruc
   assert.deepEqual(r.started.running, [], "a plugin registers only its own instructions");
   assert.equal(r.probe.state.model, undefined, "the sandboxed plugin's start never ran");
   assert.equal(r.model.calls.length, 0);
+});
+
+const ASTRAL = "\u{1F7E2}";
+/** The text the Host's prompt port leaves room for next to the longest instruction a person can save (`host-complete-text.ts`), written out as its own tests do. */
+const PORT_TEXT_CHARS = 180_000;
+/** The person's own version of the plugin's `summarize` instruction, written where "Prompt 与 Character" keeps it (as RAC-233 does). */
+function personsInstruction(directory: string, body: string) {
+  const db = new DatabaseSync(join(directory, "agent-definitions", "agent-definitions.db"));
+  try {
+    db.prepare("INSERT INTO prompt_overrides(key, revision, base_version, body, updated_at, actor_id) VALUES (?,?,?,?,?,?)")
+      .run(`${PLUGIN_ID}/summarize`, 1, 1, body, new Date().toISOString(), "person");
+  } finally { db.close(); }
+}
+
+// RAC-2030 T-238: the data of a request is counted in characters, as the Host's prompt port counts a prompt, and bounded at the text that port leaves room for.
+test("S-66 RAC-2030 the data of a model request is at most the 180000 characters the Host's port leaves for text: one more is refused before the model is reached", { timeout: 60_000 }, async t => {
+  const r = await rig(t);
+  await r.ok(operation("command", INVOKE), "model.complete", ASK("x".repeat(PORT_TEXT_CHARS)));
+  const before = r.model.calls.length;
+  await r.refused("one character more", "sandbox.invalid_request", operation("command", INVOKE), "model.complete", ASK("x".repeat(PORT_TEXT_CHARS + 1)));
+  assert.equal(r.model.calls.length, before, "the refused request did not reach the model");
+});
+
+// RAC-2031 T-238: counting characters does not raise the bound the channel had in UTF-16 units; it only lowers what one-unit text may be.
+test("S-66 RAC-2031 data is bounded in characters and still in UTF-16 units: two-unit characters count once, and the units are not let past their old bound", { timeout: 60_000 }, async t => {
+  const r = await rig(t);
+  const mixed = "a".repeat(PORT_TEXT_CHARS - 1) + ASTRAL;
+  assert.deepEqual([[...mixed].length, mixed.length], [PORT_TEXT_CHARS, PORT_TEXT_CHARS + 1]);
+  await r.ok(operation("command", INVOKE), "model.complete", ASK(mixed));
+  assert.ok(r.model.calls.at(-1)!.prompt.endsWith(mixed), "counted in characters, the data fits and is sent as written");
+  await r.ok(operation("command", INVOKE), "model.complete", ASK(ASTRAL.repeat(100_000)));
+  const before = r.model.calls.length;
+  await r.refused("200_002 units", "sandbox.invalid_request", operation("command", INVOKE), "model.complete", ASK(ASTRAL.repeat(100_001)));
+  assert.equal(r.model.calls.length, before, "the refused request did not reach the model");
+});
+
+// RAC-2032 T-238: what the sandbox lets through, the Host's port takes. The port is the real one, over a stand-in for the inference behind it.
+test("S-66 RAC-2032 the longest data with the longest instruction a person can save is taken by the Host's real prompt port, not refused there", { timeout: 60_000 }, async t => {
+  const sent: string[] = [];
+  type Client = Awaited<ReturnType<NonNullable<HostTextOptions["resolveInference"]>>>;
+  const port = hostCompleteText({ env: { MOLIS_WORK_TEXT_API_KEY: "private-fixture-key", MOLIS_WORK_TEXT_BASE_URL: "https://model.example/v1",
+    MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions", MOLIS_WORK_TEXT_MODEL: "chosen-model" },
+  resolveInference: async () => ({ completeTextResult: async input => {
+    sent.push(input.prompt);
+    return { value: "摘要结果", configuredModel: input.model, state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] };
+  } } as Client) })!;
+  const calls: Array<{ prompt: string; options: HostTextRequestOptions }> = [];
+  const r = await rig(t, { calls, complete: async (prompt, options = {}) => { calls.push({ prompt, options }); return port(prompt, options); } });
+  const instruction = "规".repeat(AGENT_PROMPT_MAX_CHARS), data = "字".repeat(MODEL_DATA_CHARS);
+  personsInstruction(r.directory, instruction);
+  assert.deepEqual(await r.ok(operation("command", INVOKE), "model.complete", ASK(data)), { text: "摘要结果" });
+  assert.equal(sent.length, 1, "the port sent it on");
+  assert.ok(sent[0] === `${instruction}\n\n${data}`, "the person's instruction, then the data, as written");
+  assert.equal([...sent[0]!].length, AGENT_PROMPT_MAX_CHARS + 2 + MODEL_DATA_CHARS);
 });

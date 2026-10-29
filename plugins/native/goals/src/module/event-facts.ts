@@ -1,11 +1,7 @@
 import type {
   ConfigureGoalEventsApplicationInput,
   ConfigureGoalEventsInput,
-  ApplyGoalConcernInput,
-  CiteGoalDecisionInput,
   ConfigureGoalEventsResult,
-  CreateGoalIntentRequirementInput,
-  CreateGoalIntentResult,
   GoalIntentSourceKind,
   GoalEventAdoptedPlanningRequest,
   GoalEventConfigView,
@@ -18,18 +14,10 @@ import type {
   GoalEventListQuery,
   GoalEventRequirementStatus,
   GoalEventTimelinePage,
-  GoalEventTrustedDecisionRecord,
   GoalWorkEventRecord,
-  RecordGoalProgressSummaryInput,
-  RecordGoalUserDecisionInput,
   ReportGoalEventsInput,
   ReportGoalEventsRecordedResult,
-  RequestGoalDecisionInput,
   ResolvedPlanningEventAdoption,
-  RecordGoalNoteInput,
-  ResumeGoalEventWorkInput,
-  SetGoalEventAgreementInput,
-  SubmitGoalEventClosureInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext } from "./command-support.js";
 import { GoalEventConfiguration } from "./event-facts-configure.js";
@@ -49,8 +37,8 @@ import { resolveGoalPolicy } from "./query.js";
 export class GoalEventFacts implements GoalEventFactsApi {
   private readonly records: GoalEventFactsRepository;
   private readonly configWrites: GoalEventFactsConfig;
-  private readonly state: GoalEventState;
-  private readonly intent: GoalEventIntent;
+  readonly state: GoalEventState;
+  readonly intent: GoalEventIntent;
   private readonly configuration: GoalEventConfiguration;
   private readonly reporting: GoalEventReporting;
   private readonly reads: GoalEventReads;
@@ -151,91 +139,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
     return this.state.isEventStateOwner(projectId, goalId);
   }
 
-  readWorkState(projectId: string, goalId: string) {
-    return this.state.readWorkState(projectId, goalId);
-  }
-
   runImmediate<T>(operation: () => T): T {
     return this.context.repository.immediate(operation);
-  }
-
-  adoptOwner(input: {
-    project_id: string;
-    goal_id: string;
-    actor_id: string;
-    source: "intent" | "configuration" | "continue";
-    outcome?: string;
-  }): void {
-    this.state.adoptOwner(input);
-  }
-
-  replayIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null {
-    return this.intent.replay(projectId, actorId, idempotencyKey, hash);
-  }
-
-  rememberIntent(
-    projectId: string,
-    actorId: string,
-    idempotencyKey: string,
-    hash: string,
-    result: CreateGoalIntentResult,
-    at: string,
-  ): void {
-    this.intent.remember(projectId, actorId, idempotencyKey, hash, result, at);
-  }
-
-  recordIntentArtifacts(input: {
-    project_id: string;
-    goal_id: string;
-    actor_id: string;
-    actor_kind?: "user" | "runtime";
-    source_kind?: GoalIntentSourceKind;
-    outcome?: string;
-    requirements?: CreateGoalIntentRequirementInput[];
-  }): void {
-    this.intent.recordArtifacts(input);
-  }
-
-  readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string) {
-    return this.state.readProgressReceipt(projectId, goalId, actorId, key);
-  }
-
-  recordProgress(input: RecordGoalProgressSummaryInput) {
-    return this.state.recordProgress(input);
-  }
-
-  applyConcern(input: ApplyGoalConcernInput) {
-    return this.state.applyConcern(input);
-  }
-
-  requestDecision(input: RequestGoalDecisionInput) {
-    return this.state.requestDecision(input);
-  }
-
-  citeDecision(input: CiteGoalDecisionInput) {
-    return this.state.citeDecision(input);
-  }
-
-  recordTrustedDecision(
-    input: RecordGoalUserDecisionInput,
-    persistGovernance: (normalized: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord,
-  ) {
-    return this.state.recordTrustedDecision(input, persistGovernance);
-  }
-
-  setAgreement(input: SetGoalEventAgreementInput) {
-    return this.state.setAgreement(input);
-  }
-
-  submitClosure(input: SubmitGoalEventClosureInput) {
-    return this.state.submitClosure(input);
-  }
-
-  resumeWork(input: ResumeGoalEventWorkInput) {
-    return this.state.resumeWork(input);
-  }
-
-  recordNote(input: RecordGoalNoteInput) {
-    return this.state.recordNote(input);
   }
 }

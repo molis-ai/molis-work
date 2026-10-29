@@ -505,6 +505,10 @@ export interface GoalEventLatestReports {
 }
 
 export interface GoalEventFactsApi {
+  /** The calls that change the event state of a Goal; the facade hands them out instead of forwarding each one. */
+  readonly state: GoalEventStateApi;
+  /** The calls that remember a createIntent request and the artifacts it recorded. */
+  readonly intent: GoalEventIntentApi;
   configure(input: ConfigureGoalEventsInput): ConfigureGoalEventsResult;
   configureRequested(
     input: ConfigureGoalEventsApplicationInput,
@@ -521,26 +525,20 @@ export interface GoalEventFactsApi {
   /** Persisted createIntent channel; independent of timeline pagination. Null when no intent_created fact exists. */
   readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null;
   readObservedEventCursor(projectId: string): number;
+  /** Whether the event state owns the Goal; a Goal that does not exist is refused first. */
   isEventStateOwner(projectId: string, goalId: string): boolean;
-  readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
   runImmediate<T>(operation: () => T): T;
+}
+
+/** The writes and reads of a Goal's event state (its owner, work state, progress, concerns, decisions, agreement, closure, resume, notes). */
+export interface GoalEventStateApi {
+  readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
   adoptOwner(input: {
     project_id: string;
     goal_id: string;
     actor_id: string;
     source: "intent" | "configuration" | "continue";
     outcome?: string;
-  }): void;
-  replayIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;
-  rememberIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string, result: CreateGoalIntentResult, at: string): void;
-  recordIntentArtifacts(input: {
-    project_id: string;
-    goal_id: string;
-    actor_id: string;
-    actor_kind?: "user" | "runtime";
-    source_kind?: GoalIntentSourceKind;
-    outcome?: string;
-    requirements?: CreateGoalIntentRequirementInput[];
   }): void;
   recordNote(input: RecordGoalNoteInput): GoalEventMutationResult;
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult;
@@ -555,4 +553,19 @@ export interface GoalEventFactsApi {
   setAgreement(input: SetGoalEventAgreementInput): GoalEventAgreementResult;
   submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult;
   resumeWork(input: ResumeGoalEventWorkInput): GoalEventResumeResult;
+}
+
+/** What a createIntent request leaves behind: the replay of an earlier answer, the answer to remember, and the artifacts it recorded. */
+export interface GoalEventIntentApi {
+  replay(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;
+  remember(projectId: string, actorId: string, idempotencyKey: string, hash: string, result: CreateGoalIntentResult, at: string): void;
+  recordArtifacts(input: {
+    project_id: string;
+    goal_id: string;
+    actor_id: string;
+    actor_kind?: "user" | "runtime";
+    source_kind?: GoalIntentSourceKind;
+    outcome?: string;
+    requirements?: CreateGoalIntentRequirementInput[];
+  }): void;
 }

@@ -622,11 +622,11 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
       types: [storyDelivery(1), storyObservation()],
       requirement_bindings: [{ type_id: "story-delivery", requirement_id: "playable-scene" }],
     });
-    data.module.events.setAgreement({
+    data.module.events.state.setAgreement({
       project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "cfg-types-req",
       expected_config_version: 1,
-      expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
+      expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
       new_requirements: [{
         requirement_id: "ready",
         statement: "开场已经可以交给别人玩",
@@ -1023,11 +1023,11 @@ test("extra requirement unknown control fields are rejected and human_decision_r
     });
     const before = data.module.events.listEvents(BOARD, GOAL).events.length;
     assert.throws(
-      () => data.module.events.setAgreement({
+      () => data.module.events.state.setAgreement({
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: "unknown-field",
         expected_config_version: 1,
-        expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
+        expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
         new_requirements: [{
           requirement_id: "human-extra",
           statement: "用户必须亲自确认购买体验",
@@ -1038,11 +1038,11 @@ test("extra requirement unknown control fields are rejected and human_decision_r
       (error: unknown) => error instanceof ActionError && error.code === "goals.event_config.unsupported_property",
     );
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
-    data.module.events.setAgreement({
+    data.module.events.state.setAgreement({
       project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "human-extra-ok",
       expected_config_version: 1,
-      expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
+      expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
       new_requirements: [{
         requirement_id: "human-extra",
         statement: "用户必须亲自确认购买体验",

@@ -670,6 +670,8 @@ export type {
   GoalEventExtraRequirement,
   GoalEventExtraRequirementInput,
   GoalEventFactsApi,
+  GoalEventIntentApi,
+  GoalEventStateApi,
   GoalEventFieldDefinition,
   GoalEventFieldFormat,
   GoalEventFieldSource,

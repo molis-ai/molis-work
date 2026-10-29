@@ -99,6 +99,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-099 | 提醒的「插件名：文字」超过 200 个单元时，通知标题按整字截到 199 个单元加「…」，到点照样送进收件箱 | 乙 | 池 | 51 | T-098 | `plugins/native/schedule/src/runtime-wakeups.ts`、`tests/agent-built-plugins-reminders.test.ts`、`plugins/native/schedule/README.md` |
 | T-096 | 选中的内容「记成待办」时，标题、说明、来源名称与依据按整字截取，截到 `todo.items.create` 数的长度 | 乙 | B | 52 | T-090 | `plugins/native/todo/src/actions.ts`、`tests/todo-from-inbox.test.ts` |
 | T-150 | 四处过时的文档说法改对：C 端方案的 W1-13、Observability 的日志、MCP 发现失败、停用隔离中的生成插件 | 丙 | 池 | 53 | — | `specs/repository-anti-corruption/c-end-readiness.md`、`docs/platform/CONTRACTS-AND-OPERATIONS.md`、`docs/system/CALL-CHAINS.md` |
+| T-151 | 终端被停掉或重启换下的旧进程，之后的输出不再进重放、不再转给面板 | 乙 | 池 | 54 | — | `horizontal/runtime-host/src/adapters/terminal-pty.ts`、`tests/runtime-host.test.ts`、`horizontal/runtime-host/README.md` |
 
 ## 在途，不走任务书
 

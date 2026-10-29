@@ -831,3 +831,22 @@ test("RAC-1684 灵光 keeps the body of a selection to the limit in whole Unicod
   assert.deepEqual(seen(offered("正" + wide(200_000)).body, "正" + wide(199_999)), { characters: 200_000, first: "正", last: "🟢", same: true },
     "one character past the limit is cut to the limit in whole characters");
 });
+
+test("RAC-2185: the writing menu cuts an over-limit document's text once, and every choice gets the same cut", () => {
+  const big = "😀".repeat(300_000), expected = "😀".repeat(180_000);
+  const original = String.prototype[Symbol.iterator];
+  let characters = 0;
+  Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, value: function (this: string) {
+    const inner = original.call(this);
+    return { next: () => { const step = inner.next(); if (!step.done) characters += 1; return step; }, [Symbol.iterator]() { return this; } };
+  } });
+  try {
+    const prepared = preparePagesFragmentOffers({ request_id: "r-cut-once", fragment: {
+      object: { kind: "pages_document", id: "d1", version: 1 }, granularity: "object", targets: [{ kind: "object", role: "object", text: "摘录" }],
+    } }, "pages_document", "io.molis.work.pages", () => big);
+    assert.equal(characters, 180_000, "the cut spreads the first 2N units once, not the whole document once per choice");
+    const sent = prepared.map(offer => (offer.input as { text?: string }).text).filter((text): text is string => typeof text === "string");
+    assert.equal(sent.length, 5, "every whole-document choice that sends text is prepared");
+    for (const text of sent) assert.equal(text, expected, "each choice gets the same cut, 180000 whole characters");
+  } finally { Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, value: original }); }
+});

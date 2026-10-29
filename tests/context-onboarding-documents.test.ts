@@ -46,3 +46,53 @@ test("preview persists only bounded metadata and excludes both file and subdirec
   assert.throws(() => contextSources([{ ...raw, files: [{ path: "include.md", staged: "not-a-digest" }] }]), /内容无效/);
   await assert.rejects(readContextSource("/unused", { kind: "directory", selected: true, path: "/tmp" }), /请选择/);
 });
+
+// What an unreadable file's issue keeps of the error is the first 600 whole characters of its message (a 🙂 is one character, though two UTF-16 units).
+const ISSUE_CUTS = [
+  { name: "the 600th character is a 🙂: kept whole", message: "x".repeat(599) + "🙂" + "tail", kept: "x".repeat(599) + "🙂" },
+  { name: "the first slice ends inside a 🙂: x and 700 🙂 are cut to x and 599 🙂", message: "x" + "🙂".repeat(700), kept: "x" + "🙂".repeat(599) },
+  { name: "700 🙂 are cut to 600", message: "🙂".repeat(700), kept: "🙂".repeat(600) },
+  { name: "601 one-unit characters are cut to 600", message: "x".repeat(601), kept: "x".repeat(600) },
+];
+// A message of 600 characters or fewer is kept whole, whatever its length in UTF-16 units.
+const ISSUE_FITS = [
+  { name: "599 one-unit characters and a 🙂 (600 characters, 601 units)", message: "x".repeat(599) + "🙂" },
+  { name: "600 🙂 (600 characters, 1,200 units)", message: "🙂".repeat(600) },
+  { name: "600 one-unit characters", message: "x".repeat(600) },
+  { name: "a short message", message: "文件已损坏，无法解析" },
+];
+// The reasons the issue keeps in place of the message, whatever its length: an encrypted PDF, and a file the Host could not hold whole.
+const ENCRYPTED = "PDF 已加密，请解密后导入";
+const UNREADABLE = [
+  { code: "ERR_FS_FILE_TOO_LARGE", reason: "文件超过 2 GB，暂时读不出正文；请拆分后再选" },
+  { code: "ERR_STRING_TOO_LONG", reason: "正文太长，一次读不出来；请拆分后再选" },
+];
+
+/** A file whose reading throws `thrown` (a getter that throws, as the disk-full test of tests/context-onboarding.test.ts does): the issue prepareContextDocument keeps of it. */
+async function issueOf(thrown: unknown) {
+  const read = await prepareContextDocument("/unused", "journey", "files", { path: "notes/a.md", get reason(): string { throw thrown; } });
+  assert.ok("issue" in read, "a file that cannot be read is an issue of its own");
+  return read.issue;
+}
+
+for (const c of ISSUE_CUTS) test(`RAC-2145 an unreadable file's issue keeps the first 600 whole characters of the error: ${c.name}`, async () => {
+  assert.equal((await issueOf(new Error(c.message))).reason, c.kept);
+});
+
+for (const c of ISSUE_FITS) test(`RAC-2146 an unreadable file's issue keeps an error of 600 characters or fewer whole: ${c.name}`, async () => {
+  assert.equal((await issueOf(new Error(c.message))).reason, c.message);
+});
+
+test("RAC-2147 a file whose reading throws something that is not an Error keeps the plain text of its own, not a cut of the value", async () => {
+  assert.equal((await issueOf("x".repeat(700))).reason, "无法读取文件");
+});
+
+for (const c of [{ name: "a short message", message: "No password given" }, { name: "the word comes after the 600th character", message: "x".repeat(700) + " password" }]) {
+  test(`RAC-2148 an encrypted PDF keeps its own text, not a cut of the error: ${c.name}`, async () => {
+    assert.equal((await issueOf(new Error(c.message))).reason, ENCRYPTED);
+  });
+}
+
+for (const c of UNREADABLE) test(`RAC-2149 a file the Host could not hold keeps the reason of its code, not a cut of the message: ${c.code}`, async () => {
+  assert.equal((await issueOf(Object.assign(new Error("x".repeat(700)), { code: c.code }))).reason, c.reason);
+});

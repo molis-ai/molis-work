@@ -110,6 +110,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-159 | 运行时下载断网、超时或正文中途断开时报 `connector.install.failed`，调用方取消原样通过，不再抛原生错误 | 乙 | A | 64 | — | `apps/local-host/src/connector-tool-download.ts`、`tests/security-invariants-connector-install.test.ts` |
 | T-160 | 读受管理安装时，目录不在、记录读不出或不完整、可执行文件不在，都报 `connector.install.invalid`，不再抛原生错误 | 乙 | B | 62 | — | `apps/local-host/src/connector-tool-install.ts`、`tests/connector-local-actions.test.ts` |
 | T-161 | 停在 installed 的安装插件也能停用，记 disabled 并撑过重启（补 T-032 的 Host 层用例） | 丙 | A | 63 | — | `tests/installed-plugin-host.test.ts` |
+| T-165 | Goals 里 board- 开头的三个源文件和一个测试改名，引用与文档跟着改（W5-14 片 6，R-A2） | 丙 | 池 | 65 | T-043 | 改名的四个文件新旧路径都锁：`plugins/native/goals/src/module/board-commands.ts`→`module/library-commands.ts`、`plugins/native/goals/src/board-actions.ts`→`library-actions.ts`、`plugins/native/goals/src/board-snapshot-query.ts`→`snapshot-query.ts`、`tests/goals-board-actions.test.ts`→`tests/goals-library-actions.test.ts`；`plugins/native/goals/src/module/index.ts`（只第 1 行）、`plugins/native/goals/src/actions.ts`（只第 27、32 行）、`plugins/native/goals/src/index.ts`（只第 4、87 行）、`plugins/native/goals/src/plugin.ts`（只第 6 行）、`tests/ci-product-subset.txt`（只第 35 行）、`plugins/native/goals/README.md`（只第 64、123 行）、`docs/system/GLOSSARY.md`（只第 189、337、411、412 行） |
 
 ## 在途，不走任务书
 

@@ -193,6 +193,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-247 | 合同里的 searchText 截到上限时不留下半个字（防腐清理，MISC「T-208 起草」`search-sources.ts` 一行；短任务书） | 甲 | Claude（设备 A） | 142 | — | `packages/contracts/src/platform/search-sources.ts`、新测试文件 |
 | T-248 | Todo 整理用例里两个读法相同的辅助函数去重成一个（防腐清理，MISC「T-222 二审 建议」；短任务书） | 丙 | 池 | 143 | — | `tests/todo-organize.test.ts` |
 | T-249 | Pages 页面客户端里导入预览、侧栏标签、评论引文与编辑器交给助理的内容按整字截，不再留下半个字（防腐清理，MISC「T-157/T-158 起草」第二组；短任务书） | 乙 | A | 144 | T-203 | `plugins/native/pages/src/browser/import.ts`、`plugins/native/pages/src/comment-side-client.ts`、`plugins/native/pages/src/comment-editor-client.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-203、T-204 等互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
+| T-250 | 两份 spec 里已经做完的 BL-311、BL-393 改成现状，RCPT-102 的证据句补上超时一支（防腐清理，MISC「T-044 起草」「T-026 二审 给统筹 2」；短任务书） | 丙 | 池 | 145 | — | `specs/post-anticorruption-roadmap/spec.md`（只 `:184`）、`specs/ai-input-receipts/spec.md`（只 `:66`、`:1611`） |
 
 ## 在途，不走任务书
 

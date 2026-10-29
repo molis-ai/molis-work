@@ -64,7 +64,6 @@
 | T-185 二审 建议 | `apps/local-host/src/host-complete-text.ts` 的端口上限 | 上限对所有调用方放宽约 11.2%；knowledge、memory、alchemist、onboarding、plugin-builder 各自的上限没人核过。核一遍各调用方拼进提示的长度，必要时各自收紧 | 统筹 2026-10-29 |
 | T-203 起草 | PPT `plugins/native/ppt/src/ui.ts:140`、Characters `ui.ts:59`、`import-ui.ts:14` | 同类：输入框 `maxlength` 按 UTF-16 单元数，库按字数。持久修法是插件框架桥里统一处理一个按字数的上限属性（甲，给设备 A 的 Claude）；逐个修是乙 | 统筹 2026-10-29 |
 | T-202 起草 | `apps/local-host/src/assistant/assistant-thread-types.ts:34`、`assistant-round-materials.ts:38`；`docs/platform/PLUGIN-DEVELOPMENT.md:479` | 助理按 18000 个单元分块，分块边界可能切开两单元字（#1101 在改这两个文件，等它不再锁）；开发手册没写宿主对 `text` 的 100000 个单元上限 | 统筹 2026-10-29 |
-| T-200 起草 | `plugins/native/goals/src/guidance-add.ts:46`、`guidance-update.ts:69` | `content.length > PROJECT_GUIDANCE_ENTRY_MAX_CHARS`（4000）按 UTF-16 单元查，报错却写「个字符」。先核动作 schema 和下游按什么数，再定改成按字数（乙，Goals 一包） | 统筹 2026-10-29 |
 | T-129 二审 建议（6493819688） | `tests/` 里 RAC-1900 那例（「writes both outputs」）、`queue-check` 的 `runStep` 注释、CI 文档 | RAC-1900 名字说写两个输出，却没断言 `GITHUB_OUTPUT` 里的两行；`runStep` 注释写的 shell 参数不对；文档补一句：批落地之后的推送总是全跑。丙 | 统筹 2026-10-29 |
 | T-191 二审 建议 | `plugins/native/goals/src/safety-ui-model.ts` | 文件名是遗留名（里面已不是界面语言的安全模型），定改名还是并进别的文件；丙 | 统筹 2026-10-29 |
 | T-168 二审 建议 | `docs/system/SECURITY-INVARIANTS.md` S-47 行 | #1439 已合入，S-47 行那一句现在可以写；只等 #1101 不再锁这份登记表 | 统筹 2026-10-29 |
@@ -73,3 +72,5 @@
 | T-208 起草 | `packages/contracts/src/platform/search-sources.ts:79-84`（`searchText`，Images `search.ts:15` 等在用） | 合同里的搜索文本按单元截，可能留下半个字；共享核心，甲，给设备 A 的 Claude | 统筹 2026-10-29 |
 | T-209 起草 | `tests/fixtures/desktop-entry-streams.ts:70-81` | `:81` 断言失败时 `pid` 还没赋值，`t.after`（`:70-73`）停不掉 PTY 子进程，会留孤儿。改法：先赋值再断言，失败路径会变，T-209 不收；丙 | 统筹 2026-10-29 |
 | T-212 起草 | `tests/fixtures/images-runtime.ts:33` | `raw += chunk` 按块拼字符串，被切开的四字节字会读成 U+FFFD；改成先收 Buffer 再解码。丙 | 统筹 2026-10-29 |
+| T-211 起草 | `apps/workbench/src/project-guidance-document.ts:47` | 页面 `<textarea maxlength="4000">` 按单元，T-211 之后页面用户仍卡在 4000 个单元（只偏严，不会收了又拒）。#1101、task/T112b-ca 都碰这个文件，等它们不再锁；乙 | 统筹 2026-10-29 |
+| T-211 起草 | `plugins/native/goals/src/http/create.ts:17`、`:26` | 新建 Goal 表单 `maximum = 4_000` 按单元数，信息「内容过长」；先查谁读这个值、动作 schema 怎么数，再定改不改；乙 | 统筹 2026-10-29 |

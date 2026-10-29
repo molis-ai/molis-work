@@ -159,6 +159,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-209 | 桌面入口用例的 PTY 夹具读 pid 前先等文件里真有数字，不再读到空串（防腐清理，MISC「T-199 发布」行） | 丙 | 池 | 108 | — | `tests/fixtures/desktop-entry-streams.ts` |
 | T-212 | 图片服务自己查的长度（提示词、请求号、尺寸、宽高比、服务名称、模型名）按字数数，与动作 schema 一致，含两单元字的内容不再被多拒（防腐清理，MISC「T-208 起草」service.ts 一行） | 乙 | 池 | 111 | T-213 | `plugins/native/images/src/service.ts`、`tests/images-service.test.ts` |
 | T-213 | 平台生图端口的提示词与请求字段按字数查，与 Images 动作 schema 一致（防腐清理，T-212 起草时发现；T-212 的平台一半） | 甲 | Claude（设备 A） | 112 | — | `packages/plugin-runtime/src/image-generation.ts`、`tests/plugin-image-generation.test.ts` |
+| T-211 | Goals 项目说明的单条上限与总长上限按字数数，含两单元字的说明不再被多拒（防腐清理，MISC「T-200 起草」行） | 乙 | B | 110 | — | `plugins/native/goals/src/module/guidance.ts`（normalizeProjectGuidanceContent 之后加两个函数；第 6 行的 import 归 task/T112b-ca，按行算锁）、`plugins/native/goals/src/module/guidance-add.ts`（import 列表第 11-16 行、第 46 行、第 89 行；第 7 行的 import 归 task/T112b-ca）、`plugins/native/goals/src/module/guidance-update.ts`（import 列表第 10-15 行、第 69 行、第 136 行；第 6 行的 import 归 task/T112b-ca）、`tests/goals-guidance-characters.test.ts`（新） |
 
 ## 在途，不走任务书
 

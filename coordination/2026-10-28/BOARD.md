@@ -196,6 +196,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-250 | 两份 spec 里已经做完的 BL-311、BL-393 改成现状，RCPT-102 的证据句补上超时一支（防腐清理，MISC「T-044 起草」「T-026 二审 给统筹 2」；短任务书） | 丙 | 池 | 145 | — | `specs/post-anticorruption-roadmap/spec.md`（只 `:184`）、`specs/ai-input-receipts/spec.md`（只 `:66`、`:1611`） |
 | T-251 | 生成文稿的字数上限补一个只靠字数判断的用例（100,001 个单字文稿被拒），删掉字数判断就会红（防腐清理，MISC「T-228 二审 建议」；短任务书） | 丙 | 池 | 146 | T-228 | `tests/feed-inbox-pages-loop.test.ts`（只加一个 RAC-2275 用例，T-228 也改它） |
 | T-252 | Pages 生成文稿所选材料的总长上限按字数数，含两单元字的材料不再被多拒（防腐清理，MISC「T-228 二审 建议」；短任务书） | 乙 | 池 | 147 | — | `plugins/native/pages/src/actions.ts`（只 `:301`）、一个 pages 动作测试文件 |
+| T-236 | 包边界门禁里 Goals、Governance、Artifacts、Runtime Host 几段「必须包含」的检查也先去掉注释、字符串、正则和模板文字再判断，不能再靠一段注释或字符串顶替代码（防腐清理，MISC「T-215 起草」`check-package-boundaries.mjs` 一行；派片，方案自定，RAC-2010～2019） | 甲 | Claude（设备 A） | 148 | — | `scripts/check-package-boundaries.mjs`（Feed 那段 T-215 已收紧，不动）、新增或改动的门禁用例文件（方案里列） |
+| T-237 | 内核 `clip` 截情境请求的标题 120、目标 2000、最近 40 时按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」`contextual.ts:170` 一行；派片，方案自定，共享核心 full=true，RAC-2020～2029） | 甲 | Claude（设备 A） | 149 | — | `packages/kernel/src/contextual.ts`、对应用例文件（方案里列） |
 
 ## 在途，不走任务书
 

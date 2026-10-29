@@ -9,7 +9,7 @@ import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-plugin-pages/contract";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
-import { createPagesCommentHandlers, ownPagesStores, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesCommentHandlers, ownPagesStores, pageAnnotations, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
@@ -117,5 +117,36 @@ test("RAC-1633: the Pages comment store counts the trimmed comment in Unicode ch
     assert.throws(() => store.comments.append({ ...input, request_id: "send-2", body: "评" + wide(20000) }, "a"), /评论须为 1 到 20000 个字/, "20001 characters is refused by the store too");
     assert.throws(() => store.comments.append({ ...input, request_id: "send-3", body: " \n " }, "a"), /评论须为 1 到 20000 个字/, "a blank comment is refused");
     assert.deepEqual(store.comments.get(page.id, "store-wide", "a").messages.map(message => message.body), [wide(20000)], "neither refused comment was saved");
+  } finally { store.close();await rm(home, { recursive: true, force: true }); }
+});
+
+test("RAC-1690: pageAnnotations cuts a comment mark's quoted text to its first 2000 whole characters, across all the text nodes the mark covers", () => {
+  // A mark covers every text node of the selection (a bold word inside it splits it in several). One 🟢 is one character but two UTF-16 units:
+  // "批" and 1998 🟢 are 1999 characters in 3997 units, so unit 2000 is the first half of the 1000th 🟢.
+  const wide = (count: number) => "🟢".repeat(count);
+  const note = (id: string) => [{ type: "comment", attrs: { id, text: "批注" } }];
+  const doc: PagesBody = { type: "doc", content: [{ type: "paragraph", content: [
+    { type: "text", text: "批" + wide(1998), marks: note("m1") },
+    { type: "text", text: wide(5), marks: note("m1") },
+    { type: "text", text: wide(2000), marks: note("m2") },
+  ] }] };
+  const marks = pageAnnotations(doc);
+  assert.equal(marks.get("m1")!.excerpt, "批" + wide(1999), "two nodes of 2004 characters together are cut to the first 2000, whole");
+  assert.equal(marks.get("m2")!.excerpt, wide(2000), "a node of exactly 2000 characters is kept whole");
+});
+
+test("RAC-1690: a new comment on a long selection stores its quote as the first 2000 whole characters, and the thread reads it back the same", async () => {
+  // The quote is stored with the thread. "评" and 2000 🟢 are 2001 characters but 4001 UTF-16 units, so unit 2000 is the first half of the 1000th 🟢.
+  const home = await mkdtemp(join(tmpdir(), "pages-comments-quote-")), store = openPagesStore(home);
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const long: PagesBody = { type: "doc", content: [{ type: "paragraph", content: [
+      { type: "text", text: "评" + wide(2000), marks: [{ type: "comment", attrs: { id: "m1", text: "" } }] },
+    ] }] };
+    const page = store.create({ project_id: "a", title: "长选区", body: long });
+    const started = store.comments.append({ page_id: page.id, thread_id: "long-quote", request_id: "send-1", body: "请看这一段", expected_version: page.version,
+      anchor: { kind: "text", mark_id: "m1" } }, "a");
+    assert.equal(started.anchor.excerpt, "评" + wide(1999), "the new thread quotes the first 2000 whole characters");
+    assert.equal(store.comments.get(page.id, "long-quote", "a").anchor.excerpt, "评" + wide(1999), "the stored thread reads the quote back the same");
   } finally { store.close();await rm(home, { recursive: true, force: true }); }
 });

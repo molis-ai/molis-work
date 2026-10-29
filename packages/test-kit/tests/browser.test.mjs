@@ -489,13 +489,15 @@ test("a timeout is still a timeout: the limit, the message and the requests do n
   }, {}, async (harness, devtools) => {
     assert.equal(harness.commandTimeoutMs, 20_000);
     await harness.command("Ping");
-    const started = Date.now();
+    const started = performance.now();
     await assert.rejects(harness.command("Never", {}, undefined, 120), (error) => {
       assert.match(error.message, /^CDP timeout: Never \(elapsed \d+ms; limit 120ms\)$/);
       return true;
     });
-    const elapsed = Date.now() - started;
-    assert.ok(elapsed >= 120 && elapsed <= 370, `failed after ${elapsed}ms`);
+    const elapsed = performance.now() - started;
+    // Node fires a timer on whole-millisecond loop time, start and due both rounded down, so a 120 ms timer can settle
+    // up to 1 ms before 120 ms have passed on this clock: 119 is still the limit, an earlier timeout stays red.
+    assert.ok(elapsed >= 119 && elapsed <= 370, `failed after ${elapsed.toFixed(1)}ms`);
     // The late reply settles nothing: the command after it still works, and the timeout added no requests.
     await new Promise((resolve) => setTimeout(resolve, 200));
     assert.deepEqual(await harness.command("Ping"), {});

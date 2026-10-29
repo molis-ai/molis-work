@@ -11,6 +11,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
+加急：T-199
+
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
@@ -142,6 +144,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-193 | 五份文档里已改名、已删的名字改成现行说法（扫描二文二；GLOSSARY、PACKAGE-BOUNDARIES 重核后不改） | 丙 | B | 88 | — | `docs/platform/LOCAL-HOST.md`、`docs/system/THIRD-PARTY-PLUGINS.md`、`modules/private-work-context/README.md`、`modules/shelf/README.md`、`plugins/native/diff/README.md` |
 | T-195 | 情境请求里超限的标题和文字按整字截，不再留下半个字（防腐清理，收 MISC「T-183 发布」Host 一行） | 乙 | B | 95 | — | `apps/local-host/src/contextual/contextual-request.ts`、`tests/contextual-landing.test.ts` |
 | T-196 | 删掉 onboarding.ts 里没人用的 markMolisWorkOnboardingStarted（防腐清理，代码扫描二「码三」） | 丙 | A | 96 | — | `apps/local-host/src/onboarding.ts` |
+| T-199 | 产品子集运行器的两条用例读 pid 前先等文件里真有数字（防腐清理，MISC 的「统筹 main 红」行） | 丙 | B | 97 | — | `tests/ci-product-subset.test.ts` |
 
 ## 在途，不走任务书
 

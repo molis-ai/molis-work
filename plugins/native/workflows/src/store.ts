@@ -211,7 +211,7 @@ function chainJson(chain: WorkflowChain): string {
 }
 
 function normalizeTitle(value: string): string {
-  const title = value.replace(/\s+/g, " ").trim().slice(0, 120);
+  const title = [...value.replace(/\s+/g, " ").trim()].slice(0, 120).join("");
   return title || "未命名流程";
 }
 

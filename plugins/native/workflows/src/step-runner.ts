@@ -145,7 +145,7 @@ export async function runActionStep(scope: RunScope, caller: ActionExecutionCont
   catch (error) {
     // A provider may write before propagating a downstream authorization/validation error.
     // Once invoked, no error code proves that nothing happened: only an explicit retry may resend.
-    const settled = { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
+    const settled = { ...attempt, attempt_error: [...(error instanceof Error ? error.message : String(error))].slice(0, 400).join("") };
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
     await scope.commit(caller, store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);

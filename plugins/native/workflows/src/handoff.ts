@@ -46,7 +46,7 @@ async function judge(reach: Reach, link: WorkflowLink, handed: WorkflowPayload):
   const view = await reach.find(ref);
   if (!view) throw workflowsErrors.not_ready("这一段的判断规则已不可用或版本已变化；原引用已保留，请重新选择");
   if (!view.availability.available) throw workflowsErrors.not_ready(`这一段的判断规则暂不可用：${view.availability.reason}`);
-  const content = [handed.title, handed.body].filter(Boolean).join("\n\n").slice(0, 8000);
+  const content = [...[handed.title, handed.body].filter(Boolean).join("\n\n")].slice(0, 8000).join("");
   const result = await reach.invoke({ capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }, { content }) as
     { status: "ok" | "needs_review"; function_key: string; version: number; data: { choice?: string | null }; confidence: number | null };
   const choice = result.data?.choice ?? null;
@@ -68,7 +68,7 @@ export async function prepareHandoff(scope: HandoffScope, caller: ActionExecutio
   let output: WorkflowPayload, actor: WorkflowHandoff["actor"], rule: string | undefined, judged: WorkflowVerdict | undefined;
   let validateModelAnswer: (() => void) | undefined;
   if (link.kind === "manual") {
-    const edited = { title: (input.title ?? "").trim().slice(0, 200), body: (input.body ?? "").trim() };
+    const edited = { title: [...(input.title ?? "").trim()].slice(0, 200).join(""), body: (input.body ?? "").trim() };
     if (!edited.title || !edited.body) throw workflowsErrors.invalid("交过去的内容需要标题和正文");
     const unchanged = edited.title === handed.title.trim() && edited.body === handed.body.trim();
     output = { ...handed, ...edited, feed_item_id: unchanged ? handed.feed_item_id ?? null : null };

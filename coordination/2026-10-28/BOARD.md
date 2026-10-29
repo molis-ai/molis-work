@@ -166,6 +166,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-216 | 测试夹具读请求体先收字节、最后解码一次，被切在两个数据块之间的字不再读成 U+FFFD（防腐清理，MISC「T-212 起草」行） | 丙 | 池 | 115 | — | `tests/fixtures/images-runtime.ts`、`tests/fixtures/model-stand-in.ts`、`tests/fixtures/recording-text-model.ts`、`tests/fixtures/assistant-text-model.ts`、`tests/fixtures/plugin-model-runtime.ts`、`tests/fixture-request-text.test.ts`（新） |
 | T-217 | T-129 二审的三条建议：队列检查命令的两行输出有断言，runStep 注释改对，文档说明几个组一起落地后的推送全跑（防腐清理，MISC「T-129 二审 建议」） | 丙 | 池 | 116 | T-128（#1481） | `tests/ci-queue-verified.test.ts`、`docs/system/PARALLEL-DEVELOPMENT.md`（只第 68 行） |
 | T-218 | 插件页面关掉与插件中止自己的请求按取消处理（actions.cancelled），共享刷新不再丢新令牌；spec §2.6 写明中止点的用法（防腐清理，T-063 二审建议 1，王一骏 10-29 定） | 甲 | Claude（设备 A） | 117 | T-063（#1479） | `apps/local-host/src/plugin-page-authority.ts`、`apps/local-host/src/connections-service.ts` |
+| T-219 | 三处过时的措辞改成现状：提醒文字按字数数（测试注释）、库由 Manifest 声明（测试注释）、storage README 的 Feed 旧名已删（防腐清理，MISC「T-187 发布」「T-192 发布」「T-198 二审 建议」） | 丙 | B | 118 | — | `tests/agent-built-plugins-reminders.test.ts`（只第 83 行）、`tests/plugin-project-database.test.ts`（只第 25-26 行）、`packages/storage/README.md`（只第 52 行；#1101 也改这份 README，改动块不含这一行） |
+| T-220 | 读不了的文件记在「未读入」里的原因按整字截到 600 个字，不再存下半个字（防腐清理，MISC「T-214 起草」`context-onboarding-documents.ts` 一行） | 乙 | B | 119 | — | `apps/local-host/src/context-onboarding-documents.ts`（只 `prepareContextDocument` 的 `catch` 里最后一行）、`tests/context-onboarding-documents.test.ts`（文件末尾追加） |
 
 ## 在途，不走任务书
 

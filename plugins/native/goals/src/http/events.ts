@@ -63,12 +63,11 @@ type EventWriter = (actions: BoundActionClient, common: EventWriteCommon, body: 
 async function writeEvent(action: EventWriteAction, context: GoalsRouteContext): Promise<PluginRouteResponse> {
   const body = context.body;
   rejectUnknownHttp(action, body);
-  const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? `${action}-${randomUUID()}`);
+  const idempotencyKey = String(body.idempotency_key ?? `${action}-${randomUUID()}`);
   if (action === "event-close" && body.kind !== "complete" && body.kind !== "cancel") {
     return goalsFailure({ code: "goals.event_closure.invalid_kind", message: "收尾类型只能是 complete 或 cancel" });
   }
   const result = await EVENT_WRITERS[action](context.actions, { goal_id: context.params.goalId!, idempotency_key: idempotencyKey }, body);
-  context.changed();
   return { status: 200, body: result };
 }
 

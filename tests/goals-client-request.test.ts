@@ -63,7 +63,7 @@ test("PG094-09: archiving a Goal is one write with the control token, and its fa
   assert.deepEqual(done.visited, ["/projects/p1/archive/goals/G%201"]);
   assert.equal(done.sent.length, 1);
   const [write] = done.sent;
-  assert.equal(write!.url, ORIGIN + "/projects/p1/api/goals/G%201/archive");
+  assert.equal(write!.url, ORIGIN + "/projects/p1/api/plugins/io.molis.work.goals/goals/G%201/archive");
   assert.equal(write!.method, "POST");
   assert.equal(write!.cache, "no-store");
   assert.equal(write!.headers["x-molis-work-control-token"], "control-token");

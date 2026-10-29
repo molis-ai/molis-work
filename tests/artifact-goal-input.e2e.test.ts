@@ -27,7 +27,7 @@ for (const width of [1440, 390]) {
     await waitFor("Boolean(document.querySelector('[data-artifact-links] a[href$=\"/goals/V1\"]'))", 15_000);
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-links] li').innerText"), /输入/);
     const inputs = await evaluate<{ inputs: Array<{ reference: { artifact_id: string; version: number }; proposed: boolean }> }>(
-      `fetch(${JSON.stringify(`/projects/${projectId}/api/goals/V1/artifact-inputs`)}).then(response => response.json())`);
+      `fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`)}).then(response => response.json())`);
     assert.deepEqual(inputs.inputs.map(item => [item.reference.artifact_id, item.reference.version, item.proposed]), [["pages-brief", 1, false]]);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   });

@@ -18,6 +18,7 @@ import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plug
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
+import { randomUUID } from "node:crypto";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
 export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; reaches(pluginId: string): boolean } | null>;
@@ -143,7 +144,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       if (!project || !prefixed) return;
       const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
       if (found instanceof ActionError) throw found;
-    }, caller);
+    }, caller, { id: randomUUID() });
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       execution: routed?.control ?? plain,
       stop,
@@ -181,7 +182,15 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
  * is not running binds none). A path the Manifest does not declare stays the Home's, which answers it as for any Home plugin.
  */
 function projectHalfRoute(platform: HomePluginPlatform, install: PluginInstanceRecord | null, method: string | undefined, pathname: string): boolean {
-  const match = platform.router().match(method ?? "GET", pathname);
+  let match;
+  try { match = platform.router().match(method ?? "GET", pathname); }
+  catch (error) {
+    // Bad percent-encoding throws before the matcher can say whose route this is. The request is handed to the project chain (true means
+    // it is the project half's, as for a declared route this half does not bind): the project and its enablement are judged first, then
+    // the Runtime's own declared-shape answer. The Home half neither answers it nor refuses it on its own. Other failures propagate.
+    if (error instanceof URIError) return true;
+    throw error;
+  }
   return match ? !binds(platform, install, match.route_id) : false;
 }
 
@@ -205,7 +214,13 @@ async function projectPluginPlatform(host: MolisWorkLocalHost, project: LocalHos
 
 /** Whether the project's half answers this declared route now: its installation runs and its contribution binds the route. */
 function projectHalfBinds(platform: PluginPlatform, pluginId: string, method: string | undefined, pathname: string): boolean {
-  const match = platform.router().match(method ?? "GET", pathname);
+  let match;
+  try { match = platform.router().match(method ?? "GET", pathname); }
+  catch (error) {
+    // Same malformed path: the project chain decides (it judges the project, enablement and then the Runtime's declared-shape answer).
+    if (error instanceof URIError) return true;
+    throw error;
+  }
   if (!match) return false;
   const state = platform.supervisor.state(pluginId);
   return binds(platform, state?.install_id ? platform.runtime.get(state.install_id) : null, match.route_id);

@@ -41,13 +41,13 @@ test("Web Goals use shared actions and store a result exactly once across async 
         ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body),
     });
     const input = { title: "网页真实目标", goal_id: "WEB-ACTION-GOAL", idempotency_key: "web-create" };
-    assert.equal((await request("/api/goals", input, false)).status, 403);
-    let response = await request("/api/goals", input);
+    assert.equal((await request("/api/plugins/io.molis.work.goals/goals", input, false)).status, 403);
+    let response = await request("/api/plugins/io.molis.work.goals/goals", input);
     assert.equal(response.status, 201, await response.clone().text());
     const created = await response.json() as { goal: { goal_id: string }; goal_path: string; replayed: boolean };
     assert.equal(created.goal.goal_id, input.goal_id);
-    assert.equal(created.goal_path, `/projects/${project.project_id}/goals/${input.goal_id}`);
-    const notePath = `/api/goals/${input.goal_id}/event-note`;
+    assert.equal(created.goal_path, `/goals/${input.goal_id}`, "the page prefixes the reply with the project route prefix");
+    const notePath = `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-note`;
     const noteInput = { note: "便笺原文不能丢", idempotency_key: "web-note" };
     const entered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
@@ -72,10 +72,10 @@ test("Web Goals use shared actions and store a result exactly once across async 
     assert.ok(capsule.tabs.flatMap(tab => tab.items).some(goal => goal.goal_id === input.goal_id && goal.goal_title === input.title));
     assert.ok(seen.includes("goals.create") && seen.includes("goals.note") && seen.includes("goals.list"), "all three Web consumers must reach the shared action policy");
     const queries = [
-      ["goals.state.read", `/api/goals/${input.goal_id}/event-state`],
-      ["goals.events.read", `/api/goals/${input.goal_id}/events/${recorded.event_id}`],
-      ["goals.history.list", `/api/goals/${input.goal_id}/event-timeline?limit=999`],
-      ["goals.history.read", `/api/goals/${input.goal_id}/history/${recorded.event_id}`],
+      ["goals.state.read", `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-state`],
+      ["goals.events.read", `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/events/${recorded.event_id}`],
+      ["goals.history.list", `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-timeline?limit=999`],
+      ["goals.history.read", `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/history/${recorded.event_id}`],
     ] as const;
     for (const [capability, path] of queries) {
       const result = await request(path);
@@ -87,18 +87,18 @@ test("Web Goals use shared actions and store a result exactly once across async 
       assert.equal((await deniedRead.json() as { code: string }).code, "actions.plugin_disabled");
       deniedQueries.delete(capability);
     }
-    assert.equal((await request(`/api/goals/${input.goal_id}/history/MISSING`)).status, 404);
+    assert.equal((await request(`/api/plugins/io.molis.work.goals/goals/${input.goal_id}/history/MISSING`)).status, 404);
     for (const invalidLimit of ["0", "-1", "abc"]) {
-      assert.equal((await request(`/api/goals/${input.goal_id}/event-timeline?limit=${invalidLimit}`)).status, 200,
+      assert.equal((await request(`/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-timeline?limit=${invalidLimit}`)).status, 200,
         "legacy Web pagination keeps its default for invalid limits");
     }
-    const configured = await request(`/api/goals/${input.goal_id}/event-configure`, { expected_version: 0, idempotency_key: "web-config",
+    const configured = await request(`/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-configure`, { expected_version: 0, idempotency_key: "web-config",
       types: [{ type_id: "work", version: 1, name: "交付", purpose: "记录实际工作", fields: [{ field_id: "body", name: "正文", purpose: "原文", format: "text", required: true }] }] });
     assert.equal(configured.status, 200, await configured.clone().text());
     gateAction = "goals.events.report";
     const reportEntered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
-    pending = request(`/api/goals/${input.goal_id}/event-report`, { idempotency_key: "web-report", events: [{ type_id: "work", type_version: 1,
+    pending = request(`/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-report`, { idempotency_key: "web-report", events: [{ type_id: "work", type_version: 1,
       title: "网页报告", fields: { body: "实际报告原文" } }] });
     await Promise.race([reportEntered, pending.then(() => { throw new Error("Report returned before policy checkpoint"); })]);
     assert.equal(await storedCount(payload => payload.body === "实际报告原文"), 0, "a report waiting at the policy checkpoint has stored nothing");
@@ -107,7 +107,7 @@ test("Web Goals use shared actions and store a result exactly once across async 
     const reported = await response.json() as { events: Array<{ actor_id: string; payload: { body: string } }> };
     assert.equal(reported.events[0]?.actor_id, "web-user"); assert.equal(reported.events[0]?.payload.body, "实际报告原文");
     assert.equal(await storedCount(payload => payload.body === "实际报告原文"), 1);
-    const decisionPath = `/api/goals/${input.goal_id}/event-decision`;
+    const decisionPath = `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-decision`;
     const decisionInput = { idempotency_key: "web-decision", conclusion: "用户明确允许发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" } };
     assert.equal((await request(decisionPath, decisionInput, false)).status, 403);
     assert.equal((await request(decisionPath, { ...decisionInput, authority: { actor_id: "forged" } })).status, 400);

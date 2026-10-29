@@ -129,7 +129,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-179 | 「AI 生成题目」起草出的题目标题按字数查，选项文字与先问的说明按整字截（防腐清理，MISC「T-164 起草」两行里的 `drafting.ts`） | 乙 | B | 75 | T-164 | `plugins/native/form/src/drafting.ts`、`tests/form-draft-questions.test.ts` |
 | T-180 | 开始使用的 Todo 材料按整字分段，Pages 仍按单元（防腐清理，MISC「T-163 起草」） | 乙 | B | 81 | T-163（#1436） | `apps/local-host/src/context-onboarding-service.ts`、`tests/context-onboarding-todo.test.ts` |
 | T-181 | 读材料的标题按整字截到 500 个字，不再截出半个字（防腐清理，MISC「T-176 发布」`material-text.ts` 一行） | 乙 | 池 | 84 | — | `apps/local-host/src/material-text.ts`、`apps/local-host/src/context-onboarding-documents.ts`、`tests/material-extraction.test.ts` |
+| T-183 | 工作台截「放进来」按钮带的标题与文字时按整字，不再留下半个字（防腐清理，MISC「T-176 发布」工作台一行） | 乙 | A | 86 | T-176 | `apps/workbench/src/browser/plugin-frame/intake.ts`、`apps/workbench/src/scripts/client/context-bus.ts`、`tests/workbench-intake-whole-characters.test.ts`、`tests/workbench-intake-whole-characters.e2e.test.ts`、`scripts/gates/page-assets.mjs`、`tooling/gates/page-assets.json` |
 | T-184 | 填写页、答卷表格的导出文件名按整字截到 80 个字，不再截出半个字（防腐清理，MISC「T-164 起草」行里的 `fillpage.ts`） | 乙 | A | 83 | T-164（#1437） | `plugins/native/form/src/fillpage.ts`、`tests/form-export-filenames.test.ts` |
+| T-185 | 文字模型端口按字数查提示长度，并给固定部分留余量（防腐清理，MISC「T-177 发布」行） | 乙 | 池 | 85 | — | `apps/local-host/src/host-complete-text.ts`、`tests/host-inference-completion.test.ts`、`tests/host-configured-text.test.ts` |
 
 ## 在途，不走任务书
 

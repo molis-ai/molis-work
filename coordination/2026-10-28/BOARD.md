@@ -194,6 +194,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-248 | Todo 整理用例里两个读法相同的辅助函数去重成一个（防腐清理，MISC「T-222 二审 建议」；短任务书） | 丙 | 池 | 143 | — | `tests/todo-organize.test.ts` |
 | T-249 | Pages 页面客户端里导入预览、侧栏标签、评论引文与编辑器交给助理的内容按整字截，不再留下半个字（防腐清理，MISC「T-157/T-158 起草」第二组；短任务书） | 乙 | A | 144 | T-203 | `plugins/native/pages/src/browser/import.ts`、`plugins/native/pages/src/comment-side-client.ts`、`plugins/native/pages/src/comment-editor-client.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-203、T-204 等互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-250 | 两份 spec 里已经做完的 BL-311、BL-393 改成现状，RCPT-102 的证据句补上超时一支（防腐清理，MISC「T-044 起草」「T-026 二审 给统筹 2」；短任务书） | 丙 | 池 | 145 | — | `specs/post-anticorruption-roadmap/spec.md`（只 `:184`）、`specs/ai-input-receipts/spec.md`（只 `:66`、`:1611`） |
+| T-251 | 生成文稿的字数上限补一个只靠字数判断的用例（100,001 个单字文稿被拒），删掉字数判断就会红（防腐清理，MISC「T-228 二审 建议」；短任务书） | 丙 | 池 | 146 | T-228 | `tests/feed-inbox-pages-loop.test.ts`（只加一个 RAC-2275 用例，T-228 也改它） |
+| T-252 | Pages 生成文稿所选材料的总长上限按字数数，含两单元字的材料不再被多拒（防腐清理，MISC「T-228 二审 建议」；短任务书） | 乙 | 池 | 147 | — | `plugins/native/pages/src/actions.ts`（只 `:301`）、一个 pages 动作测试文件 |
 
 ## 在途，不走任务书
 

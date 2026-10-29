@@ -11,7 +11,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-加急：T-199、T-205
+加急：T-205
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -137,7 +137,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-186 | 图片的下载名、演示稿的文件名按整字截到 80 个字，不再截出半个字（防腐清理，代码扫描一） | 乙 | B | 91 | — | `plugins/native/images/src/routes.ts`、`plugins/native/ppt/src/pptx.ts`、`tests/images-plugin.test.ts`、`tests/ppt-actions.test.ts` |
 | T-187 | 提醒文字的上限按字数数，和动作 schema 同一个单位，200 个字以内的提醒不再因表情被拒（防腐清理，代码扫描「书三」） | 乙 | B | 87 | — | `plugins/native/schedule/src/reminders.ts`、`tests/schedule-reminder-text.test.ts` |
 | T-188 | Goals 的名称、笔记与处理说明的标题、片段提案的文字按整字截，不再截出半个字（防腐清理，代码扫描一的「书三」Goals 半） | 乙 | 池 | 92 | — | `plugins/native/goals/src/input-actions.ts`、`plugins/native/goals/src/module/event-acknowledgement.ts`、`plugins/native/goals/src/module/event-state.ts`、`plugins/native/goals/src/fragment-offers.ts`、`tests/goals-input-confirm.test.ts`、`tests/goals-event-acknowledge.test.ts`、`tests/contextual-fragment-offers.test.ts` |
-| T-189 | Workflows 的标题与交接内容按整字截，固定值的长度按字数数，不再留下半个字（防腐清理，代码扫描一） | 乙 | 池 | 93 | — | `plugins/native/workflows/src/store.ts`、`handoff.ts`、`continuation.ts`、`model.ts`、`step-runner.ts`、`tests/workflows-whole-character.test.ts` |
+| T-189 | Workflows 的标题与交接内容按整字截，固定值的长度按字数数，不再留下半个字（防腐清理，代码扫描一） | 乙 | 池 | 93 | — | `plugins/native/workflows/src/store.ts`、`plugins/native/workflows/src/handoff.ts`、`plugins/native/workflows/src/continuation.ts`、`plugins/native/workflows/src/model.ts`、`plugins/native/workflows/src/step-runner.ts`、`tests/workflows-whole-character.test.ts` |
 | T-190 | Jelly 的导出文件名与计划里的标题、问题、说明按整字截，两个上限按字数数（防腐清理，MISC 的「T-184 发布」行） | 乙 | 池 | 94 | — | `plugins/native/jelly/src/actions.ts`、`plugins/native/jelly/src/ai.ts`、`tests/jelly-actions.test.ts`、`tests/jelly-plugin.test.ts` |
 | T-191 | 删掉 Goals、Schedule 里四个没人用的导出（防腐清理，代码扫描二「码四」） | 丙 | A | 89 | — | `plugins/native/goals/src/governance/index.ts`、`plugins/native/goals/src/safety-ui-model.ts`、`plugins/native/schedule/src/runtime-actions.ts` |
 | T-192 | Home 库登记表之后，三份文档里已删的常量与“项目级未启用”改成现状（防腐清理，代码扫描二第 1 组） | 丙 | B | 90 | — | `docs/platform/PLUGIN-PLATFORM.md`（只第 154 行）、`docs/platform/STORAGE-AND-EXCHANGE.md`（只第 23 行）、`docs/system/RUNTIME-MIGRATION.md`（只 §2.1 标题下一句，和第 57、253 行） |
@@ -153,6 +153,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-203 | Pages 评论输入框按字数封顶 20000，不再用按 UTF-16 单元数的 maxlength，含两单元字的评论不再被截短（防腐清理，MISC「T-085 起草」） | 乙 | B | 102 | T-176 | `plugins/native/pages/src/comment-side-view.ts`、`plugins/native/pages/src/comment-side-client.ts`、`tests/pages-comment-draft-length.e2e.test.ts`（新）、`plugins/native/pages/README.md`（只第 83、85 行）、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-183 互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-204 | Pages 页面与编辑器把交给助理的选中内容、前后文、标题路径，配图说明、书签名和导出文件名按整字截取，不再留下半个字（防腐清理，MISC「T-157/T-158 起草」前六处） | 乙 | B | 103 | T-176 | `plugins/native/pages/src/whole-characters.ts`（新）、`plugins/native/pages/src/browser/document.ts`、`plugins/native/pages/src/browser/context.ts`、`plugins/native/pages/src/focus.ts`、`plugins/native/pages/src/link.ts`、`plugins/native/pages/src/landing-editor.ts`、`tests/contextual-interaction.test.ts`、`tests/pages-plugin.test.ts`、`tests/content-portable-regressions.e2e.test.ts`、`tests/context-landing.e2e.test.ts`、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-183、T-203 互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-205 | RAC-1452 的下界改成「不早于同一时刻起的普通定时器」，不再按 performance.now() 猜毫秒数（防腐清理，统筹 main 红 · run 40850221824） | 丙 | 池 | 0 | — | `packages/test-kit/tests/browser.test.mjs`（只 `:506-568` 那一例；`cdp.ts` 只在本机变异、还原，不入提交） |
+| T-206 | Workflows 的交接模板与动作字段名按整字截，不再留下半个字（防腐清理，MISC「T-189 发布」行） | 乙 | 池 | 105 | T-189（#1471） | `plugins/native/workflows/src/model.ts`（只 `:273` 一行）、`plugins/native/workflows/src/step-runner.ts`（只 `:40` 一行）、`tests/workflows-whole-character-text.test.ts`（新） |
 | T-207 | 六处过时的措辞改成现状：`shared` 已空、BL-802 已做、双实例舞台「在跑」的口径、扩展点清单头（防腐清理，MISC「T-125 二审 建议」「T-191 发布」，T-127 二审建议 2） | 丙 | B | 106 | — | `scripts/gates/README.md`、`tooling/gates/README.md`、`tooling/gates/table-owners.json`（只 `areas` 下 Feed 那条的 `reason`，不改任何 owner 条目）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（只第 3 行）、`specs/dual-instance-plugins/spec.md`（只 §12）、`docs/system/EXTENSION-POINTS.md`（只第 3 行） |
 
 ## 在途，不走任务书

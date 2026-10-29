@@ -100,6 +100,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-096 | 选中的内容「记成待办」时，标题、说明、来源名称与依据按整字截取，截到 `todo.items.create` 数的长度 | 乙 | B | 52 | T-090 | `plugins/native/todo/src/actions.ts`、`tests/todo-from-inbox.test.ts` |
 | T-150 | 四处过时的文档说法改对：C 端方案的 W1-13、Observability 的日志、MCP 发现失败、停用隔离中的生成插件 | 丙 | 池 | 53 | — | `specs/repository-anti-corruption/c-end-readiness.md`、`docs/platform/CONTRACTS-AND-OPERATIONS.md`、`docs/system/CALL-CHAINS.md` |
 | T-151 | 终端被停掉或重启换下的旧进程，之后的输出不再进重放、不再转给面板 | 乙 | 池 | 54 | — | `horizontal/runtime-host/src/adapters/terminal-pty.ts`、`tests/runtime-host.test.ts`、`horizontal/runtime-host/README.md` |
+| T-152 | 超时消息里的 elapsed 按整毫秒向下取整，RAC-1452 不再因两个时钟各自取整而偶发红 | 乙 | 池 | 55 | — | `packages/test-kit/src/browser/cdp.ts`、`packages/test-kit/tests/browser.test.mjs`、`packages/test-kit/README.md` |
 
 ## 在途，不走任务书
 

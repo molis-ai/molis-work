@@ -145,6 +145,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-194 | 删掉 Jelly、Cognia 里六个没人用的导出（防腐清理，代码扫描二「码三」） | 丙 | 池 | 98 | T-190 | `plugins/native/cognia/src/store.ts`、`plugins/native/jelly/src/store.ts`、`plugins/native/jelly/src/ai.ts`、`plugins/native/jelly/src/service-actions.ts`、`plugins/native/jelly/src/ui.ts` |
 | T-195 | 情境请求里超限的标题和文字按整字截，不再留下半个字（防腐清理，收 MISC「T-183 发布」Host 一行） | 乙 | B | 95 | — | `apps/local-host/src/contextual/contextual-request.ts`、`tests/contextual-landing.test.ts` |
 | T-196 | 删掉 onboarding.ts 里没人用的 markMolisWorkOnboardingStarted（防腐清理，代码扫描二「码三」） | 丙 | A | 96 | — | `apps/local-host/src/onboarding.ts` |
+| T-198 | 删掉 local-host、attention-resumption、shelf、storage 里七个没人用的导出（防腐清理，代码扫描二「零散」） | 甲 | A-Claude | 99 | — | `apps/local-host/src/installed-plugin-libraries.ts`、`modules/attention-resumption/src/index.ts`、`modules/shelf/src/contract.ts`、`packages/storage/src/adapters/search-storage.ts` |
 | T-199 | 产品子集运行器的两条用例读 pid 前先等文件里真有数字（防腐清理，MISC 的「统筹 main 红」行） | 丙 | B | 97 | — | `tests/ci-product-subset.test.ts` |
 
 ## 在途，不走任务书

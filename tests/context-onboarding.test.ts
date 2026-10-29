@@ -735,3 +735,41 @@ test('ONB-LIM-09 staging of a round left for 30 days or already finished is remo
   assert.equal(reopened.requires_reselection, true); assert.match(reopened.error!, /30 天/);
   assert.ok((await stat(stranger)).isDirectory(), 'a directory that is no round is not this cleanup\'s');
 });
+
+// What a failed round keeps of the error is the first 600 whole characters of its message (a 🙂 is one character, though two UTF-16 units).
+const ROUND_CUTS = [
+  { name: "the 600th character is a 🙂: kept whole", message: "x".repeat(599) + "🙂" + "tail", kept: "x".repeat(599) + "🙂" },
+  { name: "the first slice ends inside a 🙂: x and 700 🙂 are cut to x and 599 🙂", message: "x" + "🙂".repeat(700), kept: "x" + "🙂".repeat(599) },
+  { name: "700 🙂 are cut to 600", message: "🙂".repeat(700), kept: "🙂".repeat(600) },
+  { name: "601 one-unit characters are cut to 600", message: "x".repeat(601), kept: "x".repeat(600) },
+];
+// An error of 600 characters or fewer is kept whole, whatever its length in UTF-16 units.
+const ROUND_FITS = [
+  { name: "599 one-unit characters and a 🙂 (600 characters, 601 units)", message: "x".repeat(599) + "🙂" },
+  { name: "600 🙂 (600 characters, 1,200 units)", message: "🙂".repeat(600) },
+  { name: "600 one-unit characters", message: "x".repeat(600) },
+  { name: "a short message", message: "模型暂时不可用，请稍后重试" },
+];
+
+/** A round whose overview fails where the model is asked, with `thrown`: the journey as the Host kept it. */
+async function failedRound(t: Parameters<Parameters<typeof test>[1]>[0], thrown: unknown) {
+  const dir = await home(t), id = randomUUID();
+  withContextJourneys(dir, store => store.create(id));
+  selectContextSources(dir, id, { sources: [{ kind: "browser", selected: true, text: "Original mail body." }] });
+  startContextJourney(dir, id, { ...pagesPorts(dir), model: async () => ({ completeText: async () => { throw thrown; } }) });
+  const failed = await waitContextJourney(dir, id);
+  assert.equal(failed.phase, "failed");
+  return failed;
+}
+
+for (const c of ROUND_CUTS) test(`RAC-2120 a failed round keeps the first 600 whole characters of the error: ${c.name}`, async t => {
+  assert.equal((await failedRound(t, new Error(c.message))).error, c.kept);
+});
+
+for (const c of ROUND_FITS) test(`RAC-2121 a failed round keeps an error of 600 characters or fewer whole: ${c.name}`, async t => {
+  assert.equal((await failedRound(t, new Error(c.message))).error, c.message);
+});
+
+test("RAC-2124 a failed round whose error is not an Error keeps the plain text of its own, not a cut of the value", async t => {
+  assert.equal((await failedRound(t, "x".repeat(700))).error, "整理失败，材料已保留");
+});

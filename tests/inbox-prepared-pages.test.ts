@@ -148,6 +148,9 @@ test("RAC-2281 materials of 100001 characters are refused, and exactly 100000 ar
     { code: "pages.invalid", message: /材料过长/ }, "one character over the limit is refused");
   const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, materials("a".repeat(100_000))) as { document: { title: string } };
   assert.equal(made.document.title, "材料整理", "exactly the limit is accepted");
+  // Exactly 100,000 characters of two-unit characters: 200,000 units, so the middle band is counted, and the count is at the limit.
+  const twoUnits = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, materials("😀".repeat(100_000))) as { document: { title: string } };
+  assert.equal(twoUnits.document.title, "材料整理", "exactly 100000 two-unit characters are accepted");
 });
 
 test("RAC-2282 materials over 200000 UTF-16 units are refused before any character count of them", async t => {

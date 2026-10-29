@@ -168,6 +168,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-218 | 插件页面关掉与插件中止自己的请求按取消处理（actions.cancelled），共享刷新不再丢新令牌；spec §2.6 写明中止点的用法（防腐清理，T-063 二审建议 1，王一骏 10-29 定） | 甲 | Claude（设备 A） | 117 | T-063（#1479） | `apps/local-host/src/plugin-page-authority.ts`、`apps/local-host/src/connections-service.ts` |
 | T-219 | 三处过时的措辞改成现状：提醒文字按字数数（测试注释）、库由 Manifest 声明（测试注释）、storage README 的 Feed 旧名已删（防腐清理，MISC「T-187 发布」「T-192 发布」「T-198 二审 建议」） | 丙 | B | 118 | — | `tests/agent-built-plugins-reminders.test.ts`（只第 83 行）、`tests/plugin-project-database.test.ts`（只第 25-26 行）、`packages/storage/README.md`（只第 52 行；#1101 也改这份 README，改动块不含这一行） |
 | T-220 | 读不了的文件记在「未读入」里的原因按整字截到 600 个字，不再存下半个字（防腐清理，MISC「T-214 起草」`context-onboarding-documents.ts` 一行） | 乙 | B | 119 | — | `apps/local-host/src/context-onboarding-documents.ts`（只 `prepareContextDocument` 的 `catch` 里最后一行）、`tests/context-onboarding-documents.test.ts`（文件末尾追加） |
+| T-221 | Workflows 按整字截文字时先截前 2N 个单元再展开，不再把整篇正文展开成数组（防腐清理，MISC「T-189 二审 建议」行） | 丙 | 池 | 120 | T-206（#1487） | `plugins/native/workflows/src/bounded-cut.ts`（新）、`plugins/native/workflows/src/handoff.ts`、`plugins/native/workflows/src/model.ts`、`plugins/native/workflows/src/step-runner.ts`、`plugins/native/workflows/src/store.ts`、`tests/workflows-bounded-cut.test.ts`（新） |
 | T-222 | 待办整理把材料分给各次模型调用时按整字数材料的长度，与读取、切段同口径，含两单元字的材料不再被多算一倍（防腐清理，MISC「T-180 发布」第二行） | 乙 | 池 | 121 | — | `plugins/native/todo/src/organize-model.ts`（`materialReadText` 之后加一个函数、改 `:116` 与两句注释）、`tests/todo-organize.test.ts`（`:10` 的 import 加 `organizeParts`，文件末尾追加） |
 
 ## 在途，不走任务书

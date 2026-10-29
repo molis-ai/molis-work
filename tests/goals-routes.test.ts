@@ -120,3 +120,88 @@ test("PG094-09: a Goals write reads its path parameter and its retry key from th
   assert.equal(timeline.status, 200);
   assert.deepEqual(invocations.at(-1), { capability_id: "goals.history.list", input: { goal_id: "goal 1", before_cursor: "c-1", limit: 100 } });
 });
+
+// T-233 / RAC-2210 to RAC-2212: a new Goal's title is at most 120 characters and its outcome, why and business_logic at most
+// 4000. A character may take two UTF-16 units (an emoji does), so these bounds are counted in characters, not in units. The route
+// is the only place that bounds them: the `goals.create` action's schema sets no length on the title or on the three texts.
+const PAIR = "\u{1F600}"; // one character, two UTF-16 units (U+D83D U+DE00)
+type CreateField = "title" | "outcome" | "why" | "business_logic";
+const CREATE_BOUND: Record<CreateField, number> = { title: 120, outcome: 4000, why: 4000, business_logic: 4000 };
+
+/** What `goals.create` answers once a request gets through the route's bound. */
+const createdGoal = { goal: { goal_id: "goal-1", project_id: "project-1", title: "目标", outcome: "" }, replayed: false, observed_event_cursor: 1 };
+
+/** Sends one create request through the route, with `field` set to `text`, and gives the answer and what reached `goals.create`. */
+async function createRequest(field: CreateField, text: string) {
+  const { ports, invocations } = stubPorts({ "goals.create": createdGoal });
+  const response = await binding("goals.create", ports).handle(request("POST", {}, { title: "目标", [field]: text, idempotency_key: "create-1" }));
+  return { response, invocations };
+}
+
+test("RAC-2210: a title of 120 characters and an outcome, why or business_logic of 4000 are kept whole, however many units they take", async () => {
+  for (const { field, text } of [
+    { field: "title" as const, text: PAIR.repeat(120) }, // 240 units, 120 characters
+    { field: "title" as const, text: `${"a".repeat(119)}${PAIR}` }, // 121 units, 120 characters
+    { field: "outcome" as const, text: PAIR.repeat(4000) }, // 8000 units, 4000 characters
+    { field: "outcome" as const, text: `${"a".repeat(3999)}${PAIR}` }, // 4001 units, 4000 characters
+    { field: "why" as const, text: PAIR.repeat(4000) },
+    { field: "business_logic" as const, text: PAIR.repeat(4000) },
+  ]) {
+    const { response, invocations } = await createRequest(field, text);
+    assert.equal(response.status, 201, `${field} of ${[...text].length} characters is accepted`);
+    assert.equal(invocations.length, 1, "the goals.create action is dispatched once");
+    const dispatched = invocations[0];
+    assert.ok(dispatched, "the dispatch is there");
+    assert.equal((dispatched.input as Record<string, unknown>)[field], text, "the whole text reaches goals.create");
+  }
+  for (const { field, text } of [
+    { field: "title" as const, text: "a".repeat(120) },
+    { field: "outcome" as const, text: "a".repeat(4000) },
+  ]) {
+    const { response } = await createRequest(field, text);
+    assert.equal(response.status, 201, `${field} of ${text.length} one-unit characters is still accepted`);
+  }
+});
+
+test("RAC-2211: one character over the bound is still refused, with the same 「内容过长」 message", async () => {
+  for (const { field, text } of [
+    { field: "title" as const, text: PAIR.repeat(121) }, // 242 units, 121 characters
+    { field: "title" as const, text: `${"a".repeat(120)}${PAIR}` }, // 122 units, 121 characters
+    { field: "outcome" as const, text: PAIR.repeat(4001) }, // 8002 units, 4001 characters
+    { field: "outcome" as const, text: `${"a".repeat(4000)}${PAIR}` }, // 4002 units, 4001 characters
+  ]) {
+    const { response, invocations } = await createRequest(field, text);
+    assert.equal(response.status, 400, `${field} of ${[...text].length} characters is refused`);
+    assert.deepEqual(response.body, { error: `${field} 内容过长`, code: "actions.input_invalid" }, "the message still names the field");
+    assert.equal(invocations.length, 0, "nothing reaches goals.create");
+  }
+});
+
+/** `createRequest` with the string iterator wrapped: counts the strings longer than `over` units that anything spreads. */
+async function createSpreading(field: CreateField, text: string, over: number) {
+  const original = String.prototype[Symbol.iterator];
+  let spread = 0;
+  String.prototype[Symbol.iterator] = function (this: string) {
+    if (String(this).length > over) spread += 1;
+    return original.call(this);
+  };
+  try {
+    return { ...(await createRequest(field, text)), spread };
+  } finally {
+    String.prototype[Symbol.iterator] = original;
+  }
+}
+
+test("RAC-2212: a text of more than twice the bound in units is refused without being spread", async () => {
+  // Anything over twice the bound in units is over it in characters whatever it holds, so a shorter one is all that gets counted.
+  for (const { field, text } of [
+    { field: "title" as const, text: "a".repeat(241) },
+    { field: "outcome" as const, text: "a".repeat(8001) },
+    { field: "outcome" as const, text: PAIR.repeat(4001) }, // 8002 units
+  ]) {
+    const { response, invocations, spread } = await createSpreading(field, text, CREATE_BOUND[field] * 2);
+    assert.equal(response.status, 400, `${field} of ${text.length} units is refused`);
+    assert.equal(spread, 0, "the long text is not spread or iterated");
+    assert.equal(invocations.length, 0, "nothing reaches goals.create");
+  }
+});

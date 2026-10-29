@@ -1,6 +1,6 @@
 import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
-import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { FeedApi } from "./contract/feed.js";
+import type { SourcesApi } from "./contract/sources.js";
 
 /**
  * FD2 fixes the native Plugin's module-facing boundary. FD4 will add the UI
@@ -30,6 +30,7 @@ export type { FeedApplicationPorts } from "./application-ports.js";
 export { createConnectionWatch, FEED_HOLD_RETRY_DELAYS_MS, holdKeptBodies, keepFeedReconcile, type FeedReconcilePorts } from "./runtime-reconcile.js";
 export { receiptContentRefs, releaseHeldHistory, FEED_FORGET_BATCH, FEED_RECEIPT_CONTENT_REFS, type FeedHistoryReleasePorts, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";
+export { feedErrors } from "./contract/index.js";
 
 export {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,

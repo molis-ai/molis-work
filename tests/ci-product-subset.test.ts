@@ -266,6 +266,13 @@ const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catc
 const until = async (done: () => boolean, ms: number, what: string) => {
   for (let waited = 0; !done(); waited += 50) { assert.ok(waited < ms, `gave up waiting for ${what}`); await new Promise((resolve) => setTimeout(resolve, 50)); }
 };
+// The test file the runner starts writes its pid with writeFileSync, which creates the file before it fills it: until the number is there,
+// the file names no process (Number("") is 0). The same reading as pidIn in tests/ci-linux-probe.test.ts.
+const waitForPid = async (file: string, ms: number, what: string) => {
+  let pid = 0;
+  await until(() => { pid = existsSync(file) ? Number(readFileSync(file, "utf8")) : 0; return Number.isInteger(pid) && pid > 0; }, ms, what);
+  return pid;
+};
 
 async function cutOff(signal: NodeJS.Signals) {
   const hang = path.join(state, `hang-${signal}`);
@@ -283,8 +290,7 @@ async function cutOff(signal: NodeJS.Signals) {
   const ended = new Promise<number | null>((resolve) => child.once("close", (code) => resolve(code)));
   let group = 0;
   try {
-    await until(() => existsSync(hang), 60_000, "the second smoke to start");
-    const pid = Number(readFileSync(hang, "utf8"));
+    const pid = await waitForPid(hang, 60_000, "the second smoke to start");
     group = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
     const before = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8")) as Report;
     child.kill(signal);
@@ -323,8 +329,8 @@ test("a report exists from the start: a run killed while its first file is runni
   const child = spawn(process.execPath, [script, "--root", root, "--out", out, "--retries", "0", "--timeout-seconds", "120", "--browser-timeout-seconds", "120"], { env: { ...process.env, SUBSET_STATE: state, GITHUB_STEP_SUMMARY: "" } });
   let group = 0;
   try {
-    await until(() => existsSync(hang), 60_000, "the first smoke to start");
-    group = Number(execFileSync("ps", ["-o", "pgid=", "-p", readFileSync(hang, "utf8")], { encoding: "utf8" }).trim());
+    const pid = await waitForPid(hang, 60_000, "the first smoke to start");
+    group = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
     const report = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8")) as Report;
     assert.equal(report.endedBy, "running");
     assert.equal(report.files.length, 4);
@@ -464,12 +470,12 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   const job = jobBlock("product-subset");
   assert.match(job, /^    runs-on: ubuntu-latest$/m);
   assert.match(job, /^    continue-on-error: true$/m, "a red subset must not turn the workflow red (decision #14: not blocking at first)");
-  assert.match(job, /^    name: Product subset \(not required yet, \$\{\{ matrix\.shard \}\}\/2\)$/m);
+  assert.match(job, /^    name: Product subset \(not required yet, \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}\)$/m);
   assert.match(job, /^      fail-fast: false$/m, "a failure does not cancel the other shard");
-  assert.match(job, /^        shard: \[1, 2\]$/m, "both parts of the complete list run");
-  assert.ok(job.includes("--shard ${{ matrix.shard }}/2"));
+  assert.ok(job.includes("        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "both parts of the complete list run, unless a selection that succeeded found the files a pull request touches fit in one (T-130, tests/ci-test-selection.test.ts)");
+  assert.ok(job.includes("--shard ${{ matrix.shard }}/${{ strategy.job-total }}"));
   assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
-  assert.match(job, /run: exec node scripts\/ci-product-subset\.mjs --expect-platform linux /, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
+  assert.match(job, /^\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux /m, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
   assert.match(job, /run: pnpm build$/m, "the tests import the built packages");
   assert.ok(job.includes(`${TEST_CHROME}=`), "the browser smokes are told which Chrome to use");

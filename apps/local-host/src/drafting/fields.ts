@@ -70,7 +70,9 @@ export const requiredFields = (schema: ActionSchema): string[] => (Array.isArray
  */
 export function materialValue(schema: ActionSchema, field: string | undefined, text: string): unknown {
   const shape = field && isRecord(schema.properties) ? schema.properties[field] : undefined;
-  const limit = (inner: unknown) => (isRecord(inner) && typeof inner.maxLength === "number" ? text.slice(0, inner.maxLength) : text);
+  // The schema's maxLength is counted in characters (the kernel's Ajv counts code points), so cut in whole characters: a
+  // two-unit character that fits stays whole, and the value is still within the limit.
+  const limit = (inner: unknown) => (isRecord(inner) && typeof inner.maxLength === "number" ? [...text.slice(0, inner.maxLength * 2)].slice(0, inner.maxLength).join("") : text);
   if (textual(shape)) return limit(innerText(shape));
   if (textList(shape)) return [limit(innerText(shape.items as Record<string, unknown>))];
   return undefined;

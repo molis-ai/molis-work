@@ -1,7 +1,7 @@
 import type { ContextualDraft } from "@molis-ai/molis-work-contracts/services/contextual";
 import { assertActionInput, compileActionSchema } from "@molis-ai/molis-work-kernel";
 import type { HostTextRequestOptions } from "../host-complete-text.js";
-import { draftData, type DraftMaterial, type DraftScreen, type DraftTarget } from "./draft-data.js";
+import { cutUnits, draftData, type DraftMaterial, type DraftScreen, type DraftTarget } from "./draft-data.js";
 import { fillableFields, materialValue, requiredFields, type Fillable } from "./fields.js";
 
 /**
@@ -98,7 +98,7 @@ const fallbackOf = (reason: keyof typeof FALLBACK_MESSAGE, prepared: boolean) =>
 
 function summaryOf(input: DraftInput, values: Record<string, unknown>, fields: Fillable): string {
   const first = fields.names.map(name => values[name]).find((value): value is string => typeof value === "string" && value.trim().length > 0);
-  return first ? `${input.target.verb}：「${first.length > 40 ? `${first.slice(0, 39)}…` : first}」` : input.target.verb;
+  return first ? `${input.target.verb}：「${first.length > 40 ? `${cutUnits(first, 39)}…` : first}」` : input.target.verb;
 }
 
 /**

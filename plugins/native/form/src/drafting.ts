@@ -48,11 +48,22 @@ function drafted(value: unknown): FormQuestionInput[] {
   return value.map(row => {
     const item = row && typeof row === "object" ? row as Record<string, unknown> : {};
     const title = typeof item.title === "string" ? item.title.trim() : "", type = TYPES.includes(item.type as FormQuestionType) ? item.type as FormQuestionType : null;
-    const options = Array.isArray(item.options) ? item.options.filter((label): label is string => typeof label === "string" && !!label.trim()).map(label => ({ label: label.trim().slice(0, 120) })) : [];
+    const options = Array.isArray(item.options) ? item.options.filter((label): label is string => typeof label === "string" && !!label.trim()).map(label => ({ label: [...label.trim()].slice(0, 120).join("") })) : [];
     const choice = type === "singleChoice" || type === "multiChoice" || type === "dropdown";
-    if (!title || title.length > 200 || !type || (choice && (options.length < 2 || options.length > 12))) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
+    if (!title || [...title].length > 200 || !type || (choice && (options.length < 2 || options.length > 12))) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
     return { type, title, required: item.required === true, ...(choice ? { options } : {}) };
   });
+}
+
+/** At most `units` UTF-16 units of `text`, in whole characters: the question rules count an option's description in units, not characters. */
+function clipUnits(text: string, units: number): string {
+  let kept = "", used = 0;
+  for (const character of text) {
+    if (used + character.length > units) break;
+    kept += character;
+    used += character.length;
+  }
+  return kept;
 }
 
 /** What it asks first, as questions the shared card draws: choice questions only, numbered in order, bounded and well formed. */
@@ -61,12 +72,12 @@ function asked(value: unknown): AgentQuestion[] {
   const questions: AgentQuestion[] = rows.map((row, index) => {
     const item = row && typeof row === "object" ? row as Record<string, unknown> : {};
     const options = Array.isArray(item.options) ? item.options : [];
-    return { index, prompt: typeof item.prompt === "string" ? item.prompt.trim().slice(0, 300) : "", type: "choice", required: item.required !== false,
+    return { index, prompt: typeof item.prompt === "string" ? [...item.prompt.trim()].slice(0, 300).join("") : "", type: "choice", required: item.required !== false,
       ...(typeof item.id === "string" ? { id: item.id } : {}), multiple: item.multiple === true, allow_other: item.allow_other === true,
       options: options.map((option, at) => {
         const one: Record<string, unknown> = option && typeof option === "object" ? option as Record<string, unknown> : { label: option };
-        return { index: at, label: typeof one.label === "string" ? one.label.trim().slice(0, 120) : "",
-          ...(typeof one.description === "string" && one.description.trim() ? { description: one.description.trim().slice(0, 300) } : {}), ...(one.recommended === true ? { recommended: true } : {}) };
+        return { index: at, label: typeof one.label === "string" ? [...one.label.trim()].slice(0, 120).join("") : "",
+          ...(typeof one.description === "string" && one.description.trim() ? { description: clipUnits(one.description.trim(), 300) } : {}), ...(one.recommended === true ? { recommended: true } : {}) };
       }) };
   });
   if (!questions.length || questions.some(question => !question.prompt || question.options.some(option => !option.label)) || questionSetFlaw(questions)) {
@@ -122,7 +133,7 @@ export function createFormDrafting(ports: FormDraftPorts) {
         // Asked once: after the person answered, a model that still cannot draft says so instead of asking again.
         if (prior) throw formErrors.invalid("回答之后模型仍没有拟出题目，请把要求写得更具体后重试");
         const questions = asked(reply.questions), interaction_id = `draft-${crypto.randomUUID()}`;
-        const why = typeof reply.why === "string" && reply.why.trim() ? reply.why.trim().slice(0, 300) : "生成前想先确认几件事";
+        const why = typeof reply.why === "string" && reply.why.trim() ? [...reply.why.trim()].slice(0, 300).join("") : "生成前想先确认几件事";
         kept.set(interaction_id, { form_id: form.id, project_id: form.project_id, form_version: form.version, prompt: request, why, questions, at: now() });
         return { status: "needs_input", interaction: { interaction_id, why, questions, note: ANSWER_NOTE } };
       }

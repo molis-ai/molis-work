@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, type ActionReference, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualDraft, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { draftIntake, draftRequest, handleContextualHttp, type DraftModel, type DraftPorts, type DraftTarget } from "@molis-ai/molis-work-app-local-host";
@@ -59,6 +60,43 @@ test("W1-07: a draft fills words and dates, never a choice, a flag, a reference 
   const lines = { type: "object", properties: { title: { type: "string" }, lines: { type: "array", items: { type: "string", maxLength: 5 } } } };
   const listed = await draftIntake({ target: target({ input_schema: lines, material_field: "lines" }), material: material({ text: "一二三四五六七" }), request_id: "r" }, ports());
   assert.deepEqual(listed.input.lines, ["一二三四五"]);
+});
+
+// ---- T-230: the cuts drafting makes leave whole characters only ---------------------------------------------------------------
+/** A half of a two-unit character whose other half is missing: what a cut in the middle of one leaves at the end. */
+const LONE_HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+
+test("RAC-2195 the material placed in a field is cut to the schema's maxLength in whole characters: it stays valid, and no half one is left", async () => {
+  const schema = { type: "object", additionalProperties: false, required: ["notes"], properties: { notes: { type: "string", maxLength: 10_000 } } } as const;
+  const placed = async (text: string) => (await draftIntake({ target: target({ input_schema: schema, material_field: "notes" }), material: material({ text }), request_id: "r" }, ports())).input.notes as string;
+  // The 10000th character is a 🙂: cut in UTF-16 units it would keep only the high half of it.
+  const split = await placed("x".repeat(9_999) + "🙂" + "tail");
+  assert.equal(split, "x".repeat(9_999) + "🙂", "10000 whole characters, the 🙂 at the limit kept whole");
+  assert.deepEqual([[...split].length, split.length, LONE_HALF.test(split)], [10_000, 10_001, false], "10000 characters in 10001 units, no half one");
+  assert.doesNotThrow(() => assertActionInput(schema, { notes: split }), "Ajv counts characters, so 10001 UTF-16 units are valid");
+  // Exactly the limit, and one character over it: the whole characters that fit are kept.
+  assert.equal(await placed("x".repeat(9_999) + "🙂"), "x".repeat(9_999) + "🙂", "exactly the limit in characters: the 🙂 on it stays whole");
+  assert.equal(await placed("x".repeat(10_000) + "🙂"), "x".repeat(10_000), "one character more is cut at the limit, in whole characters");
+  const list = { type: "object", additionalProperties: false, required: ["lines"], properties: { lines: { type: "array", items: { type: "string", maxLength: 5 } } } } as const;
+  const listed = (await draftIntake({ target: target({ input_schema: list, material_field: "lines" }), material: material({ text: "🙂".repeat(6) }), request_id: "r" }, ports())).input.lines as string[];
+  assert.deepEqual(listed, ["🙂".repeat(5)], "a list item is cut the same way: five whole characters, ten units");
+});
+
+test("RAC-2196 the data a drafting model reads is cut to its bounds without leaving the half of a character", async () => {
+  const { generate, calls } = fake(() => ({ title: "t" }));
+  await draftIntake({ target: target(), request_id: "r", material: material({ text: "x".repeat(7_999) + "🙂" + "tail", said: "y".repeat(599) + "🙂" + "tail",
+    source: { kind: "pages_document", title: "z".repeat(199) + "🙂" + "tail", heading_path: ["风险"] } }) }, ports(generate));
+  const data = JSON.parse(calls[0]!.prompt) as { 材料: string; 补充: string; 来源: { 标题: string } };
+  assert.deepEqual([data.材料, data.补充, data.来源.标题], ["x".repeat(7_999), "y".repeat(599), "z".repeat(199)],
+    "each part keeps its whole characters up to its bound of 8000, 600 and 200 UTF-16 units");
+  assert.equal(LONE_HALF.test(calls[0]!.prompt), false, "no half of a character anywhere in what the model reads");
+});
+
+test("RAC-2197 the card's summary cuts a long first field at 39 units without leaving the half of a character", async () => {
+  const { generate } = fake(() => ({ title: "x".repeat(38) + "🙂" + "tail" }));
+  const draft = await draftIntake({ target: target(), material: material(), request_id: "r" }, ports(generate));
+  assert.equal(draft.summary, `记成待办：「${"x".repeat(38)}…」`, "unit 39 is the high half of the 🙂: the half goes, the whole characters stay");
+  assert.equal(LONE_HALF.test(draft.summary!), false, "no half of a character reaches the card");
 });
 
 // ---- Q02/Q03: the model fills what the schema allows ----------------------------------------------------------
@@ -267,4 +305,49 @@ test("W1-07: POST /api/contextual/draft refuses a stale, unavailable or malforme
       body: JSON.stringify({ request_id: "r7", action: { capability_id: "todo.items.create", version: 1 }, intake_id: "todo", said: "x" }) });
     assert.deepEqual([response.status, (await response.json() as { code: string }).code], [409, "contextual.unavailable"], "a disabled plugin has no entry to draft for");
   } finally { gone.close(); }
+});
+
+// RAC-2168 and RAC-2169: after the Host has read what a page claims, it cuts again where it builds the draft and the input of an attach, by UTF-16 units; a cut between the two halves of a character drops the lone half.
+const PAIR = "\u{1F600}"; // U+1F600: two UTF-16 units (a high and a low half), one character
+const fill = (count: number) => "a".repeat(count);
+const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/; // a half with no other half beside it
+const seen = (text: string, expected: string) => ({ units: text.length, same: text === expected, lone: LONE.test(text) });
+const parts = (...texts: string[]): SurfaceFocus["targets"] => texts.map(text => ({ kind: "block", role: "paragraph", text }));
+
+test("RAC-2168 the passage drafted from what is in hand is cut at 10000 units without leaving half a character, and the whole character that fits is kept", async () => {
+  const views = directory();
+  const { actions } = recorder(views);
+  const key = keyOf(views, "idea");
+  const kept = async (...texts: string[]) => (await draftRequest({ request_id: "r-2168", key, focus: hand({ targets: parts(...texts) }) }, views, { actions, ports: ports() })).kept;
+  const two = `${fill(4000)}\n${fill(4000)}\n`; // the first two parts and their line breaks: 8002 units, so the third part starts at unit 8002
+  assert.deepEqual(seen(await kept(fill(4000), fill(4000), fill(1997) + PAIR + "z".repeat(10)), two + fill(1997)), { units: 9999, same: true, lone: false },
+    "unit 9999 is the first half of a pair: the cut at 10000 falls between the halves, the half goes");
+  assert.deepEqual(seen(await kept(fill(4000), fill(4000), fill(1996) + PAIR), two + fill(1996) + PAIR), { units: 10000, same: true, lone: false }, "exactly 10000 units: untouched, the pair ends on the limit");
+  assert.deepEqual(seen(await kept(fill(4000), fill(4000), fill(1996) + PAIR + "z"), two + fill(1996) + PAIR), { units: 10000, same: true, lone: false }, "10001 units, the cut falls after a whole character: it stays");
+  assert.deepEqual(seen(await kept(fill(10) + "\uD83D"), fill(10) + "\uD83D"), { units: 11, same: true, lone: true }, "a half character the page itself sent, within the limit, is not the Host's cut: left as it came");
+});
+
+test("RAC-2169 the passage put into the object on the left is cut at 20000 units without leaving half a character, and the rest of the input is as before", async () => {
+  const insert = view(pages, "pages.insert", { attach: { attach_id: "insert", item_kind: "pages_document", title: "文档", verb: "插入到光标处", describe: "放进文档", material_field: "text", positions: ["cursor"] },
+    input_schema: { type: "object", properties: { id: {}, text: {}, expected_version: {}, anchor: {}, head: {}, source: {} } }, subject_kinds: ["pages_document"] });
+  const actions = { discover: async () => [insert], invoke: async (): Promise<never> => { throw new Error("preparing an attach calls no action"); } };
+  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "rac-2169", actor_id: "user", actions: () => actions }); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const at = landing(), key = keyOf([insert], "insert", hand(), at);
+    const prepared = async (...texts: string[]) => {
+      const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/contextual/prepare`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pane_id: "main", request_id: "r-2169", key, focus: hand({ targets: parts(...texts) }), landing: at }) });
+      assert.equal(response.status, 200);
+      return (await response.json() as { input: Record<string, unknown> }).input;
+    };
+    const four = [fill(4000), fill(4000), fill(4000), fill(4000)];
+    const joined = (last: string) => [...four, last].join("\n\n"); // each line break between the parts is 2 units: the fifth part starts at unit 16008
+    const { text, ...rest } = await prepared(...four, fill(3991) + PAIR + "z".repeat(5));
+    assert.deepEqual(seen(text as string, joined(fill(3991))), { units: 19999, same: true, lone: false }, "unit 19999 is the first half of a pair: the cut at 20000 falls between the halves, the half goes");
+    assert.deepEqual(rest, { id: "d1", expected_version: 7, anchor: 42, head: 42, source: { title: "访谈" } }, "where it goes and the source's title are as before");
+    assert.deepEqual(seen((await prepared(...four, fill(3990) + PAIR)).text as string, joined(fill(3990) + PAIR)), { units: 20000, same: true, lone: false }, "exactly 20000 units: untouched, the pair ends on the limit");
+    assert.deepEqual(seen((await prepared(...four, fill(3990) + PAIR + "z")).text as string, joined(fill(3990) + PAIR)), { units: 20000, same: true, lone: false }, "20001 units, the cut falls after a whole character: it stays");
+    assert.deepEqual(seen((await prepared(fill(10) + "\uD83D")).text as string, fill(10) + "\uD83D"), { units: 11, same: true, lone: true }, "a half character the page itself sent, within the limit, is not the Host's cut: left as it came");
+  } finally { server.close(); }
 });

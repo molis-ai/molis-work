@@ -228,7 +228,7 @@ export const LINEAR_DENSITY_STYLES = `
     /* A pane's close is a touch target too, and its strip keeps the room for it. */
     body.immersive-workbench .tab-pane-close { top: 0; width: 44px; height: 44px; }
     body.immersive-workbench .tab-pane > .tab-strip { padding-right: 50px; }
-    body.immersive-workbench :is(.plugin-rail, .assistant-island) .plugin-rail-item { min-height: 44px; height: 44px; width: 40px; }
+    body.immersive-workbench .plugin-rail .plugin-rail-item { min-height: 44px; height: 44px; width: 40px; }
     body.immersive-workbench .tree-pane .immersive-plugin-link { min-height: 44px; }
     body.immersive-workbench .tree-pane .tree-node,
     body.immersive-workbench .tree-pane .tree-toggle,
@@ -267,7 +267,6 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .workspace-chrome.project-island {
       grid-column: 1 / -1; grid-row: 3; width: 100%; max-width: none; margin: 0; padding: 8px 12px;
     }
-    body.immersive-workbench .assistant-island .plugin-rail-item { width: 36px; height: 28px; min-height: 28px; }
     body.immersive-workbench .workspace-chrome .navigator-project-primary {
       flex-direction: row; height: 36px; min-height: 36px; width: auto; flex: 1; max-width: none;
     }
@@ -306,13 +305,11 @@ export const LINEAR_DENSITY_STYLES = `
       --plugin-rail-gap: 4px;
       padding-bottom: 4px;
     }
-    body.immersive-workbench .assistant-island { gap: 4px; }
-    body.immersive-workbench .assistant-island-card { gap: 4px; padding: 4px; }
     body.immersive-workbench .workspace-chrome.project-island { padding: 4px 0; gap: 4px; }
     body.immersive-workbench .workspace-chrome .navigator-project-primary { padding: 4px; gap: 4px; }
     body.immersive-workbench .plugin-rail-items { gap: 1px; padding: 4px; }
     body.immersive-workbench .plugin-rail .personal-sidebar-footer { gap: 1px; padding: 4px; }
-    body.immersive-workbench :is(.plugin-rail, .assistant-island) .plugin-rail-item {
+    body.immersive-workbench .plugin-rail .plugin-rail-item {
       width: 36px; height: 32px; min-height: 32px;
     }
     body.immersive-workbench .plugin-rail .personal-account {

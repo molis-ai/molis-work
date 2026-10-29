@@ -75,7 +75,7 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       if (!goalExists(value.goal_id)) throw new ActionError("goals.not_found", "找不到这个目标");
       const existing = active().find(item => item.goal_id === value.goal_id && item.subject.kind === value.subject.kind && item.subject.id === value.subject.id);
       if (existing) return { binding: existing, replayed: true };
-      const record: GoalInputBindingRecord = { binding_id: crypto.randomUUID(), project_id: projectId, goal_id: value.goal_id, input_name: value.title.slice(0, 200),
+      const record: GoalInputBindingRecord = { binding_id: crypto.randomUUID(), project_id: projectId, goal_id: value.goal_id, input_name: [...value.title].slice(0, 200).join(""),
         source_type: GOAL_PLUGIN_OBJECT_SOURCE, source_ref: goalPluginObjectRef(value.subject), snapshot_digest: null, state: "confirmed",
         reason: "用户关联的资料", created_by: goalActor(caller).actor_id, created_at: new Date().toISOString() };
       inputs.register(record);
@@ -95,7 +95,7 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       if (existing) return { binding: view(existing), replayed: true };
       // The person decides what a Goal took as input, also through the source owner's action they called (`personAsked`); everyone else proposes.
       const record: GoalInputBindingRecord = { binding_id: `${kept.receipt}${crypto.randomUUID()}`, project_id: projectId, goal_id: value.goal_id,
-        input_name: value.name.slice(0, 200), source_type: kept.source_type, source_ref: locator, snapshot_digest: value.snapshot_digest,
+        input_name: [...value.name].slice(0, 200).join(""), source_type: kept.source_type, source_ref: locator, snapshot_digest: value.snapshot_digest,
         state: person ? "confirmed" : "proposed",
         reason: value.reason, created_by: goalActor(caller).actor_id, created_at: new Date().toISOString() };
       inputs.register(record);

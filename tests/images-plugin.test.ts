@@ -52,6 +52,21 @@ test("W5-01-IMGPORT-02 HTTP Runtime binds project identity, reads bytes and save
   assert.equal(Buffer.from(await image.arrayBuffer()).toString("base64"), IMAGE_PNG);
   const download = await f.request(first + imagePath + "?download=1&name=retained.png");
   assert.match(download.headers.get("content-disposition") ?? "", /^attachment;.*retained\.png/);
+  // RAC-1881, RAC-1882: the saved name is cut at 80 whole characters. Half of one makes the Content-Disposition name unencodable, so the download used to fail with a 500.
+  const named = async (asked: string) => {
+    const reply = await f.request(first + imagePath + "?download=1&name=" + encodeURIComponent(asked)), header = reply.headers.get("content-disposition");
+    await reply.arrayBuffer();
+    return { status: reply.status, filename: header === null ? null : decodeURIComponent(header.slice(header.indexOf("''") + 2)) };
+  };
+  const wide = (count: number) => "😀".repeat(count);
+  for (const c of [
+    { rac: "RAC-1881", name: "79 letters and an emoji", asked: "a".repeat(79) + wide(1), filename: "a".repeat(79) + wide(1) + ".png" },
+    { rac: "RAC-1881", name: "80 emoji", asked: wide(80), filename: wide(80) + ".png" },
+    { rac: "RAC-1881", name: "81 emoji are cut to 80", asked: wide(81), filename: wide(80) + ".png" },
+    { rac: "RAC-1882", name: "a name that fits", asked: "留一张", filename: "留一张.png" },
+    { rac: "RAC-1882", name: "a name that already ends in the extension", asked: "pic.PNG", filename: "pic.PNG" },
+    { rac: "RAC-1882", name: "forbidden characters become spaces", asked: "a/b:c", filename: "a b c.png" },
+  ]) await t.test(`${c.rac} ${c.name}`, async () => assert.deepEqual(await named(c.asked), { status: 200, filename: c.filename }));
   // IMAGES-SHELF-01: the real Shelf action receives the copy through the shared action contract.
   assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION);
   const kept = await post(first + imagePath + "/shelf", { filename: "留一张.png" });

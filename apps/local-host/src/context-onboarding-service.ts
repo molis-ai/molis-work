@@ -203,7 +203,8 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
     await drafts;
     journey.summary = parseContextSummary(raw, unique); journey.phase = "review"; journey.error = null; save();
   } catch (error) {
-    journey.phase = "failed"; journey.error = error instanceof Error ? error.message.slice(0, 600) : "整理失败，材料已保留"; save();
+    // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
+    journey.phase = "failed"; journey.error = error instanceof Error ? [...error.message.slice(0, 1_200)].slice(0, 600).join("") : "整理失败，材料已保留"; save();
   }
 }
 type Evidence = { body: string; labels: string[]; title?: string; part?: number };
@@ -314,24 +315,46 @@ export function parseContextSummary(raw: string, references: ContextReference[])
   return { title: parts[1]!.trim(), body, references };
 }
 /**
- * A text in parts of at most `size` characters, cut after a line end where there is one in the second half of the part, and never
- * inside a surrogate pair. Pages and Todo each take a bounded text per call; a material of any length goes as several.
+ * A text in parts of at most `size` characters or UTF-16 units (`unit`), cut after a line end where there is one in the second half of
+ * the part, and never inside a surrogate pair. A 🟢 is one character and two units. Todo's organizer reads whole characters, so its
+ * parts are counted in characters; Pages limits what a body encodes to, so its parts are counted in units. Pages and Todo each take a
+ * bounded text per call; a material of any length goes as several.
  */
-function textParts(text: string, size: number): string[] {
+function textParts(text: string, size: number, unit: "characters" | "units"): string[] {
   const parts: string[] = [];
   for (let offset = 0; offset < text.length;) {
-    let end = Math.min(offset + size, text.length);
-    const line = end < text.length ? text.lastIndexOf("\n", end - 1) : -1;
-    if (line >= offset + size / 2) end = line + 1;
-    else if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
+    const end = unit === "characters" ? partEndByCharacters(text, offset, size) : partEndByUnits(text, offset, size);
     parts.push(text.slice(offset, end)); offset = end;
   }
   return parts;
 }
-/** A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. */
+/** Where the part that starts at `offset` ends, `size` counted in UTF-16 units. */
+function partEndByUnits(text: string, offset: number, size: number): number {
+  let end = Math.min(offset + size, text.length);
+  const line = end < text.length ? text.lastIndexOf("\n", end - 1) : -1;
+  if (line >= offset + size / 2) end = line + 1;
+  else if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
+  return end;
+}
+/** Where the part that starts at `offset` ends, `size` counted in characters: a pair of units is one, so a part never ends inside it. */
+function partEndByCharacters(text: string, offset: number, size: number): number {
+  let end = offset, count = 0, line = -1;
+  while (count < size && end < text.length) {
+    const code = text.codePointAt(end)!;
+    if (code === 10 && count >= size / 2) line = end + 1;
+    end += code > 0xFFFF ? 2 : 1;
+    count += 1;
+  }
+  return end < text.length && line >= 0 ? line : end;
+}
+/**
+ * A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. `max` counts whole characters
+ * (a 🙂 is one, though two UTF-16 units), the way Todo and Pages count a title, so a cut never ends inside a character.
+ */
 function partTitle(title: string, part: number, parts: number, max: number): string {
   const suffix = parts > 1 ? L(" · 第 {k} / {n} 部分", { k: part, n: parts }) : "";
-  return (title.length + suffix.length <= max ? title : title.slice(0, max - suffix.length - 1).replace(/[\uD800-\uDBFF]$/u, "") + "…") + suffix;
+  const characters = [...title], room = max - [...suffix].length;
+  return (characters.length <= room ? title : characters.slice(0, room - 1).join("") + "…") + suffix;
 }
 
 /**
@@ -341,17 +364,17 @@ function partTitle(title: string, part: number, parts: number, max: number): str
 const TODO_PLUGIN_ID = "io.molis.work.todo", PAGES_PLUGIN_ID = "io.molis.work.pages";
 /** A ProseMirror document as the `pages.documents.*` actions carry it; the journey passes it on without reading into it. */
 type ProseDocument = { readonly type: "doc"; readonly content?: readonly unknown[] };
-/** What Todo's organizer reads of one material (`todo.organize.extract` cuts a longer one), so longer text goes in parts of this size; pinned to Todo's own number by `tests/context-onboarding-todo.test.ts`. */
+/** What Todo's organizer reads of one material (`todo.organize.extract` cuts a longer one), so longer text goes in parts of this many characters (a 🟢 is one character, two UTF-16 units); pinned to Todo's own number by `tests/context-onboarding-todo.test.ts`. */
 export const TODO_PART_CHARS = 60_000;
 const TODO_MATERIALS = 50;
 /**
- * Every material for Todo's organizer, which takes 50 materials a call and reads the first TODO_PART_CHARS of each:
+ * Every material for Todo's organizer, which takes 50 materials a call and reads the first TODO_PART_CHARS characters of each:
  * long ones in parts of that size, so all of the text is read, 50 a batch.
  */
 async function* todoBatches(home: string, id: string, references: ContextReference[]): AsyncGenerator<{ title: string; text: string }[]> {
   let batch: { title: string; text: string }[] = [];
   for (const ref of references) {
-    const parts = textParts(await readStagedText(home, id, ref.text), TODO_PART_CHARS);
+    const parts = textParts(await readStagedText(home, id, ref.text), TODO_PART_CHARS, "characters");
     for (const [index, text] of parts.entries()) {
       if (!text.trim()) continue;
       batch.push({ title: partTitle(ref.title, index + 1, parts.length, 200), text });
@@ -391,16 +414,17 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
     }
     todo.status = "ready";
   } catch (error) {
-    todo.status = "failed"; todo.error = error instanceof Error ? error.message.slice(0, 300) : "待办草稿没整理成";
+    // Whole characters, not UTF-16 units: unit 300 can fall inside a two-unit character. The first slice bounds what is spread.
+    todo.status = "failed"; todo.error = error instanceof Error ? [...error.message.slice(0, 600)].slice(0, 300).join("") : "待办草稿没整理成";
   }
   save();
 }
 /** Markdown as a Pages body, made by Pages' own public action; throws `pages.body_too_large` when the text converts to more than a document holds. */
 type PageBody = (markdown: string) => Promise<ProseDocument>;
-/** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 and halve until each fits. */
+/** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 UTF-16 units and halve until each fits. */
 const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000;
 async function* pageParts(pageBody: PageBody, text: string): AsyncGenerator<ProseDocument> {
-  for (const part of textParts(text, PAGE_PART_CHARS)) {
+  for (const part of textParts(text, PAGE_PART_CHARS, "units")) {
     let body: ProseDocument | null = null;
     // Pages refuses a part that converts to more than a document holds; such a part is halved like one over our own bound.
     try { body = await pageBody(part); }
@@ -489,7 +513,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
         const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
         const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
-        const summaryText = summaryTitle.length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
+        // Pages holds 80 whole characters of a title: a longer one is cut by pageTitle, and the project's name then leads the body instead.
+        const summaryText = [...summaryTitle].length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
         const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {

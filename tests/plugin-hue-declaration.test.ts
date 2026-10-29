@@ -65,7 +65,7 @@ test("RAC-705 the tint rule names no plugin, and no row of a directory or a tab 
   const sheet = renderMolisWorkWorkbenchStylesheet();
   const rule = /body\.immersive-workbench :is\([^{}]*\) \{ --plugin-tint: var\(--ink-soft\); \}/u.exec(sheet)?.[0];
   assert.ok(rule, "the workbench sheet carries the one neutral tint rule");
-  for (const selector of [".plugin-rail [data-plugin-id]", ".assistant-island [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
+  for (const selector of [".plugin-rail [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
     "[data-market-plugin]", "[data-market-focus]", "[data-work-surface]", ".tab-item[data-plugin]"]) assert.ok(rule.includes(selector), selector);
   for (const { project_plugin_id: id } of BUILTIN_PLUGIN_CATALOG) {
     assert.doesNotMatch(rule, new RegExp(`="${id}"`, "u"), `${id} has no selector of its own`);

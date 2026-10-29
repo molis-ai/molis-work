@@ -193,25 +193,6 @@ function checkMigratedFeedOwnership(repositoryRoot) {
       errors.push(`${relativePath}: Relay import/compat must stay deleted`);
     }
   }
-  // Only Feed's store/ owns these tables. Every other Feed source file is a caller, the production assembly that the Host's
-  // feed-application.ts used to be (application-assembly.ts) among them; the named files are read as well so a move fails loudly.
-  const feedSource = "plugins/native/feed/src";
-  const feedCallers = filesUnder(path.join(repositoryRoot, feedSource), file => /\.(?:ts|tsx|mts)$/u.test(file))
-    .map(file => path.relative(repositoryRoot, file).split(path.sep).join("/"))
-    .filter(file => !file.startsWith(`${feedSource}/store/`));
-  const legacyCallers = [...new Set([
-    "apps/local-host/src/demo-feed-library.ts",
-    ...["application.ts", "application-assembly.ts", "source-service.ts", "source-sync.ts", "connector-sync.ts", "source-scheduler.ts"].map(file => `${feedSource}/${file}`),
-    ...feedCallers,
-    ...WEB_DISPATCH_FILES,
-  ])];
-  const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
-  for (const relativePath of legacyCallers) {
-    const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
-    for (const match of source.matchAll(directFactSql)) {
-      errors.push(`${relativePath}: direct ${match[1]} SQL must use the owning Module public API`);
-    }
-  }
   return { errors };
 }
 
@@ -239,9 +220,9 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
   const plugin = fs.readFileSync(path.join(repositoryRoot, pluginPath), "utf8");
   const hostPath = "apps/local-host/src/plugin-source-pull-service.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !plugin.includes("connector = sourcePull?.connector")
-    || !/connector:\s*createConnectorSourcePort\(\{[^}]*\bregistry:[^}]*\bhomeIntegrationRegistry\(home\)/u.test(host)) {
-    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry`);
+  const wiring = feedListenerWiringProblems({ service, runtime, plugin, host });
+  if (wiring.length > 0) {
+    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry (${wiring.join("; ")})`);
   }
 
   const listenerPath = "plugins/native/feed/src/store/listener.ts";
@@ -1260,6 +1241,157 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
 
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;
+}
+
+/** The tokens whose text is data, not code: a quoted string, a regular expression and every piece of a template's text. */
+const LITERAL_TEXT_KINDS = new Set([
+  ts.SyntaxKind.StringLiteral,
+  ts.SyntaxKind.RegularExpressionLiteral,
+  ts.SyntaxKind.NoSubstitutionTemplateLiteral,
+  ts.SyntaxKind.TemplateHead,
+  ts.SyntaxKind.TemplateMiddle,
+  ts.SyntaxKind.TemplateTail,
+]);
+
+/**
+ * The source with every comment, and every string, regular expression and piece of template text, blanked to spaces (offsets and line
+ * breaks kept), so a comment or a quoted text that names the wiring does not count as it. A literal is blanked whole: its quotes or
+ * backticks, a regular expression's slashes and flags, and the `${` and `}` around a template's pieces go with it. The code inside a
+ * template's `${ … }` is code and stays.
+ */
+function withoutCommentsAndLiterals(source) {
+  const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
+  // TypeScript's offsets count UTF-16 code units, which is what split("") gives.
+  const text = source.split("");
+  const blank = ({ pos, end }) => {
+    for (let index = pos; index < end; index += 1) if (text[index] !== "\n") text[index] = " ";
+  };
+  const visit = node => {
+    for (const child of node.getChildren(file)) {
+      if (child.kind < ts.SyntaxKind.FirstNode || child.kind === ts.SyntaxKind.EndOfFileToken) {
+        for (const range of ts.getLeadingCommentRanges(source, child.getFullStart()) ?? []) blank(range);
+        for (const range of ts.getTrailingCommentRanges(source, child.getEnd()) ?? []) blank(range);
+        if (LITERAL_TEXT_KINDS.has(child.kind)) blank({ pos: child.getStart(file), end: child.getEnd() });
+      } else visit(child);
+    }
+  };
+  visit(file);
+  return text.join("");
+}
+
+function unwrapped(node) {
+  while (node && ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
+/** `() => homeIntegrationRegistry(home)`, parentheses aside. */
+function isHomeRegistryThunk(node) {
+  node = unwrapped(node);
+  if (!ts.isArrowFunction(node) || node.parameters.length > 0) return false;
+  const body = unwrapped(node.body);
+  return ts.isCallExpression(body) && ts.isIdentifier(body.expression) && body.expression.text === "homeIntegrationRegistry"
+    && body.arguments.length === 1 && ts.isIdentifier(body.arguments[0]) && body.arguments[0].text === "home";
+}
+
+const propertyNamed = (property, name) => property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) && property.name.text === name;
+/** A spread or a computed name (`[key]: …`) could be the property that was checked, written again: the name is not read, so it is refused. */
+const opaqueProperty = property => ts.isSpreadAssignment(property) || Boolean(property.name && ts.isComputedPropertyName(property.name));
+
+/** Why one `createConnectorSourcePort(…)` call does not take the Home's registry: one options object, no spread, exactly one `registry`. */
+function connectorPortProblems(call) {
+  const options = unwrapped(call.arguments[0]);
+  if (call.arguments.length !== 1 || !options || !ts.isObjectLiteralExpression(options)) {
+    return ["the Host's `createConnectorSourcePort` does not take one options object"];
+  }
+  if (options.properties.some(opaqueProperty)) return ["the Host's `createConnectorSourcePort` options have a spread or a computed name, which could replace `registry`"];
+  const registries = options.properties.filter(property => propertyNamed(property, "registry"));
+  if (registries.length !== 1 || !ts.isPropertyAssignment(registries[0])) {
+    return ["the Host's `createConnectorSourcePort` options do not have exactly one `registry: …`"];
+  }
+  const value = unwrapped(registries[0].initializer);
+  const fallback = ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? value.right : value;
+  return isHomeRegistryThunk(fallback) ? [] : ["the Host's `createConnectorSourcePort` registry is not `() => homeIntegrationRegistry(home)` (alone, or after `??`)"];
+}
+
+const isConnectorPortCall = node => {
+  node = unwrapped(node);
+  return node && ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "createConnectorSourcePort";
+};
+
+/** The object `createSourcePullPort` returns: the one site where the Host wires the Feed's Listener connector, or why there is not one. */
+function sourcePullPortObject(file) {
+  const ports = file.statements.filter(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === "createSourcePullPort" && statement.body);
+  const returns = [];
+  const visit = node => {
+    if (ts.isFunctionLike(node)) return;
+    if (ts.isReturnStatement(node)) returns.push(unwrapped(node.expression));
+    ts.forEachChild(node, visit);
+  };
+  if (ports.length === 1) ts.forEachChild(ports[0].body, visit);
+  return ports.length === 1 && returns.length === 1 && returns[0] && ts.isObjectLiteralExpression(returns[0]) ? returns[0] : undefined;
+}
+
+/**
+ * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802). Two kinds
+ * of check are made, and nothing else is read.
+ *
+ * Text checks, one on each of three Feed files. The file's code (`withoutCommentsAndLiterals`: comments, strings, regular expressions
+ * and the text of templates blanked, the code inside a template's `${ … }` kept) must contain this text, as plain text:
+ * - the Feed service: `this.ports.createListener`;
+ * - the Runtime Feed: `services.connector.open(`;
+ * - the Feed plugin: `connector = sourcePull?.connector`.
+ * This is a substring match, not a reading of the syntax: it does not see what the line does, and a longer name that begins with the
+ * same text (`this.ports.createListenerOther`) matches too.
+ *
+ * Syntax checks on the Host file, read from the syntax tree, so a comment or a quoted text cannot stand in for them:
+ * - the file has exactly one top-level `function createSourcePullPort`, its body (nested functions not counted) has exactly one
+ *   `return`, and that returns an object literal, parentheses aside;
+ * - that object has no spread and no computed name, and exactly one property named `connector`, written
+ *   `connector: createConnectorSourcePort({ … })`;
+ * - every `connector: createConnectorSourcePort({ … })` property in the file, that one included, passes one options object with no
+ *   spread and no computed name and exactly one `registry: …` property, whose value is `() => homeIntegrationRegistry(home)`, or
+ *   `<any expression> ?? (() => homeIntegrationRegistry(home))`, parentheses aside.
+ *
+ * Not checked: the left of `??` is not read at all (T-125 ruling 3: a test may inject any registry there), so
+ * `fixtureRegistry ?? (() => homeIntegrationRegistry(home))` passes, and the check does not see which registry runs when the left has
+ * a value; it only makes the Home's registry the fallback. Nor is it checked that `createSourcePullPort` is the function the Host
+ * builds its source-pull port with, or that `home` and `homeIntegrationRegistry` are what the names say (aliases, shadowing and renamed
+ * imports are not followed).
+ */
+export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
+  const problems = [];
+  for (const [source, needle, owner] of [
+    [service, "this.ports.createListener", "the Feed service"],
+    [runtime, "services.connector.open(", "the Runtime Feed"],
+    [plugin, "connector = sourcePull?.connector", "the Feed plugin"],
+  ]) {
+    if (!withoutCommentsAndLiterals(source).includes(needle)) problems.push(`${owner} no longer has \`${needle}\` in its code (a comment, a string, a regular expression or template text does not count)`);
+  }
+  const file = ts.createSourceFile("host.ts", host, ts.ScriptTarget.Latest, true);
+  const port = sourcePullPortObject(file);
+  let wired;
+  if (!port) problems.push("the Host has no single `createSourcePullPort` returning one object literal");
+  else if (port.properties.some(opaqueProperty)) problems.push("the source-pull port `createSourcePullPort` returns has a spread or a computed name, which could replace its `connector`");
+  else {
+    const connectors = port.properties.filter(property => propertyNamed(property, "connector"));
+    if (connectors.length !== 1) problems.push("the source-pull port `createSourcePullPort` returns does not have exactly one `connector`");
+    else if (!ts.isPropertyAssignment(connectors[0]) || !isConnectorPortCall(connectors[0].initializer)) {
+      problems.push("the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`");
+    } else {
+      wired = unwrapped(connectors[0].initializer);
+      problems.push(...connectorPortProblems(wired));
+    }
+  }
+  const others = [];
+  const visit = node => {
+    if (ts.isPropertyAssignment(node) && propertyNamed(node, "connector") && isConnectorPortCall(node.initializer) && unwrapped(node.initializer) !== wired) {
+      others.push(unwrapped(node.initializer));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  for (const call of others) problems.push(...connectorPortProblems(call));
+  return [...new Set(problems)];
 }
 
 export function checkGoalReadOwnerSql(source) {

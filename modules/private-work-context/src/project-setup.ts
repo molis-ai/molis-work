@@ -72,6 +72,8 @@ return async function createProjectAndBindRuntimeContext(
       );
     }
 
+    const bindingScope = input.binding_scope
+      ?? (normalized.stable_work_context_id ? "session" : "workspace_member");
     return ports.provisionCreatedProject({ displayName, actorId }, (record) =>
       ports.transaction(() => {
         const racedReplay = ports.records.findRuntimeContextSetupRequest(normalized, idempotencyKey);
@@ -85,8 +87,7 @@ return async function createProjectAndBindRuntimeContext(
           projectId: record.project_id,
           actorId,
           rebindConfirmed: input.rebind_confirmed === true,
-          bindingScope: input.binding_scope
-            ?? (normalized.stable_work_context_id ? "session" : "workspace_member"),
+          bindingScope,
         });
         ports.insertSetupRequest({
           runtime_id: normalized.runtime_id,

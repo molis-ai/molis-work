@@ -42,7 +42,7 @@ interface Spark { id: string; project_id: string; title: string; body: string; s
 const spark = (id: string, title: string, body = ""): Spark => ({ id, project_id: "p", title, body, source_kind: "manual", status: "inbox", created_at: "2026-10-09T00:00:00.000Z", updated_at: "2026-10-09T00:00:00.000Z" });
 
 async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Spark; /** Runs after the Host has answered a read: someone else writes to the spark before the page's next call. */ afterGet?: (store: Map<string, Spark>) => void;
-  discard?: () => Response | null } = {}) {
+  discard?: () => Response | null; /** What the Host answers when a file or a link is read. */ reading?: { text: string; title?: string } } = {}) {
   const store = new Map<string, Spark>(initial.map(item => [item.id, item]));
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean; stored_updated_at?: Record<string, string> }> = [];
   let created = 0, clock = 0;
@@ -95,6 +95,10 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
       if (expected && ids.some(id => store.get(id)!.updated_at !== expected[id])) return json({ error: "这条灵光已在别处修改", code: "lingguang.conflict" }, 409);
       for (const id of ids) store.set(id, { ...store.get(id)!, status: "discarded" });
       return json({ ok: true });
+    }
+    if (parsed.pathname.endsWith("/sparks/material") || parsed.pathname.endsWith("/sparks/source")) {
+      // The reading routes answer in NDJSON; the last line is the reading (packages/ui-host/src/request-client.ts, `stream`).
+      return new Response(JSON.stringify({ type: "result", result: options.reading ?? null }) + "\n", { headers: { "content-type": "application/x-ndjson" } });
     }
     const id = decodeURIComponent(parsed.pathname.split("/").pop() ?? "");
     const current = store.get(id);
@@ -520,5 +524,63 @@ test("RAC-135 the 转为待办 button carries the spark that is on screen and fo
     assert.deepEqual([button.dataset.contextId, button.dataset.contextTitle, button.dataset.contextText], ["OLD", "想法", "想法\n第一行\n第二行"]);
     await page.write({ title: "", body: "改成新的\n后面" });
     assert.deepEqual([button.dataset.contextId, button.dataset.contextTitle, button.dataset.contextText], ["OLD", "改成新的", "改成新的\n后面"], "a missing title is the body's first line");
+  } finally { page.restore(); }
+});
+
+/** The person picks a file: the page reads it (the Host answers with `options.reading`) and keeps it as a spark. The title the page asked the Host to make that spark with. */
+async function titleKeptFrom(page: Awaited<ReturnType<typeof mounted>>, name: string): Promise<string | undefined> {
+  const input = page.part("[data-lingguang-file]");
+  Object.assign(input, { files: [{ name, size: 6, arrayBuffer: async () => new TextEncoder().encode("内容").buffer }] });
+  await input.listeners.change!({});
+  const made = () => page.calls.find(call => call.method === "POST" && call.path === "/api/plugins/io.molis.work.lingguang/sparks");
+  for (let turn = 0; turn < 20 && !made(); turn += 1) await page.elapse();
+  await page.elapse();
+  return made()?.body.title as string | undefined;
+}
+
+test("RAC-1841 the 转为待办 button's title, taken from the body's first line, is cut at 80 characters, never half of one", async () => {
+  // 80 units would end on half of the 40th 🟢 (U+1F7E2, two units each). lingguang.create counts characters, 80 of them, and the workbench takes a title up to
+  // 200 units, so 80 characters (at most 160 units) arrive whole.
+  const page = await mounted([spark("OLD", "想法", "第一行")]);
+  try {
+    const button = page.part("[data-lingguang-todo]");
+    await page.fire(click("[data-lingguang-id]", { lingguangId: "OLD" }));
+    await page.write({ title: "", body: "a" + "🟢".repeat(100) + "\n后面" });
+    assert.equal(button.dataset.contextTitle, "a" + "🟢".repeat(79), "the first line cut at 80 characters: 'a' and 79 🟢");
+    await page.write({ body: "🟢".repeat(80) + "尾" });
+    assert.equal(button.dataset.contextTitle, "🟢".repeat(80), "80 characters are 160 units, all kept");
+  } finally { page.restore(); }
+});
+
+test("RAC-1842 the 转为待办 button's text is cut at 3000 units and never ends on half of a character", async () => {
+  // The workbench takes this text up to 4000 units (apps/workbench/src/browser/plugin-frame/intake.ts:26), so the bound stays 3000 units, not 3000 characters (up to
+  // 6000 units, which it would cut again). Unit 3000 can fall between the two units of a 🟢 (U+1F7E2): that half is left out.
+  const page = await mounted([spark("OLD", "想法", "第一行")]);
+  try {
+    const button = page.part("[data-lingguang-todo]");
+    await page.fire(click("[data-lingguang-id]", { lingguangId: "OLD" }));
+    const text = () => button.dataset.contextText!;
+    await page.write({ title: "ab", body: "x".repeat(5000) });
+    assert.deepEqual([text().length, text() === "ab\n" + "x".repeat(2997)], [3000, true], "plain text is cut at 3000 units");
+    await page.write({ body: "🟢".repeat(2000) });
+    assert.deepEqual([text().length, text() === "ab\n" + "🟢".repeat(1498)], [2999, true], "a cut between the two units of a 🟢 leaves that half out: 'ab', a line break and 1498 whole 🟢");
+    await page.write({ title: "abc" });
+    assert.deepEqual([text().length, text() === "abc\n" + "🟢".repeat(1498)], [3000, true], "a cut right after a whole 🟢 keeps all of it");
+  } finally { page.restore(); }
+});
+
+test("RAC-1843 a file's reading is kept as a spark under the reading's own title cut at 80 characters, never half of one", async () => {
+  // The Host gives a title of up to 200 characters; a spark's title is at most 80. 80 units would end on half of the 40th 🟢.
+  const page = await mounted([], { reading: { text: "正文", title: "a" + "🟢".repeat(100) } });
+  try {
+    assert.equal(await titleKeptFrom(page, "笔记.md"), "a" + "🟢".repeat(79), "'a' and 79 🟢: 80 characters");
+  } finally { page.restore(); }
+});
+
+test("RAC-1844 a file's reading with no title of its own is kept under the file's name cut at 80 characters, never half of one", async () => {
+  // The name without its extension is 79 'a', a 🟢 and three more characters: unit 80 falls between the two units of the 🟢.
+  const page = await mounted([], { reading: { text: "正文" } });
+  try {
+    assert.equal(await titleKeptFrom(page, "a".repeat(79) + "🟢尾尾尾.md"), "a".repeat(79) + "🟢", "79 'a' and the 🟢: 80 characters");
   } finally { page.restore(); }
 });

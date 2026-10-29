@@ -8,7 +8,7 @@
 
 - 标签标题兜底表：Tab 的标题按视图声明取，兜底表只留 Manifest 还没表达的标题。
 - 搜索的对象标签：`SEARCH_ITEM_TAB_SURFACES` 的对象标签名单改读视图 `accepts_objects` 声明（`objectTabPlugins()`），搜索、放置卡、侧栏文件三处共用；没带声明的对象标签不再进名单，只保留平台自己的 artifacts。2026-10-24 同步保留主线 SC-4 已移除 Sessions 入口的结果，不恢复 sessions。
-- `/__ui/catalog/bar`（底栏样张）的插件格：去掉手写的插件名单，改为复用 `pluginMarketCards()` 的当前构建期目录（developer 插件过滤照旧）；样例项目的启用状态决定亮格——新项目默认启用 = 现行 Dock 默认插件加个人插件，由 `shownProjectPlugins([...DOCK_DEFAULT_PINS])` 算，不写插件名；目录里其余插件是灰格「未添加」。格子数随目录增减。创作台（`plugin-builder`）声明为个人插件，新项目默认启用，rail 按同一机制把它画在选择器头部的「创作台」按钮（`renderPickerExtend`）与账号菜单（`renderAccountGlobalItems`）里，不是插件格；样张照此画，不新增手写名单。
+- `/__ui/catalog/bar`（底栏样张）的插件格：去掉手写的插件名单，改为复用 `pluginMarketCards()` 的当前构建期目录（developer 插件过滤照旧）；样例项目的启用状态决定亮格——新项目默认启用 = 现行 Dock 默认插件加个人插件，由 `shownProjectPlugins([...DOCK_DEFAULT_PINS])` 算，不写插件名；目录里其余插件是灰格「未添加」。格子数随目录增减。创作台（`plugin-builder`）声明为个人插件，新项目默认启用，rail 按同一机制把它画在选择器头部的「创作台」按钮（`renderPickerExtend`）里，不是插件格；样张照此画，不新增手写名单。
 
 不动 `manifest.ts`（#1098）与 `actions.ts`（#1117）；不改 privileges.md 状态列（统筹合后改账）。
 

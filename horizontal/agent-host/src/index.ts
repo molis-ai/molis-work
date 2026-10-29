@@ -146,7 +146,7 @@ export interface AgentStartAuthority {
    */
   prompts?: readonly AgentPromptText[];
   skills?: readonly AgentSkillDefinition[];
-  method_owner?: AgentSkillOwner;
+  skill_owner?: AgentSkillOwner;
   /**
    * The project's own instructions, from a source the Host owns — today the
    * confirmed project guidance. Absent means this project has stated none,
@@ -266,13 +266,13 @@ export class AgentHost implements AgentHostApi {
     const builtins = (authority.manifest.skills ?? []).map(declared => ({ ...declared, tools: [...declared.tools],
       source: "builtin" as const, enabled: supported && Boolean(authority.skills?.some(skill => skill.skill_id === declared.skill_id && skill.version === declared.version && skill.body.trim())) }));
     const library = this.adapter(runtimeId).skillLibrary;
-    return [...builtins, ...(library && authority.method_owner ? await library.list(authority.method_owner) : [])];
+    return [...builtins, ...(library && authority.skill_owner ? await library.list(authority.skill_owner) : [])];
   }
 
   async readSkill(runtimeId: string, authority: AgentStartAuthority, ref: AgentSkillRef): Promise<AgentSkillDefinition> {
     const entry = (await this.skillCatalog(runtimeId, authority)).find(item => item.skill_id === ref.skill_id && item.version === ref.version);
     const definition = authority.skills?.find(item => item.skill_id === ref.skill_id && item.version === ref.version);
-    if (entry?.source === "installed" && authority.method_owner) return this.adapter(runtimeId).skillLibrary!.read(authority.method_owner, ref);
+    if (entry?.source === "installed" && authority.skill_owner) return this.adapter(runtimeId).skillLibrary!.read(authority.skill_owner, ref);
     if (!entry?.enabled || !definition) throw agentErrors.capability_unavailable("这个方法版本不可用，请重新选择");
     if (definition.body.length > 20_000 || JSON.stringify(definition.tools) !== JSON.stringify(entry.tools)) {
       throw agentErrors.capability_unavailable("方法正文或工具声明与发布版本不一致");
@@ -285,20 +285,20 @@ export class AgentHost implements AgentHostApi {
       throw agentErrors.directory_unauthorized("这个方法目录不属于当前项目的授权工作区");
     }
     const library = this.adapter(runtimeId).skillLibrary;
-    if (!library || !authority.method_owner) throw agentErrors.capability_unavailable("此运行时尚未接通方法安装");
-    return library.discover(authority.method_owner, directory, path);
+    if (!library || !authority.skill_owner) throw agentErrors.capability_unavailable("此运行时尚未接通方法安装");
+    return library.discover(authority.skill_owner, directory, path);
   }
 
   async installSkill(runtimeId: string, authority: AgentStartAuthority, candidateId: string) {
     const library = this.adapter(runtimeId).skillLibrary;
-    if (!library || !authority.method_owner) throw agentErrors.capability_unavailable("此运行时尚未接通方法安装");
-    return library.install(authority.method_owner, candidateId);
+    if (!library || !authority.skill_owner) throw agentErrors.capability_unavailable("此运行时尚未接通方法安装");
+    return library.install(authority.skill_owner, candidateId);
   }
 
   mcpLibrary(runtimeId: string, authority: AgentStartAuthority) {
     const library = this.adapter(runtimeId).mcpLibrary;
-    if (!authority.manifest.mcp || !authority.method_owner || !library) throw agentErrors.capability_unavailable("当前插件或运行时尚未接通 MCP");
-    return { library, owner: authority.method_owner };
+    if (!authority.manifest.mcp || !authority.skill_owner || !library) throw agentErrors.capability_unavailable("当前插件或运行时尚未接通 MCP");
+    return { library, owner: authority.skill_owner };
   }
 
   async start(

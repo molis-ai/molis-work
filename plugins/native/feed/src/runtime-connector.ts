@@ -1,10 +1,10 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import type { SignalCommands } from "@molis-ai/molis-work-contracts/modules/signals";
+import { feedErrors } from "./contract/feed.js";
+import type { SignalCommands } from "./contract/signals.js";
 import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConnectionsClient } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import type { PluginConnectorSourceClient } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { ConnectorHostApi, ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener-host";
+import { listenerErrors } from "./store/listener.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { FeedApplication } from "./application.js";
 import { FeedConnectorSync } from "./connector-sync.js";

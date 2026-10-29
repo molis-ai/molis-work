@@ -5,7 +5,7 @@ import test from "node:test";
 import { withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
-  INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY,
+  INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ActionSceneDefaultRule, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
@@ -41,7 +41,7 @@ test("RAC-484 a Home no scene has been registered into has no rule, and a starte
   const keys = withFunctionsService(home.home, service => service.list().map(record => record.function_key), OPTIONS);
   assert.deepEqual([...keys].sort(), [SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY].sort());
   const dock = withFunctionsService(home.home, service => service.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY), OPTIONS)!;
-  assert.deepEqual(dock.criteria.map(option => option.key), [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID]);
+  assert.deepEqual(dock.criteria.map(option => option.key), [INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID]);
   for (const record of withFunctionsService(home.home, service => service.list(), OPTIONS)) {
     assert.equal(record.status, "published");
     assert.match(record.id, /^declared:/);

@@ -1,8 +1,8 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener-host";
-import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
+import { listenerErrors } from "./store/listener.js";
+import { isAccountConnectorSyncKind } from "./contract/sources.js";
+import { feedErrors } from "./contract/feed.js";
+import { type ListenerRunReceipt } from "./contract/listener.js";
 import type { IntegrationAccountPresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";

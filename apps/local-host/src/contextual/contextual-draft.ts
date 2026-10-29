@@ -3,7 +3,7 @@ import { CONTEXTUAL_DRAFT_LIMITS, type ContextualCandidate, type ContextualDraft
 import type { DraftMaterial, DraftTarget } from "../drafting/draft-data.js";
 import { draftIntake, type DraftInput, type DraftPorts } from "../drafting/draft-service.js";
 import { chosenCandidate } from "./contextual-choice.js";
-import { contextualErrors, invalid, readEntry, readJudgeRequest, readString } from "./contextual-request.js";
+import { contextualErrors, cutHead, invalid, readEntry, readJudgeRequest, readString } from "./contextual-request.js";
 import { fragmentOffersInput, type ContextualDirectory } from "./contextual-service.js";
 
 /**
@@ -28,7 +28,7 @@ function targetOf(view: ActionView & { action: { intake: Intake } }): DraftTarge
 }
 
 /** The words in hand: every selected part, in order, as the page reported them. */
-const passage = (focus: SurfaceFocus): string => focus.targets.map(target => target.text.trim()).filter(Boolean).join("\n").slice(0, CONTEXTUAL_DRAFT_LIMITS.kept);
+const passage = (focus: SurfaceFocus): string => cutHead(focus.targets.map(target => target.text.trim()).filter(Boolean).join("\n"), CONTEXTUAL_DRAFT_LIMITS.kept);
 
 function sourceOf(focus: SurfaceFocus): NonNullable<DraftMaterial["source"]> {
   const around = focus.surroundings;

@@ -11,7 +11,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AssistantCharacterChoice, AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantRoundFactPorts } from "./assistant-directory.js";
 import { withinTime } from "./assistant-material-scan.js";
-import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { AgentSkillRegistration, AgentSkillView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
@@ -46,7 +46,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** The Characters the person published in a project, each saying whether it can run now. */
   characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
   /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
-  methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
+  methods?: { list(): AgentSkillView[]; read(ownerId: string, skillId: string, version?: number): AgentSkillRegistration };
   /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
   memory?(...execution: [] | [control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>]): MemoryService | undefined;
   memorySources?: Pick<ReturnType<typeof memorySources>, "check">;

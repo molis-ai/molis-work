@@ -1,4 +1,4 @@
-import { PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
+import { matchPluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -131,7 +131,9 @@ export class PluginPageAuthority {
     if (operation !== null && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) throw refused();
     const embeddedRevision = page.activation.manifest.ui.embedded_plugins?.some(id => pathname === `/api/plugins/${id}/view-revision`);
     const revision = Boolean(page.activation.install_id) && (operation === "view-revision" || embeddedRevision) && request.method === "GET";
-    const route = page.match(request.method ?? "GET", pathname);
+    // A toolbar callback never uses a route (the gate below lets it only its own owner choices), so its path is not matched. For any other
+    // request, bad percent-encoding is answered by `matchPluginRoute`: 400 for this plugin's declared shape, otherwise no route and the gate refuses it.
+    const route = contextual === undefined ? matchPluginRoute(page.match, page.activation.manifest.plugin_id, request.method ?? "GET", pathname) : null;
     const directory = Boolean(page.activation.install_id) && request.method === "POST" && pathname === "/api/host/directory-grants";
     const action = Boolean(page.activation.invoke) && request.method === "POST" && pathname === "/api/host/plugin-page-actions";
     const files = request.method === "POST" && pathname === "/api/host/plugin-page-files" && page.activation.resolveFiles;

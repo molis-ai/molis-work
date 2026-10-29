@@ -1,6 +1,7 @@
 import type { FeedSql } from "./sql.js";
-import { sourceDeletedAt, sourceErrors } from "@molis-ai/molis-work-contracts/modules/sources";
+import { sourceDeletedAt } from "../contract/sources.js";
 import { randomUUID } from "node:crypto";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type {
   SourceEvent,
@@ -10,7 +11,13 @@ import type {
   SourceStatus,
   SourcesApi,
   SourceSyncKind,
-} from "@molis-ai/molis-work-contracts/modules/sources";
+} from "../contract/sources.js";
+
+export const sourceErrors = defineErrorCodes("sources", {
+  not_found: "invalid",
+  invalid_schedule: "invalid",
+  invalid_transition: "invalid",
+});
 
 type Row = Record<string, unknown>;
 const FEED_SOURCES_COLUMNS = `
@@ -247,7 +254,7 @@ export class SourcesModule implements SourcesApi {
   }
 }
 
-export { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
+export { sourceDeletedAt } from "../contract/sources.js";
 
 function mapSource(row: Row): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });

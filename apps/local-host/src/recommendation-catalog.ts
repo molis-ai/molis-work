@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { AGENT_MCP_DESTINATION_ID, JUDGMENT_RULE_AUTHORING_SUBJECTS,
-  type JudgmentRuleAuthoringCatalog, type JudgmentRuleAuthoringBehavior } from "@molis-ai/molis-work-contracts/modules/functions";
+  type JudgmentRuleAuthoringCatalog, type JudgmentRuleAuthoringOption } from "@molis-ai/molis-work-contracts/modules/functions";
 import { subjectOfferChoices } from "@molis-ai/molis-work-kernel";
 import type { ActionProvider, ActionView, ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -8,7 +8,7 @@ import type { ActionProvider, ActionView, ActionSceneView } from "@molis-ai/moli
 const pluginIdOf = (provider: ActionProvider): string => provider.plugin_id ?? provider.provider_id;
 
 export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionView[] = [], scenes: readonly ActionSceneView[] = []): JudgmentRuleAuthoringCatalog {
-  const agentActions: JudgmentRuleAuthoringBehavior[] = directory.filter(view => view.action.audiences.some(audience => audience === "agent" || audience === "mcp")).map(view => {
+  const agentActions: JudgmentRuleAuthoringOption[] = directory.filter(view => view.action.audiences.some(audience => audience === "agent" || audience === "mcp")).map(view => {
     const action_ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     return { behavior_id: "action." + createHash("sha256").update(JSON.stringify(action_ref)).digest("hex").slice(0, 56),
       action_ref, destination_id: AGENT_MCP_DESTINATION_ID, title: view.action.title, hint: view.action.description,
@@ -19,7 +19,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
   const choices = subjectOfferChoices(directory);
   const views = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
   const kinds = [...new Set([...choices.flatMap(choice => choice.subject_kinds), ...scenes.flatMap(scene => scene.definition.subject_kinds), ...agentActions.flatMap(action => action.subject_kinds)])];
-  const behaviors: JudgmentRuleAuthoringBehavior[] = [];
+  const behaviors: JudgmentRuleAuthoringOption[] = [];
   const destinations = scenes.map(({ definition, provider, availability }) => {
     const properties = definition.result_schema.properties as Record<string, { items?: { enum?: unknown } }> | undefined;
     const values = properties?.suggested_behavior_ids?.items?.enum;

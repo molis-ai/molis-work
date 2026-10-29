@@ -20,18 +20,18 @@ export function publishedFunctionKey(reference: { readonly provider_id?: string;
 export const HOME_DOCK_SCENE_ID = "home.dock";
 export const FEED_CAPTURE_SCENE_ID = "feed.capture";
 export const INBOX_NEXT_SCENE_ID = "inbox.next";
-export const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
-export const HOME_ASK_BEHAVIOR_ID = "home.ask";
-export const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
-export const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
-export const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";
-export const INBOX_VERIFY_BEHAVIOR_ID = "inbox.verify";
-export const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
-export const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
-export const FEED_OPEN_BEHAVIOR_ID = "feed.open";
-export const FEED_SAVE_BEHAVIOR_ID = "feed.save";
-export const FEED_PROMOTE_BEHAVIOR_ID = "feed.promote";
-export const FEED_ARCHIVE_BEHAVIOR_ID = "feed.archive";
+export const HOME_CONTINUE_OPTION_ID = "home.continue";
+export const HOME_ASK_OPTION_ID = "home.ask";
+export const INBOX_DONE_OPTION_ID = "inbox.done";
+export const INBOX_DISMISS_OPTION_ID = "inbox.dismiss";
+export const INBOX_COMPOSE_OPTION_ID = "inbox.compose";
+export const INBOX_VERIFY_OPTION_ID = "inbox.verify";
+export const INBOX_ADMIT_OPTION_ID = "inbox.admit";
+export const FEED_REAUTH_OPTION_ID = "feed.reauth";
+export const FEED_OPEN_OPTION_ID = "feed.open";
+export const FEED_SAVE_OPTION_ID = "feed.save";
+export const FEED_PROMOTE_OPTION_ID = "feed.promote";
+export const FEED_ARCHIVE_OPTION_ID = "feed.archive";
 export const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 export const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
 export const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
@@ -150,7 +150,7 @@ export interface JudgmentRuleAuthoringDestination {
   readonly availability?: import("../platform/actions.js").ActionAvailability;
 }
 
-export interface JudgmentRuleAuthoringBehavior {
+export interface JudgmentRuleAuthoringOption {
   readonly behavior_id: string;
   readonly title: string;
   readonly hint?: string;
@@ -172,7 +172,7 @@ export interface JudgmentRuleAuthoringBehavior {
 export interface JudgmentRuleAuthoringCatalog {
   readonly subjects: readonly JudgmentRuleAuthoringSubject[];
   readonly destinations: readonly JudgmentRuleAuthoringDestination[];
-  readonly behaviors: readonly JudgmentRuleAuthoringBehavior[];
+  readonly behaviors: readonly JudgmentRuleAuthoringOption[];
 }
 
 
@@ -275,18 +275,18 @@ export function filterSuggestedBehaviorIds(
 }
 
 export function defaultInboxNextBehaviorIds(active: boolean): string[] {
-  return active ? [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] : [];
+  return active ? [INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID] : [];
 }
 
 export const FEED_CAPTURE_DISPOSITION_IDS: readonly string[] = [
-  INBOX_ADMIT_BEHAVIOR_ID,
-  FEED_SAVE_BEHAVIOR_ID,
-  FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_ARCHIVE_BEHAVIOR_ID,
+  INBOX_ADMIT_OPTION_ID,
+  FEED_SAVE_OPTION_ID,
+  FEED_PROMOTE_OPTION_ID,
+  FEED_ARCHIVE_OPTION_ID,
 ];
 
 export function defaultFeedCaptureBehaviorIds(canAdmit: boolean): string[] {
-  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_BEHAVIOR_ID] : [];
+  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_OPTION_ID] : [];
 }
 
 /** Footer dispositions on a Feed item. `feed.open` maps to "stay in Feed" and is not a footer button. */
@@ -299,8 +299,8 @@ export function visibleFeedDispositionIds(
   const suggestedIds = suggested ?? [];
   const picked = offered.filter((id) => suggestedIds.includes(id));
   if (picked.length > 0) return picked;
-  if (suggestedIds.includes(FEED_OPEN_BEHAVIOR_ID)) {
-    return offered.filter((id) => id !== INBOX_ADMIT_BEHAVIOR_ID);
+  if (suggestedIds.includes(FEED_OPEN_OPTION_ID)) {
+    return offered.filter((id) => id !== INBOX_ADMIT_OPTION_ID);
   }
   return offered;
 }

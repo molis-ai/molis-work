@@ -1,4 +1,4 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { RegisterFeedSourceInput } from "./source-ports.js";
 
 export function sourceRegistrationInput(body: Readonly<Record<string, unknown>>): RegisterFeedSourceInput | null {

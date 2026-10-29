@@ -242,16 +242,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-048 (BL-544), RAC-1487–1491: the frame bridge now guards a raw mount until the child answers ready or failed — the
-// owner of the surface writes the guard instead of the deferred client, +341 B on one asset, no second renderer.
+// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
+// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
+// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugin-frame.js": [190219, 190560],
-  // T-043 (BL-386), RAC-1510–1514: the workbench bundle embeds Goals' own client scripts (the dialogs, proposal, relation, event
-  // document, policy and project-policy factories); their writes now call Goals' plugin prefix
-  // `/api/plugins/io.molis.work.goals` instead of the removed `/api` addresses, +598 B on this one asset. Tried: one constant per
-  // script (the prefix appears only through it, no repeated literals), no new asset, the old Host rewrite and its dispatch table
-  // were deleted from the server bundle. The full plugin id is the platform's route, so it cannot be shortened.
-  "/assets/molis-work-workbench.js": [1148383, 1148981],
+  "/assets/molis-work-plugins/lingguang.js": [23116, 23173],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

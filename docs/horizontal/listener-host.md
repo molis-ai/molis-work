@@ -1,6 +1,6 @@
 # Listener Host
 
-> 物理位置（FI-5）：这一部分的存取代码在 `plugins/native/feed/src/store/`（原来是独立的 `modules/…`、`horizontal/…` 包），表由 Feed 的 `databases.project` 声明；这里描述的合同与行为不变。
+> 物理位置（FI-5）：这一部分的存取代码在 `plugins/native/feed/src/store/`（原来是独立的 `modules/…`、`horizontal/…` 包），表由 Feed 的 `databases.project` 声明；这里描述的合同与行为不变。合同的类型（PG-111，T-110）在 Feed 自己的公开入口 `@molis-ai/molis-work-plugin-feed/contract`（`plugins/native/feed/src/contract/`），不再在平台合同包里；集成插件交出的 `RawEventAdapter` 与公开订阅源拉取的回执 `RssFetchReceipt` 是平台的，在 `@molis-ai/molis-work-contracts/platform/plugin-source-pull`。
 
 **提供：** 根据 Source intent 启停 listener；保存 cursor/checkpoint/lease/retry/quarantine；调用 Integration Adapter 把 Raw Event 转成 Signal Draft；收到 Signals Receipt 后推进 cursor。
 

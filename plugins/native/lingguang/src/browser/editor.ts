@@ -34,8 +34,9 @@ export function installEditor(page: LingguangPage): void {
     if (!s.selected) return;
     const button = el.todoButton, title = el.titleInput.value.trim(), body = el.bodyInput.value;
     button.dataset.contextId = s.selected.id;
-    button.dataset.contextTitle = title || body.trim().split(/\r?\n/)[0].slice(0, 80);
-    button.dataset.contextText = (el.titleInput.value + "\n" + body).trim().slice(0, 3000);
+    button.dataset.contextTitle = title || [...body.trim().split(/\r?\n/)[0]].slice(0, 80).join("");
+    // The workbench takes up to 4000 UTF-16 units of this text, so the bound stays 3000 units; a cut between the two units of a character leaves that half out.
+    button.dataset.contextText = (el.titleInput.value + "\n" + body).trim().slice(0, 3000).replace(/[\ud800-\udbff]$/, "");
   };
 
   /** The spark on screen, for the placement bar and the Assistant. */

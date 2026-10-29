@@ -11,7 +11,7 @@ const bullets = (lines: readonly string[]) => lines.map(line => "- " + line);
 export const issuesSkills: readonly AgentSkillDefinition[] = [{
   skill_id: "issues-capture", version: 11, name: "记录与管理个人问题",
   summary: "把用户在开发中遇到的问题记进个人 Issue：起标题、判类型、保存；也能查看、修改或删除。",
-  // Method tools are a declaration (contracts METHOD_TOOLS); the Assistant's gateway also offers change-reversible.
+  // Method tools are a declaration (contracts SKILL_TOOLS); the Assistant's gateway also offers change-reversible.
   tools: ["suggest-action", "ask-user", "find-capabilities", "read-capability", "change-capability"],
   body: [
     "Issue 只记录用户自己提出的问题，原话由用户决定；你负责起标题、判类型，不分析原因，不给解决办法。",

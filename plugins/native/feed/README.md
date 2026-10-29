@@ -74,7 +74,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 - 不变量：
   - 捕捉场景的判断（规则可用哪些判断、哪些建议仍成立、怎样记录）在本包的 `createFeedSceneRuntime`；Host 的 `feed-scene.ts` 只接判断账本与可读的消息，不写判断（`tests/feed-inbox-scene-runtime.test.ts`）。
   - 拥有 `src/store/` 里的 11 张表和 `feed_out_rules`，不拥有 Attention 与情境账的表；不直接实现 GitHub 或 Gmail 协议。
-  - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在合同 `modules/feed`，因为 RSS、YouTube 集成和 Host 的同步文件也要用），Inbox 事项找不到是 `inbox.entry_not_found`（`inboxErrors`，合同 `modules/attention-resumption`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector.rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。
+  - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在本插件的公开合同 `./contract`；RSS、YouTube 集成和平台的来源拉取用各自的码 `rss.*`、`youtube.*`、`actions.input_invalid`），Inbox 事项找不到是 `inbox.entry_not_found`（`inboxErrors`，合同 `modules/attention-resumption`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector.rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。
   - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
   - 关键词预览读最近五条原消息，不调模型、不保存规则、不入箱。
   - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
@@ -104,8 +104,8 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
   - 收到 Signals 回执之前 Listener 不推进游标、不确认投递；同一来源的有效租约阻止重复消费，多次转换失败进入隔离，终态重放不再调用 Provider。
   - 运行账本 `feed_source_runs` 只由 `store/listener.ts` 读写；Listener 的表按来源 id 指向来源，不对 `feed_sources` 加外键，一个来源的运行记录经 `deleteListenerSourceState` 显式清掉。
   - 不直接创建 Goal，升格经 Goals 的公开入口；`linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写；外部标题、正文与链接是不可信输入，不成为指令。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-store-declaration.test.ts tests/project-maintenance-v11.test.ts tests/feed-module-repositories.test.ts tests/feed-goal-query.test.ts tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/plugin-runtime-integration.test.ts`
-- 合同在 `@molis-ai/molis-work-contracts/modules/feed`、`/modules/sources`、`/modules/signals`、`/services/listener-host`，形状是对外的，留在合同包。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-store-declaration.test.ts tests/project-maintenance-v11.test.ts tests/feed-module-repositories.test.ts tests/feed-goal-query.test.ts tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-contract-ownership.test.ts`
+- 合同在本插件的公开入口 `@molis-ai/molis-work-plugin-feed/contract`（`src/contract/`：条目、来源、Signal 与 Listener 的状态，PG-111，T-110）；`sourceErrors`、`listenerErrors` 声明在主人是 `sources`、`listener` 的 `store/sources.ts`、`store/listener.ts`，经 `./store` 出口可见。集成插件交出的 `RawEventAdapter` 与订阅源回执 `RssFetchReceipt` 是平台的，在 `@molis-ai/molis-work-contracts/platform/plugin-source-pull`。
 
 ## 进一步阅读
 

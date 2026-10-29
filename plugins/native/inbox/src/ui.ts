@@ -5,10 +5,10 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  INBOX_DISMISS_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  INBOX_COMPOSE_BEHAVIOR_ID,
-  INBOX_VERIFY_BEHAVIOR_ID,
+  INBOX_DISMISS_OPTION_ID,
+  INBOX_DONE_OPTION_ID,
+  INBOX_COMPOSE_OPTION_ID,
+  INBOX_VERIFY_OPTION_ID,
   defaultInboxNextBehaviorIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
@@ -151,25 +151,25 @@ function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
 }
 
 function renderMaterialActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
-  return [[INBOX_COMPOSE_BEHAVIOR_ID, "compose", "整理成文稿"], [INBOX_VERIFY_BEHAVIOR_ID, "verify", "先核查"]].map(([id, mode, label]) =>
+  return [[INBOX_COMPOSE_OPTION_ID, "compose", "整理成文稿"], [INBOX_VERIFY_OPTION_ID, "verify", "先核查"]].map(([id, mode, label]) =>
     `<button class="mw-btn mw-btn--${isActiveInboxStatus(entry.status) && entry.suggested_behavior_ids.includes(id!) ? "primary" : "secondary"}" type="button" data-inbox-compose-open="${p.escape(entry.entry_id)}" data-inbox-compose-mode="${mode}">${p.text(label!)}</button>`).join("");
 }
 
 function renderNextSuggestion(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   const judgment = entry.next_judgment;
   if (!judgment || !isActiveInboxStatus(entry.status)) return "";
-  const names: Record<string, string> = { [INBOX_COMPOSE_BEHAVIOR_ID]: "整理成文稿", [INBOX_VERIFY_BEHAVIOR_ID]: "先核查", [INBOX_DISMISS_BEHAVIOR_ID]: "忽略", [INBOX_DONE_BEHAVIOR_ID]: "做完了" };
+  const names: Record<string, string> = { [INBOX_COMPOSE_OPTION_ID]: "整理成文稿", [INBOX_VERIFY_OPTION_ID]: "先核查", [INBOX_DISMISS_OPTION_ID]: "忽略", [INBOX_DONE_OPTION_ID]: "做完了" };
   const label = judgment.outcome === "needs_review" ? p.text("判断未完成，请人工复核或重试")
     : p.text("建议：{action}，由你确认执行", { action: p.text(names[judgment.suggested_behavior_ids[0] ?? ""] ?? "查看原消息") });
   return `<p class="inbox-next-suggestion">${p.escape(label)} <small>v${judgment.function_version} · ${p.escape(p.formatDate(judgment.created_at))}</small><button class="mw-btn mw-btn--ghost" type="button" data-inbox-evaluate="${p.escape(entry.entry_id)}">${p.text("重新判断")}</button></p>`;
 }
 
 function writeButton(entry: InboxUiEntry, behaviorId: string, primary: boolean, p: InboxUiPrimitives): string {
-  if (behaviorId === INBOX_DISMISS_BEHAVIOR_ID) {
+  if (behaviorId === INBOX_DISMISS_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
     return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`;
   }
-  if (behaviorId !== INBOX_DONE_BEHAVIOR_ID) return "";
+  if (behaviorId !== INBOX_DONE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
   return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button>`;
 }

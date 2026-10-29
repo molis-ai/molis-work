@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FeedApplication } from "./application.js";
 import { feedItemContext, type FeedItemRecord } from "./projection.js";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
 

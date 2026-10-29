@@ -52,7 +52,7 @@ function pluginLink(
   // A plugin installed at run time has a stage and no directory panel to open.
   const directory = rawPlugin.chosen === false || DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
-  const aria = plugin.id === "home" || plugin.id === "market"
+  const aria = plugin.id === "home"
     ? ` aria-label="${plugin.label}"`
     : ` aria-label="${say(L, "切换到插件：{name}", { name: plugin.label })}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
@@ -128,7 +128,6 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
-  personalIsland = "",
   directory: PluginDirectory = builtinPluginDirectory(),
   options: PluginMarketOptions = {},
 ): string {
@@ -204,7 +203,6 @@ export function renderPluginRail(
   const other = tools.filter(plugin => plugin.group === null).map(plugin => tile(plugin, "tool")).join("");
   const toggle = `<button class="immersive-plugin-link plugin-rail-item plugin-rail-toggle" type="button" data-rail-tools-toggle aria-expanded="false" aria-label="${L("全部插件")}" title="${L("全部插件")}">${icon("more")}<span data-rail-toggle-label="${L("收起插件")}">${L("全部插件")}</span></button>`;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
-    ${personalIsland}
     <div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_GROUP_LABELS[UI_VIEW_GROUPS[0]])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
   </nav>`;
 }

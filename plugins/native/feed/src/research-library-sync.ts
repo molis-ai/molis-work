@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedSourceSyncInput, FeedSourceSyncResult } from "./source-ports.js";

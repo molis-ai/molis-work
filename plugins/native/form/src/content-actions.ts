@@ -23,7 +23,7 @@ export function questionsFromText(text: string): FormQuestionInput[] {
   const lines = text.replace(/\r\n?/gu, "\n").split("\n").map(line => line.trim()).filter(Boolean)
     .filter(line => !/^#{1,6}\s/u.test(line))
     .map(line => line.replace(/^([-*+]|\d+[.)、])\s*/u, "").replace(/[*_`]/gu, "").trim()).filter(Boolean);
-  const questions = lines.filter(line => line.length <= 200).slice(0, FORM_QUESTION_LIMIT).map(title => ({ type: "text" as const, title, required: false }));
+  const questions = lines.filter(line => [...line].length <= 200).slice(0, FORM_QUESTION_LIMIT).map(title => ({ type: "text" as const, title, required: false }));
   if (!questions.length) throw formErrors.invalid("收到的内容里没有可以做成题目的文字");
   return questions;
 }
@@ -35,7 +35,7 @@ export function createFormContentHandlers({ read, write }: FormStores): ActionHa
     read: ({ item_id }, caller) => read(store => { const form = store.get(item_id, project(caller)); return { title: form.title, body: formMarkdown(form), source: "问卷" }; }),
     receive: ({ title, body, request_id }, caller) => write(caller, store => {
       // A hand-over is shaped to what a form holds (a long headline, a long list): refused, it could never be delivered.
-      const form = store.receive(project(caller), request_id, title.trim().slice(0, FORM_TITLE_LIMIT), questionsFromText(body));
+      const form = store.receive(project(caller), request_id, [...title.trim()].slice(0, FORM_TITLE_LIMIT).join(""), questionsFromText(body));
       return { plugin: "form", item_id: form.id, title: form.title };
     }),
     create: ({ title }, caller) => write(caller, store => { const form = store.create({ title, project_id: project(caller) }); return { plugin: "form", item_id: form.id, title: form.title }; }),

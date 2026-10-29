@@ -21,7 +21,14 @@ export interface ConnectorPullRequest {
     readonly settings?: Readonly<Record<string, string>>;
 }
 
-export type ConnectorSignalDraft = ReturnType<RawEventAdapter["toSignalDraft"]>;
+export interface ConnectorSignalDraft {
+    kind: string;
+    occurred_at: string;
+    observed_at: string;
+    payload: Record<string, unknown>;
+    content_refs?: string[];
+    provenance: Record<string, unknown>;
+}
 
 export declare const PLUGIN_EVIDENCE_COLLECT_PERMISSION = "evidence:collect";
 
@@ -101,6 +108,17 @@ export interface PluginSourceVocabulary {
     rssCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
 }
 
+export interface RawEventAdapter {
+    readonly adapter: {
+        plugin_id: string;
+        version: string;
+    };
+    toSignalDraft(event: ConnectorRawEvent, context: {
+        project_id: string;
+        source_id: string;
+    }): ConnectorSignalDraft;
+}
+
 export interface RepositoryEntry {
     readonly id: string;
     readonly title: string;
@@ -121,6 +139,16 @@ export interface RepositoryReadResult {
     readonly repository: string;
     readonly revision: string;
     readonly entries: readonly RepositoryEntry[];
+}
+
+export interface RssFetchReceipt {
+    readonly status: number;
+    readonly not_modified: boolean;
+    readonly etag?: string;
+    readonly last_modified?: string;
+    readonly final_url: string;
+    readonly feed_title?: string;
+    readonly home_url?: string;
 }
 
 export interface SourceCatalogEntry {

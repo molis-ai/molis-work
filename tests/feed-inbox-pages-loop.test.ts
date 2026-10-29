@@ -204,3 +204,14 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
       "what the other producer queued is still there for it, under its own authority");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("RAC-2186: a generated document is at most 100,000 characters, however many units its characters take", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-length-"));
+  const store = openPagesStore(home);
+  try {
+    const accepted = await generate(store, { ...request(), request_id: "length-accepted", request_hash: "hash-accepted" }, async () => "😀".repeat(100_000));
+    assert.equal(accepted.document.title, "观察文稿");
+    assert.equal(accepted.replayed, false, "100,000 two-unit characters are saved, not refused for taking 200,000 units");
+    await assert.rejects(generate(store, { ...request(), request_id: "length-refused", request_hash: "hash-refused" }, async () => "😀".repeat(100_001)), /文稿为空或过长/);
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});

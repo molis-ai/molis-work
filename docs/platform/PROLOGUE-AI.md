@@ -696,7 +696,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 检查 | 在哪里 | 结果 |
 | --- | --- | --- |
 | Manifest：必填字段、版本、id、权限，agent、方法、视图、路由各块 | `packages/plugin-sdk` 的 `parsePluginManifest`；作者命令 `molis-work-plugin validate <manifest.json>`（`tooling/plugin-cli`，只读，不启动插件） | 拒绝 |
-| 角色与方法声明：方法 id 与版本、名字和摘要的长度、方法的 `tools` 在 `METHOD_TOOLS` 里、角色 `skills` 的 `allowed` 与 `default` | 解析 Manifest 时（`packages/plugin-sdk/src/agent-declarations.ts`） | 拒绝 |
+| 角色与方法声明：方法 id 与版本、名字和摘要的长度、方法的 `tools` 在 `SKILL_TOOLS` 里、角色 `skills` 的 `allowed` 与 `default` | 解析 Manifest 时（`packages/plugin-sdk/src/agent-declarations.ts`） | 拒绝 |
 | 方法正文：非空、不超过 20,000 字符，同一插件不重复登记 | 宿主登记时（`apps/local-host/src/agent-definitions/agent-definitions.ts`），开跑读取时再核一次（`horizontal/agent-host/src/index.ts` 的 `readSkill`） | 拒绝 |
 | 方法同一版本正文变了；方法要的工具超过角色 | 开跑时（`prologue-methods.ts` 的 `inlineMethods`；SDK 的 `prepareSkillIntent`） | 拒绝 |
 | 打包：`files` 明确列出，没有符号链接和越界路径，不超过 64 MiB；不执行 glob 和 lifecycle script | `molis-work-plugin pack`（`tooling/plugin-cli/src/package-files.ts`） | 拒绝 |

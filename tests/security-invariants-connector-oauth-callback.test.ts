@@ -23,6 +23,7 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
@@ -34,12 +35,11 @@ import { openTestHome } from "./fixtures/test-home.js";
 
 const origin = "http://localhost:19358";
 const CALLBACK = "/api/settings/connectors/methods/oauth/callback";
-const bare = { kind: "oauth" } as const;
 const flow = (extra: Record<string, unknown> = {}) => ({ kind: "oauth", grant: "authorization_code", authorize_url: "https://app.asana.com/-/oauth_authorize",
   token_url: "https://app.asana.com/-/oauth_token", scopes: [], identity: { url: "https://app.asana.com/api/1.0/users/me", account_id: [[], ["identity:/data/gid"]], label: ["identity:/data/name"] }, ...extra }) as OAuthServiceOwner["method"];
 
 interface Sent { url: string; redirect: RequestRedirect | undefined }
-function harness(method: OAuthServiceOwner["method"] = bare) {
+function harness(method: OAuthServiceOwner["method"] = flow()) {
   const directory = mkdtempSync(join(tmpdir(), "molis-oauth-callback-"));
   const declared = { owner: { plugin_id: "io.molis.work.integration.catalog", install_id: "install-1", publisher_id: "io.molis", method } as OAuthServiceOwner | undefined };
   const owners: OAuthOwners = async () => declared.owner;
@@ -199,7 +199,7 @@ test("S-101 RAC-1083 rules 6 and 7 are judged again when a callback leaves the c
   try {
     const owner = h.declared.owner!;
     const tokens = () => h.sent.filter(entry => entry.url.includes("oauth_token")).length;
-    for (const [why, changed] of [["disabled", undefined], ["another install", { ...owner, install_id: "install-2" }], ["method changed", { ...owner, method: flow() }]] as const) {
+    for (const [why, changed] of [["disabled", undefined], ["another install", { ...owner, install_id: "install-2" }], ["method changed", { ...owner, method: flow({ scopes: ["default"] }) }]] as const) {
       h.declared.owner = owner;
       const seed = await h.start();
       await h.complete({ origin, state: h.stateOf(seed), code: "code" });
@@ -234,7 +234,7 @@ test("S-101 RAC-1084 rule 9: a plugin disabled, re-enabled or changed while the 
   const h = harness();
   try {
     const owner = h.declared.owner!;
-    for (const [why, changed] of [["disabled", undefined], ["enabled again", { ...owner, install_id: "install-2" }], ["method changed", { ...owner, method: flow() }]] as const) {
+    for (const [why, changed] of [["disabled", undefined], ["enabled again", { ...owner, install_id: "install-2" }], ["method changed", { ...owner, method: flow({ scopes: ["default"] }) }]] as const) {
       h.declared.owner = owner;
       const started = await h.start();
       const state = h.stateOf(started), stage = h.stageOf(state);
@@ -302,10 +302,7 @@ async function parkHeld(t: Parameters<typeof openTestHome>[0]) {
   const registry = await homeIntegrationRegistry(home.home);
   const owner = registry.oauthOwner("asana")!;
   let tokens = 0;
-  const realFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    if (url.startsWith(home.origin)) return realFetch(input, init);
+  oauthNetwork(t, url => {
     if (url === "https://app.asana.com/-/oauth_token") { tokens += 1; return Response.json({ access_token: "fixture-held-access", refresh_token: "fixture-held-refresh", expires_in: 3600 }); }
     assert.equal(url, "https://app.asana.com/api/1.0/users/me", "no other request");
     return Response.json({ data: { gid: "held-account", name: "Held", email: "held@example.test" } });

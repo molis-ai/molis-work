@@ -5,6 +5,7 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome, serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 type IntentServer = TestHostServer & { host: MolisWorkLocalHost };
@@ -91,11 +92,10 @@ test("S-37 ASC-34: a held replacement cannot overwrite a connection changed else
 test("S-37 ASC-34: intent received during a real OAuth completion parks its result before activation", async t => {
   const home = await openTestHome(t), prepared = await prepare(home, "asana", "oauth");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-  const realFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    if (String(input).startsWith(home.origin)) return realFetch(input, init);
-    if (String(input).includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-held", refresh_token: "fixture-oauth-refresh", expires_in: 3600 }); }
-    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fixture-oauth-held");
+  // The generic flow's requests leave by `sendPublicHttps` (W5-11 slice 4).
+  oauthNetwork(t, async (url, init) => {
+    if (url.includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-held", refresh_token: "fixture-oauth-refresh", expires_in: 3600 }); }
+    assert.equal(init.headers.authorization, "Bearer fixture-oauth-held");
     return Response.json({ data: { gid: "account-1", name: "Account", email: "account@example.test" } });
   });
   const start = await home.web.post<{ authorization_url: string }>("/api/settings/connectors/methods/oauth/start", {

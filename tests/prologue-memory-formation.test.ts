@@ -82,7 +82,8 @@ test("Host extractor performs one real HTTP generation, preserves canonical evid
   let body: object = { drafts: [{ slot_id: "d0", text: words, suggested_basis: "inferred", applies_when: { task: "汇报" }, evidence: [{ source_id: "s0", quote: words }] }] };
   const prompts: string[] = [];
   const server = createServer(async (req, response) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const payload = JSON.parse(raw) as { messages: Array<{ content: string }> };
     prompts.push(payload.messages.map(message => message.content).join("\n"));
     response.writeHead(200, { "content-type": "text/event-stream" });

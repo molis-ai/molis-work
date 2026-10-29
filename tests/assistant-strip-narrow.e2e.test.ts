@@ -31,7 +31,8 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   let turns = 0, release: (() => void) | undefined;
   const held = new Promise<void>(resolve => { release = resolve; });
   const model = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(undefined, review)); return; }

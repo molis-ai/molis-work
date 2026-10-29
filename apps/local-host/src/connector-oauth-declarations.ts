@@ -9,7 +9,7 @@ import type {
   OAuthValueSource,
   PluginOAuthMethodDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_ACCOUNT_ORIGINS, CONNECTOR_REQUEST_SERVICES, type ConnectorMethodOption, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
 import {
   oauthCodePointOrder,
   oauthDeclarableHeader,
@@ -30,7 +30,8 @@ import {
 // turns the declaration, the settings the person filled in and what the connection already holds into addresses and request
 // descriptions, and reads accounts out of responses. Nothing is sent here. Where an access token may go is the platform's request table;
 // every address is checked again after its template is filled in (S-09, S-10), before anything could be sent to it. The template and
-// value rules are the SDK's (the `/oauth` subpath, `src/oauth.ts`), the same ones the Manifest check reads by.
+// value rules are the SDK's (the `/oauth` subpath, `src/oauth.ts`), the same ones the Manifest check reads by. This is the one Host file
+// that reads the account origins table (`CONNECTOR_ACCOUNT_ORIGINS`): a plugin's request never reaches those origins (S-69, A2).
 
 export const oauthDeclarationErrors = defineErrorCodes("connector.oauth_declarations", {
   setting_invalid: "invalid", template_invalid: "invalid", target_refused: "forbidden", account_missing: "upstream", context_missing: "upstream",
@@ -58,6 +59,25 @@ export interface OAuthRequestDescription {
 
 function service(serviceId: string): ConnectorRequestService | undefined {
   return Object.hasOwn(CONNECTOR_REQUEST_SERVICES, serviceId) ? CONNECTOR_REQUEST_SERVICES[serviceId] : undefined;
+}
+
+function accountOrigins(serviceId: string): readonly string[] {
+  return Object.hasOwn(CONNECTOR_ACCOUNT_ORIGINS, serviceId) ? CONNECTOR_ACCOUNT_ORIGINS[serviceId]! : [];
+}
+
+/**
+ * What the settings page shows for the method (`ConnectorMethodOption.oauth`): the fields to fill in, whether a client secret is asked
+ * for (not when the client auth is or may be set to `none`), and the note.
+ */
+export function oauthMethodOption(method: PluginOAuthMethodDeclaration): NonNullable<ConnectorMethodOption["oauth"]> {
+  const auth = method.client_auth ?? "post";
+  const mayBePublic = typeof auth === "string" ? auth === "none" : (method.settings ?? []).find(setting => setting.key === auth.setting)?.enum?.includes("none") === true;
+  return {
+    client_secret_required: (method.client_secret ?? "required") === "required" && !mayBePublic,
+    fields: (method.settings ?? []).map(setting => ({ key: setting.key, label: setting.label,
+      ...(setting.placeholder !== undefined ? { placeholder: setting.placeholder } : {}), ...(setting.required ? { required: true } : {}) })),
+    ...(method.note !== undefined ? { note: method.note } : {}),
+  };
 }
 
 /**
@@ -204,6 +224,25 @@ export function oauthExpiry(method: PluginOAuthMethodDeclaration, token: Json, n
 }
 
 /**
+ * What an authorization adds to the connection's context besides what it keeps and picks, so the platform's request check
+ * (`connectionTenantOrigin`, `gatewayUrl`) finds the site it was authorized for: the tenant setting's origin under the setting's own key
+ * when no `check: "tenant"` keep pins the tenant, and on a gateway service the site's base on the gateway, worked out from `cloud_id`.
+ */
+export function oauthAuthorizationContext(serviceId: string, method: PluginOAuthMethodDeclaration, settings: OAuthResolvedSettings,
+  context: Readonly<Record<string, string>>): Record<string, string> {
+  const added: Record<string, string> = {};
+  const tenantKept = [...method.keep ?? [], ...method.identity.keep ?? []].some(keep => keep.check === "tenant");
+  const setting = (method.settings ?? []).find(entry => entry.use === "tenant");
+  if (setting && settings.tenant && !tenantKept) added[setting.key] = settings.tenant;
+  if (service(serviceId)?.tenant?.gateway === "atlassian") {
+    const cloudId = context.cloud_id ?? "";
+    if (!oauthPathSegment(cloudId)) throw oauthDeclarationErrors.context_missing("没有取到站点在网关上的 id，请重新授权");
+    added.base = `${ATLASSIAN_GATEWAY}/ex/${serviceId}/${encodeURIComponent(cloudId)}`;
+  }
+  return added;
+}
+
+/**
  * The values a connection keeps from a response. `check: "tenant"` bounds an origin by the platform's table (it is then the connection's
  * pinned tenant), `{ pattern }` the whole value; a `required` value that is missing fails the authorization.
  */
@@ -249,17 +288,19 @@ export function oauthPinnedTenant(scope: Pick<OAuthRequestScope, "serviceId" | "
 }
 
 /**
- * An identity or context request: sent only to an origin of the platform's request table for the service, the pinned tenant origin, or
- * the service's gateway; the credential written the way the table says for an OAuth connection. `{account}` is not read yet (slice 4).
+ * An identity or context request: sent only to an origin of the platform's request table or account table for the service, the pinned
+ * tenant origin, or the service's gateway; the credential written the way the table says for an OAuth connection.
  */
 export function oauthAccountRequest(request: OAuthTokenRequestDeclaration, scope: OAuthRequestScope): OAuthRequestDescription {
   const entry = service(scope.serviceId);
+  const account = accountOrigins(scope.serviceId);
   const parts = oauthUrlTemplate(request.url);
-  if (!parts) throw oauthDeclarationErrors.template_invalid("请求地址必须是 https 来源或 {service}、{tenant}、{gateway} 开头，再接路径");
+  if (!parts) throw oauthDeclarationErrors.template_invalid("请求地址必须是 https 来源或 {service}、{account}、{tenant}、{gateway} 开头，再接路径");
   const tenant = "name" in parts && parts.head === "tenant" && entry?.tenant ? oauthPinnedTenant(scope) : undefined;
   let allowed: readonly string[];
-  if ("origin" in parts) allowed = entry?.origins ?? [];
+  if ("origin" in parts) allowed = [...entry?.origins ?? [], ...account];
   else if (parts.head === "service" && entry?.origins.length === 1) allowed = entry.origins;
+  else if (parts.head === "account" && account.length === 1) allowed = account;
   else if (parts.head === "tenant" && tenant) allowed = [tenant];
   else if (parts.head === "gateway" && entry?.tenant?.gateway === "atlassian") allowed = [ATLASSIAN_GATEWAY];
   else throw oauthDeclarationErrors.template_invalid(`请求地址的 {${parts.name}} 在这个服务上不可用`);

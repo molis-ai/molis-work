@@ -1,7 +1,7 @@
 import { feedRuleActions } from "./rule-actions.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import { parseFeedOutRulePatch, parseFeedOutRuleWrite } from "./out-rules.js";
 
 function requireRuleId(value: string | undefined): string {

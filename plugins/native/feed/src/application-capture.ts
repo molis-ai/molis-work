@@ -1,5 +1,5 @@
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedItemRecord, FeedOutRuleRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus } from "./projection.js";
 import { callAttention } from "./application-errors.js";
 import type { FeedApplicationPorts } from "./application-ports.js";

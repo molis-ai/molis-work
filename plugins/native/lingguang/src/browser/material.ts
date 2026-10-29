@@ -71,7 +71,8 @@ export function installMaterial(page: LingguangPage): void {
     const issues = reading.partial && reading.issues && reading.issues.length
       ? L("lingguang.reading.issues", { issues: reading.issues.join(L("lingguang.reading.issue-separator")) }) : "";
     const body = [reading.text, origin, issues].filter(Boolean).join("\n\n");
-    const payload = await request<{ spark: Spark }>("POST", api, { title: (reading.title || fallbackTitle).slice(0, 80), body });
+    // 80 characters, as lingguang.create counts a title: a cut by units could leave half of a two-unit character at the end.
+    const payload = await request<{ spark: Spark }>("POST", api, { title: [...(reading.title || fallbackTitle)].slice(0, 80).join(""), body });
     s.picks = new Set([payload.spark.id]);
     await page.loadList();
     page.fillEditor(payload.spark);

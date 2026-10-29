@@ -313,3 +313,28 @@ test("RAC-1605 RAC-1606: a title and question list a workflow hands over are cut
     "RAC-1606: the first 40 questions are kept and a line too long to be a question is left out");
   assert.ok(form.questions.every(question => question.type === "text" && !question.required), "every question is an optional fill-in");
 });
+
+test("RAC-1699: a title and question list a workflow hands over are cut and kept in whole characters, the way the form counts them", async t => {
+  // The form counts characters: 80 for a title (store.ts normalizeTitle), 200 for a question (normalizeQuestions). One 🟢 is one character but two UTF-16 units.
+  // Cut at unit 80, "a" and 100 🟢 would keep 39 and half of the 40th; a line of 200 🟢 is 400 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const f = await fixture(t);
+  const workflow = bindActionClient(f.client, (): ActionCallContext => ({ ...f.caller, audience: "workflow" }));
+  const received = await workflow.invoke(formContentActions.receive, { title: "  a" + wide(100) + "  ",
+    body: ["- " + wide(200), "- " + wide(201), "- 普通题？"].join("\n"), request_id: "workflow:run-2:1" });
+  const { form } = await f.bound.invoke(actions.get, { id: received.item_id });
+  assert.equal(form.title, "a" + wide(79), "a title past 80 characters is cut to 80 whole characters");
+  assert.deepEqual(form.questions.map(question => question.title), [wide(200), "普通题？"], "a line of 200 characters is a question, one of 201 is left out");
+});
+
+test("RAC-1699: an answer file that cannot be read is listed under its name in whole characters, up to the 200 the import counts", async t => {
+  // The action's schema stops a name at 200 characters (actions.ts maxLength), the store cuts what reaches it. A 200-character name made of 🟢 is 399 UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const home = await mkdtemp(join(tmpdir(), "form-import-name-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const form = store.create({ project_id: "p", title: "F" });
+  const result = store.importAnswers(form.id, [{ name: "a" + wide(199), content: "x" }, { name: "b" + wide(250), content: "x" }], "p");
+  assert.equal(result.imported, 0);
+  assert.deepEqual(result.rejected.map(file => file.name), ["a" + wide(199), "b" + wide(199)], "a 200-character name is kept whole, a longer one is cut to 200 whole characters");
+  assert.ok(result.rejected.every(file => file.reason === "文件内容无法读取"), "they are listed because their content cannot be read");
+});

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type {
   ApplyGoalConcernInput,
   CiteGoalDecisionInput,
+  GoalEventStateApi,
   GoalEventProgressResult,
   GoalProgressArtifactSource,
   GoalEventScope,
@@ -34,7 +35,7 @@ import { normalizeScope } from "./event-state-scope.js";
 
 export type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 
-export class GoalEventState {
+export class GoalEventState implements GoalEventStateApi {
   private readonly effects: GoalEventStateEffects;
   private readonly writes: GoalEventStateWriteDeps;
 

@@ -533,6 +533,8 @@ export interface GoalEventExtraRequirementInput {
 }
 
 export interface GoalEventFactsApi {
+    readonly state: GoalEventStateApi;
+    readonly intent: GoalEventIntentApi;
     configure(input: ConfigureGoalEventsInput): ConfigureGoalEventsResult;
     configureRequested(input: ConfigureGoalEventsApplicationInput, resolveAdoption: (projectId: string, requested: GoalEventAdoptedPlanningRequest[]) => ResolvedPlanningEventAdoption): ConfigureGoalEventsResult;
     report(input: ReportGoalEventsInput): ReportGoalEventsRecordedResult;
@@ -546,36 +548,7 @@ export interface GoalEventFactsApi {
     readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null;
     readObservedEventCursor(projectId: string): number;
     isEventStateOwner(projectId: string, goalId: string): boolean;
-    readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
     runImmediate<T>(operation: () => T): T;
-    adoptOwner(input: {
-        project_id: string;
-        goal_id: string;
-        actor_id: string;
-        source: "intent" | "configuration" | "continue";
-        outcome?: string;
-    }): void;
-    replayIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;
-    rememberIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string, result: CreateGoalIntentResult, at: string): void;
-    recordIntentArtifacts(input: {
-        project_id: string;
-        goal_id: string;
-        actor_id: string;
-        actor_kind?: "user" | "runtime";
-        source_kind?: GoalIntentSourceKind;
-        outcome?: string;
-        requirements?: CreateGoalIntentRequirementInput[];
-    }): void;
-    recordNote(input: RecordGoalNoteInput): GoalEventMutationResult;
-    recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult;
-    readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null;
-    applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult;
-    requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult;
-    citeDecision(input: CiteGoalDecisionInput): GoalEventDecisionResult;
-    recordTrustedDecision(input: RecordGoalUserDecisionInput, persistGovernance: (normalized: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord): GoalEventDecisionResult;
-    setAgreement(input: SetGoalEventAgreementInput): GoalEventAgreementResult;
-    submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult;
-    resumeWork(input: ResumeGoalEventWorkInput): GoalEventResumeResult;
 }
 
 export interface GoalEventFieldDefinition {
@@ -604,6 +577,20 @@ export interface GoalEventHistoryPage {
 export interface GoalEventHistoryQuery {
     before_cursor?: number;
     limit?: number;
+}
+
+export interface GoalEventIntentApi {
+    replay(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;
+    remember(projectId: string, actorId: string, idempotencyKey: string, hash: string, result: CreateGoalIntentResult, at: string): void;
+    recordArtifacts(input: {
+        project_id: string;
+        goal_id: string;
+        actor_id: string;
+        actor_kind?: "user" | "runtime";
+        source_kind?: GoalIntentSourceKind;
+        outcome?: string;
+        requirements?: CreateGoalIntentRequirementInput[];
+    }): void;
 }
 
 export interface GoalEventJudgmentInput {
@@ -760,6 +747,27 @@ export interface GoalEventScope {
 }
 
 export type GoalEventSemanticFamily = (typeof goalEventSemanticFamilies)[number];
+
+export interface GoalEventStateApi {
+    readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
+    adoptOwner(input: {
+        project_id: string;
+        goal_id: string;
+        actor_id: string;
+        source: "intent" | "configuration" | "continue";
+        outcome?: string;
+    }): void;
+    recordNote(input: RecordGoalNoteInput): GoalEventMutationResult;
+    recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult;
+    readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null;
+    applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult;
+    requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult;
+    citeDecision(input: CiteGoalDecisionInput): GoalEventDecisionResult;
+    recordTrustedDecision(input: RecordGoalUserDecisionInput, persistGovernance: (normalized: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord): GoalEventDecisionResult;
+    setAgreement(input: SetGoalEventAgreementInput): GoalEventAgreementResult;
+    submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult;
+    resumeWork(input: ResumeGoalEventWorkInput): GoalEventResumeResult;
+}
 
 export interface GoalEventStateOwnerView {
     kind: "event_work";

@@ -5,6 +5,7 @@ import type {
   CreateGoalInput,
   GoalEventAcknowledgementsApi,
   GoalEventFactsApi,
+  GoalEventStateApi,
   PlanningMethodPack,
   GoalsCommandApi,
   GoalsLifecycleApi,
@@ -170,7 +171,9 @@ export type {
   CreateGoalIntentInput,
   GoalEventConfigView,
   GoalEventFactsApi,
+  GoalEventIntentApi,
   GoalEventLatestReports,
+  GoalEventStateApi,
   GoalEventStateView,
   GoalWorkEventRecord,
   GoalsPlanningApi,
@@ -184,7 +187,7 @@ export { PersonalPlanningMethods } from "./planning/personal-methods.js";
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal): {
   query: GoalsQueryApi;
-  events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner" | "readWorkState">;
+  events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner"> & { readonly state: Pick<GoalEventStateApi, "readWorkState"> };
 } {
   const repository = new GoalsRepository(db, journal);
   const context = new GoalsCommandContext(repository);

@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import type {
   CreateGoalIntentRequirementInput,
   CreateGoalIntentResult,
+  GoalEventIntentApi,
   GoalIntentSourceKind,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsCommandContext } from "./command-support.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";
 import type { GoalEventState } from "./event-state.js";
 
-export class GoalEventIntent {
+export class GoalEventIntent implements GoalEventIntentApi {
   constructor(
     private readonly context: GoalsCommandContext,
     private readonly records: GoalEventFactsRepository,

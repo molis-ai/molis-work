@@ -58,6 +58,9 @@ test("RAC-1708 the registry is the Home's: directly, or as the fallback after a 
     "registry: () => homeIntegrationRegistry(home),\n      ...(selectFixture ? { registry: fixtureRegistry } : {})",
     "...overrides, registry: () => homeIntegrationRegistry(home)",
     "registry: () => homeIntegrationRegistry(home), registry: fixtureRegistry",
+    // Codex @a44d67a2 P1: a computed name can be `registry` again; its name is not read, so it is refused, static or not.
+    "registry: () => homeIntegrationRegistry(home),\n      [optionName]: fixtureRegistry",
+    "registry: () => homeIntegrationRegistry(home), [\"registry\"]: fixtureRegistry",
   ]) {
     assert.equal(feedListenerWiringProblems(withRegistry(registry)).length, 1, registry);
   }
@@ -72,7 +75,13 @@ const unrelated = { connector: createConnectorSourcePort({registry: () => homeIn
   assert.deepEqual(feedListenerWiringProblems(decoy), ["the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`"], "a valid port elsewhere is not the wiring site");
   const portSpread = { ...wiring, host: wiring.host.replace("    plan: request =>", "    ...overrides,\n    plan: request =>") };
   assert.notEqual(portSpread.host, wiring.host);
-  assert.deepEqual(feedListenerWiringProblems(portSpread), ["the source-pull port `createSourcePullPort` returns has a spread, which could replace its `connector`"], "a spread in the port object");
+  assert.deepEqual(feedListenerWiringProblems(portSpread), ["the source-pull port `createSourcePullPort` returns has a spread or a computed name, which could replace its `connector`"], "a spread in the port object");
+  // Codex @a44d67a2 P1: so can a computed name after the checked `connector`.
+  for (const extra of ["[portName]: otherPort(),", "[\"connector\"]: otherPort(),"]) {
+    const computed = { ...wiring, host: wiring.host.replace("    plan: request =>", `    ${extra}\n    plan: request =>`) };
+    assert.notEqual(computed.host, wiring.host);
+    assert.deepEqual(feedListenerWiringProblems(computed), ["the source-pull port `createSourcePullPort` returns has a spread or a computed name, which could replace its `connector`"], extra);
+  }
   const twoConnectors = { ...wiring, host: wiring.host.replace("    plan: request =>", "    connector: otherPort(),\n    plan: request =>") };
   assert.deepEqual(feedListenerWiringProblems(twoConnectors), ["the source-pull port `createSourcePullPort` returns does not have exactly one `connector`"], "two connectors in the port object");
   const noPort = { ...wiring, host: wiring.host.replace("export function createSourcePullPort(", "export function createOtherPort(") };

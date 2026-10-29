@@ -1278,6 +1278,8 @@ function isHomeRegistryThunk(node) {
 }
 
 const propertyNamed = (property, name) => property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) && property.name.text === name;
+/** A spread or a computed name (`[key]: …`) could be the property that was checked, written again: the name is not read, so it is refused. */
+const opaqueProperty = property => ts.isSpreadAssignment(property) || Boolean(property.name && ts.isComputedPropertyName(property.name));
 
 /** Why one `createConnectorSourcePort(…)` call does not take the Home's registry: one options object, no spread, exactly one `registry`. */
 function connectorPortProblems(call) {
@@ -1285,7 +1287,7 @@ function connectorPortProblems(call) {
   if (call.arguments.length !== 1 || !options || !ts.isObjectLiteralExpression(options)) {
     return ["the Host's `createConnectorSourcePort` does not take one options object"];
   }
-  if (options.properties.some(ts.isSpreadAssignment)) return ["the Host's `createConnectorSourcePort` options have a spread, which could replace `registry`"];
+  if (options.properties.some(opaqueProperty)) return ["the Host's `createConnectorSourcePort` options have a spread or a computed name, which could replace `registry`"];
   const registries = options.properties.filter(property => propertyNamed(property, "registry"));
   if (registries.length !== 1 || !ts.isPropertyAssignment(registries[0])) {
     return ["the Host's `createConnectorSourcePort` options do not have exactly one `registry: …`"];
@@ -1317,7 +1319,7 @@ function sourcePullPortObject(file) {
  * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802), read from
  * the code, not the comments: the Feed service opens its Listener through `this.ports.createListener`, the Runtime Feed opens it with
  * `services.connector.open(`, the plugin takes `connector = sourcePull?.connector`, and the Host's `createSourcePullPort` returns one
- * object with no spread and exactly one `connector: createConnectorSourcePort({ … })`, whose options have no spread and exactly one
+ * object with no spread or computed name and exactly one `connector: createConnectorSourcePort({ … })`, whose options have neither and exactly one
  * `registry`: `() => homeIntegrationRegistry(home)`, or `<a test's injected registry> ?? (() => homeIntegrationRegistry(home))`,
  * parentheses aside. Every other `connector: createConnectorSourcePort({ … })` in the Host file takes the Home's registry as well.
  */
@@ -1334,7 +1336,7 @@ export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
   const port = sourcePullPortObject(file);
   let wired;
   if (!port) problems.push("the Host has no single `createSourcePullPort` returning one object literal");
-  else if (port.properties.some(ts.isSpreadAssignment)) problems.push("the source-pull port `createSourcePullPort` returns has a spread, which could replace its `connector`");
+  else if (port.properties.some(opaqueProperty)) problems.push("the source-pull port `createSourcePullPort` returns has a spread or a computed name, which could replace its `connector`");
   else {
     const connectors = port.properties.filter(property => propertyNamed(property, "connector"));
     if (connectors.length !== 1) problems.push("the source-pull port `createSourcePullPort` returns does not have exactly one `connector`");

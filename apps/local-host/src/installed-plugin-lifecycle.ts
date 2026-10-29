@@ -4,12 +4,12 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
-import { comparePluginVersions } from '@molis-ai/molis-work-plugin-sdk';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
+import { assertUpgradeOf } from './package-upgrade.js';
 import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 
@@ -135,8 +135,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!installed?.packaged) throw new Error(c.recoveryErrors.get(pluginId) ?? '找不到已安装版本的包，不能升级');
     if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
     const next = release.packaged.manifest;
-    if (comparePluginVersions(next.version, record.version) <= 0) throw pluginErrors.upgrade_required('这个包的版本是 ' + next.version + '，不高于已装的 ' + record.version + '：不是升级');
-    if (!(next.upgrade_compatibility?.compatible_from_versions ?? []).includes(record.version)) throw pluginErrors.upgrade_required('这个包的清单没有声明能从已装的 ' + record.version + ' 直接升级（upgrade_compatibility.compatible_from_versions）');
+    assertUpgradeOf(next, record.version);
     return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release));
   };
   return async (action, release, input) => {

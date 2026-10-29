@@ -506,3 +506,75 @@ test("W2-18-SCHEDULE-02: close revokes waits before SQLite release; a dispatched
     } finally { reopened.close(); }
   } finally { release.resolve(); await service.close(); if (db.open) db.close(); rmSync(home, { recursive: true, force: true }); }
 });
+
+type NoteAct = () => Promise<{ detail?: string } | void>;
+
+/** Runs one due wakeup whose action does `act`; returns what the Scheduler kept: the job's last wakeup, and the row in the table. */
+async function keptNote(act: NoteAct) {
+  const clock = { now: new Date("2026-10-29T03:00:00.000Z") };
+  const { db, installation, schedule } = service(clock);
+  installation.action("test.wakeup", act);
+  const job = schedule.register({
+    plugin_id: "io.molis.work.test.owner",
+    capability_id: "test.wakeup",
+    object_ref: "note:cut",
+    title: "cut",
+    due_at: "2026-10-29T03:00:05.000Z",
+  });
+  clock.now = new Date("2026-10-29T03:00:06.000Z");
+  const ticked = await schedule.tick();
+  const record = schedule.get(job.job_id)?.last_wakeup;
+  const row = db.prepare("SELECT status, detail FROM schedule_wakeups WHERE job_id = ?").get(job.job_id);
+  db.close();
+  return { ticked, status: record?.status, detail: record?.detail, row };
+}
+
+const PAIR = "\u{1F600}"; // two UTF-16 units, U+D83D U+DE00
+const TAIL = "z".repeat(10);
+
+for (const { name, detail, expected } of [
+  { name: "unit 500 is the first half of a pair", detail: "a".repeat(499) + PAIR + TAIL, expected: "a".repeat(499) },
+  { name: "a pair ends exactly at unit 500", detail: "a".repeat(498) + PAIR + TAIL, expected: "a".repeat(498) + PAIR },
+  { name: "250 pairs after one plain character", detail: "a" + PAIR.repeat(250), expected: "a" + PAIR.repeat(249) },
+  { name: "600 plain characters", detail: "a".repeat(600), expected: "a".repeat(500) },
+]) {
+  test(`RAC-1950 a reply's note is cut at 500 UTF-16 units on a whole character: ${name}`, async () => {
+    const kept = await keptNote(async () => ({ detail }));
+    assert.deepEqual(kept.ticked, { invoked: 1, failed: 0, skipped: 0 });
+    assert.equal(kept.status, "ok");
+    assert.equal(kept.detail, expected);
+    assert.deepEqual(kept.row, { status: "ok", detail: expected });
+  });
+}
+
+for (const { name, thrown, expected } of [
+  { name: "an Error, unit 500 is the first half of a pair", thrown: new Error("a".repeat(499) + PAIR + TAIL), expected: "a".repeat(499) },
+  { name: "an Error, a pair ends exactly at unit 500", thrown: new Error("a".repeat(498) + PAIR + TAIL), expected: "a".repeat(498) + PAIR },
+  { name: "a thrown string, unit 500 is the first half of a pair", thrown: "a".repeat(499) + PAIR + TAIL, expected: "a".repeat(499) },
+]) {
+  test(`RAC-1951 a thrown error's message is cut at 500 UTF-16 units on a whole character: ${name}`, async () => {
+    const kept = await keptNote(async () => { throw thrown; });
+    assert.deepEqual(kept.ticked, { invoked: 1, failed: 1, skipped: 0 });
+    assert.equal(kept.status, "failed");
+    assert.equal(kept.detail, expected);
+    assert.deepEqual(kept.row, { status: "failed", detail: expected });
+  });
+}
+
+const keptAsItWas: Array<{ name: string; act: NoteAct; status: string; detail: string | null }> = [
+  { name: "no reply", act: async () => {}, status: "ok", detail: null },
+  { name: "a reply without a note", act: async () => ({}), status: "ok", detail: null },
+  { name: "an empty note stays empty", act: async () => ({ detail: "" }), status: "ok", detail: "" },
+  { name: "a short note", act: async () => ({ detail: "pulled 3 items" }), status: "ok", detail: "pulled 3 items" },
+  { name: "500 plain characters", act: async () => ({ detail: "a".repeat(500) }), status: "ok", detail: "a".repeat(500) },
+  { name: "250 pairs, 500 units", act: async () => ({ detail: PAIR.repeat(250) }), status: "ok", detail: PAIR.repeat(250) },
+  { name: "a short error message", act: async () => { throw new Error("boom"); }, status: "failed", detail: "boom" },
+];
+for (const { name, act, status, detail } of keptAsItWas) {
+  test(`RAC-1952 a note that fits, or is not there, is kept as it was: ${name}`, async () => {
+    const kept = await keptNote(act);
+    assert.equal(kept.status, status);
+    assert.equal(kept.detail, detail);
+    assert.deepEqual(kept.row, { status, detail });
+  });
+}

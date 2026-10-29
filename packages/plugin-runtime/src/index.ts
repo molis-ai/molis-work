@@ -476,11 +476,9 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("start", updated, false);
     } catch (error) {
       // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
-      if (!isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true) {
-        this.revokeContext(installId);
-        throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
-      }
+      const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      if (cancelled) throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
       const updated = {
         ...current,
         state: "crashed" as const,
@@ -607,12 +605,10 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("recover", updated, false);
     } catch (error) {
       // Interrupted by a stop, the recovery is cancelled: no attempt is counted, and a release puts the quarantine back as it was.
-      if (!isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true) {
-        this.revokeContext(installId);
-        if (releaseQuarantine) this.repository.save({ ...current, updated_at: this.now() });
-        throw pluginErrors.state_invalid("恢复被停用打断，没有记为崩溃");
-      }
+      const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      if (cancelled && releaseQuarantine) this.repository.save({ ...current, updated_at: this.now() });
+      if (cancelled) throw pluginErrors.state_invalid("恢复被停用打断，没有记为崩溃");
       const quarantined = !isIdentityFailure(error) && (releaseQuarantine || recoveryCount >= maxAttempts);
       const updated = {
         ...current,

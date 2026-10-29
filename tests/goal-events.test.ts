@@ -20,7 +20,7 @@ import type {
   GoalEventFieldDefinition,
   GoalEventTypeDefinitionInput,
   ReportGoalWorkEventInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "@molis-ai/molis-work-plugin-goals/contract";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 const BOARD = "board-events";

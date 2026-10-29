@@ -1,5 +1,5 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { goalTreeProposalNeedsDecision } from "./decision-groups.js";
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import { createGoalsDecisionPresentation } from "./decision-common-ui.js";

@@ -1,4 +1,4 @@
-import { object, identifier, count, boolean, text, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { object, identifier, count, boolean, text, enumeration } from "./contract/goal-actions.js";
 import type { ActionCallContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   goalEventAcknowledgementTreatments,
@@ -6,7 +6,7 @@ import {
   type GoalEventAcknowledgementsApi,
   type GoalEventAcknowledgementBy,
   type GoalEventMutationResult,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "./contract/goals.js";
 import { goalAction as action, goalActor } from "./action-contract.js";
 
 type GoalAcknowledgeActionInput = Omit<AcknowledgeGoalEventInput, "project_id" | "actor_id" | "actor_kind" | "by">;

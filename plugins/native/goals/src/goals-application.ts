@@ -1,5 +1,5 @@
-import type { GoalEventFactsApi, GoalsApplicationApi, GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalEventFactsApi, GoalsApplicationApi, GoalsQueryApi } from "./contract/goals.js";
+import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
 import { GoalEventApplication } from "./goal-event-application.js";
 import { GoalReadApplication } from "./goal-query-application.js";
 import { GoalDecisionAttentionSync, type GoalDecisionAttentionPort } from "./goal-decision-attention.js";

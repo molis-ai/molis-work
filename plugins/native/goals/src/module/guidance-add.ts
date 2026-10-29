@@ -4,7 +4,7 @@ import type {
   AddProjectGuidanceInput,
   AddProjectGuidanceResult,
   ProjectGuidanceKind,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import { GoalsCommandContext, requestHash, unique } from "./command-support.js";
 import { goalErrors } from "./errors.js";

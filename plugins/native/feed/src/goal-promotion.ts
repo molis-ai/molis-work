@@ -2,8 +2,14 @@ import { createHash } from "node:crypto";
 import type { FeedApplication } from "./application.js";
 import { feedItemContext, type FeedItemRecord } from "./projection.js";
 import { feedErrors } from "./contract/feed.js";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+/** The three Goals actions a promotion calls, by id and version as the action directory lists them (PG-111). */
+const GOALS = {
+  directoryItem: { capability_id: "goals.directory.read", version: 1 },
+  create: { capability_id: "goals.create", version: 1 },
+  inputsConfirm: { capability_id: "goals.inputs.confirm", version: 1 },
+} as const;
 
 /**
  * What Feed asks of Goals when a person promotes an item. The Host answers by calling Goals' own actions with the caller's
@@ -123,15 +129,15 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
 export function feedGoalsThroughDirectory(directory: PluginActionDirectory): FeedGoalPromotionGoals {
   return {
     active: async goalId => {
-      const item = await directory.invoke<{ goal_id: string } | null>(goalEntryActions.directoryItem, { goal_id: goalId });
+      const item = await directory.invoke<{ goal_id: string } | null>(GOALS.directoryItem, { goal_id: goalId });
       return item ? { goal_id: item.goal_id } : null;
     },
     create: async input => {
-      const { goal, replayed } = await directory.invoke<{ goal: { goal_id: string }; replayed: boolean }>(goalEntryActions.create, input);
+      const { goal, replayed } = await directory.invoke<{ goal: { goal_id: string }; replayed: boolean }>(GOALS.create, input);
       return { goal_id: goal.goal_id, replayed };
     },
     confirmInput: async ({ goal_id, item_id, name, snapshot_digest, reason }) => {
-      await directory.invoke(goalEntryActions.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
+      await directory.invoke(GOALS.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
     },
   };
 }

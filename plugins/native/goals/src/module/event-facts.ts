@@ -18,7 +18,7 @@ import type {
   ReportGoalEventsInput,
   ReportGoalEventsRecordedResult,
   ResolvedPlanningEventAdoption,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { GoalsCommandContext } from "./command-support.js";
 import { GoalEventConfiguration } from "./event-facts-configure.js";
 import { GoalEventFactsConfig } from "./event-facts-config.js";

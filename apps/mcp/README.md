@@ -15,8 +15,9 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具与受信管理入口的 initialize、event_decide、goal_tree_decide。插件与 Goals 能力都是动作工具，不在这里写死 |
-| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 三个管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具（`RUNTIME_MCP_TOOLS`），以及 `platformMcpTools(read)`——把受信管理入口的 initialize、event_decide、goal_tree_decide 三个工具接在 Host 从动作目录读出的 Goals 动作描述与业务字段上（Host 的 `MCP_TOOLS`）。插件与 Goals 能力都是动作工具，不在这里写死 |
+| [src/goal-tools.ts](src/goal-tools.ts) | 三个管理工具的 wire：传输自己的项目、数据库与出处字段，业务字段取自传进来的动作描述 |
+| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 三个管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null；`MANAGEMENT_GOAL_ACTIONS` 是它调用的三个 Goals 动作的 id 与版本（不 import 任何 Goals 合同，PG-111，门禁 `checkGoalTransportCallers`） |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
 可对照现有调用方 [apps/local-host/src/mcp-server.ts](../local-host/src/mcp-server.ts) 阅读装配方式。

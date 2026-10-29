@@ -17,7 +17,7 @@ import {
   type GoalEventSystemPayload,
   type GoalEventUnmetReason,
   type GoalEventWorkStatus,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalEventSystemPayload {
   const operation = raw.operation;

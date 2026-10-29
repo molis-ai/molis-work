@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
 import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { GOAL_DISPLAY_STATUSES, GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";

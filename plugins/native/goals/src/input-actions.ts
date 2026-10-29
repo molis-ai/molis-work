@@ -1,8 +1,8 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "./contract/goals.js";
 import { CONTEXT_LEDGER_WRITE_PERMISSION, goalAction, goalActor, personAsked, usingServices } from "./action-contract.js";
-import { text, identifier, boolean, array, object, nullable, enumeration, goalConfirmedInputSchema, goalEntryActions, inGoalRelation, type GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type { GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, boolean, array, object, nullable, enumeration, goalConfirmedInputSchema, goalEntryActions, inGoalRelation, type GoalConfirmedInput } from "./contract/goal-actions.js";
+export type { GoalConfirmedInput } from "./contract/goal-actions.js";
 
 /** A Plugin object bound to a Goal, as callers see it: the owner's subject, the name it was bound under, and state. */
 export interface GoalBoundObject {

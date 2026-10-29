@@ -1,5 +1,4 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createGoalStateExplainer, GOAL_DISPLAY_STATUSES, sortGoalTreeItems, type WebGoalView } from "./goals-plugin.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import type { MolisWorkWebView } from "./page-view.js";
@@ -23,7 +22,7 @@ export function createWorkbenchGoalsRenderers(ports: {
   listJoin: RendererLocale["listJoin"];
   formatDate(value: string | null | undefined): string;
   renderList(values: string[], empty: string): string;
-  defaultPolicy: GoalPolicy;
+  defaultPolicy: { human_approval: boolean };
 }) {
   const { L, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy } = ports;
   const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createWorkbenchFocusSections({ L, escapeHtml });

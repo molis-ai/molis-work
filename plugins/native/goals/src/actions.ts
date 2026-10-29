@@ -1,9 +1,9 @@
-import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type { GoalCreateActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type { GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "./contract/goal-actions.js";
+export type { GoalCreateActionInput } from "./contract/goal-actions.js";
+export type { GoalReadActionInput } from "./contract/goal-actions.js";
 import { ActionError, defineSearchEntriesAction, defineSubjectContextAction, searchEntriesPage, searchText, subjectContext, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { type GoalEventAcknowledgementsApi, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { type GoalEventAcknowledgementsApi, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "./contract/goals.js";
 import { goalAction as action, goalActor, personAsked } from "./action-contract.js";
 import { goalsFragmentOffersAction, prepareGoalsFragmentOffers } from "./fragment-offers.js";
 import type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -17,7 +17,7 @@ import { goalsTreeActions, createGoalsTreeActionHandlers } from "./tree-actions.
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { goalsConfigurationActions, createGoalsConfigurationActionHandlers, type GoalsConfigurationActionPorts } from "./configuration-actions.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
-import { text, identifier, count, boolean, object, nullable, goalEventSchema, goalEventPageSchema, goalTimelineSchema, goalHistoryItemSchema, goalHistoryPageSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, count, boolean, object, nullable, goalEventSchema, goalEventPageSchema, goalTimelineSchema, goalHistoryItemSchema, goalHistoryPageSchema } from "./contract/goal-actions.js";
 import { listGoalDocumentHistory } from "./event-document-model.js";
 import { readGoalHistory, type GoalHistoryQueryPorts, type GoalHistoryReadResult } from "./history-query.js";
 import type { GoalDocumentHistoryQuery, GoalHistoryTimelinePage } from "./event-history-map.js";

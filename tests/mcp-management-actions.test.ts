@@ -6,7 +6,7 @@ import test, { mock, type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GOALS_PLUGIN_ID, type GoalTreeProposalDecisionResult, type GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 import { dispatchMcpProjectTool, mcpWebUrl, type McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -171,7 +171,7 @@ test("R-MCP-OWNER-01: MCP presentation and Runtime approval refusals keep their 
   });
   assert.equal(mcpWebUrl("/projects/example", "http://127.0.0.1:4173", createError), "http://127.0.0.1:4173/projects/example");
   let invoked = 0;
-  await assert.rejects(dispatchMcpProjectTool({ project_id: "example", invoke: async () => { invoked++; throw new Error("must not dispatch"); } },
+  await assert.rejects(dispatchMcpProjectTool({ project_id: "example", fields: () => [], invoke: async () => { invoked++; throw new Error("must not dispatch"); } },
     "molis_work_v1_goal_tree_decide", { project_id: "example" }, { audience: "runtime", createError }), error => {
       assert.ok(error instanceof ActionError);
       assert.equal(error.code, "mcp.runtime_decide_unsupported");

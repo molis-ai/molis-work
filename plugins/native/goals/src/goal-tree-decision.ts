@@ -2,8 +2,8 @@ import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
-import type { GoalsQueryApi, GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsApplicationApi } from "./contract/goals.js";
+import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "./contract/governance-collaboration.js";
 import type { GoalTreeApplicationApi, GoalTreeProposalDecisionResult } from "./goal-tree-contract.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import type { GoalTreeInputReader } from "./goal-tree-inputs.js";

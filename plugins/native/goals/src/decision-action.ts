@@ -1,6 +1,6 @@
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventTrustedAuthoritySources, type GoalEventTrustedAuthority } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalEntryActions, type GoalDecisionActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEventTrustedAuthoritySources, type GoalEventTrustedAuthority } from "./contract/goals.js";
+import { goalEntryActions, type GoalDecisionActionInput } from "./contract/goal-actions.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
 export const goalDecisionAction = goalEntryActions.decide;

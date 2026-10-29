@@ -11,7 +11,7 @@ import type {
   PlanningMethodPackInput,
   PlanningMethodScope,
   ResolvedPlanningMethodPack,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../../contract/goals.js";
 
 export type {
   PlanningCoverageRule,
@@ -23,7 +23,7 @@ export type {
   PlanningMethodPath,
   PlanningMethodScope,
   ResolvedPlanningMethodPack,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../../contract/goals.js";
 
 const BUILTIN_AT = "2026-08-22T00:00:00.000Z";
 

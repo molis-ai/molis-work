@@ -1,4 +1,4 @@
-import type { BoundActionClient } from "../platform/actions.js";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalAction, inGoalRelation } from "./goal-action-definition.js";
 import { goalEntryActions } from "./goal-entry-actions.js";
 import { goalEventWorkStatuses, type GoalEventDirectoryQuery, type GoalEventDirectoryPage, type GoalContractView, type GoalEventStateView, type RecordGoalProgressSummaryInput, type GoalEventProgressResult } from "./goals.js";

@@ -2,7 +2,7 @@ import { governanceErrors } from "./errors.js";
 import type {
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
-} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+} from "../contract/governance-collaboration.js";
 
 
 type GovernanceState =

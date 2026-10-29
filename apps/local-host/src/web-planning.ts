@@ -1,6 +1,6 @@
 import { shownProjectPlugins } from "./plugin-registry.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions, personalPlanningActions, matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
 import { renderWorkbenchPlanningRequest, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";

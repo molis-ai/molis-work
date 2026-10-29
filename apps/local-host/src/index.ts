@@ -181,6 +181,7 @@ export { createLocalWebAssets } from "./web-assets.js";
 
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
+export { MCP_TOOLS } from "./mcp-platform-tools.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";

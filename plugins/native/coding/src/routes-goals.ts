@@ -5,7 +5,7 @@ import { type CodingActivation, selected } from "./route-activation.js";
 import { codingActionControl } from "./route-entry.js";
 import { bodyOf } from "./route-selections.js";
 import { text } from "./run-inputs.js";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { GOALS_ACTIONS } from "./goals-actions.js";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingFailure, codingText } from "./words.js";
 
@@ -23,7 +23,7 @@ const reportProgress = (a: CodingActivation, write: boolean) => a.route(write ? 
   const actorId = request.actor_id;
   if (!actorId) throw codingFailure("coding.server.no-actor");
   if (!write) {
-    const receipt = await a.context.services!.actions!.invoke(goalPluginActions.receipt, { goal_id: goalId, idempotency_key: idempotencyKey }, codingActionControl(beforeWrite));
+    const receipt = await a.context.services!.actions!.invoke(GOALS_ACTIONS.receipt, { goal_id: goalId, idempotency_key: idempotencyKey }, codingActionControl(beforeWrite));
     if (receipt) return { report_goal: report.goal, reference, title: report.title, recorded: receipt, current: null };
     const current = await readCurrentGoalSnapshot(a.context, goalId, codingActionControl(beforeWrite));
     return { report_goal: report.goal, reference, title: report.title, recorded: null, current };
@@ -33,7 +33,7 @@ const reportProgress = (a: CodingActivation, write: boolean) => a.route(write ? 
   if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0) throw codingFailure("coding.server.goal-view-first");
   // The original Goal transaction checks replay first, then versions and write.
   // Nothing is derived from a browser-supplied report, Goal id, or source body.
-  return a.context.services!.actions!.invoke(goalPluginActions.progress, {
+  return a.context.services!.actions!.invoke(GOALS_ACTIONS.progress, {
     goal_id: goalId, idempotency_key: idempotencyKey,
     based_on_cursor: cursor, expected_goal_cursor: cursor,
     summary: text(body.summary, "coding.field.progress", 10000),

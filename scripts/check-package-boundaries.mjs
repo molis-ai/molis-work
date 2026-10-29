@@ -433,7 +433,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/module/planning/method-packs.ts",
     "plugins/native/goals/src/module/query.ts",
     "plugins/native/goals/src/module/repository.ts",
-    "packages/contracts/src/modules/goals.ts",
+    "plugins/native/goals/src/contract/goals.ts",
     "plugins/native/goals/src/goal-query-application.ts",
   ];
   for (const relativePath of [
@@ -588,6 +588,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
+    entries: ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(repositoryRoot, directory), filePath => filePath.endsWith(".ts"))
+      .map(filePath => ({ path: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8") }))),
   }));
   for (const app of ["mcp", "cli"]) {
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
@@ -650,7 +652,7 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
-    "packages/contracts/src/modules/governance-collaboration.ts",
+    "plugins/native/goals/src/contract/governance-collaboration.ts",
     "plugins/native/goals/src/governance/index.ts",
     "plugins/native/goals/src/governance/repository.ts",
     "plugins/native/goals/src/governance/record-store.ts",
@@ -677,7 +679,7 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     }
   }
 
-  const contractPath = "packages/contracts/src/modules/governance-collaboration.ts";
+  const contractPath = "plugins/native/goals/src/contract/governance-collaboration.ts";
   const contract = read(contractPath);
   for (const publicApi of [
     "GovernanceQueryApi",
@@ -1145,11 +1147,21 @@ export function checkNoGoalTypedAdapters(files) {
   return errors;
 }
 
-/** Where the platform's entries take Goals' action descriptors from (PG-031): the contracts subpath, not the Goals plugin package. */
-const GOALS_ACTIONS_MODULE = "@molis-ai/molis-work-contracts/modules/goal-actions";
-const GOALS_ACTIONS = "goalEntryActions";
-/** The modules the CLI dispatcher may reach: the action contract, the published `goalEntryActions` and its own protocol file. */
-const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_ACTIONS_MODULE, "./protocol.js"]);
+/**
+ * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version the action directory lists it under,
+ * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
+ */
+const CLI_GOALS_TABLE = "GOALS";
+const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
+/** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
+const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", "./protocol.js"]);
+/** The modules the MCP dispatcher may reach: the action contract and the presentation error type. */
+const MCP_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", "./goal-presentation.js"]);
+/**
+ * A specifier that reaches Goals' contract: the Goals plugin package (its `/contract` subpath included), its source tree by path, or one of the
+ * platform contracts' old Goals subpaths (`modules/goals`, `modules/goal-*`, `modules/governance-collaboration`, moved into the plugin by PG-111).
+ */
+const GOALS_CONTRACT_SPECIFIER = /molis-work-plugin-goals|plugins\/native\/goals\/|modules\/(?:goals|goal-[a-z-]+|governance-collaboration)(?:\.js)?$/u;
 /** The ways the Host opens a project or reaches Goals; the dispatcher is handed the management port and holds none of them. */
 const HOST_CLIENT_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", "withProject", "withScope", "coordinator"]);
 
@@ -1173,44 +1185,36 @@ function moduleReferences(file) {
   return found;
 }
 
-/** What of the Goals descriptors module a reference holds other than `{ goalEntryActions }`; empty when it is just that. */
-function goalsBindingsOtherThanActions(node, kind) {
-  if (kind !== "import") return [`a ${kind} of the whole module`];
-  const clause = node.importClause;
-  if (!clause) return [`a bare import (the transport imports { ${GOALS_ACTIONS} })`];
-  const names = [];
-  if (clause.name) names.push(`default import ${clause.name.text}`);
-  const bindings = clause.namedBindings;
-  if (bindings && ts.isNamespaceImport(bindings)) names.push(`* as ${bindings.name.text}`);
-  if (bindings && ts.isNamedImports(bindings)) {
-    for (const element of bindings.elements) if ((element.propertyName ?? element.name).text !== GOALS_ACTIONS) names.push((element.propertyName ?? element.name).text);
-  }
-  return names;
-}
-
 /**
- * The transport entries reach Goals through the platform, not through a Host client of their own. `cli`: the dispatcher is handed the
- * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalEntryActions` and its protocol file,
- * holds no Host client under any spelling and reads the snapshot through Goals' own action; `cli-project.ts` builds that port with
+ * The transport entries reach Goals through the platform, not through a Host client of their own, and name no Goals contract. `entries`: no
+ * file of the CLI or MCP package references a Goals contract or the Goals package under any syntax. `cli`: the dispatcher is handed the
+ * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, calls each Goals action
+ * by a `GOALS.<name>` entry of the id-and-version table it declares, holds no Host client under any spelling and reads the snapshot through
+ * Goals' own action; `cli-project.ts` builds that port with
  * `bindGoalsManagementActions(<host>.actionClient(reference), reference)`, over the project's client (it starts the project's
  * plugins, Goals among them) and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
  */
-export function checkGoalTransportCallers({ cli, mcp }) {
+export function checkGoalTransportCallers({ cli, mcp, entries = [] }) {
   const errors = [];
   const dispatcherPath = "apps/cli/src/command-dispatch.ts";
   const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
-  for (const { node, kind, specifier } of moduleReferences(dispatcher)) {
-    if (specifier === undefined) {
-      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract, goalEntryActions and its protocol file`);
-    } else if (!CLI_DISPATCHER_MODULES.has(specifier)) {
-      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract, goalEntryActions and its protocol file`);
-    } else if (specifier === GOALS_ACTIONS_MODULE) {
-      for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${dispatcherPath}: ${held} is not a Goals action; the CLI calls goalEntryActions through the management port`);
+  for (const { path: entryPath, source } of entries) {
+    for (const { kind, specifier } of moduleReferences(ts.createSourceFile(entryPath, source, ts.ScriptTarget.Latest, true))) {
+      if (specifier !== undefined && GOALS_CONTRACT_SPECIFIER.test(specifier)) {
+        errors.push(`${entryPath}: a ${kind} of ${specifier} is a Goals contract; the CLI and MCP call Goals' actions by id and version from the action directory and name no Goals contract (PG-111)`);
+      }
     }
   }
-  const names = new Set(), held = new Set();
+  for (const { kind, specifier } of moduleReferences(dispatcher)) {
+    if (specifier === undefined) {
+      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract and its protocol file`);
+    } else if (!CLI_DISPATCHER_MODULES.has(specifier)) {
+      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract and its protocol file, and takes no Goals descriptor from any Goals contract`);
+    }
+  }
+  const names = new Set(), held = new Set(), called = new Set();
   let snapshot = false;
   const visit = node => {
     if (ts.isIdentifier(node)) {
@@ -1218,29 +1222,49 @@ export function checkGoalTransportCallers({ cli, mcp }) {
       if (HOST_CLIENT_NAMES.has(node.text)) held.add(node.text);
     }
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) held.add(node.argumentExpression.text);
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === GOALS_ACTIONS && node.name.text === "snapshot") snapshot = true;
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
+      const action = node.arguments[0];
+      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === CLI_GOALS_TABLE) {
+        called.add(action.name.text);
+        if (action.name.text === "snapshot") snapshot = true;
+      } else errors.push(`${dispatcherPath}: invoke must name a Goals action of the ${CLI_GOALS_TABLE} table, never a descriptor taken from elsewhere`);
+    }
     ts.forEachChild(node, visit);
   };
   visit(dispatcher);
+  if (!tableDeclared(dispatcher, CLI_GOALS_TABLE)) errors.push(`${dispatcherPath}: declare the ${CLI_GOALS_TABLE} table of Goals action ids and versions the commands call`);
   if (!names.has("CliManagementActions")) errors.push(`${dispatcherPath}: the CLI dispatcher must take the management port the Host builds (CliManagementActions)`);
   for (const name of held) {
     errors.push(`${dispatcherPath}: ${name} is how the Host opens a project or reaches Goals; the CLI calls Goals' actions through the management port and holds no Host client (LocalHostProjectClient, client, withProject, withScope, actionClient, coordinator.goals)`);
   }
-  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalEntryActions.snapshot`);
+  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through ${CLI_GOALS_TABLE}.snapshot`);
 
   errors.push(...checkGoalsManagementWiring(cli.project, "cli"));
   errors.push(...checkMcpGoalTransportCallers(mcp));
   return errors;
 }
 
+/** Whether the file declares `const <name> = { … }` itself (an import of the same name is another module's and is refused elsewhere). */
+function tableDeclared(file, name) {
+  let found = false;
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name && node.initializer) {
+      let initializer = node.initializer;
+      while (ts.isAsExpression(initializer) || ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+      if (ts.isObjectLiteralExpression(initializer)) found = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
 /** The MCP transport holds no Host client; only its Host composition can build the management port. */
 function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) {
   const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts";
   const file = ts.createSourceFile(toolPath, source, ts.ScriptTarget.Latest, true);
-  const allowed = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_ACTIONS_MODULE, "./goal-presentation.js"]);
-  for (const { node, kind, specifier } of moduleReferences(file)) {
-    if (!allowed.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract, goalEntryActions and the presentation error type belong to the transport`);
-    else if (specifier === GOALS_ACTIONS_MODULE) for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${toolPath}: ${held} is not a Goals action`);
+  for (const { kind, specifier } of moduleReferences(file)) {
+    if (!MCP_DISPATCHER_MODULES.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract and the presentation error type belong to the transport, and no Goals contract`);
   }
   const actions = new Set(); let port = false;
   const visit = node => {
@@ -1249,14 +1273,15 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) errors.push(`${toolPath}: ${node.argumentExpression.text} is a Host client`);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0];
-      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === GOALS_ACTIONS) actions.add(action.name.text);
+      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === MCP_GOALS_TABLE) actions.add(action.name.text);
       else errors.push(`${toolPath}: invoke must name a Goals action, never a typed descriptor or caller`);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
-  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke ${GOALS_ACTIONS}.${action}`);
+  if (!tableDeclared(file, MCP_GOALS_TABLE)) errors.push(`${toolPath}: declare the ${MCP_GOALS_TABLE} table of Goals action ids and versions the management tools call`);
+  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke ${MCP_GOALS_TABLE}.${action}`);
 
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;

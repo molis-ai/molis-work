@@ -29,7 +29,8 @@ test("VUX-12: a result made from the project chooser opens on its project's page
   const script = [() => turn({ name: "change-reversible", input: { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo", input: { title: "订读书会的场地" } } })];
   let turns = 0;
   const model = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const review = asideReply(raw);
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end(review ? turn(undefined, review) : (script[turns++] ?? (() => turn()))());

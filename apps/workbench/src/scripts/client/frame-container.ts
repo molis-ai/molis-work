@@ -25,8 +25,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   let ignoreClick = false;
   let ready = false;
   const enabled = () => document.body.dataset.boardView === "current" && Boolean(shell);
-  const isFrameTabActive = () => enabled() && getSurface() === "goal" && !boardTab(curTab);
-  const isKanbanTabActive = () => enabled() && getSurface() === "goal" && curTab === KANBAN_TAB;
+  const isFrameTabActive = () => enabled() && getSurface() === "goals" && !boardTab(curTab);
+  const isKanbanTabActive = () => enabled() && getSurface() === "goals" && curTab === KANBAN_TAB;
   const knownIds = () => new Set(visibleGoals().map((item) => item.goal.goal_id));
   const goalTitle = (goalId) => visibleGoals().find((item) => item.goal.goal_id === goalId)?.goal.title || goalId;
   const loadedFrames = new Set();
@@ -70,7 +70,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!boardTab(curTab) && !openIds.includes(curTab)) curTab = lastBoard;
   };
   const applySurface = () => {
-    const onGoal = getSurface() === "goal";
+    const onGoal = getSurface() === "goals";
     const showFrame = onGoal && !boardTab(curTab);
     shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
@@ -296,10 +296,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     shell.removeAttribute("data-goal-planning");
     shell.removeAttribute("data-goal-rules");
     shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => row.setAttribute("aria-pressed", "false"));
-    const already = curTab === view && getSurface() === "goal";
+    const already = curTab === view && getSurface() === "goals";
     lastBoard = view;
     curTab = view;
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     host.activateGoalsMother?.();
     sync();
     if (!already) setWorkspaceMode("graph");
@@ -314,7 +314,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     frameOf(goalId);
     if (!openIds.includes(goalId)) openIds.push(goalId);
     curTab = goalId;
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     setWorkspaceMode("graph");
     sync();
     persist();
@@ -331,7 +331,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!enabled()) return;
     const previous = curTab;
     if (!boardTab(curTab)) curTab = lastBoard;
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     sync();
     if (previous !== curTab) persist();
   };
@@ -351,7 +351,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     curTab = CANVAS_TAB;
     host.activateGoalsMother?.();
     setDirectory("goals", true, false);
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     setWorkspaceMode("graph");
     applySelection(goalId);
     locateGraphNode(goalId);

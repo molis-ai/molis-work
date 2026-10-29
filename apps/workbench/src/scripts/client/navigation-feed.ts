@@ -20,7 +20,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
             ...nextGoalUi,
             navigationVersion: desktopNavigationStateVersion,
             directory: "goals",
-            workSurface: "goal",
+            workSurface: "goals",
           }));
         }
       } catch {}
@@ -37,14 +37,14 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       }
       const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
       if (!nextSurface) {
-        if (surface === "goal") restoreLastGoal(true);
+        if (surface === "goals") restoreLastGoal(true);
         return false;
       }
       void deferredClients?.prepare(nextSurface);
       const surfaceChanged = activeDesktopSurface !== surface;
       if (activeDesktopSurface && surfaceChanged) {
-        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
-        if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";
+        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
+        if (activeDesktopSurface === "goals") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;
@@ -61,13 +61,13 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (active) item.setAttribute("aria-current", "page");
         else item.removeAttribute("aria-current");
       });
-      if (surfaceChanged) setWorkspaceMode(surface === "goal" ? goalWorkspaceMode : "focus", false, true);
+      if (surfaceChanged) setWorkspaceMode(surface === "goals" ? goalWorkspaceMode : "focus", false, true);
       immersiveNavigation?.sync();
       const label = nextSurface.dataset.workSurfaceLabel || surface;
       documentPane.setAttribute("aria-label", label);
       requestAnimationFrame(() => {
-        const scrollPane = surface === "goal" ? documentPane : surface === "feed" ? nextSurface.querySelector(".feed-stage-tree") || nextSurface : nextSurface;
-        scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0; if (surfaceChanged && surface === "goal" && activeDesktopSurface === "goal" && !archiveView && !trashView && !visibleGoals().length && !document.querySelector("dialog[open]")) openCreate();
+        const scrollPane = surface === "goals" ? documentPane : surface === "feed" ? nextSurface.querySelector(".feed-stage-tree") || nextSurface : nextSurface;
+        scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0; if (surfaceChanged && surface === "goals" && activeDesktopSurface === "goals" && !archiveView && !trashView && !visibleGoals().length && !document.querySelector("dialog[open]")) openCreate();
       });
       pluginWorkbench?.open(surface);
       if (surface === "feed") {
@@ -79,7 +79,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       return true;
     };
 
-    const pluginForSurface = (surface) => surface === "goal" ? "goals" : surface === "home" ? "home" : surface;
     const directoryTabMode = () => "commit";
     let lastDirectoryOpen = { key: "", at: 0 };
     const openWorkbenchSurface = (surface, itemId, title, mode = "commit") => {
@@ -92,12 +91,12 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         tabWorkspace.openPlugin("feed", mode);
         return true;
       }
-      if (itemId) tabWorkspace.openItem(pluginForSurface(surface), itemId, title, undefined, mode);
-      else tabWorkspace.openPlugin(pluginForSurface(surface), mode);
+      if (itemId) tabWorkspace.openItem(surface, itemId, title, undefined, mode);
+      else tabWorkspace.openPlugin(surface, mode);
       return true;
     };
     const openDirectorySurface = (surface, itemId, title, clickEvent) => {
-      const plugin = pluginForSurface(surface);
+      const plugin = surface;
       const key = itemId ? plugin + ":item:" + itemId : plugin + ":view";
       const detail = Number(clickEvent?.detail || 0);
       if (detail > 1 && lastDirectoryOpen.key === key) return true;

@@ -38,7 +38,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     if (tab.plugin === "goals") {
       document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
       if (keepFrame) {
-        setWorkSurface("goal");
+        setWorkSurface("goals");
         setWorkspaceMode("graph", false, true);
         return;
       }
@@ -167,7 +167,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     const focusedTab = ops.activeTab(state);
     const focusedView = ops.focused(state)?.viewPlugin;
     if (focusedTab && focusedTab.kind !== "system") {
-      const surface = pluginSurface(focusedTab.plugin);
+      const surface = focusedTab.plugin;
       if (getSurface() !== surface) setWorkSurface(surface, false, false);
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedTab.plugin), false, false);
@@ -176,7 +176,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       if (focusedTab.plugin === "goals" && focusedTab.kind === "item" && !embedded && (state.panes.length > 1 || panesEl.querySelector('iframe[data-pane-tab="' + focusedTab.id + '"]'))) applySelection?.(focusedTab.itemId);
       document.title = tabLabel(focusedTab) + " · Molis Work";
     } else if (focusedView) {
-      const surface = pluginSurface(focusedView);
+      const surface = focusedView;
       if (getSurface() !== surface) setWorkSurface(surface, false, false);
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedView), false, false);

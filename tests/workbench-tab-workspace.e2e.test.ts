@@ -19,12 +19,12 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]')?.disabled"), true);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-workspace-history=back]')?.disabled === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-workspace-history=back]')?.disabled === false");
   await click("[data-workspace-history=back]");
   await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), false);
   await click("[data-workspace-history=forward]");
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
   await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("(() => { const home = document.querySelector('.tab-item[data-tab-kind=home][aria-current]')?.getBoundingClientRect(); const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); const scroll = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]')?.getBoundingClientRect(); return Boolean(home && hist && scroll && home.left + 1 >= scroll.left && home.left + 1 >= hist.right - 1); })()"), true, "home tab stays fully to the right of history buttons");
@@ -32,7 +32,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 1);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=home]')?.hidden"), false);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   // PTG-01 the Goals page is its plugin tab, current while the pane shows it.
   assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]')?.dataset.plugin"), "goals");
   assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]')?.hasAttribute('data-preview') || false"), false);
@@ -49,7 +49,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   const coreTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('[data-goal-canvas-shell]')?.hidden && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('.tree-node[data-select-goal=\"INTERFACES\"]')?.getClientRects().length > 0");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('[data-goal-canvas-shell]')?.hidden && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('.tree-node[data-select-goal=\"INTERFACES\"]')?.getClientRects().length > 0");
   await openGoalFrame('.tree-node[data-select-goal="INTERFACES"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'INTERFACES'");
   const interfacesTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
@@ -116,7 +116,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-plugin=goals][data-item-id=CORE]').length"), goalTabsBefore + 1);
   const mothersBefore = await evaluate<number>("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length"), mothersBefore);
   assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE]') != null"), true);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);

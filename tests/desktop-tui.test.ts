@@ -648,7 +648,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser, /\*\{scrollbar-width:none\}/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
     assert.match(directGoal, /data-desktop-directory="root"/);
-    assert.match(directGoal, /data-desktop-surface="goal"/);
+    assert.match(directGoal, /data-desktop-surface="goals"/);
     assert.doesNotMatch(directGoal, /data-directory-panel="goals"/);
     assert.match(directGoal, /data-goal-stage-chrome/);
     assert.match(browser, /class="navigator-project-primary"/);
@@ -734,11 +734,11 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-plugin-section="feed"/);
     assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);
-    assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goal"/);
+    assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goals"/);
     assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed" data-feed-preset="feed"/);
     assert.doesNotMatch(desktop, /data-directory-open="goals"|data-directory-open="feed"|data-directory-open="sources"|data-directory-open="sessions"|data-directory-open="inbox"|data-directory-open="artifacts"|data-directory-open="shelf"|data-feed-views/);
     assert.doesNotMatch(desktop, /data-work-surface-open="promotion"|data-work-surface-open="visual"/);
-    assert.match(desktop, /data-work-surface="goal" data-work-surface-label="Goals"/);
+    assert.match(desktop, /data-work-surface="goals" data-work-surface-label="Goals"/);
     assert.match(desktop, /data-work-surface="inbox" data-work-surface-label="Inbox"[^>]*hidden/);
     assert.match(desktop, /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
     assert.doesNotMatch(desktop, /data-directory-panel="promotion"|data-directory-panel="visual"/);
@@ -826,8 +826,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
     assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true\) =>/);
     assert.match(desktop, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
-    assert.match(desktop, /setDesktopWorkSurface\("goal", false, false\)/);
-    assert.match(desktop, /pluginForSurface = \(surface\) => surface === "goal" \? "goals"/);
+    assert.match(desktop, /setDesktopWorkSurface\("goals", false, false\)/);
+    assert.doesNotMatch(desktop, /pluginForSurface/, "a surface is its plugin's id; nothing turns one into the other (T-114)");
     assert.match(desktop, /directoryPanelFor/);
     assert.match(desktop, /let desktopDirectoryOrigin = null/);
     assert.match(desktop, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
@@ -1138,7 +1138,7 @@ test("Feed processing opens Runtime and fills context without sending it", () =>
   assert.match(WORKBENCH_UI_SOURCE, /workspaceMode: action === "start" \? "runtime" : "focus"/);
   assert.match(WORKBENCH_UI_SOURCE, /feedStartRequested/);
   assert.match(WORKBENCH_UI_SOURCE, /goalWorkspaceMode = "runtime"/);
-  assert.match(WORKBENCH_UI_SOURCE, /setDesktopWorkSurface\("goal", false, false\)/);
+  assert.match(WORKBENCH_UI_SOURCE, /setDesktopWorkSurface\("goals", false, false\)/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work-feed-runtime-autofill:/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /await writePrompt\(false, pending\.itemId\)/);
   assert.match(PTY_CLIENT_SOURCE, /const query = new URLSearchParams\(\)/);
@@ -2031,4 +2031,40 @@ test("control token persists in the Molis Work home across server restarts", () 
   assert.match(first, /^[A-Za-z0-9_-]{32,}$/);
   const stored = readFileSync(join(homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8").trim();
   assert.equal(stored, first);
+});
+
+// T-114 (PG-094 ②): a plugin's work surface is its id. Goals had the one alias (`goals` → `goal`) and the four
+// functions that turned one into the other; with them gone, Goals is no different from any other plugin here.
+const surfacePages = async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-surface-id-"));
+  const databasePath = join(directory, "demo.db");
+  await seedDemoGoals(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const view = buildMolisWorkWebView(store, new GoalProjectApplication(store), { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
+    return { desktop: renderMolisWorkWeb(view, undefined, false, false, "", true), directGoal: renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id) };
+  } finally {
+    store.close();
+  }
+};
+
+test("RAC-1930 each plugin button opens the surface named by its own id; Goals' stage is the surface `goals`", async () => {
+  const { desktop } = await surfacePages();
+  const buttons = [...desktop.matchAll(/<button[^>]*\bdata-plugin-id="([^"]+)"[^>]*\bdata-work-surface-open="([^"]+)"/g)];
+  assert.ok(buttons.some(([, id]) => id === "goals"), "the Goals button is on the page");
+  assert.deepEqual(buttons.filter(([, id, surface]) => id !== surface).map(([, id, surface]) => `${id} → ${surface}`), []);
+  assert.match(desktop, /data-work-surface="goals" data-work-surface-label="Goals"/);
+  assert.doesNotMatch(desktop, /data-work-surface(?:-open)?="goal"/);
+});
+
+test("RAC-1931 the workbench's scripts and styles, Goals' own client parts included, say `goal` only as an object kind, never as a surface", () => {
+  const scripts = [renderMolisWorkWorkbenchClientScript(), renderMolisWorkWorkbenchStylesheet()].join("\n");
+  const surfaceGoal = /(?:Surface|surface|SURFACE)\b[^;\n]{0,40}"goal"(?!s)|"goal"(?!s)[^;\n]{0,25}(?:Surface|surface)|surface(?:-open)?=\\?"goal\\?"/g;
+  assert.deepEqual([...scripts.matchAll(surfaceGoal)].map(([hit]) => hit), []);
+  assert.doesNotMatch(scripts, /SURFACE_OVERRIDES|pluginForSurface|pluginSurface\b/);
+});
+
+test("RAC-1933 a page opened on a Goal starts on the surface `goals`", async () => {
+  const { directGoal } = await surfacePages();
+  assert.match(directGoal, /data-desktop-surface="goals"/);
 });

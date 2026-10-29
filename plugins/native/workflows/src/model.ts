@@ -270,7 +270,7 @@ function parseActionStep(value: unknown): WorkflowActionStep {
 function parseLink(value: unknown): WorkflowLink {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const kind = raw.kind === "function" || raw.kind === "ai" || raw.kind === "manual" || raw.kind === "judgment" ? raw.kind : "manual";
-  const text = (field: unknown, max: number) => typeof field === "string" ? field.slice(0, max) : "";
+  const text = (field: unknown, max: number) => typeof field === "string" ? [...field].slice(0, max).join("") : "";
   // Fields of the other kinds are kept, so switching back restores what was written.
   const judgment = parseJudgmentRef(raw.judgment);
   const pass = Array.isArray(raw.pass) ? [...new Set(raw.pass.filter((value): value is string => typeof value === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(value)))].slice(0, 8) : undefined;

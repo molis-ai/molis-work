@@ -1,5 +1,5 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
+import { feedErrors } from "./contract/feed.js";
+import { sourceDeletedAt } from "./contract/sources.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import type { FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceService } from "./source-service.js";

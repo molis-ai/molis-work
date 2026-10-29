@@ -17,7 +17,7 @@ import type {
   ConnectorPollResult,
   ConnectorRawEvent,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";

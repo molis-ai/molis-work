@@ -1,5 +1,5 @@
 import { fingerprintSearchIntentExactV1, validateSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, listRegisterableFeeds, normalizeCustomRssFeedUrl } from "@molis-ai/molis-work-integration-rss";
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
@@ -18,7 +18,7 @@ const DEFAULT_DEADLINE_MS = 15_000;
 function normalizeQuery(value: string): string {
   const query = value.trim().replace(/\s+/gu, " ");
   const length = Array.from(query).length;
-  if (length < 2 || length > 500) throw feedErrors.source_query_invalid("网页查询需要 2–500 个字符");
+  if (length < 2 || length > 500) throw new ActionError("actions.input_invalid", "网页查询需要 2–500 个字符");
   return query;
 }
 
@@ -71,7 +71,7 @@ export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceC
     domain = customRssFeedHost(feedUrl);
   } else {
     const catalog = listRegisterableFeeds().find(entry => entry.sourceId === request.definition_id);
-    if (!catalog) throw feedErrors.source_definition_unavailable("RSS 目录来源不存在");
+    if (!catalog) throw new ActionError("actions.input_invalid", "RSS 目录来源不存在");
     feedUrl = catalog.feedUrl;
     definitionId = catalog.sourceId;
     domain = new URL(feedUrl).hostname.toLowerCase();

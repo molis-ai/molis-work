@@ -3,7 +3,7 @@ import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleA
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedSnapshot, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType } from "./projection.js";
 
 import { callAttention } from "./application-errors.js";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { FeedCapture } from "./application-capture.js";

@@ -164,6 +164,8 @@ test("S-97 RAC-1016: the platform's fingerprint of a pull is the one the Feed re
   const synced = await service.sync(source.source_id, { idempotencyKey: "plan-parity" });
   const planned = await probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: synced.run.operation_id, source_name: source.name, definition_id: entry.id })) as { intent_fingerprint: string };
   assert.equal(planned.intent_fingerprint, synced.run.receipt?.intent_fingerprint, "the same source and key make the same intent through either door");
+  // RAC-1753: a catalog entry the platform does not list is refused in the platform's name.
+  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: "pull-plan-unknown", source_name: "n", definition_id: "no-such-feed" })), code("actions.input_invalid"));
   assert.equal(f.fetched.length, 0, "planning fetches nothing");
 });
 
@@ -224,7 +226,8 @@ test("S-97 RAC-1017: the source vocabulary is pure data, needs sources:pull_feed
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("x".repeat(3_000)))), code("plugin.source_pull_request_invalid"));
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl(42 as never))), code("plugin.source_pull_request_invalid"));
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.rssFailureCount((() => 1) as never))), code("plugin.source_pull_request_invalid"));
-  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("http://127.0.0.1/feed.xml"))));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("http://127.0.0.1/feed.xml"))), code("rss.custom_url_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeYouTubeChannel("not a channel"))), code("youtube.channel_invalid"));
   assert.deepEqual(f.fetched, [], "the vocabulary never reached a transport");
 });
 
@@ -289,7 +292,7 @@ test("S-97 RAC-1016: a web query is planned without leaving, and a query that is
   const again = await probe.in(services => services.sourcePull!.plan!({ ...request, query: "weather in Oslo" })) as { intent_fingerprint: string };
   assert.match(planned.intent_fingerprint, /^sha256:/u);
   assert.equal(planned.intent_fingerprint, again.intent_fingerprint, "the query is normalized the way the Feed normalizes it");
-  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ ...request, query: "x" })), code("feed.source_query_invalid"));
+  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ ...request, query: "x" })), code("actions.input_invalid"));
   await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: "pull-query-2", source_name: "n", definition_id: f.catalog[0]!.id })), code("plugin.source_pull_permission_undeclared"));
   assert.deepEqual(f.fetched, []);
 });

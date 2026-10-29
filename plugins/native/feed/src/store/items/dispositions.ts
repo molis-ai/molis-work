@@ -1,6 +1,6 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "../../contract/feed.js";
 import type { AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { FeedItemDisposition, FeedItemRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedItemDisposition, FeedItemRecord } from "../../contract/feed.js";
 import type { FeedRecords } from "./records.js";
 import type { FeedAttentionPort } from "./types.js";
 

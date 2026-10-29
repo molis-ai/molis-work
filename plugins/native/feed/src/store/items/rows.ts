@@ -2,7 +2,7 @@ import type {
   FeedItemDisposition,
   FeedItemRecord,
   FeedMaterialRecord,
-} from "@molis-ai/molis-work-contracts/modules/feed";
+} from "../../contract/feed.js";
 
 export type Row = Record<string, unknown>;
 

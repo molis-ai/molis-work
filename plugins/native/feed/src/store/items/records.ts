@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "../../contract/feed.js";
 import type {
   FeedEvent,
   FeedItemRecord,
   FeedMaterialRecord,
-} from "@molis-ai/molis-work-contracts/modules/feed";
+} from "../../contract/feed.js";
 import { FeedGoalLinks } from "./goal-links.js";
 import { json, mapFeedItem, mapFeedMaterial, text, type Row } from "./rows.js";
 import type { FeedSql } from "../sql.js";

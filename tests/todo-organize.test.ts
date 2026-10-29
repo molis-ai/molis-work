@@ -365,3 +365,66 @@ test("a phrase no rule can read (“这周”) never becomes a due date on the m
   assert.deepEqual([batch.candidates[0]!.due_date, batch.candidates[0]!.suggested_date], [null, "2026-09-28"]);
   assert.ok(batch.candidates[0]!.uncertain.some(line => line.includes("只是估计")));
 });
+
+test("RAC-1677: organizing keeps the batch's name, a material's name and a candidate's title in whole characters, and tells titles apart by their first 120 whole characters", async t => {
+  // extract's schema counts characters: a 120-character batch name and 200-character material names; a candidate's title is cut to the
+  // 200 characters todo.items.create counts (RAC-1655). One 🟢 is one character but two UTF-16 units; U+20000 and U+20001 are letters,
+  // so matching keeps them, and they differ only in their second unit.
+  const wide = (count: number) => "🟢".repeat(count);
+  const name = "a" + wide(119), source = "a" + wide(199), twin = "b".repeat(119);
+  const passage = [{ material: 1, excerpt: "请周五前发新版方案" }];
+  const f = fixture(t, () => JSON.stringify({ candidates: [
+    { ref: "long", kind: "request", title: "a" + wide(250), evidence: passage },
+    { ref: "one", kind: "request", title: twin + "\u{20000}", evidence: passage },
+    { ref: "two", kind: "request", title: twin + "\u{20001}", evidence: passage },
+  ] }));
+  const { batch } = await f.me.invoke(organize.extract, { title: name, materials: [{ title: source, text: MAIL.text }] });
+  assert.equal(batch.title, name, "the batch keeps its 120-character name whole");
+  assert.equal(batch.materials[0]!.title, source, "a material keeps its 200-character name whole");
+  assert.equal(batch.candidates[0]!.title, "a" + wide(199), "a candidate's title past 200 characters is cut to 200 whole characters");
+  assert.deepEqual(batch.candidates.slice(1).map(candidate => candidate.title), [twin + "\u{20000}", twin + "\u{20001}"],
+    "two titles that differ in their 120th character stay two candidates");
+});
+
+test("RAC-1678: adopting a candidate keeps its whole why as the source's reason, and ignoring one keeps the person's whole reason", async t => {
+  // A candidate's why is cut to the 500 characters a todo source's reason counts (RAC-1656); apply's schema allows a 100-character
+  // ignore reason. One 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const why = "a" + wide(499), reason = "a" + wide(99);
+  const passage = [{ material: 1, excerpt: "请周五前发新版方案" }];
+  const f = fixture(t, () => JSON.stringify({ candidates: [
+    { ref: "add", kind: "request", title: "发送新版方案", why, evidence: passage },
+    { ref: "skip", kind: "request", title: "准备季度汇报", why: "顺带一提", evidence: passage },
+  ] }));
+  const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
+  const [added, skipped] = batch.candidates;
+  const applied = await f.me.invoke(organize.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions: [
+    { candidate_id: added!.candidate_id, action: "add" }, { candidate_id: skipped!.candidate_id, action: "ignore", ignore_reason: reason }] });
+  const { item } = await f.me.invoke(todoActions.get, { id: applied.results[0]!.item_id! });
+  assert.deepEqual(item.sources.map(source => source.reason), [why], "the added todo's source keeps the 500-character why as its reason");
+  const reviewed = (await f.me.invoke(organize.get, { id: batch.batch_id })).batch.candidates[1]!;
+  assert.equal(reviewed.decision?.reason, reason, "the ignored candidate keeps its 100-character reason whole");
+});
+
+test("RAC-1698: organizing reads a material's first 60000 whole characters: the model gets no half character, and only a material over 60000 characters is marked as partly read", async t => {
+  // One 🟢 is one character but two UTF-16 units. The first material is "a" and 60000 of them: 60001 characters, one more than organizing
+  // reads. Cut at 60000 units it would end with the first half of the 30000th 🟢; cut at 60000 characters it is "a" and 59999 of them.
+  // The second is 40000 of them: 40000 characters but 80000 units, so counting units would call it partly read and give the model 30000.
+  const long = { title: "六万零一个字的材料", text: "a" + "🟢".repeat(60_000) }, whole = { title: "四万个字的材料", text: "🟢".repeat(40_000) };
+  const f = fixture(t, () => JSON.stringify({ candidates: [], reference_only: [] }));
+  const { batch } = await f.me.invoke(organize.extract, { materials: [long, whole] });
+  // What the model was given of each material, read back from the one JSON line between BEGIN_ and END_ in the prompt's data.
+  const given = (prompt: InstructedPrompt) => {
+    const lines = prompt.data.split("\n");
+    const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
+    return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length,
+      other: [...entry.text].filter(character => character !== "🟢").join("") }));
+  };
+  assert.equal(f.prompts.length, 2, "each of the two materials is a part of its own, as before");
+  assert.deepEqual(given(f.prompts[0]!), [{ material: 1, characters: 60_000, units: 119_999, other: "a" }],
+    "the model gets the first 60000 whole characters of the long material, no half character");
+  assert.deepEqual(given(f.prompts[1]!), [{ material: 2, characters: 40_000, units: 80_000, other: "" }],
+    "the model gets all 40000 characters of the shorter material");
+  assert.deepEqual(batch.materials.map(material => material.read), ["truncated", "read"], "only the material over 60000 characters is marked as partly read");
+  assert.deepEqual(batch.materials.map(material => material.note), ["只读了前 60000 字", ""], "only that material says it read the first 60000 characters");
+});

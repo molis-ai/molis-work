@@ -272,7 +272,7 @@ test("W3-01 C every request has a number of its own, and a number sent by the cl
 test("W3-01 C a command of a page, whether it ends well or not, shows its number in the header, and an error body shows it too", { timeout: 60_000 }, async () => {
   await withRequestFixture(async ({ base, host, goals, post }) => {
     await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create-g1" });
-    const failed = await post("/api/goals/NOPE/archive", { archived: true, reason: "没有这个目标" });
+    const failed = await post("/api/plugins/io.molis.work.goals/goals/NOPE/archive", { archived: true, reason: "没有这个目标" });
     assert.equal(failed.status, 400);
     const failedId = failed.headers.get("x-molis-work-call-id");
     assert.match(failedId ?? "", CALL_ID);
@@ -280,7 +280,7 @@ test("W3-01 C a command of a page, whether it ends well or not, shows its number
     const failedRow = host.callLog!.find(failedId!)[0];
     assert.equal(failedRow?.capability_id, goalsActions.archive.capability_id);
     assert.equal(failedRow?.ok, false);
-    const done = await post("/api/goals/G1/active", { reason: "先做这个" });
+    const done = await post("/api/plugins/io.molis.work.goals/goals/G1/active", { reason: "先做这个" });
     assert.equal(done.status, 200);
     const doneId = done.headers.get("x-molis-work-call-id");
     assert.match(doneId ?? "", CALL_ID);
@@ -295,7 +295,7 @@ test("W3-01 C a command of a page, whether it ends well or not, shows its number
 test("W3-01 C a request that left no row shows no number: a read that worked and then a 404, and a refusal at the door", { timeout: 60_000 }, async () => {
   await withRequestFixture(async ({ base, host, goals, post }) => {
     await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create-g1" });
-    await post("/api/goals/G1/active", { reason: "先做这个" });
+    await post("/api/plugins/io.molis.work.goals/goals/G1/active", { reason: "先做这个" });
     const rowsBefore = host.callLog!.recent(100).length;
     // The page reads the Goal, then the route itself finds it is a current Goal and not one in the trash: a 404 that no call produced.
     const notThere = await fetch(`${base}/trash/goals/G1`);
@@ -304,7 +304,7 @@ test("W3-01 C a request that left no row shows no number: a read that worked and
     const notThereBody = await notThere.json() as object;
     assert.equal("call_id" in notThereBody, false);
     // No control token: refused before any route, and before any call.
-    const refused = await post("/api/goals/G1/active", { reason: "x" }, { "x-molis-work-control-token": "wrong" });
+    const refused = await post("/api/plugins/io.molis.work.goals/goals/G1/active", { reason: "x" }, { "x-molis-work-control-token": "wrong" });
     assert.equal(refused.status, 403);
     assert.equal(refused.headers.get("x-molis-work-call-id"), null);
     assert.equal("call_id" in (await refused.json() as object), false);

@@ -79,22 +79,81 @@ test("a reused installation id cannot cancel or deliver a previous generation's 
   assert.equal((await f.tick(at)).failed, 0); assert.deepEqual((await f.inbox()).map(item => item.summary), ["current owner"]);
   assert.equal(getScheduleReminder(store.db, fresh.reminderId), null);
 });
-test("RAC-1670 a reminder whose 「plugin name：text」 passes 200 UTF-16 units is taken but never delivered: the wakeup fails, its one-shot job stops, the reminder stays (known defect, pinned until its fix is chosen)", { timeout: 60_000 }, async t => {
+test("RAC-1670 a reminder whose 「plugin name：text」 passes 200 UTF-16 units is delivered: the notification title is cut to 199 units and 「…」, the summary keeps the whole text, the one-shot job finishes", { timeout: 60_000 }, async t => {
   // reminders.add takes up to 200 UTF-16 units of text (plugins/native/schedule/src/reminders.ts:67), delivery titles the notification
-  // 「plugin name：text」 (runtime-wakeups.ts:37), and the notification service refuses a title over 200 units
-  // (apps/local-host/src/plugin-notification-service.ts:39-41). 「定时笔记：」 is 5 units, so 195 fits and 196 does not.
-  // The fix (cut the title, or tighten the text) turns the second reminder's assertions around.
+  // 「plugin name：text」 (runtime-wakeups.ts), and the notification service refuses a title over 200 units
+  // (apps/local-host/src/plugin-notification-service.ts:39-41). 「定时笔记：」 is 5 units: 195 fits as it is, 196 is cut.
   const f = await scheduleRuntimeFixture(t), store = await f.store(), clock = scheduleServiceFor(store.db), at = next();
   const fits = await f.sdk.invoke(reminderActions.add, { at, text: "提".repeat(195) });
   const over = await f.sdk.invoke(reminderActions.add, { at, text: "提".repeat(196) });
   const job = getScheduleReminder(store.db, over.reminderId)!.jobId;
-  assert.equal((await f.tick(at)).failed, 1, "only the reminder whose title would be 201 units fails");
-  assert.deepEqual((await f.inbox()).map(item => item.title), ["定时笔记：" + "提".repeat(195)], "a 200-unit title reaches the Inbox");
-  assert.equal(getScheduleReminder(store.db, fits.reminderId), null, "the delivered one-shot reminder is consumed");
-  assert.equal(getScheduleReminder(store.db, over.reminderId)?.text, "提".repeat(196), "the refused reminder stays");
-  assert.deepEqual([clock.get(job)?.enabled, clock.get(job)?.last_wakeup?.status], [false, "failed"], "its one-shot job has fired and stopped");
-  assert.match(clock.get(job)?.last_wakeup?.detail ?? "", /通知字段无效：title/, "the notification service refused the title");
-  assert.equal(new PluginNotificationQueue(store.db).pending(f.project.project_id).length, 0, "nothing is left queued for it");
+  assert.equal((await f.tick(at)).failed, 0, "neither reminder fails");
+  const titles = new Map((await f.inbox()).map(item => [item.summary, item.title]));
+  assert.equal(titles.size, 2, "both reminders reach the Inbox");
+  assert.equal(titles.get("提".repeat(195)), "定时笔记：" + "提".repeat(195), "a 200-unit title is not cut");
+  assert.equal(titles.get("提".repeat(196)), "定时笔记：" + "提".repeat(194) + "…", "a 201-unit title is cut to 199 units and 「…」, the summary keeps the whole text");
+  assert.deepEqual([getScheduleReminder(store.db, fits.reminderId), getScheduleReminder(store.db, over.reminderId)], [null, null], "both one-shot reminders are consumed");
+  assert.deepEqual([clock.get(job)?.enabled, clock.get(job)?.last_wakeup?.status], [false, "ok"], "its one-shot job has fired once and finished");
+  assert.equal(new PluginNotificationQueue(store.db).pending(f.project.project_id).length, 0, "nothing is left queued");
   await f.tick(new Date(Date.parse(at) + 60_000).toISOString());
-  assert.equal((await f.inbox()).length, 1, "a later tick does not deliver it either");
+  assert.equal((await f.inbox()).length, 2, "a later tick delivers nothing more");
+});
+
+test("RAC-1671 the title is cut at a whole character, never inside a surrogate pair, and a daily reminder with such a title is delivered and stays", { timeout: 60_000 }, async t => {
+  // 「提」 and 99 😀 (U+1F600, two units each) is 199 units of text; with 「定时笔记：」 the title is 204 units. Whole characters within
+  // 199 units are 「定时笔记：提」 and 96 😀 (198 units); a cut by units would end on half of the 97th 😀.
+  const f = await scheduleRuntimeFixture(t), store = await f.store(), clock = scheduleServiceFor(store.db), at = next();
+  const text = "提" + "😀".repeat(99);
+  const daily = await f.sdk.invoke(reminderActions.add, { at, text, repeat: "daily" });
+  const job = getScheduleReminder(store.db, daily.reminderId)!.jobId;
+  assert.equal((await f.tick(at)).failed, 0, "the daily reminder does not fail");
+  assert.deepEqual((await f.inbox()).map(item => [item.title, item.summary]), [["定时笔记：提" + "😀".repeat(96) + "…", text]], "the title is cut to whole characters, the summary keeps the whole text");
+  assert.equal(getScheduleReminder(store.db, daily.reminderId)?.text, text, "a daily reminder stays after it is delivered");
+  assert.deepEqual([clock.get(job)?.enabled, clock.get(job)?.last_wakeup?.status], [true, "ok"], "its daily job stays on");
+});
+
+test("RAC-1697 a timed operation's notice cuts its result text to 80 whole characters and its summary to 280, never half a character", { timeout: 60_000 }, async t => {
+  // The result is 「提」 and 300 🟢 (U+1F7E2, two units each): 301 characters, 601 units. The title is 「定时笔记：」 and the first 80 characters of the
+  // result (159 units), 164 units in all, so the notification service's 200 never cuts it; the summary is the first 280 characters (559 units, under the
+  // service's 1000). A cut by units (slice(0, 80), slice(0, 280)) would end on half of a 🟢. The body is the whole result.
+  const f = await scheduleRuntimeFixture(t), at = next(), text = "提" + "🟢".repeat(300);
+  f.execute(async () => ({ text }));
+  await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "x" }, inbox: true });
+  assert.equal((await f.tick(at)).failed, 0, "the operation runs and its notice is delivered");
+  const items = await f.inbox();
+  assert.equal(items.length, 1, "one notice reaches the Inbox");
+  assert.equal(items[0]!.title, "定时笔记：提" + "🟢".repeat(79), "the title keeps the first 80 characters of the result");
+  assert.equal(items[0]!.summary, "提" + "🟢".repeat(279), "the summary keeps the first 280 characters of the result");
+  assert.equal(items[0]!.body, text, "the body keeps the whole result");
+});
+
+test("RAC-1697 a long plugin name no longer gets a timed operation's notice refused: success and failure titles are cut at a whole character within 200 units", { timeout: 60_000 }, async t => {
+  // The plugin is named by 150 「长」 and its operation by 「汇」 and 60 🟢 (121 units); the result is 「提」 and 300 🟢. The success title would be
+  // 150 + 1 + 159 = 310 units and the failure title 150 + 1 + 83 = 234 (the operation's first 40 characters and 「没有完成」), both past the 200 the
+  // notification service takes (apps/local-host/src/plugin-notification-service.ts:39-41), which refuses them and rolls the delivery back. Whole
+  // characters within 199 units are the name, 「：」, the first character and 23 🟢 (198 units), then 「…」: 199 units. A failure is always delivered
+  // (operations.ts:230); the tick counts it as failed, so it counts that one only.
+  const name = "长".repeat(150), prefix = name + "：", text = "提" + "🟢".repeat(300);
+  const f = await scheduleRuntimeFixture(t, undefined, { name, title: "汇" + "🟢".repeat(60) }), at = next();
+  f.execute(async (_caller, input) => {
+    if ((input as { text: string }).text === "fail") throw new Error("出错了");
+    return { text };
+  });
+  await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "ok" }, inbox: true });
+  await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "fail" } });
+  const result = await f.tick(at), titles = (await f.inbox()).map(item => item.title);
+  assert.deepEqual(titles.filter(title => title.startsWith(prefix + "提")), [prefix + "提" + "🟢".repeat(23) + "…"], "the success notice reaches the Inbox, its title cut at a whole character within 200 units");
+  assert.deepEqual(titles.filter(title => title.startsWith(prefix + "汇")), [prefix + "汇" + "🟢".repeat(23) + "…"], "the failure notice reaches the Inbox, its title cut at a whole character within 200 units");
+  assert.equal(result.failed, 1, "only the operation that really failed is counted: the success notice was not refused");
+});
+
+
+test("RAC-1697 a failed timed operation's notice names the operation by its first 40 characters", { timeout: 60_000 }, async t => {
+  // 「汇」 and 60 🟢 is 121 units: its first 40 characters are 「汇」 and 39 🟢 (79 units), so with 「定时笔记：」 and 「没有完成」 the title is 88 units
+  // and the notification service's 200 never cuts it. A cut by units would end on half of the 20th 🟢.
+  const f = await scheduleRuntimeFixture(t, undefined, { title: "汇" + "🟢".repeat(60) }), at = next();
+  f.execute(async () => { throw new Error("出错了"); });
+  await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "x" } });
+  await f.tick(at);
+  assert.deepEqual((await f.inbox()).map(item => item.title), ["定时笔记：汇" + "🟢".repeat(39) + "没有完成"], "the title names the operation by its first 40 characters");
 });

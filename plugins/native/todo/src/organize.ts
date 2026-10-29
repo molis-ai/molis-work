@@ -2,7 +2,7 @@ import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlaceme
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "./contract.js";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
-import { normalizeForMatch, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
+import { materialReadText, normalizeForMatch, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { todoRequestKey, type TodoAccess, type TodoFields, type TodoSql, type TodoStore } from "./store.js";
 
 /** What the person chose for one candidate in the review. */
@@ -40,7 +40,7 @@ export function materialSourceKey(material: Pick<TodoOrganizeMaterial, "subject"
   return material.subject ? `s:${material.subject.kind}:${material.subject.id}` : `t:${hash(normalizeForMatch(material.text).slice(0, 4000))}`;
 }
 
-const fingerprint = (title: string) => normalizeForMatch(title).slice(0, 120);
+const fingerprint = (title: string) => [...normalizeForMatch(title)].slice(0, 120).join("");
 
 /**
  * Organizing results beside the todos: each batch holds candidates until the person decides, and a small memory of
@@ -113,10 +113,10 @@ export class TodoOrganizer {
     }
     const at = this.store.clock().toISOString();
     const materials: StoredMaterial[] = input.materials.map((material, index) => ({
-      index: index + 1, title: material.title.slice(0, 200) || `材料 ${index + 1}`, subject: material.subject ?? null, open: material.open ?? null,
+      index: index + 1, title: [...material.title].slice(0, 200).join("") || `材料 ${index + 1}`, subject: material.subject ?? null, open: material.open ?? null,
       received_at: material.received_at ?? null,
-      read: material.read === "failed" ? "failed" : material.read === "truncated" || material.text.length > TODO_ORGANIZE_MATERIAL_CHARS ? "truncated" : "read",
-      note: material.note ?? (material.text.length > TODO_ORGANIZE_MATERIAL_CHARS ? `只读了前 ${TODO_ORGANIZE_MATERIAL_CHARS} 字` : ""),
+      read: material.read === "failed" ? "failed" : material.read === "truncated" || materialReadText(material.text) !== material.text ? "truncated" : "read",
+      note: material.note ?? (materialReadText(material.text) !== material.text ? `只读了前 ${TODO_ORGANIZE_MATERIAL_CHARS} 字` : ""),
       source_key: materialSourceKey(material),
     }));
     const visibleItems = new Map(this.store.list(access).map(item => [item.id, item]));
@@ -153,7 +153,7 @@ export class TodoOrganizer {
       ...(input.unverified ? [`${input.unverified} 条在原文里找不到依据，已略去`] : []),
       ...materials.filter(material => material.read !== "read").map(material => `「${material.title}」${material.read === "failed" ? "没读成" : "没读完"}${material.note ? "：" + material.note : ""}`),
     ];
-    const batch: TodoBatch = { batch_id: crypto.randomUUID(), title: input.title.slice(0, 120) || `整理 ${materials.length} 份材料`, origin: input.origin, project_id: access.projectId,
+    const batch: TodoBatch = { batch_id: crypto.randomUUID(), title: [...input.title].slice(0, 120).join("") || `整理 ${materials.length} 份材料`, origin: input.origin, project_id: access.projectId,
       method: input.method, materials: materials.map(strip), candidates, reference_only: input.reference_only, notes, status: candidates.length ? "open" : "done",
       created_at: at, updated_at: at, revision: 1 };
     this.db.run(`INSERT INTO todo_batches (batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
@@ -221,12 +221,13 @@ export class TodoOrganizer {
           }
           outcome = decision.action === "merge" ? "merged" : "updated";
         }
+        const reason = [...decision.ignore_reason ?? ""].slice(0, 100).join("");
         for (const key of keys) {
           this.db.run(`INSERT INTO todo_source_memory (source_key, fingerprint, decision, item_id, reason, at) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (source_key, fingerprint) DO UPDATE SET decision = excluded.decision, item_id = excluded.item_id, reason = excluded.reason, at = excluded.at`, [key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, decision.ignore_reason?.slice(0, 100) ?? "", at]);
+            ON CONFLICT (source_key, fingerprint) DO UPDATE SET decision = excluded.decision, item_id = excluded.item_id, reason = excluded.reason, at = excluded.at`, [key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, reason, at]);
         }
         if (itemId) itemFor.set(candidate.candidate_id, itemId);
-        body.candidates[index] = { ...candidate, existing: record, decision: { action: outcome, item_id: itemId, reason: decision.ignore_reason?.slice(0, 100) ?? "", at } };
+        body.candidates[index] = { ...candidate, existing: record, decision: { action: outcome, item_id: itemId, reason, at } };
         results.push({ candidate_id: candidate.candidate_id, action: outcome, item_id: itemId });
       }
       // A todo added from a candidate that waits for another one waits for that todo.
@@ -257,7 +258,7 @@ export class TodoOrganizer {
   }
 
   private sourceFor(material: StoredMaterial, excerpt: string, candidate: TodoCandidate, origin: TodoBatch["origin"]): Omit<TodoSource, "source_id" | "added_at"> {
-    return { kind: origin === "onboarding" ? "onboarding" : "material", title: material.title, excerpt, reason: candidate.why.slice(0, 500),
+    return { kind: origin === "onboarding" ? "onboarding" : "material", title: material.title, excerpt, reason: [...candidate.why].slice(0, 500).join(""),
       subject: material.subject, open: material.open };
   }
 }

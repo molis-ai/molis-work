@@ -5,6 +5,7 @@ import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin
 import type { ScheduleTaskDatabase } from "./tasks.js";
 import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
+import { jobTitle } from "./job-title.js";
 
 export const SCHEDULE_OPERATION_WAKEUP = "schedule.operation.wakeup";
 export const OPERATIONS_PER_INSTALLATION = 20;
@@ -119,7 +120,7 @@ export function createScheduledOperations(options: {
         if (count >= OPERATIONS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的定时执行已经太多了，先取消一些");
         const id = randomUUID(), title = operation.description || operation.id, due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: projectId + "|" + id,
-          title: (current.title + "：" + title).slice(0, 120), due_at: due,
+          title: jobTitle(current.title + "：" + title), due_at: due,
           recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
         saveScheduledOperation(db, { id, projectId, pluginId: identity.pluginId, installationId: identity.installationId, installationGeneration: current.generation,
           pluginTitle: current.title, operationId: operation.id, operationTitle: title, input: input.input === undefined ? {} : input.input, inbox: input.inbox === true,
@@ -223,7 +224,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
   let outcome: ScheduledOperationOutcome;
   try { outcome = await executor.invoke(control); }
   catch (error) { control.beforeEffect(); outcome = { state: "unknown", value: error instanceof Error ? error.message : String(error) }; }
-  const text = operationResultText(outcome.value);
+  const text = notificationBody(operationResultText(outcome.value));
   await write(() => {
     control.beforeEffect();
     if (outcome.state !== "unknown" && (outcome.state === "failed" || run.inbox)) ports.deliver(run, input.due_at, outcome, text);
@@ -246,5 +247,21 @@ function operationResultText(value: unknown): string {
     const first = Object.values(record).find(item => typeof item === "string" && item);
     if (typeof first === "string") return first;
   }
-  return (JSON.stringify(value) ?? "").slice(0, 2000);
+  return [...(JSON.stringify(value) ?? "")].slice(0, 2000).join("");
+}
+
+
+/**
+ * The result text is also the notification's body, which the notification service takes only non-blank and at most 100000 UTF-16 units: a blank
+ * one becomes empty (delivered as 「操作已结束」), and a longer one is cut at a whole character and ends with 「…」.
+ */
+function notificationBody(text: string): string {
+  if (!text.trim()) return "";
+  if (text.length <= 100_000) return text;
+  let cut = "";
+  for (const character of text) {
+    if (cut.length + character.length > 99_999) break;
+    cut += character;
+  }
+  return cut + "…";
 }

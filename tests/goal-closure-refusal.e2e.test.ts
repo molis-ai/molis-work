@@ -9,9 +9,11 @@ import { GoalProjectApplication } from "./fixtures/goal-application.js";
 // The empty reason field proves this is the post-read-back form. A status check alone would
 // pass on the pre-reload node when the reload never replaced the document.
 test("BL-135 refused closure keeps unmet reasons beside the form after the document read-back", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, projectId } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const app = new GoalProjectApplication(store);
   const created = app.goalEvents.createIntent({
     project_id: DEMO_PROJECT_ID,
@@ -64,7 +66,7 @@ test("BL-135 refused closure keeps unmet reasons beside the form after the docum
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/goals/${encodeURIComponent(goalId)}` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}${prefix}/goals/${encodeURIComponent(goalId)}` }, sessionId));
   if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`, 15_000);
   await click('[data-event-reader="requirements"]');

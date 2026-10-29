@@ -4,6 +4,7 @@ import { type ScheduleJobRecord, type ScheduleRegisterInput, type ScheduleWakeup
 import type { ScheduleTaskDatabase } from "./tasks.js";
 import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
+import { jobTitle } from "./job-title.js";
 
 export const SCHEDULE_REMINDER_WAKEUP = "schedule.reminder.wakeup";
 const DAY = 86_400_000;
@@ -72,7 +73,7 @@ export function createScheduleReminders(options: {
         if (count.n >= REMINDERS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的提醒已经太多了，先取消一些");
         const id = randomUUID(), due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: id,
-          title: input.text.slice(0, 120), due_at: due, recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
+          title: jobTitle(input.text), due_at: due, recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
         saveNewScheduleReminder(db, { id, projectId: options.projectId, pluginId: identity.pluginId, installationId: identity.installationId,
           installationGeneration: descriptor.generation,
           pluginTitle: descriptor.title, link: descriptor.link, text: input.text, jobId: job.job_id, jobOwner: SCHEDULE_PLUGIN_ID, repeat, at: due });

@@ -253,7 +253,7 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   await click(form + ' textarea[name="reason"]');
   await command("Input.insertText", { text: "确认这两步，按选中的发布计划推进。" }, sessionId);
   await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [origin + `/projects/${projectId}/api/goal-tree-proposals/${proposal.proposal_id}/decision`] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + `/projects/${projectId}/api/plugins/io.molis.work.goals/goal-tree-proposals/${proposal.proposal_id}/decision`] }, sessionId);
   await click(form + ' button[value="confirm"]');
   await waitFor(`!document.querySelector(${JSON.stringify(form + " [data-decision-error]")}).hidden && !document.querySelector(${JSON.stringify(form + ' button[value="confirm"]')}).disabled`);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(form + ' textarea[name="reason"]')}).value`), "确认这两步，按选中的发布计划推进。");

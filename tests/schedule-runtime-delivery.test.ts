@@ -52,3 +52,35 @@ for (const outcome of ["failed", "unknown"] as const) test(`SYS-15-D2: actual sc
     await f.tick(new Date(Date.parse(at) + 86400000).toISOString()); assert.equal(f.calls(), 1);
   } else { assert.equal(run.state, "enabled"); assert.equal((await f.inbox()).length, 1); }
 });
+
+test("RAC-1803 a timed operation's result past the 100000 units a notification body takes is cut at a whole character and still reaches the Inbox", { timeout: 60_000 }, async t => {
+  // 50000 🟢 (U+1F7E2, two units each) are 100000 units, which the notification service takes as a body; 50001 are one character past it
+  // (apps/local-host/src/plugin-notification-service.ts:39-41), which it refused, rolling the delivery back with the occurrence left running and
+  // nothing in the Inbox. Whole characters within 99999 units are 49999 🟢 (99998 units), then 「…」. A cut by units would keep half of the 50000th 🟢.
+  const f = await scheduleRuntimeFixture(t), at = new Date(Date.now() + 1000).toISOString();
+  await parkFeedClock(f);
+  f.execute(async (_caller, input) => ({ text: "🟢".repeat((input as { text: string }).text === "over" ? 50_001 : 50_000) }));
+  const over = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "over" }, inbox: true });
+  await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "edge" }, inbox: true });
+  assert.equal((await f.tick(at)).failed, 0, "neither notice is refused");
+  const bodies = (await f.inbox()).map(item => item.body ?? "");
+  assert.deepEqual(bodies.map(body => body.length).sort((a, b) => a - b), [99_999, 100_000], "both notices reach the Inbox, the longer result cut within 100000 units");
+  assert.ok(bodies.includes("🟢".repeat(50_000)), "a result of exactly 100000 units is delivered whole");
+  assert.ok(bodies.includes("🟢".repeat(49_999) + "…"), "a longer one keeps its whole characters within 99999 units and ends with 「…」");
+  const store = await f.store();
+  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, over.scheduleId)[0]?.state, "succeeded", "the longer result's run is recorded as done");
+});
+
+test("RAC-1803 a timed operation whose result is only blanks still reaches the Inbox, named by its operation", { timeout: 60_000 }, async t => {
+  // The notification service refuses a body that trims to nothing (plugin-notification-service.ts:39-41), and " \n " is not empty, so
+  // `text || "操作已结束"` (runtime-wakeups.ts:79) kept it and the delivery rolled back like an overlong one. A blank result is now empty: the body
+  // is 「操作已结束」 and the success title falls back to the operation's name.
+  const f = await scheduleRuntimeFixture(t), at = new Date(Date.now() + 1000).toISOString();
+  await parkFeedClock(f);
+  f.execute(async () => ({ text: " \n " }));
+  const created = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "x" }, inbox: true });
+  assert.equal((await f.tick(at)).failed, 0, "the notice is not refused");
+  assert.deepEqual((await f.inbox()).map(item => [item.title, item.body]), [["定时笔记：汇总", "操作已结束"]], "the notice names the operation and says it finished");
+  const store = await f.store();
+  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, created.scheduleId)[0]?.state, "succeeded", "the run is recorded as done");
+});

@@ -193,7 +193,7 @@ export class FormStore {
       let imported = 0, skipped = 0;
       const rejected: { name: string; reason: string }[] = [];
       for (const file of files) {
-        const name = String(file.name ?? "").slice(0, 200) || "答卷";
+        const name = [...String(file.name ?? "")].slice(0, 200).join("") || "答卷";
         try {
           if (file.content.length > 400_000) throw formErrors.invalid("文件过大，不像一份答卷");
           const parsed = JSON.parse(file.content) as Record<string, unknown>;

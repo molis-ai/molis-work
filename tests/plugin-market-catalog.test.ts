@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
+import { renderPickerExtend, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
 import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
@@ -43,10 +43,14 @@ test("RAC-1310 a market card says what it brings and what it takes, from the dir
   assert.doesNotMatch(plain, /data-market-needs|data-market-needed-by/, "no companions, no attributes");
 });
 
-test("the Dock menu reserves a live update-count marker on the market entry", () => {
-  // The market left the rail for the Dock menu at the foot of the window; the marker travels with it.
-  const html = renderAccountGlobalItems({ L: value => value, escapeHtml: String, icon }, []);
-  assert.match(html, /data-plugin-id="market"[^>]*aria-label="插件市场"[^>]*>[\s\S]*data-market-update-count hidden/);
+test("the switcher's market button carries the live update-count marker", () => {
+  // The market is a button at the head of the bottom bar's switcher, beside search (renderPickerExtend); the client looks it up
+  // under `[data-global-menu]` and lights the marker inside it (apps/workbench/src/scripts/client/plugin-workbench.ts).
+  const html = renderPickerExtend({ L: value => value, escapeHtml: String, icon }, []);
+  assert.match(html, /^<div class="plugin-picker-extend" data-global-menu /, "the group the client looks the market up in");
+  const market = html.match(/<button [^>]*data-plugin-id="market"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? "";
+  assert.match(market, /title="插件市场">[\s\S]*<span data-slot="button-label">插件市场<\/span>/, "the market button names itself");
+  assert.match(market, /<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"><\/b><\/button>$/, "the marker is inside the market button, hidden until there are updates");
 });
 
 test("plugin market destination menu factory has no nested template interpolation", () => {

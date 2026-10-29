@@ -57,11 +57,13 @@ for (const [width, height, scope] of [[1024,400,"global"],[390,500,"global"],[10
 
 for (const [width,height] of [[1024,400],[390,500]]) {
   test(`Relation editor ${width}: directional create, failure recovery and deactivate cancellation`,{timeout:60000},async t=>{
-    const b=await openGoalBrowser(t);if(!b)return;
-    const {command,sessionId,origin,navigate,click,evaluate,waitFor}=b;
+    const b=await openGoalBrowser(t,true);if(!b)return;
+    const {command,sessionId,origin,navigate,click,evaluate,waitFor,projectId}=b;
+    // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+    const prefix=`/projects/${projectId}`;
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
-    await navigate(()=>command('Page.navigate',{url:origin+'/goals/CORE'},sessionId));
+    await navigate(()=>command('Page.navigate',{url:origin+prefix+'/goals/CORE'},sessionId));
     await click('[data-frame-goal-work]');
     if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
     if(await evaluate("!document.querySelector('[data-goal-info]').open"))await click('[data-goal-info] > summary');

@@ -590,6 +590,80 @@ test("W3-02-G1-03 memory: recalled for this situation when the directory has it;
   } finally { server.close(); }
 });
 
+// RAC-2165 to RAC-2167: what the Host sends to the platform memory is cut again after the request was read, by UTF-16 units; a cut between the two halves of a character drops the lone half.
+const PAIR = "\u{1F600}"; // U+1F600: two UTF-16 units (a high and a low half), one character
+const fill = (count: number) => "a".repeat(count);
+const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/; // a half with no other half beside it
+const seen = (text: string, expected: string) => ({ units: text.length, same: text === expected, lone: LONE.test(text) });
+
+test("RAC-2165 the words asked of memory.recall are cut at 300 units without leaving half a character, and the whole character that fits is kept", async () => {
+  const memory = provider("system.memory", "记忆");
+  const asked: string[] = [];
+  const actions = { discover: async () => [view(memory, "memory.recall")], invoke: async (_reference: ActionReference, input: unknown) => {
+    asked.push((input as { query: string }).query);
+    return { state: "ok", items: [] };
+  } };
+  const queryFor = async (text: string) => {
+    await recallForJudgment(focus({ surroundings: { heading_path: ["标题"] }, targets: [{ kind: "text_range", role: "paragraph", text }] }), { scope: `rac-2165-${asked.length}`, actions });
+    return asked.at(-1)!;
+  };
+  const head = "标题 "; // the heading and the space that joins it to the part: 3 units, so the part starts at unit 3
+  assert.deepEqual(seen(await queryFor(fill(296) + PAIR + "z".repeat(10)), head + fill(296)), { units: 299, same: true, lone: false }, "unit 299 is the first half of a pair: the cut at 300 falls between the halves, the half goes");
+  assert.deepEqual(seen(await queryFor(fill(295) + PAIR), head + fill(295) + PAIR), { units: 300, same: true, lone: false }, "exactly 300 units: untouched, the pair ends on the limit");
+  assert.deepEqual(seen(await queryFor(fill(295) + PAIR + "z"), head + fill(295) + PAIR), { units: 300, same: true, lone: false }, "301 units, the cut falls after a whole character: it stays");
+  assert.deepEqual(seen(await queryFor(fill(10) + "\uD83D"), head + fill(10) + "\uD83D"), { units: 14, same: true, lone: true }, "a half character the page itself sent, within the limit, is not the Host's cut: left as it came");
+});
+
+test("RAC-2166 a recalled memory is cut at 300 units without leaving half a character, and the whole character that fits is kept", async () => {
+  const memory = provider("system.memory", "记忆");
+  let reply = "";
+  let calls = 0;
+  const actions = { discover: async () => [view(memory, "memory.recall")], invoke: async () => ({ state: "ok", items: [{ kind: "preference", text: reply }] }) };
+  const recalled = async (text: string) => {
+    reply = text;
+    return (await recallForJudgment(focus(), { scope: `rac-2166-${calls++}`, actions })).items;
+  };
+  const split = await recalled(fill(299) + PAIR + "z");
+  assert.deepEqual([split.length, split[0]!.kind, seen(split[0]!.text, fill(299))], [1, "preference", { units: 299, same: true, lone: false }], "the cut at 300 falls between the halves: the half goes, the kind is not touched");
+  assert.deepEqual(seen((await recalled(fill(298) + PAIR))[0]!.text, fill(298) + PAIR), { units: 300, same: true, lone: false }, "exactly 300 units: untouched, the pair ends on the limit");
+  assert.deepEqual(seen((await recalled(fill(298) + PAIR + "z"))[0]!.text, fill(298) + PAIR), { units: 300, same: true, lone: false }, "301 units, the cut falls after a whole character: it stays");
+  assert.deepEqual(seen((await recalled(fill(10) + "\uD83D"))[0]!.text, fill(10) + "\uD83D"), { units: 11, same: true, lone: true }, "a half character the memory itself holds, within the limit: left as it came");
+});
+
+test("RAC-2167 the labels and the occurrence reported to memory are cut at 40, 40 and 120 units without leaving half a character", async () => {
+  let servers = 0;
+  // One signal through the real route: `title` is the offered action's title (the signal's subject label), `surface` the plugin's title (the start of the situation label), `contextId` the context's id (the occurrence).
+  const reported = async (title: string, surface: string, contextId: string) => {
+    const pagesHere = provider("io.molis.work.pages", surface), memory = provider("system.memory", "记忆");
+    const views = [offers(pagesHere, "pages.fragment.offers", [choice("concise", "rewrite", "pages.ai", { title, granularities: ["range", "block"], apply: "replace" })]),
+      view(pagesHere, "pages.ai"), view(memory, "memory.signals.report")];
+    const sent: { subject: { label: string }; situation: { label: string }; occurrence: string }[] = [];
+    const actions = { discover: async () => views, invoke: async (_reference: ActionReference, input: unknown) => {
+      sent.push(input as (typeof sent)[number]);
+      return { state: "counted", count: 1, distinct: 1, candidate_id: null, threshold: { count: 3, distinct: 2 } };
+    } };
+    const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: `rac-2167-${servers++}`, actor_id: "user", actions: () => actions }); });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const f = focus({ plugin_id: "io.molis.work.pages", context_id: contextId });
+      const key = fragmentCandidates(views, f).find(item => item.offer_id === "concise")!.key;
+      const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/contextual/signal`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pane_id: "main", focus: f, key, signal: "accepted", event_id: "ev-2167" }) });
+      assert.equal(response.status, 200);
+      return { subject: sent[0]!.subject.label, situation: sent[0]!.situation.label, occurrence: sent[0]!.occurrence };
+    } finally { server.close(); }
+  };
+  const suffix = " 里选中的文字"; // what follows the plugin's title in the situation label: 7 units
+  assert.deepEqual(await reported(fill(39) + PAIR + "尾", fill(39) + PAIR, fill(119) + PAIR + "z"), { subject: fill(39), situation: fill(39), occurrence: fill(119) },
+    "each of the three is cut between the halves of a pair at its own limit (40, 40, 120): the half goes");
+  assert.deepEqual(await reported(fill(38) + PAIR + "z", fill(38) + PAIR, fill(118) + PAIR + "z"), { subject: fill(38) + PAIR, situation: fill(38) + PAIR, occurrence: fill(118) + PAIR },
+    "each is cut after a whole character: it stays");
+  assert.deepEqual(await reported(fill(38) + PAIR, "Pages", fill(118) + PAIR), { subject: fill(38) + PAIR, situation: "Pages" + suffix, occurrence: fill(118) + PAIR },
+    "exactly at the limits (40 and 120 units) or short: untouched");
+  assert.deepEqual(await reported(fill(5) + "\uD83D", fill(5) + "\uD83D", fill(10) + "\uD83D"), { subject: fill(5) + "\uD83D", situation: fill(5) + "\uD83D" + suffix, occurrence: fill(10) + "\uD83D" },
+    "a half character that was already there, within the limit, is not the Host's cut: left as it came");
+});
+
 // ---- P1: Host transport ------------------------------------------------------------------------------------------
 test("W3-02-G1-03 host routes: rules at once, prepare returns the provider's own input for exactly this fragment; stale or unoffered refuse", async () => {
   const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai")];

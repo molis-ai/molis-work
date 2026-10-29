@@ -15,6 +15,7 @@ import {
 } from "./model.js";
 import { workflowsErrors } from "./error.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
+import { firstCharacters } from "./bounded-cut.js";
 export { WORKFLOWS_DATABASE };
 
 interface WorkflowRow {
@@ -211,7 +212,7 @@ function chainJson(chain: WorkflowChain): string {
 }
 
 function normalizeTitle(value: string): string {
-  const title = [...value.replace(/\s+/g, " ").trim()].slice(0, 120).join("");
+  const title = firstCharacters(value.replace(/\s+/g, " ").trim(), 120);
   return title || "未命名流程";
 }
 

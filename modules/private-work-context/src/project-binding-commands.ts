@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution, RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult, BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult, MolisWorkProjectBindingScope, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution, RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult, BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import type { RuntimeBindingRecords } from "./runtime-binding-records.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
@@ -91,9 +91,9 @@ export class RuntimeProjectBindingCommands {
       );
     }
 
+    const bindingScope = input.binding_scope
+      ?? (normalized.stable_work_context_id ? "session" : "workspace_member");
     return this.transaction(() => {
-      const bindingScope = input.binding_scope
-        ?? (normalized.stable_work_context_id ? "session" : "workspace_member");
       return this.bindRuntimeContextInTransaction({
         normalized,
         projectId,
@@ -163,20 +163,13 @@ export class RuntimeProjectBindingCommands {
     projectId: string;
     actorId: string;
     rebindConfirmed: boolean;
-    bindingScope: MolisWorkProjectBindingScope | "workspace_member";
+    /** workspace_default is refused by both entries before they get here, so the type leaves it out. */
+    bindingScope: "session" | "workspace_member";
   }): MolisWorkRuntimeContextResolution {
     const project = this.projects.query.getProject(input.projectId);
-    if (input.bindingScope === "workspace_default") {
-      throw bindingErrors.workspace_default_unsupported("工作目录不再保存默认项目；请为当前 Session 选择项目",
-      );
-    }
-
     if (input.bindingScope === "workspace_member") {
-      if (!input.normalized.workspace) {
-        throw bindingErrors.workspace_required("当前 Runtime 没有 Session 标识时，必须提供项目目录才能记录本次选择",
-        );
-      }
-      this.projects.lifecycle.upsertWorkspaceMembership(input.normalized.workspace, project.project_id, input.actorId);
+      // Both entries ran requireRoutableRuntimeWorkContext: a context without a Session id has a workspace.
+      this.projects.lifecycle.upsertWorkspaceMembership(input.normalized.workspace!, project.project_id, input.actorId);
       return boundResolution(input.normalized, project);
     }
 

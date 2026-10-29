@@ -2,7 +2,6 @@ import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from 
 import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const JELLY_UI_CONTRIBUTION_ID = "io.molis.work.jelly.ui.v1";
-export type JellyUiSurface = "directory" | "workbench";
 export interface JellyUiPrimitives {
   escape(value: unknown): string;
   text(value: string, values?: Record<string, string | number>): string;

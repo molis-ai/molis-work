@@ -4,6 +4,8 @@
 
 相关的已归档需求：[平台侧栏](../archive/side-panel/spec.md)（右栏本身）、[情境驱动的动态交互](../archive/contextual-interaction/spec.md)（动作池、Jev 判断、底栏动作条）、[Shelf](../archive/shelf-plugin/spec.md)（DropAgent 复刻）、[craft-finish](../craft-finish/spec.md)（底栏）。
 
+2026-10-27 用户决定更新位置要求：右栏与现有分屏、标签／标签组、底栏共用一套机制，成为较窄窗格的一种布局，不再为每种内容固定占一格。本文的 Shelf 内容、引用、落点与跨区动作要求保留；下文的「右栏」「一格」按新位置规则承接，不另建右栏导航／状态，也不改变内容 owner。统一规则、现有标签 UI 优化与「＋」原地列表菜单归[产品治理 §4.6](../product-flow-governance/spec.md#46-分屏标签右栏与底栏统一2026-10-27-用户已定)；本次仅补需求，生产整合尚未完成。
+
 ## 1. 用户原话与已定的事
 
 原话（2026-10-01）：

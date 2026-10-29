@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
@@ -427,4 +427,95 @@ test("RAC-1698: organizing reads a material's first 60000 whole characters: the 
     "the model gets all 40000 characters of the shorter material");
   assert.deepEqual(batch.materials.map(material => material.read), ["truncated", "read"], "only the material over 60000 characters is marked as partly read");
   assert.deepEqual(batch.materials.map(material => material.note), ["只读了前 60000 字", ""], "only that material says it read the first 60000 characters");
+});
+
+// T-222: organizing shares the materials of one request among model calls by counting each in whole characters, as it reads them. A 🟢 is one
+// character but two UTF-16 units; a family of three people joined by zero-width joiners is five characters (code points) and eight units.
+/** What the model was given in one call, read back from the one JSON line between BEGIN_ and END_ in the prompt's data (as RAC-1698 reads it). */
+const givenMaterials = (prompt: InstructedPrompt) => {
+  const lines = prompt.data.split("\n");
+  const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
+  return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length }));
+};
+const ofText = (text: string, extra: { title?: string; read?: "failed" } = {}) => ({ title: extra.title ?? "材料", text, ...(extra.read ? { read: extra.read } : {}) });
+const emoji = (count: number) => ofText("🟢".repeat(count));
+const plain = (count: number, character = "x") => ofText(character.repeat(count));
+const family = (count: number) => ofText("\u{1F468}\u200D\u{1F469}\u200D\u{1F467}".repeat(count));
+const nothing = () => JSON.stringify({ candidates: [], reference_only: [] });
+
+test("RAC-2155: materials share a model call by their length in whole characters: 40000 characters fit one call and 40001 do not, whatever their length in UTF-16 units", () => {
+  // 20000 🟢 are 20000 characters and 40000 units. Counted in units two of them were 80000 and went one to a call; a call is given 40000 characters.
+  assert.deepEqual(organizeParts([emoji(20_000), emoji(20_000)]), [[0, 1]], "two of 20000 characters are 40000: one call");
+  assert.deepEqual(organizeParts([emoji(20_000), emoji(20_001)]), [[0], [1]], "one character more is 40001: two calls");
+  assert.deepEqual(organizeParts([emoji(13_000), emoji(13_000), emoji(13_000)]), [[0, 1, 2]], "three of 13000 characters are 39000: one call");
+  assert.deepEqual(organizeParts([emoji(15_000), emoji(15_000), emoji(15_000)]), [[0, 1], [2]], "three of 15000 characters are 45000: the third starts the next call");
+  // Plain text and 🟢 are added in characters, in either order; 30000 🟢 are 60000 units but 30000 characters.
+  assert.deepEqual(organizeParts([plain(30_000), emoji(10_000)]), [[0, 1]], "30000 plain characters and 10000 🟢 are 40000");
+  assert.deepEqual(organizeParts([emoji(30_000), plain(10_000)]), [[0, 1]], "30000 🟢 and 10000 plain characters are 40000");
+  assert.deepEqual(organizeParts([emoji(30_000), plain(10_001)]), [[0], [1]], "30000 🟢 and 10001 plain characters are 40001");
+  // A character is a code point, as in what organizing reads and in a schema's maxLength: one family is five.
+  assert.deepEqual(organizeParts([family(4_000), family(4_000)]), [[0, 1]], "two of 4000 families are 20000 characters each, 40000 in all");
+  assert.deepEqual(organizeParts([family(4_000), family(4_001)]), [[0], [1]], "one family more is five characters more, 40005");
+});
+
+test("RAC-2156: the rest of how organizing shares materials among calls is as it was: plain text counts one a character, a material of 40000 characters or more has a call of its own, and a failed or blank material is left out", () => {
+  assert.deepEqual(organizeParts([plain(20_000), plain(20_000)]), [[0, 1]], "plain text: 40000 characters fit one call");
+  assert.deepEqual(organizeParts([plain(20_000), plain(20_001)]), [[0], [1]], "plain text: 40001 do not");
+  assert.deepEqual(organizeParts([plain(40_000)]), [[0]], "a material of exactly 40000 characters is a call");
+  assert.deepEqual(organizeParts([plain(40_000), plain(1)]), [[0], [1]], "and nothing joins it");
+  assert.deepEqual(organizeParts([plain(100), emoji(45_000), plain(100)]), [[0], [1], [2]], "a longer one (45000 characters, 90000 units) has a call of its own, with nothing before or after it");
+  assert.deepEqual(organizeParts([emoji(60_000), plain(1)]), [[0], [1]], "so has one of exactly 60000 characters (120000 units)");
+  assert.deepEqual(organizeParts([emoji(100_000), emoji(1)]), [[0], [1]], "and one of 100000 characters (200000 units), of which organizing reads 60000");
+  assert.deepEqual(organizeParts([plain(1, "a"), ofText("b", { read: "failed" }), ofText("  \n"), plain(1, "c")]), [[0, 3]], "a failed material and a blank one are left out, and the others keep their numbers");
+  assert.deepEqual(organizeParts([]), [], "no materials, no calls");
+  assert.deepEqual(organizeParts([ofText(""), ofText("z", { read: "failed" })]), [], "only left-out materials, no calls");
+});
+
+test("RAC-2157: organizing gives the model materials of 🟢 together as far as the budget in characters allows: three of 15000 characters are two calls, not three", async t => {
+  // Each is 15000 characters and 30000 units. Two are 30000 characters and share a call; a third would make 45000, over the 40000 a call is given, and goes in the next.
+  const f = fixture(t, nothing);
+  const { batch } = await f.me.invoke(organize.extract, { materials: [{ ...emoji(15_000), title: "甲" }, { ...emoji(15_000), title: "乙" }, { ...emoji(15_000), title: "丙" }] });
+  assert.deepEqual(f.prompts.map(givenMaterials), [
+    [{ material: 1, characters: 15_000, units: 30_000 }, { material: 2, characters: 15_000, units: 30_000 }],
+    [{ material: 3, characters: 15_000, units: 30_000 }],
+  ], "materials 1 and 2 go to the first call, whole, and material 3 to the second");
+  assert.deepEqual(batch.materials.map(material => material.read), ["read", "read", "read"], "all three were read whole");
+});
+
+test("RAC-2158: a call carries at most 40000 characters of material, or one material of at most 60000: eight materials of plain text and 🟢, one over 60000 characters, are six calls that read each whole but the longest", async t => {
+  const f = fixture(t, nothing);
+  const materials = [plain(25_000), emoji(12_000), plain(30_000, "y"), emoji(45_000), plain(5_000, "z"), emoji(70_000), plain(100, "w"), emoji(100)];
+  const { batch } = await f.me.invoke(organize.extract, { materials });
+  const calls = f.prompts.map(givenMaterials);
+  assert.deepEqual(calls.map(call => call.map(entry => entry.material)), [[1, 2], [3], [4], [5], [6], [7, 8]], "25000 and 12000 share a call (37000); each of 30000, 45000, 5000 and 70000 (counted as 60000) stands alone, for the next would take it past 40000; 100 and 100 share one");
+  assert.deepEqual(calls.flat().map(entry => [entry.characters, entry.units]),
+    [[25_000, 25_000], [12_000, 24_000], [30_000, 30_000], [45_000, 90_000], [5_000, 5_000], [60_000, 120_000], [100, 100], [100, 200]],
+    "each material is given whole, but the 70000-character one, which is given its first 60000 characters");
+  const carried = calls.map(call => call.reduce((all, entry) => all + entry.characters, 0));
+  assert.deepEqual(carried, [37_000, 30_000, 45_000, 5_000, 60_000, 200], "the characters each call carries");
+  calls.forEach((call, index) => assert.ok(carried[index]! <= (call.length > 1 ? 40_000 : 60_000), `call ${index + 1}: several materials carry at most 40000 characters, one at most 60000`));
+  assert.deepEqual(batch.materials.map(material => material.read), ["read", "read", "read", "read", "read", "truncated", "read", "read"], "only the 70000-character material is marked as partly read");
+  assert.deepEqual(batch.materials.map(material => material.note), ["", "", "", "", "", "只读了前 60000 字", "", ""], "and says it read the first 60000 characters");
+});
+
+test("RAC-2159: the most one call carries: 40000 characters of 🟢 shared by several materials (80000 UTF-16 units), or 60000 in one (120000), and the prompt stays far within the Host's limit", async t => {
+  // apps/local-host/src/host-complete-text.ts counts a prompt in characters and refuses one over 180000 + 20000 + 100 (PROMPT_MAX_CHARS).
+  const HOST_PROMPT_MAX_CHARS = 200_100;
+  const cases = [
+    { name: "two of 20000 characters", materials: [emoji(20_000), emoji(20_000)], numbers: [1, 2], characters: 40_000, units: 80_000 },
+    { name: "one of 60000 characters", materials: [emoji(60_000)], numbers: [1], characters: 60_000, units: 120_000 },
+    { name: "fifty (the most a request takes) of 800 characters with names of 200", materials: Array.from({ length: 50 }, () => ofText("🟢".repeat(800), { title: "题".repeat(200) })),
+      numbers: Array.from({ length: 50 }, (_, index) => index + 1), characters: 40_000, units: 80_000 },
+  ];
+  for (const { name, materials, numbers, characters, units } of cases) {
+    const f = fixture(t, nothing);
+    await f.me.invoke(organize.extract, { materials });
+    assert.equal(f.prompts.length, 1, `${name}: one call`);
+    const given = givenMaterials(f.prompts[0]!);
+    assert.deepEqual(given.map(entry => entry.material), numbers, `${name}: every material is in it`);
+    assert.equal(given.reduce((all, entry) => all + entry.characters, 0), characters, `${name}: the characters it carries`);
+    assert.equal(given.reduce((all, entry) => all + entry.units, 0), units, `${name}: the UTF-16 units it carries`);
+    const prompt = [...modelPromptText(f.prompts[0]!)].length;
+    assert.ok(prompt <= HOST_PROMPT_MAX_CHARS, `${name}: the whole prompt is ${prompt} characters, within the ${HOST_PROMPT_MAX_CHARS} the Host allows`);
+  }
 });

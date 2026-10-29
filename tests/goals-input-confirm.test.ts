@@ -161,3 +161,35 @@ test("an input an Agent proposed waits for the person, who alone accepts it, and
     await assert.rejects(asPerson.invoke(goalsActions.inputsRelease, { goal_id: "OTHER-GOAL", binding_id: again.binding_id }), { code: "goals.not_found" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+// A name is kept to 200 whole characters, as the action schemas count them (an emoji is one): never cut between the two halves of one, never short of 200.
+const NAMES = [
+  { name: "the 200th unit is half of a character", given: "a" + "😀".repeat(150), kept: "a" + "😀".repeat(150) },
+  { name: "200 two-unit characters", given: "😀".repeat(200), kept: "😀".repeat(200) },
+  { name: "short", given: "名字", kept: "名字" },
+];
+
+test("RAC-1888 a bound name and a confirmed name keep every character the schema let in, with no half of one at the end", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "goals-input-names-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Names", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["goals:read", "goals:write", "context-ledger:write"] };
+  const bound = bindActionClient(host.actionClient(ref), () => person);
+  const stored = (binding_id: string) => host.withProject(ref, runtime => goalApplicationOf(runtime).goalInputs.list(project.project_id).find(item => item.binding_id === binding_id)?.input_name);
+  try {
+    await bound.invoke(goalsActions.create, { goal_id: "NAME-GOAL", title: "接收名字", idempotency_key: "create" });
+    for (const [index, c] of NAMES.entries()) {
+      await t.test(`bind: ${c.name}`, async () => {
+        const made = await bound.invoke(goalsActions.inputsBind, { goal_id: "NAME-GOAL", subject: { kind: "presentation", id: `deck-${index}` }, title: c.given });
+        assert.equal(made.binding.title, c.kept);
+        assert.equal(await stored(made.binding.binding_id), c.kept);
+      });
+      await t.test(`confirm: ${c.name}`, async () => {
+        const made = await bound.invoke(goalsActions.inputsConfirm, { goal_id: "NAME-GOAL", source: { kind: "feed_item", id: `item-${index}` }, name: c.given, snapshot_digest: `sha256:${"c".repeat(64)}`, reason: "用户确认该输入" });
+        assert.equal(made.binding.name, c.kept);
+        assert.equal(await stored(made.binding.binding_id), c.kept);
+      });
+    }
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});

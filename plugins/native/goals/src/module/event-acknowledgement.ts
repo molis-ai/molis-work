@@ -62,7 +62,7 @@ export class GoalEventAcknowledgements implements GoalEventAcknowledgementsApi {
       const note = requiredText(input.note, "goals.event_note.body_required", "处理说明需要原文").trim();
       const reference = this.reference(goal.project_id, goal.goal_id, input.event_id);
       this.assertCursor(goal.project_id, input.read_cursor, reference);
-      const event = insertGoalSystemEvent(this.context, this.facts, goal, input.actor_id, actorKind, note.slice(0, 80), {
+      const event = insertGoalSystemEvent(this.context, this.facts, goal, input.actor_id, actorKind, [...note].slice(0, 80).join(""), {
         operation: "input_acknowledged",
         reference,
         treatment: input.treatment,

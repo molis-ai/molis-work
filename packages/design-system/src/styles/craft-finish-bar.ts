@@ -105,7 +105,7 @@ export const CRAFT_BAR_STYLES = `
   @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
-  :root ${ASSIST} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
+  :root ${ASSIST} :is(.workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
     background: transparent; box-shadow: none; border: 0;
   }
   /* The zone hairline above the account sits in the 8px gap and takes no height. */
@@ -139,7 +139,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} ${RAIL_LINK} svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-quint); }
   ${SHELL} ${RAIL_LINK}:hover { background: var(--nav-hover); }
   ${SHELL} ${RAIL_LINK}:is(:hover, [aria-current], [aria-expanded="true"]) svg { color: var(--ink); }
-  ${SHELL} :is(.plugin-rail-items, .assistant-island-card)[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
+  ${SHELL} .plugin-rail-items[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
   ${SHELL} .plugin-rail a.plugin-rail-item { text-decoration: none; color: inherit; }
   ${SHELL} .plugin-rail-hint { display: none; }
   ${SHELL} .plugin-rail-items .immersive-plugin-link { position: relative; }
@@ -181,11 +181,11 @@ export const CRAFT_BAR_STYLES = `
       color: var(--faint); font: inherit; font-size: 11px; line-height: 17px;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-items { align-items: stretch; padding: 4px 16px 8px; gap: 1px; }
-    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item {
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .plugin-rail-item {
       width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 12px; padding: 0 12px; border-radius: 8px;
     }
-    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item svg { width: 16px; height: 16px; }
-    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .plugin-rail-item svg { width: 16px; height: 16px; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-item:is([aria-current], [aria-expanded="true"]) > span { color: var(--ink); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-toggle > span { color: var(--muted); }
     ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail-group, .plugin-rail-subgroup) {

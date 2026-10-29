@@ -125,7 +125,7 @@ function throwCleanupErrors(failure: unknown, errors: readonly unknown[]): void 
   throw new AggregateError(failure === undefined ? [...errors] : [failure, ...errors], "测试收尾失败");
 }
 
-test("RAC-1453 a project plugin whose install record the Runtime cannot give is one close failure, and the plugins after it still stop and are revoked", async () => {
+test("RAC-1453 RAC-1922 a project plugin whose install record the Runtime cannot give is one close failure, is still let go, and the plugins after it still stop and are revoked", async () => {
   const { home, store, ports } = await openProject();
   let platform: RunningPlatform | undefined;
   let running: RunningPlugin[] = [];
@@ -137,7 +137,13 @@ test("RAC-1453 a project plugin whose install record the Runtime cannot give is 
     platform = opened;
     running = runningPlugins(opened);
     assert.ok(running.length > 1, "a project has more than one running plugin");
-    const [gone, ...rest] = running;
+    // RAC-1922 T-124: the plugin whose record goes is one that offers actions, so letting go of it shows in the action directory too.
+    const offered = (rows: ReadonlyArray<{ provider: { provider_id: string } }>, plugin: RunningPlugin) => rows.filter(row => [plugin.id, plugin.install].includes(row.provider.provider_id));
+    const directory = () => ports.actions.client.discover({ actor_id: ports.actorId, project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [] });
+    const before = await directory();
+    const gone = running.find(plugin => offered(before, plugin).length > 0);
+    assert.ok(gone, "a running plugin offers actions");
+    const rest = running.filter(plugin => plugin !== gone);
     // Keep the row so the finally can put it back; deleting it is how the close meets a record the Runtime cannot give.
     saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
     assert.ok(saved);
@@ -152,6 +158,9 @@ test("RAC-1453 a project plugin whose install record the Runtime cannot give is 
     assert.equal(store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install), undefined);
     const records = installRecords(store);
     for (const plugin of rest) assert.equal(records.find(record => record.install_id === plugin.install)?.state, "installed", `${plugin.id} stops after the plugin whose record is gone`);
+    // RAC-1922: the instance whose record is gone is let go all the same: no contribution kept, no action left in the directory.
+    assert.equal(platform.runtime.contribution(gone.install), null, `${gone.id} keeps no contribution`);
+    assert.deepEqual(offered(await directory(), gone), [], `${gone.id} offers no action after the close`);
     for (const plugin of running) {
       assert.ok(!platform.supervisor.enabledPluginIds().includes(plugin.id), `${plugin.id} is revoked`);
       assert.equal(platform.supervisor.state(plugin.id)?.code, "plugin.revoked");

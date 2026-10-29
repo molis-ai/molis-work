@@ -95,8 +95,12 @@ async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
     // supervisor's own revoke would stop it as disabled), as the Home supervisor does. So the next start runs it, and only a
     // plugin list keeps a project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
     if (active?.status === "running" && active.install_id) {
-      // The read is inside the try: a record the Runtime cannot give is one failure of this close, not the end of the loop.
-      try { if (platform.runtime.get(active.install_id).state === "running") await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
+      // A record the Runtime cannot give is still stopped, so the instance it activated is let go (T-124); the stop then reports the
+      // missing record, one failure of this close and not the end of the loop.
+      try {
+        const install = platform.runtime.list().find(record => record.install_id === active.install_id);
+        if (!install || install.state === "running") await platform.runtime.stop(active.install_id, { preserve_enabled: true });
+      } catch (error) { failures.push(error); }
     }
     platform.supervisor.revoke(pluginId);
   }

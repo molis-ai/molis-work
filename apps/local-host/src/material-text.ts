@@ -119,7 +119,8 @@ export function extractMaterialText(bytes: Uint8Array, extension: string, markdo
   if (html) issues.push("仅提取 HTML 可见文字；未读取图片、样式、脚本或外部资源");
   if (!text) issues.push("未提取到可读文字");
   const extractor = html ? markdown ? "html-markdown" : "html-text" : "utf8-text";
-  return { text, ...(parsed.title ? { title: parsed.title.slice(0, 500) } : {}), extractor,
+  // Whole characters, not UTF-16 units: unit 500 can fall inside a two-unit character. The first slice bounds what is spread.
+  return { text, ...(parsed.title ? { title: [...parsed.title.slice(0, 1000)].slice(0, 500).join("") } : {}), extractor,
     pages: [{ number: 1, text, method: extractor, confidence: null }],
     coverage: { status: !text ? "insufficient" : truncated || html ? "partial" : "sufficient", truncated, processed_pages: 1, total_pages: 1, issues } };
 }

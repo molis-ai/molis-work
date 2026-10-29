@@ -533,7 +533,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | 验收 | 最小行为与独立期待 |
 | --- | --- |
 | FI-C-01（平台 P1-1） | 连接绑定 owner 的成功 bind/unbind/删项目/删安装通知已有在途登记，读绑定后、首个 await 前登记本次账号与槽；解绑/换绑/ABA使旧调用永久失效，最后 await 后同步 current 再发请求及交回结果。同账号其他槽不被误杀。 |
-| FI-C-02（平台 P1-2） | 本次控制经 Host/driver/SDK/provider、health、真实 fetch、Gmail与通用 OAuth、BL530 call connections到底；组合取消与超时，后续请求和刷新/拒绝标记持久化前重核调用与原账号 revision。只有取消原动作、账号不变时仍零后续发送/零刷新写回，失效错误不吞成认证失败。 |
+| FI-C-02（平台 P1-2） | 本次控制经 Host/driver/SDK/provider、health、真实 fetch、Gmail与通用 OAuth、BL530 call connections到底；组合取消与超时，后续请求和刷新/拒绝标记持久化前重核调用与原账号 revision。只有取消原动作、账号不变时仍零后续发送，失效错误不吞成认证失败。刷新一处 2026-10-28 改（W5-11 第 5 片，RAC-1085；用户 10-27 定：只存新令牌）：已经发出的刷新不因参与者走光而中止；参与者全部取消、最后一道检查通过时，只把轮换出的 access、refresh、过期时间写回原连接，别的一概不写；有参与者失去授权或声明它的插件停用、换了安装，什么都不写。 |
 | FI-C-03（业务 P1-1） | promote、goals.context、rules.recommendations三动作声明 evidence:read，实际Web/Agent/MCP/工作流程/Inbox/Home调用方与安装授权同时核。真实有证据正文的同步材料可读/可升格，缺权限在入口拒绝，平台三重检查不削弱。 |
 | FI-C-04（业务 P1-2） | hydrate按正文引用 owner 读取；research引用沿研究库已有body/preview/provenance，只有证据库引用交 evidence 客户端。真实Runtime研究库同步后公开条目/snapshot/content/subject与规则的下一次读有效；取消与撤权不能被吞。 |
 | FI-C-05（业务 P1-3） | caller最后一次认权 await 后，在同步事务体核本次固定来源版本/配置/生命周期，再写材料、游标、投递和成功/失败终态。公开源、研究库、Listener adapter、账号源与scheduler均守住；自己已提交的版本按各步骤实际预期推进。确定性交错改配置/暂停/删除后旧结果不落库。 |
@@ -809,8 +809,9 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
 - **测试文件的类型检查**：根 `tsc --noEmit -p tsconfig.json` 通过，但这份配置只含 `apps/desktop/launchers`、排除 `tests`（CI 同样只查这些），所以不查测试。本轮改到的三个测试文件另用一份临时配置查（继承 `tsconfig.base.json`，只列这三个文件）。`feed-goal-promotion`、`inbox-automatic-scenes` 没有错。`local-web-actions` 有 5 处，都在与 main 逐字相同的行上（本分支只改了它的 import 和第 219 行附近）。
 - **没跑的**：全部浏览器用例（含 FI7 改到的 6 个）、security 全量、最终 Full，由合并会话在 PR 前排。
 - **FI-C-02 Notion 复审与补测。** 复审没有必修项。按统筹要求，在 `tests/connector-oauth-choice.test.ts` 补了两条非浏览器用例：
+  - 2026-10-28 改（W5-11 第 5 片；用户 10-27 定：只存新令牌）：下面这条和上面「stops when both leave」那条已反过来，改名为「an answer nobody waits for keeps only the rotated tokens…」「a call arriving after both callers left joins the sent refresh…」与「…when both leave the sent request still ends and only its tokens are kept」：请求不中止，新令牌写回原连接，走光后新来的调用加入在途的刷新。下面是 C 当时的写法，留作记录。
   - 「a call after both callers left starts a new shared refresh…」：两方都取消后，共享请求被中止。响应回来之前，第三个调用另起一个共享项，发出第二个请求。旧响应回来时，两方各按自己的原因被拒，什么都不写。第四个调用加入第三个调用的请求，最后只落第二个请求的结果，连接的 revision 不变。
   - 「a shared refresh a caller still awaits writes nothing when…」：一方取消，另一方还在等。刷新期间，refresh 值被换掉，或连接停用再启用（revision 变了）。留下的一方分别以「Notion 连接在刷新期间已改变，请重试」「连接在刷新期间已变化，请重试」被拒，什么都不写。
   - 作者验证：整文件 13/13（`--jobs 1 --retries 0`）。在构建出的 `notion-oauth.js` 上，分别去掉三处保护——已结束的共享项不再接纳新调用、落盘前比对 refresh 值、`finally` 只删自己那一项——新用例都会变红。构建产物已还原。
-  - **取舍（统筹登记为 R-68）**：所有参与的调用都已取消、而请求已经发出时，Notion 轮换出的新 refresh token 不写盘。如果 Notion 立刻让旧值失效，用户就要重新授权。这是「被取消的调用不写记录」的代价。
+  - **取舍（统筹登记为 R-68；2026-10-28 由 W5-11 第 5 片改掉，用户 10-27 定：只存新令牌）**：所有参与的调用都已取消、而请求已经发出时，Notion 轮换出的新 refresh token 不写盘。如果 Notion 立刻让旧值失效，用户就要重新授权。这是「被取消的调用不写记录」的代价。
   - **两条建议，这批不改**：① 被取消的一方仍要等共享刷新结束才返回，可以改成和自己的信号赛跑、先行返回。② 权限已被撤销、信号却没有中止的参与者，要到下一次检查才退出。

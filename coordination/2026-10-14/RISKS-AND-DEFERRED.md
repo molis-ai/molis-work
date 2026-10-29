@@ -290,3 +290,8 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 评审末段建议过渡包加入104、provenance记main：**本次不采用**，与现行only103窄WO冲突。过渡源必须记真实2c7+final103及显式最小port固定头；dcaa参考包/main f175均不是该过渡来源。该处理保留Root裁定与后续明确范围变更入口，不用review建议替换人类/统筹工单。
 
 本节实际接续也已公开至 SDK104 的PIPE评论6395597509；bridge最终源交付见 Molis1267/6395547824。源ba交付不冒包、Molis采用或restore完成。
+
+## 2026-10-29 统筹（Claude 统筹）
+
+- **设备 B 验证机上插件框架输入投递超时。** 现象：浏览器用例报 `Input was not delivered to plugin frame within 10000ms: [data-coding-workbench] / [data-jelly-block-text]`（`covered=undefined`）。Coding 两例在干净的 merge-base 上同样失败，T-229（#1511）的 `jelly-whole-character.e2e` 在设备 A 上 2/2 通过。判断：验证机的环境或夹具问题，不挡单。待办：找人在设备 B 上复现，查专用测试 Chrome、窗口焦点或隐藏页面节流。若 CI Full 也出现同一报错，升级为产品问题。来源 #1332 6507028399，统筹答在其后。
+- **T-171 视觉 6 像素。** settings-appearance@1440-light 卡片右上圆角差 1 个灰阶；B 在 merge-base 上复现出相同像素值，同场景比对零差异。按栅格差异收束，A 的 exit1 记录照留（#1493）。若别的单在同一位置再出现，查渲染的确定性。

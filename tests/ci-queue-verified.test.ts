@@ -43,7 +43,7 @@ const baseStep = (base: string, conclusion = "success") => ({ name: `${BASE_STEP
 const verifyJob = (conclusion: string, steps: unknown[] = [baseStep(BEFORE)]) => ({ body: { jobs: [{ name: "Gates", conclusion: "success" }, { name: REQUIRED_JOB, conclusion, steps }] } });
 const ask = (stand: ReturnType<typeof api>, sha = SHA, before = BEFORE) => queueVerified({ repo: REPO, sha, before, token: "t", api: "https://api.example", fetch: stand.fetch });
 
-test("RAC-1766 verified only for a successful merge_group run of ci.yml on this very commit, against this push's base, whose Verify passed", async () => {
+test("RAC-1900 verified only for a successful merge_group run of ci.yml on this very commit, against this push's base, whose Verify passed", async () => {
   const yes = api({ body: { workflow_runs: [run()] } }, { 7: verifyJob("success") });
   const verified = await ask(yes);
   assert.deepEqual(verified, { verified: true, runUrl: run().html_url, reason: `merge queue run 7 passed ${REQUIRED_JOB} on ${SHA}, compared with ${BEFORE}` });
@@ -88,7 +88,7 @@ test("RAC-1766 verified only for a successful merge_group run of ci.yml on this 
   }
 });
 
-test("RAC-1766 the command: answers false without the environment, writes both outputs, refuses arguments", () => {
+test("RAC-1900 the command: answers false without the environment, writes both outputs, refuses arguments", () => {
   const script = fileURLToPath(new URL("../scripts/ci-queue-verified.mjs", import.meta.url));
   const environment = { ...process.env, GITHUB_REPOSITORY: "", GITHUB_SHA: "", PUSH_BEFORE: "", GITHUB_OUTPUT: "" };
   const plain = spawnSync(process.execPath, [script], { encoding: "utf8", env: environment });
@@ -128,7 +128,7 @@ const CASES: Case[] = [
 ];
 const contexts = (item: Case) => ({ "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified });
 
-test("RAC-1767 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {
+test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {
   const check = jobBlock(QUEUE_CHECK_JOB);
   assert.match(check, /^    if: \$\{\{ github\.event_name == 'push' \}\}$/m, "only on a push: a pull request, the merge queue, the nightly and manual runs never skip anything");
   assert.match(check, /^    permissions:\n      actions: read\n      contents: read\n    outputs:/m, "it reads runs, it writes nothing");
@@ -149,7 +149,7 @@ test("RAC-1767 ci.yml: queue-check runs on a push only, may read runs and nothin
   for (const name of ["security-invariants", "product-subset"]) assert.doesNotMatch(jobBlock(name), /queue-check/, name);
 });
 
-test("RAC-1768 ci.yml: in the merge queue every blocking job first checks that its entry still exists, and only a missing branch stops it", () => {
+test("RAC-1902 ci.yml: in the merge queue every blocking job first checks that its entry still exists, and only a missing branch stops it", () => {
   // A stand-in for git that answers ls-remote with the exit code it is given.
   const bin = scratch();
   writeFileSync(path.join(bin, "git"), '#!/bin/sh\necho "git $*" >> "$GIT_CALLS"\nexit "$GIT_STATUS"\n');
@@ -178,7 +178,7 @@ test("RAC-1768 ci.yml: in the merge queue every blocking job first checks that i
   }
 });
 
-test("RAC-1769 ci.yml: Verify records the queue's base, waits for the same seven jobs and judges them as before, except where they were skipped", () => {
+test("RAC-1903 ci.yml: Verify records the queue's base, waits for the same seven jobs and judges them as before, except where they were skipped", () => {
   const verify = jobBlock("verify");
   assert.match(verify, /^    name: Verify$/m, "the required check keeps its name");
   assert.match(verify, /^    needs: \[gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, queue-check\]$/m);
@@ -210,7 +210,7 @@ test("RAC-1769 ci.yml: Verify records the queue's base, waits for the same seven
   assert.equal(judged("push", "failure", "", "success").status, 0);
 });
 
-test("RAC-1770 ci.yml: queue-check's word reaches nothing but the blocking jobs' conditions and Verify, and both read it the same way", () => {
+test("RAC-1904 ci.yml: queue-check's word reaches nothing but the blocking jobs' conditions and Verify, and both read it the same way", () => {
   const readers = workflow.split("\n").filter((line) => /needs\.queue-check\./.test(line));
   assert.ok(readers.length > 0);
   assert.deepEqual([...new Set(readers.map((line) => /needs\.queue-check\.([a-z_.]+)/.exec(line)![1]))].sort(), ["outputs.run_url", "outputs.verified", "result"]);
@@ -219,7 +219,7 @@ test("RAC-1770 ci.yml: queue-check's word reaches nothing but the blocking jobs'
   // The jobs that read it are exactly the seven and verify.
   const jobsReading = [...workflow.slice(workflow.indexOf("\njobs:\n")).matchAll(/^  ([A-Za-z0-9_-]+):\s*$/gm)].map((match) => match[1]!).filter((name) => /needs\.queue-check\./.test(jobBlock(name)));
   assert.deepEqual(jobsReading.sort(), [...BLOCKING, "verify"].sort());
-  // Verify's three conditions are the jobs' three: the push, success, true (RAC-1767 and RAC-1769 evaluate both over the same cases).
+  // Verify's three conditions are the jobs' three: the push, success, true (RAC-1901 and RAC-1903 evaluate both over the same cases).
   const verify = jobBlock("verify");
   assert.match(verify, /QUEUE_CHECK_RESULT: \$\{\{ needs\.queue-check\.result \}\}/);
   assert.match(verify, /if \[ "\$GITHUB_EVENT_NAME" = "push" \] && \[ "\$QUEUE_CHECK_RESULT" = "success" \] && \[ "\$QUEUE_VERIFIED" = "true" \]; then/);

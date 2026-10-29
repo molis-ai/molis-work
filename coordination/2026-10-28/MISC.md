@@ -81,3 +81,4 @@
 | T-215 起草 | `specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md:807` | 「先去掉注释再判断」在 T-215 后不全，补成「去掉注释、字符串、正则和模板文字」；T-207、task/T063-ca 在改这份文件，等它们落地；丙 | 统筹 2026-10-29 |
 | T-216 起草 | 35 个 `tests/*.test.ts` 里的 37 处内联 `+= chunk`、`scripts/preview-functions.mts:43`、`scripts/studio-replay/stand-in.mts:44` | 同 T-216 的读法问题（按块拼字符串，被切开的多字节字读成 U+FFFD）；按文件分批，#1101 碰的六个文件等它不再锁；丙 | 统筹 2026-10-29 |
 | T-217 起草 | `scripts/ci-queue-verified.mjs`（queue-check 的「同一起点」规则） | #1460 评论 6494450067 建议认出一串连续的队列组（沿 `base_sha` 一直回到 `before`），一次 push 落多个组时也能跳过；这会放宽「同一起点」规则，要先过安全评审；甲，统筹定要不要做 | 统筹 2026-10-29 |
+| T-128 二审 登记 | `.github/workflows/ci.yml`（`secret-scan`、`native-checks`、`shell-checks`）、`tests/ci-timeouts.test.ts` | 这三个作业没有作业级 `timeout-minutes`；用例的 `blocking` 表是手写的，建议加一条断言：`blockingJobs()` 里凡有作业级时限的都不低于 30 分钟（`queue-check` 5 分钟是有意的例外，写明）。丙 | 统筹 2026-10-29 |

@@ -2,15 +2,15 @@
 // jobs again (scripts/ci-queue-verified.mjs, the `queue-check` job of .github/workflows/ci.yml), and a merge queue run whose entry was
 // rebuilt or dropped stops at once instead of building and testing for nothing. The lookup is checked against a stand-in for the
 // GitHub API, every way to "not verified" included; then the workflow: its conditions evaluated for every event and every way
-// `queue-check` can end, `verify`'s script and the queue entry check run in bash as the runner runs them, and that nothing changes on
-// a pull request, in the merge queue or at night.
+// `queue-check` can end, `verify`'s script and the queue entry check run in bash (a little stricter than the runner's, see `runStep`),
+// and that nothing changes on a pull request, in the merge queue or at night.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { BASE_STEP, queueVerified, REQUIRED_JOB, WORKFLOW_PATH } from "../scripts/ci-queue-verified.mjs";
 import { blockingJobs, evaluateExpression, jobBlock, QUEUE_CHECK_JOB, stepScript, workflow } from "./fixtures/ci-workflow.js";
 
@@ -96,6 +96,34 @@ test("RAC-1900 the command: answers false without the environment, writes both o
   assert.match(plain.stdout, /not verified: no repository or commit/);
   const usage = spawnSync(process.execPath, [script, "--force"], { encoding: "utf8", env: environment });
   assert.equal(usage.status, 2);
+
+  // The two outputs `queue-check` hands on (`steps.check.outputs.verified` and `.run_url`, which the job's `outputs` read) are two lines
+  // added to the file `$GITHUB_OUTPUT` names, after whatever other steps wrote there. Not verified: `false` and an empty address.
+  const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-output-"));
+  directories.push(directory);
+  const falseOutput = path.join(directory, "output-false");
+  writeFileSync(falseOutput, "earlier=step\n");
+  const notVerified = spawnSync(process.execPath, [script], { encoding: "utf8", env: { ...environment, GITHUB_OUTPUT: falseOutput } });
+  assert.equal(notVerified.status, 0, notVerified.stderr);
+  assert.equal(readFileSync(falseOutput, "utf8"), "earlier=step\nverified=false\nrun_url=\n", "both lines, added after what was there");
+  // Verified: a stand-in for `fetch`, loaded into the command before it starts, answers the runs list and the jobs of run 7 the way the
+  // first test of RAC-1900 does. Then the lines are `true` and the address of that run.
+  const standIn = path.join(directory, "stand-in-fetch.mjs");
+  writeFileSync(standIn, [
+    "const reply = (body) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });",
+    `const runs = ${JSON.stringify({ workflow_runs: [run()] })};`,
+    `const jobs = ${JSON.stringify(verifyJob("success").body)};`,
+    'globalThis.fetch = (url) => reply(String(url).includes("/actions/runs/7/jobs") ? jobs : runs);',
+  ].join("\n"));
+  const trueOutput = path.join(directory, "output-true");
+  writeFileSync(trueOutput, "");
+  const found = spawnSync(process.execPath, ["--import", pathToFileURL(standIn).href, script], {
+    encoding: "utf8",
+    env: { ...environment, GITHUB_REPOSITORY: REPO, GITHUB_SHA: SHA, PUSH_BEFORE: BEFORE, GITHUB_TOKEN: "t", GITHUB_OUTPUT: trueOutput },
+  });
+  assert.equal(found.status, 0, found.stderr);
+  assert.match(found.stdout, /^ci-queue-verified: verified: /);
+  assert.equal(readFileSync(trueOutput, "utf8"), `verified=true\nrun_url=${run().html_url}\n`, "both lines: true, and the run that verified it");
 });
 
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
@@ -103,7 +131,11 @@ const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "acti
 const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS"];
 const steps = (job: string) => jobBlock(job).split("\n      - ").slice(1);
 const scratch = () => { const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-check-")); directories.push(directory); return directory; };
-/** Runs a step's script as the runner does (`bash --noprofile --norc -eo pipefail`), with `env` added and `bin` first on PATH. */
+/**
+ * Runs a step's script in `bash --noprofile --norc -eo pipefail`, a little stricter than the runner: ci.yml names no shell, so the runner runs a
+ * step with `bash -e {0}` (RAC-1902 checks that nothing names one). The scripts run here have no pipe, so both give the same result.
+ * With `env` added and `bin` first on PATH.
+ */
 function runStep(script: string, env: Record<string, string>, bin?: string) {
   const directory = scratch();
   const file = path.join(directory, "step.sh");
@@ -150,6 +182,9 @@ test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothin
 });
 
 test("RAC-1902 ci.yml: in the merge queue every blocking job first checks that its entry still exists, and only a missing branch stops it", () => {
+  // `runStep` is stricter than the runner only while ci.yml names no shell (then the runner runs a step with `bash -e {0}`). A `shell:` or
+  // `defaults:` added to it means the comment on `runStep` and the arguments it gives bash need a second look.
+  assert.doesNotMatch(workflow, /^\s*(?:shell|defaults):/m, "ci.yml names no shell: the runner runs a step with `bash -e {0}`");
   // A stand-in for git that answers ls-remote with the exit code it is given.
   const bin = scratch();
   writeFileSync(path.join(bin, "git"), '#!/bin/sh\necho "git $*" >> "$GIT_CALLS"\nexit "$GIT_STATUS"\n');
@@ -165,8 +200,9 @@ test("RAC-1902 ci.yml: in the merge queue every blocking job first checks that i
     for (const event of ["merge_group", "pull_request", "push", "schedule", "workflow_dispatch"]) {
       assert.equal(Boolean(evaluateExpression(condition, { "github.event_name": event })), event === "merge_group", `${name}: on ${event}`);
     }
-    // The script itself, under the runner's -eo pipefail: 0 (the branch is there) goes on, 2 (connected, no such branch) stops the
-    // job, any other failure (128: network, authentication) goes on, so a check that could not ask never stops a live entry.
+    // The script itself, under `runStep`'s bash (stricter than the runner's `bash -e`): 0 (the branch is there) goes on, 2 (connected, no
+    // such branch) stops the job, any other failure (128: network, authentication) goes on, so a check that could not ask never stops a
+    // live entry.
     for (const [status, code] of [[0, 0], [2, 1], [128, 0], [1, 0]] as const) {
       const calls = path.join(scratch(), "calls");
       writeFileSync(calls, "");

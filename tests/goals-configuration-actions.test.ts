@@ -183,33 +183,38 @@ test("Web relations and rules use live action policy for writes and selected pag
     const requestKeys = new Map<string, string>();
     const write = (path: string, body: unknown, key: string, authorized = true) => {
       if (!requestKeys.has(key)) requestKeys.set(key, randomUUID());
+      // The page names the act in the body now that its writes go to the plugin prefix: the Runtime route has no request headers. The
+      // same one-time key also travels in the Host gate's header, which only names the act in the recorded provenance.
+      const named = { ...(body as Record<string, unknown>), idempotency_key: requestKeys.get(key)! };
       return fetch(prefix + path, { method: "POST",
-      headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": requestKeys.get(key)!,
-        ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
+        // The body carries the act's key so a retry replays; the Host's one-time key is new for each attempt (a repeated one is a
+        // duplicate mutation the Host gate refuses).
+      headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
+        ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(named) });
     };
     const relation = { target_goal_id: "child", direction: "incoming", type: "extends", reason: "Keep this exact direction", actor_id: "forged" };
     const before = await snapshot();
-    assert.equal((await write("/api/goals/parent/relations", relation, "web-add", false)).status, 403);
+    assert.equal((await write("/api/plugins/io.molis.work.goals/goals/parent/relations", relation, "web-add", false)).status, 403);
     denied.add(goalsActions.relationAdd.capability_id);
-    const blocked = await write("/api/goals/parent/relations", relation, "web-add");
+    const blocked = await write("/api/plugins/io.molis.work.goals/goals/parent/relations", relation, "web-add");
     assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Configuration disabled/);
     assert.deepEqual(await snapshot(), before);
     denied.clear();
-    const added = await write("/api/goals/parent/relations", relation, "web-add"); assert.equal(added.status, 200, await added.clone().text());
+    const added = await write("/api/plugins/io.molis.work.goals/goals/parent/relations", relation, "web-add"); assert.equal(added.status, 200, await added.clone().text());
     const { relation_id } = await added.json() as { relation_id: string };
-    assert.equal((await (await write("/api/goals/parent/relations", relation, "web-add")).json() as { replayed: boolean }).replayed, true);
+    assert.equal((await (await write("/api/plugins/io.molis.work.goals/goals/parent/relations", relation, "web-add")).json() as { replayed: boolean }).replayed, true);
     const row = (await actions.invoke(goalsActions.relations, { goal_id: "parent" })).relations.find(r => r.relation_id === relation_id)!;
     assert.equal(row.from_goal_id, "child"); assert.equal(row.to_goal_id, "parent"); assert.equal(row.created_by, "web-user");
     denied.add(goalsActions.relationDeactivate.capability_id);
-    assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 403);
+    assert.equal((await write(`/api/plugins/io.molis.work.goals/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 403);
     assert.equal((await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === relation_id)?.state, "active");
     denied.clear();
-    assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 200);
+    assert.equal((await write(`/api/plugins/io.molis.work.goals/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 200);
     const policy = { scope: "project_default", policy: { human_approval: true }, user_confirmed: true, idempotency_key: "web-policy", actor_id: "forged" };
     denied.add(goalsActions.policySave.capability_id);
-    assert.equal((await write("/api/policy-bindings", policy, "web-policy")).status, 403);
+    assert.equal((await write("/api/plugins/io.molis.work.goals/policy-bindings", policy, "web-policy")).status, 403);
     denied.clear();
-    const saved = await write("/api/policy-bindings", policy, "web-policy"); assert.equal(saved.status, 200, await saved.clone().text());
+    const saved = await write("/api/plugins/io.molis.work.goals/policy-bindings", policy, "web-policy"); assert.equal(saved.status, 200, await saved.clone().text());
     assert.equal((await actions.invoke(goalsActions.policyHistory, {})).bindings.at(-1)?.created_by, "web-user");
     assert.equal((await fetch(prefix + "/settings/rules")).status, 200);
     assert.equal((await fetch(prefix + "/goals/parent")).status, 200);

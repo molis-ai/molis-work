@@ -3,6 +3,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
+import { webEntryMessage } from "./entry-user-action.js";
 import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
@@ -58,7 +59,7 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
     abort.signal.throwIfAborted();
     const caller = await ports.routeCaller?.();
     abort.signal.throwIfAborted();
-    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
+    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller, webEntryMessage(request));
     return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId, {
       async afterDispatch() { await platform.wiring.drain(); },
     }, { execution: routed?.control ?? plain, stop });

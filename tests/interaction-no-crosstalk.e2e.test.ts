@@ -307,7 +307,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
     } finally { catalog.close(); }
   })();
   /** A Goal created through the project's own Goals route, from the page, in the project the page is in. */
-  const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/goals', { method: 'POST',
+  const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/plugins/io.molis.work.goals/goals', { method: 'POST',
     headers: { ...molisWorkControlHeaders(), 'content-type': 'application/json', 'x-molis-work-idempotency-key': crypto.randomUUID() },
     body: JSON.stringify({ goal_id: ${JSON.stringify(goalId)}, title: ${JSON.stringify(title)}, outcome: '', why: '', business_logic: '' }) })
     .then(async r => { if (!r.ok) throw new Error(await r.text()); })`);

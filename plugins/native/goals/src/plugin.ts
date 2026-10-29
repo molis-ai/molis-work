@@ -141,7 +141,6 @@ export function createGoalsPlugin(): PluginDefinition {
 
     return { kind: "app", views: [goalsTreeUiContribution, goalsSettingsUiContribution],
       actions: handlers.map(windowed),
-      routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }),
-        routePrefix: () => "", idempotencyKey: () => undefined, changed: () => undefined }) };
+      routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };
 }

@@ -19,7 +19,7 @@ export function goalEventDecisionRoutes(ports: GoalsRoutePorts): PluginRouteBind
     }
     const conclusion = typeof body.conclusion === "string" ? body.conclusion.trim() : "";
     if (!conclusion) return goalsFailure(new ActionError("actions.input_invalid", "用户决定需要结论"));
-    const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? `web-event-decision-${randomUUID()}`);
+    const idempotencyKey = String(body.idempotency_key ?? `web-event-decision-${randomUUID()}`);
     const result = await context.actions.invoke(goalsActions.decide, {
       goal_id: context.params.goalId!,
       idempotency_key: idempotencyKey,
@@ -33,7 +33,6 @@ export function goalEventDecisionRoutes(ports: GoalsRoutePorts): PluginRouteBind
         : undefined,
       scope: body.scope && typeof body.scope === "object" ? body.scope as Record<string, unknown> as never : undefined,
     });
-    context.changed();
     return { status: 200, body: result };
   })];
 }

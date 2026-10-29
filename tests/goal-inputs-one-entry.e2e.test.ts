@@ -52,7 +52,7 @@ test("「加输入…」 on a Goal takes a document either following the origina
   // A fixed input can be taken off the Goal from the same list; the version stays in the 成果库.
   await click("[data-goal-inputs] [data-goal-input-fixed] [data-goal-input-remove]");
   await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-input-fixed]')", 10_000);
-  const left = await evaluate<{ inputs: unknown[] }>(`fetch('/projects/${projectId}/api/goals/V1/artifact-inputs').then(r => r.json())`);
+  const left = await evaluate<{ inputs: unknown[] }>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs').then(r => r.json())`);
   assert.deepEqual(left.inputs, []);
 });
 

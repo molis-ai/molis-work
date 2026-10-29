@@ -59,7 +59,7 @@ test("EGCD-01 EGCD-02 EGCD-03 empty Goals opens the create dialog, a closed dial
 
   await click("[data-create-dialog] [data-close-create]");
   await waitFor("document.querySelector('[data-create-dialog]')?.open === false");
-  await post(origin, `/projects/${projectId}/api/goals`, {
+  await post(origin, `/projects/${projectId}/api/plugins/io.molis.work.goals/goals`, {
     title: "已经有一条", idempotency_key: "empty-goal-create-existing",
   }, "empty-goal-create-existing");
   await navigate(() => command("Page.navigate", { url: home }, sessionId));

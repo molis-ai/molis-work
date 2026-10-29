@@ -248,7 +248,7 @@ const headErrors = (measured, budget, base) => {
 // T-229 (MISC, T-190's review), RAC-2190–2191: a note row's preview drops a character cut in half, and the import dialog counts
 // characters instead of UTF-16 units, +106 B on this one asset (first +36 B; the counting loop T-229's review asked for, no array of a
 // whole file, adds the rest). Tried: the shorter form of both writes, a shared cut helper (longer), no new asset.
-// User approved the admission 2026-10-29; the review asks 统筹 to confirm the range on the PR.
+// 统筹答 T-229 (2026-10-29, issue 1332 comment 6507055134) approved [76760, 76866]: the extra 70 B is what the review's iterator count costs.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/jelly.js": [76760, 76866],
 };

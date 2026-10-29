@@ -174,6 +174,15 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-224 | Host 再截的检索词、记忆文字、信号标签、起草节选与附加材料按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」第二道截取） | 丙 | 池 | 123 | — | `apps/local-host/src/contextual/contextual-request.ts`、`apps/local-host/src/contextual/contextual-http.ts`、`apps/local-host/src/contextual/contextual-draft.ts`、`apps/local-host/src/contextual/contextual-attach.ts`、`tests/contextual-interaction.test.ts`（与 T-204 共改，后合的变基）、`tests/contextual-draft.test.ts` |
 | T-225 | 工作台把选中的段落（2000）、标题路径（120）和交给助理的选中内容（20000）按整字截，不再留下半个字（防腐清理，MISC「T-183 发布」`context-actions.ts` 一行） | 乙 | A | 124 | T-183 | `apps/workbench/src/scripts/client/context-actions.ts`、`apps/workbench/src/scripts/client/context-bus.ts`（只删 T-183 加的两行）、`tests/workbench-context-whole-characters.test.ts`（新）、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-226 | 模型假服务读请求体先收字节、最后解码一次，被切在两个数据块之间的字不再读成 U+FFFD（防腐清理，MISC「T-216 二审 建议」行） | 丙 | A | 125 | — | `tests/fixtures/model-stand-in.ts`、`tests/fixture-request-text.test.ts` |
+| T-227 | Home 插件关闭不因一条坏记录整个中止，同一插件两条记录时不停掉在跑的安装（防腐清理，MISC「T-172 二审」两行；短任务书） | 甲 | Claude（设备 A） | 126 | — | `apps/local-host/src/home-plugins.ts`、`apps/local-host/src/plugin-platform-close.ts`、`tests/home-plugin-close.test.ts` |
+| T-228 | Pages 写作菜单的超限截取只算一次，生成文稿的长度上限按字数数（防腐清理，MISC「T-177 二审 建议」；短任务书） | 乙 | 池 | 127 | — | `plugins/native/pages/src/fragment-offers.ts`、`plugins/native/pages/src/generate.ts` |
+| T-229 | Jelly 笔记列表的预览按整字截，导入时显示的字数按字数数（防腐清理，MISC「T-190 二审 建议」；短任务书） | 乙 | A | 128 | — | `plugins/native/jelly/src/browser/notes.ts`、`plugins/native/jelly/src/browser/note-actions.ts` |
+| T-230 | 起草把段落填进字段、摘要截标题时按整字截，不再存下半个字（防腐清理，MISC「T-224 起草」；短任务书） | 乙 | B | 129 | — | `apps/local-host/src/drafting/fields.ts`、`apps/local-host/src/drafting/draft-data.ts`、`apps/local-host/src/drafting/draft-service.ts` |
+| T-231 | Host 另存下载的文件名、Shelf 存进成果库的名字按整字截，不再丢扩展名（防腐清理，MISC「T-223 起草」；短任务书） | 乙 | B | 130 | — | `apps/local-host/src/browser/browser-host.ts`、`plugins/native/shelf/src/home-plugin.ts` |
+| T-232 | 测试夹具起终端时先记下 pid 再断言，断言失败也不留孤儿进程（防腐清理，MISC「T-209 起草」；短任务书） | 丙 | B | 131 | — | `tests/fixtures/desktop-entry-streams.ts` |
+| T-233 | 新建 Goal 的文字上限按字数数，含两单元字的内容不再被提前拒（防腐清理，MISC「T-211 起草」第二行；短任务书） | 乙 | 池 | 132 | — | `plugins/native/goals/src/http/create.ts` |
+| T-234 | 问卷填写页的回答框按字数封顶，与库同口径（防腐清理，MISC「T-086 起草」；短任务书） | 乙 | A | 133 | T-203 | `plugins/native/form/src/browser/fields.ts`、`plugins/native/form/src/store.ts`（只 `:198`） |
+| T-235 | PPT 大纲正文框按字数封顶，与库同口径（防腐清理，MISC「T-203 起草」PPT 一处；短任务书） | 乙 | A | 134 | T-203 | `plugins/native/ppt/src/ui.ts` |
 
 ## 在途，不走任务书
 

@@ -50,6 +50,29 @@ function takeOriginalInput(body: unknown, installId: string | null | undefined, 
 }
 
 /**
+ * The Runtime matcher decodes every path segment before it decides, so a path with bad percent-encoding throws a URIError before it can
+ * say whether it is one of the plugin's routes. This asks the same matcher and answers that case as the retired Host dispatcher did:
+ * the segments are re-encoded literally and, when the path is then one of this plugin's declared routes, it is the caller's invalid
+ * path (`host.request_path_invalid`, 400); any other shape is not this plugin's route and answers null. Only the matcher's own
+ * URIError is taken; every other failure still propagates.
+ */
+export function matchPluginRoute<Match extends { readonly plugin_id: string }>(
+  match: (method: string, pathname: string) => Match | null, pluginId: string, method: string, pathname: string,
+): Match | null {
+  try {
+    return match(method, pathname);
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    const literal = pathname.split("/").map((part) => {
+      try { return encodeURIComponent(decodeURIComponent(part)); } catch { return encodeURIComponent(part); }
+    }).join("/");
+    const declared = match(method, literal);
+    if (declared && declared.plugin_id === pluginId) throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+    return null;
+  }
+}
+
+/**
  * The HTTP operations every Runtime plugin shares: restart and release-quarantine, upgrade, "not running", the view revision, then
  * the plugin's own declared route. Runtime registration, not a list of plugin ids, decides whose route this is: returns false
  * (the caller falls through to the next handler) for a plugin the platform never registered and for a path the plugin did not
@@ -99,23 +122,8 @@ export async function dispatchRuntimePluginRoute(
     sendLocalWebJson(response, 200, { revision: platform.viewRevision(pluginId) });
     return true;
   }
-  let match;
-  try {
-    match = router.match(request.method ?? "GET", url.pathname);
-  } catch (error) {
-    // The Runtime matcher decodes every segment before it decides, so a path with bad percent-encoding throws before it can say
-    // whether it is one of the plugin's routes. The retired Host dispatcher answered exactly that case: re-encode the segments and, when
-    // the path is then one of this plugin's declared routes, refuse it as the caller's invalid path (`host.request_path_invalid`, 400);
-    // an undeclared shape is not this plugin's route and the caller falls through as before. Only the matcher's own URIError is taken;
-    // every other failure still propagates.
-    if (!(error instanceof URIError)) throw error;
-    const literal = url.pathname.split("/").map((part) => {
-      try { return encodeURIComponent(decodeURIComponent(part)); } catch { return encodeURIComponent(part); }
-    }).join("/");
-    const declared = router.match(request.method ?? "GET", literal);
-    if (declared && declared.plugin_id === pluginId) throw hostErrors.request_path_invalid("请求路径里有无效的编码");
-    return false;
-  }
+  // Bad percent-encoding in the path is answered by `matchPluginRoute`: 400 for this plugin's declared shape, otherwise not its route.
+  const match = matchPluginRoute((method, pathname) => router.match(method, pathname), pluginId, request.method ?? "GET", url.pathname);
   if (!match) return false;
   // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
   // Host-made control carries it, and only to this installation's actions.

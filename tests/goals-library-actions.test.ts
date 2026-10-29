@@ -10,7 +10,7 @@ import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures
 import { goalApplicationOf, goalsQueryOf } from "./fixtures/goal-application.js";
 
 async function fixture(projectId: string, plugin?: CallerPlugin) {
-  const home = await mkdtemp(join(tmpdir(), "goals-board-actions-"));
+  const home = await mkdtemp(join(tmpdir(), "goals-library-actions-"));
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId });
   let denied: string | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}), actionAvailability: (_caller, view) =>

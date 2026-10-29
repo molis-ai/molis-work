@@ -212,17 +212,6 @@ export function renderPluginRail(
   </nav>`;
 }
 
-/** The ways to extend the workbench — the market and the plugin studio — offered from the Dock menu. */
-export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
-  const { L } = primitives;
-  const item = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") =>
-    pluginLink(primitives, plugin, "account-global-item", suffix);
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => plugin.rail === "extend").map(plugin => item(plugin)).join("");
-  const market = item({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
-    `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
-  return `${market}${builder}`;
-}
-
 /**
  * The market and the plugin studio, the workbench's two ways to get more plugins, as two buttons at the head of the switcher
  * beside search (not rows among the plugins: they are things to do, not places). The group keeps `data-global-menu`, which

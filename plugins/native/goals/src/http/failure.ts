@@ -17,9 +17,6 @@ export function goalsRoute(
       return await handle({
         params: request.params, query: request.query,
         body: request.body as Record<string, unknown>,
-        routePrefix: ports.routePrefix(request),
-        idempotencyHeader: ports.idempotencyKey(request),
-        changed: () => ports.changed(request),
         actions: ports.actions(request),
       });
     } catch (error) { return goalsFailure(error); }

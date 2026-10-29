@@ -13,7 +13,7 @@ export function goalDecisionRoutes(ports: GoalsRoutePorts): PluginRouteBinding[]
       return goalsFailure(new ActionError("actions.input_invalid", "decisions 必须是条目决定列表"));
     }
     const confirmsWholeProposal = body.confirm_all_pending === true;
-    const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? "");
+    const idempotencyKey = String(body.idempotency_key ?? "");
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     const result = await context.actions.invoke(goalsActions.treeDecide, {
       proposal_id: context.params.proposalId!,

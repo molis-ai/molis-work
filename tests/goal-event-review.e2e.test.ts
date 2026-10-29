@@ -5,9 +5,11 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("event document pointer path covers requirement form, concern body, note, selection and resume", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, projectId } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const app = new GoalProjectApplication(store);
   const actor = { project_id: DEMO_PROJECT_ID, actor_id: "review-runtime", actor_kind: "runtime" as const };
   const created = app.goalEvents.createIntent({
@@ -52,7 +54,7 @@ test("event document pointer path covers requirement form, concern body, note, s
   const visible = (selector: string) => evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});return Boolean(e && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')})()`);
   const history = () => app.goalEvents.listEvents(DEMO_PROJECT_ID, goalId, { limit: 100 }).events;
   async function openGoal() {
-    await navigate(() => command("Page.navigate", { url: `${origin}/goals/${goalId}` }, sessionId));
+    await navigate(() => command("Page.navigate", { url: `${origin}${prefix}/goals/${goalId}` }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
     await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   }

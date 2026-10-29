@@ -160,7 +160,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor, reloadPage } = browser;
   const prefix = `/projects/${projectId}`;
-  const readGuidance = async () => (await (await fetch(origin + prefix + "/api/project-guidance")).json());
+  const readGuidance = async () => (await (await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/project-guidance")).json());
   const fill = async (selector: string, value: string) => evaluate(`(() => { const field=document.querySelector(${JSON.stringify(selector)}); field.value=${JSON.stringify(value)}; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   await command("Network.enable", {}, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/guidance" }, sessionId));
@@ -169,7 +169,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.equal(await evaluate("document.querySelector('[name=kind]').value"), "constraint");
   await fill('[name=content]', "用户数据只保存在本机。");
   await fill('[name=reason]', "明确项目的数据边界。");
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/project-guidance"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/project-guidance"] }, sessionId);
   await click('[data-guidance-form] button[type=submit]');
   await waitFor("!document.querySelector('[data-guidance-editor-error]').hidden");
   assert.equal(await evaluate("document.querySelector('[name=content]').value"), "用户数据只保存在本机。");
@@ -201,7 +201,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.equal(await evaluate(accepted), original);
   assert.equal(boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor, beforeRules);
   await evaluate(accepted + " = " + String(!original));
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/policy-bindings"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/policy-bindings"] }, sessionId);
   await click('[data-policy-form] button[type=submit]');
   await waitFor("!document.querySelector('[data-policy-error]').hidden && !document.querySelector('[data-policy-form] button[type=submit]').disabled");
   assert.equal(await evaluate(accepted), !original);

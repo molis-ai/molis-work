@@ -19,7 +19,7 @@ W6-01 的原文（`roadmap-2026-10-07.md` 第 92 行、`docs/system/RUNTIME-MIGR
 | 项 | 为什么还在 | 谁拿走 | 拿走之后 W6-01 要做的 |
 | --- | --- | --- | --- |
 | feed、inbox（`BUILD_TIME_ASSEMBLED`、`/api/feed`、`/api/inbox`） | 构建期装配，宿主手写 HTTP | FI-6（进 Runtime，路由写进 Manifest）、FI-7（客户端改走公开动作、删 Inbox HTTP 转发），ac-sandbox-sched | 两项从两份名单移出；两份 HTTP 文件已被那两片删掉 |
-| goals | 路由已在 Manifest，宿主仍按旧地址 `/api/<路径>` 分发（BL-386）；Runtime 入口未建 | Goals S9～S12（BL-386、PG-094），sleepy-kapitsa 一线；S9-2 等用户维护窗口 | 移出 `BUILD_TIME_ASSEMBLED` |
+| goals | 路由已在 Manifest，Runtime 入口已建（PG-094 S10～S12）；宿主旧地址 `/api/<路径>` 的改写已删（BL-386，2026-10-29 T-043） | Goals S9～S12（PG-094），sleepy-kapitsa 一线；S9-2 等用户维护窗口 | 移出 `BUILD_TIME_ASSEMBLED` |
 | artifacts（`BUILD_TIME_ASSEMBLED`、`/api/artifacts…`） | 成果库去插件身份（ac-artifacts A5、A6）：A5 换提供方要等维护时段，A6 把「成果」做成平台面并删目录条目与插件包 | ac-artifacts 线（A5 → A6） | 移出 `BUILD_TIME_ASSEMBLED`；`artifact-native-plugin-http.ts` 在 A6 里要么搬成平台的路由文件（不再以插件命名，也就不在 `NATIVE_PLUGIN_HTTP_FILES`），要么删；A6 的设计稿没写这一份文件的去向，A6 开工时要定 |
 | alchemist（名单、`/api/alchemist`） | 用户 2026-10-18/10-23 定：不迁、本轮不删、绕过，以后重做（BL-376） | 用户已批的例外 | 留着，作为「批过的例外」写明出处 |
 | plugin-builder（名单） | 同上（BL-377，插件创作台） | 用户已批的例外 | 同上 |

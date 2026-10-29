@@ -1,3 +1,4 @@
+import { GOALS_PLUGIN_API } from "./plugin-api.js";
 /** Existing browser handlers inserted by Workbench into its shared lexical host. */
 const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.closest?.("[data-policy-form]");
       if (policyForm?.querySelector('[name="scope"]')?.value === "project_default") {
@@ -11,7 +12,7 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
         submit.textContent = L("正在保存…");
         errorBox.hidden = true;
         try {
-          await molisWorkRequest(route("/api/policy-bindings"), {
+          await molisWorkRequest(route("${GOALS_PLUGIN_API}/policy-bindings"), {
             method: "POST",
             body: {
               scope: "project_default",

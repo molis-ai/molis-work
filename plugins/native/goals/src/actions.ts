@@ -24,12 +24,12 @@ import type { GoalDocumentHistoryQuery, GoalHistoryTimelinePage } from "./event-
 import { goalDocumentAction, createGoalDocumentActionHandler } from "./document-action.js";
 import type { GoalContractView } from "./goal-entry-contract.js";
 
-import { goalsBoardActions, createGoalsBoardActionHandlers } from "./board-actions.js";
+import { goalsBoardActions, createGoalsBoardActionHandlers } from "./library-actions.js";
 import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actions.js";
 import { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import { boundGoalObjects } from "./input-actions.js";
 export { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverable, type GoalDeliverablePorts } from "./deliverable-actions.js";
-import type { GoalsBoardPorts } from "./board-actions.js";
+import type { GoalsBoardPorts } from "./library-actions.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 

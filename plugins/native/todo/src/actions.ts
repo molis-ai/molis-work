@@ -242,7 +242,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
           .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
             && ["open", "doing", "waiting"].includes(item.status) && withinDueReminderWindow(item.remind_at, input))
           .sort((a, b) => Date.parse(a.remind_at!) - Date.parse(b.remind_at!)).slice(0, 100)
-          .map(item => ({ reminder_id: `${item.id}@${item.remind_at}`, due_at: item.remind_at!, title: item.title.slice(0, 300),
+          .map(item => ({ reminder_id: `${item.id}@${item.remind_at}`, due_at: item.remind_at!, title: [...item.title].slice(0, 300).join(""),
             subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.placement === "project" ? item.project_id : null,
             open: { surface: TODO_PROJECT_PLUGIN_ID, id: item.id } })) }));
     }),

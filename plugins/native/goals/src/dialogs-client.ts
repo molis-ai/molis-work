@@ -1,4 +1,5 @@
 /** Existing create/trash/restore interactions; host injects controls, navigation and shared refresh. */
+import { GOALS_PLUGIN_API } from "./plugin-api.js";
 const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, trashed) => {
       if (!trashDialog || !trashForm || trashPending) return;
       const goalId = String(trigger.dataset.goalId || "").trim();
@@ -51,7 +52,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       setTrashPending(true);
       let redirecting = false;
       try {
-        const result = await molisWorkRequest(route("/api/goals/" + encodeURIComponent(intent.goalId) + "/trash"), {
+        const result = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(intent.goalId) + "/trash"), {
           method: "POST",
           body: {
             trashed: intent.trashed,
@@ -138,15 +139,15 @@ const GOALS_CREATE_SUBMIT_SCRIPT = `    form?.addEventListener("change", updateR
       try {
         const key = form.dataset.idempotencyKey || (globalThis.crypto?.randomUUID?.() || (String(Date.now()) + Math.random()));
         form.dataset.idempotencyKey = key;
-        const result = await molisWorkRequest(route("/api/goals"), {
+        const result = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals"), {
           method: "POST",
-          key,
           body: { ...payload, idempotency_key: key },
           fallback: "创建失败",
         });
         delete form.dataset.idempotencyKey;
         clearCurrentGoalUiState();
-        navigate(result.goal_path);
+        // The reply names the Goal inside Goals' own pages; the project prefix is the page's to join (BL-386).
+        navigate(route(result.goal_path));
       } catch (error) {
         formError.textContent = error.message || "创建失败，请检查输入后重试";
         formError.hidden = false;
@@ -267,7 +268,7 @@ const GOALS_LIFECYCLE_CLICK_SCRIPT = `      const archiveAction = target.closest
         const archived = archiveAction.dataset.goalArchive === "true";
         const goalId = archiveAction.dataset.goalId;
         try {
-          await molisWorkRequest(route("/api/goals/" + encodeURIComponent(goalId) + "/archive"), {
+          await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(goalId) + "/archive"), {
             method: "POST",
             body: {
               archived,

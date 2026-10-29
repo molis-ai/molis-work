@@ -657,3 +657,136 @@ test("RAC-1194 a stop still refuses a quarantined or uninstalled install and a p
   await refused();
   assert.equal(runtime.get(id).state, "uninstalled");
 });
+
+/**
+ * T-042: a Runtime whose probe start obeys a mode. `run` starts; `fail` throws; `hold` (only the next start) says it has been
+ * reached, waits at a gate the test releases, then asks for its grant. `writes` lists the state of every record the repository
+ * saved, since a queued stop overwrites the last record and would hide a crash written on the way.
+ */
+function steered(options: { maxRecoveryAttempts?: number } = {}) {
+  const repository = new MemoryPluginRuntimeRepository(), writes: string[] = [], save = repository.save.bind(repository);
+  repository.save = record => { writes.push(record.state); save(record); };
+  const base = probe("1.0.0");
+  let mode: "run" | "fail" | "hold" = "run", held = { reached: () => {}, gate: Promise.resolve() };
+  const definition = {
+    ...base,
+    manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] },
+    async start(context: PluginStartContext) {
+      const now = mode;
+      if (now === "hold") mode = "run";
+      if (now === "fail") throw new Error("probe start failed");
+      if (now === "hold") { held.reached(); await held.gate; context.requireGrant("storage:private"); }
+      return base.start(context);
+    },
+  } as PluginDefinition;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...options });
+  return {
+    repository, runtime, definition, writes,
+    install: () => runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install.install_id,
+    fail() { mode = "fail"; },
+    hold() {
+      let reached!: () => void, release!: () => void;
+      const entered = new Promise<void>(resolve => { reached = resolve; });
+      held = { reached, gate: new Promise<void>(resolve => { release = resolve; }) };
+      mode = "hold";
+      return { entered, release };
+    },
+  };
+}
+
+// RAC-1465 T-042: a person's stop arrives while a start is still running. The stop revokes the activation at once and waits for the
+// lifecycle lock; the start then meets the revoked grant. That is a cancelled start, not a crash.
+test("RAC-1465 a start interrupted by a stop fails with plugin.state_invalid, never records crashed, and the queued stop records disabled", async () => {
+  const { repository, runtime, writes, install, hold } = steered();
+  const id = install();
+  const { entered, release } = hold();
+  const starting = code(runtime.start(id));
+  await entered;
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal(await starting, "plugin.state_invalid");
+  assert.equal(await stopping, undefined);
+  const record = repository.get(id)!;
+  assert.deepEqual([record.state, record.last_error_code, record.recovery_count], ["disabled", null, 0]);
+  assert.equal(writes.filter(state => state === "crashed").length, 0, "no crash was written on the way");
+});
+
+// RAC-1466 T-042: the same for a recovery. With a budget of one attempt, counting the interrupted one would quarantine the plugin.
+test("RAC-1466 a recovery interrupted by a stop fails with plugin.state_invalid, spends no recovery budget, and the queued stop records disabled", async () => {
+  const { repository, runtime, writes, install, hold } = steered({ maxRecoveryAttempts: 1 });
+  const id = install();
+  await runtime.start(id); await runtime.reportCrash(id);
+  const before = repository.get(id)!, from = writes.length;
+  const { entered, release } = hold();
+  const recovering = code(runtime.recover(id));
+  await entered;
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal(await recovering, "plugin.state_invalid");
+  assert.equal(await stopping, undefined);
+  const record = repository.get(id)!;
+  assert.deepEqual([record.state, record.last_error_code, record.recovery_count], ["disabled", before.last_error_code, before.recovery_count]);
+  assert.deepEqual(writes.slice(from).filter(state => state !== "disabled"), [], "nothing but the stop was written");
+});
+
+// RAC-1467 T-042: a quarantine release interrupted by a stop puts the quarantine back as it was, and the queued stop is still refused:
+// only an explicit release lifts a quarantine (T-034).
+test("RAC-1467 a quarantine release interrupted by a stop restores the quarantine with its count and code, and the queued stop is refused", async () => {
+  const { repository, runtime, install, fail, hold } = steered({ maxRecoveryAttempts: 1 });
+  const id = install();
+  await runtime.start(id); await runtime.reportCrash(id);
+  fail();
+  assert.equal(await code(runtime.recover(id)), "plugin.quarantined");
+  const before = repository.get(id)!;
+  assert.equal(before.state, "quarantined");
+  const { entered, release } = hold();
+  const releasing = code(runtime.recover(id, { release_quarantine: true }));
+  await entered;
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal(await releasing, "plugin.state_invalid");
+  assert.equal(await stopping, "plugin.state_invalid");
+  const record = repository.get(id)!;
+  assert.deepEqual([record.state, record.last_error_code, record.recovery_count], ["quarantined", before.last_error_code, before.recovery_count]);
+});
+
+// RAC-1468 T-042: with nobody stopping it, a failing start or recovery is still a crash, and the recovery budget still runs out.
+test("RAC-1468 a start or recovery that fails by itself still records crashed, counts the attempt and quarantines at the limit", async () => {
+  const first = steered();
+  const started = first.install();
+  first.fail();
+  assert.equal(await code(first.runtime.start(started)), "plugin.executor_failed");
+  const crashed = first.repository.get(started)!;
+  assert.equal(crashed.state, "crashed");
+  assert.notEqual(crashed.last_error_code, null);
+
+  const second = steered({ maxRecoveryAttempts: 1 });
+  const recovered = second.install();
+  await second.runtime.start(recovered); await second.runtime.reportCrash(recovered);
+  second.fail();
+  assert.equal(await code(second.runtime.recover(recovered)), "plugin.quarantined");
+  const record = second.repository.get(recovered)!;
+  assert.deepEqual([record.state, record.recovery_count], ["quarantined", 1]);
+});
+
+// RAC-1469 T-042: the project refresh's two steps (Supervisor revoke, then Runtime stop) land while the Supervisor is recovering a
+// crashed plugin. The Supervisor reports the revoke; the Runtime record says disabled and the recovery count did not move.
+test("RAC-1469 a project refresh that switches a plugin off during a Supervisor restart leaves the Runtime record disabled with its recovery count", async () => {
+  const { runtime, definition, hold } = steered();
+  const supervisor = new PluginSupervisor(runtime);
+  await supervisor.start([{ definition }]);
+  const id = supervisor.state(ID)!.install_id!;
+  assert.equal(runtime.get(id).state, "running");
+  await runtime.reportCrash(id);
+  const before = runtime.get(id);
+  const { entered, release } = hold();
+  const restarting = supervisor.restart(ID);
+  await entered;
+  supervisor.revoke(ID);
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal((await restarting).code, "plugin.revoked");
+  assert.equal(await stopping, undefined);
+  const record = runtime.get(id);
+  assert.deepEqual([record.state, record.recovery_count], ["disabled", before.recovery_count]);
+});

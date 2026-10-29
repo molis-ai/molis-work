@@ -162,7 +162,7 @@ test("RAC-184 S-58 a page route gives the plugin's own action user_action with s
   for (const given of probe.seen) {
     assert.equal(given?.source, "web");
     assert.equal(given?.conversation_ref, `web:${project.project_id}`);
-    assert.match(given?.message_ref ?? "", /^web:request:/u);
+    assert.match(given?.message_ref ?? "", /^web:[0-9a-f-]{36}$/u);
   }
   assert.notEqual(probe.seen[0]!.message_ref, probe.seen[1]!.message_ref, "each request is its own message");
   // The route ignores the body's provenance and runs the action with the protected entry's operation.
@@ -171,7 +171,7 @@ test("RAC-184 S-58 a page route gives the plugin's own action user_action with s
   assert.equal(probe.seen.length, 3);
   assert.equal(probe.seen[2]?.source, "web");
   assert.equal(probe.seen[2]?.conversation_ref, `web:${project.project_id}`);
-  assert.match(probe.seen[2]?.message_ref ?? "", /^web:request:/u);
+  assert.match(probe.seen[2]?.message_ref ?? "", /^web:[0-9a-f-]{36}$/u);
   const delegated = await post({ reference: { capability_id: target.capability_id, version: 1 } });
   assert.equal(delegated.status, 200, await delegated.clone().text());
   assert.deepEqual(targetSaw, [probe.seen[3]], "the delegated target is the same operation of the same person");

@@ -377,6 +377,47 @@ function checkCoordinatorStaysDeleted(repositoryRoot) {
     : [];
 }
 
+/**
+ * Goals' declared routes (PG094-09) are mounted by the plugin's own runtime registration, handed the person's BoundActionClient per
+ * request, and see it as `actions` in their context; no port, as a field or as a method, is a domain one. A route context's `query` is
+ * the request's query string (a string map), not the Goals query port (BL-386).
+ *
+ * The Host does not dispatch those routes itself any more: it must not mount the retired declared-route dispatcher, and must not keep
+ * `goalsRoutes` around at all — importing it or handing it on is enough to bring the old address back. The rule is a pure function so the
+ * boundary test can drive it with restored and mutated sources.
+ */
+export function checkGoalsCommandOwnership({ goalsPlugin, httpContext, hostSources }) {
+  const errors = [];
+  if (!/routes:\s*goalsRoutes\s*\(\{/u.test(goalsPlugin)
+    || !/actions:\s*request\s*=>/u.test(goalsPlugin)
+    || !/actions\.invoke\(definition,\s*input,\s*request\.execution\)/u.test(goalsPlugin)) {
+    errors.push("plugins/native/goals/src/plugin.ts: Goals' declared routes must be mounted by the plugin runtime (`routes: goalsRoutes({ … })`) and given the request's BoundActionClient (`actions: request =>`, `actions.invoke(definition, input, request.execution)`)");
+  }
+  if (!httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
+    || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
+    errors.push("plugins/native/goals/src/http/types.ts: Goals HTTP business operations must consume BoundActionClient without direct domain ports");
+  }
+  if (hostSources.length === 0) {
+    errors.push("apps/local-host/src: no Host source files were read while checking that Goals' declared routes are only mounted by the plugin");
+  }
+  for (const { file, source } of hostSources) {
+    if (/\bgoalsRoutes\b/u.test(source)) {
+      errors.push(`${file}: the Host must not mount, import or pass on Goals' declared routes (BL-386); the plugin's runtime mount is the only one`);
+    }
+    if (/\bdispatchDeclaredPluginRoutes\b/u.test(source)) {
+      errors.push(`${file}: the retired declared-route dispatcher must stay removed from the Host (BL-386)`);
+    }
+  }
+  return errors;
+}
+
+/** Every Host source file (`apps/local-host/src`, `.ts`, never `dist`) with its text: the declared-route mount must stay inside the plugin. */
+export function hostSourceFiles(repositoryRoot) {
+  return filesUnder(path.join(repositoryRoot, "apps/local-host/src"), filePath => filePath.endsWith(".ts")).map(filePath => ({
+    file: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8"),
+  }));
+}
+
 function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
@@ -553,16 +594,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`apps/${app}/src/goal-commands.ts: retired duplicate Goal command handler must stay removed`);
     }
   }
-  const webGoals = read("apps/local-host/src/web-request.ts");
-  const httpContext = read("plugins/native/goals/src/http/types.ts");
-  // Goals' declared routes (PG094-09) are handed the person's BoundActionClient per request by whoever mounts them, and see it as
-  // `actions` in their context; no port, as a field or as a method, is a domain one. A route context's `query` is the request's
-  // query string (a string map), not the Goals query port. When S9 drops the Host rewrite this rule follows the new mount (BL-386).
-  if (!webGoals.includes("actions: () => goalActions")
-    || !httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
-    || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
-    errors.push("Goals HTTP business operations must consume BoundActionClient without direct domain ports");
-  }
+  errors.push(...checkGoalsCommandOwnership({
+    goalsPlugin: read("plugins/native/goals/src/plugin.ts"),
+    httpContext: read("plugins/native/goals/src/http/types.ts"),
+    hostSources: hostSourceFiles(repositoryRoot),
+  }));
   // `relations` left the retired list when the workbench redesign brought Goal
   // relation editing back as a product feature. It stays here so it still has to
   // consume public operation ports instead of owning Store, SQL or Module rules.

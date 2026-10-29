@@ -21,13 +21,11 @@ export function goalRelationRoutes(ports: GoalsRoutePorts): PluginRouteBinding[]
         to_goal_id: body.direction === "outgoing" ? target : goalId,
         type: body.type as GoalRelationType,
       });
-      context.changed();
       return { status: 200, body: result };
     }),
     goalsRoute("goals.relation-deactivate", ports, async (context) => {
       const { write } = relationWrite(context);
       const result = await context.actions.invoke(goalsActions.relationDeactivate, { ...write, relation_id: context.params.relationId! });
-      context.changed();
       return { status: 200, body: result };
     }),
   ];
@@ -38,5 +36,5 @@ function relationWrite(context: GoalsRouteContext) {
   const body = context.body;
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
   if (!reason) throw new ActionError("actions.input_invalid", "请填写关系变更原因");
-  return { body, write: { idempotency_key: String(context.idempotencyHeader || body.idempotency_key || randomUUID()), reason } };
+  return { body, write: { idempotency_key: String(body.idempotency_key || randomUUID()), reason } };
 }

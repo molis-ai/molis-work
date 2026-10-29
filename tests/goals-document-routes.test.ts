@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { once } from "node:events";
-import { MolisWorkLocalHost, seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openTestHome } from "./fixtures/test-home.js";
 import { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsFragmentRenderer, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
   type GoalsReadRenderers } from "@molis-ai/molis-work-app-workbench";
@@ -114,17 +111,15 @@ test("Workbench routes call only the selected owner with exact inputs and retain
 });
 
 test("Goal document HTTP routes retain bad-encoding, collection, offset, missing-content and response-header behavior", async t => {
-  const directory = await mkdtemp(join(tmpdir(), "molis-work-document-route-"));
-  const databasePath = join(directory, "fixture.db");
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  await seedDemoGoals(databasePath);
-  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken: "route-test-control-0123456789abcdef" });
-  t.after(async () => { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await rm(directory, { recursive: true, force: true }); });
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const address = server.address();
-  assert.ok(address && typeof address !== "string");
-  const origin = "http://127.0.0.1:" + address.port;
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Document routes", actor_id: "test" }));
+  const DEMO_PROJECT_ID = project.project_id;
+  await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
+  const origin = served.origin;
+  const controlToken = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const cases: [string, number, string | null][] = [
     ["/api/board/refresh", 200, null], ["/api/board/momentum", 200, null],
     ["/api/board/refresh?view=bad", 400, "Goal 正文集合无效"],
@@ -134,14 +129,14 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     ["/api/goals/V1/document?view=", 400, "Goal 正文集合无效"],
     ["/api/goals/missing/document", 404, "找不到这个 Goal: missing"],
     ["/api/goals/V1/document?offset=-1", 200, null],
-    ["/api/goals/V1/records", 404, "页面或接口不存在"],
-    ["/api/goals/V1/quick-record", 404, "页面或接口不存在"],
+    ["/api/plugins/io.molis.work.goals/goals/V1/records", 404, "插件没有这个入口"],
+    ["/api/plugins/io.molis.work.goals/goals/V1/quick-record", 404, "插件没有这个入口"],
     ["/api/goals/V1/panels/completion", 404, "页面或接口不存在"],
     ["/goals/%", 404, "Goal 页面不存在"], ["/archive/goals/%", 404, "Goal 页面不存在"],
     ["/trash/goals/%", 404, "Goal 页面不存在"], ["/goals/missing", 404, "找不到这个 Goal: missing"],
   ];
   for (const [path, expected, error] of cases) {
-    const response = await fetch(origin + path);
+    const response = await fetchProject(origin + path);
     assert.equal(response.status, expected, path);
     if (error) assert.deepEqual(await response.json(), { error }, path);
     else {
@@ -152,17 +147,17 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
       if (path.includes("offset=9007199254740991")) assert.match(html, /data-has-more="false"/);
     }
   }
-  const archive = await fetch(origin + "/api/goals/CORE/archive", {
+  const archive = await fetchProject(origin + "/api/plugins/io.molis.work.goals/goals/CORE/archive", {
     method: "POST",
     headers: { "content-type": "application/json", origin,
-      "x-molis-work-control-token": "route-test-control-0123456789abcdef",
+      "x-molis-work-control-token": served.controlToken,
       "x-molis-work-idempotency-key": "route-archive-core" },
     body: JSON.stringify({ archived: true, reason: "Verify existing direct URL after archive" }),
   });
   assert.equal(archive.status, 200, await archive.text());
-  const beforeReads = await (await fetch(origin + "/api/board")).json();
+  const beforeReads = await (await fetchProject(origin + "/api/board")).json();
   for (const path of ["/goals/CORE", "/archive/goals/CORE", "/archive", "/trash"]) {
-    const response = await fetch(origin + path);
+    const response = await fetchProject(origin + path);
     assert.equal(response.status, 200, path);
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.match(response.headers.get("content-security-policy") ?? "", /default-src/);
@@ -173,9 +168,9 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
       assert.doesNotMatch(html, /data-draft-form/);
     }
   }
-  assert.equal((await fetch(origin + "/decisions")).status, 404, "the Goal-era /decisions page is gone");
-  const wrongCollection = await fetch(origin + "/trash/goals/CORE");
+  assert.equal((await fetchProject(origin + "/decisions")).status, 404, "the Goal-era /decisions page is gone");
+  const wrongCollection = await fetchProject(origin + "/trash/goals/CORE");
   assert.equal(wrongCollection.status, 404);
   assert.deepEqual(await wrongCollection.json(), { error: "找不到这个 Goal: CORE" });
-  assert.deepEqual(await (await fetch(origin + "/api/board")).json(), beforeReads);
+  assert.deepEqual(await (await fetchProject(origin + "/api/board")).json(), beforeReads);
 });

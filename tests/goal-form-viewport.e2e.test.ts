@@ -8,8 +8,10 @@ import { GoalProjectApplication } from './fixtures/goal-application.js';
 
 for (const [width, height] of [[1024, 400], [390, 500]]) {
   test(`Goal forms ${width}×${height}: scrolling, draft recovery and a single persisted concern`, { timeout: 60000 }, async t => {
-    const b = await openGoalBrowser(t); if (!b) return;
-    const { command, sessionId, navigate, evaluate, click, waitFor, origin } = b;
+    const b = await openGoalBrowser(t, true); if (!b) return;
+    const { command, sessionId, navigate, evaluate, click, waitFor, origin, projectId } = b;
+    // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+    const prefix = `/projects/${projectId}`;
     const app = new GoalProjectApplication(b.store);
     const goalId = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: '低窗口里的目标编辑', outcome: '表单保存取消清楚可达', actor_id: 'web-user', actor_kind: 'user', idempotency_key: 'viewport' }).goal.goal_id;
     const read = () => app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
@@ -41,7 +43,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command('Network.enable', {}, sessionId);
     await command('Page.addScriptToEvaluateOnNewDocument', {source: `(()=>{const original=window.fetch;window.__concernPosts=0;window.fetch=function(input,init){if(String(input).endsWith('/event-concern')&&init?.method==='POST')window.__concernPosts++;return original.apply(this,arguments);};})()`},sessionId);
-    await navigate(() => command('Page.navigate', { url: origin + '/goals/' + goalId }, sessionId));
+    await navigate(() => command('Page.navigate', { url: origin + prefix + '/goals/' + goalId }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0")) await click('[data-frame-goal-work]');
     await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView==='${goalId}' && !document.querySelector('[data-goal-node-workspace]').hidden`);
     await openConcern();
@@ -68,7 +70,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await openConcern();
     await click(`${form} .form-disclosure > summary`);
     await fill('scope_action', 'complete');
-    await command('Network.setBlockedURLs', { urls: [origin + '/api/goals/' + goalId + '/event-concern'] }, sessionId);
+    await command('Network.setBlockedURLs', { urls: [origin + prefix + '/api/plugins/io.molis.work.goals/goals/' + goalId + '/event-concern'] }, sessionId);
     await click(`${form} button[type=submit]`);
     await waitFor(`!document.querySelector('${form} [data-form-status]').hidden && !document.querySelector('${form} button[type=submit]').disabled`);
     assert.match(await evaluate<string>(`document.querySelector('${form} [data-form-status]').textContent`), /输入已保留/);

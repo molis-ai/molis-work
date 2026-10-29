@@ -140,7 +140,7 @@ export interface PluginInstallInput {
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
   private readonly contributions = new OfferedContributions();
-  private readonly contexts = new Map<string, { context: PluginStartContext; revoke(): void }>();
+  private readonly contexts = new Map<string, { context: PluginStartContext; revoke(): void; revoked(): boolean }>();
   private readonly locks = new InstallLocks();
   /** Concurrent `start` calls share one attempt and therefore one registration. */
   private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
@@ -475,7 +475,10 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
     } catch (error) {
+      // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
+      const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      if (cancelled) throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
       const updated = {
         ...current,
         state: "crashed" as const,
@@ -601,7 +604,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);
     } catch (error) {
+      // Interrupted by a stop, the recovery is cancelled: no attempt is counted, and a release puts the quarantine back as it was.
+      const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      if (cancelled && releaseQuarantine) this.repository.save({ ...current, updated_at: this.now() });
+      if (cancelled) throw pluginErrors.state_invalid("恢复被停用打断，没有记为崩溃");
       const quarantined = !isIdentityFailure(error) && (releaseQuarantine || recoveryCount >= maxAttempts);
       const updated = {
         ...current,

@@ -42,7 +42,7 @@ test("a request the client abandons keeps its key in flight while the handler ru
   const web = await fixture(() => 200, () => web.executions() === 1 ? held : Promise.resolve());
   try {
     // An event command path allows replay once it completed (the domain's own idempotency key decides).
-    const path = "/api/goals/g1/event-progress";
+    const path = "/api/plugins/io.molis.work.goals/goals/g1/event-progress";
     const page = new AbortController();
     const abandoned = web.send(path, "abandoned-key-1", page.signal).then(() => assert.fail("the page gave up"), () => undefined);
     await until(() => web.executions() === 1, "the first attempt reaches its handler");
@@ -54,8 +54,9 @@ test("a request the client abandons keeps its key in flight while the handler ru
     finish();
     await until(() => web.keys.get("abandoned-key-1") === "complete", "the first attempt settles");
     assert.equal(web.keys.get("abandoned-key-1"), "complete", "the handler finished and answered 200 into the closed socket");
-    const retry = await web.send(path, "abandoned-key-1");
-    assert.equal(retry.status, 200, "the retry of an idempotent command reaches the command again");
+    // The page's retry spends a new Host one-time key; the settled key is not reused (the body's business key would be the same one).
+    const retry = await web.send(path, "abandoned-key-1-retry");
+    assert.equal(retry.status, 200, "the retry after the abandoned attempt reaches the handler");
     assert.equal(web.executions(), 2);
   } finally { await web.close(); }
 });

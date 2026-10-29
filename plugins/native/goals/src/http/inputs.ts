@@ -18,7 +18,6 @@ export function goalInputRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     const result = body.action === "accept"
       ? await context.actions.invoke(goalsActions.inputsAccept, { goal_id: goalId, binding_id: body.binding_id })
       : await context.actions.invoke(goalsActions.inputsRelease, { goal_id: goalId, binding_id: body.binding_id });
-    context.changed();
     return { status: 200, body: result };
   })];
 }

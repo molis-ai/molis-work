@@ -10,7 +10,7 @@ const PAGES_CREATE = 'data-placement-create="pages"';
 test("RAC-712 a project that hid Pages has no Pages create button in its page, refresh or document fragment; shown again, it has it in all three", { timeout: 60_000 }, async t => {
   const { request, project } = await serveHomeRuntime(t), current = await project("Shown plugins");
   const prefix = `/projects/${encodeURIComponent(current.project_id)}`;
-  const created = await request(`${prefix}/api/goals`, { method: "POST", body: { title: "Shown plugins goal", idempotency_key: "shown-plugins-goal" } });
+  const created = await request(`${prefix}/api/plugins/io.molis.work.goals/goals`, { method: "POST", body: { title: "Shown plugins goal", idempotency_key: "shown-plugins-goal" } });
   assert.equal(created.status, 201, await created.clone().text());
   const goalId = (await created.json() as { goal: { goal_id: string } }).goal.goal_id;
   const html = async (path: string) => {

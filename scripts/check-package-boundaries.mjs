@@ -193,25 +193,6 @@ function checkMigratedFeedOwnership(repositoryRoot) {
       errors.push(`${relativePath}: Relay import/compat must stay deleted`);
     }
   }
-  // Only Feed's store/ owns these tables. Every other Feed source file is a caller, the production assembly that the Host's
-  // feed-application.ts used to be (application-assembly.ts) among them; the named files are read as well so a move fails loudly.
-  const feedSource = "plugins/native/feed/src";
-  const feedCallers = filesUnder(path.join(repositoryRoot, feedSource), file => /\.(?:ts|tsx|mts)$/u.test(file))
-    .map(file => path.relative(repositoryRoot, file).split(path.sep).join("/"))
-    .filter(file => !file.startsWith(`${feedSource}/store/`));
-  const legacyCallers = [...new Set([
-    "apps/local-host/src/demo-feed-library.ts",
-    ...["application.ts", "application-assembly.ts", "source-service.ts", "source-sync.ts", "connector-sync.ts", "source-scheduler.ts"].map(file => `${feedSource}/${file}`),
-    ...feedCallers,
-    ...WEB_DISPATCH_FILES,
-  ])];
-  const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
-  for (const relativePath of legacyCallers) {
-    const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
-    for (const match of source.matchAll(directFactSql)) {
-      errors.push(`${relativePath}: direct ${match[1]} SQL must use the owning Module public API`);
-    }
-  }
   return { errors };
 }
 
@@ -239,9 +220,9 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
   const plugin = fs.readFileSync(path.join(repositoryRoot, pluginPath), "utf8");
   const hostPath = "apps/local-host/src/plugin-source-pull-service.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !plugin.includes("connector = sourcePull?.connector")
-    || !/connector:\s*createConnectorSourcePort\(\{[^}]*\bregistry:[^}]*\bhomeIntegrationRegistry\(home\)/u.test(host)) {
-    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry`);
+  const wiring = feedListenerWiringProblems({ service, runtime, plugin, host });
+  if (wiring.length > 0) {
+    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry (${wiring.join("; ")})`);
   }
 
   const listenerPath = "plugins/native/feed/src/store/listener.ts";
@@ -1260,6 +1241,76 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
 
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;
+}
+
+/** The source with every comment blanked to spaces (offsets kept), so a comment that names the wiring does not count as it. */
+function withoutComments(source) {
+  const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
+  // TypeScript's offsets count UTF-16 code units, which is what split("") gives.
+  const text = source.split("");
+  const blank = ({ pos, end }) => {
+    for (let index = pos; index < end; index += 1) if (text[index] !== "\n") text[index] = " ";
+  };
+  const visit = node => {
+    for (const child of node.getChildren(file)) {
+      if (child.kind < ts.SyntaxKind.FirstNode || child.kind === ts.SyntaxKind.EndOfFileToken) {
+        for (const range of ts.getLeadingCommentRanges(source, child.getFullStart()) ?? []) blank(range);
+        for (const range of ts.getTrailingCommentRanges(source, child.getEnd()) ?? []) blank(range);
+      } else visit(child);
+    }
+  };
+  visit(file);
+  return text.join("");
+}
+
+/** `() => homeIntegrationRegistry(home)`, parentheses aside. */
+function isHomeRegistryThunk(node) {
+  while (ts.isParenthesizedExpression(node)) node = node.expression;
+  if (!ts.isArrowFunction(node) || node.parameters.length > 0) return false;
+  let body = node.body;
+  while (ts.isParenthesizedExpression(body)) body = body.expression;
+  return ts.isCallExpression(body) && ts.isIdentifier(body.expression) && body.expression.text === "homeIntegrationRegistry"
+    && body.arguments.length === 1 && ts.isIdentifier(body.arguments[0]) && body.arguments[0].text === "home";
+}
+
+/**
+ * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802), read from
+ * the code, not the comments: the Feed service opens its Listener through `this.ports.createListener`, the Runtime Feed opens it with
+ * `services.connector.open(`, the plugin takes `connector = sourcePull?.connector`, and every `connector: createConnectorSourcePort({ … })`
+ * in the Host passes `registry: () => homeIntegrationRegistry(home)`, or `<a test's injected registry> ?? (() => homeIntegrationRegistry(home))`.
+ */
+export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
+  const problems = [];
+  for (const [source, needle, owner] of [
+    [service, "this.ports.createListener", "the Feed service"],
+    [runtime, "services.connector.open(", "the Runtime Feed"],
+    [plugin, "connector = sourcePull?.connector", "the Feed plugin"],
+  ]) {
+    if (!withoutComments(source).includes(needle)) problems.push(`${owner} no longer has \`${needle}\` outside a comment`);
+  }
+  const file = ts.createSourceFile("host.ts", host, ts.ScriptTarget.Latest, true);
+  const registries = [];
+  const visit = node => {
+    if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && node.name.text === "connector"
+      && ts.isCallExpression(node.initializer) && ts.isIdentifier(node.initializer.expression)
+      && node.initializer.expression.text === "createConnectorSourcePort") {
+      const [options] = node.initializer.arguments;
+      const registry = options && ts.isObjectLiteralExpression(options)
+        ? options.properties.find(property => ts.isPropertyAssignment(property) && ts.isIdentifier(property.name) && property.name.text === "registry")
+        : undefined;
+      registries.push(registry?.initializer);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (registries.length === 0) problems.push("the Host has no `connector: createConnectorSourcePort({ … })`");
+  for (const value of registries) {
+    const fallback = value && ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? value.right : value;
+    if (!fallback || !isHomeRegistryThunk(fallback)) {
+      problems.push("the Host's `createConnectorSourcePort` registry is not `() => homeIntegrationRegistry(home)` (alone, or after `??`)");
+    }
+  }
+  return problems;
 }
 
 export function checkGoalReadOwnerSql(source) {

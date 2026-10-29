@@ -369,7 +369,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
     let body = { subject: { kind: object.kind, id: object.id }, used: true };
     if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
-    await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:L("没有记下输入")});
+    await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/plugins/io.molis.work.goals/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:L("没有记下输入")});
   };
   // 「加输入…」 on a Goal: anything this project lists among its files, chosen here and taken one of the two ways.
   const addGoalInput = async (goalId) => {

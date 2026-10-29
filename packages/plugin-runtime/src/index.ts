@@ -19,7 +19,7 @@ import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
-import { createActivationContext } from "./activation-context.js";
+import { createActivationContext, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 
 export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
@@ -140,7 +140,7 @@ export interface PluginInstallInput {
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
   private readonly contributions = new OfferedContributions();
-  private readonly contexts = new Map<string, { context: PluginStartContext; revoke(): void }>();
+  private readonly contexts = new Map<string, { context: PluginStartContext; definition: PluginDefinition; revoke(): void; revoked(): boolean }>();
   private readonly locks = new InstallLocks();
   /** Concurrent `start` calls share one attempt and therefore one registration. */
   private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
@@ -475,7 +475,10 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
     } catch (error) {
+      // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
+      const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      if (cancelled) throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
       const updated = {
         ...current,
         state: "crashed" as const,
@@ -491,7 +494,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   private async stopOnce(installId: string, preserveEnabled = false): Promise<PluginLifecycleReceipt> {
-    const current = requireInstall(this.repository, installId);
+    const current = this.repository.get(installId) ?? await releaseUnrecorded(this.contexts.get(installId), this.executor, () => this.revokeContext(installId));
     if (current.state === "disabled") return this.receipt("stop", current, true);
     // Nothing runs in a crashed or never-started install; the person's stop still switches it off. A shutdown stop (preserve_enabled)
     // of one is refused, since it would erase the crash or decide for the person, and so is any stop of a quarantine: only an explicit
@@ -601,7 +604,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);
     } catch (error) {
+      // Interrupted by a stop, the recovery is cancelled: no attempt is counted, and a release puts the quarantine back as it was.
+      const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      if (cancelled && releaseQuarantine) this.repository.save({ ...current, updated_at: this.now() });
+      if (cancelled) throw pluginErrors.state_invalid("恢复被停用打断，没有记为崩溃");
       const quarantined = !isIdentityFailure(error) && (releaseQuarantine || recoveryCount >= maxAttempts);
       const updated = {
         ...current,

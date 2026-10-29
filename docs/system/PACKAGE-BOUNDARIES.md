@@ -145,6 +145,14 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 - **结论**：被计入的文件里有失败、超时、整个文件都跳过、或没轮到的，退出 1；`flaky`（重跑通过）不算失败，在摘要里单列并附一条可贴的隔离条目，重跑时整个文件都跳过的不算重跑通过，文件仍记为失败；退出 2 是起不来（参数、平台不是 `--expect-platform`、清单或隔离文件违反规则、隔离项的 `since` 比当天晚一天以上）；被信号取消时退出 128 加信号号，先停掉正在跑的测试、写一份部分报告并附到作业摘要（和探针一样；`report.json`、`summary.md` 分别作为名为 `product-subset-1`、`product-subset-2` 的产物保留 30 天）。
 - **隔离名单** `tests/quarantine.json`（`{ "entries": [...] }`）：不稳定的文件记一条，写 `file`、`owner`（`.github/CODEOWNERS` 里的账号）、`since`、`expires`、`reason`。被隔离的文件仍在清单里，仍然会被跑（排在计入的文件之后，用剩下的预算，不重试），结果显示在摘要里，但不计入结论；不跳过、不放宽任何断言，本机全量和探针也照跑。`expires` 当天仍有效，过了那天文件自动重新计入，摘要里单列「Quarantine ended」；到期日不能超过 `since` 之后 30 天，而 `since` 不能比运行当天晚（晚一天以内按时区放过，更晚的运行器退出 2、什么也不跑），所以不能靠把日期写到将来来拉长。续期只有一种办法：把 `since` 改成较新的日期，那是对一个看得见的文件的改动，要过评审；规则分不出它和新开一条隔离的区别。要么修好，要么在评审里把它从清单拿掉。最多 10 条，且仍计入的冒烟不少于 3 个。
 - **规则的检查**：清单和隔离文件的规则（行格式、文件存在、不重复、不含 live 与 macOS 专有的文件、冒烟 3 到 5 个、i18n 测试在内、隔离项的字段、账号、日期、30 天、条数）在 `scripts/ci-product-subset/plan.mjs`，运行器和 `pnpm health:check` 读同一份（`scripts/gates/product-subset.mjs`，没有基线，出一处就失败）。这些规则随挡合并的 `gates` 作业检查，所以现在就挡合并，作业本身不挡：清单里的用例重命名、删除，或被加上 macOS 专有、live 的用法，要在同一个 PR 里改清单（W2-16 实现时加的，决定 #14 说的是作业不挡合并；记在 spec §1 同一行）。要日期才能判断的两条（隔离到期、`since` 不在将来）不在门禁里，由运行器按当天日期判断。「清单里没有阻塞作业已经跑的用例」这一条由 `tests/ci-product-subset-plan.test.ts` 查：读 `ci.yml` 里阻塞作业（`verify` 的 `needs`）各步点名的测试文件，和这些步骤经 `pnpm <脚本>` 走到的根 `package.json` 脚本点名的（一层层往下跟，`pnpm --filter` 的包脚本不算）；某个脚本文件自己再启动的测试看不到，那种情形要在清单头部的取舍里手工核对。变异用例是 `tests/ci-product-subset-plan.test.ts`（这些规则）和 `tests/ci-product-subset.test.ts`（运行器的每种结果、两份预算、隔离到期、阶段顺序、取消、拒绝启动、`ci.yml` 里这个作业的形状），都在 `gates` 作业里跑。
+- **PR 上只跑改动碰到的文件**（T-130，2026-10-29，CI 拥堵时统筹定）：
+  - 怎么挑：pull request 上先跑一个不装依赖的小作业 `test-selection`（`scripts/ci-test-selection.mjs`）。它用 `scripts/affected-tests.mjs --base HEAD^1 --json --wide` 选出改动碰到的用例，取其中在本清单里的文件，交给运行器的 `--only`。隔离的文件被选中了照样跑、照样不计。
+  - 起几片：选中的不超过一片的量（冒烟单独算）就只起一片；一个都没选中就跳过作业。
+  - 什么时候整套跑：`affected-tests` 建议全量；有改动的源码文件没有用例读；改了作业赖以运行的文件（清单、隔离文件、运行器、`ci.yml`、根 `package.json`、锁文件、`skills/`、`vendor/` 等）或挑选与运行器加载的文件（`affected-tests`、`package-dev-requirements.mjs`、`scripts/ci-linux-probe/`、`machine-slot.mjs`、清单的读法；用例顺着 import 找，漏一个就红）；`affected-tests` 的回答缺了 `tests`、`full`、`changes`、`uncovered` 中任何一项；挑选本身出任何错。两个作业只在 `test-selection` 成功时读它的输出（`if`、几片、文件名单都看 `needs.test-selection.result`）：跳过、失败、取消时，就算它已经写了一半输出，也按整张清单两片跑。
+  - 其他事件：push main、每晚和手动运行不挑，照旧整张清单两片；合并队列照旧不跑。
+  - `security-invariants` 作业按同一个办法挑 `test:security` 的文件。
+  - 规则钉在 `tests/ci-test-selection.test.ts`（`gates` 作业里跑）。
+  - 并入 `Verify` 时，要另定 PR 上被跳过怎么算。
 - **本机**：`node scripts/ci-product-subset.mjs --list` 只列会跑什么、哪些被隔离、哪些已到期，什么也不跑；`--only <正则>` 限定文件，可以在本机试一两个文件（本机的结果不是 Linux 结果，摘要里会写明）。
 - **并入 `Verify`**（约两周后，隔离完不稳定的文件）：把 `product-subset` 加进 `verify` 作业的 `needs` 和它最后一步的检查，去掉 `continue-on-error` 和作业名里的「not required yet」，改 `tests/ci-product-subset.test.ts` 里钉住现状的那一条。必需检查仍然只有 `Verify`，名字与分支保护都不变。
 

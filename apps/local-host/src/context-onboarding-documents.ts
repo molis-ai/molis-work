@@ -25,7 +25,7 @@ export async function prepareContextDocument(home: string, journeyId: string, ki
     if (extension === "pdf" && result.coverage.status !== "sufficient") throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
     const body = result.text.trim();
     if (!body) throw new Error("文件没有可读取的正文");
-    const title = (result.title || filename.replace(/\.[^.]+$/u, "")).slice(0, 500);
+    const title = [...(result.title || filename.replace(/\.[^.]+$/u, ""))].slice(0, 500).join("");
     return { reference: { source_id: createHash("sha256").update(JSON.stringify([kind, file.path, sha256])).digest("hex"),
       version: 1, label: "", title, path: file.path, text: await stageContextText(home, journeyId, body),
       original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length } } };

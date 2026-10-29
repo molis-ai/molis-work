@@ -804,7 +804,7 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   - **PG-093 没有写「已做」**：核查建议写已做，但这一行点名的「Feed 的客户端住在工作台里」还在（`apps/workbench/src/scripts/client/navigation-feed.ts` 与两个部件、`feed-rule-authoring.ts`），所以写「宿主一半已做」，客户端与 PG-060 的 Feed 部分一起收。`information-actions.ts` 是平台提供方，不算特权；它从 Feed、Inbox 插件包 import 的两处留给 C 合入后的一片。
   - **装配门禁**：`tests/builtin-plugin-assembly-gate.test.ts` 的 `HOST_FILES_NAMED_FOR` 删掉 C 已删的 `feed-goal-promotion.ts`。Goals 仍因 `goal-callers.ts`、`web-goals-read.ts` 留在 `HYBRID_RUNTIME_PLUGINS`，名单不变。
   - **main 的头部说明**：main 在 privileges 第 3 行加了 10-27 那句（BL-376 并入 BL-377），C 是从更早的 main（`9efbf8d04`）切的，所以没有。`git merge-tree` 试合 C 与 `origin/main`（`74f31c19e`）没有冲突，合出的文件第 3 行就是 main 那句。C 合 main 时再核一次。
-- **边界检查的余漏记 BL-802（来源：C 批评审 `4353b5905`）。** `directFactSql` 只写了 3 张表、JOIN、加引号、库名前缀、ALTER、DROP 都能绕过；Listener 那条按子串匹配，注释里写了也算。改门禁要先问用户，C 接近 PR，不再加范围。
+- **边界检查的余漏 BL-802 已做（来源：C 批评审 `4353b5905`；T-125 两本）。** Feed 的 `store/` 在 `table-owners` 里登记成拥有自己建的表的目录（`tooling/gates/table-owners.json` 的 `areas`），表名从 `CREATE` 读出，JOIN、加引号、`main.`/`temp.` 库名、ALTER、DROP 都认；`check-package-boundaries.mjs` 的 `directFactSql` 已删。Listener 那条改成 `feedListenerWiringProblems`：先去掉注释再判断，registry 按语法树只认 `() => homeIntegrationRegistry(home)` 或 `<注入> ?? (() => homeIntegrationRegistry(home))`。
 - **local-host 整包构建**：`tsc` 通过，随后的 `native/materials` Swift 构建在本机因 CommandLineTools 的 `SwiftBridging` 模块重复定义失败，与本批无关。
 - **测试文件的类型检查**：根 `tsc --noEmit -p tsconfig.json` 通过，但这份配置只含 `apps/desktop/launchers`、排除 `tests`（CI 同样只查这些），所以不查测试。本轮改到的三个测试文件另用一份临时配置查（继承 `tsconfig.base.json`，只列这三个文件）。`feed-goal-promotion`、`inbox-automatic-scenes` 没有错。`local-web-actions` 有 5 处，都在与 main 逐字相同的行上（本分支只改了它的 import 和第 219 行附近）。
 - **没跑的**：全部浏览器用例（含 FI7 改到的 6 个）、security 全量、最终 Full，由合并会话在 PR 前排。

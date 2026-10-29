@@ -12,7 +12,6 @@ interface Invocation { capability_id: string; input: Record<string, unknown> }
 
 function stubPorts(answers: Record<string, unknown> = {}) {
   const invocations: Invocation[] = [];
-  let changes = 0;
   const actions: BoundActionClient = {
     discover: async () => [],
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
@@ -20,17 +19,14 @@ function stubPorts(answers: Record<string, unknown> = {}) {
       return (Object.hasOwn(answers, definition.capability_id) ? answers[definition.capability_id] : { ok: true }) as Output;
     },
   };
-  const ports: GoalsRoutePorts = {
-    actions: () => actions,
-    routePrefix: () => "/projects/p-1",
-    idempotencyKey: () => "header-key",
-    changed: () => { changes += 1; },
-  };
-  return { ports, invocations, changes: () => changes };
+  // The plugin prefix carries no Host page address and no Host cache: the page joins its own prefix and reads its view on its next
+  // request, and a retry key travels in the write's body (BL-386).
+  const ports: GoalsRoutePorts = { actions: () => actions };
+  return { ports, invocations };
 }
 
 function request(method: string, params: Record<string, string>, body: unknown = null, query: Record<string, string> = {}): PluginRouteRequest {
-  return { method: method as PluginRouteRequest["method"], pathname: "/api/goals", params, query, body, actor_id: LOCAL_PERSON_ACTOR_ID };
+  return { method: method as PluginRouteRequest["method"], pathname: "/api/plugins/io.molis.work.goals/goals", params, query, body, actor_id: LOCAL_PERSON_ACTOR_ID };
 }
 
 function binding(route_id: string, ports: GoalsRoutePorts) {
@@ -48,7 +44,7 @@ test("PG094-09: every declared Goals route has exactly one binding, and the Mani
   assert.deepEqual(parsePluginManifest(structuredClone(goalsManifest)).routes, goalsManifest.routes);
 });
 
-test("PG094-09: the page's old `/api` paths each reach the route the Manifest declares for them", () => {
+test("PG094-09: each plugin-prefix path reaches the route the Manifest declares for it", () => {
   const match = pluginRouteMatcher(goalsManifest);
   const at = (method: string, rest: string) => match(method, `/api/plugins/${GOALS_PLUGIN_ID}${rest}`);
   const goal = { goalId: "goal 1" };
@@ -108,15 +104,19 @@ test("PG094-09: a Goals binding answers refusals with the shared error body and 
   assert.deepEqual(invocations.map((call) => call.capability_id), ["goals.history.read"]);
 });
 
-test("PG094-09: a Goals write reads its path parameter, takes the Host's idempotency key when the body has none, and tells the Host the page changed", async () => {
-  const { ports, invocations, changes } = stubPorts({ "goals.note": { event_id: "e-9" } });
-  const answered = await binding("goals.event-note", ports).handle(request("POST", { goalId: "goal 1" }, { body: "便笺" }));
+test("PG094-09: a Goals write reads its path parameter and its retry key from the body", async () => {
+  const { ports, invocations } = stubPorts({ "goals.note": { event_id: "e-9" } });
+  const answered = await binding("goals.event-note", ports).handle(request("POST", { goalId: "goal 1" }, { body: "便笺", idempotency_key: "body-key" }));
   assert.deepEqual(answered, { status: 200, body: { event_id: "e-9" } });
-  assert.deepEqual(invocations, [{ capability_id: "goals.note", input: { goal_id: "goal 1", idempotency_key: "header-key", body: "便笺" } }]);
-  assert.equal(changes(), 1);
+  assert.deepEqual(invocations, [{ capability_id: "goals.note", input: { goal_id: "goal 1", idempotency_key: "body-key", body: "便笺" } }]);
+
+  // The page always names the act; a write with no key still happens once under a key of its own, never under a request header the
+  // Runtime route cannot see (the Host's header key is gone with the old `/api` rewrite).
+  const noKey = await binding("goals.event-note", ports).handle(request("POST", { goalId: "goal 1" }, { body: "便笺" }));
+  assert.equal(noKey.status, 200);
+  assert.match(String((invocations.at(-1)!.input as { idempotency_key: string }).idempotency_key), /^event-note-.+$/u);
 
   const timeline = await binding("goals.event-timeline", ports).handle(request("GET", { goalId: "goal 1" }, null, { before_cursor: "c-1", limit: "500" }));
   assert.equal(timeline.status, 200);
   assert.deepEqual(invocations.at(-1), { capability_id: "goals.history.list", input: { goal_id: "goal 1", before_cursor: "c-1", limit: 100 } });
-  assert.equal(changes(), 1, "a read does not change the page");
 });

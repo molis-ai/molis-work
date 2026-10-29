@@ -3,7 +3,7 @@ import type {
   FeedItemRecord,
   FeedMaterialRecord,
   IngestFeedItemInput,
-} from "@molis-ai/molis-work-contracts/modules/feed";
+} from "../../contract/feed.js";
 import type { FeedRecords } from "./records.js";
 import type { FeedAttentionPort } from "./types.js";
 import { mapFeedItem, normalizeSummary, normalizeTitle, type Row } from "./rows.js";

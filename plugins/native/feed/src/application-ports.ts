@@ -1,7 +1,7 @@
-import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources";
-import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { SourcesApi } from "./contract/sources.js";
+import type { FeedApi } from "./contract/feed.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ListenerCheckpoint, ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { ListenerCheckpoint, ListenerRunRecord } from "./contract/listener.js";
 import type { FeedArtifactProducer, FeedOutRuleStore } from "./out-rules.js";
 import type { FeedSourceHistory } from "./source-history.js";
 import type { FeedAttentionPort } from "./store/items/types.js";

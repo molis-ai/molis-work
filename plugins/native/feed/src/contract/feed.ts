@@ -1,14 +1,5 @@
-import type { AttentionApi, AttentionReason } from "./attention-resumption.js";
-import { defineErrorCodes } from "../platform/action-errors.js";
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesFeedContract = {
-  contractId: "io.molis.work.module.feed.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/modules/feed.md",
-} as const satisfies ContractDescriptor;
+import type { AttentionApi, AttentionReason } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export type FeedItemDisposition = "inbox" | "saved" | "promoted" | "processing" | "archived";
 
@@ -150,12 +141,10 @@ export interface FeedModuleDependencies {
   attention: AttentionApi;
 }
 
-
-
 /**
  * Feed's own error codes, every one `feed.<reason>`. The kind is the sort of failure; the Host's edge turns it into the status
- * (plugin SDK `actionHttpStatus`), so Feed keeps no status table of its own. They are declared here, beside the module's contract, because
- * the Feed plugin, the Host files that sync and the RSS and YouTube integrations all refuse in Feed's name and share no other package.
+ * (plugin SDK `actionHttpStatus`), so Feed keeps no status table of its own. The RSS and YouTube integrations and the platform's source
+ * pull refuse in their own names (`rss.*`, `youtube.*`, `actions.input_invalid`).
  * Every status is the one the Feed route answered for the code's old name: the missing things 404, the changed-under-you things 409,
  * caller refusals 400; an internal deletion-contract violation remains 500.
  */
@@ -189,8 +178,4 @@ export const feedErrors = defineErrorCodes("feed", {
   connector_needs_auth: "invalid",
   /** The provider reported a failed pull. Its own code (what a run and a source fault store, e.g. `connector.rate_limited`) is `details.error_code`. */
   connector_failed: "invalid",
-  custom_rss_url_invalid: "invalid",
-  youtube_channel_invalid: "invalid",
-  source_use_youtube_channel: "invalid",
-  source_use_official_reddit: "invalid",
 });

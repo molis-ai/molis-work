@@ -13,7 +13,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
+import * as feedContracts from "@molis-ai/molis-work-plugin-feed/contract";
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { schedulerErrors } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { actionErrorResponse, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -57,12 +57,11 @@ const FEED: OwnerCodes = { prefix: "feed", status: {
   source_not_syncable: 400, source_invalid_state: 400, source_query_invalid: 400, source_invalid_configuration: 400, source_definition_unavailable: 400,
   source_invalid_schedule: 400, source_configuration_changed: 400, source_changed: 400, source_wrong_sync_kind: 400,
   connector_wrong_sync_kind: 400, connector_needs_auth: 400, connector_failed: 400,
-  custom_rss_url_invalid: 400, youtube_channel_invalid: 400, source_use_youtube_channel: 400, source_use_official_reddit: 400,
 } };
 const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400, revision_conflict: 409 } };
 const SCHEDULE: OwnerCodes = { prefix: "schedule", status: { task_not_found: 404, task_invalid: 400, job_not_found: 404, job_invalid: 400 } };
 
-/** Where each owner's declaration lives: Feed's and Inbox's in the contracts the two plugins, the Host and the RSS and YouTube integrations share, Schedule's in the plugin. */
+/** Where each owner's declaration lives: Feed's in its own public contract (PG-111), Inbox's in the platform contract it shares with Feed, Schedule's in the plugin. */
 function declarationsOf(owner: "feed" | "inbox" | "schedule"): Declarations | undefined {
   const holder = owner === "feed" ? feedContracts : owner === "inbox" ? attentionContracts : schedulePlugin;
   return (holder as Record<string, unknown>)[`${owner}Errors`] as Declarations | undefined;
@@ -115,7 +114,7 @@ test("each owner declares its codes, every one <owner>.<reason> with the kind it
   const cases: Array<["feed" | "inbox" | "schedule", OwnerCodes]> = [["feed", FEED], ["inbox", INBOX], ["schedule", SCHEDULE]];
   for (const [owner, spec] of cases) {
     const declared = declarationsOf(owner);
-    assert.ok(declared, `${owner}Errors is exported (Feed's from contracts modules/feed, Inbox's from contracts modules/attention-resumption, Schedule's from the plugin)`);
+    assert.ok(declared, `${owner}Errors is exported (Feed's from the plugin's ./contract, Inbox's from contracts modules/attention-resumption, Schedule's from the plugin)`);
     assert.deepEqual(Object.keys(declared).sort(), Object.keys(spec.status).sort(), `${owner}Errors declares exactly the codes ${owner} raises`);
     for (const [reason, status] of Object.entries(spec.status)) {
       const error = declared[reason]!(`${owner} ${reason}`, { n: 1 });
@@ -227,7 +226,7 @@ test("the old error classes, the mappers and the old exports are gone", () => {
     ["@molis-ai/molis-work-plugin-feed", feedPlugin as Record<string, unknown>, ["FeedStoreError", "feedRouteErrorResponse"]],
     ["@molis-ai/molis-work-plugin-inbox", inboxPlugin as Record<string, unknown>, ["inboxRouteErrorResponse"]],
     ["@molis-ai/molis-work-plugin-schedule", schedulePlugin as Record<string, unknown>, ["ScheduleTaskError", "scheduleRouteErrorResponse"]],
-    ["@molis-ai/molis-work-contracts/modules/feed", feedContracts as Record<string, unknown>, ["FeedDomainError"]],
+    ["@molis-ai/molis-work-plugin-feed/contract", feedContracts as Record<string, unknown>, ["FeedDomainError"]],
   ];
   for (const [name, module, removed] of gone) for (const exported of removed) assert.equal(exported in module, false, `${name} no longer exports ${exported}`);
   // FAS-02: callers use the shared model and current owner declarations.

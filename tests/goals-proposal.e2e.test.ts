@@ -5,9 +5,11 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("W4-2-13 Proposal UI preserves other drafts during forced refresh, retries atomically, and rejects without creating Goals", { timeout: 60_000 }, async (t) => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, projectId } = browser;
+  // The catalog's project owns the Goal tree: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const coordinator = new GoalProjectApplication(store);
   function propose(id: string, rootId = id + "-root") {
     if (!boardSnapshot(store, DEMO_PROJECT_ID).goals.some(goal => goal.goal_id === rootId)) coordinator.goalEvents.createIntent({
@@ -40,7 +42,7 @@ test("W4-2-13 Proposal UI preserves other drafts during forced refresh, retries 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const openGoal = async (goalId: string, formSelector: string) => {
-    await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + encodeURIComponent(goalId) }, sessionId));
     await command("Page.bringToFront", {}, sessionId);
     await waitFor("document.querySelector('[data-goal-view=" + JSON.stringify(goalId) + "]')");
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
@@ -57,7 +59,7 @@ test("W4-2-13 Proposal UI preserves other drafts during forced refresh, retries 
   assert.equal(await evaluate(dom(adoptForm + ' textarea[name="reason"]') + ".getAttribute('aria-invalid')"), "true");
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
   await command("Input.insertText", { text: "确认这两个变化，断网后也保留这段意见。" }, sessionId);
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goal-tree-proposals/" + adopted.proposal_id + "/decision"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goal-tree-proposals/" + adopted.proposal_id + "/decision"] }, sessionId);
   await click(adoptForm + ' button[value="confirm"]');
   await waitFor("!" + dom(adoptForm + " [data-decision-error]") + ".hidden && !" + dom(adoptForm + ' button[value="confirm"]') + ".disabled");
   assert.equal(await evaluate(dom(adoptForm + ' textarea[name="reason"]') + ".value"), "确认这两个变化，断网后也保留这段意见。");

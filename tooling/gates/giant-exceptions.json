@@ -45,7 +45,7 @@
       "kind": "cohesive-unit",
       "reason": "插件安装生命周期状态机：安装、升级（changeVersion 117 行）、卸载、恢复、崩溃上报、启停，同一张安装记录表和同一套事务/恢复规则；各转移互相依赖前一状态，拆开会让状态转移散在几个类里。授权与兑换（grant、redeem、receipt）合计不到 60 行。",
       "size": {
-        "lines": 616,
+        "lines": 623,
         "methods": 29
       }
     },

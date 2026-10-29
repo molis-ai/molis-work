@@ -1,6 +1,4 @@
-import type { RssFetchReceipt } from "../modules/sources.js";
 import type { ConnectorPollResult, ConnectorRawEvent } from "../services/connector-host.js";
-import type { RawEventAdapter } from "../services/listener-host.js";
 
 /** What a plugin holds to pull public feeds (rss, custom_rss, youtube_channel) through the platform (`services.sourcePull.pull`). */
 export const PLUGIN_SOURCE_PULL_FEED_PERMISSION = "sources:pull_feed";
@@ -166,8 +164,32 @@ export interface ConnectorPullReceipt {
   readonly result: ConnectorPollResult;
 }
 
-/** A signal draft the integration's adapter made of one raw event. */
-export type ConnectorSignalDraft = ReturnType<RawEventAdapter["toSignalDraft"]>;
+/** A signal draft the integration's adapter made of one raw event. The owner of the source adds the source, the dedupe and raw event ids and the adapter. */
+export interface ConnectorSignalDraft {
+  kind: string;
+  occurred_at: string;
+  observed_at: string;
+  payload: Record<string, unknown>;
+  content_refs?: string[];
+  provenance: Record<string, unknown>;
+}
+
+/** An integration's adapter (`PluginIntegrationContribution.bind().signal_adapter`): the provider's raw events made into signal drafts. */
+export interface RawEventAdapter {
+  readonly adapter: { plugin_id: string; version: string };
+  toSignalDraft(event: ConnectorRawEvent, context: { project_id: string; source_id: string }): ConnectorSignalDraft;
+}
+
+/** What one public feed request answered: the HTTP cursor of the next pull and the feed's own title and address are read from it. */
+export interface RssFetchReceipt {
+  readonly status: number;
+  readonly not_modified: boolean;
+  readonly etag?: string;
+  readonly last_modified?: string;
+  readonly final_url: string;
+  readonly feed_title?: string;
+  readonly home_url?: string;
+}
 
 /**
  * Pulling the accounts a person bound to a plugin's records, through the platform's integration registry. The credential stays

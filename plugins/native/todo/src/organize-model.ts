@@ -95,6 +95,18 @@ export function phraseWrittenAt(material: Pick<TodoOrganizeMaterial, "text" | "r
   return top ? stamp(top) : null;
 }
 
+/** What organizing reads of a material: its first TODO_ORGANIZE_MATERIAL_CHARS characters, cut between whole characters (a 🟢 is one character but two UTF-16 units). */
+export function materialReadText(text: string): string {
+  if (text.length <= TODO_ORGANIZE_MATERIAL_CHARS) return text;
+  let end = 0, count = 0;
+  for (const character of text) {
+    if (count === TODO_ORGANIZE_MATERIAL_CHARS) return text.slice(0, end);
+    end += character.length;
+    count += 1;
+  }
+  return text;
+}
+
 /** Group materials so each model call stays within the part size; a long material gets a part of its own. */
 export function organizeParts(materials: readonly TodoOrganizeMaterial[]): number[][] {
   const parts: number[][] = [];
@@ -118,7 +130,7 @@ export function organizePrompt(instruction: InstructionPrompt, input: {
     me: ["你", ...(input.me ?? [])],
     materials: input.indexes.map(index => {
       const material = input.materials[index]!;
-      return { material: index + 1, title: material.title, received_at: material.received_at ?? null, text: material.text.slice(0, TODO_ORGANIZE_MATERIAL_CHARS) };
+      return { material: index + 1, title: material.title, received_at: material.received_at ?? null, text: materialReadText(material.text) };
     }),
     existing: input.existing.map(item => ({ id: item.id, title: item.title, status: item.status, due_date: item.due_date, planned_date: item.planned_date,
       waiting: item.waiting, edited_by_you: item.edited_fields })),

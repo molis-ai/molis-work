@@ -175,7 +175,7 @@ test("Web lifecycle routes obey live policy and the user's confirmation", async 
       requirements: [{ requirement_id: "delivered", statement: "The agreed result is available" }], idempotency_key: "create" });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`, base = `${origin}/projects/${project.project_id}/api/goals/web-goal`;
+    const origin = `http://127.0.0.1:${address.port}`, base = `${origin}/projects/${project.project_id}/api/plugins/io.molis.work.goals/goals/web-goal`;
     const request = (path: string, body: unknown, authorized = true) => fetch(base + path, { method: "POST",
       headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
     assert.equal((await request("/active", { reason: "Current" }, false)).status, 403);

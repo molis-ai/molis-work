@@ -199,3 +199,44 @@ test("native source and build inputs invalidate the existing installation build 
     writeFileSync(path.join(native, "Package.resolved"), "locked dependencies"); assert.notEqual(await computeBuildSourceDigest(root), withBuild);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+// A title is cut to 500 whole characters (an emoji is one, as the action schemas count it), never between the two halves of one.
+const TITLES = [
+  { name: "the 500th character is a two-unit one", heading: "a".repeat(499) + "😀" + "尾".repeat(10), title: "a".repeat(499) + "😀" },
+  { name: "600 two-unit characters", heading: "😀".repeat(600), title: "😀".repeat(500) },
+  { name: "exactly 500 two-unit characters", heading: "😀".repeat(500), title: "😀".repeat(500) },
+  { name: "short", heading: "短标题", title: "短标题" },
+];
+
+test("RAC-1861 a material title is cut to 500 whole characters, in Markdown and in HTML", async t => {
+  for (const kind of ["markdown", "html"] as const) for (const c of TITLES) await t.test(`${kind}: ${c.name}`, async () => {
+    const source = kind === "markdown" ? { file_name: "title.md", bytes: Buffer.from(`# ${c.heading}\n\nbody`) }
+      : { file_name: "title.html", bytes: Buffer.from(`<title>${c.heading}</title><p>body</p>`) };
+    assert.equal((await extractMaterial(source)).title, c.title);
+  });
+});
+
+test("RAC-1862 an onboarding document's title is whole characters, so the sources line can encode it", async t => {
+  const home = mkdtempSync(path.join(tmpdir(), "molis-onboarding-titles-")), id = randomUUID();
+  try {
+    for (const c of TITLES.slice(0, 3)) await t.test(c.name, async () => {
+      const read = await prepareContextDocument(home, id, "files", { path: "notes/long.md", bytes: Buffer.from(`# ${c.heading}\n\nbody`) });
+      const title = "reference" in read ? read.reference.title : read.issue.reason;
+      // The onboarding page's sources line encodes the title this way (context-onboarding-service.ts); half a character throws here.
+      assert.doesNotThrow(() => encodeURIComponent(title));
+      assert.equal(title, c.title);
+    });
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC-1863 a title that fits is kept as it is: the document's own, else the file name without its extension", async t => {
+  const home = mkdtempSync(path.join(tmpdir(), "molis-onboarding-titles-")), id = randomUUID();
+  try {
+    const titles = [];
+    for (const file of [{ path: "notes/plan.md", bytes: Buffer.from("# 十月计划\n\nbody") }, { path: "notes/周报 😀.txt", bytes: Buffer.from("body") }]) {
+      const read = await prepareContextDocument(home, id, "files", file);
+      titles.push("reference" in read ? read.reference.title : read.issue.reason);
+    }
+    assert.deepEqual(titles, ["十月计划", "周报 😀"]);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});

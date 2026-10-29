@@ -95,12 +95,22 @@ async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
     // supervisor's own revoke would stop it as disabled), as the Home supervisor does. So the next start runs it, and only a
     // plugin list keeps a project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
     if (active?.status === "running" && active.install_id) {
-      // The read is inside the try: a record the Runtime cannot give is one failure of this close, not the end of the loop.
-      try { if (platform.runtime.get(active.install_id).state === "running") await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
+      // Only this installation's record is read, so another one that cannot be read does not stop this one. A missing record is still
+      // stopped, so the instance it activated is let go (T-124), and the stop reports the missing record; a record that cannot be read
+      // is this installation's failure. Either is one failure of this close, not the end of the loop.
+      try { if (shutdownStops(platform, active.install_id)) await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
     }
     platform.supervisor.revoke(pluginId);
   }
   if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
+}
+
+/** Whether a project close stops this installation: one that is running, or one whose record is gone (the stop lets its instance go). */
+function shutdownStops(platform: PluginPlatform, installId: string): boolean {
+  try { return platform.runtime.get(installId).state === "running"; } catch (error) {
+    if ((error as { code?: unknown }).code === "plugin.definition_missing") return true;
+    throw error;
+  }
 }
 
 export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<ProjectPluginState> {

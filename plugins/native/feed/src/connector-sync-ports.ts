@@ -1,8 +1,8 @@
 import type { FeedSyncExecution } from "./source-ports.js";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationAccountPresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import type { ListenerCheckpoint, ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
-import type { SignalRecord } from "@molis-ai/molis-work-contracts/modules/signals";
+import type { ListenerCheckpoint, ListenerRunReceipt } from "./contract/listener.js";
+import type { SignalRecord } from "./contract/signals.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
 

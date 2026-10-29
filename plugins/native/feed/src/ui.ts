@@ -4,8 +4,8 @@ import type {
 import type {
   FeedItemRecord,
   FeedMaterialRecord,
-} from "@molis-ai/molis-work-contracts/modules/feed";
-import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
+} from "./contract/feed.js";
+import type { SourceRecord } from "./contract/sources.js";
 import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,

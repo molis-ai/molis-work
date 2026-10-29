@@ -1,4 +1,4 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 
 /**
  * Who is pulling which source right now, for one Feed instance. One Home has one executing process and a project has one Feed instance,

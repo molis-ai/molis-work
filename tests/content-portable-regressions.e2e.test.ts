@@ -4,6 +4,7 @@ import test from "node:test";
 import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { formFillPageHtml } from "@molis-ai/molis-work-plugin-form";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 type Download = { name: string; content: string };
@@ -133,4 +134,27 @@ test("W2-18-PAGES-SOURCES-01: actual multi-selection focus and Host prepare keep
   assert.equal(prepared.input.inputs.length, 2);
   for (const source of prepared.input.inputs) { assert.equal(source.provenance[0]!.truncated, true); assert.equal(source.provenance[0]!.snapshot_scope, "selection"); assert.ok(pages.some(page => page.id === source.provenance[0]!.id)); assert.doesNotMatch(source.body, /OMITTED_/); }
   const after = openPagesStore(b.homeDirectory); try { for (const page of pages) assert.deepEqual(after.get(page.id, b.projectId!), page); assert.equal(after.list(b.projectId!).length, 2); } finally { after.close(); }
+});
+
+test("RAC-1699: the exported fill page counts an answer's length in characters like the form does: 4000 emoji go in, 4001 do not", { timeout: 90_000 }, async t => {
+  // One 🟢 is one character but two UTF-16 units: the form takes in 4000 characters (store.ts normalizeAnswers), `.trim().length` in the page counts 8000 units.
+  // The input's maxLength counts units too, so the answers are set by script, as the "4001" part of W2-18-FORM-ANSWER-01 does.
+  const wide = (count: number) => "🟢".repeat(count);
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const store = openFormStore(b.homeDirectory);
+  const form = (() => { try { return store.receive(b.projectId!, "emoji-answer", "Emoji answers", [{ id: "words", title: "Words", type: "text" }]); } finally { store.close(); } })();
+  await b.navigate(() => b.command("Page.navigate", { url: "data:text/html;charset=utf-8," + encodeURIComponent(formFillPageHtml(form)) }, b.sessionId));
+  await b.waitFor("document.querySelector('#qs input[name=words]')"); await captureDownloads(b);
+  const submit = (count: number) => b.evaluate<string>(`(() => { document.querySelector('input[name=words]').value='🟢'.repeat(${count});document.querySelector('#f').requestSubmit();return document.querySelector('#e').textContent; })()`);
+  assert.match(await submit(4001), /4000/, "4001 characters are over the limit");
+  assert.equal((await downloads(b)).length, 0, "and no answer file is made");
+  assert.equal(await submit(4000), "", "4000 characters, though 8000 UTF-16 units, are within the limit");
+  await b.waitFor("window.contentDownloads[0]?.content && document.querySelector('#ok').classList.contains('on')");
+  const answer = (await downloads(b))[0]!;
+  assert.equal((JSON.parse(answer.content) as { answers: Record<string, string> }).answers.words, wide(4000), "the file carries the whole answer");
+  const after = openFormStore(b.homeDirectory);
+  try {
+    assert.equal(after.importAnswers(form.id, [answer], b.projectId!).imported, 1, "the form takes in what the page let out");
+    assert.equal(after.listSubmissions(form.id, b.projectId!)[0]!.answers.words, wide(4000));
+  } finally { after.close(); }
 });

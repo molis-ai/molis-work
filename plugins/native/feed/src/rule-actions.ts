@@ -3,7 +3,7 @@ import { retainActionAuthority, ActionError, type ActionCallContext, type Action
 import type { FeedApplication } from "./application.js";
 import type { FeedOutRuleRecord } from "./projection.js";
 import type { FeedHydrate } from "./item-hydration.js";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import { feedOutRuleMatches, type FeedOutRuleWrite } from "./out-rules.js";
 
 const text = { type: "string" };

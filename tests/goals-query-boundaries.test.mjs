@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { fileURLToPath } from "node:url";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, hostSourceFiles, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
@@ -260,4 +262,29 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
     assert.notEqual(edit(source), source, mutation);
     assert.match(changed("project", edit), /cli-project\.ts/, mutation);
   }
+});
+
+// BL-386 · RAC-1514: the mouth is the plugin's own runtime mount; the Host may not reach it at all, not even by importing the mount.
+test("RAC-1514 the Goals routes are mounted by the plugin and the Host cannot mount or pass them on", () => {
+  const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+  const plugin = () => read("plugins/native/goals/src/plugin.ts");
+  const httpContext = () => read("plugins/native/goals/src/http/types.ts");
+  const sources = () => hostSourceFiles(repositoryRoot);
+  const check = (edit = {}) => checkGoalsCommandOwnership({ goalsPlugin: edit.plugin ?? plugin(), httpContext: edit.httpContext ?? httpContext(), hostSources: edit.hostSources ?? sources() });
+  assert.deepEqual(check(), []);
+  // The retired rule only asked web-request.ts for `actions: () => goalActions`; the old rewrite satisfies that and must not come back.
+  const restoredWebRequest = `${read("apps/local-host/src/web-request.ts")}\n{ id: "goals", handle: () => goalsRoutes({ actions: () => goalActions }) };\n`;
+  assert.match(restoredWebRequest, /actions: \(\) => goalActions/u);
+  const restoredHost = sources().map(entry => entry.file === "apps/local-host/src/web-request.ts" ? { ...entry, source: restoredWebRequest } : entry);
+  assert.match(check({ hostSources: restoredHost }).join("\n"), /apps\/local-host\/src\/web-request\.ts: the Host must not mount/u);
+  // An import alone is enough to bring the old address back.
+  const importedHost = sources().map(entry => entry.file === "apps/local-host/src/web-request.ts" ? { ...entry, source: `${entry.source}\nimport { goalsRoutes as mount } from "@molis-ai/molis-work-plugin-goals";\nvoid mount;\n` } : entry);
+  assert.match(check({ hostSources: importedHost }).join("\n"), /web-request\.ts: the Host must not mount, import or pass on/u);
+  // Deleting the plugin's mount leaves nobody serving the routes.
+  assert.match(check({ plugin: plugin().replace("routes: goalsRoutes({", "routes: [],") }).join("\n"), /plugins\/native\/goals\/src\/plugin\.ts: Goals' declared routes must be mounted/u);
+  // Restoring a domain port in the route context is refused by both conditions.
+  const domainPort = `${httpContext()}\nexport type DomainPort = { query: (sql: string) => unknown };\n`;
+  assert.match(check({ httpContext: domainPort }).join("\n"), /http\/types\.ts: Goals HTTP business operations must consume BoundActionClient/u);
+  // Reading no Host files must not count as a pass.
+  assert.match(check({ hostSources: [] }).join("\n"), /no Host source files were read/u);
 });

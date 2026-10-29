@@ -11,7 +11,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-加急：T-199
+加急：T-199、T-205
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -150,6 +150,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-199 | 产品子集运行器的两条用例读 pid 前先等文件里真有数字（防腐清理，MISC 的「统筹 main 红」行） | 丙 | B | 97 | — | `tests/ci-product-subset.test.ts` |
 | T-202 | 评论交给助理的上下文按整字截到 30000 个单元以内，不再留下半个字，提示语与截法一致（防腐清理，MISC「T-158 起草」） | 乙 | A | 101 | — | `plugins/native/pages/src/comment-actions.ts`、`tests/pages-comments.test.ts` |
 | T-203 | Pages 评论输入框按字数封顶 20000，不再用按 UTF-16 单元数的 maxlength，含两单元字的评论不再被截短（防腐清理，MISC「T-085 起草」） | 乙 | B | 102 | T-176 | `plugins/native/pages/src/comment-side-view.ts`、`plugins/native/pages/src/comment-side-client.ts`、`tests/pages-comment-draft-length.e2e.test.ts`（新）、`plugins/native/pages/README.md`（只第 83、85 行）、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-183 互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
+| T-205 | RAC-1452 的下界改成「不早于同一时刻起的普通定时器」，不再按 performance.now() 猜毫秒数（防腐清理，统筹 main 红 · run 40850221824） | 丙 | 池 | 0 | — | `packages/test-kit/tests/browser.test.mjs`（只 `:506-568` 那一例；`cdp.ts` 只在本机变异、还原，不入提交） |
 
 ## 在途，不走任务书
 

@@ -71,6 +71,15 @@ jobs:
   # not start last.
   # A push to main that came through the merge queue does not run them again (`queue-check`, T-129): the queue ran them on that very
   # commit, and `Verify` passed there.
+  # `gates`, `health-gate-rules`, `architecture-boundaries`, `action-contracts` and `security-invariants` have a time limit (T-128);
+  # without one a job that hangs holds a runner for the six-hour default, and that is all the limit has to stop, so it is not tight:
+  # a blocking job gets at least 30 minutes, and no job gets less than 1.8 times its longest successful run. Measured on the 344
+  # completed runs from 2026-10-28 13:06Z (when the install steps got their limit) to 2026-10-29: `gates` 6.8 min, `health-gate-rules`
+  # 5.2, `architecture-boundaries` 5.8, `action-contracts` 15.4 (a slow runner in the merge queue, run 40851936879, still a success),
+  # all 30 here; `security-invariants` 21.9 (40, 1.8 times), the longest job, which `product-subset` (35) is next to. A job that
+  # reaches its limit ends without success, so `Verify` fails. The `Install pnpm` steps have 3 minutes (the longest of 2547 took 66
+  # seconds), the other install steps 5 (tests/ci-install.test.ts). tests/ci-timeouts.test.ts holds the table; raise a limit there
+  # and here together, with the new measurement.
   gates:
     name: Gates
     needs: [queue-check]
@@ -78,6 +87,7 @@ jobs:
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       MOLIS_WORK_TEST_JOBS: 4
     steps:
@@ -105,6 +115,7 @@ jobs:
       # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
         # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
@@ -169,7 +180,7 @@ jobs:
       # (scripts/ci-queue-verified.mjs, `queue-check`), and so does the parallel test runner every step here uses
       # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
       - name: Gate rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
 
   # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
   # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
@@ -183,6 +194,7 @@ jobs:
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -208,6 +220,7 @@ jobs:
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
         # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
@@ -239,6 +252,7 @@ jobs:
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       MOLIS_WORK_TEST_JOBS: 4
     steps:
@@ -263,6 +277,7 @@ jobs:
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
         # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
@@ -369,6 +384,7 @@ jobs:
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -394,6 +410,7 @@ jobs:
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
         # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
@@ -662,6 +679,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.security_mode != 'none') }}
     runs-on: ubuntu-latest
     continue-on-error: true
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -677,6 +695,7 @@ jobs:
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
         # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
@@ -830,6 +849,7 @@ jobs:
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
         # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed

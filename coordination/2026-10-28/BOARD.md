@@ -133,6 +133,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-184 | 填写页、答卷表格的导出文件名按整字截到 80 个字，不再截出半个字（防腐清理，MISC「T-164 起草」行里的 `fillpage.ts`） | 乙 | A | 83 | T-164（#1437） | `plugins/native/form/src/fillpage.ts`、`tests/form-export-filenames.test.ts` |
 | T-185 | 文字模型端口按字数查提示长度，并给固定部分留余量（防腐清理，MISC「T-177 发布」行） | 乙 | 池 | 85 | — | `apps/local-host/src/host-complete-text.ts`、`tests/host-inference-completion.test.ts`、`tests/host-configured-text.test.ts` |
 | T-187 | 提醒文字的上限按字数数，和动作 schema 同一个单位，200 个字以内的提醒不再因表情被拒（防腐清理，代码扫描「书三」） | 乙 | B | 87 | — | `plugins/native/schedule/src/reminders.ts`、`tests/schedule-reminder-text.test.ts` |
+| T-193 | 五份文档里已改名、已删的名字改成现行说法（扫描二文二；GLOSSARY、PACKAGE-BOUNDARIES 重核后不改） | 丙 | B | 88 | — | `docs/platform/LOCAL-HOST.md`、`docs/system/THIRD-PARTY-PLUGINS.md`、`modules/private-work-context/README.md`、`modules/shelf/README.md`、`plugins/native/diff/README.md` |
 
 ## 在途，不走任务书
 

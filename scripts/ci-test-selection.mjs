@@ -23,7 +23,7 @@
 // "the whole list" to the jobs, which is also what they do when this job did not run or failed.
 // Exit: 0 whenever a decision was written (a `whole` that comes from a failure included), 2 on a usage error.
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readPlan } from "./ci-product-subset/plan.mjs";
@@ -38,6 +38,8 @@ export const FULL_WHEN = {
     ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/", "vendor/",
     "scripts/ci-test-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/", "scripts/run-tests.mjs", "scripts/run-tests/",
     "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
+    // What this script and affected-tests read to choose: the READMEs' test lists, the browser marks, the product list's rules.
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/ci-product-subset/plan.mjs",
   ],
   security: ["docs/system/SECURITY-INVARIANTS.md", "tests/security-invariants-", "scripts/gates/security-invariants.mjs"],
   product: ["tests/ci-product-subset.txt", "tests/quarantine.json", "scripts/ci-product-subset.mjs", "scripts/ci-product-subset/", "scripts/ci-linux-probe.mjs", "scripts/ci-linux-probe/"],
@@ -70,16 +72,19 @@ export function decideJob({ job, list, affected, failure }) {
   const entries = list.map((item) => (typeof item === "string" ? { file: item, browser: false } : item));
   const whole = (reasons) => ({ mode: "whole", shards: [1, 2], files: [], reasons });
   if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
+  // A missing list is not an empty one: an answer without all four is not affected-tests' whole answer, and is not trusted.
+  const missing = ["tests", "full", "changes", "uncovered"].filter((key) => !Array.isArray(affected[key]));
+  if (missing.length) return whole([`affected-tests answered without ${missing.join(", ")}`]);
   const reasons = [];
-  for (const item of affected.full ?? []) reasons.push(`affected-tests recommends the full suite (${item.rule}): ${item.detail}`);
-  if ((affected.uncovered ?? []).length) reasons.push(`no test reads ${affected.uncovered.join(", ")}, so who is affected cannot be told`);
-  const changed = (affected.changes ?? []).flatMap((change) => [change.path, change.from].filter(Boolean));
+  for (const item of affected.full) reasons.push(`affected-tests recommends the full suite (${item.rule}): ${item.detail}`);
+  if (affected.uncovered.length) reasons.push(`no test reads ${affected.uncovered.join(", ")}, so who is affected cannot be told`);
+  const changed = affected.changes.flatMap((change) => [change.path, change.from].filter(Boolean));
   const pinned = changed.filter((file) => [...FULL_WHEN.both, ...FULL_WHEN[job]].some((entry) => matches(file, entry))
     || (ROOT_CONFIG.test(file) && !file.endsWith(".md")));
   if (pinned.length) reasons.push(`the job runs whole when these change: ${[...new Set(pinned)].join(", ")}`);
   if (reasons.length) return whole(reasons);
 
-  const wanted = new Set((affected.tests ?? []).map((test) => test.file));
+  const wanted = new Set(affected.tests.map((test) => test.file));
   const selected = entries.filter((entry) => wanted.has(entry.file));
   if (!selected.length) return { mode: "none", shards: [1], files: [], reasons: [`none of its ${entries.length} files is among the ${wanted.size} tests this change touches`] };
   if (selected.length >= entries.length - 1) return whole([`${selected.length} of its ${entries.length} files are selected`]);
@@ -137,7 +142,7 @@ if (isMain) {
   try {
     const text = execFileSync(process.execPath, [path.join(root, "scripts/affected-tests.mjs"), "--root", root, "--base", base, "--json", "--wide"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "pipe"] });
     affected = JSON.parse(text);
-    if (!Array.isArray(affected?.tests) || !Array.isArray(affected?.full) || !Array.isArray(affected?.changes)) { affected = null; failure = "affected-tests printed JSON without its tests, full and changes"; }
+    if (!affected || typeof affected !== "object") { affected = null; failure = "affected-tests printed JSON that is not an object"; }
   } catch (error) {
     failure = `affected-tests failed: ${String(error?.stderr || error?.message || error).trim().split("\n")[0]}`;
   }
@@ -160,6 +165,10 @@ if (isMain) {
   const text = summary(decisions, base);
   console.log(text);
   console.log(lines.filter((line) => !/^(?:security_files|product_only)=/.test(line)).join("\n"));
-  if (process.env.GITHUB_OUTPUT && existsSync(path.dirname(process.env.GITHUB_OUTPUT))) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${text}\n`);
+  // The summary is only for people: it cannot fail the step. The outputs are written last, so nothing can fail after them; the jobs
+  // read them only when this job succeeded (needs.test-selection.result), so a step that fails while writing them leaves them unread.
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${text}\n`); } catch (error) { console.error(`ci-test-selection: the job summary could not be written: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
 }

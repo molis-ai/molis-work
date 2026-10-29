@@ -451,8 +451,10 @@ jobs:
   # whole when affected-tests recommends the full suite, when a changed source file is read by no test, when a file the job runs with
   # changed (its list, its runner, this workflow, package.json, the lockfile, skills/, vendor/; the security table and the
   # security-invariants-* tests; the product list and quarantine), and when the selection fails; it is skipped when none of its files
-  # is touched. Only on a pull request: on a push to main, the nightly run and a manual run this job is skipped, its outputs are
-  # empty, and both jobs run whole as before; the merge queue runs neither. Not in `verify`'s needs: it decides nothing a merge waits for.
+  # is touched. Only on a pull request: on a push to main, the nightly run and a manual run this job is skipped and both jobs run whole
+  # as before; the merge queue runs neither. The two jobs read its outputs only when it succeeded (`needs.test-selection.result`), in
+  # the `if`, the matrix and the file list alike: skipped, failed or cancelled, whatever it may have written, means the whole list on two
+  # legs. Not in `verify`'s needs: it decides nothing a merge waits for.
   test-selection:
     name: PR test selection
     if: ${{ github.event_name == 'pull_request' }}
@@ -475,8 +477,8 @@ jobs:
         with:
           node-version: 24.14.0
 
-      # Node built-ins only, no install. It exits 0 with `whole` when anything goes wrong; if it still fails, its outputs are empty,
-      # which the two jobs read as "the whole list", so a broken selection runs more, never less.
+      # Node built-ins only, no install. It exits 0 with `whole` when anything goes wrong; if it still fails, the two jobs do not read
+      # what it wrote and run the whole list, so a broken selection runs more, never less.
       - name: Select the files this change touches
         id: select
         run: node scripts/ci-test-selection.mjs --base HEAD^1
@@ -501,14 +503,14 @@ jobs:
     name: Security invariants (not required yet) (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [test-selection]
     # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` lets it run when
-    # `test-selection` was skipped (not a pull request) or failed; its outputs are then empty, which means the whole list.
-    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.test-selection.outputs.security_mode != 'none' }}
+    # `test-selection` was skipped (not a pull request) or failed; only its success is read, and anything else means the whole list.
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.security_mode != 'none') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.test-selection.outputs.security_shards || '[1, 2]') }}
+        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.security_shards || '[1, 2]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 2
     steps:
@@ -541,10 +543,10 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # The files `test-selection` chose, or (empty: whole, or not a pull request) every file of `test:security`.
+      # The files `test-selection` chose, or (empty: whole, not a pull request, or the selection did not succeed) every file of `test:security`.
       - name: Security invariants
         env:
-          SELECTED: ${{ needs.test-selection.outputs.security_files }}
+          SELECTED: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.security_files || '' }}
         run: |
           if [ -n "$SELECTED" ]; then
             read -r -a files <<< "$SELECTED"
@@ -656,10 +658,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.test-selection.outputs.product_shards || '[1, 2]') }}
-    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` and the empty outputs of a
-    # skipped or failed `test-selection` mean the whole list, as for `security-invariants`.
-    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.test-selection.outputs.product_mode != 'none' }}
+        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` and a `test-selection`
+    # that did not succeed mean the whole list on two shards, as for `security-invariants`.
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.product_mode != 'none') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 35
@@ -700,10 +702,11 @@ jobs:
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
-      # ONLY is the files `test-selection` chose as one anchored regular expression; empty (whole, or not a pull request) runs the list.
+      # ONLY is the files `test-selection` chose as one anchored regular expression; empty (whole, not a pull request, or the selection
+      # did not succeed) runs the list.
       - name: Run the product subset
         env:
-          ONLY: ${{ needs.test-selection.outputs.product_only }}
+          ONLY: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.product_only || '' }}
         run: |
           set --
           if [ -n "$ONLY" ]; then set -- --only "$ONLY"; fi

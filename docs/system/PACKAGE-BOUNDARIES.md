@@ -148,7 +148,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 - **PR 上只跑改动碰到的文件**（T-130，2026-10-29，CI 拥堵时统筹定）：
   - 怎么挑：pull request 上先跑一个不装依赖的小作业 `test-selection`（`scripts/ci-test-selection.mjs`）。它用 `scripts/affected-tests.mjs --base HEAD^1 --json --wide` 选出改动碰到的用例，取其中在本清单里的文件，交给运行器的 `--only`。隔离的文件被选中了照样跑、照样不计。
   - 起几片：选中的不超过一片的量（冒烟单独算）就只起一片；一个都没选中就跳过作业。
-  - 什么时候整套跑：`affected-tests` 建议全量；有改动的源码文件没有用例读；改了作业赖以运行的文件（清单、隔离文件、运行器、`ci.yml`、根 `package.json`、锁文件、`skills/`、`vendor/` 等）；挑选本身出任何错（输出为空也按整张清单跑）。
+  - 什么时候整套跑：`affected-tests` 建议全量；有改动的源码文件没有用例读；改了作业赖以运行的文件（清单、隔离文件、运行器、`ci.yml`、根 `package.json`、锁文件、`skills/`、`vendor/` 等）或挑选自己读的文件（`affected-tests`、`package-dev-requirements.mjs`、清单与浏览器标记的读法）；`affected-tests` 的回答缺了 `tests`、`full`、`changes`、`uncovered` 中任何一项；挑选本身出任何错。两个作业只在 `test-selection` 成功时读它的输出（`if`、几片、文件名单都看 `needs.test-selection.result`）：跳过、失败、取消时，就算它已经写了一半输出，也按整张清单两片跑。
   - 其他事件：push main、每晚和手动运行不挑，照旧整张清单两片；合并队列照旧不跑。
   - `security-invariants` 作业按同一个办法挑 `test:security` 的文件。
   - 规则钉在 `tests/ci-test-selection.test.ts`（`gates` 作业里跑）。

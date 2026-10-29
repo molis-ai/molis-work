@@ -1,8 +1,8 @@
 // T-130: which files of the two non-blocking jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull
 // request runs (scripts/ci-test-selection.mjs). The decision is checked rule by rule (every way to `whole`, `none`, `some` on one or
 // two runners), then end to end on a scratch repository with the real script and affected-tests, then the workflow that reads it: the
-// job runs on pull requests only, the two jobs fall back to their whole list whenever its answer is missing, and nothing a merge waits
-// for changes.
+// job runs on pull requests only, the two jobs fall back to their whole list whenever it did not succeed (whatever it may have
+// written before failing), and nothing a merge waits for changes.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -25,7 +25,7 @@ const LIST = Array.from({ length: 10 }, (_, index) => `tests/item-${index}.test.
 const PRODUCT = [...LIST.map((file) => ({ file, browser: false })), ...["a", "b", "c", "d"].map((name) => ({ file: `tests/smoke-${name}.e2e.test.ts`, browser: true }))];
 
 test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what it runs with changed, or when it would select nearly all", () => {
-  const whole = (job: "security" | "product", input: Affected | null, pattern: RegExp, list: Array<string | { file: string; browser: boolean }> = LIST) => {
+  const whole = (job: "security" | "product", input: Partial<Record<keyof Affected, unknown>> | null, pattern: RegExp, list: Array<string | { file: string; browser: boolean }> = LIST) => {
     const decision = decideJob({ job, list, affected: input, failure: input ? undefined : "affected-tests failed: boom" });
     assert.equal(decision.mode, "whole", `${pattern}: ${JSON.stringify(decision)}`);
     assert.deepEqual(decision.shards, [1, 2], "whole is the two legs of today");
@@ -36,9 +36,26 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   whole("security", null, /affected-tests failed: boom/);
   whole("security", affected({ tests: someTests, full: [{ rule: "shared-core", detail: "packages/contracts/src/x.ts" }] }), /full suite \(shared-core\)/);
   whole("product", affected({ tests: someTests, uncovered: ["plugins/native/todo/src/new.ts"] }), /no test reads plugins\/native\/todo\/src\/new\.ts/, PRODUCT);
-  for (const file of FULL_WHEN.both.map((entry: string) => (entry.endsWith("/") ? `${entry}x.mjs` : entry))) {
+  // Written out here, not read from FULL_WHEN, so that dropping one of them from the script is seen: what both jobs run with, and what
+  // the selection itself reads to choose (the READMEs' test lists, the browser marks, the product list's rules).
+  const BOTH = [
+    ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/molis-plugin-dev/SKILL.md",
+    "vendor/prologue-sdk/README.md", "scripts/ci-test-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/select.mjs",
+    "scripts/run-tests.mjs", "scripts/run-tests/pool.mjs", "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/ci-product-subset/plan.mjs",
+  ];
+  for (const file of BOTH) {
     for (const job of ["security", "product"] as const) whole(job, affected({ tests: someTests, changes: [{ path: file }] }), new RegExp(`runs whole when these change: ${file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   }
+  assert.equal(FULL_WHEN.both.length, BOTH.length, "a new entry of FULL_WHEN.both is added to BOTH too");
+  // An answer that lacks one of its four lists is not trusted: a missing `uncovered` is not "every file is covered".
+  for (const key of ["tests", "full", "changes", "uncovered"] as const) {
+    const partial: Partial<Affected> = affected({ tests: someTests });
+    delete partial[key];
+    whole("security", partial, new RegExp(`answered without ${key}`));
+    whole("product", { ...affected({ tests: someTests }), [key]: null }, new RegExp(`answered without ${key}`), PRODUCT);
+  }
+  assert.equal(decideJob({ job: "security", list: LIST, affected: affected({ tests: someTests, uncovered: [] }) }).mode, "some", "an empty uncovered is an answer");
   // A rename counts by its old path too.
   whole("security", affected({ tests: someTests, changes: [{ path: "tests/elsewhere.test.ts", from: "tests/security-invariants-host.test.ts" }] }), /security-invariants-host/);
   whole("security", affected({ tests: someTests, changes: [{ path: "docs/system/SECURITY-INVARIANTS.md" }] }), /SECURITY-INVARIANTS\.md/);
@@ -120,10 +137,10 @@ function scratch() {
   git("commit", "-q", "-m", "base");
   return { root, put, commit: (message: string) => { git("add", "-A"); git("commit", "-q", "-m", message); } };
 }
-const select = (root: string, base = "HEAD^1") => {
+const select = (root: string, base = "HEAD^1", summary = "") => {
   const outputFile = path.join(root, "..", `${path.basename(root)}-output`);
   writeFileSync(outputFile, "");
-  const run = spawnSync(process.execPath, [path.join(root, "scripts/ci-test-selection.mjs"), "--root", root, "--base", base], { cwd: root, encoding: "utf8", env: { ...process.env, GITHUB_OUTPUT: outputFile, GITHUB_STEP_SUMMARY: "" } });
+  const run = spawnSync(process.execPath, [path.join(root, "scripts/ci-test-selection.mjs"), "--root", root, "--base", base], { cwd: root, encoding: "utf8", env: { ...process.env, GITHUB_OUTPUT: outputFile, GITHUB_STEP_SUMMARY: summary } });
   directories.push(outputFile);
   const outputs = Object.fromEntries(readFileSync(outputFile, "utf8").trim().split("\n").filter(Boolean).map((line) => line.split(/=(.*)/s).slice(0, 2)));
   return { code: run.status, text: `${run.stdout}${run.stderr}`, outputs };
@@ -171,6 +188,24 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   assert.equal(usage.status, 2);
 });
 
+test("RAC-1763 end to end: a summary that cannot be written fails nothing, and an answer without uncovered runs everything", () => {
+  const { root, put, commit } = scratch();
+  put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
+  commit("demo");
+  // The summary is written before the outputs and cannot fail the step: the outputs are the step's last act.
+  const noSummary = select(root, "HEAD^1", path.join(root, "no-such-directory", "summary.md"));
+  assert.equal(noSummary.code, 0, noSummary.text);
+  assert.match(noSummary.text, /the job summary could not be written/);
+  assert.equal(noSummary.outputs.security_files, "tests/demo-guard.test.ts", "the decision is still written");
+
+  // An affected-tests whose JSON lacks `uncovered` (an older or broken one) is not taken as "every changed file is read by a test".
+  put("scripts/affected-tests.mjs", `console.log(JSON.stringify({ tests: [{ file: "tests/demo-guard.test.ts" }, { file: "tests/demo-flow.test.ts" }], full: [], changes: [{ path: "plugins/native/demo/src/thing.ts" }] }));\n`);
+  const partial = select(root);
+  assert.equal(partial.code, 0, partial.text);
+  assert.deepEqual([partial.outputs.security_mode, partial.outputs.product_mode], ["whole", "whole"], partial.text);
+  assert.match(partial.text, /answered without uncovered/);
+});
+
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
 test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing a merge waits for, and every job that reads it falls back to its whole list", () => {
   const selection = jobBlock("test-selection");
@@ -186,8 +221,8 @@ test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing
   for (const [name, key] of [["security-invariants", "security"], ["product-subset", "product"]] as const) {
     const job = jobBlock(name);
     assert.match(job, /^    needs: \[test-selection\]$/m, name);
-    assert.ok(job.includes(`    if: \${{ !cancelled() && github.event_name != 'merge_group' && needs.test-selection.outputs.${key}_mode != 'none' }}`), `${name}: runs when the selection was skipped or failed, never in the merge queue, skipped only on a clear none`);
-    assert.ok(job.includes(`shard: \${{ fromJSON(needs.test-selection.outputs.${key}_shards || '[1, 2]') }}`), `${name}: two legs when the selection gave none`);
+    assert.ok(job.includes(`    if: \${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.${key}_mode != 'none') }}`), `${name}: runs when the selection did not succeed, never in the merge queue, skipped only on a clear none`);
+    assert.ok(job.includes(`shard: \${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_shards || '[1, 2]') }}`), `${name}: two legs unless a selection that succeeded said one`);
     assert.match(job, /^    continue-on-error: true$/m, `${name} still cannot turn the workflow red (decision #14)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
   }
@@ -195,10 +230,61 @@ test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing
   assert.match(security, /if \[ -n "\$SELECTED" \]; then\n\s+read -r -a files <<< "\$SELECTED"\n\s+node scripts\/run-tests\.mjs --shard .+ "\$\{files\[@\]\}"\n\s+else\n\s+pnpm test:security --shard /, "an empty list never reaches run-tests.mjs (it would run every test): the whole list goes through test:security");
   const product = jobBlock("product-subset");
   assert.match(product, /set --\n\s+if \[ -n "\$ONLY" \]; then set -- --only "\$ONLY"; fi\n\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux "\$@" /, "--only only when files were chosen");
+  // What the two jobs do for each way `test-selection` can end, the expressions of ci.yml evaluated as GitHub would. A selection that
+  // failed after writing some or all of its outputs (the step died after the GITHUB_OUTPUT write, the runner was lost) is the case
+  // that matters: none of what it left is read.
+  const NONE = { security_mode: "none", security_shards: "[1]", security_files: "", product_mode: "none", product_shards: "[1]", product_only: "" };
+  const SOME = { security_mode: "some", security_shards: "[1]", security_files: "tests/a.test.ts", product_mode: "some", product_shards: "[1]", product_only: "^(?:tests/a\\.test\\.ts)$" };
+  const WHOLE = { security_mode: "whole", security_shards: "[1,2]", security_files: "", product_mode: "whole", product_shards: "[1,2]", product_only: "" };
+  const EMPTY = { security_mode: "", security_shards: "", security_files: "", product_mode: "", product_shards: "", product_only: "" };
+  const all = { runs: true, shards: [1, 2], list: "" };
+  const cases: Array<[string, string, Record<string, string>, { runs: boolean; shards?: number[]; list?: string }]> = [
+    ["pull_request", "success", NONE, { runs: false }],
+    ["pull_request", "success", SOME, { runs: true, shards: [1], list: "some" }],
+    ["pull_request", "success", WHOLE, all],
+    ["pull_request", "success", EMPTY, all],
+    ...["failure", "cancelled", "skipped"].flatMap((result) => [NONE, SOME, WHOLE, EMPTY].map((left) => ["pull_request", result, left, all] as [string, string, Record<string, string>, typeof all])),
+    ["push", "skipped", EMPTY, all],
+    ["schedule", "skipped", EMPTY, all],
+    ["merge_group", "skipped", EMPTY, { runs: false }],
+    ["merge_group", "success", SOME, { runs: false }],
+  ];
+  for (const [name, key, env] of [["security-invariants", "security", "SELECTED"], ["product-subset", "product", "ONLY"]] as const) {
+    const job = jobBlock(name);
+    const expression = (pattern: RegExp) => { const found = pattern.exec(job)?.[1]; assert.ok(found, `${name}: ${pattern}`); return found; };
+    const condition = expression(/^    if: \$\{\{ (.*) \}\}$/m);
+    const matrix = expression(/^        shard: \$\{\{ (.*) \}\}$/m);
+    const list = expression(new RegExp(`^          ${env}: \\$\\{\\{ (.*) \\}\\}$`, "m"));
+    for (const [event, result, outputs, expected] of cases) {
+      const scope = { event, result, outputs };
+      const what = `${name} on ${event}, test-selection ${result}, outputs ${JSON.stringify(outputs)}`;
+      assert.equal(Boolean(evaluate(condition, scope)), expected.runs, `${what}: runs`);
+      if (!expected.runs) continue;
+      assert.deepEqual(evaluate(matrix, scope), expected.shards, `${what}: shards`);
+      assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
+    }
+  }
   // The merge queue still runs exactly the blocking jobs and Verify: the jobs that do not block, and the selection, stay out of it.
   for (const name of ["security-invariants", "product-subset", "linux-probe", "test-selection"]) assert.match(jobBlock(name), /^    if: \$\{\{.*(?:!= 'merge_group'|== 'pull_request'|== 'schedule').*\}\}$/m, `${name} is not in the merge queue`);
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
+
+/**
+ * A GitHub expression of the two jobs evaluated for one event, one result of `test-selection` and the outputs it left. Only what these
+ * expressions use is known (`!cancelled()`, the event, the result, the outputs, `fromJSON`, quoted strings, `==`, `!=`, `&&`, `||`);
+ * anything else fails, so a new term in ci.yml is added here before it is trusted. GitHub's `&&` and `||` give back an operand as
+ * JavaScript's do, and a missing output is the empty string.
+ */
+function evaluate(expression: string, scope: { event: string; result: string; outputs: Record<string, string> }): unknown {
+  const code = expression
+    .replace(/!cancelled\(\)/g, "true")
+    .replace(/github\.event_name/g, "scope.event")
+    .replace(/needs\.test-selection\.result/g, "scope.result")
+    .replace(/needs\.test-selection\.outputs\.([a-z_]+)/g, "scope.outputs.$1")
+    .replace(/fromJSON\(/g, "JSON.parse(");
+  assert.match(code.replace(/'[^']*'|scope\.(?:event|result|outputs\.[a-z_]+)|JSON\.parse|true/g, ""), /^[\s()]*(?:(?:==|!=|&&|\|\||!)[\s()]*)*$/, `only known terms: ${expression}`);
+  return new Function("scope", `return (${code});`)(scope);
+}
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {
   const security = decideJob({ job: "security", list: LIST, affected: null });

@@ -50,7 +50,7 @@ export class CogniaStore {
     for (const row of rows) if (matches(JSON.parse(row.body) as SavedPreview)) this.db.run("DELETE FROM cognia_previews WHERE id=?", [row.id]);
   }
   materials(query = "", domainId = "", sourceId = ""): Material[] {
-    requireCognia(query.length <= 500, "搜索词过长"); const terms = query.toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
+    requireCognia([...query].length <= 500, "搜索词过长"); const terms = query.toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
     return this.db.all("SELECT body FROM cognia_materials ORDER BY updated_at DESC").map(r => parse<Material>(r)!).filter(m => (!domainId || m.domain_id === domainId || domainId === "unclassified" && !m.domain_id) && (!sourceId || m.source_id === sourceId) && terms.every(q => [m.title, m.path, m.body, ...m.tags, ...m.aliases].join("\n").toLocaleLowerCase().includes(q)));
   }
   read(id: string, revision?: number): Material { const row = revision === undefined ? this.db.get("SELECT body FROM cognia_materials WHERE id=?", [id]) : this.db.get("SELECT body FROM cognia_versions WHERE material_id=? AND revision=?", [id, revision]); const value = parse<Material>(row); requireCognia(value, "资料或版本不存在", cogniaErrors.not_found); return value; }

@@ -242,11 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
-// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
-// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
+// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
+// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
+// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
+// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
+// page, not an asset, so removing it saves nothing here. (T-176's lingguang.js entry was used up: its ceiling equals the budget now, so it
+// is deleted in this change to the gate, as the comment above requires.)
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/lingguang.js": [23116, 23173],
+  "/assets/molis-work-pages-editor.js": [707763, 707886],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

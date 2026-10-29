@@ -206,6 +206,7 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
   | 在跑、没视图 | 在跑、没视图 | Home | Home 的「插件页面未注册」占位 |
 
   - 「有视图」指这一半提供的视图，正是 Manifest 舞台的那个贡献（`contribution_id` 相同），并带 `workbench` 界面。别的视图不算。
+  - 「在跑」在两半里口径不同：Home 一半看安装记录的 `state === "running"`（`apps/local-host/src/home-plugin-http.ts` 的 `homeStageHalves`）；项目一半看 `supervisor.contribution(pluginId)` 是否非空（`apps/local-host/src/project-plugin-stages.ts` 的 `renderProjectRuntimeStages`），监督器在插件未启用、没有状态、状态不是 running、还没有安装编号时给空，运行着却没有登记贡献时 Runtime 也给空。所以同样是「运行着却拿不到贡献」，Home 一半算「在跑、没视图」（RAC-1740、RAC-1743 就是这样造出来的），项目一半算「停着」。项目一半这样、Home 一半又在跑而没视图时，出的是项目的占位（原因由 `runtimeStage` 定：没有项目插件的问题可报、监督器说在运行时，写「插件正在运行，但未提供页面」），不是上表最后一行 Home 的「插件页面未注册」。双实例上没有用例钉这一种。
   - 两半都有视图的情形不判：DUAL-14 在贡献一层已经禁止。
   - 道理：一半在跑却没提供视图，就证明视图是另一半的，由那一半出占位。两半都停着时，由项目出占位，因为只有它能给重启；等一半跑起来，下一次渲染就落到真正的主人。两半都在跑却都没视图，是插件自己出错，沿用今天 Home 的「插件页面未注册」占位。
   - 宿主怎样做：

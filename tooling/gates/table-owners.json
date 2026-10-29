@@ -19,7 +19,7 @@
   },
   "areas": {
     "plugins/native/feed/src/store": {
-      "reason": "The Feed store owns the Feed tables it creates (items, materials, sources, Listener runs, signals and their events): the rest of the Feed package reads and writes them through the store's functions, so a Feed file outside src/store that names one of these tables in SQL fails (BL-802, which replaces the hand-written table list in scripts/check-package-boundaries.mjs)."
+      "reason": "The Feed store owns the Feed tables it creates (items, materials, sources, Listener runs, signals and their events): the rest of the Feed package reads and writes them through the store's functions, so a Feed file outside src/store that names one of these tables in SQL fails (BL-802, T-125: this replaced the hand-written three-table list, directFactSql, that scripts/check-package-boundaries.mjs held)."
     }
   }
 }

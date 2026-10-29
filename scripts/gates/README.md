@@ -56,7 +56,7 @@
 | 允许名单 | `tooling/gates/table-owners.json`，三节，都两头核对。`shared`：几个包有意共写的表，写 owner、用到它的其他包（`users`）、理由（至少 20 个字符）；用到而没登记的包失败，登记的包不再用它、owner 不是建表的包、没人建这张表、字段多余，都失败。`same_name`：两个包各建一张的同名表（不同库里的两张表，今天是 `workspaces`、`jobs`），写建它的包（`packages`，至少两个）和理由；一张表被不止一个包建而没登记就失败（所以给别的包的表自己再写一句 `CREATE TABLE` 不能让包变成共同 owner），登记的包和实际建表的包对不上、只剩一个包建了、同时登记在 `shared` 里，也失败。`areas`：一个包里自己当 owner 的目录，写目录和理由（BL-802：Feed 的 `src/store/` 是 Feed 那些表的主人，包里别的文件走 store 的函数）。登记以后，包里其余的文件算另一个 owner：它们的 SQL 碰到 store 的表就失败，再写一句 `CREATE TABLE` 也算第二个建表的。目录不存在、目录里有 `package.json`（它本来就是包）、在另一个 area 里面、已经不建任何表、理由不够 20 个字符、写法不是相对仓库根的目录，都失败 |
 | 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、逗号连接里第一张以后的表（`FROM a, t` 只读到 a）、`main`、`temp` 以外的库名（附加的库）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
 
-加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `events` 和 `idempotency_records` 在 `shared` 里的理由是依赖方向：Goals 插件包里的 Goal 与 Governance 存储模块（原 `modules/goals`、`modules/governance-collaboration`）只依赖 contracts、没法 import storage 的日志函数（`LocalSqliteJournal` 与模块的事务在同一条连接上，事务不是障碍）；去掉它们的办法是宿主注入日志端口，Artifacts 已经这样做了，登记随后删掉。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
+加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `shared` 是空的：`events` 和 `idempotency_records` 原先登记在里面，理由是依赖方向（Goals 插件包里的 Goal 与 Governance 存储模块只依赖 contracts，没法 import storage 的日志函数）；这两个模块改用宿主注入的日志端口之后（PG-094 S9-1），两条登记已经删掉，`tests/health-gates-table-owners.test.ts` 钉着真实名单里的 `shared` 没有键。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
 
 ## 内核的两半（`kernel-contextual.mjs`，W3-04）
 

@@ -12,6 +12,8 @@ import {
   normalizeProjectGuidanceContent,
   PROJECT_GUIDANCE_ENTRY_MAX_CHARS,
   PROJECT_GUIDANCE_TOTAL_MAX_CHARS,
+  projectGuidanceLength,
+  withinProjectGuidanceEntryLimit,
 } from "./guidance.js";
 import { guidanceContentHash, writeGuidanceRevision } from "./guidance-write.js";
 import { sqliteJson, type GoalsRepository } from "./repository.js";
@@ -66,7 +68,7 @@ function readUpdateRequest(input: UpdateProjectGuidanceInput): UpdateGuidanceReq
     if (!content) {
       throw goalErrors["goals.project_guidance.invalid"]("修改后的项目说明内容不能为空");
     }
-    if (content.length > PROJECT_GUIDANCE_ENTRY_MAX_CHARS) {
+    if (!withinProjectGuidanceEntryLimit(content)) {
       throw goalErrors["goals.project_guidance.entry_too_large"](`单条项目说明不能超过 ${PROJECT_GUIDANCE_ENTRY_MAX_CHARS} 个字符`);
     }
   }
@@ -133,7 +135,7 @@ function requireStateAllowed(
   }
   const totalChars = entries
     .filter((entry) => entry.guidance_id !== current.guidance_id && entry.active)
-    .reduce((sum, entry) => sum + entry.content.length, 0) + (next.active ? next.content.length : 0);
+    .reduce((sum, entry) => sum + projectGuidanceLength(entry.content), 0) + (next.active ? projectGuidanceLength(next.content) : 0);
   if (totalChars > PROJECT_GUIDANCE_TOTAL_MAX_CHARS) {
     throw goalErrors["goals.project_guidance.total_too_large"](`项目说明总长度不能超过 ${PROJECT_GUIDANCE_TOTAL_MAX_CHARS} 个字符`);
   }

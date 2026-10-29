@@ -256,10 +256,10 @@ test("W4-2-06: the offer is the whole input of pages.create from the selection: 
     const [long] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: "很".repeat(120), truncated: true }] });
     assert.equal((long!.input as { title: string }).title.length, 80);
     assert.match(long!.summary!, /选中的内容太长，只存了前面的部分/u);
-    // The cut never falls inside an emoji: no half of a pair is left at the end of the title, and Pages still accepts it.
-    const [emoji] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: `a${"😀".repeat(60)}` }] });
+    // The cut is by whole characters, as Pages counts a title (81 of them become 79 and 「…」), so it never falls inside an emoji, and Pages still accepts it.
+    const [emoji] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: `a${"😀".repeat(80)}` }] });
     const emojiTitle = (emoji!.input as { title: string }).title;
-    assert.equal(emojiTitle, `a${"😀".repeat(39)}…`);
+    assert.equal(emojiTitle, `a${"😀".repeat(78)}…`);
     assert.doesNotMatch(emojiTitle, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
     assert.equal((await bound.invoke(actions.create, emoji!.input as never)).document.title, emojiTitle);
     // No document in a blank selection, a word, or whole objects.
@@ -290,6 +290,28 @@ test("W4-2-06: pages.create with a request id makes the document once; other con
     await bound.invoke(actions.delete, { id: first.document.id });
     await assert.rejects(bound.invoke(actions.create, offer!.input as never), { code: "pages.unavailable", message: /这个请求已完成，但其中的文档已被删除；不会重新创建/u });
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:write"] }, actions.intakeOffers, selection({})), { code: "actions.forbidden" });
+  });
+});
+
+test("RAC-1857: 存为文档 titles the document with up to 80 whole characters, and a longer title ends in 「…」 at the 80th", async () => {
+  // Pages counts a title in characters (pages.create's schema, normalizeTitle). One 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const inputOf = async (text: string, request: string) => (await bound.invoke(actions.intakeOffers, selection({ targets: [{ kind: "text_range", role: "paragraph", text }] }, request))).offers[0]!.input as { title: string };
+    assert.equal((await inputOf(wide(80), "req-80")).title, wide(80), "80 characters are kept whole");
+    const cut = await inputOf("题" + wide(80), "req-81");
+    assert.equal(cut.title, "题" + wide(78) + "…", "81 characters become 79 and 「…」");
+    assert.equal((await bound.invoke(actions.create, cut as never)).document.title, cut.title, "Pages accepts the cut title");
+  });
+});
+
+test("RAC-1857: 存为文档 names its source with up to 80 whole characters of the document's title", async () => {
+  // The last line of the text says where it came from: the source's title, clipped like the document's own.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const markdownOf = async (title: string, request: string) => ((await bound.invoke(actions.intakeOffers, selection({ object: { kind: "pages_document", id: "doc-1", version: 3, title } }, request))).offers[0]!.input as { markdown: string }).markdown;
+    assert.equal(await markdownOf(wide(80), "req-s80"), `接口先不改，只加一层适配。\n\n摘自『${wide(80)}』`, "a source of 80 characters is named whole");
+    assert.equal(await markdownOf("源" + wide(80), "req-s81"), `接口先不改，只加一层适配。\n\n摘自『${"源" + wide(78)}…』`, "a longer one becomes 79 characters and 「…」");
   });
 });
 test("RAC-1625: Pages counts a document's title in Unicode characters, as its action schemas do", async () => {
@@ -375,5 +397,42 @@ test("RAC-1689: the synthesis offered for several documents is titled with 80 wh
     const synthesize = prepared.offers.find((offer) => offer.offer_id === "synthesize");
     assert.ok(synthesize, "several documents offer a synthesis");
     assert.equal((synthesize.input as { title: string }).title, `综合：${wide(40)} · ${wide(34)}`, "the title keeps 80 whole characters");
+  });
+});
+
+test("RAC-1859: the writing assistant's input from a whole document is cut at 180000 whole characters, never half of one", async () => {
+  // fragment-offers cuts the document's text to the 180000 characters pages.ai's `text` holds. One 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { document } = await bound.invoke(actions.create, { title: "长文", body: body("a" + wide(180_000)) });
+    const prepared = await bound.invoke(actions.fragmentOffers, { request_id: "long-text", fragment: {
+      object: { kind: "pages_document", id: document.id, version: document.version, title: document.title },
+      granularity: "object",
+      targets: [{ kind: "object" as const, role: "object", text: "摘录" }],
+    } });
+    const summarize = prepared.offers.find((offer) => offer.offer_id === "summarize");
+    assert.ok(summarize, "a whole document offers a summary");
+    const sent = (summarize.input as { text: string }).text;
+    assert.equal([...sent].length, 180_000, "the text is cut to 180000 whole characters");
+    assert.ok(sent.startsWith("a🟢") && sent.endsWith("🟢"), "it ends on a whole character");
+  });
+});
+
+test("RAC-1860: the card for several documents is cut at 600 whole characters, never half of one", async () => {
+  // fragment-offers cuts the card's summary to the 600 characters the offers' output schema holds. One 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    // Eight documents, the most one selection holds, each with an 80-character title, the most a document's title holds.
+    const titles = ["题" + wide(79), ...Array.from({ length: 7 }, () => wide(80))];
+    const prepared = await bound.invoke(actions.fragmentOffers, { request_id: "long-names", fragment: {
+      object: { kind: "pages_document", id: "d1", version: 1, title: "甲" },
+      granularity: "objects",
+      targets: titles.map((title, index) => ({ kind: "object" as const, role: "object", text: "正文",
+        ref: { kind: "pages_document", id: `d${index + 1}`, version: 1, title } })),
+    } });
+    const synthesize = prepared.offers.find((offer) => offer.offer_id === "synthesize");
+    assert.ok(synthesize, "several documents offer a synthesis");
+    const names = titles.slice(0, 7).map((title) => `「${title}」`).join("");
+    assert.equal(synthesize.summary, `用 8 篇文档${names}「${wide(18)}`, "the summary keeps 600 whole characters");
   });
 });

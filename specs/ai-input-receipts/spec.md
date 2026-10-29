@@ -63,7 +63,7 @@
 **没做完、没开工的。** 每项一行，都在 `specs/BACKLOG.md`，负责人「未分配」：
 
 - 新写的：
-  - §5「插件」：BL-310（QA-009）、BL-311（QA-010）、BL-312（QA-011）、BL-313（QA-012）、BL-314（S3-2，Goal 页「来自对话的输入」）；
+  - §5「插件」：BL-310（QA-009）、BL-311（QA-010，已随 T-026 做完）、BL-312（QA-011）、BL-313（QA-012）、BL-314（S3-2，Goal 页「来自对话的输入」）；
   - §3「助理、记忆与动态交互」：BL-315（3e-2b）、BL-316（3e-2c）、BL-317（RCPT-103～107 与真实模型评测）、BL-318（阶段 5、6）、BL-319（§12.6 浏览器验证）；
 - 原有的：BL-148、BL-161、BL-162（Molis 一侧）、BL-164、BL-175。
 
@@ -1608,7 +1608,7 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 - **放在哪**：`plugins/native/coding/src/history-digest.ts` 的三处用同一节：模型摘要材料（取代原来只留最后五条的那一行，排在各轮之前，裁剪碰不到）、模型摘要的宿主事实之后（模型摘要漏了也照样进下一次请求）、备用摘要（纯代码，不多调模型）。
 - **预算**：这一节上限 16 000 字；超出时最早的让位，写明条数和输入 id，不悄悄丢；各轮内容先缩。
 - **原来的缺口（2026-10-19 已补）**：页面代写、经助理交给 Coding 的补充，原来在 Coding 里记成本人的话（D14c），R1 会把它们也当作「用户补充」带进摘要。BL-144 让 `coding.runs.control` 第 7 版的补充带 `source`，这些话在 Coding 里记成 `notice`，R1 本来就不计入，R1 没有另绕（RCPT-368）。
-- **证据**：`tests/coding-history-requirements.test.ts` 用 `tests/fixtures/coding-product-host.ts`（真 HTTP、目录、Agent Host、装好的 SDK，只拦 provider 的 `fetch`）跑两轮：第一轮扣住模型回复时发六条补充，读完后 compact，第二轮先摘要再开跑；断言落在第二轮真正发给 provider 的请求体上。RCPT-101 是模型摘要只提最后一条的情形；RCPT-102 是摘要调用被拒（400）与返回空两种，另核对 provider 请求数正好是一次摘要尝试加本轮自己的一次。`tests/coding-long-session.test.ts` 覆盖排除规则、跨轮最新状态与预算让位。真实模型与 RCPT-107 的人工实操未做。
+- **证据**：`tests/coding-history-requirements.test.ts` 用 `tests/fixtures/coding-product-host.ts`（真 HTTP、目录、Agent Host、装好的 SDK，只拦 provider 的 `fetch`）跑两轮：第一轮扣住模型回复时发六条补充，读完后 compact，第二轮先摘要再开跑；断言落在第二轮真正发给 provider 的请求体上。RCPT-101 是模型摘要只提最后一条的情形；RCPT-102 是摘要调用被拒（400）与返回空两种，与摘要在生产截止时间还没回的超时一支（`RAC-1340`、`RAC-1341`，摘要晚到时什么也不改），另核对 provider 请求数正好是一次摘要尝试加本轮自己的一次。`tests/coding-long-session.test.ts` 覆盖排除规则、跨轮最新状态与预算让位。真实模型与 RCPT-107 的人工实操未做。
 
 ## 混合补充原件接入（2026-10-23）
 

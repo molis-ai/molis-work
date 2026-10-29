@@ -1,4 +1,5 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 
 // One refresh of a connection's tokens at a time, shared by the calls waiting on it (W5-11 §2.6, RAC-1085). It belongs to its
 // participants, never to the call that started it: a participant whose call ends only takes itself out. Before the request is sent at
@@ -9,7 +10,7 @@ import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/servic
 /**
  * What the answer of a sent refresh may write: `deliver`, everything as usual, to the participants still current; `write_back`, only the
  * rotated credentials of the connection, every participant having cancelled (the user's decision of 2026-10-27, "只存新令牌");
- * `discard`, nothing, a participant having left because its call lost its authority.
+ * `discard`, nothing, a participant having left because its call lost its authority (`cancelledBy` says which is which).
  */
 export type SharedRefreshOutcome = "deliver" | "write_back" | "discard";
 
@@ -31,18 +32,34 @@ export interface SharedRefresh<T> {
 
 const NO_PARTICIPANT = "没有调用在等这次刷新，不再发出";
 
+/**
+ * Whether a call that ended was cancelled: aborted for `cancelled` or `timeout` (the action gateway when its caller goes, a time limit),
+ * or with an `AbortError` or `TimeoutError`. The platform also withdraws a call by aborting it (a plugin instance stopped, an authority
+ * the call's monitor saw lost, a connection changed under it), so any other reason, and a failed check with no abort, is a withdrawal
+ * (second review of #1479).
+ */
+function cancelledBy(signal: AbortSignal): boolean {
+  if (!signal.aborted) return false;
+  const reason: unknown = signal.reason;
+  if (reason instanceof DOMException) return reason.name === "AbortError" || reason.name === "TimeoutError";
+  const kind = actionErrorKind(reason);
+  return kind === "cancelled" || kind === "timeout";
+}
+
 /** Starts `run` with `first` as its first participant; `first` must still be current. */
 export function startSharedRefresh<T>(first: ConnectorCallControl, run: (refresh: SharedRefreshRun) => Promise<T>): SharedRefresh<T> {
   type Participant = { control: ConnectorCallControl; leave: (withdrawn: boolean) => void };
   const participants = new Set<Participant>();
   let withdrawn = false;
-  // A participant is still current when its call is not cancelled and still has its authority; one that lost it is a withdrawal.
+  // A participant is still current when its call is not aborted and still has its authority; one that is not leaves, as a withdrawal
+  // unless it was cancelled.
+  const ended = (participant: Participant): false => { participant.leave(!cancelledBy(participant.control.signal)); return false; };
   const live = (participant: Participant): boolean => {
-    if (participant.control.signal.aborted) { participant.leave(false); return false; }
-    try { participant.control.current(); return true; } catch { participant.leave(true); return false; }
+    if (participant.control.signal.aborted) return ended(participant);
+    try { participant.control.current(); return true; } catch { return ended(participant); }
   };
   const checked = async (participant: Participant): Promise<boolean> => {
-    try { await participant.control.beforeEffect(); } catch { participant.leave(!participant.control.signal.aborted); return false; }
+    try { await participant.control.beforeEffect(); } catch { return ended(participant); }
     return live(participant);
   };
   const control: ConnectorCallControl = {
@@ -61,17 +78,17 @@ export function startSharedRefresh<T>(first: ConnectorCallControl, run: (refresh
     for (const participant of [...participants]) if (await checked(participant)) delivered = true;
     return delivered ? "deliver" : withdrawn ? "discard" : "write_back";
   };
-  // A participant leaves when its call is cancelled; it is answered once the refresh ends, and then by its own checks first.
+  // A participant leaves when its call is aborted; it is answered once the refresh ends, and then by its own checks first.
   const enter = (call: ConnectorCallControl): Participant => {
     call.signal.throwIfAborted(); call.current();
     const participant: Participant = { control: call, leave: byWithdrawal => {
       if (!participants.delete(participant)) return;
-      call.signal.removeEventListener("abort", cancelled);
+      call.signal.removeEventListener("abort", aborted);
       if (byWithdrawal) withdrawn = true;
     } };
-    const cancelled = () => participant.leave(false);
+    const aborted = () => participant.leave(!cancelledBy(call.signal));
     participants.add(participant);
-    call.signal.addEventListener("abort", cancelled, { once: true });
+    call.signal.addEventListener("abort", aborted, { once: true });
     return participant;
   };
   const answered = async (participant: Participant, result: Promise<T>): Promise<T> => {

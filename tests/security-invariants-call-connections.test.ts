@@ -222,7 +222,7 @@ test("S-95 S-97 FI-C-02 RAC-1085: the real sandbox broker sends nothing more aft
     try {
       await reached;
       assert.equal(seen.length, 1, "the original TLS request reached the service and returned 401");
-      abort.abort(new Error("sandbox call withdrawn")); release();
+      abort.abort(new DOMException("sandbox call cancelled", "AbortError")); release();
       await rejected;
       // SandboxRunner can answer cancellation first; the real Host request must also finish before checking its storage effects.
       await Promise.all(requests);

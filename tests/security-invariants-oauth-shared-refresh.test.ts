@@ -16,7 +16,8 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 // all the calls waiting on them. What these assert is the refusal and what is not written:
 // - RAC-1085: a sent refresh is not aborted when its callers leave. Its answer is written only after the last check (the declaring
 //   plugin still enabled as the same install, the connection still bound to it and at the same revision); with nobody waiting, only the
-//   rotated credentials are kept (用户 10-27 定：只存新令牌); a call that lost its authority keeps nothing of it.
+//   rotated credentials are kept (用户 10-27 定：只存新令牌); a call that lost its authority keeps nothing of it, and so does one the
+//   platform withdrew by aborting it: only a cancellation (an abort for `cancelled` or `timeout`, or an `AbortError`) is the caller leaving.
 // - RAC-1087: a connection bound to another plugin, publisher or token endpoint, or to none, is marked for reauthorization before its
 //   refresh token or client secret is sent anywhere.
 // - RAC-1088: while the declaring plugin is disabled, the connection sends nothing and refreshes nothing; enabled again, it works.
@@ -63,13 +64,16 @@ function network(t: TestContext) {
   return { refreshes, reads, next: () => new Promise<void>(resolve => { arrived = resolve; }), releaseAll: () => refreshes.forEach(entry => entry.release()) };
 }
 
-/** One plugin call: its own cancellation, and an authority it can lose without being cancelled. */
+/**
+ * One plugin call: its abort (by default the cancellation the action gateway makes when the caller goes, `actions.cancelled`), and an
+ * authority it can lose without being aborted.
+ */
 function call() {
   const abort = new AbortController();
   let withdrawn = false;
   const current = () => { if (withdrawn) throw new Error("调用已失去授权"); };
   const dispatch: PluginConnectionDispatch = { ...connectorControl({ signal: abort.signal, current }), url: new URL(ASANA_ME), method: "GET", headers: {}, signal: abort.signal };
-  return { dispatch, cancel: () => abort.abort(new Error("caller cancelled")), withdraw: () => { withdrawn = true; } };
+  return { dispatch, cancel: (reason: unknown = new ActionError("actions.cancelled", "调用连接已断开")) => abort.abort(reason), withdraw: () => { withdrawn = true; } };
 }
 const turn = () => new Promise<void>(resolve => setImmediate(resolve));
 
@@ -83,7 +87,7 @@ test("RAC-1085 calls that need a refresh share one token request, and one of the
     const answered = port.request(target, staying.dispatch);
     await turn();
     assert.equal(net.refreshes.length, 1, "the second call joined the refresh in flight");
-    const rejected = assert.rejects(left, /caller cancelled/u);
+    const rejected = assert.rejects(left, /调用连接已断开/u);
     leaving.cancel();
     net.refreshes[0]!.release();
     await rejected;
@@ -138,6 +142,42 @@ test("RAC-1085 a call that lost its authority while its refresh was out keeps no
       assert.equal(result!.status, "rejected");
       if (result!.status === "rejected") assert.match((result!.reason as Error).message, /失去授权/u);
       assert.deepEqual(stored(), before.stored, "no credential of the answer is written");
+      assert.equal(protocol(), before.protocol);
+      assert.deepEqual(net.reads, []);
+    } finally { net.releaseAll(); }
+  });
+});
+
+// A platform withdrawal can abort the call instead of failing its checks (second review of #1479): a plugin instance stopped
+// (`plugin-runtime` background services abort with `actions.plugin_unavailable`), an authority the call's monitor saw lost
+// (`createExecutionLifetime` aborts with the check's own error), a connection changed under the call (`invalidateConnectorRequests`).
+// None of these is the caller leaving, so none may write; an abort is a cancellation only for `cancelled` or `timeout`, or an `AbortError`.
+test("RAC-1085 a call the platform withdrew by aborting it keeps nothing of the answer: only a cancellation is the caller leaving", { timeout: 30_000 }, async t => {
+  const withdrawals: Record<string, unknown> = {
+    "a stopped plugin instance": new ActionError("actions.plugin_unavailable", "插件实例已停止"),
+    "an authority its monitor saw lost": new Error("调用已失去授权"),
+    "a connection changed under it": new Error("连接已改变，请重新执行"),
+  };
+  const cancellations: Record<string, unknown> = {
+    "a cancelled action call": new ActionError("actions.cancelled", "调用连接已断开"),
+    "the call's own time limit": new ActionError("actions.timeout", "执行超时"),
+    "an abort with no reason": undefined,
+  };
+  for (const [why, reason, withdrawn] of [...Object.entries(withdrawals).map(([why, reason]) => [why, reason, true] as const),
+    ...Object.entries(cancellations).map(([why, reason]) => [why, reason, false] as const)]) await t.test(`${why}: ${withdrawn ? "nothing is kept" : "a cancellation, only the rotated credentials are kept"}`, async t => {
+    const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+    const before = { stored: stored(), protocol: protocol() }, aborted = call();
+    try {
+      const sent = net.next();
+      const settled = Promise.allSettled([port.request(target, aborted.dispatch)]);
+      await sent;
+      aborted.cancel(reason);
+      net.refreshes[0]!.release();
+      const [result] = await settled;
+      assert.equal(result!.status, "rejected");
+      const after = stored();
+      if (withdrawn) assert.deepEqual(after, before.stored, "no credential of the answer is written");
+      else assert.deepEqual([after.access, after.oauth, after.client], ["access-0", "refresh-2", before.stored.client]);
       assert.equal(protocol(), before.protocol);
       assert.deepEqual(net.reads, []);
     } finally { net.releaseAll(); }

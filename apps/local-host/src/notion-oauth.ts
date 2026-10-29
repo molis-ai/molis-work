@@ -162,11 +162,12 @@ export async function resolveUsableNotionToken(connectionId: string, control: Co
     const snapshot = store.get(`${refs.access}:client`);
     const { clientId, clientSecret } = snapshot ? JSON.parse(snapshot) as ReturnType<typeof credentials> : credentials();
     if (!refreshToken || !clientId || !clientSecret) throw new Error("Notion 缺少刷新凭据，请重新授权");
-    // Checked before it is sent, never after: a sent refresh is not abandoned.
+    // Checked before it is sent, never after: a sent refresh is not abandoned. It is bound only by its own time limit, the generic flow's
+    // 25 s (`connector-api-oauth.ts`), never by its callers leaving.
     const checks = refresh.control;
     const send: typeof fetch = async (url, init) => {
       await checks.beforeEffect(); checks.current();
-      return (fetchImpl ?? fetch)(url, { ...init, signal: init?.signal ?? checks.signal });
+      return (fetchImpl ?? fetch)(url, { ...init, signal: AbortSignal.any([AbortSignal.timeout(25_000), ...(init?.signal ? [init.signal] : [])]) });
     };
     let tokens: NotionOAuthTokens;
     try {

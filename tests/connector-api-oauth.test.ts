@@ -416,8 +416,8 @@ test("S-97 FI-C-02 RAC-1085: a cancelled refresh keeps only the rotated credenti
     const connection = withConnectorConnections(directory, store => store.require(id));
     const abort = new AbortController(), control = connectorControl({ signal: abort.signal });
     const pending = resolveApiConnection(directory, id, control, "asana", true);
-    const rejected = assert.rejects(pending, /call withdrawn/u);
-    try { await reached; abort.abort(new Error("call withdrawn")); } finally { release(); }
+    const rejected = assert.rejects(pending, /call cancelled/u);
+    try { await reached; abort.abort(new DOMException("call cancelled", "AbortError")); } finally { release(); }
     await rejected;
     // A refused answer writes nothing; a token answer writes back the access token, the refresh token and the expiry, and nothing else.
     const after = Object.fromEntries(Object.keys(before).map(key => [key, secrets.get(key)]));

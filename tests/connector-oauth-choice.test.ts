@@ -135,8 +135,8 @@ test("FI-C-02 RAC-1085 Notion shared refresh isolates either caller's cancellati
       await new Promise<void>(resolve => setImmediate(resolve));
       assert.equal(requests.length, 1);
       const results = Promise.allSettled([first, second]);
-      if (cancelled === "both") controllers.forEach(controller => controller.abort(new Error("caller cancelled")));
-      else controllers[cancelled]!.abort(new Error("caller cancelled"));
+      if (cancelled === "both") controllers.forEach(controller => controller.abort(new DOMException("caller cancelled", "AbortError")));
+      else controllers[cancelled]!.abort(new DOMException("caller cancelled", "AbortError"));
       assert.equal(signals[0]!.aborted, false, "a sent refresh is not aborted, whoever leaves");
       release();
       const settled = await results;
@@ -202,7 +202,7 @@ test("FI-C-02 RAC-1085 an answer nobody waits for keeps only the rotated tokens,
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal(endpoint.requests.length, 1);
     const settled = Promise.allSettled(leaving);
-    controllers.forEach(controller => controller.abort(new Error("caller cancelled")));
+    controllers.forEach(controller => controller.abort(new DOMException("caller cancelled", "AbortError")));
     assert.equal(endpoint.requests[0]!.signal.aborted, false, "the last caller leaving does not end a sent request");
     endpoint.requests[0]!.release();
     for (const [index, result] of (await settled).entries()) {
@@ -223,6 +223,50 @@ test("FI-C-02 RAC-1085 an answer nobody waits for keeps only the rotated tokens,
   } finally { endpoint.releaseAll(); }
 }));
 
+test("FI-C-02 RAC-1085 a Notion refresh nobody answers ends at its own time limit after every caller left, and the next call sends again", async t => isolated(async directory => {
+  // A sent refresh is bound only by its own time limit, the generic flow's 25 s (W5-11 §2.6). Second review of #1479: the Notion request
+  // carried the shared refresh's own signal, which never aborts, so it had no limit but undici's default and every later refresh joined it.
+  const { store, refs } = seedNotionRefresh(directory);
+  const limits: number[] = [], timers: AbortController[] = [], requests: AbortSignal[] = [], ends: Array<() => void> = [];
+  t.mock.method(AbortSignal, "timeout", (milliseconds: number) => { limits.push(milliseconds); const timer = new AbortController(); timers.push(timer); return timer.signal; });
+  let arrived = () => {};
+  const next = () => new Promise<void>(resolve => { arrived = resolve; });
+  // The first request is never answered; it ends only when its signal aborts. The next one is answered.
+  const fetchImpl: typeof fetch = async (_url, init) => {
+    const signal = init!.signal!, first = requests.length === 0;
+    requests.push(signal);
+    arrived();
+    if (!first) return Response.json({ access_token: "access-1", refresh_token: "refresh-1", workspace_id: "work", workspace_name: "Work", bot_id: "bot" });
+    return new Promise<Response>((_, reject) => { signal.addEventListener("abort", () => reject(signal.reason), { once: true }); ends.push(() => reject(new Error("test ended"))); });
+  };
+  try {
+    const controllers = [new AbortController(), new AbortController()];
+    const sent = next();
+    const leaving = controllers.map(controller => resolveUsableNotionToken(NOTION_CONNECTION, connectorControl({ signal: controller.signal }), true, fetchImpl));
+    await sent;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(limits, [25_000], "the sent refresh has its own time limit, the generic flow's");
+    const settled = Promise.allSettled(leaving);
+    controllers.forEach(controller => controller.abort(new DOMException("caller cancelled", "AbortError")));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(requests[0]!.aborted, false, "every caller leaving does not end a sent request");
+    timers[0]!.abort(new DOMException("The operation timed out", "TimeoutError"));
+    for (const [index, result] of (await settled).entries()) {
+      assert.equal(result.status, "rejected");
+      if (result.status === "rejected") assert.equal(result.reason, controllers[index]!.signal.reason);
+    }
+    assert.equal(requests[0]!.aborted, true, "its own time limit ended it");
+    assert.equal(store.get(`${refs}:refresh`), "original-refresh", "a refresh with no answer writes nothing");
+    assert.equal(store.get(`${refs}:access`), null);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const sentAgain = next();
+    const again = resolveUsableNotionToken(NOTION_CONNECTION, connectorControl(), true, fetchImpl);
+    await sentAgain;
+    assert.equal(requests.length, 2, "the timed-out refresh is no longer in flight: the next call sends its own");
+    assert.equal(await again, "access-1");
+  } finally { ends.forEach(end => end()); }
+}));
+
 test("FI-C-02 RAC-1085 a call arriving after both callers left joins the sent refresh and is answered by it", async () => isolated(async directory => {
   const { store, refs, revision } = seedNotionRefresh(directory);
   const before = revision(), endpoint = heldTokenEndpoint();
@@ -233,7 +277,7 @@ test("FI-C-02 RAC-1085 a call arriving after both callers left joins the sent re
     await sent;
     await new Promise<void>(resolve => setImmediate(resolve));
     const settled = Promise.allSettled(leaving);
-    controllers.forEach(controller => controller.abort(new Error("caller cancelled")));
+    controllers.forEach(controller => controller.abort(new DOMException("caller cancelled", "AbortError")));
     // Before the answer comes back a third call arrives: it joins the refresh still in flight, with no second request.
     const third = resolveUsableNotionToken(NOTION_CONNECTION, connectorControl(), true, endpoint.fetch);
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -262,7 +306,7 @@ test("FI-C-02 a shared refresh a caller still awaits writes nothing when the ref
       await new Promise<void>(resolve => setImmediate(resolve));
       assert.equal(endpoint.requests.length, 1);
       const settled = Promise.allSettled(calls);
-      leaving.abort(new Error("caller cancelled"));
+      leaving.abort(new DOMException("caller cancelled", "AbortError"));
       assert.equal(endpoint.requests[0]!.signal.aborted, false, "the caller still waiting keeps the shared request");
       if (change === "refresh") store.put(`${refs}:refresh`, "replaced-refresh");
       else withConnectorConnections(directory, connections => { connections.setEnabled(NOTION_CONNECTION, false); connections.setEnabled(NOTION_CONNECTION, true); });

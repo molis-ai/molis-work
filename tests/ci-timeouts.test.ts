@@ -1,6 +1,6 @@
 // T-128: the blocking jobs of .github/workflows/ci.yml and `security-invariants` have a time limit, and every `Install pnpm` step has
 // one, so a job that hangs does not hold a runner for the six-hour default. The limits come from the longest of the last 60 completed
-// runs on 2026-10-29 (the table below); a limit below twice that would kill a normal run on a busy day, one far above it is no limit.
+// runs on 2026-10-29 (the table below); a limit below 1.8 times that would kill a normal run on a busy day, one far above it is no limit.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { jobBlock, workflow } from "./fixtures/ci-workflow.js";
@@ -19,7 +19,7 @@ const INSTALL_PNPM = { limit: 3, longest: 2 };
 const jobTimeout = (name: string) => /^    timeout-minutes: (\d+)$/m.exec(jobBlock(name))?.[1];
 const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step) => step.startsWith("name: Install pnpm\n"));
 
-test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit that is above twice their longest run and below five times it", () => {
+test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit that is at least 1.8 times their longest run and at most five times it", () => {
   for (const [name, { limit, longest }] of Object.entries(JOBS)) {
     assert.equal(jobTimeout(name), String(limit), `${name} has timeout-minutes: ${limit} at the job level`);
     assert.ok(limit * 60 >= 1.8 * longest, `${name}: ${limit} min leaves room over the longest run of ${longest} s`);

@@ -126,3 +126,36 @@ test("completed Inbox generation returns the currently edited original document 
   assert.equal(replay.replayed, true); assert.equal(replay.document.title, "用户编辑后的标题");
   assert.equal(f.dispatches(), 1); assert.equal(f.store.list("project").length, 1);
 });
+
+// T-252: the whole limit on the materials one generation adopts counts characters, as the action's schemas and the model port do,
+// not UTF-16 units: an emoji is one character and two units.
+test("RAC-2280 materials of 120000 UTF-16 units but 60000 characters (all emoji) are accepted", async t => {
+  const f = await fixture(t);
+  const body = "😀".repeat(60_000);
+  assert.equal(body.length, 120_000, "1.2 units a character: the old unit-counted check refused this");
+  const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    { request_id: "rac-2280-materials", request_hash: "rac-2280", title: "材料整理", instructions: "按要求整理。",
+      inputs: [{ entry_id: "entry-1", item_id: "item-1", revision: 1, title: "材料 1", body, url: null, source_label: "来源", captured_at: "initial", provenance: [] }] }) as { document: { title: string } };
+  assert.equal(made.document.title, "材料整理", "the generation ran and saved its document");
+  assert.equal(f.store.generation("project", "rac-2280-materials")!.inputs[0]!.body.length, 120_000, "and kept the material as it came");
+});
+
+test("RAC-2281 materials of 100001 characters are refused, and exactly 100000 are accepted", async t => {
+  const f = await fixture(t);
+  const materials = (body: string) => ({ request_id: `rac-2281-${body.length}`, request_hash: "rac-2281", title: "材料整理", instructions: "按要求整理。",
+    inputs: [{ entry_id: "entry-1", item_id: "item-1", revision: 1, title: "材料 1", body, url: null, source_label: "来源", captured_at: "initial", provenance: [] }] });
+  await assert.rejects(f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, materials("a".repeat(100_001))),
+    { code: "pages.invalid", message: /材料过长/ }, "one character over the limit is refused");
+  const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, materials("a".repeat(100_000))) as { document: { title: string } };
+  assert.equal(made.document.title, "材料整理", "exactly the limit is accepted");
+});
+
+test("RAC-2282 materials over 200000 UTF-16 units are refused before any character count of them", async t => {
+  const f = await fixture(t);
+  const body = "a".repeat(200_001);
+  await assert.rejects(f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    { request_id: "rac-2282-materials", request_hash: "rac-2282", title: "材料整理", instructions: "按要求整理。",
+      inputs: [{ entry_id: "entry-1", item_id: "item-1", revision: 1, title: "材料 1", body, url: null, source_label: "来源", captured_at: "initial", provenance: [] }] }),
+    { code: "pages.invalid", message: /材料过长/ });
+  assert.equal(f.store.generations("project").length, 0, "nothing of a refused generation is recorded");
+});

@@ -143,7 +143,10 @@ export const managedToolsSnapshot: HomeStoreSnapshotPolicy = {
     if (/^\.home(?:\/|$)/u.test(inside)) return excluded("Captured by connector-private-state owner as sealed payload");
     if (/^(?:node_modules|\.venv|\.tmp|release)(?:\/|$)/u.test(inside)) return excluded("Reinstallable managed package or temporary state");
     if (/^(?:installation\.json|package\.json|package-lock\.json|requirements\.lock|user\.npmrc|global\.npmrc)$/u.test(inside)) return { kind: "keep" };
-    const installation = readManagedConnectorTool(home, parts[1]!);
+    // Whatever is wrong with the record, the snapshot's answer is the same: this file cannot be classified.
+    let installation: ReturnType<typeof readManagedConnectorTool>;
+    try { installation = readManagedConnectorTool(home, parts[1]!); }
+    catch { return unknown(file); }
     if (relative(join(home, "runtime"), installation.executable).split("\\").join("/") === file) return excluded("Reinstallable native executable");
     return unknown(file);
   },

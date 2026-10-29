@@ -14,7 +14,7 @@ export async function removeFeedSource(service: FeedSourceService, sourceId: str
   retire: (released: FeedSourceHistoryRelease | null, run: () => FeedSourceRecord) => FeedSourceRecord = (_released, run) => run()): Promise<FeedSourceRecord> {
   const { releaseHistory, commit } = service.ports;
   if (!releaseHistory || !commit) return service.delete(sourceId, historyDecision);
-  if (sourceDeletedAt(service.feed.getSource(service.projectId, sourceId))) throw feedErrors.source_not_found("找不到这个来源");
+  if (sourceDeletedAt(service.feed.sources.get(service.projectId, sourceId))) throw feedErrors.source_not_found("找不到这个来源");
   const released = historyDecision === "delete_local_history" ? await releaseHistory({ project_id: service.projectId, source_id: sourceId }) : null;
   return await commit(() => retire(released, () => service.delete(sourceId, historyDecision)));
 }

@@ -1,43 +1,47 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleAttentionReason, type AttentionStatus as ModuleAttentionStatus, type AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
-import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
+import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedSnapshot, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType } from "./projection.js";
 
-import {
-  type JudgmentRecord,
-} from "@molis-ai/molis-work-contracts/modules/functions";
-import { assertSourceHistoryDecision, callAttention } from "./application-errors.js";
+import { callAttention } from "./application-errors.js";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
-import { retireFeedSource } from "./source-history.js";
+import { FeedCapture } from "./application-capture.js";
+import { FeedOutRules } from "./application-out-rules.js";
+import { FeedSources } from "./application-sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { JudgmentQueue } from "./judgment-queue.js";
 import { admitToInbox, isIgnored } from "./inbox-admission.js";
-import {
-  captureFeedRules,
-  feedCaptureFailure,
-  feedOutRuleMatches,
-  throwIfCallRefused,
-  type FeedOutRuleWrite,
-} from "./out-rules.js";
+import { feedCaptureFailure, feedOutRuleMatches } from "./out-rules.js";
 
-/** Product operations over module facts; connection and lifecycle are supplied by the host. */
+/**
+ * Product operations over module facts; connection and lifecycle are supplied by the host. Items, their Inbox entries and ingest
+ * (with the judgments it queues) are here; sources and their runs, the capture rules, and what capture did are collaborators.
+ */
 export class FeedApplication {
+  readonly sources: FeedSources;
+  readonly outRules: FeedOutRules;
+  readonly capture: FeedCapture;
   private readonly judgments: JudgmentQueue;
 
   constructor(private readonly ports: FeedApplicationPorts) {
+    this.sources = new FeedSources(ports);
+    this.outRules = new FeedOutRules(ports);
+    this.capture = new FeedCapture(ports, {
+      isArchived: (projectId, itemId) => this.isArchived(projectId, itemId),
+      ensureInboxEntryForFeedItem: (projectId, itemId, reason, detail) => this.ensureInboxEntryForFeedItem(projectId, itemId, reason, detail),
+      setInboxEntryStatus: (projectId, entryId, status) => this.setInboxEntryStatus(projectId, entryId, status),
+    });
     this.judgments = new JudgmentQueue(ports, {
       feedItem: (projectId, itemId) => this.getFeedItem(projectId, itemId),
       inboxEntry: (projectId, entryId) => this.getInboxEntry(projectId, entryId),
-      judgedRuleIds: item => this.listOutRules(item.project_id).filter(rule => rule.judgment && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id),
+      judgedRuleIds: item => this.outRules.list(item.project_id).filter(rule => rule.judgment && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id),
     });
     ports.subscribeInboxCreated(entry => this.judgments.queueEntry(entry));
   }
 
   snapshot(projectId: string): FeedSnapshot {
-    const sources = this.ports.sources.query.list(projectId).map((source) => this.sourceRecord(source));
+    const sources = this.ports.sources.query.list(projectId).map((source) => this.sources.record(source));
     const feedItems = this.ports.feed.query.list(projectId).map(feedItemRecord);
     const inboxEntries = this.listInboxEntries(projectId);
     const runs = this.ports.listener.listRuns(projectId).map(sourceRunRecord);
@@ -71,73 +75,6 @@ export class FeedApplication {
     return requireFeedEntry(callAttention(
       () => this.ports.attention.query.get(projectId, entryId),
     ));
-  }
-
-  getSource(projectId: string, sourceId: string): FeedSourceRecord {
-    try {
-      return this.sourceRecord(this.ports.sources.query.get(projectId, sourceId));
-    } catch (error) {
-      if (error instanceof ActionError && error.code === "sources.not_found") {
-        throw feedErrors.source_not_found("找不到这个来源");
-      }
-      throw error;
-    }
-  }
-
-  findSource(
-    projectId: string,
-    syncKind: FeedSourceRecord["sync_kind"],
-    definitionId: string | null,
-    configFingerprint?: string,
-  ): FeedSourceRecord | null {
-    const source = this.ports.sources.query.find(projectId, syncKind, definitionId, configFingerprint);
-    return source ? this.sourceRecord(source) : null;
-  }
-
-  upsertSource(source: FeedSourceRecord): FeedSourceRecord {
-    const saved = this.ports.sources.commands.save({
-      project_id: source.project_id,
-      source_id: source.source_id,
-      kind: source.kind,
-      definition_id: source.definition_id,
-      sync_kind: source.sync_kind,
-      name: source.name,
-      description: source.description,
-      status: source.status,
-      enabled: source.enabled,
-      origin: source.origin,
-      config: source.config,
-      schedule: source.schedule,
-      connection_ref: source.credential_ref,
-      account_label: source.account_label,
-      last_sync_at: source.last_sync_at,
-      last_outcome: source.last_outcome,
-      last_error_code: source.last_error_code,
-      imported_at: source.imported_at,
-      updated_at: source.updated_at,
-    });
-    this.ports.listener.writeCursor(source.project_id, source.source_id, source.cursor, source.updated_at);
-    return this.sourceRecord(saved);
-  }
-
-  setSourceEnabled(projectId: string, sourceId: string, enabled: boolean): FeedSourceRecord {
-    try {
-      return this.sourceRecord(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
-    } catch (error) {
-      if (error instanceof ActionError && error.code === "sources.not_found") {
-        throw feedErrors.source_not_found("找不到这个来源");
-      }
-      throw error;
-    }
-  }
-
-  retireSource(
-    projectId: string,
-    sourceId: string,
-    historyDecision: SourceHistoryDecision,
-  ): FeedSourceRecord {
-    assertSourceHistoryDecision(historyDecision);
-    return retireFeedSource(this.ports, projectId, sourceId, historyDecision, (source) => this.sourceRecord(source));
   }
 
   createInboxEntry(input: {
@@ -207,35 +144,6 @@ export class FeedApplication {
     );
   }
 
-  getSourceRunByOperationId(projectId: string, operationId: string): FeedSourceRunRecord | null {
-    const run = this.ports.listener.getRunByOperationId(projectId, operationId);
-    return run ? sourceRunRecord(run) : null;
-  }
-
-  upsertSourceRun(run: FeedSourceRunRecord): FeedSourceRunRecord {
-    return sourceRunRecord(this.ports.listener.saveRun({
-      project_id: run.project_id,
-      run_id: run.run_id,
-      operation_id: run.operation_id,
-      source_id: run.source_id,
-      phase: run.phase,
-      outcome: run.outcome,
-      empty: run.empty,
-      error_code: run.error_code,
-      connector_receipt: run.receipt,
-      created_count: run.created_count,
-      deduped_count: run.deduped_count,
-      recovery_count: run.recovery_count,
-      started_at: run.started_at,
-      completed_at: run.completed_at,
-      updated_at: run.updated_at,
-    }));
-  }
-
-  recoverInterruptedSourceRuns(projectId: string): number {
-    return this.ports.listener.recoverInterruptedRuns(projectId);
-  }
-
   ingestItem(input: {
     source: FeedSourceRecord;
     externalId: string;
@@ -282,9 +190,9 @@ export class FeedApplication {
     const item = feedItemRecord(result.item);
     if (result.created || result.updated) {
       try {
-        this.captureAfterIngest(item);
+        this.capture.afterIngest(item);
       } catch (error) {
-        this.recordArtifactOutFailure(item, [], [feedCaptureFailure(error)]);
+        this.capture.recordFailure(item, [], [feedCaptureFailure(error)]);
       }
       this.judgments.queueItem(item);
     }
@@ -306,16 +214,7 @@ export class FeedApplication {
     if (!itemIds.length || itemIds.length > 20) throw feedErrors.invalid_transition("请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(projectId, id));
     // Concurrent evaluations own their input batch; they must not drain another call's queue.
-    return this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items).then(() => ({ evaluated: items.length }));
-  }
-
-  recordInboxJudgmentEvent(projectId: string, judgment: JudgmentRecord): void {
-    if (judgment.subject.kind !== "inbox_entry" || judgment.subject.project_id !== projectId) {
-      throw feedErrors.invalid_transition("判断结果与当前 Inbox 项目不符");
-    }
-    this.getInboxEntry(projectId, judgment.subject.id);
-    this.ports.appendEvent(projectId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
-      { judgment_id: judgment.judgment_id }, judgment.created_at);
+    return this.judgments.judgeOwn(() => { for (const item of items) this.capture.afterIngest(item); }, caller, items).then(() => ({ evaluated: items.length }));
   }
 
   flushPendingJudgments(caller?: ActionCallContext): Promise<void> {
@@ -324,58 +223,6 @@ export class FeedApplication {
 
   flushPendingInboxJudgments(caller?: ActionCallContext, entryIds?: readonly string[]): Promise<void> {
     return this.judgments.flushEntries(caller, entryIds);
-  }
-
-  listOutRules(projectId: string): FeedOutRuleRecord[] {
-    return this.ports.outRules?.list(projectId) ?? [];
-  }
-
-  prepareOutRuleCreate(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
-    return this.requireOutRules().prepareCreate(projectId, input);
-  }
-
-  saveOutRuleCreate(rule: FeedOutRuleRecord): FeedOutRuleRecord {
-    return this.requireOutRules().saveCreate(rule);
-  }
-
-  createOutRule(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
-    return this.saveOutRuleCreate(this.prepareOutRuleCreate(projectId, input));
-  }
-
-  prepareOutRuleUpdate(projectId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    return this.requireOutRules().prepareUpdate(projectId, ruleId, patch);
-  }
-
-  saveOutRuleUpdate(rule: FeedOutRuleRecord, expectedRevision?: string): FeedOutRuleRecord {
-    return this.requireOutRules().saveUpdate(rule, expectedRevision);
-  }
-
-  updateOutRule(projectId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    const current = this.requireOutRules().get(projectId, ruleId);
-    return this.saveOutRuleUpdate(this.prepareOutRuleUpdate(projectId, ruleId, patch), current.revision);
-  }
-
-  deleteOutRule(projectId: string, ruleId: string): FeedOutRuleRecord {
-    return this.requireOutRules().delete(projectId, ruleId);
-  }
-
-  recordCaptureJudgment(item: FeedItemRecord, rule: FeedOutRuleRecord, judgment: JudgmentRecord): string | undefined {
-    let createdEntry: string | undefined;
-    if (judgment.subject.kind !== "feed_item" || judgment.subject.id !== item.item_id || judgment.subject.project_id !== item.project_id) {
-      throw feedErrors.invalid_transition("判断结果与当前 Feed 消息不符");
-    }
-    // The judgment arrives after a model wait; the person may have ignored the item meanwhile, and a rule does not overrule that.
-    if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))
-      && !this.isArchived(item.project_id, item.item_id)) {
-      const admission = this.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", {
-        rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
-        function_key: judgment.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
-      });
-      if (admission.created) createdEntry = admission.entry.entry_id;
-    }
-    this.ports.appendEvent(item.project_id, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
-      { judgment_id: judgment.judgment_id }, judgment.created_at);
-    return createdEntry;
   }
 
   setDisposition(
@@ -415,95 +262,6 @@ export class FeedApplication {
     if (this.isArchived(projectId, itemId)) {
       throw feedErrors.invalid_transition("请先恢复这条已忽略的 Feed Item");
     }
-  }
-
-  private requireOutRules() {
-    if (!this.ports.outRules) {
-      throw feedErrors.out_rule_not_found("捕捉规则尚未初始化");
-    }
-    return this.ports.outRules;
-  }
-
-  private captureAfterIngest(item: FeedItemRecord): void {
-    const rules = this.ports.outRules?.list(item.project_id) ?? [];
-    const matched = rules.filter((rule) => feedOutRuleMatches(rule, item));
-    if (matched.length === 0) return;
-    for (const rule of matched) {
-      // A rule does not bring an ignored item back to the Inbox.
-      if (rule.admission === "inbox" && !rule.judgment && !this.isArchived(item.project_id, item.item_id)) {
-        this.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", { rule_id: rule.rule_id, rule_name: rule.name });
-      }
-    }
-    if (!this.ports.artifacts) {
-      this.recordArtifactOutFailure(item, matched.map((rule) => rule.rule_id), ["feed_artifact_producer_missing"]);
-      return;
-    }
-    const { failedRuleIds, errorCodes } = this.ports.artifacts.capture(item.project_id, writer => captureFeedRules(writer, item, matched));
-    if (failedRuleIds.length > 0) {
-      this.recordArtifactOutFailure(item, failedRuleIds, errorCodes);
-      return;
-    }
-    this.completeArtifactOutFailure(item);
-  }
-
-  private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
-    // The person ignored this item; a capture that failed for it is not worth putting it back in front of them.
-    if (this.isArchived(item.project_id, item.item_id)) return;
-    try {
-      const { entry } = callAttention(() => this.ports.attention.commands.create({
-        project_id: item.project_id,
-        subject_type: "feed_item",
-        subject_id: item.item_id,
-        reason: "artifact_out_failed",
-        detail: { rule_ids: ruleIds, error_codes: errorCodes },
-      }));
-      if (entry.status === "done" || entry.status === "dismissed") {
-        this.setInboxEntryStatus(item.project_id, entry.entry_id, "open");
-      }
-    } catch (error) {
-      // The item commits with this transaction: an Inbox entry for the failed capture that cannot be written does not undo it; a refusal of the call does.
-      throwIfCallRefused(error);
-    }
-  }
-
-  private completeArtifactOutFailure(item: FeedItemRecord): void {
-    try {
-      for (const entry of this.ports.attention.query.findForSubject(item.project_id, "feed_item", item.item_id)) {
-        if (entry.reason !== "artifact_out_failed") continue;
-        if (entry.status === "open" || entry.status === "in_progress") {
-          this.setInboxEntryStatus(item.project_id, entry.entry_id, "done");
-        }
-      }
-    } catch {
-      // successful artifacts already exist
-    }
-  }
-
-  private sourceRecord(source: SourceRecord): FeedSourceRecord {
-    const checkpoint = this.ports.listener.checkpoint(source.project_id, source.source_id, source.updated_at);
-    return {
-      project_id: source.project_id,
-      source_id: source.source_id,
-      kind: source.kind,
-      definition_id: source.definition_id,
-      sync_kind: source.sync_kind,
-      name: source.name,
-      description: source.description,
-      status: source.status,
-      enabled: source.enabled,
-      item_count: this.ports.feed.query.countBySource(source.project_id, source.source_id),
-      origin: source.origin,
-      config: source.config,
-      schedule: source.schedule,
-      cursor: checkpoint.cursor,
-      credential_ref: source.connection_ref,
-      account_label: source.account_label,
-      last_sync_at: source.last_sync_at,
-      last_outcome: source.last_outcome,
-      last_error_code: source.last_error_code,
-      imported_at: source.imported_at,
-      updated_at: source.updated_at,
-    };
   }
 
 }

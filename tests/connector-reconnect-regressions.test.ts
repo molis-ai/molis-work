@@ -51,20 +51,20 @@ test("generic OAuth reconnect restores its bound Feed source after disconnect", 
     await complete(home, first.authorization_url);
     const connection = withConnectorConnections(home, store => store.require(first.connection_id));
     const feed = createLocalFeedApplication(board.db);
-    feed.upsertSource({ project_id: DEMO_PROJECT_ID, source_id: "review-source", kind: "asana", definition_id: "asana", sync_kind: "connector",
+    feed.sources.upsert({ project_id: DEMO_PROJECT_ID, source_id: "review-source", kind: "asana", definition_id: "asana", sync_kind: "connector",
       name: "Review source", description: "Fixture", status: "active", enabled: true, item_count: 0, origin: "molis_work",
       config: { connection_id: first.connection_id }, schedule: { mode: "manual", enabled: false }, cursor: {},
       credential_ref: connection.credential_ref, account_label: "Review account", last_sync_at: null, last_outcome: null,
       last_error_code: null, imported_at: new Date().toISOString(), updated_at: new Date().toISOString() });
     withConnectorConnections(home, store => store.disconnect(first.connection_id));
     refreshFeedConnectionState(home, first.connection_id);
-    assert.equal(feed.getSource(DEMO_PROJECT_ID, "review-source").status, "disconnected");
+    assert.equal(feed.sources.get(DEMO_PROJECT_ID, "review-source").status, "disconnected");
     // Supply fixture app credentials here to isolate this bug from the first one.
     const retry = await startApiOAuth(home, { ...app, connectionId: first.connection_id });
     await complete(home, retry.authorization_url);
     assert.equal(withConnectorConnections(home, store => store.state(store.require(first.connection_id))), "connected");
     // The Runtime Feed brings its sources in step when the Host announces the change (feed-runtime-plugin.test.ts); this Home has no running Feed.
     refreshFeedConnectionState(home, first.connection_id);
-    assert.equal(feed.getSource(DEMO_PROJECT_ID, "review-source").status, "active");
+    assert.equal(feed.sources.get(DEMO_PROJECT_ID, "review-source").status, "active");
   } finally { board.close(); rmSync(home, { recursive: true, force: true }); }
 });

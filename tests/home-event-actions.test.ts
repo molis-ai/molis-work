@@ -95,7 +95,7 @@ test("native event providers project original Feed, Inbox and source state", asy
     const activeEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, active.item_id, "manual").entry;
     const doneEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, done.item_id, "manual").entry;
     feed.setInboxEntryStatus(reference.project_id, doneEntry.entry_id, "done", doneEntry.revision); await feed.flushPendingJudgments();
-    feed.upsertSource({ ...source, status: "error", last_outcome: "failed", last_error_code: "rate_limited", updated_at: now.toISOString() });
+    feed.sources.upsert({ ...source, status: "error", last_outcome: "failed", last_error_code: "rate_limited", updated_at: now.toISOString() });
     const client = host.actionClient(reference);
     for (const capability_id of ["feed.home.events", "inbox.home.events"]) {
       await assert.rejects(client.invoke(owner, { capability_id, version: 1 }, { ...range, to: range.from }), { code: "actions.input_invalid" });
@@ -112,10 +112,10 @@ test("native event providers project original Feed, Inbox and source state", asy
     const fault = find("source", source.source_id)[0]!; assert.ok(fault); assert.equal(fault.open?.label, "查看来源"); assert.match(fault.content, /同步出现问题/); assert.ok(!fault.content.includes("授权"));
     const open = { window: range, source: fault.source, event_id: fault.event_id, target: fault.open };
     assert.deepEqual(await client.invoke(owner, homeEventActions.openEvent, open), { target: fault.open });
-    feed.upsertSource({ ...source, status: "active", last_outcome: "completed", last_error_code: null });
+    feed.sources.upsert({ ...source, status: "active", last_outcome: "completed", last_error_code: null });
     await assert.rejects(client.invoke(owner, homeEventActions.openEvent, open), { code: "actions.event_changed" });
     // J3D-01/J3D-02: the current source fault keeps the same Home attention and deduplication.
-    feed.upsertSource({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "feed.auth_required" });
+    feed.sources.upsert({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "feed.auth_required" });
     const sourceEntry = feed.createInboxEntry({ projectId: reference.project_id, subjectType: "source_fault", subjectId: source.source_id, reason: "source_fault", detail: { user_action: "请检查连接设置" } }).entry;
     const withFault = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
     assert.equal(withFault.events.some(event => event.subject.kind === "source" && event.subject.id === source.source_id), false, "one fault has only its original attention row");

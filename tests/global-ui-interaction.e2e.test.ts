@@ -83,8 +83,8 @@ test("Feed creates two independent tasks in one page and shared controls keep re
   const ids = await evaluate<string[]>('window.createdSources');
   assert.equal(new Set(ids).size, 2);
   const feed = createLocalFeedApplication(b.store.db);
-  assert.deepEqual(ids.map(id => feed.getSource(DEMO_PROJECT_ID, id).name), ['设计观察', '独立的第二个任务']);
-  assert.deepEqual(ids.map(id => feed.getSource(DEMO_PROJECT_ID, id).schedule.mode), ['manual', 'manual']);
+  assert.deepEqual(ids.map(id => feed.sources.get(DEMO_PROJECT_ID, id).name), ['设计观察', '独立的第二个任务']);
+  assert.deepEqual(ids.map(id => feed.sources.get(DEMO_PROJECT_ID, id).schedule.mode), ['manual', 'manual']);
 });
 
 test("narrow settings reveal the chosen page and ignore a slower obsolete section", { timeout: 60_000 }, async t => {

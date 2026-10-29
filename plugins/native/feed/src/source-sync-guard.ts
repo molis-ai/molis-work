@@ -41,7 +41,7 @@ export function createFeedSourceSyncGuard(
   let refused = false, refusal: unknown;
   const verify = () => {
     authority.signal?.throwIfAborted();
-    const current = feed.getSource(source.project_id, source.source_id);
+    const current = feed.sources.get(source.project_id, source.source_id);
     if (sourceDeletedAt(current)) throw feedErrors.source_not_found("来源已删除，本次拉取结果未提交");
     if (!current.enabled || current.status === "paused" || current.status === "disconnected") {
       throw feedErrors.source_paused("来源已暂停或断开，本次拉取结果未提交");

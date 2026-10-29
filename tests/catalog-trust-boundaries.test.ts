@@ -83,12 +83,12 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
     for (const [index, fixture] of failures.entries()) {
       const connection = withConnectorConnections(home.directory, store => store.createToken({ serviceId: fixture.service, displayName: "Fixture", token: fixture.token }));
       const port = createCatalogConnector({ connectorId: fixture.service, connectionId: connection.connection_id, now: () => new Date(AT), fetchImpl: async () => json(fixture.body) });
-      const chain = home.chain(port), source = chain.feed.upsertSource({ ...chain.source("github"), source_id: `catalog-${index}`, kind: fixture.service,
+      const chain = home.chain(port), source = chain.feed.sources.upsert({ ...chain.source("github"), source_id: `catalog-${index}`, kind: fixture.service,
         definition_id: fixture.service, sync_kind: "connector", name: fixture.service, credential_ref: connection.credential_ref, config: { connection_id: connection.connection_id } });
       const before = source.cursor;
       let publicFailure: unknown;
       await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: `catalog-closed-${index}` }), error => { publicFailure = error; return true; });
-      const durable = chain.feed.getSource(DEMO_PROJECT_ID, source.source_id), snapshot = chain.feed.snapshot(DEMO_PROJECT_ID);
+      const durable = chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id), snapshot = chain.feed.snapshot(DEMO_PROJECT_ID);
       assert.deepEqual(durable.cursor, before); assert.equal(durable.last_error_code, fixture.auth ? "connector.needs_auth" : "connector.provider");
       assert.equal(snapshot.feed_items.some(item => item.source_id === source.source_id), false);
       assert.ok(snapshot.runs.some(run => run.source_id === source.source_id && run.outcome === "failed"));

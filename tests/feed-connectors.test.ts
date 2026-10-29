@@ -504,7 +504,7 @@ function connectorService(store: LocalProjectDatabase, port: ConnectorPort) {
   return {
     feed,
     sync: (sourceId: string, input: Parameters<typeof connectors.sync>[1]) => connectors.sync(sourceId, input),
-    accountSource: (kind: "github" | "gmail"): FeedSourceRecord => feed.upsertSource(accountSourceRecord(kind)),
+    accountSource: (kind: "github" | "gmail"): FeedSourceRecord => feed.sources.upsert(accountSourceRecord(kind)),
   };
 }
 
@@ -548,7 +548,7 @@ test("Connector service persists cursor only after success and safely replays or
       async sync() { calls += 1; return next; },
     };
     const service = connectorService(store, port);
-    const source = service.feed.upsertSource({
+    const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
     });
@@ -575,7 +575,7 @@ test("Connector service persists cursor only after success and safely replays or
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0002" }),
       (error: unknown) => providerFailure(error, "connector.needs_auth") && /管理账号连接/.test((error as Error).message),
     );
-    assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, cursor1);
+    assert.deepEqual(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, cursor1);
     const fault = service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
       (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
     );
@@ -596,7 +596,7 @@ test("Connector service persists cursor only after success and safely replays or
       (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
     )?.status, "done");
 
-    service.feed.setSourceEnabled(DEMO_PROJECT_ID, source.source_id, false);
+    service.feed.sources.setEnabled(DEMO_PROJECT_ID, source.source_id, false);
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0004" }),
       (error: unknown) => error instanceof ActionError && error.code === "feed.source_paused",
@@ -613,7 +613,7 @@ test("Connector failure commits Source and event together while retaining the Li
       async sync() { calls += 1; return failure("needs_auth"); },
     };
     const service = connectorService(store, port);
-    const source = service.feed.upsertSource({
+    const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
       cursor: { retained: "before-failure" },
@@ -622,7 +622,7 @@ test("Connector failure commits Source and event together while retaining the Li
       WHEN NEW.type = 'feed_connector.sync_failed'
       BEGIN SELECT RAISE(ABORT, 'injected_connector_commit_failure'); END`);
     await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-1" }), /injected_connector_commit_failure/);
-    assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id), source, "the failed event rolls back the preceding Source update");
+    assert.deepEqual(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id), source, "the failed event rolls back the preceding Source update");
     assert.equal(service.feed.listInboxEntries(DEMO_PROJECT_ID).some((entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), false);
     store.db.exec("DROP TRIGGER fail_connector_event");
     const replay = await service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-1" });
@@ -632,7 +632,7 @@ test("Connector failure commits Source and event together while retaining the Li
     assert.deepEqual(replay.source, source);
     assert.equal(calls, 1, "the Listener receipt remains durable independently of the later Source/event transaction");
     await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-2" }), (error: unknown) => providerFailure(error, "connector.needs_auth"));
-    const updated = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
+    const updated = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
     assert.equal(updated.status, "error");
     assert.equal(updated.last_error_code, "connector.needs_auth");
     assert.deepEqual(updated.cursor, source.cursor);
@@ -662,7 +662,7 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
       },
     };
     const service = connectorService(store, port);
-    const source = service.feed.upsertSource({
+    const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
       cursor: { trusted: "cursor" },
@@ -672,7 +672,7 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
       service.sync(source.source_id, { idempotencyKey: "connector-rate-limit-0001" }),
       (error: unknown) => providerFailure(error, "connector.rate_limited"),
     );
-    const durable = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
+    const durable = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
     assert.equal(durable.status, "active");
     assert.deepEqual(durable.cursor, { trusted: "cursor" });
     assert.equal(durable.schedule.mode, "interval");
@@ -718,7 +718,7 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
       },
     };
     const service = connectorService(store, port);
-    const source = service.feed.upsertSource({
+    const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
     });
@@ -730,8 +730,8 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
     assert.equal(interrupted.phase, "interrupted");
     // J3E-01: the real Connector/Listener wrapper and Feed catch preserve their refusal while retrying.
     assert.equal(interrupted.error_code, "listener.connector_failed");
-    assert.equal(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).last_error_code, "listener.connector_failed");
-    assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, {});
+    assert.equal(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).last_error_code, "listener.connector_failed");
+    assert.deepEqual(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, {});
 
     const retried = await service.sync(source.source_id, { idempotencyKey: "connector-recovery-0001" });
     assert.equal(retried.run.phase, "terminal");
@@ -757,12 +757,12 @@ test("Connector Item dedupe is scoped by Source so Gmail accounts never collide"
       async sync() { return success([item], { historyId: "2" }); },
     };
     const service = connectorService(store, port);
-    const legacy = service.feed.upsertSource({
+    const legacy = service.feed.sources.upsert({
       ...service.accountSource("gmail"),
       status: "active",
     });
     const now = new Date().toISOString();
-    const second: FeedSourceRecord = service.feed.upsertSource({
+    const second: FeedSourceRecord = service.feed.sources.upsert({
       ...legacy,
       source_id: "feed-source-gmail-account-two",
       name: "Gmail · second@example.com",
@@ -820,7 +820,7 @@ test("Connector service writes Gmail identity and keeps only explicit Gmail atte
       },
     };
     const service = connectorService(store, port);
-    const source = service.feed.upsertSource({
+    const source = service.feed.sources.upsert({
       ...service.accountSource("gmail"),
       status: "active",
     });

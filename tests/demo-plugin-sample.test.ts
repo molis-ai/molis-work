@@ -80,7 +80,7 @@ async function assertDemoPluginFacts(input: {
     const artifacts = query.listArtifacts(input.projectId);
     assert.ok(artifacts.some((artifact) => artifact.artifact_id === DEMO_CORE_ARTIFACT_ID));
     // RAC-510: the 「目标树」 rule captured its article once, with the writer the Runtime Feed is given, so Feed's Manifest is the producer.
-    const rule = feed.listOutRules(input.projectId).find((candidate) => candidate.match.contains === "目标树");
+    const rule = feed.outRules.list(input.projectId).find((candidate) => candidate.match.contains === "目标树");
     const article = snapshot.feed_items.find((item) => item.title === "第一次把模糊想法收成目标树");
     assert.ok(rule && article);
     const captures = artifacts.filter((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID).map((capture) => ({

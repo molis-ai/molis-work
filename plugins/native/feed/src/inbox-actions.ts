@@ -93,10 +93,10 @@ export function createFeedInboxHandlers(feed: FeedApplication, board: string, po
       caller.signal?.throwIfAborted();
       const original = feed.getFeedItem(board, item_id);
       if (isIgnored(original) || !original.source_id) throw new ActionError("actions.subject_unavailable", "原材料已归档或移除");
-      const source = feed.getSource(board, original.source_id);
+      const source = feed.sources.get(board, original.source_id);
       const authorization = await ports.authorize(source);
       if (!authorization.authorized) throw new ActionError("actions.source_unavailable", authorization.reason ?? "原材料来源已不可用");
-      const current = feed.getFeedItem(board, item_id), latest = feed.getSource(board, original.source_id);
+      const current = feed.getFeedItem(board, item_id), latest = feed.sources.get(board, original.source_id);
       if (current.revision !== original.revision || sourceState(latest) !== sourceState(source)) throw new ActionError("actions.offer_changed", "检查期间原材料或来源已变化，请重新载入");
       caller.signal?.throwIfAborted();
       const item = await ports.hydrate(current);
@@ -113,7 +113,7 @@ export function createFeedInboxHandlers(feed: FeedApplication, board: string, po
     bind(feedInboxActions.briefs, ({ item_ids = [], source_ids = [] }) => ({
       items: item_ids.flatMap(itemId => found(() => feed.getFeedItem(board, itemId))).map(item => ({ item_id: item.item_id, title: item.title,
         source_label: item.source_label ?? null, source_kind: item.source_kind ?? null, summary: item.summary ?? "", disposition: item.disposition })),
-      sources: source_ids.flatMap(sourceId => found(() => feed.getSource(board, sourceId))).map(source => ({ source_id: source.source_id, name: source.name })),
+      sources: source_ids.flatMap(sourceId => found(() => feed.sources.get(board, sourceId))).map(source => ({ source_id: source.source_id, name: source.name })),
     })),
     bind(feedInboxActions.admit, async ({ item_id }, caller) => {
       const { entry, created } = admitToInbox(feed, board, item_id, addedByOf(caller.delegated_audience ?? caller.audience));

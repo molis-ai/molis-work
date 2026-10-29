@@ -4,7 +4,7 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
  * Who is pulling which source right now, for one Feed instance. One Home has one executing process and a project has one Feed instance,
  * so the claim is a map in the instance: a second pull of a source that is already being pulled is refused (the person or the clock
  * tries again), and a source of another project with the same id is a different claim. A process that dies takes its claims with it;
- * what it left half-done is recovered from the runs it recorded (`recoverInterruptedSourceRuns`), not from here.
+ * what it left half-done is in the runs it recorded (the Listener's `recoverInterruptedRuns` marks those interrupted), not here.
  */
 export type FeedSourceSyncLease = (projectId: string, sourceId: string) => () => void;
 

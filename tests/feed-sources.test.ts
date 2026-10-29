@@ -9,7 +9,7 @@ import { listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 
-const gmailSource = (db: LocalProjectDatabase["db"], project_id = DEMO_PROJECT_ID) => createLocalFeedApplication(db).upsertSource(accountSourceRecord("gmail", { project_id }));
+const gmailSource = (db: LocalProjectDatabase["db"], project_id = DEMO_PROJECT_ID) => createLocalFeedApplication(db).sources.upsert(accountSourceRecord("gmail", { project_id }));
 
 import { createSourcePullRuntime, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
@@ -116,7 +116,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
         service.sync(rollbackSource.source_id, { idempotencyKey: "source-rollback-0001" }),
         (error: unknown) => error instanceof ActionError && error.code === "feed.source_sync_interrupted",
       );
-      const afterFailure = service.feed.getSource(DEMO_PROJECT_ID, rollbackSource.source_id);
+      const afterFailure = service.feed.sources.get(DEMO_PROJECT_ID, rollbackSource.source_id);
       assert.equal(afterFailure.item_count, 0);
       assert.equal(afterFailure.last_sync_at, null);
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1, "the new material must roll back");
@@ -170,7 +170,7 @@ test("public Feed interruption preserves current owner failures and an uncoded r
       failure = error;
       await assert.rejects(service.sync(source.source_id, { idempotencyKey: operation }), { code: "feed.source_sync_interrupted" });
       const snapshot = service.feed.snapshot(DEMO_PROJECT_ID), run = snapshot.runs.find(item => item.source_id === source.source_id && item.phase === "interrupted");
-      assert.equal(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).last_error_code, expected);
+      assert.equal(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).last_error_code, expected);
       assert.ok(snapshot.runs.some(item => item.source_id === source.source_id && item.error_code === expected && item.phase === "interrupted"));
       assert.ok(run); assert.equal(snapshot.feed_items.length, 0);
     }
@@ -204,7 +204,7 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
         feed_url: "https://feeds.example.com/first.xml",
         name: "Custom feed",
       }).source;
-      service.feed.upsertSource({
+      service.feed.sources.upsert({
         ...custom,
         cursor: {
           rss_http: {
@@ -278,7 +278,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
         }));
       const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
       const first = await service.sync(source.source_id, { idempotencyKey: "rss-http-sync-0001" }).catch((error) => {
-        const failed = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
+        const failed = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
         assert.fail(`first RSS sync failed with ${failed.last_error_code}: ${String(error)}`);
       });
       assert.equal(first.created, 1);
@@ -345,7 +345,7 @@ test("RSS transient failures preserve history and become actionable only after t
           service.sync(source.source_id, { idempotencyKey: `rss-recovery-000${attempt}` }),
           (error: unknown) => error instanceof ActionError && error.code === "feed.source_sync_interrupted",
         );
-        const current = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
+        const current = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
         assert.equal(readRssHttpState(current.cursor).consecutive_failures, attempt);
         assert.equal(current.status, attempt < 3 ? "active" : "error");
         const faults = service.feed.listInboxEntries(DEMO_PROJECT_ID).filter(
@@ -471,7 +471,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       const completed = await firstTick;
       assert.equal(completed.completed, 1);
       assert.match(keys[0]!, /^scheduled-[a-f0-9]{32}$/);
-      const afterFirst = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
+      const afterFirst = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterFirst.schedule.mode === "interval" ? afterFirst.schedule.next_pull_at : null, "2026-08-30T09:30:00.000Z");
 
       now = new Date("2026-08-30T10:20:00.000Z");
@@ -479,7 +479,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       assert.equal(catchup.due, 1);
       assert.equal(dispatches, 2, "sleep recovery performs one catch-up pull, not every missed slot");
       assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
-      const afterCatchup = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
+      const afterCatchup = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterCatchup.schedule.mode === "interval" ? afterCatchup.schedule.next_pull_at : null, "2026-08-30T10:30:00.000Z");
     } finally {
       store.close();

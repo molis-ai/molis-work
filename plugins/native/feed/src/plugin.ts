@@ -153,7 +153,7 @@ export function createFeedPlugin(): PluginDefinition {
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
       // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
       ...sourceHandlers.map(binding => binding.capability_id !== feedSourceActions.disconnect.capability_id || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {
-        const source = feed.getSource(projectId, (input as { source_id: string }).source_id);
+        const source = feed.sources.get(projectId, (input as { source_id: string }).source_id);
         return Promise.resolve(binding.handle(caller, input)).then(async result => { if (connectorSlotOf(source) !== null) await releaseRuntimeAccount(connections, source); return result; });
       } }),
       ...createFeedItemHandlers(feed, projectId, { inboxActive: itemId => feed.listInboxEntries(projectId)

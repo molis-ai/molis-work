@@ -38,7 +38,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
     const feedRule = rule("system_admit_inbox");
     assert.equal((await actions.invoke(functionContextActions.targets, { id: feedRule.id })).targets.filter(row => row.scene_id === "feed.capture").length, 0,
       "querying a capture destination cannot invent a new Feed rule");
-    const original = feed.createOutRule(reference.project_id, { name: "原来的项目规则", match: { contains: "真实材料" }, admission: "inbox" });
+    const original = feed.outRules.create(reference.project_id, { name: "原来的项目规则", match: { contains: "真实材料" }, admission: "inbox" });
     for (const [sceneId, key] of [["home.dock", "system_pick_home_dock"], ["inbox.next", "system_pick_inbox_next"], ["feed.capture", "system_admit_inbox"]]) {
       const record = rule(key!);
       const readTarget = async () => (await actions.invoke(functionContextActions.targets, { id: record.id })).targets.find(row => row.scene_id === sceneId)!;
@@ -63,7 +63,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
       assert.equal(target.binding?.function.capability_id, publishedFunctionAction(record).capability_id);
       await assert.rejects(actions.invoke(functionContextActions.configure, request), { code: "actions.binding_changed" });
       const originalBinding = target.binding!;
-      if (sceneId === "feed.capture") assert.equal(feed.listOutRules(reference.project_id).find(row => row.rule_id === original.rule_id)!.judgment?.provider_id, "system.functions");
+      if (sceneId === "feed.capture") assert.equal(feed.outRules.list(reference.project_id).find(row => row.rule_id === original.rule_id)!.judgment?.provider_id, "system.functions");
       else if (sceneId === "inbox.next") assert.equal((await actions.invoke(inboxActions.readJudgment, {})).function_key, key, "Inbox's own plugin keeps the binding");
       else assert.equal(withFunctionsService(home, service => service.actionSceneBinding(sceneId!, reference.project_id), functions)?.function.provider_id, "system.functions");
       unavailable = true;

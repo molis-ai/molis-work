@@ -104,7 +104,7 @@ test("explicit auto admission separates positive, negative and review outcomes a
     const feed = createLocalFeedApplication(store.db, fixture.options);
     fixture.attach(feed, DEMO_PROJECT_ID);
     const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
     const ids = ["admit-item", "leave-item", "review-item"].map(id => feed.ingestItem({ source, externalId: id, title: id, summary: "", occurredAt: new Date().toISOString(), attention: false }).item.item_id);
     await feed.flushPendingJudgments();
     const entries = feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule");
@@ -180,7 +180,7 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
     const admitted = create("background-entry");
     const backgroundEntry = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, admitted.item_id, "manual").entry;
     // A rule that admits what the workflow delivers, so the receive itself queues an Inbox entry too.
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "工作流交来的", match: { contains: "工作流交来的内容" }, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "工作流交来的", match: { contains: "工作流交来的内容" }, admission: "inbox" });
 
     const receive = createFeedContentHandlers(feed, DEMO_PROJECT_ID, item => item).find(handler => handler.capability_id === feedContentActions.receive.capability_id)!;
     const caller: ActionCallContext = { actor_id: "workflow-user", project_id: DEMO_PROJECT_ID, audience: "workflow", permissions: ["feed:write"] };

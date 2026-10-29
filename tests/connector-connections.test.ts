@@ -152,7 +152,7 @@ test("Feed switching account creates a separate source and keeps the old history
         store.createToken({ serviceId: "github", displayName: "账号 B", token: "github-token-account-b" }),
       ]);
       const feed = createLocalFeedApplication(board.db);
-      const source = feed.upsertSource({
+      const source = feed.sources.upsert({
         project_id: DEMO_PROJECT_ID, source_id: "github-source-original", kind: "github", definition_id: "github",
         sync_kind: "github", name: "GitHub A", description: "通知", status: "active", enabled: true,
         item_count: 0, origin: "molis_work", config: { connection_id: first!.connection_id },
@@ -165,7 +165,7 @@ test("Feed switching account creates a separate source and keeps the old history
         source, externalId: "account-a-message", title: "Old account message", summary: "Saved history",
         occurredAt: "2026-09-24T09:30:00.000Z", attention: false,
       }).item;
-      const rule = feed.createOutRule(DEMO_PROJECT_ID, {
+      const rule = feed.outRules.create(DEMO_PROJECT_ID, {
         name: "需要回应", match: { source_id: source.source_id, contains: "review" },
         enabled: true, admission: "suggest",
       });
@@ -176,26 +176,26 @@ test("Feed switching account creates a separate source and keeps the old history
       assert.deepEqual(switched.cursor, {});
       assert.equal(switched.schedule.mode, "interval");
       assert.equal(switched.item_count, 0);
-      const old = feed.getSource(DEMO_PROJECT_ID, source.source_id);
+      const old = feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(old.status, "paused");
       assert.deepEqual(old.cursor, { after: "old-checkpoint" });
       assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.find((item) => item.item_id === historical.item_id)?.source_id, old.source_id);
-      assert.equal(feed.listOutRules(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
-      assert.equal(feed.listOutRules(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
+      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
+      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
       assert.equal(service.update(switched.source_id, { connection_id: second!.connection_id }).source_id, switched.source_id);
       withConnectorConnections(home, store => store.disconnect(second!.connection_id));
       refreshFeedConnectionState(home, second!.connection_id);
       // J3C-01: disconnection changes the error fact; reconnect clears it.
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, source.source_id).status, "paused");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).status, "paused");
       withConnectorConnections(home, store => store.replaceToken(second!.connection_id, "github-token-account-b-rotated"));
       assert.equal(withConnectorConnections(home, store => store.state(store.require(second!.connection_id))), "connected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).enabled, true);
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).enabled, true);
       refreshFeedConnectionState(home, second!.connection_id);
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "active");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
-      assert.deepEqual(feed.getSource(DEMO_PROJECT_ID, switched.source_id).cursor, {});
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "active");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
+      assert.deepEqual(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).cursor, {});
     } finally { board.close(); }
   } finally {
     resetSecretStoreCache();

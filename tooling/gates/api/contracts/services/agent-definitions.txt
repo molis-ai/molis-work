@@ -9,7 +9,7 @@ export interface AgentDefinitionRegistration {
     source: AgentDefinitionSource;
     prompts: AgentPromptRegistration[];
     roles: AgentRoleRegistration[];
-    methods?: AgentMethodRegistration[];
+    methods?: AgentSkillRegistration[];
     notes?: string[];
 }
 
@@ -41,26 +41,6 @@ export interface AgentDefinitionsDiagnostics {
         }>;
     }>;
     unregistered: AgentUnregisteredCall[];
-}
-
-export interface AgentMethodRegistration {
-    skill_id: string;
-    version: number;
-    name: string;
-    summary: string;
-    tools: string[];
-    body: string;
-}
-
-export interface AgentMethodView {
-    key: string;
-    owner_id: string;
-    source: AgentDefinitionSource;
-    skill_id: string;
-    version: number;
-    name: string;
-    summary: string;
-    tools: string[];
 }
 
 export type AgentPromptKind = "agent" | "instruction";
@@ -145,6 +125,26 @@ export interface AgentRoleView {
     subagent: boolean;
     prompt_keys: string[];
     edited: boolean;
+}
+
+export interface AgentSkillRegistration {
+    skill_id: string;
+    version: number;
+    name: string;
+    summary: string;
+    tools: string[];
+    body: string;
+}
+
+export interface AgentSkillView {
+    key: string;
+    owner_id: string;
+    source: AgentDefinitionSource;
+    skill_id: string;
+    version: number;
+    name: string;
+    summary: string;
+    tools: string[];
 }
 
 export interface AgentUnregisteredCall {

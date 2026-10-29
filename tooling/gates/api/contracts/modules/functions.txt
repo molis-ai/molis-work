@@ -9,19 +9,19 @@ export interface ChoiceCriterion {
     readonly description: string;
 }
 
-export declare const FEED_ARCHIVE_BEHAVIOR_ID = "feed.archive";
+export declare const FEED_ARCHIVE_OPTION_ID = "feed.archive";
 
 export declare const FEED_CAPTURE_DISPOSITION_IDS: readonly string[];
 
 export declare const FEED_CAPTURE_SCENE_ID = "feed.capture";
 
-export declare const FEED_OPEN_BEHAVIOR_ID = "feed.open";
+export declare const FEED_OPEN_OPTION_ID = "feed.open";
 
-export declare const FEED_PROMOTE_BEHAVIOR_ID = "feed.promote";
+export declare const FEED_PROMOTE_OPTION_ID = "feed.promote";
 
-export declare const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
+export declare const FEED_REAUTH_OPTION_ID = "feed.reauth";
 
-export declare const FEED_SAVE_BEHAVIOR_ID = "feed.save";
+export declare const FEED_SAVE_OPTION_ID = "feed.save";
 
 export declare const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 
@@ -35,23 +35,23 @@ export declare const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
 
 export declare const FUNCTIONS_PROVIDER_ID = "system.functions";
 
-export declare const HOME_ASK_BEHAVIOR_ID = "home.ask";
+export declare const HOME_ASK_OPTION_ID = "home.ask";
 
-export declare const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
+export declare const HOME_CONTINUE_OPTION_ID = "home.continue";
 
 export declare const HOME_DOCK_SCENE_ID = "home.dock";
 
-export declare const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
+export declare const INBOX_ADMIT_OPTION_ID = "inbox.admit";
 
-export declare const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";
+export declare const INBOX_COMPOSE_OPTION_ID = "inbox.compose";
 
-export declare const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
+export declare const INBOX_DISMISS_OPTION_ID = "inbox.dismiss";
 
-export declare const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
+export declare const INBOX_DONE_OPTION_ID = "inbox.done";
 
 export declare const INBOX_NEXT_SCENE_ID = "inbox.next";
 
-export declare const INBOX_VERIFY_BEHAVIOR_ID = "inbox.verify";
+export declare const INBOX_VERIFY_OPTION_ID = "inbox.verify";
 
 export declare const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSubject[];
 
@@ -80,29 +80,10 @@ export type JudgmentRuleActionMap = Readonly<Record<string, import("@molis-ai/mo
     readonly provider_id: string;
 }>>;
 
-export interface JudgmentRuleAuthoringBehavior {
-    readonly behavior_id: string;
-    readonly title: string;
-    readonly hint?: string;
-    readonly effect: "read" | "write";
-    readonly source: "system" | "plugin" | "mcp";
-    readonly plugin_id: string;
-    readonly plugin_title: string;
-    readonly subject_kinds: readonly string[];
-    readonly clickable: boolean;
-    readonly availability?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-    readonly destination_id?: string;
-    readonly scene_version?: number;
-    readonly provider_id?: string;
-    readonly action_ref?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & {
-        readonly provider_id: string;
-    };
-}
-
 export interface JudgmentRuleAuthoringCatalog {
     readonly subjects: readonly JudgmentRuleAuthoringSubject[];
     readonly destinations: readonly JudgmentRuleAuthoringDestination[];
-    readonly behaviors: readonly JudgmentRuleAuthoringBehavior[];
+    readonly behaviors: readonly JudgmentRuleAuthoringOption[];
 }
 
 export interface JudgmentRuleAuthoringDestination {
@@ -120,6 +101,25 @@ export interface JudgmentRuleAuthoringDestination {
 }
 
 export type JudgmentRuleAuthoringDestinationKind = "event" | "mcp";
+
+export interface JudgmentRuleAuthoringOption {
+    readonly behavior_id: string;
+    readonly title: string;
+    readonly hint?: string;
+    readonly effect: "read" | "write";
+    readonly source: "system" | "plugin" | "mcp";
+    readonly plugin_id: string;
+    readonly plugin_title: string;
+    readonly subject_kinds: readonly string[];
+    readonly clickable: boolean;
+    readonly availability?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
+    readonly destination_id?: string;
+    readonly scene_version?: number;
+    readonly provider_id?: string;
+    readonly action_ref?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & {
+        readonly provider_id: string;
+    };
+}
 
 export interface JudgmentRuleAuthoringSubject {
     readonly subject_kind: string;

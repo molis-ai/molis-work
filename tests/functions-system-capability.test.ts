@@ -5,16 +5,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import {
-  FEED_ARCHIVE_BEHAVIOR_ID,
+  FEED_ARCHIVE_OPTION_ID,
   FEED_CAPTURE_SCENE_ID,
-  FEED_OPEN_BEHAVIOR_ID,
-  FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_SAVE_BEHAVIOR_ID,
-  HOME_CONTINUE_BEHAVIOR_ID,
+  FEED_OPEN_OPTION_ID,
+  FEED_PROMOTE_OPTION_ID,
+  FEED_SAVE_OPTION_ID,
+  HOME_CONTINUE_OPTION_ID,
   HOME_DOCK_SCENE_ID,
-  INBOX_ADMIT_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  INBOX_DISMISS_BEHAVIOR_ID,
+  INBOX_ADMIT_OPTION_ID,
+  INBOX_DONE_OPTION_ID,
+  INBOX_DISMISS_OPTION_ID,
   INBOX_NEXT_SCENE_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
@@ -105,16 +105,16 @@ async function publishChoice(
 test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plus unknowns", () => {
   assert.deepEqual(
     filterSuggestedBehaviorIds(
-      [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      HOME_CONTINUE_BEHAVIOR_ID,
+      [HOME_CONTINUE_OPTION_ID, INBOX_DONE_OPTION_ID],
+      [HOME_CONTINUE_OPTION_ID, INBOX_DONE_OPTION_ID],
+      HOME_CONTINUE_OPTION_ID,
     ),
-    [HOME_CONTINUE_BEHAVIOR_ID],
+    [HOME_CONTINUE_OPTION_ID],
   );
   assert.deepEqual(
     filterSuggestedBehaviorIds(
-      [HOME_CONTINUE_BEHAVIOR_ID],
-      [HOME_CONTINUE_BEHAVIOR_ID],
+      [HOME_CONTINUE_OPTION_ID],
+      [HOME_CONTINUE_OPTION_ID],
       "not-a-behavior",
     ),
     [],
@@ -123,30 +123,30 @@ test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plu
 
 test("Feed disposition defaults are offered until a valid choice selects them", () => {
   assert.deepEqual(defaultFeedCaptureBehaviorIds(true), [
-    INBOX_ADMIT_BEHAVIOR_ID,
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
-    FEED_OPEN_BEHAVIOR_ID,
+    INBOX_ADMIT_OPTION_ID,
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
+    FEED_OPEN_OPTION_ID,
   ]);
   assert.deepEqual(defaultFeedCaptureBehaviorIds(false), []);
   assert.deepEqual(visibleFeedDispositionIds([], true), [
-    INBOX_ADMIT_BEHAVIOR_ID,
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
+    INBOX_ADMIT_OPTION_ID,
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
   ]);
-  assert.deepEqual(visibleFeedDispositionIds([FEED_OPEN_BEHAVIOR_ID], true), [
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
+  assert.deepEqual(visibleFeedDispositionIds([FEED_OPEN_OPTION_ID], true), [
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
   ]);
-  assert.deepEqual(visibleFeedDispositionIds([FEED_PROMOTE_BEHAVIOR_ID], true), [FEED_PROMOTE_BEHAVIOR_ID]);
+  assert.deepEqual(visibleFeedDispositionIds([FEED_PROMOTE_OPTION_ID], true), [FEED_PROMOTE_OPTION_ID]);
   assert.deepEqual(visibleFeedDispositionIds(["invented.behavior"], true), [
-    INBOX_ADMIT_BEHAVIOR_ID,
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
+    INBOX_ADMIT_OPTION_ID,
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
   ]);
 });
 
@@ -156,9 +156,9 @@ test("historical judgments retain original object, project and scene scope", asy
     try {
       const write = (scene: string, project: string, result: string) => functions.recordSceneJudgment({ function_key: "old-rule", function_version: 1,
         subject: { kind: "inbox_entry", id: "same-object", project_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
-      const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
-      const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
-      const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);
+      const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_OPTION_ID);
+      const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_OPTION_ID);
+      const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_OPTION_ID);
       assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
       assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
       assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
@@ -262,10 +262,10 @@ test("Home preserves declared navigation and bound suggestions without inventing
     id: "opaque", event_id: "note-event", subject: { kind: "note", id: "note-1" },
     source: { capability_id: "plugin.events", version: 1, provider_id: "unknown" }, origin: { surface: "notes", title: "笔记", icon: "note" },
     occurred_at: now.toISOString(), placement: "occurred", category: "personal", title: "笔记", summary: "摘要", content: "正文", facts: [], needs_attention: false,
-    open, suggested_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID],
+    open, suggested_behavior_ids: [HOME_CONTINUE_OPTION_ID],
   }] });
   assert.deepEqual(events[0]?.open, open);
-  assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_BEHAVIOR_ID]);
+  assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_OPTION_ID]);
 });
 
 /** A Home whose project has opened, so the shipped scenes have registered and written the rules they declare (RAC-484). */
@@ -288,7 +288,7 @@ test("built-in function keys exist in the Module store once the scenes that decl
     assert.equal(homeDock.status, "published");
     assert.ok(
       Array.isArray(homeDock.criteria)
-      && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_BEHAVIOR_ID),
+      && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_OPTION_ID),
     );
   } finally {
     functions.close();
@@ -313,13 +313,13 @@ test("a judgment's choice follows the rule's scene map", () => {
       { key: "urgent", description: "急" },
       { key: "later", description: "不急" },
     ],
-    scene_map: { urgent: INBOX_DONE_BEHAVIOR_ID, later: INBOX_DISMISS_BEHAVIOR_ID },
-  }, { choice: "urgent" }), INBOX_DONE_BEHAVIOR_ID);
+    scene_map: { urgent: INBOX_DONE_OPTION_ID, later: INBOX_DISMISS_OPTION_ID },
+  }, { choice: "urgent" }), INBOX_DONE_OPTION_ID);
   assert.equal(mapJudgmentChoice({
     primitive: "noul",
     criteria: { true_description: "够", false_description: "不够" },
-    scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
-  }, { noul: 0.8 }), INBOX_DONE_BEHAVIOR_ID);
+    scene_map: { true: INBOX_DONE_OPTION_ID, false: INBOX_DISMISS_OPTION_ID },
+  }, { noul: 0.8 }), INBOX_DONE_OPTION_ID);
 });
 
 test("agent.mcp functions are plain judgments, never a site scene's recommendation", async () => {

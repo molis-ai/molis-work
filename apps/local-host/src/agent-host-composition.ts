@@ -260,7 +260,7 @@ async function startAuthority(
     authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
-    method_owner: { project_id: runtime.project_id, plugin_id: pluginId },
+    skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate, session) => {
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       // `actor_id` stays the grant's client id (`agent:<runtime>`). The session is the one the Host checked against the Runtime's own record

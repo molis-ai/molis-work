@@ -1,5 +1,5 @@
 import { ActionError, type ActionCallContext, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneExecutionContext, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export const inboxNextScene: ActionSceneDefinition = {
   scene_id: INBOX_NEXT_SCENE_ID, version: 1, title: "Inbox 下一步",
@@ -10,7 +10,7 @@ export const inboxNextScene: ActionSceneDefinition = {
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: "molis.behavior-recommendation.v1",
   default_rule: { function_key: SYSTEM_INBOX_NEXT_FUNCTION_KEY, name: "挑 Inbox 下一步", instructions: "看这条 Inbox 该显示哪个按钮。", subject_kinds: ["inbox_entry"],
-    options: [{ key: INBOX_DONE_BEHAVIOR_ID, description: "标记已处理" }, { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" }] },
+    options: [{ key: INBOX_DONE_OPTION_ID, description: "标记已处理" }, { key: INBOX_DISMISS_OPTION_ID, description: "忽略" }] },
   recommendation_labels: { "inbox.compose": "整理成稿", "inbox.verify": "先核查", "inbox.done": "做完了", "inbox.dismiss": "忽略" },
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
     suggested_behavior_ids: { type: "array", items: { enum: ["inbox.compose", "inbox.verify", "inbox.done", "inbox.dismiss"] } } },

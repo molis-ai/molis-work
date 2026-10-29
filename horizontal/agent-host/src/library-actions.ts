@@ -3,7 +3,7 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 
 /**
- * The caller's own method library and MCP servers (`method_owner`): no input names another's. Saving or connecting a
+ * The caller's own method library and MCP servers (`skill_owner`): no input names another's. Saving or connecting a
  * server checks its directory is one the Host authorized for the caller, and what the servers offer is republished after.
  */
 export function registerLibraryActions<C extends Call>(register: Register<C>, ports: AgentCallPorts<C>): Array<() => void> {

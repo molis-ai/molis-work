@@ -10,7 +10,7 @@ import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
   type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
-  type AgentMethodRegistration, type AgentMethodView,
+  type AgentSkillRegistration, type AgentSkillView,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -146,13 +146,13 @@ export class AgentDefinitions {
   }
 
   /** Methods owners offer to other Agents for business work; the body is read with `method`. A plugin that is not running offers none. */
-  methods(): AgentMethodView[] {
+  methods(): AgentSkillView[] {
     return [...this.owners.values()].filter(offering).flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
       source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools] })));
   }
 
   /** One registered method with its body, by owner, id and (when given) exact version. */
-  method(ownerId: string, skillId: string, version?: number): AgentMethodRegistration {
+  method(ownerId: string, skillId: string, version?: number): AgentSkillRegistration {
     const owner = this.owners.get(ownerId), method = owner && offering(owner) ? owner.methods?.find(item => item.skill_id === skillId) : undefined;
     if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
     return structuredClone(method);
@@ -343,7 +343,7 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
  * A Plugin's Manifest methods with the bodies its package ships, exactly as declared: a declared method is registered only with
  * the body of its id and version, and one without a body is left out with a note for the developer diagnostics.
  */
-export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodies: readonly AgentSkillDefinition[] = []): { methods: AgentMethodRegistration[]; notes: string[] } {
+export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodies: readonly AgentSkillDefinition[] = []): { methods: AgentSkillRegistration[]; notes: string[] } {
   const methods = declared.flatMap(method => {
     const body = bodies.find(item => item.skill_id === method.skill_id && item.version === method.version)?.body;
     return body ? [{ skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools], body }] : [];

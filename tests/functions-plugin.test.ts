@@ -20,8 +20,8 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import {
-  INBOX_DISMISS_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
+  INBOX_DISMISS_OPTION_ID,
+  INBOX_DONE_OPTION_ID,
   INBOX_NEXT_SCENE_ID,
   choiceCriteriaFollowContext,
   type JudgmentRuleAuthoringCatalog,
@@ -179,22 +179,22 @@ test("custom Choice options survive an Inbox destination and bind through a scen
     const mapped = functions.updateDraft(created.id, {
       scene_id: INBOX_NEXT_SCENE_ID,
       scene_map: {
-        urgent: INBOX_DONE_BEHAVIOR_ID,
-        later: INBOX_DISMISS_BEHAVIOR_ID,
+        urgent: INBOX_DONE_OPTION_ID,
+        later: INBOX_DISMISS_OPTION_ID,
       },
     });
     assert.equal(mapped.scene_id, INBOX_NEXT_SCENE_ID);
     assert.equal(mapped.config_hash, hash);
     assert.deepEqual(mapped.criteria, drafted.criteria);
     assert.deepEqual({ ...mapped.scene_map }, {
-      urgent: INBOX_DONE_BEHAVIOR_ID,
-      later: INBOX_DISMISS_BEHAVIOR_ID,
+      urgent: INBOX_DONE_OPTION_ID,
+      later: INBOX_DISMISS_OPTION_ID,
     });
     const noul = functions.create({ primitive: "noul", name: "材料够不够" });
     assert.equal(noul.scene_id, null);
     const noulMapped = functions.updateDraft(noul.id, {
       scene_id: INBOX_NEXT_SCENE_ID,
-      scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
+      scene_map: { true: INBOX_DONE_OPTION_ID, false: INBOX_DISMISS_OPTION_ID },
     });
     assert.equal(noulMapped.scene_id, INBOX_NEXT_SCENE_ID);
     const score = functions.create({ primitive: "score", name: "相关程度" });

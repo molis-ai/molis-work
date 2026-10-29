@@ -7,8 +7,8 @@ import test from "node:test";
 import { PLATFORM_PLUGIN_REGISTRATIONS, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
-  INBOX_DISMISS_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
+  INBOX_DISMISS_OPTION_ID,
+  INBOX_DONE_OPTION_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
@@ -60,7 +60,7 @@ test("RAC-172 the Home rule is seeded with the targets the Inbox declaration giv
     seedSceneRules(home, DECLARING_PROVIDER, shippedScenes(), { env: {}, credential: () => null });
     withFunctionsService(home, service => {
       assert.deepEqual({ ...service.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!.scene_map },
-        { [INBOX_DONE_BEHAVIOR_ID]: pinned(INBOX_DONE_BEHAVIOR_ID), [INBOX_DISMISS_BEHAVIOR_ID]: pinned(INBOX_DISMISS_BEHAVIOR_ID) });
+        { [INBOX_DONE_OPTION_ID]: pinned(INBOX_DONE_OPTION_ID), [INBOX_DISMISS_OPTION_ID]: pinned(INBOX_DISMISS_OPTION_ID) });
       for (const key of [SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY]) {
         assert.deepEqual({ ...service.getByKey(key)!.scene_map }, {}, `${key} uses behavior ids, not offer keys`);
       }
@@ -107,7 +107,7 @@ test("RAC-173 the resolver is given each rule's scene, subject kinds and option 
     service.seedDeclaredRules([{ declarer: DECLARING_PROVIDER.provider_id, scene_id: "home.dock", recommendation_source: "subject-offers", rule: HOME_DOCK.default_rule! }], rule => { seen.set(rule.function_key, rule); return {}; });
     service.close();
     assert.deepEqual(seen.get(SYSTEM_HOME_DOCK_FUNCTION_KEY), { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, scene_id: "home.dock", recommendation_source: "subject-offers",
-      subject_kinds: ["inbox_entry"], option_keys: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] });
+      subject_kinds: ["inbox_entry"], option_keys: [INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID] });
   });
 });
 
@@ -120,7 +120,7 @@ test("RAC-176 an offer id that two declarations answer to is left unmapped, not 
   const inbox = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === "io.molis.work.inbox");
   assert.ok(inbox, "the Inbox plugin is in the built-in catalog");
   const offers = inbox.manifest.actions?.find(definition => definition.capability_id === "inbox.actions.prepare");
-  assert.ok(offers?.action.subject_offer_choices?.some(choice => choice.offer_id === INBOX_DONE_BEHAVIOR_ID), "Inbox declares the Home rule's done option");
+  assert.ok(offers?.action.subject_offer_choices?.some(choice => choice.offer_id === INBOX_DONE_OPTION_ID), "Inbox declares the Home rule's done option");
   const second: PluginRegistration = { ...inbox, manifest: { ...inbox.manifest, plugin_id: "io.molis.work.inbox.second" } };
   const declarations = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
   declarations.push(second);

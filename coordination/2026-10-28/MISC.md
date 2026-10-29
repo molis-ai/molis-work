@@ -47,7 +47,6 @@
 | T-168 二审 建议 | `docs/system/SECURITY-INVARIANTS.md` S-47 行 | #1439 已合入，S-47 行那一句现在可以写；只等 #1101 不再锁这份登记表 | 统筹 2026-10-29 |
 | T-208 起草 | `plugins/native/images/README.md:48` | 「改动后必跑」补上新的 `tests/images-result-whole-characters.e2e.test.ts`（T-208 合入后；#1101 在改这份 README，等它不再锁） | 统筹 2026-10-29 |
 | T-208 起草 | `plugins/native/images/src/ui.ts:66`、`:68`、`:69`、`:91`、`:94` | 服务端一半已进 T-212 / T-213。剩页面输入框五处按单元的 `maxlength`，对两单元字偏严（只会比服务端严，造不出「页面收、服务端拒」）；另 `ui.ts:68`、`:69` 写的 100 与服务端的 64、32 不一致（数字不一致，不是单位问题）。丙或乙，等 T-208 不再锁 Images 浏览器端 | 统筹 2026-10-29 |
-| T-208 起草 | `packages/contracts/src/platform/search-sources.ts:79-84`（`searchText`，Images `search.ts:15` 等在用） | 合同里的搜索文本按单元截，可能留下半个字；共享核心，甲，给设备 A 的 Claude（已进 T-247，T-247 合入后删本行） | 统筹 2026-10-29 |
 | T-211 起草 | `apps/workbench/src/project-guidance-document.ts:47` | 页面 `<textarea maxlength="4000">` 按单元，T-211 之后页面用户仍卡在 4000 个单元（只偏严，不会收了又拒）。#1101、task/T112b-ca 都碰这个文件，等它们不再锁；乙 | 统筹 2026-10-29 |
 | T-211 起草 | `plugins/native/goals/src/http/create.ts:17`、`:26` | 新建 Goal 表单 `maximum = 4_000` 按单元数，信息「内容过长」；先查谁读这个值、动作 schema 怎么数，再定改不改；乙（已进 T-233，T-233 合入后删本行） | 统筹 2026-10-29 |
 | T-210 起草 | `apps/local-host/src/context-onboarding-service.ts:436`、`:544`，`apps/workbench/src/scripts/context-onboarding.ts:347` | 项目名 `title.length > 120` 按单元拒，信息却写「1–120 字」；页面 `maxlength="120"` 同样按单元。改要动浏览器脚本和页面资源字节；乙（已进 T-246，T-246 合入后删本行） | 统筹 2026-10-29 |

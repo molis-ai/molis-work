@@ -39,7 +39,8 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
 
 function downloadName(request: PluginRouteRequest, stored: string): string {
   if (request.query.download !== "1") return stored;
-  const name = (request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim().slice(0, 80);
+  // 80 whole characters, not UTF-16 units: unit 80 can fall inside an emoji, and encodeURIComponent on the Content-Disposition name throws on half of one.
+  const name = [...(request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim()].slice(0, 80).join("");
   const extension = /\.[a-z0-9]{2,5}$/iu.exec(stored)?.[0] ?? "";
   return name ? name.toLowerCase().endsWith(extension.toLowerCase()) ? name : name + extension : stored;
 }

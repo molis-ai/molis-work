@@ -230,6 +230,25 @@ export const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorReques
   monday: { origins: ["https://api.monday.com"], credential: { token: "bare", oauth: "bare" }, refresh: "host" },
 };
 
+/**
+ * The origins the platform reads an OAuth connection's account and authorization context on, beyond the service's request origins
+ * (W5-11 §2.1, §2.1.1): Google's userinfo, Atlassian's accessible-resources before a site is known, and the identity origins of four
+ * services the request table does not have. Only the platform's own identity and context requests reach them (`{account}` in a
+ * declaration); a plugin's request through `services.connections` never does (S-69, A2). A table of its own so it cannot be read
+ * into a request service's origins.
+ */
+export const CONNECTOR_ACCOUNT_ORIGINS: Readonly<Record<string, readonly string[]>> = {
+  gmail: ["https://openidconnect.googleapis.com"],
+  "google-calendar": ["https://openidconnect.googleapis.com"],
+  "google-drive": ["https://openidconnect.googleapis.com"],
+  jira: ["https://api.atlassian.com"],
+  confluence: ["https://api.atlassian.com"],
+  feishu: ["https://open.feishu.cn"],
+  lark: ["https://open.larksuite.com"],
+  bitbucket: ["https://api.bitbucket.org"],
+  adobe: ["https://ims-na1.adobelogin.com"],
+};
+
 /** A single account or API credential managed at Home scope. Never contains plaintext. */
 export type ConnectorConnectionAuthMethod = "oauth" | "token" | "cli" | "mcp" | "none";
 export type ConnectorConnectionState = "connected" | "reauth_required" | "disconnected";

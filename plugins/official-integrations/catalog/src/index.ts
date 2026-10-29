@@ -11,6 +11,7 @@ import type {
 import type { ConnectorMethodKind } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { getCatalogSpec } from "./catalog.js";
+import { catalogOAuthMethod } from "./oauth-methods.js";
 import { catalogAccountPresentation } from "./provider.js";
 
 /**
@@ -28,6 +29,7 @@ const DOCUMENT_SOURCES: Readonly<Record<string, { service: string; methods: read
 function catalogConnectionService(connectorId: string): PluginConnectionServiceDeclaration {
   const spec = getCatalogSpec(connectorId);
   const feed = spec.feed_available !== false;
+  const oauth = catalogOAuthMethod(connectorId);
   return {
     service_id: connectorId,
     // WeChat is Work WeChat here.
@@ -35,8 +37,9 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
     group_id: spec.group_id,
     summary: spec.summary,
     auth_kind: connectorId === "loom" ? "none" : connectorId === "notion" ? "notion" : connectorId === "feishu" ? "feishu" : "token",
-    // A connector with no token to paste (Loom) is reached through MCP only.
-    auth: { methods: spec.token_label ? [{ kind: "token", label: spec.token_label, placeholder: spec.token_placeholder }] : [{ kind: "mcp" }] },
+    // A connector with no token to paste (Loom) is reached through MCP only. A service that connects by OAuth declares its flow as data.
+    auth: { methods: [...spec.token_label ? [{ kind: "token" as const, label: spec.token_label, placeholder: spec.token_placeholder }] : [{ kind: "mcp" as const }],
+      ...oauth ? [oauth] : []] },
     auth_help: spec.auth_help,
     capabilities: [
       { label: spec.inbound, fulfillment: feed ? "live" : "unfulfilled" },
@@ -67,7 +70,8 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     // 1.1.0: the account check moved to the connector action `connectors.account.read`.
     // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
     // import the ways of connecting it reads with).
-    version: "1.2.0",
+    // 1.3.0: a service that connects by OAuth declares its flow as data (W5-11).
+    version: "1.3.0",
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
@@ -110,6 +114,7 @@ export function createCatalogIntegrationPlugin(input: {
 export { CATALOG_CONNECTORS, catalogConnectorIds, getCatalogSpec, isCatalogConnectorId } from "./catalog.js";
 export { setupLinksFor } from "./setup-links.js";
 export { officialMethodsFor, OFFICIAL_CONNECTOR_METHODS } from "./methods.js";
+export { CATALOG_OAUTH_METHODS, catalogOAuthMethod } from "./oauth-methods.js";
 export { catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
 export { CatalogLiveError } from "./http.js";
 export { catalogCloudOrigin } from "./targets.js";

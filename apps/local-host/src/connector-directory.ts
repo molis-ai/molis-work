@@ -4,7 +4,7 @@ import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
 import { gmailOAuthConfigured } from "./gmail-oauth.js";
 import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
 import { notionOAuthConfigured } from "./notion-oauth.js";
-import { connectorMethodsFor, connectorMethodsOf, hasConnectorMethods } from "./host-connector-methods.js";
+import { connectorMethodsOf } from "./host-connector-methods.js";
 import { builtinIntegrationDeclarations, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
 
@@ -47,6 +47,7 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView): r
 }
 
 export const HOST_CONNECTOR_DIRECTORY: readonly ConnectorDirectoryEntry[] = connectorDirectory(builtinIntegrationDeclarations());
+const HOST_DECLARED = new Map(builtinIntegrationDeclarations().connectionServices().map(({ declaration }) => [declaration.service_id, declaration]));
 
 function githubClientIdConfigured(): boolean {
   try {
@@ -61,7 +62,8 @@ export function listConnectorSettingsCards() {
     ? { ...entry, github_client_id_configured: false, gmail_oauth_configured: false }
     : {
       ...entry,
-      method_options: hasConnectorMethods(entry.connector_id) ? connectorMethodsFor(entry.connector_id) : entry.method_options,
+      // Read again on each listing: whether the product's client is configured may have changed.
+      method_options: HOST_DECLARED.has(entry.connector_id) ? connectorMethodsOf(HOST_DECLARED.get(entry.connector_id)!) : entry.method_options,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
       gmail_oauth_configured: entry.auth_kind === "gmail" ? gmailOAuthConfigured() : false,
       notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,

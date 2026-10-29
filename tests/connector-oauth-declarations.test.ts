@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -16,10 +17,12 @@ import {
   oauthSecretRequired,
   oauthTenantOrigin,
   oauthTokenRequest,
+  publicOAuthFetch,
   resolveOAuthSettings,
 } from "@molis-ai/molis-work-app-local-host";
-import { catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
+import { catalogOAuthMethod, catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 // W5-11 slice 1 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): the `oauth` method a plugin declares as
 // data, the SDK's shape check (any problem fails the whole Manifest) and the Host's one interpreter as pure functions. Nothing here sends
@@ -45,9 +48,9 @@ function manifest(serviceId: string, oauth: unknown): PluginManifest {
 const refused = (serviceId: string, oauth: unknown, message: RegExp) =>
   assert.throws(() => parsePluginManifest(manifest(serviceId, oauth)), { code: "plugin.declaration_invalid", message }, message.source);
 
-test("RAC-1081 a well-formed oauth method passes, and the bare kind is still read from the platform's table until slice 4", () => {
+test("RAC-1081 a well-formed oauth method passes, and a bare kind is a declaration error (slice 4: the platform's table is gone)", () => {
   assert.ok(parsePluginManifest(manifest("slack", method())));
-  assert.ok(parsePluginManifest(manifest("slack", { kind: "oauth" })));
+  refused("slack", { kind: "oauth" }, /要把授权流程写成数据/);
   assert.ok(parsePluginManifest(manifest("salesforce", method({
     authorize_url: "{tenant}/services/oauth2/authorize", token_url: "{tenant}/services/oauth2/token",
     settings: [{ key: "login_origin", label: "登录地址", default: "https://login.salesforce.com", use: "tenant" }],
@@ -83,12 +86,15 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   // Where the access token may go is the table's: `{service}` for one origin, a full address only on one of them.
   refused("cloudflare", method({ identity: { url: "{service}/oauth2/userinfo", account_id: [[], ["identity:/id"]], label: ["identity:/email"] } }), /\{service\}/u);
   refused("slack", method({ identity: { url: "https://evil.example.com/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
-  refused("adobe", method({ identity: { url: "https://ims-na1.adobelogin.com/ims/userinfo/v2", account_id: [[], ["identity:/sub"]], label: ["identity:/sub"] } }), /来源/u);
+  // Slice 4: a service's account origin takes a full address too (adobe's is `ims-na1.adobelogin.com`); another host of it does not.
+  assert.ok(parsePluginManifest(manifest("adobe", method({ identity: { url: "https://ims-na1.adobelogin.com/ims/userinfo/v2", account_id: [[], ["identity:/sub"]], label: ["identity:/sub"] } }))));
+  refused("adobe", method({ identity: { url: "https://ims-eu1.adobelogin.com/ims/userinfo/v2", account_id: [[], ["identity:/sub"]], label: ["identity:/sub"] } }), /来源/u);
   refused("slack", method({ context: [{ key: "teams", url: "https://evil.example.com/teams", pick: { kind: "ids", pointer: "/*/id" } }] }), /来源/u);
   refused("slack", method({ identity: { url: "{tenant}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /\{tenant\}/u);
   refused("slack", method({ identity: { url: "{gateway}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /\{gateway\}/u);
-  // `{account}` arrives with the account origins table (slice 4); until then it is an unknown placeholder.
-  refused("gmail", method({ identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email"] } }), /\{account\}/u);
+  // `{account}` (slice 4) only for a service with exactly one account origin: gmail's is Google's openidconnect, slack has none.
+  assert.ok(parsePluginManifest(manifest("gmail", method({ identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email"] } }))));
+  refused("slack", method({ identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email"] } }), /\{account\}/u);
   refused("slack", method({ identity: { url: "{service}/me", headers: { Authorization: "Bearer x" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /Authorization/u);
   refused("slack", method({ identity: { url: "{service}/me", query: { team: "{setting.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /查询参数/u);
   refused("slack", method({ identity: { url: "{service}/me", account_id: [[], ["secret:/id" as never]], label: ["identity:/id"] } }), /来源/u);
@@ -185,8 +191,12 @@ test("RAC-1082 identity and context requests go only where the platform's table 
   assert.equal(oauthAccountRequest({ url: "{service}/v2", method: "POST", body: { query: "{ me { id } }" } }, scope("monday")).headers.authorization, "access-1", "monday writes its OAuth token bare");
   assert.equal(oauthAccountRequest({ url: "https://dash.cloudflare.com/oauth2/userinfo" }, scope("cloudflare")).url, "https://dash.cloudflare.com/oauth2/userinfo");
   assert.throws(() => oauthAccountRequest({ url: "https://evil.example.com/me" }, scope("slack")), { code: "connector.oauth_declarations.target_refused" });
-  assert.throws(() => oauthAccountRequest({ url: "https://openidconnect.googleapis.com/v1/userinfo" }, scope("gmail")), { code: "connector.oauth_declarations.target_refused" });
-  assert.throws(() => oauthAccountRequest({ url: "{account}/v1/userinfo" }, scope("gmail")), { code: "connector.oauth_declarations.template_invalid" });
+  // The account table (slice 4): Google's userinfo for gmail, as `{account}` or written out; never for a service it does not list.
+  assert.equal(oauthAccountRequest({ url: "{account}/v1/userinfo" }, scope("gmail")).url, "https://openidconnect.googleapis.com/v1/userinfo");
+  assert.equal(oauthAccountRequest({ url: "https://openidconnect.googleapis.com/v1/userinfo" }, scope("gmail")).url, "https://openidconnect.googleapis.com/v1/userinfo");
+  assert.throws(() => oauthAccountRequest({ url: "https://openidconnect.googleapis.com/v1/userinfo" }, scope("slack")), { code: "connector.oauth_declarations.target_refused" });
+  assert.throws(() => oauthAccountRequest({ url: "{account}/v1/userinfo" }, scope("slack")), { code: "connector.oauth_declarations.template_invalid" });
+  assert.throws(() => oauthAccountRequest({ url: "https://open.feishu.cn/v1/userinfo" }, scope("gmail")), { code: "connector.oauth_declarations.target_refused" }, "another service's account origin");
   // A context value fills one segment; one carrying a slash never moves the request to another path.
   assert.equal(oauthAccountRequest({ url: "{gateway}/ex/jira/{context.cloud_id}/rest/api/3/myself" }, scope("jira", { context: { cloud_id: "0f6a3c1e-0000-4000-8000-000000000001" } })).url,
     "https://api.atlassian.com/ex/jira/0f6a3c1e-0000-4000-8000-000000000001/rest/api/3/myself");
@@ -255,7 +265,8 @@ test("RAC-1082 the interpreter pins the tenant itself: the kept instance, never 
   assert.throws(() => oauthAccountRequest({ url: "{tenant}/me" }, { ...scope({}), method: method(), settings: { values: {} } }), { code: "connector.oauth_declarations.template_invalid" }, "no tenant at all");
 });
 
-// §2.1.1 written as data, each with the account §2.1.1 says it reads (RAC-1080, a first set; slice 4 runs all 37). The catalog's own
+// §2.1.1 written as data, each with the account §2.1.1 says it reads (RAC-1080; the identity and keep are the catalog's shipped
+// declarations, checked below, and `tests/connector-provider-contracts.test.ts` runs all 37 through an authorization). The catalog's own
 // `readIdentity` on the same response corroborates it; where §2.1.1 means to differ from today, `intended` says why, and the catalog
 // must then really read something else.
 interface IdentityFixture {
@@ -289,7 +300,7 @@ const identities: Record<string, IdentityFixture> = {
     response: { organization_id: "00D1", sub: "https://login.salesforce.com/id/00D1/005A", user_id: "005A", preferred_username: "ada@acme" }, context: { instance: "https://acme.my.salesforce.com" },
     expected: { account_id: "00D1:https://login.salesforce.com/id/00D1/005A", label: "ada@acme" } },
   sentry: { identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"], ["context:oauth_user_id"]], label: ["identity:/name", "identity:/slug"],
-    keep: [{ key: "org", pointer: "/slug" }] }, keep: [{ key: "oauth_user_id", pointer: "/user/id" }],
+    keep: [{ key: "org", pointer: "/slug" }] }, keep: [{ key: "oauth_user_id", pointer: "/user/id", required: true }],
   response: [{ id: "9", slug: "beta", name: "Beta" }, { id: "10", slug: "alpha", name: "Alpha" }], token: { user: { id: "u-7" } },
   expected: { account_id: ":10:u-7", label: "Alpha" },
   intended: "C 头授权时 apiOAuthIdentity 同样得 :org:user（enrichContext 存的 oauth_user_id）；只有 readIdentity（检查、读账号）不接这一段，第 4 片三处一致" },
@@ -303,7 +314,8 @@ const identities: Record<string, IdentityFixture> = {
   intended: "readIdentity 不接已授权工作区；今天这段由 apiOAuthIdentity 另接，声明里是 account_id 的后两段" },
   x: { identity: { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/username", "identity:/data/name"], label_prefix: "@",
     keep: [{ key: "user_id", pointer: "/data/id" }] }, response: { data: { id: "x-1", username: "ada", name: "Ada" } }, expected: { account_id: ":x-1", label: "@ada" } },
-  notion: { identity: { account_id: [["context:workspace_id"]], label: ["context:workspace_name"] },
+  notion: { identity: { url: "{service}/v1/users/me", headers: { "Notion-Version": "2022-06-28" }, account_id: [["context:workspace_id"]],
+    label: ["context:workspace_name", "identity:/bot/workspace_name"] },
     keep: [{ key: "workspace_id", pointer: "/workspace_id", required: true }, { key: "workspace_name", pointer: "/workspace_name" }], token: { workspace_id: "w-1", workspace_name: "Acme" },
     response: { object: "user", id: "bot-1", type: "bot", name: "Molis", bot: { workspace_name: "Acme" } },
     expected: { account_id: "w-1", label: "Acme" }, intended: "§2.4：account_id 是令牌响应的 workspace，不再接 bot id（今天是 workspace:bot-id）" },
@@ -338,6 +350,14 @@ for (const [serviceId, fixture] of Object.entries(identities)) {
     else assert.deepEqual(today, fixture.expected);
   });
 }
+
+test("RAC-1080 the fixtures read with the identity and keep the catalog ships for each service", () => {
+  for (const [serviceId, fixture] of Object.entries(identities)) {
+    const shipped = catalogOAuthMethod(serviceId)!;
+    assert.deepEqual(fixture.identity, shipped.identity, serviceId);
+    assert.deepEqual(fixture.keep ?? [], shipped.keep ?? [], serviceId);
+  }
+});
 
 test("RAC-1080 the intended tightenings: x with no name, clickup and supabase with no id, and no authorized workspace fail", async () => {
   const x = identities.x!;
@@ -385,4 +405,38 @@ test("RAC-1082 context picks: the ids of a list in code-point order, and the id 
   assert.equal(oauthContextValue(pick, resources, { values: { site_url: "https://acme.atlassian.net" }, tenant: "https://acme.atlassian.net" }), "0f6a3c1e-0000-4000-8000-000000000001");
   assert.throws(() => oauthContextValue(pick, resources, { values: { site_url: "https://missing.atlassian.net" }, tenant: "https://missing.atlassian.net" }), { code: "connector.oauth_declarations.context_missing" });
   assert.throws(() => oauthContextValue(pick, [{ url: "https://acme.atlassian.net", id: "../x" }], { values: { site_url: "https://acme.atlassian.net" }, tenant: "https://acme.atlassian.net" }), { code: "connector.oauth_declarations.context_missing" });
+});
+
+// W5-11 slice 4 (RAC-1082, Codex pre-review P3): the flow's requests leave by `sendPublicHttps`, so the call's checks run again once the
+// name resolves, right before a connection opens. A call that stops being current while the name is resolving opens none.
+test("RAC-1082 the OAuth sender rechecks the call after the name resolves: one that stopped being current meanwhile opens no connection", async t => {
+  const sent = oauthNetwork(t, () => Response.json({ access_token: "fixture-late" }));
+  let current = true, resolveName!: () => void;
+  const named = new Promise<void>(done => { resolveName = done; });
+  const held = publicOAuthFetch({ current: () => { if (!current) throw new Error("the authorization is no longer pending"); } }, {
+    lookup: (_hostname, callback) => { void named.then(() => callback(null, [{ address: "1.1.1.1", family: 4 }])); },
+  });
+  const refused = assert.rejects(held("https://auth.example.com/token", { method: "POST", body: "grant_type=authorization_code" }), /no longer pending/u);
+  current = false; resolveName(); await refused;
+  assert.deepEqual(sent, [], "no connection was opened");
+  const answer = await publicOAuthFetch({ current: () => {} })("https://auth.example.com/token", { method: "POST", body: "grant_type=authorization_code" });
+  assert.deepEqual(await answer.json(), { access_token: "fixture-late" });
+  assert.deepEqual(sent, ["https://auth.example.com/token"], "a current call is sent");
+});
+
+// RAC-1080 / RAC-1082 (slice 4): the Host has no OAuth table of its own, only the interpreter reads the account origins, and the flow,
+// its sender and the interpreter take the declaration from the registry, never from a plugin's implementation.
+test("RAC-1080 RAC-1082 the Host's source has no OAuth table, only the interpreter reads the account origins, and the flow imports no plugin", () => {
+  const root = new URL("../apps/local-host/src/", import.meta.url);
+  const read = (name: string) => readFileSync(new URL(name, root), "utf8");
+  const files = (readdirSync(root, { recursive: true }) as string[]).filter(name => name.endsWith(".ts"));
+  assert.ok(files.includes("connector-api-oauth.ts"));
+  for (const name of files) {
+    const text = read(name);
+    assert.doesNotMatch(text, /API_OAUTH_PROVIDERS|cloudflare\/providers/u, name);
+    if (name !== "connector-oauth-declarations.ts") assert.doesNotMatch(text, /CONNECTOR_ACCOUNT_ORIGINS/u, name);
+  }
+  for (const name of ["connector-api-oauth.ts", "connector-oauth-declarations.ts", "connector-oauth-send.ts"]) {
+    assert.doesNotMatch(read(name), /catalogWhoami|["']@molis-ai\/molis-work-integration-|["']@molis-ai\/molis-work-plugin-(?!sdk["'/])/u, name);
+  }
 });

@@ -13,14 +13,14 @@ const KEY = /^[a-z][a-z0-9_]{0,63}$/u;
 const HEADER_NAME = /^[A-Za-z][A-Za-z0-9-]{0,63}$/u;
 const WHOLE = /^\{([^{}]*)\}$/u;
 const URL_HEAD = /^\{([^{}]*)\}(\/.*)$/su;
-const HEADS: readonly OAuthUrlHead[] = ["service", "tenant", "gateway"];
+const HEADS: readonly OAuthUrlHead[] = ["service", "account", "tenant", "gateway"];
 const URL_ORIGIN = /^(https:\/\/[^/{}?#]+)(\/.*)$/su;
 const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
 const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
 const HOST_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
 const PLATFORM_HEADERS: ReadonlySet<string> = new Set(OAUTH_PLATFORM_HEADERS);
 
-/** An `oauth` method that carries its flow as data; the bare `{ kind: "oauth" }` is still read from the platform's table until slice 4. */
+/** An `oauth` method that carries its flow as data; a bare `{ kind: "oauth" }` is a declaration error. */
 export function isDeclaredOAuth(method: PluginAuthMethodDeclaration): method is PluginOAuthMethodDeclaration {
   return method.kind === "oauth" && "grant" in method;
 }
@@ -31,7 +31,7 @@ export function oauthKey(value: unknown): value is string {
 }
 
 /** A placeholder that stands for an address's origin. */
-export type OAuthUrlHead = "service" | "tenant" | "gateway";
+export type OAuthUrlHead = "service" | "account" | "tenant" | "gateway";
 
 /** The one placeholder grammar every template is read by: `{client_id}`, an address head, `{context.<key>}`, `{setting.<key>}`. */
 export type OAuthPlaceholder =
@@ -39,7 +39,7 @@ export type OAuthPlaceholder =
   | { readonly kind: "head"; readonly head: OAuthUrlHead }
   | { readonly kind: "context" | "setting"; readonly key: string };
 
-/** What the text between a pair of braces names; `undefined` when it is not a placeholder. `{account}` joins the heads in slice 4. */
+/** What the text between a pair of braces names; `undefined` when it is not a placeholder. */
 export function oauthPlaceholder(name: string): OAuthPlaceholder | undefined {
   if (name === "client_id") return { kind: "client_id" };
   if ((HEADS as readonly string[]).includes(name)) return { kind: "head", head: name as OAuthUrlHead };

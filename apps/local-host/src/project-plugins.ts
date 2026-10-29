@@ -5,6 +5,7 @@ import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
+import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
 import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -89,28 +90,10 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
 async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   const failures: unknown[] = [];
   await platform.closeCoordination();
-  for (const pluginId of platform.supervisor.enabledPluginIds()) {
-    const active = platform.supervisor.state(pluginId);
-    // Closing the project is not switching the plugin off: stopped first with its record kept enabled, then revoked (the
-    // supervisor's own revoke would stop it as disabled), as the Home supervisor does. So the next start runs it, and only a
-    // plugin list keeps a project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
-    if (active?.status === "running" && active.install_id) {
-      // Only this installation's record is read, so another one that cannot be read does not stop this one. A missing record is still
-      // stopped, so the instance it activated is let go (T-124), and the stop reports the missing record; a record that cannot be read
-      // is this installation's failure. Either is one failure of this close, not the end of the loop.
-      try { if (shutdownStops(platform, active.install_id)) await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
-    }
-    platform.supervisor.revoke(pluginId);
-  }
+  // Closing the project is not switching the plugin off (see closePlugin): the next start runs it, and only a plugin list keeps a
+  // project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
+  for (const pluginId of platform.supervisor.enabledPluginIds()) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
   if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
-}
-
-/** Whether a project close stops this installation: one that is running, or one whose record is gone (the stop lets its instance go). */
-function shutdownStops(platform: PluginPlatform, installId: string): boolean {
-  try { return platform.runtime.get(installId).state === "running"; } catch (error) {
-    if ((error as { code?: unknown }).code === "plugin.definition_missing") return true;
-    throw error;
-  }
 }
 
 export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<ProjectPluginState> {

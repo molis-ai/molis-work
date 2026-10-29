@@ -34,7 +34,7 @@ async function createNote(opened: NonNullable<Awaited<ReturnType<typeof openJell
   await jelly.waitFor("document.querySelector('[data-jelly-save-status]').textContent === '已保存'");
 }
 
-test("RAC-2190 a note list row's preview is cut to 180 whole characters, never half of one", { timeout: 120_000 }, async t => {
+test("RAC-2190 a note list row's preview is at most 180 UTF-16 units, and the cut drops half a surrogate pair so it never ends on half a character", { timeout: 120_000 }, async t => {
   // 179 "a" then 😀 (two units, U+1F600): unit 180 is the emoji's high surrogate, so a cut by units ends on half of it.
   const opened = await openJelly(t); if (!opened) return;
   await createNote(opened, "长预览", "a".repeat(179) + "😀" + "尾");

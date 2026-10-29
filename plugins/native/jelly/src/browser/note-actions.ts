@@ -108,6 +108,9 @@ export function completeTaskBlock(page: JellyPage, checkbox: HTMLInputElement): 
   });
 }
 
+/** Characters (code points), not UTF-16 units, of a whole text: a string's iterator yields code points, so counting them builds no array. */
+const countCharacters = (text: string): number => { let count = 0, iterator = text[Symbol.iterator](); while (!iterator.next().done) count += 1; return count; };
+
 /** A file chosen for "import into this note": shown with a preview, then appended or replacing the content. */
 export async function importNoteFile(page: JellyPage, file: File | undefined): Promise<void> {
   if (!file || page.selected?.kind !== "note") return;
@@ -115,7 +118,7 @@ export async function importNoteFile(page: JellyPage, file: File | undefined): P
   const id = page.selected.id;
   const source = await file.text();
   const format = /\.html?$/i.test(file.name) ? "html" : "markdown";
-  openGeneric(page, "jelly.note.import-title", `<p class="jelly-muted">${esc(file.name)} · ${[...source].length} ${page.tx("jelly.note.import-chars")}</p><label class="jelly-check"><input class="mw-check" type="checkbox" data-jelly-import-replace>${page.tx("jelly.note.import-replace")}</label><pre class="jelly-import-preview">${esc(source.slice(0, 8000))}</pre>`, "jelly.import.confirm", async () => {
+  openGeneric(page, "jelly.note.import-title", `<p class="jelly-muted">${esc(file.name)} · ${countCharacters(source)} ${page.tx("jelly.note.import-chars")}</p><label class="jelly-check"><input class="mw-check" type="checkbox" data-jelly-import-replace>${page.tx("jelly.note.import-replace")}</label><pre class="jelly-import-preview">${esc(source.slice(0, 8000))}</pre>`, "jelly.import.confirm", async () => {
     await command(page, { type: "note.import", id, source, format, mode: page.$<HTMLInputElement>("[data-jelly-import-replace]").checked ? "replace" : "append", expected_note_revision: page.editorRevision });
     openRecord(page, "note", id);
     showNote(page, page.L("jelly.note.imported"));

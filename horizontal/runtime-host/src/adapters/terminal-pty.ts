@@ -387,6 +387,7 @@ export class MolisWorkPtyHost {
     });
     this.replay.set(request.panelId, "");
     proc.onData((data) => {
+      if (this.sessions.get(request.panelId) !== proc) return;
       this.replay.set(request.panelId, clipReplay((this.replay.get(request.panelId) ?? "") + data));
       this.handlers.onData(request.panelId, data);
     });

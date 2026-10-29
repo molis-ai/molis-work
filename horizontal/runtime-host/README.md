@@ -49,6 +49,7 @@ node scripts/run-tests.mjs tests/runtime-host.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 终端进程退出后必须清理句柄；`killAll` 结束全部进程；重放缓冲有上限。
+  - 一个面板只认它当前的进程：被 `kill` 停掉或重启时换下的旧进程，之后的输出不进重放、不转给面板，退出也不报告。
   - 外部不导入本包 `src/**`；本包也不导入 Web Server 或任何业务 Store。
 - 改动后必跑：`node scripts/run-tests.mjs tests/runtime-host.test.ts tests/desktop-tui.test.ts`
 - 相关手册：[docs/horizontal/runtime-host.md](../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -258,13 +258,13 @@ function parseActionStep(value: unknown): WorkflowActionStep {
       if (!WORKFLOW_PAYLOAD_FIELDS.includes(entry.from as WorkflowPayloadField)) throw workflowsErrors.invalid(`字段 ${name} 的来源无效`);
       mapping[name] = { from: entry.from as WorkflowPayloadField };
     } else if ("value" in entry && ["string", "number", "boolean"].includes(typeof entry.value)) {
-      if (typeof entry.value === "string" && entry.value.length > 8000) throw workflowsErrors.invalid(`字段 ${name} 的固定值过长`);
+      if (typeof entry.value === "string" && [...entry.value].length > 8000) throw workflowsErrors.invalid(`字段 ${name} 的固定值过长`);
       mapping[name] = { value: entry.value as string | number | boolean };
     } else throw workflowsErrors.invalid(`字段 ${name} 的映射无效`);
   }
   return { ref: { capability_id: ref.capability_id, version: Number(ref.version), provider_id: ref.provider_id },
-    title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim().slice(0, 200) : ref.capability_id,
-    ...(typeof raw.group === "string" && raw.group.trim() ? { group: raw.group.trim().slice(0, 120) } : {}), mapping };
+    title: typeof raw.title === "string" && raw.title.trim() ? [...raw.title.trim()].slice(0, 200).join("") : ref.capability_id,
+    ...(typeof raw.group === "string" && raw.group.trim() ? { group: [...raw.group.trim()].slice(0, 120).join("") } : {}), mapping };
 }
 
 function parseLink(value: unknown): WorkflowLink {
@@ -292,7 +292,7 @@ function parseJudgmentRef(value: unknown): WorkflowLink["judgment"] | undefined 
     throw workflowsErrors.invalid("判断规则引用无效");
   }
   return { capability_id: raw.capability_id, version: Number(raw.version), provider_id: raw.provider_id,
-    ...(typeof raw.title === "string" ? { title: raw.title.slice(0, 200) } : {}) };
+    ...(typeof raw.title === "string" ? { title: [...raw.title].slice(0, 200).join("") } : {}) };
 }
 
 /** Insert a plugin into gap `gap` (0 = before the first station, stations.length = after the last). */
@@ -350,7 +350,7 @@ export function applyFunctionRule(link: WorkflowLink, input: WorkflowPayload, no
     const names = [...line.matchAll(/\{([^{}]{1,8})\}/g)].map((match) => match[1]!).filter((name) => name in values);
     return names.length && names.every((name) => !values[name]!.trim()) ? [] : [fill(line)];
   }).join("\n").replace(/\n{3,}/g, "\n\n");
-  const title = (link.title_template.trim() ? fill(link.title_template) : input.title).trim().slice(0, 200) || input.title;
+  const title = [...(link.title_template.trim() ? fill(link.title_template) : input.title).trim()].slice(0, 200).join("") || input.title;
   return { title, body: fillLines(link.body_template).trim(), url: input.url ?? null, source: input.source ?? null, feed_item_id: null };
 }
 
@@ -373,7 +373,7 @@ export function parseAiHandoff(text: string, input: WorkflowPayload): WorkflowPa
   const first = (lines[0] ?? "").replace(/^#+\s*/, "").replace(/^标题[:：]\s*/, "").trim();
   const body = lines.slice(1).join("\n").trim();
   return {
-    title: (first || input.title).slice(0, 200),
+    title: [...(first || input.title)].slice(0, 200).join(""),
     body: body || text.trim(),
     url: input.url ?? null,
     source: input.source ?? null,

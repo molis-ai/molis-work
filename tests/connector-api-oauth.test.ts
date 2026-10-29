@@ -489,5 +489,5 @@ test("RAC-1082 jira: the token, context and identity requests of an authorizatio
   await completeApiOAuth(directory, callback(start.authorization_url));
   assert.deepEqual(sent, ["https://auth.atlassian.com/oauth/token", "https://api.atlassian.com/oauth/token/accessible-resources",
     `https://api.atlassian.com/ex/jira/${cloud}/rest/api/3/myself`]);
-  assert.equal(apiOAuthContext(directory, start.connection_id)?.account_id, `:${cloud}:a-1`);
+  assert.equal(apiOAuthContext(directory, start.connection_id)?.account_id, `${cloud}:a-1`);
 });

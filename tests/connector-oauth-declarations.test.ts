@@ -86,12 +86,15 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   // Where the access token may go is the table's: `{service}` for one origin, a full address only on one of them.
   refused("cloudflare", method({ identity: { url: "{service}/oauth2/userinfo", account_id: [[], ["identity:/id"]], label: ["identity:/email"] } }), /\{service\}/u);
   refused("slack", method({ identity: { url: "https://evil.example.com/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
-  refused("adobe", method({ identity: { url: "https://ims-na1.adobelogin.com/ims/userinfo/v2", account_id: [[], ["identity:/sub"]], label: ["identity:/sub"] } }), /来源/u);
+  // Slice 4: a service's account origin takes a full address too (adobe's is `ims-na1.adobelogin.com`); another host of it does not.
+  assert.ok(parsePluginManifest(manifest("adobe", method({ identity: { url: "https://ims-na1.adobelogin.com/ims/userinfo/v2", account_id: [[], ["identity:/sub"]], label: ["identity:/sub"] } }))));
+  refused("adobe", method({ identity: { url: "https://ims-eu1.adobelogin.com/ims/userinfo/v2", account_id: [[], ["identity:/sub"]], label: ["identity:/sub"] } }), /来源/u);
   refused("slack", method({ context: [{ key: "teams", url: "https://evil.example.com/teams", pick: { kind: "ids", pointer: "/*/id" } }] }), /来源/u);
   refused("slack", method({ identity: { url: "{tenant}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /\{tenant\}/u);
   refused("slack", method({ identity: { url: "{gateway}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /\{gateway\}/u);
-  // `{account}` arrives with the account origins table (slice 4); until then it is an unknown placeholder.
-  refused("gmail", method({ identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email"] } }), /\{account\}/u);
+  // `{account}` (slice 4) only for a service with exactly one account origin: gmail's is Google's openidconnect, slack has none.
+  assert.ok(parsePluginManifest(manifest("gmail", method({ identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email"] } }))));
+  refused("slack", method({ identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email"] } }), /\{account\}/u);
   refused("slack", method({ identity: { url: "{service}/me", headers: { Authorization: "Bearer x" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /Authorization/u);
   refused("slack", method({ identity: { url: "{service}/me", query: { team: "{setting.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /查询参数/u);
   refused("slack", method({ identity: { url: "{service}/me", account_id: [[], ["secret:/id" as never]], label: ["identity:/id"] } }), /来源/u);

@@ -399,7 +399,7 @@ export function hostSourceFiles(repositoryRoot) {
   }));
 }
 
-function checkMigratedGoalsCommandOwnership(repositoryRoot) {
+export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   errors.push(...checkCoordinatorStaysDeleted(repositoryRoot));
@@ -464,16 +464,16 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const homeInstaller = read("apps/local-host/src/installer/home-release.ts");
   if (
-    !homeInstaller.includes('"molis-work-plugin-goals"')
-    || !homeInstaller.includes("skillMethodsDirectory")
-    || !homeInstaller.includes("fs.symlink(")
+    !hasInText(homeInstaller, '"molis-work-plugin-goals"')
+    || !hasInCode(homeInstaller, "skillMethodsDirectory")
+    || !hasInCode(homeInstaller, "fs.symlink(")
   ) {
     errors.push("apps/local-host/src/installer/home-release.ts: installed Molis Work Skill must link to packaged Goals method assets");
   }
 
   const factMaterializerPath = "plugins/native/goals/src/goal-tree-fact-materializer.ts";
   const factMaterializer = read(factMaterializerPath);
-  if (!factMaterializer.includes("this.createIntent(")
+  if (!hasInCode(factMaterializer, "this.createIntent(")
       || factMaterializer.includes("applyAcceptedContractRevision(")
       || /\bthis\.store\b|\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/iu.test(factMaterializer)) {
     errors.push(`${factMaterializerPath}: confirmed Goal materialization must create event-owned Goal intent, not legacy lifecycle or SQL`);
@@ -488,11 +488,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   // S8 (PG-020): Goals' tables are Goals' own. The baseline no longer composes them; the platform makes them from the Manifest.
   const baselineSchema = read("apps/local-host/src/project-database-schema.ts");
-  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")
+  if (!hasInCode(read("apps/local-host/src/project-database.ts"), "PROJECT_DATABASE_BASELINE")
       || /GOALS_PROJECT_DATABASE|GOAL_BOARDS_SCHEMA_SQL|GOALS_SCHEMA_SQL|GOAL_INPUT_BINDINGS_SCHEMA_SQL|GOAL_EVENT_FACTS_SCHEMA_SQL|GOAL_EVENT_STATE_SCHEMA_SQL|GOVERNANCE_SCHEMA_SQL|molis-work-module-goals|molis-work-plugin-goals|molis-work-module-governance-collaboration/u.test(baselineSchema)) {
     errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must not compose Goals' or Governance's schema; Goals declares its tables in its Manifest (databases.project)");
   }
-  if (!/databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*(?:,\s*home:\s*GOALS_HOME_DATABASE\s*)?\}/u.test(read("plugins/native/goals/src/manifest.ts"))) {
+  if (!matchesInCode(read("plugins/native/goals/src/manifest.ts"), /databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*(?:,\s*home:\s*GOALS_HOME_DATABASE\s*)?\}/u)) {
     errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE, and its Home library as databases.home)");
   }
 
@@ -508,15 +508,15 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
 
   const planningTest = read("tests/planning-engine.test.ts");
-  if (!planningTest.includes('from "./fixtures/goals-modules.js"')) {
+  if (!hasImportFrom(planningTest, "./fixtures/goals-modules.js")) {
     errors.push("tests/planning-engine.test.ts: Planning behavior must be tested through the Goals public API");
   }
 
   const queryTest = read("tests/goals-query-module.test.ts");
   if (
-    !queryTest.includes('from "./fixtures/goals-modules.js"')
-    || !queryTest.includes("goals.query.readGoal")
-    || !queryTest.includes("goals.query.snapshot")
+    !hasImportFrom(queryTest, "./fixtures/goals-modules.js")
+    || !hasInCode(queryTest, "goals.query.readGoal")
+    || !hasInCode(queryTest, "goals.query.snapshot")
   ) {
     errors.push("tests/goals-query-module.test.ts: Goal facts and parity must be tested through the public Query API");
   }
@@ -524,8 +524,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const goalReadApplicationPath = "plugins/native/goals/src/goal-query-application.ts";
   const goalReadApplication = read(goalReadApplicationPath);
   if (
-    !goalReadApplication.includes("GoalsQueryApi")
-    || !goalReadApplication.includes("this.goals.readGoal")
+    !hasInCode(goalReadApplication, "GoalsQueryApi")
+    || !hasInCode(goalReadApplication, "this.goals.readGoal")
   ) {
     errors.push(`${goalReadApplicationPath}: Goal-owned facts must come from the public Goals Query API`);
   }
@@ -627,7 +627,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   return { errors };
 }
 
-function checkMigratedGovernanceOwnership(repositoryRoot) {
+export function checkMigratedGovernanceOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
@@ -667,7 +667,7 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     "GovernanceEventDecisionApi",
     "GovernanceApplicationApi",
   ]) {
-    if (!contract.includes(`interface ${publicApi}`)) {
+    if (!hasInCode(contract, `interface ${publicApi}`)) {
       errors.push(`${contractPath}: missing public ${publicApi}`);
     }
   }
@@ -689,14 +689,14 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
 
   const testPath = "tests/governance-collaboration-module.test.ts";
   const test = read(testPath);
-  for (const requiredBehavior of [
-    "authority_source",
-    "conversation_ref",
-    "materializeAtomically",
-    "assert.throws",
-    "runtime_dialogue",
+  for (const [requiredBehavior, has] of [
+    ["authority_source", hasInCode],
+    ["conversation_ref", hasInCode],
+    ["materializeAtomically", hasInCode],
+    ["assert.throws", hasInCode],
+    ["runtime_dialogue", hasInText],
   ]) {
-    if (!test.includes(requiredBehavior)) {
+    if (!has(test, requiredBehavior)) {
       errors.push(`${testPath}: missing EX3 coverage for ${requiredBehavior}`);
     }
   }
@@ -802,26 +802,26 @@ function checkExecutionValidationOwnership(repositoryRoot) {
   return { errors };
 }
 
-function checkArtifactsOwnership(repositoryRoot) {
+export function checkArtifactsOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const contractPath = "packages/contracts/src/modules/artifacts.ts";
   const contract = read(contractPath);
-  for (const required of [
-    'maturity: "partial"',
-    "ArtifactReference",
-    "ArtifactVersionRecord",
-    "RegisterArtifactVersionInput",
-    "ArtifactsApplicationApi",
-    "team_share_authorized",
+  for (const [required, has] of [
+    ['maturity: "partial"', hasInText],
+    ["ArtifactReference", hasInCode],
+    ["ArtifactVersionRecord", hasInCode],
+    ["RegisterArtifactVersionInput", hasInCode],
+    ["ArtifactsApplicationApi", hasInCode],
+    ["team_share_authorized", hasInCode],
   ]) {
-    if (!contract.includes(required)) {
+    if (!has(contract, required)) {
       errors.push(`${contractPath}: AR1 public Contract is missing ${required}`);
     }
   }
 
   const entryPath = "modules/artifacts/src/index.ts";
-  if (!read(entryPath).includes("class ArtifactsModule")) {
+  if (!hasInCode(read(entryPath), "class ArtifactsModule")) {
     errors.push(`${entryPath}: AR1 public Module entrypoint is missing class ArtifactsModule`);
   }
   const artifactsPackage = WORKSPACE_PACKAGES.find((item) => item.path === "modules/artifacts");
@@ -835,17 +835,17 @@ function checkArtifactsOwnership(repositoryRoot) {
   }
 
   const repository = read("modules/artifacts/src/repository.ts");
-  for (const required of [
+  for (const [required, has] of [
     // One engine, two stores: the 成果库 and the process items plugins hand to each other (artifact-positioning A2).
-    "export const ARTIFACT_TABLES",
-    "export const PROCESS_ITEM_TABLES",
-    "CREATE TABLE IF NOT EXISTS ${t.identities}",
-    "CREATE TABLE IF NOT EXISTS ${t.versions}",
-    "PRIMARY KEY (artifact_id, version)",
-    "producer_binding_signature",
-    "content_digest",
+    ["export const ARTIFACT_TABLES", hasInCode],
+    ["export const PROCESS_ITEM_TABLES", hasInCode],
+    ["CREATE TABLE IF NOT EXISTS ${t.identities}", hasInText],
+    ["CREATE TABLE IF NOT EXISTS ${t.versions}", hasInText],
+    ["PRIMARY KEY (artifact_id, version)", hasInText],
+    ["producer_binding_signature", hasInCode],
+    ["content_digest", hasInCode],
   ]) {
-    if (!repository.includes(required)) {
+    if (!has(repository, required)) {
       errors.push(`modules/artifacts/src/repository.ts: Artifact Repository is missing ${required}`);
     }
   }
@@ -860,7 +860,7 @@ function checkArtifactsOwnership(repositoryRoot) {
     "artifacts.artifact.team_share_not_authorized",
     '"consumer_missing"',
   ]) {
-    if (!service.includes(required)) {
+    if (!hasInText(service, required)) {
       errors.push(`modules/artifacts/src/{service,registration}.ts: Artifact lifecycle is missing ${required}`);
     }
   }
@@ -878,7 +878,7 @@ function checkArtifactsOwnership(repositoryRoot) {
     errors.push("apps/local-host/src/web-request.ts: Goal read projection and cache must remain outside HTTP routing");
   }
   const artifactHttp = read("apps/local-host/src/artifact-native-plugin-http.ts");
-  if (!artifactHttp.includes("createLocalArtifactHttp") || artifactHttp.includes("@molis-ai/molis-work-app-desktop")) {
+  if (!hasInCode(artifactHttp, "createLocalArtifactHttp") || artifactHttp.includes("@molis-ai/molis-work-app-desktop")) {
     errors.push("Artifact HTTP composition must receive Desktop bootstrap through its Host factory");
   }
 
@@ -892,12 +892,12 @@ function checkArtifactsOwnership(repositoryRoot) {
   }
 
   const projectSchema = read("apps/local-host/src/project-database-schema.ts");
-  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE") || !projectSchema.includes("ARTIFACTS_SCHEMA_SQL") || !projectSchema.includes("PROCESS_ITEMS_SCHEMA_SQL")) {
+  if (!hasInCode(read("apps/local-host/src/project-database.ts"), "PROJECT_DATABASE_BASELINE") || !hasInCode(projectSchema, "ARTIFACTS_SCHEMA_SQL") || !hasInCode(projectSchema, "PROCESS_ITEMS_SCHEMA_SQL")) {
     errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the Artifact owner schema");
   }
   // D3: the project's runtime opens the one pair of version stores (the Artifacts module's `projectVersionStores`, RAC-410), and no other host file opens a second.
   const versionStores = read("apps/local-host/src/project-version-stores.ts");
-  if (!versionStores.includes("projectVersionStores") || !versionStores.includes("readonly artifacts: ArtifactsApplicationApi")) {
+  if (!hasInCode(versionStores, "projectVersionStores") || !hasInCode(versionStores, "readonly artifacts: ArtifactsApplicationApi")) {
     errors.push("apps/local-host/src/project-version-stores.ts: the project's version stores must expose the public Artifacts API");
   }
   const directArtifactSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(artifacts|artifact_versions)\b/giu;
@@ -919,7 +919,7 @@ function checkArtifactsOwnership(repositoryRoot) {
     "consumer_missing",
     "artifact_unavailable",
   ]) {
-    if (!test.includes(required)) {
+    if (!hasInText(test, required)) {
       errors.push(`${testPath}: missing AR1 coverage for ${required}`);
     }
   }
@@ -955,17 +955,17 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   }
 
   const contract = read("packages/contracts/src/modules/private-work-context.ts");
-  for (const required of [
-    'maturity: "partial"',
-    "RuntimeContextBindingRecord",
+  for (const [required, has] of [
+    ['maturity: "partial"', hasInText],
+    ["RuntimeContextBindingRecord", hasInCode],
   ]) {
-    if (!contract.includes(required)) {
+    if (!has(contract, required)) {
       errors.push(`packages/contracts/src/modules/private-work-context.ts: missing ${required}`);
     }
   }
 
   const entry = read("modules/private-work-context/src/index.ts");
-  if (!entry.includes("createRuntimeContextModule")) {
+  if (!hasInCode(entry, "createRuntimeContextModule")) {
     errors.push("modules/private-work-context/src/index.ts: missing createRuntimeContextModule");
   }
   const privateWorkContextPackage = WORKSPACE_PACKAGES.find((item) => item.path === "modules/private-work-context");
@@ -990,7 +990,7 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   }
 
   const catalog = read("apps/local-host/src/project-catalog.ts");
-  if (!catalog.includes("createRuntimeContextModule")) {
+  if (!hasInCode(catalog, "createRuntimeContextModule")) {
     errors.push("apps/local-host/src/project-catalog.ts: Runtime binding composition must use the Private Work Context public entrypoint");
   }
   if (catalog.includes("RuntimeContextBindingRepository")) {
@@ -1010,7 +1010,7 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   return { errors };
 }
 
-function checkRuntimeHostOwnership(repositoryRoot) {
+export function checkRuntimeHostOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const ownerFiles = [
@@ -1028,19 +1028,19 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   if (errors.length > 0) return { errors };
 
   const contract = read("packages/contracts/src/services/runtime-host.ts");
-  for (const required of [
-    'maturity: "partial"',
-    "PtySpawnRequest",
-    "PtySpawnResult",
-    "PtyHostHandlers",
+  for (const [required, has] of [
+    ['maturity: "partial"', hasInText],
+    ["PtySpawnRequest", hasInCode],
+    ["PtySpawnResult", hasInCode],
+    ["PtyHostHandlers", hasInCode],
   ]) {
-    if (!contract.includes(required)) {
+    if (!has(contract, required)) {
       errors.push(`packages/contracts/src/services/runtime-host.ts: missing ${required}`);
     }
   }
 
   const entry = read("horizontal/runtime-host/src/index.ts");
-  if (!entry.includes("MolisWorkPtyHost")) {
+  if (!hasInCode(entry, "MolisWorkPtyHost")) {
     errors.push("horizontal/runtime-host/src/index.ts: missing MolisWorkPtyHost");
   }
   const runtimeHostPackage = WORKSPACE_PACKAGES.find((item) => item.path === "horizontal/runtime-host");
@@ -1071,10 +1071,10 @@ function checkRuntimeHostOwnership(repositoryRoot) {
       errors.push(`${retired}: retired after WK3 caller cutover; use the public owner entrypoint`);
     }
   }
-  if (!read("apps/local-host/src/web-request.ts").includes('from "@molis-ai/molis-work-service-runtime-host"')) {
+  if (!hasImportFrom(read("apps/local-host/src/web-request.ts"), "@molis-ai/molis-work-service-runtime-host")) {
     errors.push("apps/local-host/src/web-request.ts: Runtime composition must consume the public Runtime Host entrypoint");
   }
-  if (!read("apps/local-host/src/pty-socket.ts").includes('from "@molis-ai/molis-work-service-runtime-host"')) {
+  if (!hasImportFrom(read("apps/local-host/src/pty-socket.ts"), "@molis-ai/molis-work-service-runtime-host")) {
     errors.push("apps/local-host/src/pty-socket.ts: PTY socket must consume the public Runtime Host entrypoint");
   }
 
@@ -1252,14 +1252,14 @@ const LITERAL_TEXT_KINDS = new Set([
   ts.SyntaxKind.TemplateMiddle,
   ts.SyntaxKind.TemplateTail,
 ]);
+const REGULAR_EXPRESSION_KINDS = new Set([ts.SyntaxKind.RegularExpressionLiteral]);
 
 /**
- * The source with every comment, and every string, regular expression and piece of template text, blanked to spaces (offsets and line
- * breaks kept), so a comment or a quoted text that names the wiring does not count as it. A literal is blanked whole: its quotes or
- * backticks, a regular expression's slashes and flags, and the `${` and `}` around a template's pieces go with it. The code inside a
- * template's `${ … }` is code and stays.
+ * The source with every comment, and every token in `kinds`, blanked to spaces (offsets and line breaks kept). A literal is blanked
+ * whole: its quotes or backticks, a regular expression's slashes and flags, and the `${` and `}` around a template's pieces go with it.
+ * The code inside a template's `${ … }` is code and stays.
  */
-function withoutCommentsAndLiterals(source) {
+function blankedSource(source, kinds) {
   const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
   // TypeScript's offsets count UTF-16 code units, which is what split("") gives.
   const text = source.split("");
@@ -1271,12 +1271,45 @@ function withoutCommentsAndLiterals(source) {
       if (child.kind < ts.SyntaxKind.FirstNode || child.kind === ts.SyntaxKind.EndOfFileToken) {
         for (const range of ts.getLeadingCommentRanges(source, child.getFullStart()) ?? []) blank(range);
         for (const range of ts.getTrailingCommentRanges(source, child.getEnd()) ?? []) blank(range);
-        if (LITERAL_TEXT_KINDS.has(child.kind)) blank({ pos: child.getStart(file), end: child.getEnd() });
+        if (kinds.has(child.kind)) blank({ pos: child.getStart(file), end: child.getEnd() });
       } else visit(child);
     }
   };
   visit(file);
   return text.join("");
+}
+
+/** The source's code: every comment, and every string, regular expression and piece of template text, blanked, so a comment or a quoted text that names the wiring does not count as it. */
+function withoutCommentsAndLiterals(source) {
+  return blankedSource(source, LITERAL_TEXT_KINDS);
+}
+
+/** The source's code and its quoted text: only comments and regular expressions blanked, so what is left is what the file really says. */
+function withoutCommentsAndRegexes(source) {
+  return blankedSource(source, REGULAR_EXPRESSION_KINDS);
+}
+
+/**
+ * The three ways a "must contain" check reads a file's text. Each is the old plain `source.includes(…)` (or `regex.test(…)`) AND the same
+ * look at a blanked copy, so what was refused before is still refused and only what a comment, a string or a regular expression stood in
+ * for is refused now.
+ * - `hasInCode`: for a name or a piece of syntax (`class X`, `this.f(`, an identifier). It must be in the code: not in a comment, a
+ *   string, a regular expression or template text.
+ * - `hasInText`: for text that is the content, an error code, a test title, SQL in a template, `maturity: "partial"`. It must be in the
+ *   file's code or in a string or template, not in a comment or a regular expression.
+ * - `hasImportFrom`: `from "<specifier>"` must close a real `import` or `export … from` statement, written with double quotes.
+ * Not checked by any of them: that the text sits where it is used. A name that is declared and never used, or a string nobody reads,
+ * satisfies its check; aliases and renamed imports are not followed.
+ */
+export const hasInCode = (source, needle) => source.includes(needle) && withoutCommentsAndLiterals(source).includes(needle);
+export const hasInText = (source, needle) => source.includes(needle) && withoutCommentsAndRegexes(source).includes(needle);
+export const matchesInCode = (source, pattern) => pattern.test(source) && pattern.test(withoutCommentsAndLiterals(source));
+export function hasImportFrom(source, specifier) {
+  const ending = `from "${specifier}"`;
+  if (!source.includes(ending)) return false;
+  const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
+  return file.statements.some(statement => (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
+    && statement.moduleSpecifier !== undefined && statement.getText(file).replace(/;$/u, "").endsWith(ending));
 }
 
 function unwrapped(node) {

@@ -5,6 +5,7 @@ import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
+import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
 import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -89,17 +90,9 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
 async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   const failures: unknown[] = [];
   await platform.closeCoordination();
-  for (const pluginId of platform.supervisor.enabledPluginIds()) {
-    const active = platform.supervisor.state(pluginId);
-    // Closing the project is not switching the plugin off: stopped first with its record kept enabled, then revoked (the
-    // supervisor's own revoke would stop it as disabled), as the Home supervisor does. So the next start runs it, and only a
-    // plugin list keeps a project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
-    if (active?.status === "running" && active.install_id) {
-      // The read is inside the try: a record the Runtime cannot give is one failure of this close, not the end of the loop.
-      try { if (platform.runtime.get(active.install_id).state === "running") await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
-    }
-    platform.supervisor.revoke(pluginId);
-  }
+  // Closing the project is not switching the plugin off (see closePlugin): the next start runs it, and only a plugin list keeps a
+  // project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
+  for (const pluginId of platform.supervisor.enabledPluginIds()) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
   if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
 }
 

@@ -477,3 +477,14 @@ test("RAC-1657: a link's name is counted in Unicode characters, as todo.items.li
   assert.deepEqual(linked.links.map(link => link.title), [wide(200)], "link keeps a 200-character name");
   await assert.rejects(f.me.invoke(actions.link, { id: item.id, add: { kind: "material", subject: { kind: "page", id: "doc-2" }, title: wide(201) } }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
 });
+
+test("RAC-1679: the Assistant's reminder query names a reminder by its whole title, never half a character", async t => {
+  // A todo's title is at most 200 characters (RAC-1655) and DUE_REMINDER_SCHEMA allows 300; "a" and 199 🟢 are 200 characters but 399
+  // UTF-16 units, so unit 300 is the first half of the 150th 🟢.
+  const f = fixture(t);
+  const at = (hours: number) => new Date(Date.UTC(2026, 8, 28, hours)).toISOString();
+  const title = "a" + "🟢".repeat(199);
+  await f.me.invoke(actions.create, { title, remind_at: at(2) });
+  const { reminders } = await f.me.invoke(actions.dueWindow, { from: at(1), to: at(3) });
+  assert.deepEqual(reminders.map(reminder => reminder.title), [title], "a 200-character title is named whole");
+});

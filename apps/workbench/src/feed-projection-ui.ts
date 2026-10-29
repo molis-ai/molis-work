@@ -22,27 +22,71 @@ import type { MolisWorkWebView } from "./page-view.js";
 
 export type FeedSupplementalEntry = FeedUiEntry;
 
-export function createWorkbenchFeedProjectionRenderer(primitives: {
+/** The page's translation and date locale, which every Feed model and render reads. */
+type FeedText = {
   L(text: string, values?: Record<string, string | number>): string;
   dateTimeLocale(): string;
-}) {
-  const { L, dateTimeLocale } = primitives;
-function buildFeedNativePluginModel(
+};
+
+export function createWorkbenchFeedProjectionRenderer(text: FeedText) {
+  const ui = feedUiPrimitivesFor(text);
+  const buildFeedNativePluginModel = (
+    view: MolisWorkWebView,
+    preset: FeedItemType,
+    supplementalEntries: readonly FeedSupplementalEntry[] = [],
+    active = false,
+  ): FeedUiModel => buildFeedModel(text, ui, view, preset, supplementalEntries, active);
+
+  function renderFeedNativePluginSurface(
+    view: MolisWorkWebView,
+    surface: "directory" | "workbench" | "workbench-fragment" | "source-directory" | "source-workbench" | "overlays",
+    preset: FeedItemType,
+    supplementalEntries: readonly FeedSupplementalEntry[] = [],
+    active = false,
+  ): string {
+    return renderFeedContribution(
+      surface,
+      buildFeedModel(text, ui, view, preset, supplementalEntries, active),
+    );
+  }
+
+  function renderFeedNativePluginPersistedDetail(
+    item: FeedItemRecord,
+    routePrefix = "",
+    options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
+  ): string {
+    const model: PersistedFeedDetailModel = {
+      route_prefix: routePrefix,
+      entry_id: options.entryId ?? item.item_id,
+      item: itemModel(item),
+      inbox_entry: options.inboxEntry ?? null,
+      inbox_active: options.inboxActive ?? false, promote_available: options.promoteAvailable,
+      primitives: ui,
+    };
+    return renderFeedContribution(options.surface === "frame-block" ? "frame-block" : "persisted-detail", model);
+  }
+
+  return { buildFeedNativePluginModel, renderFeedNativePluginSurface, renderFeedNativePluginPersistedDetail };
+}
+
+function buildFeedModel(
+  text: FeedText,
+  ui: FeedUiPrimitives,
   view: MolisWorkWebView,
   preset: FeedItemType,
   supplementalEntries: readonly FeedSupplementalEntry[] = [],
   active = false,
 ): FeedUiModel {
-  const sources = view.feed.sources.map((source) => sourceModel(source, view));
+  const sources = view.feed.sources.map((source) => sourceModel(source, view, text.L, ui));
   return {
     route_prefix: view.route_prefix,
     preset,
-    entries: [...feedEntries(view), ...supplementalEntries],
+    entries: [...feedEntries(view, text.L), ...supplementalEntries],
     sources,
     source_catalog: (view.feed_source_catalog ?? []).map((source) => ({
       id: source.id,
       name: source.name,
-      category_label: L(source.category_label),
+      category_label: text.L(source.category_label),
     })),
     connector_auth: {
       github: view.feed_connector_auth?.github ?? { bound: false },
@@ -58,41 +102,12 @@ function buildFeedNativePluginModel(
       source_kind: rule.match.source_kind ?? null,
       judgment: rule.judgment,
     })),
-    primitives: feedUiPrimitives,
+    primitives: ui,
     active,
   };
 }
 
-function renderFeedNativePluginSurface(
-  view: MolisWorkWebView,
-  surface: "directory" | "workbench" | "workbench-fragment" | "source-directory" | "source-workbench" | "overlays",
-  preset: FeedItemType,
-  supplementalEntries: readonly FeedSupplementalEntry[] = [],
-  active = false,
-): string {
-  return renderFeedContribution(
-    surface,
-    buildFeedNativePluginModel(view, preset, supplementalEntries, active),
-  );
-}
-
-function renderFeedNativePluginPersistedDetail(
-  item: FeedItemRecord,
-  routePrefix = "",
-  options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
-): string {
-  const model: PersistedFeedDetailModel = {
-    route_prefix: routePrefix,
-    entry_id: options.entryId ?? item.item_id,
-    item: itemModel(item),
-    inbox_entry: options.inboxEntry ?? null,
-    inbox_active: options.inboxActive ?? false, promote_available: options.promoteAvailable,
-    primitives: feedUiPrimitives,
-  };
-  return renderFeedContribution(options.surface === "frame-block" ? "frame-block" : "persisted-detail", model);
-}
-
-function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
+function feedEntries(view: MolisWorkWebView, L: FeedText["L"]): FeedUiEntry[] {
   return [
     ...view.feed.feed_items.map((item): FeedUiEntry => ({
       entry_id: item.item_id,
@@ -146,7 +161,7 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
   };
 }
 
-function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSource {
+function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView, L: FeedText["L"], ui: FeedUiPrimitives): FeedUiSource {
   const runs = view.feed.runs.filter((run) => run.source_id === source.source_id);
   const uiKind = source.kind === "research_library" ? "other" : source.sync_kind === "github"
     ? "github"
@@ -197,14 +212,14 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     ui_kind: uiKind,
     type_label: source.kind === "research_library" ? L("共享研究库") : uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : L("其他来源"),
     status_kind: statusKind,
-    status_label: running ? L("正在拉取") : sourceStatusLabel(source.status),
-    last_fetch_label: source.last_sync_at ? feedUiPrimitives.formatDate(source.last_sync_at) : L("尚未拉取"),
+    status_label: running ? L("正在拉取") : sourceStatusLabel(source.status, L),
+    last_fetch_label: source.last_sync_at ? ui.formatDate(source.last_sync_at) : L("尚未拉取"),
     next_fetch_label: !source.enabled || source.status === "paused"
       ? L("已暂停")
       : typeof retryAfterAt === "string" && Number.isFinite(Date.parse(retryAfterAt))
-        ? L("限流后 {time} 可重试", { time: feedUiPrimitives.formatDate(retryAfterAt) })
+        ? L("限流后 {time} 可重试", { time: ui.formatDate(retryAfterAt) })
         : source.schedule.mode === "interval" && source.schedule.enabled && source.schedule.next_pull_at
-          ? feedUiPrimitives.formatDate(source.schedule.next_pull_at)
+          ? ui.formatDate(source.schedule.next_pull_at)
           : L("等待手动拉取"),
     schedule_label: source.schedule.mode === "manual"
       ? L("仅手动拉取")
@@ -230,7 +245,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
   };
 }
 
-function sourceStatusLabel(status: FeedSourceRecord["status"]): string {
+function sourceStatusLabel(status: FeedSourceRecord["status"], L: FeedText["L"]): string {
   return ({ active: L("已连接"), paused: L("已暂停"), error: L("需处理"), disconnected: L("未连接") } as const)[status];
 }
 
@@ -242,34 +257,32 @@ function provider(item: FeedItemRecord): FeedUiEntry["provider"] {
   return "other";
 }
 
-const feedUiPrimitives: FeedUiPrimitives = {
-  escape: escapeHtml,
-  icon,
-  text: L,
-  formatDate(value) {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat(dateTimeLocale(), {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-  },
-  richText: renderRichText,
-  plainText: richPlainText,
-  safeExternalHref(value) {
-    if (!value) return null;
-    try {
-      const parsed = new URL(value);
-      return parsed.protocol === "http:" || parsed.protocol === "https:" ? value : null;
-    } catch {
-      return null;
-    }
-  },
-};
-
-
-  return { buildFeedNativePluginModel, renderFeedNativePluginSurface, renderFeedNativePluginPersistedDetail };
+function feedUiPrimitivesFor({ L, dateTimeLocale }: FeedText): FeedUiPrimitives {
+  return {
+    escape: escapeHtml,
+    icon,
+    text: L,
+    formatDate(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat(dateTimeLocale(), {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    },
+    richText: renderRichText,
+    plainText: richPlainText,
+    safeExternalHref(value) {
+      if (!value) return null;
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:" ? value : null;
+      } catch {
+        return null;
+      }
+    },
+  };
 }

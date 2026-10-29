@@ -159,7 +159,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 门禁由两层组成：
 
 - `packages/test-kit` 的根入口提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。子路径 `/browser` 是与业务无关的无头 Chrome 驱动（找 Chrome、启动与关闭、DevTools 命令、页内等待与点击），只用 Node 内置的 `WebSocket` 与 `node:child_process` 等内置模块；产品选择器与产品诊断留在 `tests/fixtures/`（`goal-browser.ts`、`plugin-builder-browser.ts`），在它之上加。子路径 `/local-host-http` 是访问本机 Host HTTP 管理接口的客户端（闸门要的请求头、被拒绝的状态与代码，授权、撤权、建项目、装插件，一组授权按声明的依赖排序），只用 Node 内置的 `fetch` 与 `node:crypto`，类型只来自合同包的 `platform/actions`；宿主装配（`serveTestHost`、`openTestHome`）留在 `tests/fixtures/test-home.ts`，在它之上加。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死；`unusedLayerExceptions` 找出名单里没有被用到的边。
-- `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。它记下每个 import 和 manifest 依赖实际有的边，名单里列了而仓库里没有任何 import 或依赖用到的边会报 `layer-exception-unused`：一条已经不存在的边不会留在名单里等着悄悄回来。
+- `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。它记下每个 import 和 manifest 依赖实际有的边，名单里列了而仓库里没有任何 import 或依赖用到的边会报 `layer-exception-unused`：一条已经不存在的边不会留在名单里等着悄悄回来。 它里面「某个文件必须包含某段文字」的检查（Goals、Governance、Artifacts、Private Work Context、Runtime Host 几段，写法见脚本里 `hasInCode`、`hasInText`、`hasImportFrom` 的说明）先去掉注释再判断：名称与语法写法还要去掉字符串、正则和模板文字，错误码、测试标题、SQL 这类本身就是文字的只去掉注释和正则，`from "…"` 必须是一条真的 import 语句；一段注释或字符串不再能顶替代码。这些检查不看那段文字是不是用在该用的位置，也不跟别名。回归：`tests/package-boundary-must-contain.test.mjs`。
 
 结构数字另由 `pnpm health:check` 对照 merge-base 只许减少（模块在 `scripts/gates/`，测试 `tests/health-gates-structure.test.ts`，规则与取数口径见各模块文件头）：
 

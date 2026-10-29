@@ -16,6 +16,9 @@ const withRegistry = registry => {
   return { ...wiring, host: wiring.host.replace(current, registry) };
 };
 
+// The one problem a missing wiring line gives. The text is the gate's: if it changes, change it here too.
+const missing = (owner, needle) => `${owner} no longer has \`${needle}\` in its code (a comment, a string, a regular expression or template text does not count)`;
+
 test("RAC-1710 the Feed's Listener wiring on the tree as it is has no problem", () => {
   assert.deepEqual(feedListenerWiringProblems(wiring), []);
 });
@@ -41,6 +44,12 @@ test("RAC-1708 the registry is the Home's: directly, or as the fallback after a 
     // Codex @c2793bc73 P2: the whole fallback in parentheses is still the current form.
     "registry: (options.integrations ?? (() => homeIntegrationRegistry(home)))",
     "registry: ((options.integrations) ?? ((() => homeIntegrationRegistry(home))))",
+    // T-215: the left of `??` is not read at all (T-125 ruling 3: a test may inject any registry there), whatever it is.
+    "registry: fixtureRegistry ?? (() => homeIntegrationRegistry(home))",
+    "registry: createFixtureRegistry() ?? (() => homeIntegrationRegistry(home))",
+    "registry: \"not a registry\" ?? (() => homeIntegrationRegistry(home))",
+    "registry: undefined ?? (() => homeIntegrationRegistry(home))",
+    "registry: first ?? second ?? (() => homeIntegrationRegistry(home))",
   ]) {
     assert.deepEqual(feedListenerWiringProblems(withRegistry(registry)), [], registry);
   }
@@ -61,6 +70,13 @@ test("RAC-1708 the registry is the Home's: directly, or as the fallback after a 
     // Codex @a44d67a2 P1: a computed name can be `registry` again; its name is not read, so it is refused, static or not.
     "registry: () => homeIntegrationRegistry(home),\n      [optionName]: fixtureRegistry",
     "registry: () => homeIntegrationRegistry(home), [\"registry\"]: fixtureRegistry",
+    // T-215: a quoted text, a template or a regular expression that spells the thunk is not the thunk, alone or after `??`.
+    "registry: \"() => homeIntegrationRegistry(home)\"",
+    "registry: '() => homeIntegrationRegistry(home)'",
+    "registry: `() => homeIntegrationRegistry(home)`",
+    "registry: /() => homeIntegrationRegistry(home)/",
+    "registry: fixtureRegistry ?? \"() => homeIntegrationRegistry(home)\"",
+    "registry: fixtureRegistry ?? `() => homeIntegrationRegistry(home)`",
   ]) {
     assert.equal(feedListenerWiringProblems(withRegistry(registry)).length, 1, registry);
   }
@@ -73,6 +89,15 @@ const unrelated = { connector: createConnectorSourcePort({registry: () => homeIn
 `,
   };
   assert.deepEqual(feedListenerWiringProblems(decoy), ["the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`"], "a valid port elsewhere is not the wiring site");
+  // T-215: a string, a template or a comment that spells a valid port is not the wiring site either: the Host file is read as syntax.
+  for (const spelled of [
+    "const unrelated = \"connector: createConnectorSourcePort({registry: () => homeIntegrationRegistry(home)})\";",
+    "const unrelated = `connector: createConnectorSourcePort({registry: () => homeIntegrationRegistry(home)})`;",
+    "// connector: createConnectorSourcePort({registry: () => homeIntegrationRegistry(home)})",
+  ]) {
+    const quoted = { ...wiring, host: `${wiring.host.replace("connector: createConnectorSourcePort(", "connector: otherPort(")}\n${spelled}\n` };
+    assert.deepEqual(feedListenerWiringProblems(quoted), ["the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`"], spelled);
+  }
   const portSpread = { ...wiring, host: wiring.host.replace("    plan: request =>", "    ...overrides,\n    plan: request =>") };
   assert.notEqual(portSpread.host, wiring.host);
   assert.deepEqual(feedListenerWiringProblems(portSpread), ["the source-pull port `createSourcePullPort` returns has a spread or a computed name, which could replace its `connector`"], "a spread in the port object");
@@ -101,7 +126,51 @@ test("RAC-1709 the Feed's three wiring lines count only as code: each one kept o
     assert.ok(wiring[key].includes(needle), `${key} still has ${needle}; update the test with it`);
     for (const comment of [`// ${needle}`, `/* ${needle} */`, `/**\n * ${needle}\n */`]) {
       const source = `${comment}\n${wiring[key].replaceAll(needle, stand)}`;
-      assert.deepEqual(feedListenerWiringProblems({ ...wiring, [key]: source }), [`${owner} no longer has \`${needle}\` outside a comment`], `${key} ${comment}`);
+      assert.deepEqual(feedListenerWiringProblems({ ...wiring, [key]: source }), [missing(owner, needle)], `${key} ${comment}`);
+    }
+  }
+});
+
+const lines = [
+  ["service", "this.ports.createListener", "this.ports.openListener", "the Feed service", "this.ports.createListener(source)"],
+  ["runtime", "services.connector.open(", "services.connector.start(", "the Runtime Feed", "services.connector.open(slot)"],
+  ["plugin", "connector = sourcePull?.connector", "connector = sourcePull?.other", "the Feed plugin", "connector = sourcePull?.connector"],
+];
+
+test("RAC-2125 the Feed's three wiring lines count only as code: each one kept only in a string, a regular expression or a template's text is a problem", () => {
+  for (const [key, needle, stand, owner] of lines) {
+    assert.ok(wiring[key].includes(needle), `${key} still has ${needle}; update the test with it`);
+    for (const standIn of [
+      "const note = \"NEEDLE\";",
+      "const note = 'NEEDLE';",
+      "const note = `NEEDLE`;",
+      "const note = `NEEDLE ${1}`;",
+      "const note = `${1} NEEDLE ${2}`;",
+      "const note = `${1} NEEDLE`;",
+      "const note = { \"NEEDLE\": 1 };",
+      "type Note = \"NEEDLE\";",
+      "const note = /NEEDLE/u;",
+    ]) {
+      const source = `${standIn.replaceAll("NEEDLE", needle)}\n${wiring[key].replaceAll(needle, stand)}`;
+      assert.deepEqual(feedListenerWiringProblems({ ...wiring, [key]: source }), [missing(owner, needle)], `${key} ${standIn}`);
+    }
+  }
+});
+
+test("RAC-2126 code beside a literal still counts: the line inside a template's ${ … }, or after a string that holds comment marks, quotes or a backtick, is found", () => {
+  for (const [key, needle, stand, , use] of lines) {
+    assert.ok(wiring[key].includes(needle), `${key} still has ${needle}; update the test with it`);
+    for (const beside of [
+      "const used = `a ${USE} b`;",
+      "const used = `${USE}`;",
+      "const used = `a ${ `b ${USE} c` } d`;",
+      "const marks = \"// /* ' `\"; const used = USE;",
+      "const marks = '// /* \" `'; const used = USE;",
+      "const marks = `// /* ' \" ${1} // /*`; const used = USE;",
+      "const marks = /\"/; const used = USE;",
+    ]) {
+      const source = `${beside.replaceAll("USE", use)}\n${wiring[key].replaceAll(needle, stand)}`;
+      assert.deepEqual(feedListenerWiringProblems({ ...wiring, [key]: source }), [], `${key} ${beside}`);
     }
   }
 });

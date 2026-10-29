@@ -4,8 +4,8 @@ import { ARTIFACTS_PLUGIN_ID, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_
 /** The Artifacts snippets share this script's scope and say their words with `L`; here `L` is the page's, so they say them with `AL`, Artifacts' own words (none of them has a name that ends in `L` before a parenthesis). */
 const inArtifactsWords = (script: string): string => script.replaceAll("L(", "AL(");
 
-/** Workbench composes bundled project entries and exact Artifact contributions. The menus holding the market's update count
- * light their dot from `data-market-updates`: a style rule that looked inside them restyled each whole menu on every change. */
+/** Workbench composes bundled project entries and exact Artifact contributions. The switcher holding the market's update count
+ * lights its dot from `data-market-updates`: a style rule that looked inside it restyled the whole switcher on every change. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
@@ -18,8 +18,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const projectCheck = market.querySelector("[data-market-project-check]");
   const status = market.querySelector("[data-market-status]");
   const retry = market.querySelector("[data-market-retry]");
-  // The market entry lives in the bar's Dock menu (the rail's only on older shells); its count lights the menu's dot too.
-  const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]');
+  // The market entry is the button at the head of the switcher, in the bar's Dock menu; its count lights the switcher's dot too.
+  const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
   let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false, marketDirty = true, marketRevision = 0;
   // What a market card brings or takes, from the Host's own marks on the cards (W5-02 B1): the same data the Projects service applies.
@@ -35,7 +35,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
       updateCount.textContent = updates.length ? String(updates.length) : "";
-      updateCount.closest(".plugin-picker, .account-global-menu")?.toggleAttribute("data-market-updates", updates.length > 0);
+      updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);
     }
     if (marketLink) marketLink.setAttribute("aria-label", updates.length
       ? L("插件市场") + "，" + updates.length + L("个可用更新")

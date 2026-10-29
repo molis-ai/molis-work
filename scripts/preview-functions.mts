@@ -40,7 +40,8 @@ const escape = (value: unknown) => String(value ?? '').replaceAll('&','&amp;').r
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   if (url.pathname.startsWith('/api/')) {
-    let raw = ''; for await (const part of req) raw += part;
+    const chunks: Buffer[] = []; for await (const part of req) chunks.push(Buffer.from(part));
+    const raw = Buffer.concat(chunks).toString('utf8');
     try {
       const result = await routes.handle({ method: req.method as 'GET' | 'POST', pathname: url.pathname, query: url.searchParams, body: raw ? JSON.parse(raw) : {} });
       res.writeHead(result?.status ?? 404, { 'content-type':'application/json' }); res.end(JSON.stringify(result?.body ?? {}));

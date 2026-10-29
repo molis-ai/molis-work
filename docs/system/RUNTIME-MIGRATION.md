@@ -38,6 +38,8 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ### 2.1 26 个目录条目
 
+名字以 2026-10-18 为准，W4-11（#542）之后库来自 Manifest 的 `databases.home`。
+
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
 - `RUNTIME_ASSEMBLED`（13）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、pages、ppt、dataset、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 12。（CHR-1 已移出，2026-10-22：现在是 12，列表里没有 characters。）
@@ -54,7 +56,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 ### 2.2 18 个构建期插件的分类与放置
 
-范围（个人或项目）取自插件 `registration` 的 `personal`；数据位置取自 `packages/storage/src/home-sqlite.ts` 的 `PERSONAL_HOME_SQLITE_STORES`、`apps/local-host/src/project-database-schema.ts` 和各包。
+范围（个人或项目）取自插件 `registration` 的 `personal`；数据位置取自 Home 存储登记（`apps/local-host/src/home-stores.ts` 的 `homeStores()`）、`apps/local-host/src/project-database-schema.ts` 和各包。
 
 **批准的构建期例外（4）**（2026-10-18 改：已取消，见第 1 节与第 3 节开头）：Goals、Artifacts、Sessions（包 `plugins/native/work`）、插件创作台（`plugin-builder`），见第 3 节。
 
@@ -250,7 +252,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 - **删除项目的路径会变**：迁移不改变「项目已删」步骤清什么，但改变它怎么被调用（4.2 末项）。迁移之后第一次在真实 Home 上删项目会走新路径，所以每一族迁完，要在 Home 的拷贝上演练一次：删一个有各插件数据的项目，核对删除收据里每个插件一步，再逐库核对数据没了、别的项目的还在。
 - **Characters 的安装记录**：并进宿主时删掉各项目库里的 `io.molis.work.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。（CHR-1 没有做这一步，2026-10-22：它是 `docs/releases/CHECKLIST.md` 里的维护项。）
 - **项目库 v8**：L1b 让项目库升到 v8（`project_root`、插件的表进账本），有 v7 项目库的 Home 先做维护八（`docs/releases/CHECKLIST.md` 4.3），也不在迁移 PR 里做；脚本与演练是 `tests/fixtures/project-maintenance-v8.sql`、`tests/project-maintenance-v8.test.ts`。
-- 迁移完成后，`uninstall --purge` 列表（`PERSONAL_HOME_SQLITE_STORES`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。
+- 迁移完成后，`uninstall --purge` 列表（Home 存储登记 `homeStores()`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。
 
 ## 8. 门禁怎么随迁移收紧
 

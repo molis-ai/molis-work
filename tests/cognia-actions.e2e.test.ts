@@ -96,7 +96,8 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const requests: Array<{ path: string; key: unknown; body: Record<string, unknown> }> = [];
   const model = createServer(async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     // The Home's own background work (knowledge cards for the demo project's pieces) is answered aside: `requests` are Cognia's.
     const aside = asideReply(body);
     if (aside === undefined) requests.push({ path: req.url!, key: req.headers["x-api-key"], body: JSON.parse(body) });

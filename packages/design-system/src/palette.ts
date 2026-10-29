@@ -261,7 +261,7 @@ export function renderShapeTokens(): string {
  */
 export function renderPluginTintBindings(): string {
   const surfaces = [
-    ".plugin-rail [data-plugin-id]", ".assistant-island [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
+    ".plugin-rail [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
     "[data-market-plugin]", "[data-market-focus]", "[data-work-surface]", "[data-goal-canvas-shell]", ".tab-item[data-plugin]",
     "[data-settings-section=\"project-settings\"]",
   ];

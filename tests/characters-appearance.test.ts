@@ -47,8 +47,7 @@ test("Characters is not among the plugins", () => {
     escapeHtml: (value: unknown) => String(value),
     icon: (name: string) => `<svg data-icon="${name}"></svg>`,
   };
-  const island = `<div class="assistant-island" data-assistant-island><button data-plugin-id="lingguang"></button></div>`;
-  const html = renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"], island);
+  const html = renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"]);
   const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("</nav>"));
   // Backbone first, then this project's plugins in groups, and the toggle that opens them all.
   // Groups read as purposes (plugin-e2e-review §3.1): 推进 holds the backbone, 写与做 the things one makes, 研究 the research tools.
@@ -57,7 +56,8 @@ test("Characters is not among the plugins", () => {
   assert.match(items, /data-plugin-id="pages"[^>]*>[\s\S]*?<span>Pages<\/span><small class="plugin-rail-hint">[^<]+<\/small>/);
   // 角色 is a settings page (Settings › 角色), not a plugin to switch to.
   assert.doesNotMatch(items, /data-plugin-id="(market|plugin-builder|characters)"|data-work-surface-open="characters"|__SYSTEM_CAPABILITIES__/);
-  assert.match(html, /data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*plugin-rail-items/);
+  // RAC-1821: the rail writes no island slot of its own; the island lives in the bar.
+  assert.doesNotMatch(html, /assistant-island/, "the rail writes no island slot");
   assert.doesNotMatch(html, /plugin-rail-rule|navigation-labels-toggle/);
 
   const without = renderPluginRail(primitives, ["goals"]);

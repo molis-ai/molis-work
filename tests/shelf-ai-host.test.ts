@@ -32,7 +32,8 @@ async function fixture(run: (f: {
   let handler = async (_request: Request): Promise<string> => "# 摘要\n\n交付日期：周五。";
   const requests: Request[] = [];
   const server = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const request = JSON.parse(raw); requests.push(request);
     const text = await handler(request);
     if (res.destroyed) return;

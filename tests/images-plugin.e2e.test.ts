@@ -9,8 +9,8 @@ const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwM
 test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败后复用、窄屏", {timeout: 90_000}, async (t) => {
   let calls = 0;
   const provider = createServer(async (request, response) => {
-    let raw = "";
-    for await (const chunk of request) raw += chunk.toString();
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     calls++;
     assert.equal(request.url, "/v1/images/generations");
     const body = JSON.parse(raw);

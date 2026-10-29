@@ -15,7 +15,8 @@ async function heldModel(t: TestContext, home: string) {
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
   const sent: string[] = [];
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     assert.ok(isKnowledgeOrganize(body), "only the organizer sends a model request in this test");
     sent.push(JSON.parse(organizedCardFor(body)).title);
     if (sent.length === 1) {

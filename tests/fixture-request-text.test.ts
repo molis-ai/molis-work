@@ -4,7 +4,9 @@ import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { reviewAnswer } from "./fixtures/ending-review.js";
 import { imageRuntimeFixture } from "./fixtures/images-runtime.js";
+import { startModelStandIn } from "./fixtures/model-stand-in.js";
 import { modelRuntimeFixture } from "./fixtures/plugin-model-runtime.js";
 import { recordingTextModel, wireText } from "./fixtures/recording-text-model.js";
 
@@ -59,4 +61,22 @@ test("RAC-2134 the plugin model runtime fixture keeps a message whose four-byte 
   const reply = await postCut(`${f.base}/v1/chat/completions`, JSON.stringify({ model: "vision", messages: [{ role: "user", content }] }), "🐱");
   assert.equal(reply.status, 200, reply.text);
   assert.deepEqual(f.requests, [{ model: "vision", messages: [{ role: "user", content }] }]);
+});
+
+test("RAC-2175 the model stand-in fixture keeps a model name whose four-byte character arrives cut between two chunks", { timeout: 60_000 }, async t => {
+  const stand = await startModelStandIn("key-2175"), model = "模型🐱";
+  t.after(() => stand.close());
+  const reply = await postCut(`${stand.baseUrl}/chat/completions`, JSON.stringify({ model, messages: [{ role: "user", content: "你好" }] }), "🐱", { authorization: "Bearer key-2175" });
+  assert.equal(reply.status, 200, reply.text);
+  assert.deepEqual(stand.requests, [{ model, offeredKey: "key-2175" }]);
+});
+
+test("RAC-2176 the model stand-in fixture still answers an ending-review request aside when a character of its instruction arrives cut between two chunks", { timeout: 60_000 }, async t => {
+  const stand = await startModelStandIn("key-2176", "foreground reply");
+  t.after(() => stand.close());
+  const body = JSON.stringify({ model: "fixture", stream: false, messages: [{ role: "system", content: "在这一轮结束时对用户说的话" }, { role: "user", content: "好" }] });
+  const reply = await postCut(`${stand.baseUrl}/chat/completions`, body, "在这一轮", { authorization: "Bearer key-2176" });
+  assert.equal(reply.status, 200, reply.text);
+  assert.equal((JSON.parse(reply.text) as { choices: { message: { content: string } }[] }).choices[0]!.message.content, reviewAnswer([]));
+  assert.deepEqual(stand.requests, []);
 });

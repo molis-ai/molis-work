@@ -63,8 +63,8 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | W5-14 R-A2 | 五个 `board-*` 文件去掉前缀，README 和 docs 同步 | 1 | 丙 | 池 | 无 | GL:412 |
 | W5-14 R-A5/R-A6 | 剩余合同导出名（`JudgmentRuleAuthoringBehavior`、`AgentMethod*` 前五项）改名，`pnpm api:update` | 1 | 甲 | 设备 A | 与 PG-111 两本串行（同改 contracts） | GL:415–416 |
-| PG-094 ②、PG-060 | 工作台里 Goals 的别名、标签视图、「不可移除」（`tab-workspace` 一带）改读声明 | 1～2 | 乙 | A | 与 T-043 文件不相交；T-040 合入后 | priv:293 |
-| PG-060 最后一片 | 工作台不再从 Goals 包取样式、脚本、渲染、英文词典（约 20 个文件，数未核） | 2～3 | 乙 | A | 在上一行之后 | priv:293 |
+| PG-094 ②、PG-060 | 工作台里 Goals 的别名、标签视图（`tab-workspace` 一带）改读声明；「不可移除」已读 `always_on`，不再做 | 1～2 | 甲 | Claude A（并入 T-114） | 与 T-043 文件不相交；T-040 合入后；第一本只出【方案】（新合同字段，或表面 `goal` 改名 `goals`）；不锁 T-171 的 `immersive-shell.ts`、`plugin-workbench.ts` | priv:293 |
+| PG-060 最后一片 | 工作台不再从 Goals 包取样式、脚本、渲染、英文词典（约 20 个文件，数未核） | 2～3 | 甲 | Claude A（T-115） | 在上一行之后 | priv:293 |
 | PG-064 | `apps/workbench/src/page-view.ts:1-3` 对 Goals、Feed、Schedule 的类型 import 改走公开合同 | 1 | 乙 | 池 | 在上一行之后 | priv:246 |
 | PG-111 Feed | `feed.ts`、`signals.ts`、`sources.ts` 从 `packages/contracts/src/modules/` 搬进 Feed | 1 | 甲 | 设备 A | 无 | priv:307 |
 | PG-111 Goals + BL-781 | `goals.ts`、`goal-*.ts` 搬进 Goals（文件数未核）；顺带拆 `GoalEventFactsApi`，删 `GoalEventFacts` 的例外 | 1～2 | 甲 | 设备 A | 在 PG-111 Feed 之后 | priv:307；BL:57 |

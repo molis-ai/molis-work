@@ -38,6 +38,9 @@ test("RAC-1708 the registry is the Home's: directly, or as the fallback after a 
     "registry: (() => homeIntegrationRegistry(home))",
     "registry: () => (homeIntegrationRegistry(home))",
     "registry: injected?.registry ?? (() => homeIntegrationRegistry(home))",
+    // Codex @c2793bc73 P2: the whole fallback in parentheses is still the current form.
+    "registry: (options.integrations ?? (() => homeIntegrationRegistry(home)))",
+    "registry: ((options.integrations) ?? ((() => homeIntegrationRegistry(home))))",
   ]) {
     assert.deepEqual(feedListenerWiringProblems(withRegistry(registry)), [], registry);
   }
@@ -51,13 +54,33 @@ test("RAC-1708 the registry is the Home's: directly, or as the fallback after a 
     "registry: () => homeIntegrationRegistry(otherHome)",
     "registry: (home) => homeIntegrationRegistry(home)",
     "registries: () => homeIntegrationRegistry(home)",
+    // Codex @c2793bc73 P1: a later spread replaces the registry that was checked; so does a second `registry`.
+    "registry: () => homeIntegrationRegistry(home),\n      ...(selectFixture ? { registry: fixtureRegistry } : {})",
+    "...overrides, registry: () => homeIntegrationRegistry(home)",
+    "registry: () => homeIntegrationRegistry(home), registry: fixtureRegistry",
   ]) {
     assert.equal(feedListenerWiringProblems(withRegistry(registry)).length, 1, registry);
   }
+  // Codex @c2793bc73 P1: a valid port somewhere else in the file does not stand in for the wiring site, the object `createSourcePullPort`
+  // returns; nor does a spread in that object, which could replace its `connector`.
+  const decoy = {
+    ...wiring,
+    host: `${wiring.host.replace("connector: createConnectorSourcePort(", "connector: otherPort(")}
+const unrelated = { connector: createConnectorSourcePort({registry: () => homeIntegrationRegistry(home)}) };
+`,
+  };
+  assert.deepEqual(feedListenerWiringProblems(decoy), ["the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`"], "a valid port elsewhere is not the wiring site");
+  const portSpread = { ...wiring, host: wiring.host.replace("    plan: request =>", "    ...overrides,\n    plan: request =>") };
+  assert.notEqual(portSpread.host, wiring.host);
+  assert.deepEqual(feedListenerWiringProblems(portSpread), ["the source-pull port `createSourcePullPort` returns has a spread, which could replace its `connector`"], "a spread in the port object");
+  const twoConnectors = { ...wiring, host: wiring.host.replace("    plan: request =>", "    connector: otherPort(),\n    plan: request =>") };
+  assert.deepEqual(feedListenerWiringProblems(twoConnectors), ["the source-pull port `createSourcePullPort` returns does not have exactly one `connector`"], "two connectors in the port object");
+  const noPort = { ...wiring, host: wiring.host.replace("export function createSourcePullPort(", "export function createOtherPort(") };
+  assert.deepEqual(feedListenerWiringProblems(noPort), ["the Host has no single `createSourcePullPort` returning one object literal"], "no createSourcePullPort");
   const second = { ...wiring, host: `${wiring.host}\nconst other = { connector: createConnectorSourcePort({ home, registry: fixtureRegistry }) };\n` };
   assert.equal(feedListenerWiringProblems(second).length, 1, "every connector port the Host builds takes the Home's registry");
   const none = { ...wiring, host: wiring.host.replace("connector: createConnectorSourcePort(", "connector: otherPort(") };
-  assert.deepEqual(feedListenerWiringProblems(none), ["the Host has no `connector: createConnectorSourcePort({ … })`"]);
+  assert.deepEqual(feedListenerWiringProblems(none), ["the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`"], "the wiring site's connector is another port");
 });
 
 test("RAC-1709 the Feed's three wiring lines count only as code: each one kept only in a comment is a problem", () => {

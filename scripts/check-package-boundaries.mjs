@@ -1263,21 +1263,63 @@ function withoutComments(source) {
   return text.join("");
 }
 
+function unwrapped(node) {
+  while (node && ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
 /** `() => homeIntegrationRegistry(home)`, parentheses aside. */
 function isHomeRegistryThunk(node) {
-  while (ts.isParenthesizedExpression(node)) node = node.expression;
+  node = unwrapped(node);
   if (!ts.isArrowFunction(node) || node.parameters.length > 0) return false;
-  let body = node.body;
-  while (ts.isParenthesizedExpression(body)) body = body.expression;
+  const body = unwrapped(node.body);
   return ts.isCallExpression(body) && ts.isIdentifier(body.expression) && body.expression.text === "homeIntegrationRegistry"
     && body.arguments.length === 1 && ts.isIdentifier(body.arguments[0]) && body.arguments[0].text === "home";
+}
+
+const propertyNamed = (property, name) => property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) && property.name.text === name;
+
+/** Why one `createConnectorSourcePort(…)` call does not take the Home's registry: one options object, no spread, exactly one `registry`. */
+function connectorPortProblems(call) {
+  const options = unwrapped(call.arguments[0]);
+  if (call.arguments.length !== 1 || !options || !ts.isObjectLiteralExpression(options)) {
+    return ["the Host's `createConnectorSourcePort` does not take one options object"];
+  }
+  if (options.properties.some(ts.isSpreadAssignment)) return ["the Host's `createConnectorSourcePort` options have a spread, which could replace `registry`"];
+  const registries = options.properties.filter(property => propertyNamed(property, "registry"));
+  if (registries.length !== 1 || !ts.isPropertyAssignment(registries[0])) {
+    return ["the Host's `createConnectorSourcePort` options do not have exactly one `registry: …`"];
+  }
+  const value = unwrapped(registries[0].initializer);
+  const fallback = ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? value.right : value;
+  return isHomeRegistryThunk(fallback) ? [] : ["the Host's `createConnectorSourcePort` registry is not `() => homeIntegrationRegistry(home)` (alone, or after `??`)"];
+}
+
+const isConnectorPortCall = node => {
+  node = unwrapped(node);
+  return node && ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "createConnectorSourcePort";
+};
+
+/** The object `createSourcePullPort` returns: the one site where the Host wires the Feed's Listener connector, or why there is not one. */
+function sourcePullPortObject(file) {
+  const ports = file.statements.filter(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === "createSourcePullPort" && statement.body);
+  const returns = [];
+  const visit = node => {
+    if (ts.isFunctionLike(node)) return;
+    if (ts.isReturnStatement(node)) returns.push(unwrapped(node.expression));
+    ts.forEachChild(node, visit);
+  };
+  if (ports.length === 1) ts.forEachChild(ports[0].body, visit);
+  return ports.length === 1 && returns.length === 1 && returns[0] && ts.isObjectLiteralExpression(returns[0]) ? returns[0] : undefined;
 }
 
 /**
  * Why the Feed's Listener wiring is not the platform connector service backed by the Home's integration registry (BL-802), read from
  * the code, not the comments: the Feed service opens its Listener through `this.ports.createListener`, the Runtime Feed opens it with
- * `services.connector.open(`, the plugin takes `connector = sourcePull?.connector`, and every `connector: createConnectorSourcePort({ … })`
- * in the Host passes `registry: () => homeIntegrationRegistry(home)`, or `<a test's injected registry> ?? (() => homeIntegrationRegistry(home))`.
+ * `services.connector.open(`, the plugin takes `connector = sourcePull?.connector`, and the Host's `createSourcePullPort` returns one
+ * object with no spread and exactly one `connector: createConnectorSourcePort({ … })`, whose options have no spread and exactly one
+ * `registry`: `() => homeIntegrationRegistry(home)`, or `<a test's injected registry> ?? (() => homeIntegrationRegistry(home))`,
+ * parentheses aside. Every other `connector: createConnectorSourcePort({ … })` in the Host file takes the Home's registry as well.
  */
 export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
   const problems = [];
@@ -1289,28 +1331,30 @@ export function feedListenerWiringProblems({ service, runtime, plugin, host }) {
     if (!withoutComments(source).includes(needle)) problems.push(`${owner} no longer has \`${needle}\` outside a comment`);
   }
   const file = ts.createSourceFile("host.ts", host, ts.ScriptTarget.Latest, true);
-  const registries = [];
+  const port = sourcePullPortObject(file);
+  let wired;
+  if (!port) problems.push("the Host has no single `createSourcePullPort` returning one object literal");
+  else if (port.properties.some(ts.isSpreadAssignment)) problems.push("the source-pull port `createSourcePullPort` returns has a spread, which could replace its `connector`");
+  else {
+    const connectors = port.properties.filter(property => propertyNamed(property, "connector"));
+    if (connectors.length !== 1) problems.push("the source-pull port `createSourcePullPort` returns does not have exactly one `connector`");
+    else if (!ts.isPropertyAssignment(connectors[0]) || !isConnectorPortCall(connectors[0].initializer)) {
+      problems.push("the source-pull port `createSourcePullPort` returns has no `connector: createConnectorSourcePort({ … })`");
+    } else {
+      wired = unwrapped(connectors[0].initializer);
+      problems.push(...connectorPortProblems(wired));
+    }
+  }
+  const others = [];
   const visit = node => {
-    if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && node.name.text === "connector"
-      && ts.isCallExpression(node.initializer) && ts.isIdentifier(node.initializer.expression)
-      && node.initializer.expression.text === "createConnectorSourcePort") {
-      const [options] = node.initializer.arguments;
-      const registry = options && ts.isObjectLiteralExpression(options)
-        ? options.properties.find(property => ts.isPropertyAssignment(property) && ts.isIdentifier(property.name) && property.name.text === "registry")
-        : undefined;
-      registries.push(registry?.initializer);
+    if (ts.isPropertyAssignment(node) && propertyNamed(node, "connector") && isConnectorPortCall(node.initializer) && unwrapped(node.initializer) !== wired) {
+      others.push(unwrapped(node.initializer));
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
-  if (registries.length === 0) problems.push("the Host has no `connector: createConnectorSourcePort({ … })`");
-  for (const value of registries) {
-    const fallback = value && ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? value.right : value;
-    if (!fallback || !isHomeRegistryThunk(fallback)) {
-      problems.push("the Host's `createConnectorSourcePort` registry is not `() => homeIntegrationRegistry(home)` (alone, or after `??`)");
-    }
-  }
-  return problems;
+  for (const call of others) problems.push(...connectorPortProblems(call));
+  return [...new Set(problems)];
 }
 
 export function checkGoalReadOwnerSql(source) {

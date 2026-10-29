@@ -17,6 +17,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const COORD = "coordination/handoff-2026-10-14";
 const BOARD = "coordination/2026-10-28/BOARD.md";
+// README §3: one device develops at most two tasks at a time (user, 2026-10-29).
+const MAX_DEVELOPING = 2;
 const ISSUE = 1332;
 const STALE_HOURS = 2;
 const DEPTH = 3;
@@ -357,7 +359,7 @@ function plan(snap) {
         if (r?.conclusion === "failure" && !reported.some((s) => s.time > r.createdAt)) out.push(item(`mainred:${r.databaseId}`, `main 红：${wf}（${r.event}）`, r.url, 4));
       }
     }
-    if (!fixing && developing === 0 && !(role === "codex" && out.some((o) => o.order <= 4))) {
+    if (!fixing && developing < MAX_DEVELOPING && !(role === "codex" && out.some((o) => o.order <= 4))) {
       const next = claimable(device)[0];
       if (next) out.push(item(`claim:${next.id}`, `领：${next.id} ${next.title}（档 ${next.tier}）`, null, 6));
       else if (role !== "codex" && out.length === 0) {

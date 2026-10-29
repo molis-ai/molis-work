@@ -155,6 +155,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-205 | RAC-1452 的下界改成「不早于同一时刻起的普通定时器」，不再按 performance.now() 猜毫秒数（防腐清理，统筹 main 红 · run 40850221824） | 丙 | 池 | 0 | — | `packages/test-kit/tests/browser.test.mjs`（只 `:506-568` 那一例；`cdp.ts` 只在本机变异、还原，不入提交） |
 | T-206 | Workflows 的交接模板与动作字段名按整字截，不再留下半个字（防腐清理，MISC「T-189 发布」行） | 乙 | 池 | 105 | T-189（#1471） | `plugins/native/workflows/src/model.ts`（只 `:273` 一行）、`plugins/native/workflows/src/step-runner.ts`（只 `:40` 一行）、`tests/workflows-whole-character-text.test.ts`（新） |
 | T-207 | 六处过时的措辞改成现状：`shared` 已空、BL-802 已做、双实例舞台「在跑」的口径、扩展点清单头（防腐清理，MISC「T-125 二审 建议」「T-191 发布」，T-127 二审建议 2） | 丙 | B | 106 | — | `scripts/gates/README.md`、`tooling/gates/README.md`、`tooling/gates/table-owners.json`（只 `areas` 下 Feed 那条的 `reason`，不改任何 owner 条目）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（只第 3 行）、`specs/dual-instance-plugins/spec.md`（只 §12）、`docs/system/EXTENSION-POINTS.md`（只第 3 行） |
+| T-208 | Images 页面按整字截提示词：下载名、Shelf 来源说明、助理上下文标题不再留下半个字，含两单元字的提示词不再让结果页画不出来（防腐清理，MISC「T-186 发布」） | 乙 | B | 107 | T-176 | `plugins/native/images/src/browser/dom.ts`、`plugins/native/images/src/browser/result.ts`、`plugins/native/images/src/browser/page.ts`、`tests/images-result-whole-characters.e2e.test.ts`（新）、`scripts/gates/page-assets.mjs`（只 APPROVED_CEILINGS，与 T-176、T-183、T-203 互锁）、`tooling/gates/page-assets.json`（只经 --update --base） |
 
 ## 在途，不走任务书
 

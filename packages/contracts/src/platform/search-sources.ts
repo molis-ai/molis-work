@@ -75,11 +75,13 @@ export function isSearchEntriesSource(action: { input_type?: string; output_type
   return action.input_type === SEARCH_ENTRIES_INPUT_TYPE && action.output_type === SEARCH_ENTRIES_OUTPUT_TYPE;
 }
 
-/** Text a plain-text index may hold: control characters removed, whitespace folded, bounded. */
+/** Text a plain-text index may hold: control characters removed, whitespace folded, cut to `max` UTF-16 units; a cut between the two halves of a character drops the lone half. */
 export function searchText(value: unknown, max = 4000): string {
   const raw = typeof value === "string" ? value : value == null ? "" : String(value);
   // eslint-disable-next-line no-control-regex
-  return raw.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, max);
+  const cut = raw.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
 }
 
 /** FNV-1a over a list of strings; the same list always gives the same token. Pure, for any runtime. */

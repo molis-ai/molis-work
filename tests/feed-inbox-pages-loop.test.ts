@@ -226,3 +226,17 @@ test("RAC-2275: a document of 100,001 one-unit characters is refused by the char
     await assert.rejects(generate(store, { ...request(), request_id: "ascii-refused", request_hash: "hash-ascii-refused" }, async () => "a".repeat(100_001)), /文稿为空或过长/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
+
+test("RAC-2409: the information planner cuts feed titles and source names to 200 whole characters before the prompt is built", async () => {
+  // Neither a feed title nor a source name has a length limit of its own (Feed keeps the title as it arrived), so the planner caps both
+  // in whole characters, as it already caps a summary at 1,000: a cut never keeps half of a two-unit character.
+  const title = "😀".repeat(250), sourceName = "😀".repeat(250);
+  let shown = "";
+  const result = await planInformationWork({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
+    feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }], inbox_entries: [] }, "project-a", { prompt: "整理" },
+    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
+  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[] };
+  assert.deepEqual([context.items[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200)], "the prompt carries 200 whole characters of each, not 250");
+  assert.deepEqual(result.context, { project_id: "project-a", items: 1, inbox: 0 });
+});

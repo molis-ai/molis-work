@@ -27,6 +27,11 @@ export interface TodoOrganizeParse {
 /** One model call reads at most this many characters of material; longer sets are read in parts (one material longer than this has a part of its own). */
 const TODO_ORGANIZE_PART_CHARS = 40_000;
 
+/** The Host prompt limit's data position: PROMPT_MAX_CHARS 200,100 less the instruction's 20,000 and the 100-character slack. Each model
+ * call's data (its part of the materials, the existing todos, the request) must stay within it; a call over it is refused before any
+ * model call, saying how much, instead of letting the Host refuse it after dispatch as a model failure. */
+export const TODO_ORGANIZE_DATA_MAX_CHARS = 180_000;
+
 const KINDS: readonly TodoCandidateKind[] = ["request", "commitment", "waiting", "suggestion"];
 const PLACEMENTS: readonly TodoPlacement[] = ["project", "personal", "unassigned"];
 const RELATIONS = ["same", "update", "conflict", "maybe_done"] as const;

@@ -409,3 +409,22 @@ test("Alchemist abort while shared inference returns cannot publish its complete
   await assert.rejects(port.generate(cancellableInput(controller.signal)), /用户在结果返回前停止/);
   assert.equal(requests, 1, "a request already dispatched before abort is neither repeated nor presented as a cancelled success");
 });
+
+test("RAC-2410: the Alchemist prompt is refused whole over the data slot, and its limit counts whole characters", { timeout: 30_000 }, async t => {
+  // The prompt is the JSON Schema and the task materials (the instructions ride in `system`); the model port leaves 180,000 characters
+  // for data before its own 200,100 limit. The prompt is refused whole — not cut — because a cut would break the schema or the material.
+  const f = await configuredAi(t);
+  let requests = 0;
+  const inference = textInference(async input => {
+    requests++;
+    return { state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, value: '{"reply":"ok"}', configuredModel: input.model, reportedModels: [], usage: [] };
+  });
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => inference });
+  const input = (operationId: string, userPrompt: string) => ({ operationId, purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""),
+    userPrompt, jsonSchema: { type: "object", properties: { reply: { type: "string" } } } });
+  await assert.rejects(port.generate(input("too-long", "x".repeat(180_000))), { code: "alchemist.prompt_too_long" });
+  assert.equal(requests, 0, "a prompt over the data slot never reaches the model");
+  // 90,000 emoji are 180,000 UTF-16 units but 90,000 characters: the limit counts characters, so this prompt fits and is dispatched.
+  assert.deepEqual((await port.generate(input("emoji-fits", "😀".repeat(90_000)))).json, { ok: true, value: { reply: "ok" } });
+  assert.equal(requests, 1, "a prompt within the data slot in characters is dispatched");
+});

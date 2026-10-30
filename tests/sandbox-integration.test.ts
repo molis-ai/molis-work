@@ -146,7 +146,7 @@ async function proxied(body: string, names: Array<keyof typeof SANDBOX_INTEGRATI
     identity: { projectId: "home", installationId: "install-probe", pluginId: PLUGIN_ID, namespace: "installed" } });
   const contribution = sandboxIntegrationContribution({ manifest: manifest(), operations: declared.operations.map(item => item.id),
     call: (id, input, control) => runner.call(id, input, control),
-    connections: (binding, control) => { signals.push(control.signal); return createCallConnectionsClient(port, { plugin_id: PLUGIN_ID, service_id: "example-feed", connection_id: binding.connection_id, origins: ["https://api.example-feed.com"] }, SANDBOX_INTEGRATION_SOURCE_SLOT, control); },
+    connections: (binding, control) => { signals.push(control.signal); return createCallConnectionsClient(port, { plugin_id: PLUGIN_ID, install_id: "install-feed", service_id: "example-feed", connection_id: binding.connection_id, origins: ["https://api.example-feed.com"] }, SANDBOX_INTEGRATION_SOURCE_SLOT, control); },
     now: () => new Date("2026-10-26T00:00:00.000Z") });
   const bound = contribution.bind({ source_id: "src-1", connection_id: "c-1", credential_ref: null, config: { repo: "a" } });
   return { bound, sent, signals, async close() { await runner.stop(); await rm(directory, { recursive: true, force: true }); } };

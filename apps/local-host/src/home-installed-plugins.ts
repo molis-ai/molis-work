@@ -32,7 +32,7 @@ export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatfor
 
 /** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
 export interface HomeIntegrationsPort {
-  attach(manifest: PluginManifest, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
   detach(pluginId: string): Promise<void>;
 }
 
@@ -130,11 +130,11 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
     const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
-    if (!active()) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
+    if (!active() || !installId) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
     const token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
     const forget = () => { if (attached.get(pluginId) === token) attached.delete(pluginId); };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, () => platform.supervisor.contribution(pluginId), live)) forget(); }
+    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
     catch (error) { forget(); throw error; }
   };
   const promptScope = (installId: string) => JSON.stringify([null, HOME_INSTALL_SCOPE, installId]);

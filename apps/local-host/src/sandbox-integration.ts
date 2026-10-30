@@ -115,7 +115,7 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
           }
         },
         connections: (binding, control) => createCallConnectionsClient(host.connections,
-          { plugin_id: release.pluginId, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
+          { plugin_id: release.pluginId, install_id: context.install_id, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
           SANDBOX_INTEGRATION_SOURCE_SLOT, { signal: control.signal,
             current: () => { control.current(); live(); }, beforeEffect: async () => { await control.beforeEffect(); control.current(); live(); } }) });
     },

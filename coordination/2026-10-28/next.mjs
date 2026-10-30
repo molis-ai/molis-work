@@ -99,7 +99,11 @@ function parseBoard(text) {
     const col = (name) => cells[header.indexOf(name)] ?? "";
     // BOARD.md says specs/BACKLOG.md is never locked (rows are edited one by one), but rows still name it in backticks with 「不锁」;
     // reading it as a lock made every task that deletes a BACKLOG row wait on every other one.
-    const locks = [...col("锁定的文件").matchAll(/`([^`]+)`/g)].map((m) => m[1]).filter((l) => l !== "specs/BACKLOG.md");
+    const locks = [...col("锁定的文件").matchAll(/`([^`]+)`/g)].map((m) => m[1]).filter((l) => l !== "specs/BACKLOG.md")
+      // 统筹 10-30（#1332 6516737203）：页面资源的两份门禁文件只有文字冲突，按「同文件、后合者重算」，不算锁。
+      .filter((l) => !/^(scripts\/gates\/page-assets\.mjs|tooling\/gates\/page-assets\.json)$/.test(l))
+      // 括号里点名的标识符与命令（如 `APPROVED_CEILINGS`、`--update --base`）不是文件，不算锁。
+      .filter((l) => /[/.]/.test(l) && !l.startsWith("-"));
     if (/^T-\d{3}$/.test(cells[0])) {
       rows.push({
         id: cells[0],

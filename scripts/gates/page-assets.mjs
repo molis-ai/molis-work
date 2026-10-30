@@ -248,9 +248,9 @@ const headErrors = (measured, budget, base) => {
 // dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
 // T-290, RAC-2412: the settings shell keeps only the address parameters and fragments the settings page being opened reads. Tried: the
 // declarations as "each page's defaults plus the extra variables it reads" (not one full list per page, not a packed encoding, for
-// readability), and one small filter helper injected into the shell and the Home dialog; the old used-up entry is dropped: +1,196 B.
+// readability), and one small filter helper injected into the shell and the Home dialog; the old used-up entry is dropped: +1,282 B.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148453, 1149649],
+  "/assets/molis-work-workbench.js": [1148453, 1149735],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

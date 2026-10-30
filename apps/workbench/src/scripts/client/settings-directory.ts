@@ -326,7 +326,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   host.registerCover?.("settings", reopen("settings", () => globalSettings, "appearance"));
   host.registerCover?.("project-settings", reopen("project-settings", () => projectSettings, "general"));
-  const openProjectSettingsFromUrl = (href) => {
+  // fromPage: a page handed this address over (filtered to what the page being opened reads); the server's boot address and a page's
+  // own GET form keep the address they built, as before.
+  const openProjectSettingsFromUrl = (href, fromPage) => {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin) return false;
     const projectSection = projectSectionFromPath(url.pathname);
@@ -334,7 +336,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const nested = /\\/settings\\/planning\\/.+/.test(url.pathname);
     projectSettings ||= bindProject();
     if (nested) projectSettings?.caches.delete("planning");
-    openProjectSettings(projectSection, nested ? url.pathname + keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : undefined);
+    openProjectSettings(projectSection, nested ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {
@@ -363,12 +365,12 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return true;
     }
     globalSettings.caches.delete(section);
-    void globalSettings.loadSection(section, pathname + keptAddress(url, GLOBAL_DEFAULTS, GLOBAL_QUERY_EXTRAS, section));
+    void globalSettings.loadSection(section, pathname + (fromPage === true ? keptAddress(url, GLOBAL_DEFAULTS, GLOBAL_QUERY_EXTRAS, section) : url.search + url.hash));
     return true;
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {
     const href = event.detail?.href || "";
-    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href, true);
+    if (!openProjectSettingsFromUrl(href, true)) openGlobalSettingsFromUrl(href, true);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);

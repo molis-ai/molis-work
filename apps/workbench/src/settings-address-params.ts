@@ -19,7 +19,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   directories: "plugin",
   models: "setup template",
   prompts: "role",
-  library: "provider q kind action version",
+  library: "provider rule key q kind action version",
   connections: "setup connector q kind action version",
   access: "q filter format kind action version",
   history: "q kind action version",

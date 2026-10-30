@@ -491,6 +491,8 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
     "/settings/diagnostics?call=c-1", "diagnostics drops a fragment it does not read");
   assert.equal(openSettingsAddress("/capabilities/access?q=feed&format=html&bad=1"),
     "/capabilities/access?q=feed&format=html", "the access page keeps q and format, drops bad");
+  assert.equal(openSettingsAddress("/capabilities/rules?project=p1&rule=r-1&key=k-1&x=1"),
+    "/capabilities/rules?project=p1&rule=r-1&key=k-1", "the rules page keeps project, rule and key, drops x");
   assert.equal(openSettingsAddress("/projects/p1/settings/planning/method-a?project=p1&x=1#frag"),
     "/projects/p1/settings/planning/method-a?project=p1", "a nested planning page keeps project, drops x and #frag");
   assert.equal(openSettingsAddress("/settings/coding-settings?project=p1&desktop=1&x=1", ["coding-settings"]),

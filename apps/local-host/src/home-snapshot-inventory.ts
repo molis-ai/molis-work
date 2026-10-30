@@ -1,6 +1,6 @@
 import { lstatSync, readdirSync, realpathSync, type Stats } from "node:fs";
 import { join } from "node:path";
-import { isSnapshotSqlite, readSqliteSnapshotMetadata, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
+import { isSnapshotSqlite, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
 import { homeSnapshotErrors, type HomeSnapshotStore, type HomeSnapshotStoreRegistry, type SnapshotDisposition, type SnapshotExclusion } from "./home-store-snapshot.js";
 
 export interface SnapshotSourceEntry { readonly relative: string; readonly path: string; readonly info: Stats; readonly disposition: SnapshotDisposition; readonly database?: SqliteSnapshotOptions }
@@ -33,21 +33,10 @@ export function assertSnapshotHomeInventory(home: string, registry: HomeSnapshot
 }
 
 function disposition(home: string, store: HomeSnapshotStore, file: string): SnapshotDisposition {
-  const retained = store.snapshot.retained;
-  if (retained && file) {
-    if (file === retained.content.dependency) return { kind: "key", bytes: 32 };
-    const known = [retained.database.file, retained.content.directory, retained.content.dependency];
-    if (!known.some(path => path === file || path.startsWith(file + "/") || file.startsWith(retained.content.directory + "/"))
-      && !["-journal", "-wal", "-shm"].some(suffix => file === retained.database.file + suffix)) {
-      throw homeSnapshotErrors.unknown_data(`退役存储有未知条目，未生成快照: ${store.path}/${file}`);
-    }
-  }
   return file ? store.snapshot.entry?.(home, file) ?? { kind: "keep" } : { kind: "keep" };
 }
 
 function databaseOptions(store: HomeSnapshotStore, file: string): SqliteSnapshotOptions | undefined {
-  const retained = store.snapshot.retained;
-  if (retained && file === retained.database.file) return { inspect: database => readSqliteSnapshotMetadata(database, retained.database.metadata) };
   const special = store.snapshot.database?.(file);
   if (special) return special;
   if (!store.library) return undefined;

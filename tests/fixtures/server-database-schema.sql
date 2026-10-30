@@ -1,4 +1,3 @@
--- Original v1 server baseline at 4e17c3d1; only the offline invitation maintenance reads it.
 
     CREATE TABLE IF NOT EXISTS mw_server_identity(singleton INTEGER PRIMARY KEY CHECK(singleton=1), cookie_suffix TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS mw_members(id TEXT PRIMARY KEY, display_name TEXT NOT NULL);
@@ -18,7 +17,9 @@
 
     CREATE TABLE IF NOT EXISTS im_rooms (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, owner_id TEXT NOT NULL REFERENCES mw_members(id),
-      invite_token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      invite_token_hash TEXT UNIQUE CHECK (invite_token_hash IS NULL OR
+        (length(invite_token_hash) = 64 AND invite_token_hash NOT GLOB '*[^0-9a-f]*')),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       project_id TEXT REFERENCES mw_projects(id)
     );
     CREATE UNIQUE INDEX IF NOT EXISTS im_project_room ON im_rooms(project_id) WHERE project_id IS NOT NULL;
@@ -52,5 +53,3 @@
       member_id TEXT NOT NULL REFERENCES mw_members(id), room_id TEXT NOT NULL REFERENCES im_rooms(id),
       target TEXT NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(member_id,room_id,target)
     );
-
-PRAGMA user_version = 1;

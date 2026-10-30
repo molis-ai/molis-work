@@ -68,7 +68,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 Runtime 接入按配置路径串行确认。验证失败只恢复仍与本次写入的文件身份、正文或 Skill 链接一致的项；后来改过的项保留并返回冲突，原配置备份可用于核对。TOML 表按引号、点分键的语义识别，字符串和数组里的表头不参与修改；同名未知、重复或无法安全改写的内联定义在写入前拒绝。回归见 `tests/runtime-integration-ownership.test.ts`。
 
-`backup_path` 现在指向 `runtime-config-backups/<runtime>/<plan>.bak` 的现行 owner 引用，完整原文由既有 SecretStore AES-GCM 密封；描述符不是可直接覆盖 Runtime 配置的原文。明确恢复时用公开 `readRuntimeConfigBackup(home, runtimeId, planId)` 取得 `{contents, mode}`，可恢复精确正文与权限；普通检测/接入结果不带正文。该读取每次核同 Home 原 key，不靠缓存掩盖 key 丢失，不生成替代值。旧原文 `.bak` 在正常运行中拒绝，需要同 W5-17/Goals S9 窗口的一次性维护；本任务只演练临时 Home，见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。备份 owner 改动另跑 `tests/security-invariants-runtime-backups.test.ts`、`tests/runtime-config-backup-maintenance.test.ts` 和现有 Runtime integration 两份回归。
+`backup_path` 现在指向 `runtime-config-backups/<runtime>/<plan>.bak` 的现行 owner 引用，完整原文由既有 SecretStore AES-GCM 密封；描述符不是可直接覆盖 Runtime 配置的原文。明确恢复时用公开 `readRuntimeConfigBackup(home, runtimeId, planId)` 取得 `{contents, mode}`，可恢复精确正文与权限；普通检测/接入结果不带正文。该读取每次核同 Home 原 key，不靠缓存掩盖 key 丢失，不生成替代值。旧原文.bak在正常运行中仍拒绝；2026-10-30旧转换路线取消，旧Home整体搬开后新建，见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。备份 owner 改动另跑 `tests/security-invariants-runtime-backups.test.ts` 和现有 Runtime integration 两份回归。
 
 助理操作卡遇到 `actions.outcome_unknown` 或 `actions.output_invalid_after_effect` 时保存为结果未知，重启和重复点击都不再执行。删除定时跟进先移除事实，再取消队列任务；在途回调在等待与发送边界核对原请求，只更新仍存在且未变化的记录。回归见 `tests/assistant-card-outcomes.test.ts`、`tests/assistant-followup-deletion.test.ts`。
 

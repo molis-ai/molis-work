@@ -24,7 +24,7 @@ export function purgePathFingerprint(home: string, target: string, registry: Hom
     const libraryFile = store.library?.file ?? store.path + ".db";
     const library = store.library && (store.library.partition === "project"
       ? file.split("/").length === 3 && file.startsWith("projects/") && file.endsWith("/" + libraryFile) : file === libraryFile);
-    return store.snapshot.retained?.database.file === file || Boolean(store.snapshot.database?.(file)) || Boolean(library);
+    return Boolean(store.snapshot.database?.(file)) || Boolean(library);
   });
 }
 

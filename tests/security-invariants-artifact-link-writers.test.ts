@@ -29,7 +29,7 @@ function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds
   actions.registerProvider({
     provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
     definitions: ARTIFACT_ACTIONS,
-    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds, goalTitle: id => `Goal ${id}`, importSources: () => ({}),
+    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds, linkSubjects: async (_pluginId, ids) => new Map(ids.map(id => [id, { title: `Goal ${id}`, open: { surface: "goals", id } }] as const)), importSources: () => ({}),
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });
   return { artifacts, edge, links: () => actions.invoke(person, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }) };
@@ -38,14 +38,15 @@ function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds
 test("RAC-421 S-82 an edge of a Goals link kind written by another module is not a Goal's link", async t => {
   const r = rig(t, artifactLinkKinds());
   r.edge("example", "X1");
-  assert.deepEqual(await r.links(), { goals: [], other: 1 }, "counted as some other link, never listed as a Goal");
+  assert.deepEqual(await r.links(), { plugins: [], other: 1 }, "counted as some other link, never listed as a Goal");
   r.edge("goals", "G1");
-  assert.deepEqual(await r.links(), { goals: [{ goal_id: "G1", title: "Goal G1", role: "input" }], other: 1 }, "the owner's own edge is");
+  assert.deepEqual(await r.links(), { plugins: [{ plugin_id: "io.molis.work.goals", plugin_title: "Goals",
+    objects: [{ id: "G1", title: "Goal G1", role: "input", proposal: false, open: { surface: "goals", id: "G1" } }] }], other: 1 }, "the owner's own edge is");
 });
 
 test("RAC-421 S-82 with the owner out of effect its kinds are gone, and the versions it linked stay readable", async t => {
   const r = rig(t, new Map());
   r.edge("goals", "G1");
-  assert.deepEqual(await r.links(), { goals: [], other: 1 }, "no kind, so no Goal link and no failure");
+  assert.deepEqual(await r.links(), { plugins: [], other: 1 }, "no kind, so no Goal link and no failure");
   assert.equal(r.artifacts.query.getArtifactVersion(projectId, { artifact_id: "a", version: 1 })?.artifact_id, "a", "the linked version is still there to read");
 });

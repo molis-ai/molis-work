@@ -252,9 +252,14 @@ const headErrors = (measured, budget, base) => {
 // T-183, RAC-1869–1872: the frame bridge and the context bus cut the title and text of a "put it in" control by whole
 // characters instead of UTF-16 units, one small function in each of the two bundles (they share no module): +63 B and +96 B.
 // Tried: no new asset; one definition per bundle, used at every site there; the Host's own unit limits are not touched.
+// T-281, RAC-2076 (user 2026-10-29 chose to keep colouring off the frame that first lays a large block out): Coding's painter waits for
+// the block's first layout (a non-zero height) through a resize observer it releases when the job is replaced or stopped, +202 B on this one asset.
+// Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
+// dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [190560, 190623],
   "/assets/molis-work-workbench.js": [1148453, 1148549],
+  "/assets/molis-work-plugins/coding.js": [289674, 289876],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

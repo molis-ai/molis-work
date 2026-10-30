@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -56,9 +56,8 @@ test("W3-07-5-01 / W3-07-9-01: no production definition, export, registration or
 });
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-/** Every source file of the two entry packages (PG-111: they name no Goals contract anywhere, not only in the dispatchers). */
-const entrySources = () => ["apps/cli/src", "apps/mcp/src"].flatMap(directory => readdirSync(new URL(`../${directory}/`, import.meta.url), { recursive: true })
-  .filter(name => ENTRY_SOURCE_FILE.test(String(name))).map(name => ({ path: `${directory}/${name}`, source: read(`${directory}/${name}`) })));
+/** Every source file of the two entry packages (PG-111: they name no Goals contract anywhere, not only in the dispatchers), read by the production scan. */
+const entrySources = () => readEntrySources(fileURLToPath(new URL("..", import.meta.url)));
 const transportSources = () => ({ cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
   mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") }, entries: entrySources() });
 /** The rule's answer for the real sources with one dispatcher or its Host composition edited. */
@@ -361,18 +360,31 @@ test("RAC-2297: reading the entry packages covers every JavaScript and TypeScrip
     write("apps/mcp/src/tool.mts", "export const tool = null;\n");
     write("apps/mcp/src/render.tsx", "export const render = null;\n");
     write("apps/mcp/src/helper.cjs", "module.exports = {};\n");
+    for (const directory of ["apps/cli/src", "apps/mcp/src"]) {
+      write(`${directory}/a.ts`, "export const plain = null;\n");
+      write(`${directory}/a.js`, "export const plain = null;\n");
+      write(`${directory}/a.mjs`, "export const plain = null;\n");
+      write(`${directory}/a.jsx`, "export const plain = null;\n");
+      write(`${directory}/a.cts`, "export const plain = null;\n");
+    }
     write("apps/cli/src/notes.md", "not a source file\n");
     write("apps/mcp/src/types.d.ts.map", "{}\n");
     const entries = readEntrySources(root);
     assert.deepEqual(entries.map(entry => entry.path).sort(), [
+      "apps/cli/src/a.cts", "apps/cli/src/a.js", "apps/cli/src/a.jsx", "apps/cli/src/a.mjs", "apps/cli/src/a.ts",
       "apps/cli/src/command.mts", "apps/cli/src/legacy.cjs", "apps/cli/src/view.tsx",
+      "apps/mcp/src/a.cts", "apps/mcp/src/a.js", "apps/mcp/src/a.jsx", "apps/mcp/src/a.mjs", "apps/mcp/src/a.ts",
       "apps/mcp/src/helper.cjs", "apps/mcp/src/render.tsx", "apps/mcp/src/tool.mts",
-    ], "every .mts/.tsx/.cjs file of both entry packages is read, and neither the .md nor the .d.ts.map");
+    ], "every .ts/.mts/.cts/.tsx/.js/.mjs/.cjs/.jsx file of both entry packages is read, and neither the .md nor the .d.ts.map");
     assert.equal(entries.find(entry => entry.path === "apps/cli/src/view.tsx").source, "export const view = null;\n", "the source of each file is read");
+    assert.equal(entries.find(entry => entry.path === "apps/mcp/src/a.ts").source, "export const plain = null;\n", "a plain .ts file is read too");
     const { cli, mcp } = transportSources();
     assert.match(checkGoalTransportCallers({ cli, mcp, entries }).join("\n"),
       /apps\/cli\/src\/command\.mts: a [a-z]+ of @molis-ai\/molis-work-plugin-goals\/contract is a Goals contract/u);
-    // Only the .ts files pass the dispatcher rules: the scan itself is what this case pins (see the filter mutation).
-    assert.deepEqual(checkGoalTransportCallers({ cli, mcp, entries: entries.filter(entry => entry.path.endsWith(".ts")) }), []);
+    // The plain .ts files pass the dispatcher rules too (their sources hold no Goals import): what this case pins is the scan that
+    // finds them, as the filter mutation shows.
+    const plainTs = entries.filter(entry => entry.path.endsWith("/a.ts"));
+    assert.equal(plainTs.length, 2, "the fixture's plain .ts files are read, one per entry package");
+    assert.deepEqual(checkGoalTransportCallers({ cli, mcp, entries: plainTs }), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

@@ -22,10 +22,25 @@ export function isEditableShelfItem(item: { kind: ShelfItemKind; name: string; s
   return TEXT_EDIT_EXTENSIONS.has(ext);
 }
 
-/** A stored name: at most 180 UTF-16 units, cut between whole characters (a cut inside a character would leave a lone half). */
-export function safeFilename(value: string): string {
+/** The name both stored names start from: a basename, no NUL, backslashes as "_", trimmed, never empty. */
+const cleanedName = (value: string): string => {
   const base = path.basename(value).replaceAll("\0", "").replaceAll("\\", "_").trim() || "untitled";
-  if (base === "." || base === "..") return "untitled";
+  return base === "." || base === ".." ? "untitled" : base;
+};
+
+/** A file's stored name: at most 180 UTF-16 units, cut between whole characters, keeping its trailing extension. */
+export function safeFilename(value: string): string {
+  const base = cleanedName(value);
+  if (base.length <= 180) return base;
+  const extension = /\.([A-Za-z0-9]{1,10})$/u.exec(base)?.[0] ?? "";
+  const room = 180 - extension.length;
+  const stem = base.slice(0, base.length - extension.length);
+  return stem.slice(0, room).replace(/[\uD800-\uDBFF]$/u, "") + extension;
+}
+
+/** A folder's stored name: at most 180 UTF-16 units, cut between whole characters; a dotted tail is no extension here. */
+export function safeFolderName(value: string): string {
+  const base = cleanedName(value);
   return base.length <= 180 ? base : base.slice(0, 180).replace(/[\uD800-\uDBFF]$/u, "");
 }
 

@@ -39,7 +39,7 @@
 | `artifacts.import.sources` | 返回支持来源的连接布尔状态，不返回凭据 |
 | `artifacts.goals.embeds` | Goal ID，读取 Ledger 明确关联的固定输入/输出版本 |
 | `artifacts.references.open` | 当前工作区里的 `project://` 或相对路径引用，返回有界文件内容的 base64 |
-| `artifacts.links` | 这一版被哪些目标作为输入、交付物或提议交付物引用，以及其他引用的数量 |
+| `artifacts.links` | 这一版被谁引用：按声明链接种类（Manifest `artifacts.links`）的插件分组，列出把它作为输入或产出（含提议的）的对象，名字与打开位置由声明的插件自己的 `link_subjects` 动作以调用者身份给出、答不上的显示 id；以及其他引用的数量 |
 | `artifacts.plugin_inputs`、`artifacts.plugin_inputs.bind` | 列出能接收这一版类型的插件输入端口；`bind` 让某个端口固定读这一版（或改回原来的来源），仅限本人操作 |
 | `artifacts.documents.preview`、`artifacts.files.entries`、`artifacts.search.entries`、`artifacts.subject.read` | 导入文件的可读预览、侧栏文件、系统搜索条目与固定版本的对象读取（标准动作，均不修改数据） |
 

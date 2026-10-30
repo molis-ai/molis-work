@@ -1,6 +1,5 @@
 import { allGoalViews } from "./proposal-ui-model.js";
-import type { GoalsDecisionView, GoalsDecisionEvent } from "./decision-view.js";
-import type { GoalsSafetyItem } from "./safety-ui-model.js";
+import type { GoalsDecisionItem, GoalsDecisionView, GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDecisionPresentationPrimitives } from "./decision-common-ui.js";
 
 export interface RecentDecisionResult {
@@ -27,7 +26,7 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
 
-function goalResultHref(item: GoalsSafetyItem, anchor: string): string {
+function goalResultHref(item: GoalsDecisionItem, anchor: string): string {
   const base = item.goal.trashed_at
     ? "/trash/goals/"
     : item.goal.archived_at

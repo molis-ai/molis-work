@@ -27,7 +27,7 @@ export const ARTIFACT_EN: Record<string, string> = {
   "目标读取失败": "Could not load goals",
   "这个项目还没有目标。": "This project has no goals yet.",
   "没有记下输入": "The input was not recorded",
-  "还没有目标引用这一版。": "No goal refers to this version yet.",
+  "还没有引用这一版的对象。": "Nothing refers to this version yet.",
   "另有其他引用": "Other references",
   "文档": "Page",
   "链接了这一版": "links to this version",

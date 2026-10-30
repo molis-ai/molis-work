@@ -263,7 +263,6 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-319 | R-63：首页聚合与首页事项读取按项目插件清单判断，清单里有却被拒的记成 issue，RAC-2437～2438（风险登记，统筹 10-30 转；超过四个业务文件停下报告；短任务书） | 乙 | A | 215 | — | `apps/local-host/src/home-aggregate.ts`、`apps/local-host/src/home-event-actions.ts` |
 | T-320 | R-65：首页「下一步」空状态写明自动判断只看 Feed 已被授予的动作（中英文，英文进插件自己的词典），RAC-2439（风险登记，统筹 10-30 转；短任务书） | 乙 | 池 | 216 | — | 由【方案】定（预计 1 个渲染文件、1 个词典、1 个测试） |
 | T-321 | 文档同步：BACKLOG 归属列与 spec §12.2、§12.3、§1.1 的遗留裁决按 10-30 现状改（风险登记，统筹 10-30 转；一个只改文档的 PR；短任务书） | 丙 | B | 217 | — | `specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
-| T-322 | **前提不成立，统筹 10-30 关**（T-131 的 Full 跑的是 T-281 之前的旧 `code-scale` 用例，PR 的 base 与合并引用过旧；main 在限内；RAC-2440～2441 归还号段）。原文：**高优先级**：RAC-2072 在 CI 的 Linux 上稳定超 50 ms，查清第一个着色片的强制布局为什么重，压回 50 ms 以内，不放宽不跳过，RAC-2440～2441（统筹 10-30 转；需 Chrome ≥153；短任务书） | 乙 | A | 218 | — | `plugins/native/coding/src/code-paint-client.ts`、`tests/code-scale.e2e.test.ts` |
 | T-323 | T-218 S1：无 install_id 的登记页面和创作台试用页关闭时在途请求按取消（499）结束，不再回 403，RAC-2442（二审建议；短任务书） | 丙 | A | 219 | — | `apps/local-host/src/plugin-page-authority.ts`、一个测试文件（开工定） |
 | T-324 | T-276 二审登记：输入诊断补只有窗口读失败的用例 RAC-2443，test-kit README 收窄 R-73 措辞（短任务书） | 丙 | A | 220 | — | `tests/plugin-frame-browser-diagnostics.test.ts`、`packages/test-kit/README.md` |
 | T-325 | 文档：T-272、T-288/T-289 二审登记里没被锁的旧说法改成现状（pg111、pg031、功能盘点、清理报告；短任务书） | 丙 | A | 221 | — | 四份 spec／docs 文件（见书） |

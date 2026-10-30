@@ -122,15 +122,15 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-03 / W5-04 | 部分 | 已落地：Jelly #1145、Issues #1132、Images #1137，Workflows/Pages 客户端（batch-34）、第二组（batch-35）。还剩：PG-070 插件样式拆成按需加载（用户 10-25 定），排在 W5-10、W5-11 的 PR 之后。W5-10 批 A 走过渡模板拆分，不做 W5-04 打包 |
 | W5-05 | 基本完成 | 还剩：页面预算降值（统筹）。W5-06 链已随 batch-32 合入，Shelf 等 BL-804 |
 | W5-06 | 部分 | 已落地：#1098、#1107、#1191、#1173 随 batch-32（#1225）。#1112 已关、未合。还剩：挂载器与 BL-542，排在 C 之后 |
-| W5-07 | 收尾时统筹核 | — |
+| W5-07 | 完成 | 统筹 10-30 核：`web-request.ts` 的 `handleMolisWorkWebRequest` 按 `CATALOG_INDEX_ROUTES`、`PROJECT_ROUTES` 两张路由表分发（`dispatchWebRoutes`），只剩个人空间建档、`/api/agent-definitions/` 两处前置，等价于登记表 |
 | W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。已落地：`apps/workbench/src/index.ts` 无人用的出口（BL-635）#1326（`47190691d`）。Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
 | W5-09 | **已完成** | #591、#1118 |
 | W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）、#1316（`341b4d9cc`）、#1317（`b932beb9d`）。还剩：5 个未标明的巨大单元，都在等别的线（C 等），W5-10 会话暂无批次 |
 | W5-11 | 进行中 | 已落地：第 1、2 片 #1322（`31c3ff04d`）。还剩：第 3 片起等 C 合入 |
 | W5-12 | 收尾时统筹核 | — |
-| W5-13 | 部分 | 已落地：#570、第二片、#754、RAC113、RAC114。已落地第 3 片 #1330（`8a72df336`，RAC-1110～1114）。在开发：BL-810（assistant not-found 码，加 #1330 评审的四条建议），`ac-sweep`。还剩：BL-810（assistant store 的 not-found 码）排其后；BL-812（平台包日志端口）并入 BL-169，W6 收尾前不开；调用点含 Inbox `plugin.ts` 的 `briefs`（读 Feed 失败整个吞掉，C 里不改） |
+| W5-13 | 完成 | 统筹 10-30 核：BL-810 由 T-009 收；BL-812 用户定不算；Inbox `briefs` 只在 Feed 未装（`feedMissing`）时回空，其余错误照抛（main `plugins/native/inbox/src/plugin.ts:79-91`），不再整个吞掉 |
 | W5-14 | 部分 | 已落地：片 1～4 与 W11-1 随 A+B。还剩：余下改名，等 C 与 W5-10 合入后开 |
-| W5-15 | 部分 | 成熟度词表已有；发版与版本号归用户 |
+| W5-15 | 部分 | 成熟度词表已有；发版与版本号归用户（不算完成标准）。统筹 10-30 核：只剩 `examples/probe-plugin` 的 `package.json:42-43` 与 `src/index.ts` 还带退役的 `legacySources`、`migrationGoals`、`packageDescriptor`，交派单线（MISC），合入即关 |
 | W5-16 | 部分 | 已落地：B1、快照（#1271，batch-40）。还剩：B2b（CLI 必要状态、同 Home lease、全库与非 SQLite 快照恢复）；碰真实 Home 的部分进维护时段 |
 | W5-17 | 等维护时段 | 用户 10-24 定：和 Goals S9 同一时段，先在真实 Home 拷贝上跑 `list` 交用户，维护做完前不合 |
 | W6-01 | 部分 | 已落地：`740f09d4f`（含删 by-key）随 A+B。还剩：冻结名单清零（C 去掉了 Feed 的宿主文件；其余等各族迁完）、AGENTS 改写；顺手补 `local-host.ts:106` 观察者失败的 `hostLog`（W5-13 第 3 片让出：动装配会命中 full） |

@@ -242,15 +242,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-183, RAC-1869–1872: the frame bridge and the context bus cut the title and text of a "put it in" control by whole
-// characters instead of UTF-16 units, one small function in each of the two bundles (they share no module): +63 B and +96 B.
-// Tried: no new asset; one definition per bundle, used at every site there; the Host's own unit limits are not touched.
-// T-235 (merged into main), RAC-2220–2221: the PPT outline box is cut at 20000 characters by its input handler; its admission was
-// [27065, 27380] and the build came out at 27364.
+// T-225, RAC-2170–2174: the context reader and the text handed to the Assistant cut whole characters instead of UTF-16 units: one
+// short cutWhole in PANE_PART (moved out of the context bus, which now shares it) and three call sites. +78 B on the frame script,
+// which carries its own copy of PANE_PART; the workbench script falls 15 B (it loses the function the bus carried and gains this one).
+// Tried: an inline slice+replace at each of the three sites (+102 B); no new asset, no new text. The T-203, T-235 and T-183 entries this
+// file used to carry are consumed (their budgets already equal their ceilings) and are deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/ppt.js": [27065, 27364],
-  "/assets/molis-work-plugin-frame.js": [190560, 190623],
-  "/assets/molis-work-workbench.js": [1148453, 1148549],
+  "/assets/molis-work-plugin-frame.js": [190623, 190701],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

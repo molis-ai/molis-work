@@ -11,9 +11,7 @@ import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@moli
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 1, memory: 1, assistant: 1, functions: 1, form: 1, characters: 1 };
-/** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
-const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
+const STORE_VERSIONS: Record<string, number> = { connectors: 1, pages: 1, memory: 1, assistant: 1, functions: 1, form: 1, characters: 1 };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 
 /**
@@ -47,7 +45,8 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 });
 
 // Each Home store's baseline (repository-anti-corruption §4.1) is the structure existing stores already have: the
-// fixtures are the schema statements of a real Home's stores (schema only), the reference a store was stamped against.
+// fixtures began as real-Home schema statements (schema only); the connectors fixture now freezes its complete current
+// owner DDL, including authorization_results, not another real-Home receipt.
 // The Alchemist search store's is what the previous build created, since no real Home had one; it lives inside the
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
@@ -55,9 +54,8 @@ for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HO
   test(`the ${name} store's baseline is version ${STORE_VERSIONS[name] ?? 1} and the structure existing stores have`, () => {
     assert.equal(baseline.version, STORE_VERSIONS[name] ?? 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
-    // Every table an existing store has is exactly the baseline's; a table made lazily on first use may be missing there.
-    for (const [table, structure] of Object.entries(existing.tables)) assert.deepEqual(want.tables[table], structure, `${name}.${table}`);
-    assert.deepEqual(Object.keys(want.tables).filter(table => !existing.tables[table]), LAZY_TABLES[name] ?? [], `${name}: tables only the baseline has`);
+    // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
+    assert.deepEqual(want, existing, `${name}: complete frozen schema`);
   });
 }
 

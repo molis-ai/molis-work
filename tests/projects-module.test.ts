@@ -112,6 +112,78 @@ test("Projects Module owns canonical project identity and workspace membership",
   }
 });
 
+/** A catalog with two projects, so that a directory can belong to one or to both. */
+function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string }) => void): void {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
+  const db = new Database(":memory:");
+  try {
+    db.pragma("foreign_keys = ON");
+    createProjectsSchema(db);
+    const projects = createModule(db);
+    const ids = ["甲", "乙"].map(name => {
+      const record = projects.lifecycle.prepareRecord({ display_name: name, projects_directory: directory, data_class: "user" });
+      projects.lifecycle.register(record, "project.created", "user-1");
+      return record.project_id;
+    });
+    const link = (projectId: string, path: string) => projects.commands.addWorkspaceProject({
+      canonical_path: join(directory, path), project_id: projectId, actor_id: "user-1", user_confirmed: true,
+    }).workspace_id;
+    run({ db, projects, first: ids[0]!, second: ids[1]!, link });
+  } finally {
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+const rows = (db: Database.Database, table: "workspaces" | "workspace_project_memberships"): number =>
+  Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
+
+test("RAC-2453 deleting a project's memberships removes the directory records that no project belongs to any more", () => {
+  withTwoProjects(({ db, projects, first, link }) => {
+    link(first, "alone");
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [1, 1]);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 1, "the count is still the memberships removed");
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [0, 0]);
+  });
+});
+
+test("RAC-2454 a directory two projects share stays, with the other project's membership, until the last one goes", () => {
+  withTwoProjects(({ db, projects, first, second, link }) => {
+    const shared = link(first, "shared");
+    assert.equal(link(second, "shared"), shared);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 1);
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [1, 1]);
+    assert.deepEqual(projects.query.workspaceProjectSelections(shared).map(selection => selection.project_id), [second]);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 1);
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [0, 0]);
+  });
+});
+
+test("RAC-2455 of a project's two directories, the one only it belongs to goes and the shared one stays", () => {
+  withTwoProjects(({ db, projects, first, second, link }) => {
+    const alone = link(first, "alone"), shared = link(first, "shared");
+    link(second, "shared");
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 2);
+    assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces").all(), [{ workspace_id: shared }]);
+    assert.notEqual(alone, shared);
+  });
+});
+
+test("RAC-2456 a deletion that fails after the memberships go puts the directory records back, and records this deletion did not empty are not touched", () => {
+  withTwoProjects(({ db, projects, first, second, link }) => {
+    link(first, "alone");
+    // A directory with no member at all was there before this deletion: it is not this deletion's to remove.
+    db.prepare("INSERT INTO workspaces (workspace_id, canonical_path, realpath_verified, display_name, created_at, updated_at) VALUES ('stale', '/stale', 0, 'stale', 'x', 'x')").run();
+    assert.throws(() => projects.lifecycle.transaction(() => {
+      assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 1);
+      assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces").all(), [{ workspace_id: "stale" }]);
+      throw new Error("the deletion failed after the directory step");
+    }), /deletion failed/u);
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [2, 1], "rolled back: the directory and its membership are back");
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 0, "a project with no directory removes nothing");
+    assert.equal(rows(db, "workspaces"), 2);
+  });
+});
+
 test("Host Catalog reaches Projects only through the public module entrypoint", () => {
   const source = readFileSync(new URL("../apps/local-host/src/project-catalog.ts", import.meta.url), "utf8");
   assert.match(source, /from "@molis-ai\/molis-work-module-projects"/u);

@@ -497,3 +497,26 @@ test("an item that changed while Goals worked is refused and Feed writes nothing
     assert.equal(after.disposition, "saved");
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
+
+test("RAC-2299 Feed promotion truncates the Goal title and its source title by whole characters, never leaving half of a two-unit character", async () => {
+  const prefix = "处理 Feed Item：";
+  // Neither an unpaired high surrogate nor an unpaired low one: how a title that was cut by UTF-16 units shows a half character.
+  const whole = (text: string) => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text);
+  const f = fixture(["x".repeat(103) + "🙂" + "尾", "🙂".repeat(130), "a".repeat(200)]);
+  try {
+    const titles: string[] = [];
+    for (const item of f.items) {
+      const promoted = await f.person.invoke(feedItemActions.promote, { item_id: item.item_id, expected_revision: item.revision });
+      titles.push((await f.person.invoke(goalsActions.contract, { goal_id: promoted.goal_id })).goal.title);
+    }
+    // The 104th unit is the first half of the 🙂: the source title keeps the whole character, and the Goal title with it.
+    assert.equal(titles[0], prefix + "x".repeat(103) + "🙂");
+    assert.equal(whole(titles[0]!), true);
+    // 130 of them: the source title keeps 104 whole ones and the Goal title then fits them all, 117 characters, under its 120.
+    assert.equal(titles[1], prefix + "🙂".repeat(104));
+    assert.equal([...titles[1]!].length, 117);
+    assert.equal(whole(titles[1]!), true);
+    // A plain title cuts where it did before: 104 characters of the source title under the 13-character prefix.
+    assert.equal(titles[2], prefix + "a".repeat(104));
+  } finally { await f.done(); }
+});

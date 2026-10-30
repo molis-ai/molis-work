@@ -603,6 +603,13 @@ test("shared core (contracts, kernel, plugin-sdk, a module) recommends the full 
   assert.deepEqual(rulesOf(select(["modules/goals/src/main.ts"])), ["shared-core"]);
 });
 
+// RAC-2401: docs/system/PARALLEL-DEVELOPMENT.md:66 counts packages/plugin-runtime as shared core (the Plugin Runtime's assembly and
+// lifecycle), so a source change there recommends the full suite exactly as contracts, kernel and plugin-sdk do.
+test("RAC-2401 only a source change under packages/plugin-runtime recommends the full suite", () => {
+  workspacePackage("packages/plugin-runtime", "@molis-ai/molis-work-plugin-runtime");
+  assert.deepEqual(rulesOf(select(["packages/plugin-runtime/src/main.ts"])), ["shared-core"]);
+});
+
 test("the assembly of the host recommends the full suite", () => {
   assert.deepEqual(rulesOf(select(["apps/local-host/src/web-request.ts"])), ["assembly"]);
 });
@@ -1214,6 +1221,7 @@ test("in this repository: shared core recommends the full suite, a document alon
   assert.deepEqual(realAt("packages/contracts/src/platform/plugin.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("packages/plugin-runtime/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, LocalProjectDatabase, seedDemoGoals, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -41,7 +41,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(fresh, /在 Pages 打开原对象/);
   assert.ok(fresh.includes("openPlugin=pages") && fresh.includes(`openItem=${created.id}`), "the way back opens the pinned document in Pages");
   // No Goal uses it yet.
-  assert.match(fresh, /被谁引用[\s\S]*还没有目标引用这一版/);
+  assert.match(fresh, /被谁引用[\s\S]*还没有引用这一版的对象/);
 
   // Starring changes the document's revision but not its content: still the same.
   let current = (await (await fetchProject(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
@@ -55,7 +55,8 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(changed, /原文已改，这里仍是第 1 版/);
   assert.match(changed, /第一稿/);
 
-  // Goals that take it as input or hand it in are listed under 「被谁引用」, each opening the Goal.
+  // Goals that take it as input or hand it in are listed under 「被谁引用」 in Goals' group, named by Goals' own link-subjects
+  // action asked as the caller (RAC-2084), each opening the Goal as a workbench item (RAC-2085).
   await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
@@ -63,8 +64,11 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const linked = await detail(pinned.artifact_id, pinned.version);
   const v1 = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "PLATFORM")!.title;
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  assert.ok(linked.includes(`href="/projects/${DEMO_PROJECT_ID}/goals/V1">${html(v1)}</a><span>交付物</span>`), "the Goal that hands it in");
-  assert.ok(linked.includes(`href="/projects/${DEMO_PROJECT_ID}/goals/PLATFORM">${html(platform)}</a><span>输入</span>`), "the Goal that takes it as input");
+  const goalLink = (id: string, title: string) => `<a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="${id}" data-workbench-item-title="${html(title)}">${html(title)}</a>`;
+  assert.ok(linked.includes(`<h3 class="artifact-links-heading">Goals</h3><ul data-artifact-linked-plugin="io.molis.work.goals">`), "listed under Goals");
+  assert.ok(linked.includes(`${goalLink("V1", v1)}<span>交付物</span>`), "the Goal that hands it in");
+  assert.ok(linked.includes(`${goalLink("PLATFORM", platform)}<span>输入</span>`), "the Goal that takes it as input");
+  assert.ok(!linked.includes(`/projects/${DEMO_PROJECT_ID}/goals/`), "no row is a Goals address");
 
   // A document whose text links to this version is listed too (五.1), and opens in Pages; links to another version are not.
   const path = `/artifacts/${encodeURIComponent(pinned.artifact_id)}/versions/${pinned.version}`;
@@ -111,4 +115,41 @@ test("a pinned document that moved to another place says so, instead of saying i
   assert.doesNotMatch(moved, /原对象已经删除/, "a move is not a deletion");
   assert.doesNotMatch(moved, /在 Pages 打开原对象/, "it is not in this project to open");
   assert.match(moved, /第一稿/);
+});
+
+// RAC-2088: an MCP client granted 「被谁引用」 and Goals' naming action reads the Goal titles, as it did when they came from Goals'
+// directory; with the naming action taken away it sees the ids. RAC-2084: Goals names only the Goals that are there.
+test("RAC-2088 an MCP client reads the Goal titles under 「被谁引用」 when granted Goals' naming action, and ids without it", async t => {
+  const served = await openTestHome(t);
+  const project = await served.createProject("artifact-links-mcp");
+  await seedDemoGoals(project.database_path, project.project_id);
+  const store = new LocalProjectDatabase(project.database_path);
+  t.after(() => store.close());
+  const projectOrigin = `${served.origin}/projects/${encodeURIComponent(project.project_id)}`;
+  const post = async (path: string, body: unknown) => {
+    const response = await globalThis.fetch(projectOrigin + path, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", origin: served.origin,
+      "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
+    return await response.json() as Record<string, unknown>;
+  };
+  const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinned = (await post(`/api/plugins/io.molis.work.pages/pages/${created.id}/promote`, { expected_version: created.version })).artifact as { artifact_id: string; version: number };
+  await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
+  const v1 = new GoalProjectApplication(store).goalQueries.getGoal(project.project_id, "V1")!.title;
+
+  const linksAction = { capability_id: "artifacts.links", version: 1 }, namesAction = { capability_id: "goals.artifacts.link_subjects", version: 1 };
+  await served.grant("links-mcp", project.project_id, [linksAction, namesAction]);
+  const mcp = await served.mcp("links-mcp", project.project_id);
+  type Linked = { plugins: Array<{ plugin_id: string; objects: Array<{ id: string; title: string }> }> };
+  const seen = async () => (await mcp.client.invoke(mcp.caller, linksAction, { reference: pinned }) as Linked).plugins
+    .map(group => [group.plugin_id, group.objects.map(item => `${item.id}=${item.title}`)]);
+  assert.deepEqual(await seen(), [["io.molis.work.goals", [`V1=${v1}`]]]);
+  assert.deepEqual((await mcp.client.invoke(mcp.caller, namesAction, { ids: ["V1", "NO-SUCH-GOAL"] }) as { objects: Array<{ id: string }> }).objects.map(item => item.id), ["V1"]);
+  await served.revoke("links-mcp", project.project_id, [namesAction]);
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    assert.deepEqual(await seen(), [["io.molis.work.goals", ["V1=V1"]]], "not granted the naming action: the id, and no failure");
+  } finally { restore(); }
+  assert.deepEqual(entries.filter(entry => entry.event === "link_subjects_failed"), [], "not being granted it is an answer, not a failure to log (RAC-2089)");
 });

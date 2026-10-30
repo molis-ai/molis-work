@@ -266,7 +266,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-323 | T-218 S1：无 install_id 的登记页面和创作台试用页关闭时在途请求按取消（499）结束，不再回 403，RAC-2442（二审建议；短任务书） | 丙 | A | 219 | — | `apps/local-host/src/plugin-page-authority.ts`、一个测试文件（开工定） |
 | T-324 | T-276 二审登记：输入诊断补只有窗口读失败的用例 RAC-2443，test-kit README 收窄 R-73 措辞（短任务书） | 丙 | A | 220 | — | `tests/plugin-frame-browser-diagnostics.test.ts`、`packages/test-kit/README.md` |
 | T-325 | 文档：T-272、T-288/T-289 二审登记里没被锁的旧说法改成现状（pg111、pg031、功能盘点、清理报告；短任务书） | 丙 | A | 221 | — | 四份 spec／docs 文件（见书） |
-| T-326 | T-295 二审登记 ①②③：连接器卡片来源行按整字限长、缺 `declared_by` 时不显示「内置」，RAC-2440～2441（页面资源要放行） | 乙 | A | 222 | — | `apps/workbench/src/settings-connectors.ts`、`settings-connector-guide.ts`、`tests/connectors-settings-behaviors.test.ts` |
+| T-326 | T-295 二审登记 ①②③：连接器卡片来源行按整字限长、缺 `declared_by` 时不显示「内置」，RAC-2440～2441（页面资源实测不涨，不用放行） | 乙 | A | 222 | — | `apps/workbench/src/settings-connectors.ts`、`settings-connector-guide.ts`、`tests/connectors-settings-behaviors.test.ts` |
 | T-327 | T-304 二审登记：共享核心名单守卫改两向逐项比对，PR 模板与 `select.mjs` 同名单也钉住，RAC-2444 | 丙 | A | 223 | — | `tests/affected-tests.test.ts` |
 | T-328 | T-235 二审登记②：PPT 大纲框超多 emoji 时真 Backspace 慢，先复现并量（测量单，不改源码，复现不了就关），不用新号（需 Chrome ≥153） | 乙 | A | 224 | — | 不改仓库文件 |
 | T-329 | T-132 二审登记：选节交给模型的树标题与节标题按整字截，补宿主层「发出的串就是量的串」断言，RAC-2445～2446（乙，派 A） | 乙 | A | 225 | — | `horizontal/knowledge/src/locate.ts`、`tests/knowledge-locate-budget.test.ts` |

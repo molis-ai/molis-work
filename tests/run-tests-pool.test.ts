@@ -247,9 +247,9 @@ test("RAC-2102 --bail: the timeout note belongs to the attempt that was killed a
   const made = directory();
   const slow = attemptFixture(made, "slow", 0, "if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 60_000));");
   const steady = attemptFixture(made, "steady", 0);
-  const run = spawnSync(process.execPath, [runner, "--retries", "1", "--bail", "--jobs", "1", "--timeout-seconds", "2", slow, steady], { encoding: "utf8", timeout: 120_000 });
+  const run = spawnSync(process.execPath, [runner, "--retries", "1", "--bail", "--jobs", "1", "--timeout-seconds", "10", slow, steady], { encoding: "utf8", timeout: 120_000 });
   const output = `${run.stdout}${run.stderr}`;
   assert.equal(run.status, 0, output);
-  assert.equal(occurrences(output, "(killed after 2 s)"), 1, output);
-  assert.ok(output.indexOf("(killed after 2 s)") < output.search(/\[retry 1\] ok\s+\S*slow\.test\.mjs/), "the note comes before the retry line");
+  assert.equal(occurrences(output, "(killed after 10 s)"), 1, output);
+  assert.ok(output.indexOf("(killed after 10 s)") < output.search(/\[retry 1\] ok\s+\S*slow\.test\.mjs/), "the note comes before the retry line");
 });

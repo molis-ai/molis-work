@@ -8,6 +8,16 @@ export interface ConnectorPrimitives {
   icon(name: "link" | "mail" | "back" | "tree"): string;
 }
 
+/** A package declares a card's name and summary with no length limit: these are the limits the card shows, in characters. */
+export const CONNECTOR_NAME_MAX_CHARS = 120;
+export const CONNECTOR_SUMMARY_MAX_CHARS = 400;
+
+/** Cut a card's words to `max` whole characters (code points, as the action schemas count), the last one 「…」; never half of one. */
+export function connectorCardText(text: string, max: number): string {
+  const characters = [...text];
+  return characters.length <= max ? text : characters.slice(0, max - 1).join("") + "…";
+}
+
 export function readyAccountLogin(card: ConnectorSettingsCardView): boolean {
   return Boolean(card.connector_id === "gmail" ? card.gmail_oauth_configured
     : card.connector_id === "notion" ? card.notion_oauth_configured

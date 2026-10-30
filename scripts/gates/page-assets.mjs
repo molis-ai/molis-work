@@ -242,18 +242,16 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
-// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
-// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
-// page, not an asset, so removing it saves nothing here.
 // T-249, RAC-2265–2269: five cuts in the Pages browser client now take whole characters (or whole UTF-16 units, for the draft the
 // Assistant's 100,000-unit context check takes), using two small functions in the existing browser/dom.ts. The old T-203 entry
-// (707763 → 707886, used up on main) is dropped. Approved once by 6526056404: pages-editor.js +342 B, plugins/pages.js +104 B;
-// T-204 changes both assets and lands first, so after it merges this branch re-measures against the new merge-base. Tried: both
-// functions live in the existing browser/dom.ts (no new file, defined once; import.ts already imports it), firstCharacters stops at
-// the limit instead of spreading the whole text, cutUnits is two lines, no page text or dictionary change.
+// (707763 → 707886) is used up on main and dropped. Approved once by 6526056404: pages-editor.js +342 B, plugins/pages.js +104 B;
+// after T-203 (and any later main changes to these assets) the branch re-measures against the new merge-base. Tried: both functions
+// live in the existing browser/dom.ts (no new file, defined once; import.ts already imports it), firstCharacters stops at the limit
+// instead of spreading the whole text, cutUnits is two lines, no page text or dictionary change.
+// T-235 (merged into main), RAC-2220–2221: the PPT outline box is cut at 20000 characters by its input handler; its admission was
+// [27065, 27380] and the build came out at 27364.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/ppt.js": [27065, 27364],
   "/assets/molis-work-pages-editor.js": [707886, 708228],
   "/assets/molis-work-plugins/pages.js": [38946, 39050],
 };

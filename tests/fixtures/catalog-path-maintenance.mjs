@@ -63,7 +63,15 @@ export function classify(home, row) {
   const state = same ? "in-place"
     : path.basename(resolved) === DATABASE_FILE && path.basename(parent) === row.project_id && path.basename(path.dirname(parent)) === "projects" ? "other-home"
     : "outside";
-  return { project_id: row.project_id, stored, derived, state: existsSync(derived) ? state : state === "outside" ? "outside" : "missing" };
+  let fileState = "missing";
+  try {
+    const directory = lstatSync(path.dirname(derived));
+    if (directory.isDirectory()) {
+      const file = lstatSync(derived);
+      fileState = file.isFile() && file.nlink === 1 ? "present" : "unsafe";
+    } else fileState = "unsafe";
+  } catch (error) { if (error.code !== "ENOENT") throw error; }
+  return { project_id: row.project_id, stored, derived, state: fileState === "present" ? state : fileState === "unsafe" ? "unsafe" : state === "outside" ? "outside" : "missing" };
 }
 
 const schemaFor = version => {
@@ -83,7 +91,7 @@ const matchesSchema = (db, version) => !db.prepare("SELECT 1 FROM sqlite_master 
 const rowCounts = db => db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all()
   .map(row => [row.name, Number(db.prepare(`SELECT count(*) AS n FROM "${row.name.replaceAll('"', '""')}"`).get().n)]);
 
-const BLOCKING = new Set(["outside", "bad-id", "missing"]);
+const BLOCKING = new Set(["outside", "bad-id", "missing", "unsafe"]);
 
 function readProjects(db) {
   return db.prepare("SELECT project_id, display_name, source, data_class, created_at, updated_at, database_path FROM projects ORDER BY project_id").all();
@@ -199,8 +207,9 @@ export function run(argv) {
     return { code: 2, error: `${home} is the real Home: ${apply ? "rewrite needs --maintenance-window (the user approved the window)" : "run list on a copy"}` };
   }
   const file = path.join(home, "projects", "catalog.db");
-  if (!existsSync(file)) return { code: 1, error: `${file} does not exist` };
-  if (!lstatSync(path.dirname(file)).isDirectory() || !lstatSync(file).isFile() || lstatSync(file).nlink !== 1) return { code: 1, error: "the catalog must be an ordinary file inside the copy" };
+  try {
+    if (!lstatSync(path.dirname(file)).isDirectory() || !lstatSync(file).isFile() || lstatSync(file).nlink !== 1) return { code: 1, error: "the catalog must be an ordinary file inside the copy" };
+  } catch (error) { return { code: 1, error: `the copy's catalog is unavailable: ${error.code}` }; }
   let found;
   try { found = withCatalog(file, { readOnly: true }, db => inspect(home, db)); }
   catch (error) { return { code: 1, error: `the catalog cannot be read: ${String(error.message).slice(0, 200)}` }; }

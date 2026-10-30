@@ -250,9 +250,10 @@ const headErrors = (measured, budget, base) => {
 // T-290, RAC-2412: the settings shell keeps only the address parameters and fragments the settings page being opened reads. Tried: the
 // declarations as "each page's defaults plus the extra variables it reads" (not one full list per page, not a packed encoding, for
 // readability), and one small filter helper injected into the shell and the Home dialog; the review re-audit added provider/new and
-// connected/connection_error and the own-key lookup (+64 B), so this one asset is +1,346 B in all; no new asset.
+// connected/connection_error and the own-key lookup (+64 B), so this one asset is +1,346 B in all; the increment review then corrected
+// the access page's own parameters (client/client_custom instead of format, +14 B): +1,360 B in all; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148453, 1149799],
+  "/assets/molis-work-workbench.js": [1148453, 1149813],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

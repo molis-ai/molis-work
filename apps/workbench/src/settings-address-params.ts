@@ -27,8 +27,9 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   library: "rule key q kind action version",
   // connections: web-connector-settings.ts:14 reads setup; scripts/connectors-settings.ts:43,324-335 reads connector/connected/connection_error.
   connections: "setup connector connected connection_error",
-  // access (MCP access): web-mcp-action-settings.ts:57-58 and scripts/mcp-access.ts:41 read q/filter/format.
-  access: "q filter format",
+  // access (MCP access, the page mcp-action-access.ts:49-51,63 renders): it reads client/client_custom (the client selector), project and
+  // q/filter. It does not read format; that is web-mcp-action-settings.ts turning a request into an HTML fragment for its caller.
+  access: "client client_custom q filter",
   // history: web-capabilities.ts:27 reads q/kind for it.
   history: "q kind",
   // diagnostics: web-call-diagnostics.ts:20 reads call.

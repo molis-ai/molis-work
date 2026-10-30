@@ -406,6 +406,7 @@ import {
   SETTINGS_DIRECTORY_FACTORY_SCRIPT,
 } from "@molis-ai/molis-work-app-workbench";
 import vm from "node:vm";
+import { readFileSync } from "node:fs";
 
 /** The `table` a script injected: `const NAME = {…};` read back out of its source. */
 function injectedTable(script: string, name: string): unknown {
@@ -425,7 +426,7 @@ type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
 
 /** A settings-directory shell over a page mock: the address it sends to the settings page after a page hands one over. */
-function openSettingsAddress(href: string, pluginSections: readonly string[] = []): string {
+function openSettingsAddress(href: string, pluginSections: readonly string[] = [], via: "event" | "link" = "event"): string {
   const listeners = new Map<string, Listener[]>();
   const opened: string[] = [];
   const document = {
@@ -451,7 +452,13 @@ function openSettingsAddress(href: string, pluginSections: readonly string[] = [
     host, document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/projects/p1/" }, URL, URLSearchParams,
     molisWorkRequest: () => new Promise(() => {}), requestAnimationFrame: () => {}, CSS: { escape: (text: string) => text },
   });
-  document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+  if (via === "event") document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+  else {
+    // A plugin page draws a plain link to the settings address; the shell's own click handling opens it (from outside the settings shell).
+    const anchor = { href, tagName: "A", closest: (selector: string) => selector === "a[href]" ? anchor : null, hasAttribute: () => false, matches: () => false };
+    document.dispatchEvent({ type: "click", target: anchor, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, button: 0, defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; } });
+  }
   assert.equal(opened.length, 1, `${href}: one settings page is opened`);
   return opened[0]!.split(" ").slice(2).join(" ");
 }
@@ -497,8 +504,10 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
     "/settings/diagnostics?call=c-1#agent-diagnostics", "diagnostics keeps its call and its fragment");
   assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#elsewhere"),
     "/settings/diagnostics?call=c-1", "diagnostics drops a fragment it does not read");
-  assert.equal(openSettingsAddress("/capabilities/access?q=feed&format=html&bad=1"),
-    "/capabilities/access?q=feed&format=html", "the access page keeps q and format, drops bad");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&q=feed&filter=all&format=html&bad=1"),
+    "/capabilities/access?client=agent%3Aprologue&client_custom=acme&q=feed&filter=all", "the access page keeps its client selector, q and filter; drops format (the page does not read it) and bad");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&q=feed&bad=1", [], "link"),
+    "/capabilities/access?client=agent%3Aprologue&q=feed", "the same retention when a plugin page's link clicks through to the access page");
   assert.equal(openSettingsAddress("/capabilities/rules?project=p1&rule=r-1&key=k-1&x=1"),
     "/capabilities/rules?project=p1&rule=r-1&key=k-1", "the rules page keeps project, rule and key, drops x");
   assert.equal(openSettingsAddress("/projects/p1/settings/planning/method-a?project=p1&x=1#frag"),
@@ -522,6 +531,27 @@ test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page rea
   assert.equal(connectors.searchParams.get("setup"), "s-1");
   assert.equal(connectors.searchParams.get("connector"), "notion");
   assert.equal(connectors.searchParams.get("x"), null);
+});
+
+test("RAC-2412 S-47 the access declaration lists exactly what the access page reader reads", () => {
+  // Tie the declaration to the real reader instead of a second copy: every parameter mcpAccessPageModel reads (after the defaults every
+  // page gets) must be declared, so a new read there without a new declaration turns this red.
+  const source = readFileSync(new URL("../apps/local-host/src/mcp-action-access.ts", import.meta.url), "utf8");
+  const start = source.indexOf("export async function mcpAccessPageModel");
+  assert.ok(start > 0, "the access page reader is found");
+  const bodyStart = source.indexOf("{", source.indexOf("Promise<", start));
+  let depth = 0, end = -1;
+  for (let at = bodyStart; at < source.length; at += 1) {
+    if (source[at] === "{") depth += 1;
+    else if (source[at] === "}" && --depth === 0) { end = at; break; }
+  }
+  assert.ok(end > bodyStart, "the reader's body is found");
+  const read = new Set([...source.slice(bodyStart, end).matchAll(/url\.searchParams\.get\("([A-Za-z_]+)"\)/gu)].map(match => match[1]!));
+  assert.ok(read.has("client") && read.has("client_custom"), "the reader reads the client selector");
+  const shared = new Set(SETTINGS_ADDRESS_DEFAULTS.global.split(" "));
+  const expected = [...read].filter(key => !shared.has(key)).sort();
+  const declared = (GLOBAL_SETTINGS_QUERY_EXTRAS.access ?? "").split(" ").filter(Boolean).sort();
+  assert.deepEqual(declared, expected, "the access declaration is exactly the reader's own parameters");
 });
 
 test("RAC-2412 S-47 both scripts carry the one declaration table", () => {

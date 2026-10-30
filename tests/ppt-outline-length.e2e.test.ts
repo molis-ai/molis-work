@@ -29,6 +29,8 @@ async function openOutline(t: TestContext) {
     waitFor,
     evaluate,
     slides,
+    command,
+    sessionId,
     async openDialog() {
       await click("[data-ppt-outline-open]");
       await waitFor("document.querySelector('[data-ppt-outline-dialog]').open");
@@ -37,6 +39,12 @@ async function openOutline(t: TestContext) {
     async type(text: string) {
       await click("[data-ppt-outline-text]");
       await command("Input.insertText", { text }, sessionId);
+    },
+    /** Replace the whole box through the browser's own input: select all (a selection only), then type the replacement. */
+    async replaceWith(text: string) {
+      await click("[data-ppt-outline-text]");
+      await evaluate("document.querySelector('[data-ppt-outline-text]').select()");
+      await command("Input.insertText", { text }, sessionId!);
     },
     box: () => evaluate<{ units: number; characters: number; only: boolean }>(`(() => {const value = document.querySelector('[data-ppt-outline-text]').value;return {units: value.length, characters: [...value].length, only: [...value].every(character => character === ${JSON.stringify(wide)})};})()`),
     note: () => evaluate<string>("document.querySelector('[data-ppt-outline-error]')?.textContent ?? ''"),
@@ -64,4 +72,24 @@ test("RAC-2221: typing past 20000 characters stops at 20000 whole characters and
   assert.deepEqual(await open.box(), { units: 2 * LIMIT, characters: LIMIT, only: true }, "the box stops at 20000 whole characters, never half of one");
   assert.match(await open.note(), /20000/, "the note says the same limit the action uses");
   assert.equal(await open.noteHidden(), false, "and it is shown");
+});
+
+test("RAC-2222: cutting back under the limit takes the prompt back and the outline still submits (real browser input, zh page)", { timeout: 60_000 }, async t => {
+  // The verification line could not finish this path with a real Backspace (the CDP call timed out in its protocol). The same flow is
+  // observed here through the browser's own text input: the capped box is selected and replaced by a short outline (an Input.insertText,
+  // not a script assignment of `.value`), which takes the prompt back; the outline then submits and makes slides. The page's locale is
+  // recorded in the failure message and asserted below, so the observation always says which language it ran in.
+  const open = await openOutline(t); if (!open) return;
+  await open.openDialog();
+  await open.type(wide.repeat(LIMIT + 1000));
+  await open.waitFor(`[...document.querySelector('[data-ppt-outline-text]').value].length === ${LIMIT}`);
+  assert.equal(await open.noteHidden(), false, "the length prompt is shown at the cap");
+  const lang = await open.evaluate<string>("document.documentElement.lang");
+  assert.ok(lang.startsWith("zh"), `the observation ran on a zh page (document lang ${JSON.stringify(lang)})`);
+  await open.replaceWith("短大纲");
+  await open.waitFor("document.querySelector('[data-ppt-outline-error]').hidden === true");
+  assert.equal(await open.noteHidden(), true, "back within the limit the prompt is taken back");
+  await open.click("[data-ppt-outline-submit]");
+  await open.waitFor("!document.querySelector('[data-ppt-outline-dialog]').open", 20_000);
+  assert.ok(open.slides() >= 1, "the outline still submits after the prompt was taken back");
 });

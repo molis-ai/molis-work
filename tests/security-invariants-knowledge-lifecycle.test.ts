@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { homeSqlitePath, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { knowledgeActions, type KnowledgeCardsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { knowledgeLocateData } from "@molis-ai/molis-work-service-knowledge";
 import { openTestHome } from "./fixtures/test-home.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -74,3 +75,37 @@ for (const change of ["exclude", "delete"] as const) {
     } finally { model.release(); cards.close(); }
   });
 }
+
+// RAC-2446 T-132 review: the Host sends the model exactly the string locate measures. `knowledgeLocateData` is both what the data
+// budget counts and the data part of the Host's model request; another serialization at the Host's one call site would still fit
+// the budget but would not be the string that was measured.
+test("RAC-2446 the Host's locate sends the model exactly knowledgeLocateData of the locate input", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("选节", ["artifacts"]);
+  const prefix = `/projects/${project.project_id}`;
+  await home.web.post(prefix + "/api/artifacts/import", { source: "file", filename: "A.md", content: "# 选节标题\n\n正文内容。" });
+  const listed = await untilSetup(async () => {
+    const result = await home.web.get<KnowledgeCardsResponse>(prefix + "/api/knowledge/overview");
+    return !result.listing && result.cards.length === 1 ? result : undefined;
+  }, "one source is indexed before the model is configured");
+  const requests: string[] = [];
+  const model = createServer(async (request, response) => {
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8"); requests.push(raw);
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end(await cogniaModelResponse(raw.includes('{"question":') ? '{"sections":[]}' : '{"title":"卡片","brief":"整理出的卡片。","keywords":[],"sections":[]}').text());
+  });
+  await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
+  const address = model.address(); assert.ok(address && typeof address === "object");
+  await seedConfiguredModels(home.home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`);
+  const caller = await home.host.localPersonContext(project.reference), question = "这份资料讲什么？";
+  await home.host.actionClient(project.reference).invoke(caller, { ...knowledgeActions.locate, provider_id: "system.knowledge" }, { question, subjects: [listed.cards[0]!.subject] });
+  const locate = requests.map(raw => JSON.parse(raw) as { messages?: Array<{ content?: string }> })
+    .filter(body => body.messages?.[0]?.content?.includes('"question"'));
+  assert.equal(locate.length, 1, "one locate request reaches the model port");
+  const content = locate[0]!.messages![0]!.content!, asked = content.indexOf('"question"');
+  const data = content.slice(content.lastIndexOf("{", asked));
+  assert.equal(data, knowledgeLocateData(JSON.parse(data)), "the data part is exactly what the locate data budget is measured on");
+  assert.equal(JSON.parse(data).question, question);
+  assert.equal(JSON.parse(data).pieces[0].piece, 1);
+});

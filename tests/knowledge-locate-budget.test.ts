@@ -82,3 +82,20 @@ test("RAC-2499 knowledge.locate@3 answers with omitted, and its output schema re
   assert.throws(() => assertActionInput(schema, older), "the @2 shape, without omitted, is not this version's answer");
   assert.throws(() => assertActionInput(schema, { ...found, omitted: -1 }));
 });
+
+// RAC-2445 T-132 review: the tree title and the section title the model is shown are cut at whole characters. A title of 119
+// one-unit characters and one two-unit character has its cut inside that character at 120 units: the half must be dropped,
+// not shown to the model as an unpaired high surrogate.
+const loneHigh = /[\ud800-\udbff](?![\udc00-\udfff])/u;
+test("RAC-2445 the tree title and the section title stop at the last whole character", async () => {
+  const wide = "x".repeat(119) + "\u{1F642}";
+  const { shown } = await locate([{ subject: { kind: "page", id: "p1" }, revision: "p1@1", title: wide, length: 100, owner_truncated: false,
+    sections: [{ anchor: "h1", title: wide, level: 1, parent: null, start: 0, line: 1, length: 100, summary: null }] }]);
+  const pieceTitle = shown.pieces[0]!.title, sectionTitle = shown.pieces[0]!.sections[0]!.title;
+  assert.equal(pieceTitle, "x".repeat(119), "the tree title drops the half character at the cut");
+  assert.ok(!loneHigh.test(pieceTitle), "the tree title has no unpaired high surrogate");
+  assert.equal([...pieceTitle].length, 119);
+  assert.equal(sectionTitle, "x".repeat(119), "the section title drops the half character at the cut");
+  assert.ok(!loneHigh.test(sectionTitle), "the section title has no unpaired high surrogate");
+  assert.equal([...sectionTitle].length, 119);
+});

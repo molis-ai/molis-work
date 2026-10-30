@@ -1277,15 +1277,13 @@ test("RAC-2444 the shared core in the PR template and the selector's label is th
     .find((line) => line.startsWith("- [ ] 共享核心（"))!;
   assert.ok(template, "the PR template's merge queue section names the shared core");
   const inside = /共享核心（([^）]+)）/u.exec(template)![1]!;
+  assert.doesNotMatch(inside, /等/u, "the template names the shared core in full, not with 等 (统筹答 T-327 6530...)");
   const listed = [...inside.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!);
   assert.ok(listed.length > 0, "the template lists the shared-core packages in code spans");
   // The template mixes both forms (`packages/contracts` and `plugin-sdk`), so compare by the name each entry means.
   const expectedShort = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
   const meaning = (name: string) => name.replace(/^packages\//u, "").replace(/\/\*$/u, "");
-  const stale = listed.filter((name) => !expectedShort.has(meaning(name)));
-  assert.deepEqual(stale, [], "every package the template names is still shared core");
-  // "等" marks the list as partial: a template that drops the marker must then name all of them.
-  if (!inside.includes("等")) compareSharedCore("the PR template", new Set(listed.map(meaning)), expectedShort);
+  compareSharedCore("the PR template", new Set(listed.map(meaning)), expectedShort);
 
   const select = readFileSync(path.join(realRoot, "scripts/affected-tests/select.mjs"), "utf8").split("\n")
     .find((line) => line.includes('group("shared-core", "shared core ('))!;

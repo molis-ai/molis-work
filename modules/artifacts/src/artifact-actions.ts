@@ -119,8 +119,9 @@ export interface ArtifactActionPorts {
   /** The kinds of link Plugins declare from their objects to a version (Manifest `artifacts.links`); absent or empty reads as no links. */
   linkKinds?: ArtifactLinkKinds;
   importDocument(input: ArtifactFileImport | ArtifactExternalImport, caller: ActionExecutionContext): Promise<ArtifactImportResult>;
-  importSources(): Record<string, boolean>;
-  importConnections?(): ConnectorConnectionView[];
+  /** May read a registry that is built asynchronously (the Home's integrations), so the answer may be a promise. */
+  importSources(): Record<string, boolean> | Promise<Record<string, boolean>>;
+  importConnections?(): ConnectorConnectionView[] | Promise<ConnectorConnectionView[]>;
   openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
   /**
    * What the declaring Plugin calls its linking objects and where they open, asked as the caller (「被谁引用」, BL-646); an id it does
@@ -242,7 +243,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.export, input => ({ filename: `artifact-v${input.reference.version}.json`, mime: "application/json", content: exportArtifactVersion(ports.artifacts.query, ports.projectId, input.reference) })),
     bind(artifactsActions.importFile, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importExternal, (input, caller) => ports.importDocument(input, caller)),
-    bind(artifactsActions.importSources, () => ({ sources: ports.importSources(), connections: ports.importConnections?.() ?? [] })),
+    bind(artifactsActions.importSources, async () => ({ sources: await ports.importSources(), connections: (await ports.importConnections?.()) ?? [] })),
     bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ projectId: ports.projectId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, linkKinds: ports.linkKinds, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
     bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),

@@ -11,7 +11,8 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
+import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
+import { homeIntegrationRegistry } from "../apps/local-host/dist/builtin-integrations.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 
@@ -593,9 +594,42 @@ test("RAC-891 a document import takes only the ways of connecting its integratio
     driveToken: store.createToken({ serviceId: "google-drive", displayName: "Drive", token: "drive-token" }).connection_id,
     githubToken: store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-token" }).connection_id,
   }));
-  const taken = new Set(documentImportConnections(home).map(row => row.connection_id));
+  const taken = new Set((await documentImportConnections(home)).map(row => row.connection_id));
   assert.deepEqual([made.feishuCli, made.notionToken, made.notionOauth, made.driveToken].filter(id => !taken.has(id)), [], "what the imports declare is taken");
   assert.deepEqual([made.notionCli, made.githubToken].filter(id => taken.has(id)), [], "a way no import declares, or a service no import reads, is not");
   const host = await readFile(new URL("../apps/local-host/src/artifact-document-import.ts", import.meta.url), "utf8");
   assert.doesNotMatch(host, /["'`]feishu["'`]/u, "the Host names no service for the CLI login");
+});
+
+// RAC-2426 (T-119 review): the document import's sources are the Home registry's declarations, not the Host build's snapshot: a
+// package attached in this Home that declares a document_import integration appears, and leaves when it is detached. The built-in
+// sources stay either way, and the import takes the attached service's connection as a candidate.
+test("RAC-2426 the document import reads the Home registry's document_import integrations, and a detached package leaves", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-document-registry-"));
+  const before = process.env.MOLIS_WORK_HOME;
+  try {
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+    process.env.MOLIS_WORK_HOME = home;
+    const registry = await homeIntegrationRegistry(home);
+    const service = { service_id: "docimport-service", title: "Doc import fixture", group_id: "work", summary: "A document source a package declares",
+      auth_kind: "token" as const, auth: { methods: [{ kind: "token" as const, label: "Doc import token" }] }, capabilities: [{ label: "文档导入", fulfillment: "live" as const }] };
+    const manifest = { schema_version: 2 as const, host_api_version: 2, plugin_id: "io.molis.work.example.docimport", version: "1.0.0", name: "Doc import fixture",
+      kind: "integration" as const, publisher: { publisher_id: "io.example", signature: "example-signature-v1" },
+      entrypoints: [{ deployment: "local" as const, entrypoint: "./plugin.mjs" }],
+      permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }], capabilities: { provides: [], consumes: [] },
+      artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, runtime: { scope: "home" as const }, connection_services: [service],
+      integrations: [{ integration_id: "docimport", kind: "document_import" as const, service_id: "docimport-service", document_source: "docimport", connection_methods: ["token"] }] };
+    const builtin = await documentImportConnectionStatus(home);
+    assert.deepEqual(["notion", "feishu", "lark", "google-docs"].filter(source => !Object.hasOwn(builtin, source)), [], "the built-in document sources are still listed");
+    assert.equal(await registry.attach(manifest, () => null, () => true), true);
+    assert.equal((await documentImportConnectionStatus(home)).docimport, false, "the attached package's document source is listed, with no connection yet");
+    const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "docimport-service", displayName: "Doc import", token: "docimport-token" }).connection_id);
+    assert.deepEqual((await documentImportConnections(home)).filter(row => row.connection_id === connection).map(row => row.service_id), ["docimport-service"], "the attached service's connection is a candidate");
+    await registry.detach(manifest.plugin_id);
+    assert.equal(Object.hasOwn(await documentImportConnectionStatus(home), "docimport"), false, "a detached package's source leaves");
+    assert.deepEqual((await documentImportConnections(home)).filter(row => row.connection_id === connection), [], "and its connection is no candidate");
+  } finally {
+    if (before === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = before;
+    await rm(home, { recursive: true, force: true });
+  }
 });

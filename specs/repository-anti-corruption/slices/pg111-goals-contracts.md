@@ -25,13 +25,13 @@
 
 Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路径；测试 43 个文件加 4 个夹具改经 `@molis-ai/molis-work-plugin-goals/contract`。
 
-**入口怎么调 Goals（王一骏选 A）：按动作 id 调用，用到的字段就地声明；MCP、CLI 的描述从动作目录读。**
+**入口怎么调 Goals（王一骏选 A）：按动作 id 调用，用到的字段就地声明；MCP 的描述与字段从宿主自带的 Goals 定义读（与登记进动作目录的是同一份，提供方按 BL-501 固定），不查运行时目录。**
 
 | 使用方 | 改成 |
 | --- | --- |
 | CLI（`apps/cli/src/command-dispatch.ts`） | 本地表 `GOALS`（七个动作的 id 与版本）；`CliManagementActions.invoke(reference, input, evidence?)` 收引用。不 import 任何 Goals 合同 |
 | MCP（`apps/mcp`） | `tool-dispatch.ts` 的 `MANAGEMENT_GOAL_ACTIONS`（三个动作的 id 与版本）；`goal-tools.ts` 成了构造器 `managementGoalTools(read)`，`tool-catalog.ts` 的 `platformMcpTools(read)` 把它和连接工具合成目录；`goal-event-tools.ts` 删除。端口 `McpManagementActions` 多一个 `fields(reference)`，事件决定工具只收该动作声明的业务字段加传输的项目与数据库 |
-| 宿主（`apps/local-host`） | `goal-callers.ts` 是宿主里唯一取 Goals 动作描述符的文件：导出 `goalsHostActions`（initialize、create、guidanceRead、directoryItem、list、state，带类型）、`readGoalResumeFacts`、`ProjectGuidanceFacts`、`GoalsActionReference`、`requireManagementDefinition`、`managementInputFields`；`bindGoalsManagementActions` 与常驻客户端按引用调用并先用该动作自己的输入 schema 校验。新增 `mcp-platform-tools.ts`：按引用从动作目录读出三个 Goals 动作，调 `platformMcpTools` 得 `MCP_TOOLS`（`apps/desktop/launchers/mcp/server.ts` 与 MCP 目录、启动前校验都取它）。其余宿主文件经 `goal-callers.ts`；`web-planning.ts` 取规划方法的类型 |
+| 宿主（`apps/local-host`） | `goal-callers.ts` 是宿主里唯一取 Goals 动作描述符的文件：导出 `goalsHostActions`（initialize、create、guidanceRead、directoryItem、list、state，带类型）、`readGoalResumeFacts`、`ProjectGuidanceFacts`、`GoalsActionReference`、`requireManagementDefinition`、`managementInputFields`；`bindGoalsManagementActions` 与常驻客户端按引用调用并先用该动作自己的输入 schema 校验。新增 `mcp-platform-tools.ts`：按引用从宿主自带的 Goals 定义读出三个 Goals 动作，调 `platformMcpTools` 得 `MCP_TOOLS`（`apps/desktop/launchers/mcp/server.ts` 与 MCP 目录、启动前校验都取它）。其余宿主文件经 `goal-callers.ts`；`web-planning.ts` 取规划方法的类型 |
 | 工作台（`apps/workbench`） | 已点名 Goals 包的文件取 `/contract` 的类型；其余声明本地最小类型 |
 | Coding | 新 `goals-actions.ts`：`GOALS_ACTIONS` 五个句柄（id、版本、读或写、`goals:read` 或 `goals:write`）和本地字段类型；检查输入、受众和权限的仍是 Goals 注册的动作 |
 | Feed | `goal-promotion.ts` 的本地表 `GOALS`（`goals.directory.read@1`、`goals.create@1`、`goals.inputs.confirm@1`），经已有的 `directory.invoke(reference, …)` |
@@ -49,7 +49,7 @@ Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路
 
 ### 对 MCP、CLI 工具生成的影响
 
-- MCP 管理工具的名字、顺序、描述和输入字段与搬之前相同（RAC-1773 钉死），只是数据来源从编译期 import 变成宿主启动时从动作目录读；`MCP_TOOLS` 不再从 `@molis-ai/molis-work-app-mcp` 导出，改从 `@molis-ai/molis-work-app-local-host` 导出。静态启动前校验（`assertMcpStartInput`）同样用宿主的 `MCP_TOOLS`。
+- MCP 管理工具的名字、顺序、描述和输入字段与搬之前相同（RAC-1773 钉死），只是数据来源从 MCP 包编译期 import 平台合同，变成宿主按引用读它自带的 Goals 定义（与登记进动作目录的是同一份；不查运行时目录，所以 Home 没打开时也有，`mcp-start-preflight.ts` 的启动前校验照旧）；`MCP_TOOLS` 不再从 `@molis-ai/molis-work-app-mcp` 导出，改从 `@molis-ai/molis-work-app-local-host` 导出。静态启动前校验（`assertMcpStartInput`）同样用宿主的 `MCP_TOOLS`。
 - 管理端事件决定工具对「运行时调用者夹带多余字段」的拒绝顺序：先判管理权限、再判字段。管理入口的行为不变；运行时受众原来先得到 `mcp.unexpected_field`，现在先得到 `mcp.authority_denied`，都是拒绝。
 - CLI 的命令与输出不变（它原来读描述符只为调用）。
 - 动作目录与动作合同快照 `tooling/gates/actions/` 没有差异。
@@ -61,5 +61,5 @@ Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路
 | RAC-1772 | `GoalEventFactsApi`、`GoalEventStateApi`、`GoalEventIntentApi` 的键与上表逐项相等，`GoalEventFactsApi` 与 `GoalEventFacts` 的 `state`、`intent` 的类型就是 `GoalEventStateApi`、`GoalEventIntentApi`（不是具体类），`GoalEventFacts` 可以赋给 `GoalEventFactsApi`（调 TypeScript 在构建出的 `.d.ts` 上做类型检查，不靠运行器）；`GoalEventFacts.prototype` 上只有事实方法和 `readCompletionContext`，那 15 个转发方法没有了（`tests/goals-contract-ownership.test.ts`） |
 | RAC-1770 | `@molis-ai/molis-work-plugin-goals/contract` 的运行时导出名单（100 项）与取值不变：`goalPluginActions` 五项、`goalEntryActions` 十二项的 id、版本、读写，`goalEventWorkStatuses`、`goalIntentSourceKinds`、`goalRelationTypes`；平台合同的 `package.json` 不再有 `modules/goals`、`modules/goal-actions`、`modules/governance-collaboration` 出口，按包名导入得 `ERR_PACKAGE_PATH_NOT_EXPORTED`，`packages/contracts/src/modules` 里没有 `goal*`、`governance*` 文件（`tests/goals-contract-ownership.test.ts`） |
 | RAC-1771 | 除 Goals 自己的包和 `tooling/`，`apps`、`packages`、`plugins`、`server`、`horizontal`、`services`、`scripts` 里没有一个已跟踪的源文件写着旧三个子路径；CLI、MCP、Coding、Feed、`server/src` 的源文件不点名 Goals 包或它的源码路径（同上） |
-| RAC-1773 | CLI 的 `GOALS`（七项）、Feed 的 `GOALS`（三项）、MCP 的 `MANAGEMENT_GOAL_ACTIONS`（三项）与 Goals 注册的 `goalEntryActions` 同名项的 id 和版本逐项相等；Coding 的 `GOALS_ACTIONS` 五项与 `goalPluginActions` 的 id、版本、读写、kind、scope、权限相等；`MCP_TOOLS` 的名字与顺序、三个管理工具的描述、业务字段与 required 与动作目录一致（同上；动作快照另由 `tests/action-contract-snapshot.test.ts` 钉住无差异） |
+| RAC-1773 | CLI 的 `GOALS`（七项）、Feed 的 `GOALS`（三项）、MCP 的 `MANAGEMENT_GOAL_ACTIONS`（三项）与 Goals 注册的 `goalEntryActions` 同名项的 id 和版本逐项相等；Coding 的 `GOALS_ACTIONS` 五项与 `goalPluginActions` 的 id、版本、读写、kind、scope、权限相等；`MCP_TOOLS` 的名字与顺序、三个管理工具的描述（手写的搬前原文）、业务字段与 required 与 Goals 登记的定义一致（同上；动作快照另由 `tests/action-contract-snapshot.test.ts` 钉住无差异） |
 | RAC-1774 | 门禁拒绝旧写法：入口任一文件引用 Goals 包、`/contract`、Goals 源码路径或旧三个子路径（十种语法，CLI 与 MCP 各一个文件），拒绝旧的分发器形态（从 `goal-actions` 取 `goalEntryActions`，没有本地表），拒绝不是表项的 `invoke`；注释和字符串里的名字、`platform/actions` 的引用不算（`tests/goals-query-boundaries.test.mjs`） |

@@ -3,18 +3,21 @@ import type { McpToolDefinition } from "./protocol.js";
 import { V1_COMMON, V1_STRING } from "./tool-schemas.js";
 import type { MANAGEMENT_GOAL_ACTIONS } from "./tool-dispatch.js";
 
-/** What a management tool takes from the action directory: the action's own description and the schema of its business input. */
+/** What a management tool takes from the action's definition: its own description and the schema of its business input. */
 export interface McpManagementActionText {
   readonly description: string;
   readonly input_schema: ActionSchema;
 }
 
-/** Where the Host reads that text for one of the three actions (it finds the action in the directory by its id and version). */
+/**
+ * Where the Host reads that text for one of the three actions: the Goals definitions it ships with (the same ones registered in the
+ * action directory, the provider pinned as in BL-501), matched by id and version. It needs no open Home.
+ */
 export type McpManagementActionSource = (name: keyof typeof MANAGEMENT_GOAL_ACTIONS) => McpManagementActionText;
 
 /**
  * The three management tools. Their wire (the project, the database, who a decision came from) is the transport's; the description and the
- * business fields are the action's, read from the directory by the Host, never written here a second time.
+ * business fields are the action's, read by the Host from the Goals definition it ships, never written here a second time.
  */
 export function managementGoalTools(read: McpManagementActionSource): McpToolDefinition[] {
   const initialize = read("initialize"), treeDecide = read("treeDecide"), decide = read("decide");

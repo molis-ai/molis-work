@@ -173,14 +173,19 @@ test("RAC-1773: the CLI, MCP, Feed and Coding tables hold the ids, versions and 
     "molis_work_v1_context_create_and_bind", "molis_work_v1_project_delete"]);
   const tool = (name: string) => MCP_TOOLS.find(item => item.name === name)!;
   const business = (key: "initialize" | "treeDecide" | "decide") => registered("goalEntryActions", key).action;
-  for (const [name, key, keys, required] of [
-    ["molis_work_v1_initialize", "initialize", ["database_path", "project_id", "idempotency_key"], ["project_id", "idempotency_key"]],
-    ["molis_work_v1_goal_tree_decide", "treeDecide", ["proposal_id", "decisions", "reason", "confirm_all_pending", "idempotency_key", "database_path", "project_id", "authority"], ["project_id", "proposal_id", "idempotency_key"]],
+  // The descriptions are the words the tools said before the move (the platform contracts' descriptors), written out so they stay frozen.
+  for (const [name, key, keys, required, description] of [
+    ["molis_work_v1_initialize", "initialize", ["database_path", "project_id", "idempotency_key"], ["project_id", "idempotency_key"],
+      "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键"],
+    ["molis_work_v1_goal_tree_decide", "treeDecide", ["proposal_id", "decisions", "reason", "confirm_all_pending", "idempotency_key", "database_path", "project_id", "authority"], ["project_id", "proposal_id", "idempotency_key"],
+      "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供"],
     ["molis_work_v1_event_decide", "decide", ["database_path", "project_id", "goal_id", "idempotency_key", "request_id", "selected_option_id", "conclusion", "accepts_requirements", "effects", "authorized_change", "scope"],
-      ["project_id", ...(business("decide").input_schema.required ?? [])]],
+      ["project_id", "goal_id", "idempotency_key", "conclusion"],
+      "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺"],
   ] as const) {
     const wire = tool(name);
-    assert.equal(wire.description, business(key).description, name);
+    assert.equal(wire.description, description, name);
+    assert.equal(business(key).description, description, `${name}: the Goals definition says the same`);
     assert.deepEqual(Object.keys(wire.inputSchema.properties as object), [...keys], name);
     assert.deepEqual(wire.inputSchema.required, [...required], name);
     // The business fields are the action's own, unchanged in shape.

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, hostSourceFiles, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, ENTRY_SOURCE_FILE, hostSourceFiles, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
@@ -57,7 +57,7 @@ test("W3-07-5-01 / W3-07-9-01: no production definition, export, registration or
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 /** Every source file of the two entry packages (PG-111: they name no Goals contract anywhere, not only in the dispatchers). */
 const entrySources = () => ["apps/cli/src", "apps/mcp/src"].flatMap(directory => readdirSync(new URL(`../${directory}/`, import.meta.url), { recursive: true })
-  .filter(name => String(name).endsWith(".ts")).map(name => ({ path: `${directory}/${name}`, source: read(`${directory}/${name}`) })));
+  .filter(name => ENTRY_SOURCE_FILE.test(String(name))).map(name => ({ path: `${directory}/${name}`, source: read(`${directory}/${name}`) })));
 const transportSources = () => ({ cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
   mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") }, entries: entrySources() });
 /** The rule's answer for the real sources with one dispatcher or its Host composition edited. */
@@ -339,4 +339,13 @@ test("RAC-1514 the Goals routes are mounted by the plugin and the Host cannot mo
   assert.match(check({ httpContext: domainPort }).join("\n"), /http\/types\.ts: Goals HTTP business operations must consume BoundActionClient/u);
   // Reading no Host files must not count as a pass.
   assert.match(check({ hostSources: [] }).join("\n"), /no Host source files were read/u);
+});
+
+test("RAC-1774: the entries' files are TypeScript and JavaScript of every module flavour, and a check without them throws instead of passing", () => {
+  for (const name of ["a.ts", "a.mts", "a.cts", "a.tsx", "a.js", "a.mjs", "a.cjs", "a.jsx"]) assert.ok(ENTRY_SOURCE_FILE.test(name), name);
+  for (const name of ["a.md", "a.json", "a.d.ts.map"]) assert.ok(!ENTRY_SOURCE_FILE.test(name), name);
+  // A Goals import in a `.mjs` file of the CLI is refused like one in a `.ts` file.
+  assert.match(withEntryFile("apps/cli/src/extra.mjs", 'import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";\n'), /apps\/cli\/src\/extra\.mjs/u);
+  const { cli, mcp } = transportSources();
+  assert.throws(() => checkGoalTransportCallers({ cli, mcp }), /entries \(the entry packages. source files\) are required/u);
 });

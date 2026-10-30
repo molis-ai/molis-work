@@ -569,7 +569,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
-    entries: ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(repositoryRoot, directory), filePath => filePath.endsWith(".ts"))
+    entries: ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(repositoryRoot, directory), filePath => ENTRY_SOURCE_FILE.test(filePath))
       .map(filePath => ({ path: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8") }))),
   }));
   for (const app of ["mcp", "cli"]) {
@@ -1129,9 +1129,11 @@ export function checkNoGoalTypedAdapters(files) {
 }
 
 /**
- * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version the action directory lists it under,
+ * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
  * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
  */
+/** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
+export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
 const CLI_GOALS_TABLE = "GOALS";
 const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
@@ -1177,7 +1179,9 @@ function moduleReferences(file) {
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
  */
-export function checkGoalTransportCallers({ cli, mcp, entries = [] }) {
+export function checkGoalTransportCallers({ cli, mcp, entries }) {
+  // A caller that forgets the entries must not pass the rule by skipping it.
+  if (!Array.isArray(entries)) throw new TypeError("checkGoalTransportCallers: entries (the entry packages' source files) are required");
   const errors = [];
   const dispatcherPath = "apps/cli/src/command-dispatch.ts";
   const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);

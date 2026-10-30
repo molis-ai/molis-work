@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
-/** The three Goals actions the management tools call, by the id and version the action directory lists them under. */
+/** The three Goals actions the management tools call, by the id and version Goals registers them under. */
 export const MANAGEMENT_GOAL_ACTIONS = {
   initialize: { capability_id: "goals.board.initialize", version: 2 },
   decide: { capability_id: "goals.decisions.record", version: 1 },
@@ -13,7 +13,7 @@ type McpGoalActionReference = { readonly capability_id: string; readonly version
 export interface McpManagementActions {
   readonly project_id: string;
   invoke<Output = unknown>(reference: McpGoalActionReference, input: Record<string, unknown>, evidence?: unknown): Promise<Output>;
-  /** The business fields the action takes, as the action directory lists its input; a tool accepts these and nothing else. */
+  /** The business fields the action takes, as the Goals definition the Host ships declares its input; a tool accepts these and nothing else. */
   fields(reference: McpGoalActionReference): readonly string[];
 }
 

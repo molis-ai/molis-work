@@ -1318,7 +1318,8 @@ export function hasImportFrom(source, specifier) {
  * without comments and regular expressions, that STARTS in code. A comment, a regular expression, or a string or template that holds the
  * statement does not start in code (its first character is inside the literal), so it does not count. Only the start is looked at: the
  * rest of the match is the pattern's own business, so a literal after a code start is not told apart, and a statement that is real
- * code but never used satisfies it.
+ * code but never used satisfies it. `matchAll` does not overlap matches, so a string that holds a run starting like the real statement
+ * can swallow the start of the real one after it; that only refuses more than needed, never accepts more than it should.
  */
 export function matchesStatementInCode(source, pattern) {
   if (!pattern.test(source)) return false;

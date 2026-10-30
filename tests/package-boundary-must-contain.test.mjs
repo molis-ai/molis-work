@@ -255,7 +255,9 @@ test("RAC-2067 a statement pattern must start in code: a comment, a string, a re
   assert.equal(matchesStatementInCode(`${statement}; ${statement};`, new RegExp(pattern.source, "gu")), true, "a global pattern is read the same way");
 });
 
-test("RAC-2068 nothing is accepted that the plain check refused: a registration found by the strict reading is found by the plain one", () => {
+// One deliberate widening: a contributions list is read after comments are removed, so an entry with a comment beside it now counts
+// where the plain reading refused it. Everywhere else, nothing the plain reading refused is accepted by the strict one.
+test("RAC-2068 except that one deliberate widening (a contributions list is read without comments, so a commented entry now counts), nothing is accepted that the plain check refused: a registration found by the strict reading is found by the plain one", () => {
   const composition = read(COMPOSITION), registry = read(REGISTRY), descriptors = builtinCatalogText(repository);
   let seed = 20261029, strictAccepts = 0;
   const next = limit => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit; };
@@ -270,4 +272,23 @@ test("RAC-2068 nothing is accepted that the plain check refused: a registration 
     }
   }
   assert.ok(strictAccepts > 0, "the strict reading still accepts some of the cut sources");
+});
+
+test("RAC-2296 a contributions list is read after comments are removed, on purpose: a commented entry now counts, while a name only in a comment counts nowhere", () => {
+  const composition = read(COMPOSITION), registry = read(REGISTRY), descriptors = builtinCatalogText(repository);
+  const list = /contributions:\s*\[([^\]]*feedUiContribution[^\]]*)\]/u.exec(descriptors);
+  assert.ok(list, "the built-in plugin catalog still has a contributions list holding feedUiContribution");
+  const widened = [
+    "feedUiContribution // note\n  ",
+    "/* note */ feedUiContribution",
+    "feedUiContribution /* note */",
+  ];
+  for (const form of widened) {
+    const mutated = descriptors.replace(list[1], `\n    ${form}\n  `);
+    assert.equal(hasWorkbenchUiContribution(composition, registry, "feedUiContribution", mutated), true, `a commented entry counts: ${form.trim()}`);
+    assert.equal(mentionsWorkbenchUiContribution(composition, registry, "feedUiContribution", mutated), false, `the plain reading still refuses it: ${form.trim()}`);
+  }
+  const onlyComment = descriptors.replace(list[1], "\n    /* feedUiContribution */\n  ");
+  assert.equal(hasWorkbenchUiContribution(composition, registry, "feedUiContribution", onlyComment), false, "a name only in a comment is no registration");
+  assert.equal(mentionsWorkbenchUiContribution(composition, registry, "feedUiContribution", onlyComment), false, "and the plain reading does not count it either");
 });

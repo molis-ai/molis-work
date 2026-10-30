@@ -202,6 +202,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-238 | 沙箱模型请求的数据上限与端口上限对齐：数据加最长指令不再超过端口的上限、被端口拒（防腐清理，MISC「T-185 发布」`plugin-sandbox/src/model.ts` 一行；派片，方案自定，RAC-2030～2039；只许变严，若要放宽沙箱边界先问统筹） | 甲 | Claude（设备 A） | 150 | — | `packages/plugin-sandbox/src/model.ts`、对应用例文件（方案里列） |
 | T-239 | 内核动作结算记的失败信息按整字截到 200，不再留下半个字（防腐清理，T-237 二审建议 1，`packages/kernel/src/action-settlement.ts:95`；派片，方案自定，共享核心 full=true，RAC-2040～2049） | 甲 | Claude（设备 A） | 151 | — | `packages/kernel/src/action-settlement.ts`、对应用例文件（方案里列） |
 | T-227b | 项目与 Host 关闭在 `list()` 读不了时，Supervisor 记为 `failed` 而 Runtime 仍在跑的插件也按自己的安装停（`preserve_enabled`），不再被停成 `disabled`（防腐清理，MISC「T-227 二审 建议 1」，`apps/local-host/src/plugin-platform-close.ts:39`；接 T-227，方案自定，full 按方案判断，RAC-2050～2059） | 甲 | Claude（设备 A） | 152 | — | `apps/local-host/src/plugin-platform-close.ts`、对应用例文件（方案里列） |
+| T-280 | 包边界门禁余下几段「必须包含」的检查（Feed 与 Integration 段、`checkGoalsCommandOwnership`、`checkProposalUiOwnership`）也先去掉注释、字符串、正则和模板文字再判断（防腐清理，MISC「T-215 起草」；接 T-236，方案自定，RAC-2060～2069） | 甲 | Claude（设备 A） | 153 | — | `scripts/check-package-boundaries.mjs`、`tests/package-boundary-must-contain.test.mjs` |
+| T-281 | 查清 `code-scale.e2e`（SYS-49/VUX-33）在 CI Full 上最长一帧超 50ms 的原因：最长帧几乎全是强制布局；是着色分帧里的整块布局就修产品，是 CI 机慢就把证据交统筹问用户（防腐清理，MISC「Full 偶发 code-scale」；先查后定，不放宽断言，RAC-2070～2079） | 甲 | Claude（设备 A） | 154 | — | `tests/code-scale.e2e.test.ts`、`plugins/native/coding` 的着色分帧、`packages/plugin-sdk/src/highlight.ts`（方案里定准；改 SDK 即共享核心 full=true） |
 
 ## 在途，不走任务书
 

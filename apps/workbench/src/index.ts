@@ -96,5 +96,4 @@ export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugi
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
 
-export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, isProjectReference, artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./artifacts/index.js";
-export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel, ArtifactBrowserUiModel } from "./artifacts/index.js";
+export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";

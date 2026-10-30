@@ -249,8 +249,12 @@ const headErrors = (measured, budget, base) => {
 // characters instead of UTF-16 units, +106 B on this one asset (first +36 B; the counting loop T-229's review asked for, no array of a
 // whole file, adds the rest). Tried: the shorter form of both writes, a shared cut helper (longer), no new asset.
 // 统筹答 T-229 (2026-10-29, issue 1332 comment 6507055134) approved [76760, 76866]: the extra 70 B is what the review's iterator count costs.
+// T-183, RAC-1869–1872: the frame bridge and the context bus cut the title and text of a "put it in" control by whole
+// characters instead of UTF-16 units, one small function in each of the two bundles (they share no module): +63 B and +96 B.
+// Tried: no new asset; one definition per bundle, used at every site there; the Host's own unit limits are not touched.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/jelly.js": [76760, 76866],
+  "/assets/molis-work-plugin-frame.js": [190560, 190623],
+  "/assets/molis-work-workbench.js": [1148453, 1148549],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

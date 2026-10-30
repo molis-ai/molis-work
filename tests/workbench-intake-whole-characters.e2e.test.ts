@@ -39,7 +39,7 @@ test("RAC-1872 a control in a plugin's frame and one in the page ask the Host wi
   await lingguang.click("[data-test-intake=whole-frame]");
   await waitFor("window.intakeAsked.length === 1", 10_000);
   // In the page, on the surface: the intake handler alone.
-  await evaluate(button("document.querySelector('[data-work-surface=lingguang]')", "whole-page", "bottom:8px;right:8px"));
+  await evaluate(button("document.querySelector('[data-work-surface=lingguang]')", "whole-page", "top:120px;left:50%;transform:translateX(-50%)"));
   await click("[data-test-intake=whole-page]");
   await waitFor("window.intakeAsked.length === 2", 10_000);
   const asked = JSON.parse(await evaluate<string>("JSON.stringify(window.intakeAsked.map(a => ({ id: a.focus.object.id, intake: a.intake_id, title: a.focus.object.title, text: a.focus.targets[0].text })))")) as

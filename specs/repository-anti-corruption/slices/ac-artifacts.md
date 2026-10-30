@@ -139,6 +139,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 - 一个链接种类只有一个属主（S-70.3）：别的插件声明已被占的种类，安装、换版本、启用被拒；插件不能写属主是别人的种类的边。
 - Goals 不在项目里时，这些查询返回空，不报错（ac-trust §3.4.1 的 Goals 缺席清单里已列成果库一项，本片的用例要覆盖它）。
 - 动作 `artifacts.goals.embeds` 的名字带 Goals：留不留、改不改，统筹 10-24 定保留，见 §10 A 类第 3 项。
+- 「被谁引用」（`artifacts.links`）按声明链接种类的插件分组（BL-646，T-113，2026-10-30）：链接种类表带上声明的插件（`plugin_id`、`plugin_title`），每个插件只被问一次、只问它自己的对象，名字与打开位置由它声明的 link_subjects 动作（`defineArtifactLinkSubjectsAction`，Goals 的是 `goals.artifacts.link_subjects`）以调用者身份答；答不上的显示 id。成果页每个插件一个小标题，行按工作台条目打开，不再拼 Goals 的地址。link_subjects 的受众与 `artifacts.links` 相同（二审必修，MCP 与工作流调用方被授予它就看得到名字），一次最多 200 个 id、分批问，`open` 只认声明方自己的 surface，被拒（含 `mcp.action_revoked`）以外的失败写进宿主日志；插件作者从 plugin SDK 取 `defineArtifactLinkSubjectsAction`。验收 RAC-2080～2089（`tests/artifact-links.test.ts`、`tests/artifact-source-and-links.test.ts`、`tests/goal-artifact-inputs.test.ts`、`tests/artifact-goal-input.e2e.test.ts`）。
 
 ### 3.6 自读口径合成一套（PG-107）
 

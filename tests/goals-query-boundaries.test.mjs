@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, ENTRY_SOURCE_FILE, hostSourceFiles, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
@@ -348,4 +349,30 @@ test("RAC-1774: the entries' files are TypeScript and JavaScript of every module
   assert.match(withEntryFile("apps/cli/src/extra.mjs", 'import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";\n'), /apps\/cli\/src\/extra\.mjs/u);
   const { cli, mcp } = transportSources();
   assert.throws(() => checkGoalTransportCallers({ cli, mcp }), /entries \(the entry packages. source files\) are required/u);
+});
+
+test("RAC-2297: reading the entry packages covers every JavaScript and TypeScript flavour, and a Goals import in one of them is refused", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "molis-entry-sources-"));
+  try {
+    const write = (relative, source) => { mkdirSync(path.dirname(path.join(root, relative)), { recursive: true }); writeFileSync(path.join(root, relative), source); };
+    write("apps/cli/src/command.mts", 'import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";\n');
+    write("apps/cli/src/view.tsx", "export const view = null;\n");
+    write("apps/cli/src/legacy.cjs", "module.exports = {};\n");
+    write("apps/mcp/src/tool.mts", "export const tool = null;\n");
+    write("apps/mcp/src/render.tsx", "export const render = null;\n");
+    write("apps/mcp/src/helper.cjs", "module.exports = {};\n");
+    write("apps/cli/src/notes.md", "not a source file\n");
+    write("apps/mcp/src/types.d.ts.map", "{}\n");
+    const entries = readEntrySources(root);
+    assert.deepEqual(entries.map(entry => entry.path).sort(), [
+      "apps/cli/src/command.mts", "apps/cli/src/legacy.cjs", "apps/cli/src/view.tsx",
+      "apps/mcp/src/helper.cjs", "apps/mcp/src/render.tsx", "apps/mcp/src/tool.mts",
+    ], "every .mts/.tsx/.cjs file of both entry packages is read, and neither the .md nor the .d.ts.map");
+    assert.equal(entries.find(entry => entry.path === "apps/cli/src/view.tsx").source, "export const view = null;\n", "the source of each file is read");
+    const { cli, mcp } = transportSources();
+    assert.match(checkGoalTransportCallers({ cli, mcp, entries }).join("\n"),
+      /apps\/cli\/src\/command\.mts: a [a-z]+ of @molis-ai\/molis-work-plugin-goals\/contract is a Goals contract/u);
+    // Only the .ts files pass the dispatcher rules: the scan itself is what this case pins (see the filter mutation).
+    assert.deepEqual(checkGoalTransportCallers({ cli, mcp, entries: entries.filter(entry => entry.path.endsWith(".ts")) }), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

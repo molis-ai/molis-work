@@ -387,3 +387,123 @@ test("SYS-15 S-47 RAC-1811 a plain Home request with bad percent-encoding is 400
   assert.equal((await f.request(`/api/plugins/${id}/items/abc`)).status, 200, "a well-formed path still reaches the route");
   assert.deepEqual(answered, ["abc"]);
 });
+
+// RAC-2412 (S-47): the workbench keeps only the address parameters and fragments the settings page being opened reads. A page can push any
+// address into a settings page through `molis-work:open-settings-path`; undeclared query parameters and an undeclared fragment must not
+// reach it, while what the page reads stays. The same table is injected into the shell and into the standalone Home model settings dialog.
+import {
+  GLOBAL_SETTINGS_ADDRESS_PARAMS,
+  HOME_MODEL_SETTINGS_ADDRESS_PARAMS,
+  HOME_MODEL_SETTINGS_CLIENT_SCRIPT,
+  PLUGIN_SETTINGS_ADDRESS_PARAMS,
+  PROJECT_SETTINGS_ADDRESS_PARAMS,
+  SETTINGS_DIRECTORY_FACTORY_SCRIPT,
+} from "@molis-ai/molis-work-app-workbench";
+import vm from "node:vm";
+
+/** The `table` a script injected: `const NAME = {…};` read back out of its source. */
+function injectedTable(script: string, name: string): unknown {
+  const match = new RegExp(`const ${name} = (\\{.*?\\});`).exec(script);
+  assert.ok(match, `${name} is injected`);
+  return JSON.parse(match[1]!);
+}
+
+type Event = { type: string; detail?: { href?: string } };
+type Listener = (event: Event) => void;
+
+/** A settings-directory shell over a page mock: the address it sends to the settings page after a page hands one over. */
+function openSettingsAddress(href: string, pluginSections: readonly string[] = []): string {
+  const listeners = new Map<string, Listener[]>();
+  const opened: string[] = [];
+  const document = {
+    querySelector: (selector: string) => selector.includes("data-directory-panel") || selector.includes("data-work-surface") ? panel() : null,
+    querySelectorAll: (selector: string) => selector.includes("[data-settings-section]")
+      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...pluginSections].map((id) => ({ dataset: { settingsSection: id } }))
+      : [],
+    createElement: () => panel(),
+    adoptNode: (node: unknown) => node,
+    addEventListener: (type: string, listener: Listener) => { const list = listeners.get(type) ?? []; list.push(listener); listeners.set(type, list); },
+    dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
+  };
+  function panel(): Record<string, unknown> {
+    const node: Record<string, unknown> = { dataset: {}, children: [], hidden: false, scrollTop: 0, scrollLeft: 0, ownerDocument: document,
+      className: "", textContent: "", querySelector: () => null, querySelectorAll: () => [], replaceChildren: () => {}, append: () => {},
+      remove: () => {}, matches: () => false, closest: () => null, setAttribute: () => {}, addEventListener: () => {}, contains: () => false };
+    return node;
+  }
+  const host = { translate: (text: string) => text, projectId: "p1", setDirectory: () => {}, setExclusive: () => {}, hideDirectory: () => {},
+    closeCover: () => false, openCover: () => {}, registerCover: () => {}, showToast: () => {},
+    noteCover: (kind: string, place: string) => { opened.push(`${kind} ${place}`); } };
+  vm.runInNewContext(`(${SETTINGS_DIRECTORY_FACTORY_SCRIPT})(host)`, {
+    host, document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/projects/p1/" }, URL, URLSearchParams,
+    molisWorkRequest: () => new Promise(() => {}), requestAnimationFrame: () => {}, CSS: { escape: (text: string) => text },
+  });
+  document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+  assert.equal(opened.length, 1, `${href}: one settings page is opened`);
+  return opened[0]!.split(" ").slice(2).join(" ");
+}
+
+/** A Home shell dialog over a page mock: what it asks the Host for after a page hands over an address. */
+async function homeModelAddress(href: string): Promise<string> {
+  const asked: string[] = [];
+  const listeners = new Map<string, Listener[]>();
+  const element = (): Record<string, unknown> => ({ dataset: {}, hidden: false, textContent: "", value: "", options: [], open: false,
+    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {},
+    removeAttribute: () => {}, setAttribute: () => {}, showModal: () => {}, close: () => {} });
+  const dialog = element();
+  const request = Object.assign((url: string) => { asked.push(url); return Promise.reject(new Error("captured")); }, { show: () => {} });
+  const document = {
+    querySelector: (selector: string) => selector === "[data-home-model-settings]" ? dialog : null,
+    querySelectorAll: () => [],
+    addEventListener: (type: string, listener: Listener) => { const list = listeners.get(type) ?? []; list.push(listener); listeners.set(type, list); },
+    dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
+  };
+  vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
+    document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
+    DOMParser: class {}, AbortController, setTimeout, clearTimeout,
+  });
+  const swallowed: unknown[] = [];
+  const onRejection = (reason: unknown) => swallowed.push(reason);
+  process.on("unhandledRejection", onRejection);
+  try {
+    document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally { process.off("unhandledRejection", onRejection); }
+  assert.equal(asked.length, 1, `${href}: the dialog loads once`);
+  return asked[0]!;
+}
+
+test("RAC-2412 S-47 a settings address keeps only the parameters and fragment its page reads", () => {
+  assert.equal(openSettingsAddress("/settings/models?setup=1&template=balanced&x=1#frag"),
+    "/settings/models?setup=1&template=balanced", "models keeps setup and template, drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#agent-diagnostics"),
+    "/settings/diagnostics?call=c-1#agent-diagnostics", "diagnostics keeps its call and its fragment");
+  assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#elsewhere"),
+    "/settings/diagnostics?call=c-1", "diagnostics drops a fragment it does not read");
+  assert.equal(openSettingsAddress("/capabilities/access?q=feed&format=html&bad=1"),
+    "/capabilities/access?q=feed&format=html", "the access page keeps q and format, drops bad");
+  assert.equal(openSettingsAddress("/projects/p1/settings/planning/method-a?project=p1&x=1#frag"),
+    "/projects/p1/settings/planning/method-a?project=p1", "a nested planning page keeps project, drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/coding-settings?project=p1&desktop=1&x=1", ["coding-settings"]),
+    "/settings/coding-settings?project=p1&desktop=1", "a plugin settings page keeps project and desktop, drops x");
+});
+
+test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {
+  const models = new URL(await homeModelAddress("/settings/models?setup=1&template=balanced&x=1#frag"));
+  assert.equal(models.searchParams.get("setup"), "1");
+  assert.equal(models.searchParams.get("template"), "balanced");
+  assert.equal(models.searchParams.get("x"), null, "an undeclared parameter is dropped");
+  assert.equal(models.searchParams.get("embed"), "1", "the dialog still asks for the embedded document");
+  assert.equal(models.hash, "", "the fragment is dropped");
+  const connectors = new URL(await homeModelAddress("/capabilities/connections?setup=s-1&connector=notion&x=1"));
+  assert.equal(connectors.searchParams.get("setup"), "s-1");
+  assert.equal(connectors.searchParams.get("connector"), "notion");
+  assert.equal(connectors.searchParams.get("x"), null);
+});
+
+test("RAC-2412 S-47 both scripts carry the one declaration table", () => {
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(GLOBAL_SETTINGS_ADDRESS_PARAMS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(PROJECT_SETTINGS_ADDRESS_PARAMS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PLUGIN_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(PLUGIN_SETTINGS_ADDRESS_PARAMS)));
+  assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(HOME_MODEL_SETTINGS_ADDRESS_PARAMS)));
+});

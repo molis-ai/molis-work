@@ -1,9 +1,19 @@
+import { HOME_MODEL_SETTINGS_ADDRESS_PARAMS, PLUGIN_SETTINGS_ADDRESS_PARAMS } from "../settings-address-params.js";
 import { MODEL_SETTINGS_CLIENT_SCRIPT } from "./settings-models.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 /** The project-free Home shell hosts the existing settings document without unloading plugin drafts. */
 export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
   const L = globalThis.L || (text => text);
+  // The pages' own address declarations (settings-address-params.ts): this dialog keeps only what the page it opens reads.
+  const HOME_ADDRESS_PARAMS = ${JSON.stringify(HOME_MODEL_SETTINGS_ADDRESS_PARAMS)};
+  const PLUGIN_ADDRESS_PARAMS = ${JSON.stringify(PLUGIN_SETTINGS_ADDRESS_PARAMS)};
+  const keptQuery = (search, params) => {
+    const kept = new URLSearchParams();
+    for (const [key, value] of new URLSearchParams(search || "")) if (params.query.includes(key)) kept.append(key, value);
+    const text = kept.toString();
+    return text ? "?" + text : "";
+  };
   ${MODEL_SETTINGS_CLIENT_SCRIPT}
   ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
   const dialog = document.querySelector('[data-home-model-settings]');
@@ -65,7 +75,8 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
     let url;
     try { url = new URL(href, location.origin); } catch { return false; }
     if (url.origin !== location.origin || !['/settings/models', '/settings/connectors', '/capabilities/connections'].includes(url.pathname)) return false;
-    if (!dialog.open) dialog.showModal(); void load(url.pathname + url.search);
+    const params = HOME_ADDRESS_PARAMS[url.pathname] || PLUGIN_ADDRESS_PARAMS;
+    if (!dialog.open) dialog.showModal(); void load(url.pathname + keptQuery(url.search, params));
     return true;
   };
   document.addEventListener('molis-work:open-settings-path', event => { openSettings(event.detail?.href); });

@@ -18,7 +18,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
   const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id,
     // The English of its action text is still in the 成果 plugin's words, until that shell goes (PG-077 step 2).
-    words_of: ARTIFACTS_PLUGIN_ID };
+ };
   return {
     provider,
     definitions: ARTIFACT_ACTIONS,

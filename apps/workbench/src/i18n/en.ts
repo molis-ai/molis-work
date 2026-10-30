@@ -1,3 +1,4 @@
+import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../functions/en.js";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
@@ -17,6 +18,7 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  ...ARTIFACT_EN,
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
   ...SHARED_WORDS_EN,
@@ -3088,7 +3090,6 @@ Object.assign(EN, {
   "没有已完成或已忽略的事项": "No completed or ignored items",
   "完成或忽略的事项会留在这里，原对象不会被删除。": "Completed or ignored items stay here. The original object is not deleted.",
 });
-
 Object.assign(EN, {
   "未命名消息": "Untitled message",
   "可以重新打开，原消息仍保留在 Feed。": "You can reopen it; the original message remains in Feed.",
@@ -3261,5 +3262,4 @@ Object.assign(EN, {
   "打开工作区": "Open workspace",
   "在关系画布中定位": "Locate on the relation canvas",
 });
-
 Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

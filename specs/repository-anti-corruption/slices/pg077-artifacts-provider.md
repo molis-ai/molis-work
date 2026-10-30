@@ -75,3 +75,15 @@ W5-06 的挂载器（`declared-stages.ts`）和 PG-024 都已合入，不再是�
 
 - BL-760：第二步，删外壳与存量维护脚本（§5），等维护时段与用户答复；合入时 `privileges.md` PG-077 改「已做」，`ac-artifacts.md` 的 A5、A6 标「由本稿第二步取代」。
 - BL-761：平台提供方 id 独立于内置登记保留（§3），与第二步同一片。
+
+## 8. 维护窗口线的第二步（Codex 设备 A，2026-10-29）
+
+统筹 #1332 6513987033 已确认按本稿方案 A 接 BL-760/761，旧 BACKLOG 要求换 system.artifacts 的部分由本稿取代。provider_id 与已有授权、工作流引用不变。真实项目键的删除数量在获准副本上 list 后，由用户在维护计划逐项定；当前只做代码与临时 Home。
+
+实现边界：browser/reference 视图、五段客户端和 en 词典原样搬入 `apps/workbench/src/artifacts/`，经现行 UiHost 注册为平台贡献并继续 mountDeclared，已有壳与 DOM/交互不重做。ArtifactBrowserView、GoalArtifactEmbed、artifactVersionPath 取模块既有公开声明，不再留一份业务形状。成果原件的 Home 存储登记改从模块已导出的 ARTIFACTS_HOME_STORE 取得，原目录与内容不搬。HOST_ARTIFACT_PRODUCERS 的当前平台声明保留；平台 id 独立于插件登记保留。删除仅为旧词典准备的 ActionProvider.words_of 及消费点，同步 API 快照。
+
+删除旧外壳包、生成登记和 workspace 依赖，成果类型与动作合同、事实 Store、生产者身份和权限不变。维护工具在 `tests/fixtures/` 提供 list/apply，严格核旧 catalog 版本/结构与单库事务，只清 project_plugins/project_plugin_exclusions 的 artifacts 行，其余行和事实不变。统筹 #1332 6514355991 已同意门禁替换及 Home 存储登记：保留事实 owner、权限和生命周期断言，增加平台 UI 不读 Store、旧壳不能回来及插件不能顶替项目键/界面 id 的正反检查；assembly 冻结名单与旧别名仅移除成果条目。
+
+本片用 RAC-2340～2349：2340 平台界面不读 Store 的正反门禁；2341 旧壳不能回来、插件不能顶替的正反门禁；2342 平台入口、provider/权限/producer 不变且无旧包依赖；2343 未签名与固定发布者安装均不能占用平台 id；2344 原件目录仍进入 snapshot/purge 登记；2345 中英文目录、选版、预览、引用与交接主路径；2346 项目成员维护 list 零写、apply 只清指定行、完整性及错结构/途中失败回滚。工程、实际浏览器覆盖、真实维护、本人验收分别记账。
+
+候选验证（2026-10-29）：整体 build、workspace build、boundary、merge-base health 和 page-assets 通过；48份资源合计7,492,842字节，工作台脚本较本片基线少140字节，无新增资源。RAC-2345 在隔离 Home 的真实测试浏览器实操通过：1440/390宽度文件导入与精确版本读取/导出、Goal固定输入、移除旧成员入口被拒但平台入口仍可用、英文成果目录/选版、Assistant交接材料和版本引用。没有发出模型任务。旧插件夹具按新归属更新后相关普通及浏览器用例通过；最终合main与CI另记。真实目录成员/隐藏行未读取、未清理，未安装，未作用户验收，仍只能由统筹在获准维护窗口合入。

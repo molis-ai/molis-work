@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
+import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
 
 import {
   evaluateImportBoundary,
@@ -884,14 +885,7 @@ export function checkArtifactsOwnership(repositoryRoot) {
     errors.push("Artifact HTTP composition must receive Desktop bootstrap through its Host factory");
   }
 
-  const pluginPath = "plugins/native/artifacts/src/index.ts";
-  const nativePlugin = read(pluginPath);
-  if (!REGISTERED_PLUGINS.some((plugin) => plugin.path === "plugins/native/artifacts")) {
-    errors.push("plugins/native/artifacts: protected Artifact Plugin must declare a registration");
-  }
-  if (/modules\/artifacts|ArtifactsModule|ArtifactRepository/u.test(nativePlugin)) {
-    errors.push(`${pluginPath}: Native Plugin entrypoint must not own Artifact facts or construct its Repository`);
-  }
+  errors.push(...checkArtifactsPlatformUi(repositoryRoot));
 
   const projectSchema = read("apps/local-host/src/project-database-schema.ts");
   if (!hasInCode(read("apps/local-host/src/project-database.ts"), "PROJECT_DATABASE_BASELINE") || !hasInCode(projectSchema, "ARTIFACTS_SCHEMA_SQL") || !hasInCode(projectSchema, "PROCESS_ITEMS_SCHEMA_SQL")) {
@@ -930,7 +924,7 @@ export function checkArtifactsOwnership(repositoryRoot) {
     contractPath,
     "modules/artifacts/src/repository.ts",
     "modules/artifacts/src/service.ts",
-    pluginPath,
+    "apps/workbench/src/artifacts/index.ts",
     testPath,
   ]) {
     const lineCount = read(relativePath).split(/\r?\n/u).length;

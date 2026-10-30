@@ -33,7 +33,7 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "artifacts"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
+  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
   catalog.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const expectContained = async (chrome: string, scroller: string) => {

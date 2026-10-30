@@ -7,7 +7,7 @@ import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACT
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
-import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactBrowserUiContribution } from "@molis-ai/molis-work-app-workbench";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the Goals that use a version, by how. An Agent's proposal to use a version

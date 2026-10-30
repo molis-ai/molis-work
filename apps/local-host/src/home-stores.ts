@@ -1,3 +1,4 @@
+import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-functions";
@@ -41,6 +42,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       CONNECTORS_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
       { ...ALCHEMIST_HOME_STORE, snapshot: alchemistSnapshot }, ORIGINAL_FILES_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
+    ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, { ...TEXT_SEARCH_HOME_STORE, snapshot: omittedSnapshot("Rebuildable full-text index") },
       KNOWLEDGE_CARDS_HOME_STORE, { path: "feed", snapshot: feedSnapshot }),

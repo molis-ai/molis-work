@@ -95,3 +95,6 @@ export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assista
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
+
+export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, isProjectReference, artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./artifacts/index.js";
+export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel, ArtifactBrowserUiModel } from "./artifacts/index.js";

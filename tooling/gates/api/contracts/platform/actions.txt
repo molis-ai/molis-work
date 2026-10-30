@@ -576,7 +576,6 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
-    readonly words_of?: string;
 }
 
 export interface ActionProviderRegistration {

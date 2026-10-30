@@ -14,7 +14,7 @@ const sources = () => artifactProducerSources();
 test("RAC-419: the 成果库 module and plugin source name no Goal link kind and no Goals module", () => {
   const code = (directory: string) => readdirSync(new URL(`../${directory}/`, import.meta.url)).filter(file => file.endsWith(".ts"))
     .map(file => [`${directory}/${file}`, readFileSync(new URL(`../${directory}/${file}`, import.meta.url), "utf8")] as const);
-  const lines = [...code("modules/artifacts/src"), ...code("plugins/native/artifacts/src")].flatMap(([file, text]) =>
+  const lines = [...code("modules/artifacts/src"), ...code("apps/workbench/src/artifacts")].flatMap(([file, text]) =>
     text.split("\n").map((line, index) => [file, index + 1, line] as const).filter(([, , line]) => !/^\s*(?:\/\/|\*|\/\*)/u.test(line)));
   const offenders = lines.filter(([, , line]) => /["'`]goal\.(?:input|output)|module\s*===\s*["']goals["']|GOAL_ROLES/u.test(line)).map(([file, number]) => `${file}:${number}`);
   assert.deepEqual(offenders, []);

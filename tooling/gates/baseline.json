@@ -1,5 +1,5 @@
 {
-  "giantUnits": 44,
+  "giantUnits": 41,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -19,7 +19,6 @@
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
-    "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/i18n/en.ts": 3266,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
@@ -41,7 +40,7 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 612,
+      "lines": 623,
       "methods": 29
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -61,16 +60,8 @@
       "lines": 120,
       "methods": 27
     },
-    "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 483,
-      "methods": 44
-    },
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 267,
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 241,
-    "class plugins/native/goals/src/module/event-facts.ts#GoalEventFacts": {
-      "lines": 193,
-      "methods": 30
-    },
     "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
       "lines": 515,
       "methods": 11
@@ -461,11 +452,9 @@
   },
   "typedCapabilitiesTotal": 0,
   "typedCapabilities": {},
-  "hostPluginFilesTotal": 3,
+  "hostPluginFilesTotal": 1,
   "hostPluginFiles": {
-    "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/artifact-actions.ts#actions": 1,
-    "apps/local-host/src/artifact-native-plugin-http.ts#native-plugin-http": 1
+    "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1
   },
   "registerProviderSitesTotal": 15,
   "registerProviderSites": {
@@ -483,10 +472,9 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 77,
+  "pluginOutsideMentionsTotal": 74,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
-    "artifacts#outside-files": 3,
     "coding#outside-files": 3,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,

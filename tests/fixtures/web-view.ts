@@ -1,5 +1,5 @@
 import { listFeedSourceCatalog, scheduleServiceFor, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { createScheduleActionPorts, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
+import { createScheduleActionPorts } from "@molis-ai/molis-work-plugin-schedule";
 import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { buildMolisWorkWebView as composeWebView, cachedMolisWorkWebView as readCachedWebView, type LocalProjectDatabase, type WebViewOptions, type MolisWorkWebViewCache } from "@molis-ai/molis-work-app-local-host";
@@ -29,7 +29,8 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProj
   return composeWebView(store, readTestGoalCollection(store, app, options.projectId), { databasePath: ":memory:", ...options }, {
     feed: { ...snapshot, inbox_entries: ownedInboxEntries(store, options.projectId) as never, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) },
     feed_source_catalog: listFeedSourceCatalog(), feed_connector_auth: feedConnectorAuthStatus(options.homeDirectory),
-    schedule_jobs: schedule.listJobs(), schedule_tasks: schedule.listTasks(),
+    // What the page's stage read (`schedule.tasks.list`, its declared `stage_data`) answers; the Host reads it per request (T-133).
+    stage_data: { schedule: { jobs: schedule.listJobs(), tasks: schedule.listTasks(), operations: [] } },
   });
 }
 export function cachedMolisWorkWebView(cache: MolisWorkWebViewCache, store: LocalProjectDatabase, app: GoalProjectApplication, options: WebViewOptions) {
@@ -38,7 +39,6 @@ export function cachedMolisWorkWebView(cache: MolisWorkWebViewCache, store: Loca
     if (definition.capability_id === feedQueryActions.snapshot.capability_id) { const { inbox_entries, ...snapshot } = view.feed; return snapshot as never; }
     if (definition.capability_id === feedQueryActions.connections.capability_id) return view.feed_connector_auth as never;
     if (definition.capability_id === inboxActions.list.capability_id) return { entries: view.feed.inbox_entries } as never;
-    if (definition.capability_id === scheduleActions.list.capability_id) return { jobs: view.schedule_jobs, tasks: view.schedule_tasks } as never;
     return readTestGoalCollection(store, app, options.projectId) as never;
   } };
   return readCachedWebView(cache, store, options, actions);

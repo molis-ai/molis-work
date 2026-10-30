@@ -147,7 +147,7 @@ knowledge.cards	1	system.knowledge	query	query	project	read	-	user	knowledge:man
 knowledge.glob	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	52b3aedc093e	95ec33fe4a14	-
 knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	174b52327e5d	3a6a8294b57c	-
 knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	bbbe6be930a8	9ed5d657f112	-
-knowledge.locate	2	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read,model:invoke	-	-	-	2a5016a73c94	c273aa268581	613063238287
+knowledge.locate	3	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read,model:invoke	-	-	-	2a5016a73c94	af979e68adcd	613063238287
 knowledge.organize	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	7a78f5bbadf8	a38e109b5b03	-
 knowledge.outline	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	b743888f6375	3f0c83a834b4	-
 knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	0503b82b3a62	5b425e35cc2d	-

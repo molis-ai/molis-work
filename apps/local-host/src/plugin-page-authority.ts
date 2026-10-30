@@ -28,6 +28,7 @@ interface Page {
   assertScope?(): Promise<void>;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
+const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
 const homes = new Map<string, PluginPageAuthority>();
 const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; signal: AbortSignal }>();
 
@@ -70,19 +71,35 @@ export class PluginPageAuthority {
     return { page_id: id, storage_scope: `${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
 
-  close(id: string): void {
+  /** Ends the page and its requests, for `reason`: a withdrawal unless the caller says the person left it (`left`). */
+  close(id: string, reason: () => ActionError = refused): void {
     const page = this.pages.get(id);
     this.pages.delete(id);
     if (page && page.activation.install_id === null) this.activations.delete(page.activation);
-    for (const request of page?.requests ?? []) request.abort(refused());
+    for (const request of page?.requests ?? []) request.abort(reason());
+  }
+
+  /**
+   * Why a page's requests end when the person leaves it (closes the page, or its HTTP request ends): a cancellation while the page still
+   * has its authority, a withdrawal once it has lost it. A refresh shared by its requests keeps the rotated tokens only for a cancellation
+   * (S-95, T-218).
+   */
+  private left(page: Page): ActionError {
+    if (!this.activations.has(page.activation)) return refused();
+    // Only the page's own authority, no route permission: a page's grant is fixed when it is activated, and every withdrawal goes
+    // through `revoke` (`withdrawPages`), which closes the page as forbidden. If a grant could change while the page is open, this
+    // would have to check the route's permission too, or a page that lost it would still leave as a cancellation (T-218 S3).
+    try { page.activation.assertCurrent(); } catch { return refused(); }
+    return cancelled();
   }
 
   /** Cancel ordinary work, run at most one own action under the original authority, then revoke the page. */
   async finish(id: string, action: { reference: ActionReference; input: unknown } | undefined): Promise<void> {
     const page = this.pages.get(id);
-    if (!page || !action || page.closing) { this.close(id); return; }
+    if (!page || !action || page.closing) { this.close(id, () => page ? this.left(page) : refused()); return; }
     page.closing = true;
-    for (const request of page.requests) request.abort(refused());
+    const reason = this.left(page);
+    for (const request of page.requests) request.abort(reason);
     const controller = new AbortController(); page.requests.add(controller);
     const check = () => {
       controller.signal.throwIfAborted();
@@ -97,7 +114,7 @@ export class PluginPageAuthority {
       await beforeEffect();
       await page.activation.invoke({ ...action, project_id: page.project_id, signal: controller.signal,
         assertCurrent: check, beforeEffect, beforeBackgroundEffect: beforeEffect });
-    } finally { this.close(id); }
+    } finally { this.close(id, () => this.left(page)); }
   }
 
   clearProject(projectId: string): void {
@@ -160,7 +177,7 @@ export class PluginPageAuthority {
     };
     await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; page.requests.add(controller);
     requests.set(request, { page, check, signal: controller.signal });
-    const release = () => { controller.abort(refused()); page.requests.delete(controller); requests.delete(request); };
+    const release = () => { controller.abort(this.left(page)); page.requests.delete(controller); requests.delete(request); };
     response?.once("finish", release); response?.once("close", release); return release;
   }
 }

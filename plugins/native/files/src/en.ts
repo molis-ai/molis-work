@@ -9,4 +9,5 @@ export const FILES_EN: Record<string, string> = {
   "文件已改变，请刷新并查看后再固定快照": "The file has changed. Refresh and look again before pinning it.",
   "选区已经失效，请重新选择": "The selection no longer holds. Select it again.",
   "内容超过快照上限，请选择较小的文本片段": "That's over the snapshot limit. Select a smaller passage.",
+  "插件已启动；浏览目录按项目设置读取": "Started. The folder it browses follows the project settings.",
 };

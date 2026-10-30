@@ -203,6 +203,36 @@ test("RAC-2287 materials JSON over the budget in units but under it in character
   assert.equal(made.document.title, "材料整理", "the generation ran, counted in characters as the Host counts");
 });
 
+test("RAC-2289 a failed request whose stored snapshot is over the JSON budget is refused before it is taken over, and its record is not rewritten", async t => {
+  const f = await fixture(t);
+  // A failed attempt keeps its snapshot: beginGeneration reuses it for the same request_id and request_hash, and the prompt is built from
+  // that snapshot, not from the shorter materials this retry carries.
+  const record = { request_id: "rac-2289-failed", request_hash: "rac-2289", project_id: "project", status: "running" as const, document_id: null,
+    error: null, updated_at: new Date().toISOString(), title: "材料整理", instructions: "按要求整理。", inputs: [material("\"".repeat(100_000))] };
+  f.store.failGeneration(f.store.beginGeneration(record), "模型端口拒绝");
+  const before = f.store.generation("project", record.request_id);
+  assert.ok(JSON.stringify(before!.inputs).length > 175_800, "the stored snapshot alone is over the budget");
+  await assert.rejects(f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    { request_id: record.request_id, request_hash: record.request_hash, title: "材料整理", instructions: "按要求整理。", inputs: [material("短材料")] }),
+    { code: "pages.invalid", message: /材料过长/ }, "refused before the request is taken over");
+  assert.deepEqual(f.store.generation("project", record.request_id), before, "the earlier failed record is as it was");
+  assert.equal(f.dispatches(), 0, "the model is never asked");
+  assert.equal(f.store.list("project").length, 0, "and no document is written");
+});
+
+test("RAC-2289 a completed request still replays without a prompt, even when the retry carries materials over the budget", async t => {
+  const f = await fixture(t);
+  const first = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, generationInput(2289, [material("短材料")])) as { document: { id: string }; replayed: boolean };
+  assert.equal(first.replayed, false);
+  const stored = f.store.generation("project", "rac-2289");
+  const replay = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    generationInput(2289, [material("\"".repeat(100_000))])) as { document: { id: string }; replayed: boolean };
+  assert.equal(replay.replayed, true, "the completed generation is replayed");
+  assert.equal(replay.document.id, first.document.id, "with its document, not a new one");
+  assert.equal(f.dispatches(), 1, "and no prompt is sent for the replay");
+  assert.deepEqual(f.store.generation("project", "rac-2289"), stored, "the completed record is unchanged");
+});
+
 test("RAC-2288 ordinary materials well under the budget still generate the document", async t => {
   const f = await fixture(t);
   const inputs = [{ ...material("甲".repeat(3_000)), entry_id: "entry-a", item_id: "item-a" }, { ...material("乙".repeat(3_000)), entry_id: "entry-b", item_id: "item-b" }];

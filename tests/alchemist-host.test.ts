@@ -422,7 +422,7 @@ test("RAC-2410: the Alchemist prompt is refused whole over the data slot, and it
   const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => inference });
   const input = (operationId: string, userPrompt: string) => ({ operationId, purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""),
     userPrompt, jsonSchema: { type: "object", properties: { reply: { type: "string" } } } });
-  await assert.rejects(port.generate(input("too-long", "x".repeat(180_000))), { code: "alchemist.prompt_too_long" });
+  await assert.rejects(port.generate(input("too-long", "x".repeat(180_000))), { code: "alchemist.prompt_too_long", kind: "invalid" });
   assert.equal(requests, 0, "a prompt over the data slot never reaches the model");
   // 90,000 emoji are 180,000 UTF-16 units but 90,000 characters: the limit counts characters, so this prompt fits and is dispatched.
   assert.deepEqual((await port.generate(input("emoji-fits", "😀".repeat(90_000)))).json, { ok: true, value: { reply: "ok" } });

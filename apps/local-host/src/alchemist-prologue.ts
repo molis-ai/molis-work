@@ -1,5 +1,5 @@
 import { reportedTokenTotal, decodePrologueJsonOutput } from "@molis-ai/molis-work-service-agent-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ALCHEMIST_PLUGIN_ID, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { configuredModelChoices } from "./configured-models.js";
@@ -12,6 +12,9 @@ export { ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
 /** The Host prompt limit's data position: PROMPT_MAX_CHARS 200,100 less the instruction's 20,000 (it travels as `system` here) and the
  * 100-character slack. A longer prompt would be refused by the Host after dispatch, as a model failure, so it is refused here first. */
 const ALCHEMIST_PROMPT_DATA_MAX_CHARS = 180_000;
+
+/** Alchemist's own error codes, every one `alchemist.<reason>` and each with its kind, so the transport derives the status. */
+const alchemistErrors = defineErrorCodes("alchemist", { prompt_too_long: "invalid" });
 
 /**
  * The models Alchemist can run in this Home, read from metadata without decrypting a credential. The port offers exactly these
@@ -52,7 +55,7 @@ export function createAlchemistProloguePort(options: {
           `任务材料：\n${input.userPrompt}`,
         ].join("\n\n");
         const promptChars = [...prompt].length;
-        if (promptChars > ALCHEMIST_PROMPT_DATA_MAX_CHARS) throw new ActionError("alchemist.prompt_too_long",
+        if (promptChars > ALCHEMIST_PROMPT_DATA_MAX_CHARS) throw alchemistErrors.prompt_too_long(
           `任务材料转成提示后 ${promptChars} 字，超过数据位 ${ALCHEMIST_PROMPT_DATA_MAX_CHARS} 字，多 ${promptChars - ALCHEMIST_PROMPT_DATA_MAX_CHARS} 个字；请减少材料或缩短任务后重试`);
         const result = await generate(prompt, { system: resolveModelPrompt(options.homeDirectory, input.systemPrompt, ALCHEMIST_PLUGIN_ID), signal: lifetime.signal, beforeDispatch: input.beforeModelDispatch,
           maxOutputTokens: 4_096, timeoutMs: 180_000 });

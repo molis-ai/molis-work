@@ -242,11 +242,12 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
-// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
-// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
+// T-281, RAC-2076 (user 2026-10-29 chose to keep colouring off the frame that first lays a large block out): Coding's painter waits for
+// the block's first layout through a resize observer it releases when the job is replaced or stopped, +168 B on this one asset.
+// Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
+// dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/lingguang.js": [23116, 23173],
+  "/assets/molis-work-plugins/coding.js": [289674, 289842],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

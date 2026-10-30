@@ -17,7 +17,7 @@ export const alchemistPromptText = (purpose: string, jsonSchema: unknown, userPr
 
 /** The limit this port checks the prompt against: the Host port's own PROMPT_MAX_CHARS, because the instruction rides in `system` here and
  * is not part of this prompt. Exported so the boundary test builds exactly what the guard sees. */
-export const ALCHEMIST_PROMPT_MAX_CHARS = PROMPT_MAX_CHARS;
+export const ALCHEMIST_PROMPT_MAX_CHARS = 180_000;
 
 /** Alchemist's own error codes, every one `alchemist.<reason>` and each with its kind, so the transport derives the status. */
 const alchemistErrors = defineErrorCodes("alchemist", { prompt_too_long: "invalid" });

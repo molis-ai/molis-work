@@ -124,10 +124,22 @@ export class WorkspaceRepository {
     ).run(workspaceId, projectId).changes);
   }
 
+  /**
+   * Removes every membership of the project, and with them the directory records it leaves with no member (the same rule as
+   * unlinking one directory). A directory another project still belongs to stays, and so does any record that had no member
+   * before this call: only the directories this project was in are looked at. Returns the memberships removed.
+   */
   removeWorkspaceMembershipsForProject(projectId: string): number {
-    return Number(this.db.prepare(
-      "DELETE FROM workspace_project_memberships WHERE project_id = ?",
-    ).run(projectId).changes);
+    return this.db.transaction(() => {
+      const workspaceIds = (this.db.prepare(
+        "SELECT workspace_id FROM workspace_project_memberships WHERE project_id = ?",
+      ).all(projectId) as Array<{ workspace_id: string }>).map(row => row.workspace_id);
+      const removed = Number(this.db.prepare(
+        "DELETE FROM workspace_project_memberships WHERE project_id = ?",
+      ).run(projectId).changes);
+      for (const workspaceId of workspaceIds) this.removeWorkspaceIfEmpty(workspaceId);
+      return removed;
+    })();
   }
 
   removeWorkspaceIfEmpty(workspaceId: string): void {

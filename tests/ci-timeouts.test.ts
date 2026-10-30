@@ -21,7 +21,11 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
 /** The `Install pnpm` step took 66 seconds at the longest of 2547 in the sample. */
 const INSTALL_PNPM = { limit: 3, longest: 66 };
 
-const jobTimeout = (name: string) => /^    timeout-minutes: (\d+)$/m.exec(jobBlock(name))?.[1];
+/** A job's limit: the number, then optional whitespace and a `#` comment (YAML keeps the comment out of the value). */
+const jobTimeoutIn = (text: string) => /^    timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
+const jobTimeout = (name: string) => jobTimeoutIn(jobBlock(name));
+/** A step's limit, the same way; a step line is indented four spaces further. */
+const stepTimeoutIn = (text: string) => /^        timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
 const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step) => step.startsWith("name: Install pnpm\n"));
 
 test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit of at least 1.8 times their longest run, a blocking job at 30 minutes or more, and none above an hour", () => {
@@ -65,11 +69,24 @@ test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, exc
     if (name === "linux-probe") continue;
     for (const step of steps) {
       seen++;
-      const limit = /^        timeout-minutes: (\d+)$/m.exec(step)?.[1];
+      const limit = stepTimeoutIn(step);
       assert.equal(limit, String(INSTALL_PNPM.limit), `${name}: the Install pnpm step has timeout-minutes: ${INSTALL_PNPM.limit}`);
       assert.ok(INSTALL_PNPM.limit * 60 >= 1.8 * INSTALL_PNPM.longest, "above 1.8 times the longest it took");
     }
   }
   assert.equal(seen, 6, "the six jobs that install pnpm besides the Linux probe: the four blocking ones, security-invariants and product-subset");
   for (const name of [...Object.keys(JOBS), "product-subset"]) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
+});
+
+// RAC-2425 (T-287 二审): a limit written with a trailing comment is still a limit. The old reading only matched the bare line, so
+// `timeout-minutes: 20 # 偏短` read as "no job-level limit" and the blocking-job floor skipped it without a word.
+test("RAC-2425 a job or step limit with a trailing comment is read as its number, so the floor can refuse it", () => {
+  const inline = "  slow-job:\n    runs-on: ubuntu-latest\n    timeout-minutes: 20 # 偏短\n    steps:\n      - name: Install pnpm\n        timeout-minutes: 3 # 安装\n";
+  assert.equal(jobTimeoutIn(inline), "20", "a job-level limit with a trailing comment is read as its number");
+  assert.equal(stepTimeoutIn(inline), "3", "a step-level limit with a trailing comment too");
+  // This is the hole the test exists for: a blocking job at 20 minutes is refused by the floor rather than read as no limit.
+  assert.ok(Number(jobTimeoutIn(inline)) < BLOCKING_FLOOR, "20 is under the blocking floor, so the RAC-2411 assertion would refuse it");
+  // A number without a comment reads as before, and a job without one is still no limit.
+  assert.equal(jobTimeoutIn("  slow-job:\n    timeout-minutes: 30\n"), "30");
+  assert.equal(jobTimeoutIn("  slow-job:\n    runs-on: ubuntu-latest\n"), undefined);
 });

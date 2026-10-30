@@ -212,3 +212,5 @@ R-54 ui.commands仅发行存档99、安装0；R-66 disabled0；R-69 native:feed�
 新增演练证据：BL-780五项（含原v11衔接、已忽略状态/全部历史保留、拒绝与写中回滚）通过；readonly四项在加入owner路由和动态Alchemist布局后通过；Memory窗口新三项通过，现有storage/Host/SDK采用三文件23项通过。首次测试夹具的数组取值/SQLite行原型与SDK场景授权错误保留于日志，已按公开合同修正夹具，未放宽生产断言。真实SDK测试不调用模型。
 
 Workspace专用工具验证：4/4项通过；实际副本18库list均通过，17安装/34绑定/3输出/3私有值，其他关联0。v9再检查新增schedule绑定/账本等关联，非0即拒绝。错误夹具首次因input_groups列数写错失败，已改为四个具名列，生产拒绝断言未改。原固定成果和版本在非空夹具中逐值保留，真实Home尚未执行。
+
+本线最终定向结果（冻结416bce531f、main普通合入03c620fd）：整体pnpm build退出0；修改涉及的24个维护用例文件加现有Runtime配置备份/IM/Memory采用5文件，共29/29文件通过（--jobs 1，machine-slot），未跑全量。health以03c620fd为merge-base通过；boundary、40行库版本检查通过，产品版本仍0.3.0。此后本段仅补记录，推送前另做fresh fetch与secrets。四PR仍仅候选，由统筹按维护窗口合入。B2b、SDK正文和原key的真实私有预检数字仍NOT READ，必须由统筹取得相应读取范围并在副本定量，不能以此候选计划直接执行未知数量的真实转换。

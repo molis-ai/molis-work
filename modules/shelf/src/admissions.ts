@@ -79,7 +79,7 @@ export class ShelfAdmissions {
    * The directory shows the children inline, never a second file browser.
    */
   async admitFolder(input: ShelfAdmitFolderInput): Promise<ShelfItemRecord> {
-    const folderName = safeFilename(input.name);
+    const folderName = safeFilename(input.name, false);
     const entries = input.entries
       .map((entry) => ({ ...entry, relative: safeRelative(entry.relative) }))
       .filter((entry) => entry.relative && entry.bytes.byteLength > 0);

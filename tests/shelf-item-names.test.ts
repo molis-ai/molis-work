@@ -76,3 +76,19 @@ test("RAC-2294 a leading-dot name over the limit stays non-empty and at most 180
     assert.ok(item.name.length > 0 && item.name.length <= 180);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test("RAC-2295 a folder's stored name keeps its old cut: the dotted tail goes, while files keep their extension", async () => {
+  const home = mkdtempSync(join(tmpdir(), "shelf-item-names-"));
+  try {
+    const store = openTestShelfStore(home, { disabled: true });
+    // admitFolder reuses the same name function, and a folder name may hold a dot: it must be cut as it always was (180 units, no extension kept).
+    const folder = await store.admitFolder({ name: `${"x".repeat(200)}.pdf`, entries: [{ relative: "chapter.txt", bytes: Buffer.from("章") }] });
+    assert.equal(folder.name, "x".repeat(180), "a folder name is cut at 180 units, as before; nothing is kept as an extension");
+    assert.equal(folder.kind, "folder");
+    assert.ok(store.readChild(folder.item_id, "chapter.txt").bytes.equals(Buffer.from("章")), "its child is still readable");
+    // The stored name survives reopening the Home.
+    const reopened = openTestShelfStore(home, { disabled: true });
+    const again = (await reopened.snapshot()).materials.find((item) => item.item_id === folder.item_id);
+    assert.equal(again?.name, "x".repeat(180), "and the stored name is the old cut after a reopen");
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});

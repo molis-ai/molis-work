@@ -10,6 +10,7 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-module-artifacts";
+import { cutUnits } from "./drafting/draft-data.js";
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -518,7 +519,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {
-          const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: artifactTitle(summaryTitle),
+          const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle.length <= 200 ? summaryTitle : cutUnits(summaryTitle, 199) + "…",
             source_id: "onboarding:" + id + ":summary", content: text });
           journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });
         }
@@ -563,21 +564,7 @@ function pageTitle(title: string): string {
   return partTitle(title, 1, 1, 80);
 }
 
-/**
- * The summary artifact's title: the artifacts contract counts UTF-16 units and takes at most 200, and a project name of 120
- * two-unit characters plus the "工作摘要" suffix is longer than that. Cut after a whole character, keeping one unit for the
- * ellipsis, so the title never ends with half of one.
- */
-function artifactTitle(title: string): string {
-  const limit = 200;
-  if (title.length <= limit) return title;
-  let units = 0, end = 0;
-  for (const character of title) {
-    if (units + character.length > limit - 1) break;
-    units += character.length; end += character.length;
-  }
-  return title.slice(0, end) + "…";
-}
+
 
 export function updateContextDraft(home: string, id: string, input: Record<string, unknown>): ContextJourney {
   const journey = readContextJourney(home, id);

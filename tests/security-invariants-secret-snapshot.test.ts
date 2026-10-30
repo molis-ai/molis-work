@@ -92,3 +92,15 @@ test("S-12 RAC-104: an empty sealed vault has no key dependency and does not cre
   assert.deepEqual(result, { version: 1, backend: "aes-gcm-file", entries: 0, key_reference: null });
   assert.equal(existsSync(home), false);
 });
+
+test("S-12 RAC-2377: version 1 snapshot entries still require sealV2 authentication and reject plaintext without writes", t => {
+  const f = fixture(t), inspect = inspector();
+  for (const entry of ["plaintext-entry", Buffer.from(JSON.stringify({ v: 1, alg: "aes-256-gcm", ct: "not-sealV2" })).toString("base64")]) {
+    const parsed = JSON.parse(f.contents);
+    assert.equal(parsed.version, 1);
+    parsed.entries["snapshot-test"] = entry;
+    const before = unchanged(f.home);
+    assert.throws(() => inspect(f.home, JSON.stringify(parsed)), { code: "storage.secrets_snapshot.integrity_failed" });
+    assert.deepEqual(unchanged(f.home), before, "vault, original key, permissions and directory entries are unchanged");
+  }
+});

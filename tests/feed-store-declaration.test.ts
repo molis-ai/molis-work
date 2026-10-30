@@ -98,7 +98,7 @@ test("RAC-2360 RAC-2362 RAC-496 Feed's first declaration owns the complete curre
     }
     assert.deepEqual(Object.keys(is).sort(), [...MOVED_TABLES, ...MOVED_INDEXES, "feed_out_rules", "feed_out_rules_project_enabled_idx"].sort(), "and the declaration holds the out rules and nothing else");
     const shapeBefore = describeSqliteSchema(before as never), shapeDeclared = describeSqliteSchema(declared as never);
-    for (const table of [...MOVED_TABLES, "feed_out_rules"]) assert.deepEqual(shapeDeclared.tables[table], shapeBefore.tables[table], `${table}: complete current columns, checks, keys and indexes`);
+    assert.deepEqual(shapeDeclared, { tables: Object.fromEntries([...MOVED_TABLES, "feed_out_rules"].map(table => [table, shapeBefore.tables[table]])) }, "complete independent Feed schema: columns, checks, keys and indexes");
     assert.equal(FEED_PROJECT_DATABASE.version, 1);
     assert.equal(FEED_PROJECT_DATABASE.store_name, "feed");
   } finally { before.close(); declared.close(); baseline.close(); }

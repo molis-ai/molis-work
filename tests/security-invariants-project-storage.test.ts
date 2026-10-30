@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 // S-102: a project's storage directory is <projects directory>/<project_id>; a project id is one plain directory name, so a catalog row
-// (an edited or restored catalog) can never point a file operation (delete, rename, uninstall, source-state scan) outside that directory.
+// (an edited or restored catalog) can never point a file operation (delete, rename, source-state scan) outside that directory.
 
 const insertRow = (home: string, projectId: string) => {
   const db = new Database(join(home, "projects", "catalog.db"));

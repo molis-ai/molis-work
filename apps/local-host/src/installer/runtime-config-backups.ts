@@ -7,7 +7,7 @@ import { writeAtomic } from "./runtime-installation-files.js";
 
 export const RUNTIME_CONFIG_BACKUP_OWNER = "molis-work-runtime-config-backup-v1";
 const errors = defineErrorCodes("installer.runtime_backup", {
-  invalid: "invalid", missing: "not_found", key_unavailable: "unavailable", conflict: "conflict", maintenance_pending: "unavailable",
+  invalid: "invalid", missing: "not_found", key_unavailable: "unavailable", conflict: "conflict",
 });
 const absent = (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT";
 
@@ -26,12 +26,6 @@ export function runtimeConfigBackupPath(homeDirectory: string, runtimeId: Suppor
     throw errors.invalid("配置备份需要明确 Home、受支持的 Runtime 和有效的计划编号");
   }
   return path.join(homeDirectory, "runtime-config-backups", runtimeId, planId + ".bak");
-}
-
-async function ready(home: string): Promise<void> {
-  try { await fs.lstat(path.join(home, "runtime-config-backups", ".maintenance.json")); }
-  catch (error) { if (absent(error)) return; throw error; }
-  throw errors.maintenance_pending("配置备份目录包含未完成操作标记，不能读写备份");
 }
 
 async function directory(home: string, runtimeId: SupportedRuntimeId, create: boolean): Promise<string | null> {
@@ -101,7 +95,6 @@ export async function sealRuntimeConfigBackup(home: string, runtimeId: Supported
 
 export async function captureRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string, contents: string, mode = 0o600): Promise<void> {
   runtimeConfigBackupPath(home, runtimeId, planId);
-  await ready(home);
   const prior = await readReference(home, runtimeId, planId);
   if (prior) {
     if (prior.mode !== mode || await original(home, prior.auth_ref) !== contents) throw errors.conflict("这份配置备份已存在，内容或权限不一致");
@@ -115,7 +108,6 @@ export async function captureRuntimeConfigBackup(home: string, runtimeId: Suppor
 /** Explicit recovery through the owner; listing/detection and ordinary integration results contain no original text. */
 export async function readRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string): Promise<{ contents: string; mode: number }> {
   runtimeConfigBackupPath(home, runtimeId, planId);
-  await ready(home);
   const item = await readReference(home, runtimeId, planId);
   if (!item) throw errors.missing("找不到这份配置备份");
   const contents = await original(home, item.auth_ref);

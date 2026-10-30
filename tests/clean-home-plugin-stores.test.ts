@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
@@ -41,10 +41,11 @@ for (const { declaration, table, seed } of cases) {
     try {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       const raw = new DatabaseSync(file); raw.exec(sql); raw.exec(seed); raw.exec("PRAGMA user_version = 2"); raw.close(); chmodSync(file, 0o600);
-      const before = readFileSync(file);
+      const before = readFileSync(file), filesBefore = readdirSync(dirname(file)).sort();
       assert.throws(() => openPluginDatabase(home, declaration, () => {}, instance), (error: { code?: string; found?: number; expected?: number }) =>
         error.code === "storage.schema_version_mismatch" && error.found === 2 && error.expected === 1);
       assert.deepEqual(readFileSync(file), before);
+      assert.deepEqual(readdirSync(dirname(file)).sort(), filesBefore, "the refusal creates no journal, WAL or SHM sidecar");
       const kept = new DatabaseSync(file, { readOnly: true });
       try {
         assert.equal(kept.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n, 1);

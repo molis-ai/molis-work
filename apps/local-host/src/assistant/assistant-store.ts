@@ -22,7 +22,7 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
  *
  * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
- * It stays in the current schema; this slice changes only the storage version, not any table or stored work shape.
+ * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
 export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `

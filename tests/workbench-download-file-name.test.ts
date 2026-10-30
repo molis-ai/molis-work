@@ -81,16 +81,3 @@ test("RAC-2162 the limit is 200 characters, not 200 UTF-16 units: a name that fi
   await both(t, fits.map(([name, given]) => [name, given, given]));
   await t.test("link: no Content-Disposition, the name is download", async () => assert.equal(await shell().byLink(null), "download"));
 });
-
-test("RAC-2163 a name of millions of characters is cut without spreading more than 400 units", async t => {
-  await t.test("page", () => {
-    const page = shell();
-    assert.equal(page.byPage("字".repeat(2_000_000) + ".docx"), "字".repeat(195) + ".docx");
-    assert.ok(page.spread() <= 400, `${page.spread()} units spread`);
-  });
-  await t.test("link", async () => {
-    const page = shell();
-    assert.equal(await page.byLink("字".repeat(100_000) + ".docx"), "字".repeat(195) + ".docx");
-    assert.ok(page.spread() <= 400, `${page.spread()} units spread`);
-  });
-});

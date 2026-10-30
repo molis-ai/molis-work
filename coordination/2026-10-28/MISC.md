@@ -114,3 +114,4 @@
 | 干净 Home 批 Opus 二审 建议②（统筹 10-30 转） | `server/src/im/invites.ts:10`、`server/src/im/writes.ts:60-62` | 加入邀请接受任意长度到 100 字的文本；改成只接受 64 位十六进制。乙，**等干净 Home 批合入后再开** | 统筹 2026-10-30 |
 | 干净 Home 批 Opus 二审 建议③（统筹 10-30 转） | `tests/server-database-baseline.test.ts:26` | 补一条 WAL 模式下版本不对的用例。丙，**等干净 Home 批合入后再开** | 统筹 2026-10-30 |
 | 干净 Home 批 Opus 二审 建议④（统筹 10-30 转） | Feed 的 `home-plugin.ts:22-23`、`content-ledger.ts:60` | 保留着一条“等维护”分支，干净重建后没有出口，批合入后删掉。乙，**等干净 Home 批合入后再开** | 统筹 2026-10-30 |
+| RAC-2072 在 CI 上稳定超 50 ms（高优先级，统筹 10-30 转） | `tests/code-scale.e2e.test.ts:88`、`plugins/native/coding/src/code-paint-client.ts` | 第一个着色片的强制布局 47～51 ms，最长帧 50.2～58.4 ms，T-131 #1575 的 Full 连红 4 次。已进 T-322（设备 A，乙），合入前统筹按用户 10-15 规则跳过并在 PR 上引用本行；合入后在 #1332 报，删本行 | 统筹 2026-10-30 |

@@ -145,20 +145,6 @@ test("RAC-799 a database that is not Molis Work's project catalog is left alone"
   assert.equal(existsSync(join(directory, "goals", "goals.db")), false);
 });
 
-test("RAC-800 a catalog that still holds the personal planning table is refused with both maintenances to run, in order; a new catalog has none", async t => {
-  const directory = await home(t);
-  const fresh = await openMolisWorkProjectCatalog({ homeDirectory: directory });
-  fresh.close();
-  const path = join(directory, "projects", "catalog.db");
-  assert.equal(catalogHasTable(path), false, "a catalog this build makes has no such table");
-  await openMolisWorkProjectCatalog({ homeDirectory: directory }).then(catalog => catalog.close());
-
-  const db = new DatabaseSync(path);
-  try { db.exec(`CREATE TABLE ${TABLE} (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)`); } finally { db.close(); }
-  await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: directory }), (error: { code?: string; message?: string }) =>
-    error.code === "catalog.unsupported_schema" && /goals-journal-names\.mjs[\s\S]*goals-personal-planning-move\.mjs/u.test(error.message ?? ""));
-});
-
 test("RAC-799 move keeps the catalog's table and writes nothing while a project library still holds Goals' old names; after the rename it moves", async t => {
   const directory = await home(t), catalog = await oldCatalog(directory), library = writeOldNamedLibrary(directory, "alpha");
   const catalogBefore = digest(catalog), rowsBefore = journalRows(library);

@@ -73,7 +73,7 @@ function adoptionScopes(home: string, snapshot: MemoryLedgerAdoptionSnapshot): M
     const storage = new LocalSqliteStorage(path, { readonly: true });
     try {
       assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path);
-      const projects = new ProjectsModule({ db: storage.db, plugins: { has: () => false, companions: () => [] } });
+      const projects = new ProjectsModule({ db: storage.db, projects_directory: join(home, "projects"), plugins: { has: () => false, companions: () => [] } });
       for (const project of projects.query.listProjects()) add("project", project.project_id);
     } finally { storage.close(); }
   }

@@ -249,8 +249,13 @@ const headErrors = (measured, budget, base) => {
 // characters instead of UTF-16 units, +106 B on this one asset (first +36 B; the counting loop T-229's review asked for, no array of a
 // whole file, adds the rest). Tried: the shorter form of both writes, a shared cut helper (longer), no new asset.
 // 统筹答 T-229 (2026-10-29, issue 1332 comment 6507055134) approved [76760, 76866]: the extra 70 B is what the review's iterator count costs.
+// T-204 (MISC T-157/T-158 起草), RAC-1978–1984: the Pages page and editor cut what they tell the Assistant, a picture caption, a bookmark name and an export file name
+// on a whole character instead of between the two UTF-16 units of one, +80 B on pages.js and +198 B on pages-editor.js (one shared two-line function and its calls).
+// Tried: the same regex written at every call site, +64 B on pages.js (one call) but +450 B on pages-editor.js (nine calls), so the shared function is kept; no new asset,
+// no new text.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/jelly.js": [76760, 76866],
+  "/assets/molis-work-plugins/pages.js": [38946, 39026],
+  "/assets/molis-work-pages-editor.js": [707763, 707961],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

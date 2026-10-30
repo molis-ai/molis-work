@@ -15,7 +15,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAlchemistProloguePort } from "../apps/local-host/dist/alchemist-prologue.js";
+import { ALCHEMIST_PROMPT_MAX_CHARS, alchemistPromptText, createAlchemistProloguePort } from "../apps/local-host/dist/alchemist-prologue.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { createAlchemistSearchPort } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -410,9 +410,10 @@ test("Alchemist abort while shared inference returns cannot publish its complete
   assert.equal(requests, 1, "a request already dispatched before abort is neither repeated nor presented as a cancelled success");
 });
 
-test("RAC-2410: the Alchemist prompt is refused whole over the data slot, and its limit counts whole characters", { timeout: 30_000 }, async t => {
-  // The prompt is the JSON Schema and the task materials (the instructions ride in `system`); the model port leaves 180,000 characters
-  // for data before its own 200,100 limit. The prompt is refused whole — not cut — because a cut would break the schema or the material.
+test("RAC-2410: the Alchemist prompt is refused whole over the port's limit, and the limit counts whole characters", { timeout: 30_000 }, async t => {
+  // The prompt is the JSON Schema and the task materials (the instructions ride in `system`, so this prompt may be as long as the port's
+  // own ALCHEMIST_PROMPT_MAX_CHARS); the limit comes from that one constant. The prompt is refused whole — not cut — because a cut would break the
+  // schema or the material. The boundary: exactly at the limit passes, one character more is refused.
   const f = await configuredAi(t);
   let requests = 0;
   const inference = textInference(async input => {
@@ -420,11 +421,18 @@ test("RAC-2410: the Alchemist prompt is refused whole over the data slot, and it
     return { state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, value: '{"reply":"ok"}', configuredModel: input.model, reportedModels: [], usage: [] };
   });
   const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => inference });
+  const schema = { type: "object", properties: { reply: { type: "string" } } };
   const input = (operationId: string, userPrompt: string) => ({ operationId, purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""),
-    userPrompt, jsonSchema: { type: "object", properties: { reply: { type: "string" } } } });
-  await assert.rejects(port.generate(input("too-long", "x".repeat(180_000))), { code: "alchemist.prompt_too_long", kind: "invalid" });
-  assert.equal(requests, 0, "a prompt over the data slot never reaches the model");
+    userPrompt, jsonSchema: schema });
+  const prefix = alchemistPromptText("检查长度", schema, "").length;
+  // Exactly at the limit in characters but over it in UTF-16 units (the answers are two-unit characters), so the character count decides:
+  // this prompt passes; one more character is refused. A unit-counted limit would refuse this one, and `>=` would refuse it too.
+  const exact = "😀".repeat(ALCHEMIST_PROMPT_MAX_CHARS - prefix);
+  await assert.rejects(port.generate(input("too-long", exact + "x")), { code: "alchemist.prompt_too_long", kind: "invalid" });
+  assert.equal(requests, 0, "a prompt one character over the limit never reaches the model");
+  assert.deepEqual((await port.generate(input("exact", exact))).json, { ok: true, value: { reply: "ok" } });
+  assert.equal(requests, 1, "exactly at the limit in characters the prompt is dispatched");
   // 90,000 emoji are 180,000 UTF-16 units but 90,000 characters: the limit counts characters, so this prompt fits and is dispatched.
   assert.deepEqual((await port.generate(input("emoji-fits", "😀".repeat(90_000)))).json, { ok: true, value: { reply: "ok" } });
-  assert.equal(requests, 1, "a prompt within the data slot in characters is dispatched");
+  assert.equal(requests, 2, "a prompt within the limit in characters is dispatched");
 });

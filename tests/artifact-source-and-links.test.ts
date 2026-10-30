@@ -116,3 +116,35 @@ test("a pinned document that moved to another place says so, instead of saying i
   assert.doesNotMatch(moved, /在 Pages 打开原对象/, "it is not in this project to open");
   assert.match(moved, /第一稿/);
 });
+
+// RAC-2088: an MCP client granted 「被谁引用」 and Goals' naming action reads the Goal titles, as it did when they came from Goals'
+// directory; with the naming action taken away it sees the ids. RAC-2084: Goals names only the Goals that are there.
+test("RAC-2088 an MCP client reads the Goal titles under 「被谁引用」 when granted Goals' naming action, and ids without it", async t => {
+  const served = await openTestHome(t);
+  const project = await served.createProject("artifact-links-mcp");
+  await seedDemoGoals(project.database_path, project.project_id);
+  const store = new LocalProjectDatabase(project.database_path);
+  t.after(() => store.close());
+  const projectOrigin = `${served.origin}/projects/${encodeURIComponent(project.project_id)}`;
+  const post = async (path: string, body: unknown) => {
+    const response = await globalThis.fetch(projectOrigin + path, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", origin: served.origin,
+      "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
+    return await response.json() as Record<string, unknown>;
+  };
+  const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinned = (await post(`/api/plugins/io.molis.work.pages/pages/${created.id}/promote`, { expected_version: created.version })).artifact as { artifact_id: string; version: number };
+  await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
+  const v1 = new GoalProjectApplication(store).goalQueries.getGoal(project.project_id, "V1")!.title;
+
+  const linksAction = { capability_id: "artifacts.links", version: 1 }, namesAction = { capability_id: "goals.artifacts.link_subjects", version: 1 };
+  await served.grant("links-mcp", project.project_id, [linksAction, namesAction]);
+  const mcp = await served.mcp("links-mcp", project.project_id);
+  type Linked = { plugins: Array<{ plugin_id: string; objects: Array<{ id: string; title: string }> }> };
+  const seen = async () => (await mcp.client.invoke(mcp.caller, linksAction, { reference: pinned }) as Linked).plugins
+    .map(group => [group.plugin_id, group.objects.map(item => `${item.id}=${item.title}`)]);
+  assert.deepEqual(await seen(), [["io.molis.work.goals", [`V1=${v1}`]]]);
+  assert.deepEqual((await mcp.client.invoke(mcp.caller, namesAction, { ids: ["V1", "NO-SUCH-GOAL"] }) as { objects: Array<{ id: string }> }).objects.map(item => item.id), ["V1"]);
+  await served.revoke("links-mcp", project.project_id, [namesAction]);
+  assert.deepEqual(await seen(), [["io.molis.work.goals", ["V1=V1"]]], "not granted the naming action: the id, and no failure");
+});

@@ -1,5 +1,5 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type ArtifactLinkSubjectsResult, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { logPreviewFailure } from "./host-log.js";
+import { logLinkSubjectsFailure, logPreviewFailure } from "./host-log.js";
 import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactTypeDeclarations } from "./artifact-type-registry.js";
@@ -23,14 +23,17 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
       linkKinds: artifactLinkKinds(),
-      // The declaring plugin names its own linking objects, asked as the caller (BL-646); only the ids asked are kept, and a plugin
-      // that cannot answer leaves its objects shown by id.
+      // The declaring plugin names its own linking objects, asked as the caller and pinned to that plugin as provider (BL-646); only
+      // the ids asked are kept. A plugin that cannot answer leaves its objects shown by id: a refusal (the caller may not read them) is
+      // that answer, anything else is written to the Host log first.
       linkSubjects: async (pluginId, ids, caller) => {
         const action = artifactLinkSubjectActions().get(pluginId);
         if (!client || !action) return new Map();
-        const answer = await client.invoke(caller, { capability_id: action.capability_id, version: action.version }, { ids: [...ids] }) as ArtifactLinkSubjectsResult;
-        const asked = new Set(ids);
-        return new Map(answer.objects.filter(item => asked.has(item.id)).map(item => [item.id, { title: item.title, open: item.open }]));
+        try {
+          const answer = await client.invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: pluginId }, { ids: [...ids] }) as ArtifactLinkSubjectsResult;
+          const asked = new Set(ids);
+          return new Map(answer.objects.filter(item => asked.has(item.id)).map(item => [item.id, { title: item.title, open: item.open }]));
+        } catch (error) { logLinkSubjectsFailure(error, pluginId); return new Map(); }
       },
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.

@@ -323,6 +323,8 @@ export declare const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.re
 
 export declare const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
 
+export declare const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
+
 export declare const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
 
 export declare const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = "molis.artifacts.link_subjects.v1";

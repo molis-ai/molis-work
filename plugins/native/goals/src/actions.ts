@@ -110,6 +110,12 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
   deliverables: Omit<GoalDeliverablePorts, "projectId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
   const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId));
+  const currentGoal = (goalId: string) => {
+    try { return goalExists(goalId) ? readGoal(goalId) : null; } catch (error) {
+      if (error instanceof ActionError && error.code === "goals.not_found") return null;
+      throw error;
+    }
+  };
   return [
     ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
     ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId))),
@@ -122,9 +128,10 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
         content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id],
         open: { surface: "goals", id } });
     } },
+    // An id that is no current Goal (gone, archived, never one) is left out; the 成果库 shows it by id. One such id never fails the rest.
     { ...goalsActions.linkSubjects, handle: (_caller, input) => ({ objects: (input as ArtifactLinkSubjectsInput).ids.flatMap(id => {
-      const item = readGoal(id) ? events.readDirectoryItem(projectId, id) : null;
-      return item ? [{ id, title: item.title, open: { surface: "goals", id } }] : [];
+      const goal = currentGoal(id);
+      return goal ? [{ id, title: goal.title, open: { surface: "goals", id } }] : [];
     }) }) },
     { ...goalsActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareGoalsFragmentOffers(input as FragmentOffersInput, { cursor: goalId => {
       try { return readGoal(goalId) && events.readDirectoryItem(projectId, goalId) ? events.readState(projectId, goalId).goal_event_cursor : null; } catch { return null; }

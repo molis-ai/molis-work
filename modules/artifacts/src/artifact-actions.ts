@@ -1,4 +1,4 @@
-import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ARTIFACT_LINK_SUBJECTS_BATCH, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -152,8 +152,11 @@ function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference)
   return artifact;
 }
 /**
- * 「被谁引用」 by the Plugin that declares each link kind (BL-646). Each Plugin is asked once, about its own objects only; an object
- * it does not name (no answer, a failure, or not for this caller) shows its id and opens on the surface its edges were written as.
+ * 「被谁引用」 by the Plugin that declares each link kind (BL-646). Each Plugin is asked about its own objects only, in batches of
+ * the contract's limit; an object it does not name shows its id and opens on the surface its edges were written as. Not being named
+ * is an answer, not an error: the caller may not read that Plugin's objects (the same as before, when a Goal it could not read showed
+ * its id), or the object is gone. The Host's port reports any other failure of the Plugin before it answers with no names, so the
+ * guard here only keeps one Plugin's port from failing the whole list. A Plugin's `open` counts only on its own surface.
  */
 async function referringPlugins(ports: ArtifactActionPorts, references: ReadonlyArray<{ edge: { source: { id: string } }; kind: ArtifactLinkKind }>,
   caller: ActionExecutionContext): Promise<ArtifactReferences["plugins"]> {
@@ -163,10 +166,15 @@ async function referringPlugins(ports: ArtifactActionPorts, references: Readonly
     byPlugin.set(row.kind.plugin_id, { ...group, rows: [...group.rows, row] });
   }
   const groups = await Promise.all([...byPlugin].map(async ([pluginId, group]) => {
-    const named = await ports.linkSubjects?.(pluginId, [...new Set(group.rows.map(row => row.edge.source.id))], caller).catch(() => null) ?? null;
+    const ids = [...new Set(group.rows.map(row => row.edge.source.id))], named = new Map<string, ArtifactLinkSubjectView>();
+    for (let start = 0; start < ids.length; start += ARTIFACT_LINK_SUBJECTS_BATCH) {
+      const batch = ids.slice(start, start + ARTIFACT_LINK_SUBJECTS_BATCH);
+      const answer = await ports.linkSubjects?.(pluginId, batch, caller).catch(() => null);
+      for (const id of batch) { const subject = answer?.get(id); if (subject) named.set(id, subject); }
+    }
     const objects = group.rows.map(({ edge, kind }) => {
-      const subject = named?.get(edge.source.id);
-      return { id: edge.source.id, title: subject?.title ?? edge.source.id, role: kind.role, proposal: kind.proposal, open: subject?.open ?? { surface: kind.module, id: edge.source.id } };
+      const subject = named.get(edge.source.id), own = { surface: kind.module, id: edge.source.id };
+      return { id: edge.source.id, title: subject?.title ?? edge.source.id, role: kind.role, proposal: kind.proposal, open: subject?.open.surface === kind.module ? subject.open : own };
     });
     return { plugin_id: pluginId, plugin_title: group.title, objects: objects.sort((a, b) => a.title.localeCompare(b.title)) };
   }));

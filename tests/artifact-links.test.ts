@@ -7,7 +7,7 @@ import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACT
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactProducerSources, type ArtifactProducerSource } from "@molis-ai/molis-work-app-local-host";
-import { defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
@@ -143,14 +143,30 @@ test("RAC-2082: an object its Plugin does not name (no port, a failure, an id le
   }
 });
 
-test("RAC-2083: one Plugin's answer cannot name another Plugin's object", async t => {
+test("RAC-2083: one Plugin's answer cannot name another Plugin's object, and opens only on its own surface", async t => {
   const r = linkedVersion(t, declarers(), async (pluginId, ids) => pluginId === "example.notes"
-    ? new Map([["N1", { title: "Field notes", open: { surface: "notes", id: "N1" } }], ["G1", { title: "Hijacked", open: { surface: "notes", id: "G1" } }]])
+    ? new Map([["N1", { title: "Field notes", open: { surface: "goals", id: "G1" } }], ["G1", { title: "Hijacked", open: { surface: "notes", id: "G1" } }]])
     : goalNames(pluginId, ids));
   r.edge("goals", "goal.output", "G1");
   r.edge("notes", "note.cites", "N1");
   const plugins = (await r.links() as { plugins: Array<{ plugin_id: string; objects: unknown[] }> }).plugins;
   assert.deepEqual(plugins.find(group => group.plugin_id === GOALS)?.objects, [goalRow("G1", "output", false)]);
+  assert.deepEqual(plugins.find(group => group.plugin_id === "example.notes")?.objects,
+    [{ id: "N1", title: "Field notes", role: "output", proposal: false, open: { surface: "notes", id: "N1" } }], "an open on another Plugin's surface falls back to its own");
+});
+
+test("RAC-2087: a Plugin with more linking objects than one call takes is asked in batches, and every object is named", async t => {
+  const asked: number[] = [];
+  const r = linkedVersion(t, declarers(), async (_pluginId, ids) => {
+    asked.push(ids.length);
+    return new Map(ids.map(id => [id, { title: `Note ${id}`, open: { surface: "notes", id } }] as const));
+  });
+  const ids = Array.from({ length: ARTIFACT_LINK_SUBJECTS_BATCH + 1 }, (_, index) => `N${String(index).padStart(3, "0")}`);
+  for (const id of ids) r.edge("notes", "note.cites", id);
+  const objects = (await r.links() as { plugins: Array<{ objects: Array<{ id: string; title: string }> }> }).plugins[0]!.objects;
+  assert.deepEqual(asked, [ARTIFACT_LINK_SUBJECTS_BATCH, 1]);
+  assert.equal(objects.length, ids.length);
+  assert.ok(objects.every(item => item.title === `Note ${item.id}`), "no batch falls back to ids");
 });
 
 test("RAC-2086: the link-subjects contract is recognised by its types, and the Host finds Goals' as the one declarer that has it", () => {
@@ -159,6 +175,7 @@ test("RAC-2086: the link-subjects contract is recognised by its types, and the H
   assert.equal(isArtifactReferrersAction(definition.action), false);
   assert.deepEqual(definition.action.permissions, ["notes:read"]);
   assert.deepEqual(definition.action.input_schema.required, ["ids"]);
+  assert.deepEqual(definition.action.audiences, ["user", "agent", "workflow", "mcp"], "it reaches every audience artifacts.links does, since it is asked as that caller");
   const found = artifactLinkSubjectActions(artifactProducerSources());
   assert.deepEqual([...found].map(([pluginId, action]) => [pluginId, action.capability_id, action.version]), [[GOALS, "goals.artifacts.link_subjects", 1]]);
   assert.deepEqual([...artifactLinkSubjectActions([notesSource])].map(([pluginId]) => pluginId), ["example.notes"]);

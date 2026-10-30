@@ -256,6 +256,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-312 | Coding 任务摘要与工具输出送给页面时按整字截，RAC-2430（防腐清理，整字截扫描；短任务书） | 乙 | A | 208 | — | `plugins/native/coding/src/session-window.ts`、`tests/coding-long-session.test.ts` |
 | T-313 | 资料分节标题与 grep 前后文行按整字截，RAC-2431（防腐清理，整字截扫描；短任务书） | 乙 | A | 209 | — | `horizontal/knowledge/src/text.ts`、`tests/knowledge-service.test.ts` |
 | T-314 | 项目简介按整字截到 240，RAC-2432～2433（防腐清理，整字截扫描；短任务书） | 乙 | 池 | 210 | — | `apps/local-host/src/project-arrival.ts`、`tests/project-arrival.test.ts` |
+| T-315 | W6-03 ① RAC-11：隔离 Home 跑 `pnpm studio:replay` 与 `smoke`，结果和失败记进新建的 W6-03 切片文档（统筹 10-30 转的小单；MiniMax 一次性 Home；短任务书） | 丙 | B | 211 | — | `specs/repository-anti-corruption/slices/w6-03-skill-replay-smoke.md`（新）、`specs/repository-anti-corruption/spec.md`（RAC-11 一行） |
+| T-316 | GLOSSARY 把 R-B1～R-B8 补进 R-C 记为保持原名并写理由（W5-14 R-B 不做的收口；统筹 10-30 转的小单；短任务书） | 丙 | 池 | 212 | — | `docs/system/GLOSSARY.md` |
 | T-236 | 包边界门禁里 Goals、Governance、Artifacts、Runtime Host 几段「必须包含」的检查也先去掉注释、字符串、正则和模板文字再判断，不能再靠一段注释或字符串顶替代码（防腐清理，MISC「T-215 起草」`check-package-boundaries.mjs` 一行；派片，方案自定，RAC-2010～2019） | 甲 | Claude（设备 A） | 148 | — | `scripts/check-package-boundaries.mjs`（Feed 那段 T-215 已收紧，不动）、新增或改动的门禁用例文件（方案里列） |
 | T-237 | 内核 `clip` 截情境请求的标题 120、目标 2000、最近 40 时按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」`contextual.ts:170` 一行；派片，方案自定，共享核心 full=true，RAC-2020～2029） | 甲 | Claude（设备 A） | 149 | — | `packages/kernel/src/contextual.ts`、对应用例文件（方案里列） |
 | T-238 | 沙箱模型请求的数据上限与端口上限对齐：数据加最长指令不再超过端口的上限、被端口拒（防腐清理，MISC「T-185 发布」`plugin-sandbox/src/model.ts` 一行；派片，方案自定，RAC-2030～2039；只许变严，若要放宽沙箱边界先问统筹） | 甲 | Claude（设备 A） | 150 | — | `packages/plugin-sandbox/src/model.ts`、对应用例文件（方案里列） |

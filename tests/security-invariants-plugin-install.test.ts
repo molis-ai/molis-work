@@ -34,13 +34,14 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
   const homeRecords: PluginInstanceRecord[] = [];
+  const projectRecords: PluginInstanceRecord[] = [];
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home), now: () => AT,
     installInProject: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); },
     installInHome: async release => {
       installed.push({ project: "~home", plugin: release.pluginId, trust: release.packaged?.trust });
       if (withHome) homeRecords.push(homeRecord(release.packaged!.manifest));
     },
-    installed: async () => [], control: async () => "disabled",
+    installed: async () => projectRecords.map(record => ({ record, manifest: undefined })), control: async () => "disabled",
     ...(withHome ? { homeInstalled: async () => homeRecords.map(record => ({ record, manifest: undefined })) } : {}) });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
@@ -48,7 +49,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
     assert.equal(existsSync(join(home, "plugin-packages")), false, "no package was kept");
     assert.deepEqual(installed, [], "nothing was installed");
   };
-  return { home, ledger, service, installed, homeRecords, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
+  return { home, ledger, service, installed, homeRecords, projectRecords, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
 }
 
 test("RAC-387 S-84 a package with no signature is refused at the preview with plugin.signature_invalid, and nothing is written", async () => {
@@ -323,6 +324,82 @@ test("RAC-1682 S-80 S-84 the Home's own publisher's package of a plugin the Home
     results["a, installation switched off"] = await step(homeBundle(a, { version: "1.2.0" }));
     const refusedUntouched = { code: "plugin.state_invalid", unchanged: true };
     assert.deepEqual(results, { "a, a newer version": refusedUntouched, "a, installation switched off": refusedUntouched }, "refused, with no package kept and nothing installed");
+  } finally { await h.done(); }
+});
+
+type Harness = Awaited<ReturnType<typeof harness>>;
+const CHILD_ID = `${PACKAGE_PLUGIN_ID}.extra`, THIRD_ID = "io.molis.work.example.third";
+
+/** What the install path has written so far: the pinned publishers, the kept packages, the installations. */
+const writtenBy = async (h: Harness) => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), installs: h.installed.length,
+  dirs: existsSync(join(h.home, "plugin-packages")) ? (await readdir(join(h.home, "plugin-packages"))).sort() : [] });
+
+/** Confirms a package as the person, naming its publisher; answers the code it was refused with, and whether anything the install path writes changed. */
+const confirmStep = (h: Harness) => async (bundle: PluginPackageBundle) => {
+  const before = await writtenBy(h);
+  const code = await confirmIn(h.service)(bundle);
+  return { code, unchanged: isDeepStrictEqual(await writtenBy(h), before) };
+};
+
+/** The record the Runtime keeps of a signed package of `publisher` that is installed. */
+const installedBy = (publisher: ReturnType<typeof newPublisher>, pluginId: string, version = "1.0.0"): PluginInstanceRecord =>
+  homeRecord(packageFiles(publisher.identity, undefined, { pluginId, version }).manifest);
+
+/** A package that says it can be upgraded to from these versions. */
+const declares = (...versions: string[]) => (_files: PackageFiles, manifest: PluginManifest) => { manifest.upgrade_compatibility = { compatible_from_versions: versions }; };
+
+test("RAC-1835 S-75 S-84 another publisher's package whose plugin id is on the dotted path of an installed plugin's, below it or above it, is refused at the confirmation with plugin.id_namespace_conflict, before its publisher is pinned or the package is kept, in a project and in the Home", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher(), b = newPublisher(), c = newPublisher();
+    const confirm = confirmIn(h.service), step = confirmStep(h);
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    // The project's Runtime holds a's notes plugin.
+    h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    results["project, b below a's id, b not pinned yet"] = await step(signedPackage(b, undefined, { pluginId: CHILD_ID }));
+    assert.equal(await confirm(signedPackage(c, undefined, { pluginId: THIRD_ID })), "installed", "c is pinned by a plugin of its own");
+    results["project, c below a's id, c pinned"] = await step(signedPackage(c, undefined, { pluginId: CHILD_ID }));
+    h.projectRecords[0] = installedBy(a, CHILD_ID);
+    results["project, b above a's id"] = await step(signedPackage(b, undefined, { pluginId: PACKAGE_PLUGIN_ID }));
+    // The Home's Runtime holds a's second plugin.
+    assert.equal(await confirm(homeBundle(a, { pluginId: SECOND_PLUGIN_ID })), "installed");
+    results["Home, b below a's id"] = await step(homeBundle(b, { pluginId: `${SECOND_PLUGIN_ID}.extra` }));
+    results["Home, b above a's id"] = await step(homeBundle(b, { pluginId: "io.molis.work.example" }));
+    const refusedUntouched = { code: "plugin.id_namespace_conflict", unchanged: true };
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no publisher pinned, no package kept and nothing installed");
+  } finally { await h.done(); }
+});
+
+test("RAC-1836 S-75 S-84 the dotted-path check refuses only another publisher's package: the same publisher's nests, and an id that only starts alike is not on the path", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher(), b = newPublisher();
+    const confirm = confirmIn(h.service);
+    h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    assert.equal(await confirm(signedPackage(a, undefined, { pluginId: CHILD_ID })), "installed", "a project: the same publisher's plugin below its own");
+    assert.equal(await confirm(signedPackage(b, undefined, { pluginId: `${PACKAGE_PLUGIN_ID}-extra` })), "installed", "a project: another publisher's id that only starts alike is not on the path");
+    assert.equal(await confirm(homeBundle(a, { pluginId: SECOND_PLUGIN_ID })), "installed");
+    assert.equal(await confirm(homeBundle(a, { pluginId: `${SECOND_PLUGIN_ID}.extra` })), "installed", "the Home: the same publisher's plugin below its own");
+    assert.equal(h.installed.length, 4, "all four went on to the install");
+  } finally { await h.done(); }
+});
+
+test("RAC-1837 S-84 BL-623 in a project, its own publisher's package of an installed plugin that is not an upgrade is refused at the confirmation with plugin.upgrade_required, before the package is kept, and its upgrade goes on", async () => {
+  const h = await harness();
+  try {
+    const a = newPublisher();
+    h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    const step = confirmStep(h);
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    results["the same version"] = await step(signedPackage(a));
+    results["the same version, declaring it can be upgraded to from itself"] = await step(signedPackage(a, declares("1.0.0")));
+    results["an earlier version"] = await step(signedPackage(a, undefined, { version: "0.9.0" }));
+    results["a later version that declares nothing"] = await step(signedPackage(a, undefined, { version: "1.1.0" }));
+    results["a later version that declares another source"] = await step(signedPackage(a, declares("0.5.0"), { version: "1.1.0" }));
+    const refusedUntouched = { code: "plugin.upgrade_required", unchanged: true };
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no publisher pinned, no package kept and nothing installed");
+    assert.equal(await confirmIn(h.service)(signedPackage(a, declares("1.0.0"), { version: "1.1.0" })), "installed", "its upgrade is not in the way");
+    assert.equal(h.installed.length, 1, "and it went on to the install");
   } finally { await h.done(); }
 });
 

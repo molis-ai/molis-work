@@ -457,7 +457,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
     && !(input.materials_only === true && journey.phase === "failed" && journey.sources.some(s => s.selected && s.references?.length))) throw new Error("请先完成整理");
   const title = journey.adoption?.title ?? (typeof input.title === "string" ? input.title.trim() : "");
   const body = journey.adoption?.body ?? (input.blank === true ? "" : typeof input.body === "string" ? input.body.trim() : journey.summary?.body ?? "");
-  if (!title || title.length > 120 || body.length > 100_000) throw new Error("请输入 1–120 字的项目名称，摘要最多 100,000 字符");
+  if (!title || [...title].length > 120 || body.length > 100_000) throw new Error("请输入 1–120 字的项目名称，摘要最多 100,000 字符");
   // Persist the accepted text before creating anything. A retry cannot overwrite
   // edits made later in Pages or change the adopted material set.
   // Only drafts this round made can be kept, however many batches there were.
@@ -566,7 +566,7 @@ function pageTitle(title: string): string {
 export function updateContextDraft(home: string, id: string, input: Record<string, unknown>): ContextJourney {
   const journey = readContextJourney(home, id);
   if (journey.phase !== "review" || !journey.summary || journey.adoption) throw new Error("这份摘要暂时不能修改");
-  if (typeof input.title !== "string" || input.title.length > 120 || typeof input.body !== "string" || input.body.length > 100_000) throw new Error("摘要内容过长或无效");
+  if (typeof input.title !== "string" || [...input.title].length > 120 || typeof input.body !== "string" || input.body.length > 100_000) throw new Error("摘要内容过长或无效");
   journey.summary.title = input.title; journey.summary.body = input.body;
   return withContextJourneys(home, store => store.save(journey));
 }

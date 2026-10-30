@@ -141,9 +141,6 @@ export const RESPONSIVE_STYLES = `
     .relation-form > footer button { align-self: flex-end; }
     .relation-editor-action { display: none; }
     .history-list li { grid-template-columns: 1fr; gap: 4px; }
-    .decision-guidance > section { border-right: 0; border-bottom: 1px solid var(--line); }
-    .decision-guidance > section:last-child { border-bottom: 0; }
-    .decision-scenario dl > div { grid-template-columns: 1fr; gap: 4px; }
     .decision-receipt { grid-template-columns: 1fr; }
     .decision-result { grid-template-columns: auto minmax(0, 1fr); }
     .decision-result-links { grid-column: 2; justify-items: start; }

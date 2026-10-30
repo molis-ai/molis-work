@@ -82,7 +82,7 @@ export interface PluginWorkbenchRegistration {
   readonly settingsStylesheet?: string;
   /**
    * For a plugin without a frame whose page the shell draws: the factories that page's script calls, by name. The shell takes
-   * them from this registration (`pluginPageClient`), never from the plugin's package.
+   * them from this registration (`pluginPageClients`), never from the plugin's package.
    */
   readonly pageClients?: Readonly<Record<string, string>>;
   readonly searchRow?: PluginSearchRow;

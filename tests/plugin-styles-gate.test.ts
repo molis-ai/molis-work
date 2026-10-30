@@ -217,6 +217,21 @@ test("RAC-769 PG070-PF-01 adding a prefix and lowering the count cannot omit the
   } finally { fixture.cleanup(); }
 });
 
+// A settings sheet goes whole into the settings and workbench sheets: every rule of it counts, so a plugin cannot move rules
+// there to leave the budget.
+test("RAC-2099 a registered settings sheet counts whole, and moving rules into it fails against the merge-base", () => {
+  const fixture = pluginStylesBuildFixture(work);
+  try {
+    fixture.writeBuild({ settingsStylesheet: ".probe-settings{display:grid}.shared-form label{color:red}" });
+    assert.deepEqual(JSON.parse(run(fixture.root, "--report", "--json").out).measured, { probe: 3 });
+    const caught = run(fixture.root, "--base", "main");
+    assert.equal(caught.code, 1, caught.out);
+    const laundered = run(fixture.root, "--update", "--base", "main");
+    assert.notEqual(laundered.code, 0, laundered.out);
+    assert.deepEqual(JSON.parse(fixture.budgetText()).plugins, { probe: 1 }, "--update does not write the growth");
+  } finally { fixture.cleanup(); }
+});
+
 test("RAC-769 PG070-PF-02 a legitimate new prefix can update and check with a positive remainder", () => {
   for (const args of [[], ["--base", "main"]]) {
     const fixture = pluginStylesBuildFixture(work);

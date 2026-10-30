@@ -17,6 +17,9 @@ test("RAC-2090 Goals' page rules reach the workbench sheet once, from its regist
   assert.ok(!pluginWorkbenchStyles().includes(rules), "and it is not in the layer over the shell");
   // The canvas restyles the Goal document the shell draws, so its rules come after Goals' and win ties with them.
   assert.ok(sheet.indexOf(rules) < sheet.indexOf(".goal-canvas-shell .goal-event-document {"));
+  // Its place is right after the focus sections, where its document styles always were: the shell's base and narrow-screen
+  // layers before it lose ties to it, the layers after it win them.
+  assert.match(sheet.slice(0, sheet.indexOf(rules)), /\.focus-section-card-row \{ grid-template-columns: minmax\(0, 1fr\); \}\s*\}\s*$/u);
   for (const other of [renderMolisWorkSettingsStylesheet(), renderMolisWorkArrivalStylesheet()]) {
     assert.doesNotMatch(other, /\.goal-event-document \.filters\b/u, "the settings and arrival pages draw no Goal document");
   }

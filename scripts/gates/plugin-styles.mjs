@@ -19,9 +19,13 @@
 // reference budget, current budget and build declarations, so rules returning to the shared sheet remain visible. A new
 // prefix may move rules into the plugin's own sheet; --update records it when the measured remainder does not grow.
 //
+// A registered `settingsStylesheet` is never split: the settings and workbench sheets take it whole, so all of its rules are
+// added to the plugin's count.
+//
 // Goals is measured the same way in spirit, but by name: it has no frame, so its registration's `stylesheet` and
 // `settingsStylesheet` stay whole in the shared sheets, and the three style constants this gate has always counted there
-// (`GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES`, `PLANNING_SETTINGS_STYLES`) are held and frozen; this is not import discovery.
+// (`GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES`, `PLANNING_SETTINGS_STYLES`) are held and frozen in place of the generic count;
+// this is not import discovery.
 //
 // A number may only fall. `--update` refuses when any plugin grew relative to the reference (with `--base`: the merge-base's
 // copy, otherwise the committed file) and it refuses to write a plugin the file does not know, so a new plugin with rules in
@@ -32,7 +36,7 @@
 //    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Text Stats is such a plugin today; its rules
 //    stay shared because it has no frame, and its number is not part of this budget.
 //  - Rules a plugin keeps in a host module rather than its registration stylesheet are not seen: only the registered
-//    `stylesheet` and, for Goals, the three constants named above are measured. Rules Goals' registered sheets newly take in
+//    `stylesheet` and `settingsStylesheet` and, for Goals, the three constants named above are measured. Rules Goals' registered sheets newly take in
 //    beyond those three are not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
 //    when adding the constant, then run plugin-styles-gate.test.ts and plugin-styles --base. No other Goals exports are scanned.
 //  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is
@@ -185,15 +189,19 @@ async function measureFromBuild(knownPrefixes) {
   const measured = {};
   const prefixes = {};
   for (const pack of workbench.BUILTIN_PLUGIN_WORKBENCH) {
-    if (!pack.stylesheet) continue;
     const id = pack.project_plugin_id;
-    const declared = pack.stylesheetPrefixes ?? [];
-    if (declared.length) prefixes[id] = declared;
-    // The measurement uses every prefix the budget remembers too, so dropping one cannot shrink the count.
-    const prefixesForCount = [...new Set([...(knownPrefixes?.[id] ?? []), ...declared])];
-    const framed = workbench.pluginOnDemandStylesheet(id) !== null;
-    const rules = rulesInSharedSheet(splitter.splitPluginStylesheet, pack.stylesheet, id,
-      { sharedClasses: pack.stylesheetShared ?? [], prefixes: declared, countPrefixes: prefixesForCount, framed });
+    let rules = 0;
+    if (pack.stylesheet) {
+      const declared = pack.stylesheetPrefixes ?? [];
+      if (declared.length) prefixes[id] = declared;
+      // The measurement uses every prefix the budget remembers too, so dropping one cannot shrink the count.
+      const prefixesForCount = [...new Set([...(knownPrefixes?.[id] ?? []), ...declared])];
+      const framed = workbench.pluginOnDemandStylesheet(id) !== null;
+      rules = rulesInSharedSheet(splitter.splitPluginStylesheet, pack.stylesheet, id,
+        { sharedClasses: pack.stylesheetShared ?? [], prefixes: declared, countPrefixes: prefixesForCount, framed });
+    }
+    // A registered settings sheet is not split: the settings and workbench sheets take it whole, so every rule counts.
+    if (pack.settingsStylesheet) rules += countRules(pack.settingsStylesheet);
     if (rules > 0) measured[id] = rules;
   }
 

@@ -246,8 +246,12 @@ const headErrors = (measured, budget, base) => {
 // attribute (which counts UTF-16 units and stopped a two-unit character at 10000), and says the limit through the plugin's own dictionary,
 // +299 B on this one asset; the admission was granted at [27065, 27380] and the build came out at 27364 after shrinking. Tried: inline
 // bilingual text and a separate helper were larger; the maxlength attribute is a server-drawn page, not an asset, so removing it saves nothing.
+// T-320 (R-65, MISC 风险登记), RAC-2439: the home "下一步" panel says, when the current item has no automatic judgment
+// result, that automatic judgment only considers the actions Feed has been granted, +283 B on this one asset (one note and the
+// condition that shows it, reusing the panel's existing note structure). Tried: no new structure, no new asset, no new component; the
+// English is in the workbench's own HOME_EN dictionary. 统筹答 6532325725 approved +283 B (< 1 KB).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/ppt.js": [27065, 27364],
+  "/assets/molis-work-workbench.js": [1148453, 1148736],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

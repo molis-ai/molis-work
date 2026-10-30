@@ -18,6 +18,7 @@ import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 
 const LINE = (index: number) => index % 7 === 0 ? `/** step ${index}: a note */` : `  const value${index} = compute(${index}, "text-${index}"); // ${index}`;
 const textOf = (size: number) => { let text = "", index = 0; while (text.length < size) text += LINE(index++) + "\n"; return text; };
+const FIRST_LAYOUT_MS = 150;
 const WHOLE = `(text) => { const code = document.createElement('code'); for (const [kind, value] of tokensOf(text, 'ts')) { if (!kind) code.append(value); else { const span = document.createElement('span'); span.className = 'tok-' + kind; span.textContent = value; code.append(span); } } return code.innerHTML; }`;
 
 test("VUX-36: putting a large coloured block into a product page costs in step with its size", { timeout: 120_000 }, async (t) => {
@@ -44,31 +45,44 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
   // SYS-49: scope the timer to the painter's callbacks; catalog animations keep the native scheduler.
-  // Each timed slice still includes its forced layout, in the original product page and with the same text.
+  // Each timed slice still includes its forced layout and the page's observers of what it put in, in the original product page and with the same text.
+  // The block's first layout is measured on its own (user 2026-10-29, T-281): putting 300,000 characters in and laying them out once is
+  // what reading at once costs, and no colouring shares that frame.
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
     const expected = new Map(); window.matchesColour = (code, text) => {
       if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
       return JSON.stringify(colourParts(code)) === expected.get(text); };
-    window.steps = []; window.sliceCosts = []; const frame = window.requestAnimationFrame.bind(window);
+    window.steps = []; window.stamps = []; window.sliceCosts = []; const frame = window.requestAnimationFrame.bind(window); window.nativeFrame = frame;
     window.grown = 0; const grow = ${growCodeTokens.toString()};
     window.paint = (() => {
-      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); const painted = performance.now(); window.code?.getBoundingClientRect(); const end = performance.now(); window.steps.push(end - start); window.sliceCosts.push({ js: painted - start, layout: end - painted, total: end - start }); });
+      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); const painted = performance.now(); window.code?.getBoundingClientRect(); const laid = performance.now();
+        queueMicrotask(() => { const end = performance.now(); window.stamps.push(stamp); window.steps.push(end - start); window.sliceCosts.push({ js: painted - start, layout: laid - painted, observers: end - laid, total: end - start }); }); });
       return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
-  const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number; spans: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
-    const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start, spans:code.querySelectorAll('[class^=tok-]').length }; })()`);
+  const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number; laidOut: number; spans: number; frame: number }>(`(async () => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0; stamps.length = 0;
+    const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'), ms = performance.now() - start, spans = code.querySelectorAll('[class^=tok-]').length;
+    const firstFrame = new Promise((resolve) => nativeFrame(resolve)); await Promise.resolve(); code.getBoundingClientRect();
+    return { coloured, reads: code.textContent === text, ms, laidOut: performance.now() - start, spans, frame: await firstFrame }; })()`);
   t.diagnostic("code-scale initial: " + JSON.stringify(first));
   assert.deepEqual([first.coloured, first.reads], [true, true], "past the old 40,000-character cap it is coloured, and reads whole from the start");
-  assert.ok(first.ms < 50, `the first slice is a frame's work: ${first.ms} ms`);
+  assert.ok(first.ms < 50, `putting the text in is a frame's work: ${first.ms} ms`);
   assert.equal(first.spans, 0, "SYS-49: large text reads immediately; the first colouring slice waits for its own frame");
+  // RAC-2071: the first layout of the whole text (put in, the page's observers, laid out once; no idle time) has its own bound. Measured
+  // (T-281, Chrome on an Apple-silicon dev machine): 16–20 ms; 55–57 ms at 4× CPU throttling, 74–95 ms at 6×. CI's Linux runners run the
+  // colouring frames 4–5 times slower than here, so about 55–75 ms there; 150 ms leaves twice that. A block put in or laid out in a way that
+  // grows faster than its size passes it many times over.
+  assert.ok(first.laidOut < FIRST_LAYOUT_MS, `putting the whole text in and laying it out once: ${first.laidOut.toFixed(1)} ms`);
   // Done when the slices end on what colouring it whole gives.
   await waitFor("matchesColour(code, text)", 30_000);
   const steps = await evaluate<number[]>("steps.slice()");
-  const slices = await evaluate<Array<{ js: number; layout: number; total: number }>>("sliceCosts.slice()");
+  const slices = await evaluate<Array<{ js: number; layout: number; observers: number; total: number }>>("sliceCosts.slice()");
+  // RAC-2070: the frame that lays the whole text out first carries no colouring; the first slice comes in a later frame.
+  assert.ok((await evaluate<number[]>("stamps.slice()"))[0]! > first.frame, "SYS-49: no colouring slice shares the frame that first lays the block out");
   t.diagnostic("code-scale slices: " + JSON.stringify(slices));
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("code-scale-slices.json", evidence), JSON.stringify({ first, steps, slices }, null, 2));
+  // RAC-2072: every colouring frame, with its forced layout and the observers of what it put in, stays a frame's work.
   assert.ok(steps.length >= 15 && Math.max(...steps) < 50, `${steps.length} frames, the longest ${Math.max(...steps).toFixed(1)} ms`);
 
   // Growing while it is coloured: the job takes the longer text and goes on; nothing starts over.

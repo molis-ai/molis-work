@@ -392,11 +392,13 @@ test("SYS-15 S-47 RAC-1811 a plain Home request with bad percent-encoding is 400
 // address into a settings page through `molis-work:open-settings-path`; undeclared query parameters and an undeclared fragment must not
 // reach it, while what the page reads stays. The same table is injected into the shell and into the standalone Home model settings dialog.
 import {
-  GLOBAL_SETTINGS_ADDRESS_PARAMS,
-  HOME_MODEL_SETTINGS_ADDRESS_PARAMS,
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
   HOME_MODEL_SETTINGS_CLIENT_SCRIPT,
-  PLUGIN_SETTINGS_ADDRESS_PARAMS,
-  PROJECT_SETTINGS_ADDRESS_PARAMS,
+  HOME_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
   SETTINGS_DIRECTORY_FACTORY_SCRIPT,
 } from "@molis-ai/molis-work-app-workbench";
 import vm from "node:vm";
@@ -404,6 +406,13 @@ import vm from "node:vm";
 /** The `table` a script injected: `const NAME = {…};` read back out of its source. */
 function injectedTable(script: string, name: string): unknown {
   const match = new RegExp(`const ${name} = (\\{.*?\\});`).exec(script);
+  assert.ok(match, `${name} is injected`);
+  return JSON.parse(match[1]!);
+}
+
+/** The string a script injected: `const NAME = "…";` read back out of its source. */
+function injectedString(script: string, name: string): string {
+  const match = new RegExp(`const ${name} = ("(?:[^"\\\\]|\\\\.)*");`).exec(script);
   assert.ok(match, `${name} is injected`);
   return JSON.parse(match[1]!);
 }
@@ -502,8 +511,12 @@ test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page rea
 });
 
 test("RAC-2412 S-47 both scripts carry the one declaration table", () => {
-  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(GLOBAL_SETTINGS_ADDRESS_PARAMS)));
-  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(PROJECT_SETTINGS_ADDRESS_PARAMS)));
-  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PLUGIN_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(PLUGIN_SETTINGS_ADDRESS_PARAMS)));
-  assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_ADDRESS_PARAMS"), JSON.parse(JSON.stringify(HOME_MODEL_SETTINGS_ADDRESS_PARAMS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_QUERY_EXTRAS"), JSON.parse(JSON.stringify(GLOBAL_SETTINGS_QUERY_EXTRAS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_QUERY_EXTRAS"), JSON.parse(JSON.stringify(PROJECT_SETTINGS_QUERY_EXTRAS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "ADDRESS_HASHES"), JSON.parse(JSON.stringify(SETTINGS_ADDRESS_HASHES)));
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.project);
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ID_HASH_SECTION"), PROJECT_ID_HASH_SECTION);
+  assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_QUERY_EXTRAS"), JSON.parse(JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)));
+  assert.equal(injectedString(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
 });

@@ -246,8 +246,11 @@ const headErrors = (measured, budget, base) => {
 // the block's first layout (a non-zero height) through a resize observer it releases when the job is replaced or stopped, +202 B on this one asset.
 // Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
 // dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
+// T-290, RAC-2412: the settings shell keeps only the address parameters and fragments the settings page being opened reads. Tried: the
+// declarations as "each page's defaults plus the extra variables it reads" (not one full list per page, not a packed encoding, for
+// readability), and one small filter helper injected into the shell and the Home dialog; the old used-up entry is dropped: +1,196 B.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [289674, 289876],
+  "/assets/molis-work-workbench.js": [1148453, 1149649],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

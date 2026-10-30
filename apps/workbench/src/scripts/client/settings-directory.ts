@@ -26,7 +26,13 @@
  * - `GET forms`: A page's own filters (能力's scope and search) are GET forms: they load the filtered page in place, not a new page.
  * - `leave`: A section whose row went with its plugin (Coding's): its cached page is dropped, and a list that was showing it goes back to its first.
  */
-import { GLOBAL_SETTINGS_ADDRESS_PARAMS, PLUGIN_SETTINGS_ADDRESS_PARAMS, PROJECT_SETTINGS_ADDRESS_PARAMS } from "../../settings-address-params.js";
+import {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+} from "../../settings-address-params.js";
 
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setDirectory, setExclusive, hideDirectory } = host;
@@ -35,20 +41,23 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     catch { return ""; }
   })();
   const projectPrefix = projectId ? "/projects/" + encodeURIComponent(projectId) : "";
-  // The pages' own address declarations (settings-address-params.ts): a page that hands over a settings address can only keep these.
-  const GLOBAL_ADDRESS_PARAMS = ${JSON.stringify(GLOBAL_SETTINGS_ADDRESS_PARAMS)};
-  const PROJECT_ADDRESS_PARAMS = ${JSON.stringify(PROJECT_SETTINGS_ADDRESS_PARAMS)};
-  const PLUGIN_ADDRESS_PARAMS = ${JSON.stringify(PLUGIN_SETTINGS_ADDRESS_PARAMS)};
-  const keptQuery = (search, params) => {
+  // The pages' own address declarations (settings-address-params.ts): a page that hands over a settings address can only keep what the
+  // page being opened reads. A page adds its own variables to the defaults of its kind; a plugin page has the defaults only.
+  const GLOBAL_DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.global)};
+  const PROJECT_DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.project)};
+  const GLOBAL_QUERY_EXTRAS = ${JSON.stringify(GLOBAL_SETTINGS_QUERY_EXTRAS)};
+  const PROJECT_QUERY_EXTRAS = ${JSON.stringify(PROJECT_SETTINGS_QUERY_EXTRAS)};
+  const ADDRESS_HASHES = ${JSON.stringify(SETTINGS_ADDRESS_HASHES)};
+  const PROJECT_ID_HASH_SECTION = ${JSON.stringify(PROJECT_ID_HASH_SECTION)};
+  const keptQuery = (search, defaults, extras, section) => {
+    const allowed = (defaults + " " + (extras[section] || "")).trim().split(/ +/);
     const kept = new URLSearchParams();
-    for (const [key, value] of new URLSearchParams(search || "")) if (params.query.includes(key)) kept.append(key, value);
+    for (const [key, value] of new URLSearchParams(search || "")) if (allowed.includes(key)) kept.append(key, value);
     const text = kept.toString();
     return text ? "?" + text : "";
   };
-  const keptHash = (hash, params) => !hash ? "" : params.exactHashes.includes(hash) || (params.projectIdHash === true && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
-  const keptAddress = (url, params) => keptQuery(url.search, params) + keptHash(url.hash, params);
-  const projectAddressParams = (section) => PROJECT_ADDRESS_PARAMS[section] || PLUGIN_ADDRESS_PARAMS;
-  const globalAddressParams = (section) => GLOBAL_ADDRESS_PARAMS[section] || PLUGIN_ADDRESS_PARAMS;
+  const keptHash = (hash, section) => !hash ? "" : (ADDRESS_HASHES[section] || "").split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
+  const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
   const pageOf = (root) => ({
     address: () => new URL(root.dataset.settingsSource || location.href, location.origin),
@@ -325,7 +334,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const nested = /\\/settings\\/planning\\/.+/.test(url.pathname);
     projectSettings ||= bindProject();
     if (nested) projectSettings?.caches.delete("planning");
-    openProjectSettings(projectSection, nested ? url.pathname + keptAddress(url, projectAddressParams(projectSection)) : undefined);
+    openProjectSettings(projectSection, nested ? url.pathname + keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {
@@ -354,7 +363,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return true;
     }
     globalSettings.caches.delete(section);
-    void globalSettings.loadSection(section, pathname + keptAddress(url, globalAddressParams(section)));
+    void globalSettings.loadSection(section, pathname + keptAddress(url, GLOBAL_DEFAULTS, GLOBAL_QUERY_EXTRAS, section));
     return true;
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {

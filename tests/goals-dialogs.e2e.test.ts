@@ -201,7 +201,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
 
 // T-285: an HTML maxlength counts UTF-16 units, so a title of two-unit characters was stopped at 60 while the route counts 120
 // characters; the box caps by characters now, and the person's 120 characters reach the Goal whole.
-test("RAC-2410 the new-Goal title box caps at 120 characters, not 120 UTF-16 units, and a 121st character is stopped", { timeout: 90_000 }, async t => {
+test("RAC-2413 the new-Goal title box caps at 120 characters, not 120 UTF-16 units, and a 121st character is stopped", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList, projectId } = browser;

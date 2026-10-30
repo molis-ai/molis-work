@@ -67,7 +67,8 @@ export function mountComments(host: CommentSideHost): void {
       threads=data.threads;loaded=id;if(!active)active=threads[0]?.thread_id||crypto.randomUUID();rememberActive();paint();applyOpening();
     }catch(e){if(seq===loadSeq)error(commentErrorMessage(e));}
   };
-  q('draft').addEventListener('input',()=>{const d=draft();d.body=q('draft').value;q('send').disabled=busy||needsSave()||!d.body.trim();delete d.message_id;d.request_id=crypto.randomUUID();persist();});
+  // A comment is at most 20000 characters (comment-actions.ts, comments-store.ts). A maxlength attribute counts UTF-16 units and stopped 🟢 (two units) at 10000, so the box is cut here, to whole characters, before the draft reads it.
+  q('draft').addEventListener('input',()=>{const d=draft(),area=q('draft');if(area.value.length>20000){const chars=[...area.value];if(chars.length>20000)area.value=chars.slice(0,20000).join('');}d.body=area.value;q('send').disabled=busy||needsSave()||!d.body.trim();delete d.message_id;d.request_id=crypto.randomUUID();persist();});
   q('ai').addEventListener('click',()=>{draft().ai=!draft().ai;persist();paintDraft();});
   q('include-draft').addEventListener('change',()=>{draft().includeDraft=q('include-draft').checked;persist();paintDraft();});
   q('reload').addEventListener('click',()=>{error('');void load();if(mode==='notes')void notes();});

@@ -4,6 +4,7 @@ import { goalsFailure, goalsRoute } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsRoutePorts } from "./types.js";
 import { goalsActions } from "../actions.js";
+import { withinCharacters } from "../text-length.js";
 
 /** `goals.create`: a new Goal from the page's form, answered with its address. */
 export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
@@ -66,14 +67,6 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
       replayed: created.replayed,
     } };
   })];
-}
-
-/**
- * Whether `value` holds at most `limit` characters (code points): a character may take two UTF-16 units. A text of more than
- * twice the limit in units is over it whatever it holds, so only a shorter one is spread; what a caller sends has no other bound.
- */
-function withinCharacters(value: string, limit: number): boolean {
-  return value.length <= limit * 2 && [...value].length <= limit;
 }
 
 const CREATE_KEYS = new Set([

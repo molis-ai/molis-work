@@ -42,6 +42,12 @@ function filesUnder(directory, predicate) {
   return result;
 }
 
+/** The entry packages' files that may name a Goals contract: every JavaScript and TypeScript file under `apps/cli/src` and `apps/mcp/src`, with its path relative to `root`. */
+export function readEntrySources(root) {
+  return ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(root, directory), filePath => ENTRY_SOURCE_FILE.test(filePath))
+    .map(filePath => ({ path: path.relative(root, filePath), source: fs.readFileSync(filePath, "utf8") })));
+}
+
 function isWithin(candidate, directory) {
   const relative = path.relative(directory, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
@@ -569,8 +575,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
-    entries: ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(repositoryRoot, directory), filePath => ENTRY_SOURCE_FILE.test(filePath))
-      .map(filePath => ({ path: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8") }))),
+    entries: readEntrySources(repositoryRoot),
   }));
   for (const app of ["mcp", "cli"]) {
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {

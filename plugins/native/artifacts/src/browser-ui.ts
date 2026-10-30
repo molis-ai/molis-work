@@ -23,8 +23,8 @@ export interface ArtifactBrowserUiModel {
   readonly relationship?: "input" | "output";
   /** The plugins that can start new work from the selected version (A4b, 「从这一版继续」), as the host found them declared. */
   readonly continuers?: ReadonlyArray<{ plugin_id: string; plugin_title: string }>;
-  /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`. */
-  readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>; readonly other: number;
+  /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`: by the plugin that declares the link (BL-646). */
+  readonly links?: { readonly plugins: ReadonlyArray<{ plugin_id: string; plugin_title: string; objects: ReadonlyArray<{ id: string; title: string; role: "input" | "output"; proposal: boolean; open: { surface: string; id: string } }> }>; readonly other: number;
     /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
     readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
   /** False when the project has no Goals (RAC-400): there is no Goal to take the selected version as an input, so the form is not offered. */
@@ -182,11 +182,16 @@ function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, 
   return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${p.text("交给助理")}</button><button class="mw-btn" type="button" data-artifact-hand="coding" hidden>${p.text("交给 Coding")}</button></p>`;
 }
 
-const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物", proposed_input: "提议的输入" } as const;
-/** 「被谁引用」: the Goals that use this version, each opening in the workbench, the Assistant's works, and how many other links there are. */
+const LINK_ROLES = { input: "输入", output: "交付物", proposed_input: "提议的输入", proposed_output: "提议的交付物" } as const;
+/**
+ * 「被谁引用」: under each plugin that declares the link, its objects that use this version, each opening in the workbench; the
+ * Assistant's works, and how many other links there are.
+ */
 function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>, goalInput = true): string {
-  const goals = links.goals.map(link => `<li><a href="${p.escape(`${routePrefix}/goals/${encodeURIComponent(link.goal_id)}`)}">${p.escape(link.title)}</a><span>${p.text(LINK_ROLES[link.role])}</span></li>`).join("");
-  const referrers = (links.referrers ?? []).map(row => `<li><a href="#" data-workbench-item-plugin="${p.escape(row.open.surface)}" data-workbench-item-id="${p.escape(row.open.id)}" data-workbench-item-title="${p.escape(row.title)}">${p.escape(row.title)}</a><span>${p.escape(row.plugin_title)} · ${p.text("链接了这一版")}</span></li>`).join("");
+  const open = (target: { surface: string; id: string }, title: string) => `<a href="#" data-workbench-item-plugin="${p.escape(target.surface)}" data-workbench-item-id="${p.escape(target.id)}" data-workbench-item-title="${p.escape(title)}">${p.escape(title)}</a>`;
+  const linked = links.plugins.map(group => `<h3 class="artifact-links-heading">${p.escape(group.plugin_title)}</h3><ul data-artifact-linked-plugin="${p.escape(group.plugin_id)}">${group.objects
+    .map(link => `<li>${open(link.open, link.title)}<span>${p.text(LINK_ROLES[link.proposal ? (link.role === "input" ? "proposed_input" : "proposed_output") : link.role])}</span></li>`).join("")}</ul>`).join("");
+  const referrers = (links.referrers ?? []).map(row => `<li>${open(row.open, row.title)}<span>${p.escape(row.plugin_title)} · ${p.text("链接了这一版")}</span></li>`).join("");
   const other = links.other ? `<p class="artifact-links-other">${p.text("另有其他引用")} · ${links.other}</p>` : "";
   // 「作为 Goal 的输入」 (A4b): only a version people can still use is offered.
   const usable = artifact.availability === "available" && artifact.lifecycle_state !== "archived";
@@ -197,7 +202,7 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   // (with the project's prefix when the tab came from a direct link).
   const subjects = p.escape(JSON.stringify([...new Set([artifactSubjectId(artifact), artifactVersionPath(artifact), routePrefix + artifactVersionPath(artifact)])]));
   const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${p.text("助理工作")}</h3><ul></ul></div>`;
-  return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${referrers ? `<h3 class="artifact-links-heading">${p.text("文档")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
+  return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${linked}${!linked && !referrers ? `<p>${p.text("还没有引用这一版的对象。")}</p>` : ""}${referrers ? `<h3 class="artifact-links-heading">${p.text("文档")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
 }
 
 function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {

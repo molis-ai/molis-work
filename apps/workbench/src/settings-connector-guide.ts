@@ -8,6 +8,16 @@ export interface ConnectorPrimitives {
   icon(name: "link" | "mail" | "back" | "tree"): string;
 }
 
+/** A package declares a card's name and summary with no length limit: these are the limits the card shows, in characters. */
+export const CONNECTOR_NAME_MAX_CHARS = 120;
+export const CONNECTOR_SUMMARY_MAX_CHARS = 400;
+
+/** Cut a card's words to `max` whole characters (code points, as the action schemas count), the last one 「…」; never half of one. */
+export function connectorCardText(text: string, max: number): string {
+  const characters = [...text];
+  return characters.length <= max ? text : characters.slice(0, max - 1).join("") + "…";
+}
+
 export function readyAccountLogin(card: ConnectorSettingsCardView): boolean {
   return Boolean(card.connector_id === "gmail" ? card.gmail_oauth_configured
     : card.connector_id === "notion" ? card.notion_oauth_configured
@@ -63,7 +73,7 @@ const CONNECTOR_PURPOSE: Record<string, string> = {
 
 /** What a connector is for: the workbench's own sentence where it has one, else the catalog's summary (the catalog's words are its own; specs/font-and-skin-system FSS-36). */
 export function connectorPurpose(card: ConnectorSettingsCardView, L: Translate): string {
-  return card.connector_id in CONNECTOR_PURPOSE ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
+  return Object.hasOwn(CONNECTOR_PURPOSE, card.connector_id) ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
 }
 
 export function officialLinks(links: readonly ConnectorSetupLink[], p: ConnectorPrimitives): string {
@@ -87,7 +97,7 @@ const COMPOSITE: Record<string, { separator: string; fields: readonly [string, s
 
 export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPrimitives): { fields: string; separator?: string } {
   const { L, escapeHtml: e } = p;
-  const composite = COMPOSITE[card.connector_id];
+  const composite = Object.hasOwn(COMPOSITE, card.connector_id) ? COMPOSITE[card.connector_id] : undefined;
   const fields = composite ? composite.fields.map(([label, type, placeholder]) => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
     : `<label class="settings-connector-field"><span>${e(L(card.token_label || "API Key / 访问令牌"))}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
   return { fields, separator: composite?.separator };

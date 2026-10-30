@@ -8,7 +8,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
-import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
+import { homeConnectorDirectory } from "./connector-directory.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
@@ -53,7 +53,7 @@ export async function handleConnectorConnectionsHttp(
     }
     if (request.method === "POST" && collection) {
       const body = await readLocalWebBody(request);
-      const service = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === body.service_id);
+      const service = (await homeConnectorDirectory(homeDirectory)).find(entry => entry.connector_id === body.service_id);
       if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw connectorErrors["connector.connection.invalid"]("此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
       const setup = startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined, { service_id: body.service_id as string, method: "token" });
       try {

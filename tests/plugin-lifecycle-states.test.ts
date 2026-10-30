@@ -842,3 +842,28 @@ test("RAC-1921 when the stop hook of an instance without a record throws, the st
   assert.equal(seen.hooks.length, 1);
   assert.equal(runtime.contribution(id), null);
 });
+
+// RAC-2400 T-264: the contract only says the stop hook returns a promise, so an executor may throw before it does. The missing record
+// is still the failure the stop reports, and the instance is let go all the same: grant withdrawn, hook called once, nothing kept.
+test("RAC-2400 a stop hook that throws synchronously still reports the missing installation record, after the grant was withdrawn", async () => {
+  const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor(), get = repository.get.bind(repository);
+  let gone = "", hooks = 0;
+  const contexts: PluginStartContext[] = [];
+  repository.get = installId => (installId === gone ? null : get(installId));
+  const executor: PluginExecutor = {
+    async start(definition, context) { contexts.push(context); return native.start(definition, context); },
+    stop() { hooks += 1; throw new Error("stop hook failed synchronously"); },
+  };
+  const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
+  const base = probe("1.0.0");
+  const definition = { ...base, manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] } };
+  const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install.install_id;
+  await runtime.start(id);
+  contexts[0]!.requireGrant("storage:private");
+  gone = id;
+
+  assert.equal(await code(runtime.stop(id)), "plugin.definition_missing", "the missing record is the failure, not the hook's own error");
+  assert.equal(hooks, 1, "the stop hook ran once");
+  assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" }, "the grant was withdrawn before the hook");
+  assert.equal(runtime.contribution(id), null, "nothing of the instance is kept");
+});

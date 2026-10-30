@@ -27,7 +27,7 @@ export async function handleLocalConnectorsSettingsHttp(
   if (!homeDirectory) return false;
   const method = request.method ?? "";
   if (method === "GET" && url.pathname === "/api/settings/connectors") {
-    sendJson(response, 200, { connectors: listConnectorSettingsCards() });
+    sendJson(response, 200, { connectors: await listConnectorSettingsCards(homeDirectory) });
     return true;
   }
   if (await handleConnectorOAuthCallback(request, response, url, homeDirectory)) return true;
@@ -75,7 +75,7 @@ export async function handleLocalConnectorsSettingsHttp(
       return true;
     }
     storeGithubClientId(clientId);
-    sendJson(response, 200, { connectors: listConnectorSettingsCards() });
+    sendJson(response, 200, { connectors: await listConnectorSettingsCards(homeDirectory) });
     return true;
   }
   if (method === "POST" && ["/api/settings/connectors/github/device/start", "/api/settings/connectors/github/device/poll"].includes(url.pathname)) {
@@ -102,7 +102,7 @@ export async function handleLocalConnectorsSettingsHttp(
       clientId,
       clientSecret: typeof body.client_secret === "string" ? body.client_secret : undefined,
     });
-    sendJson(response, 200, { connectors: listConnectorSettingsCards() });
+    sendJson(response, 200, { connectors: await listConnectorSettingsCards(homeDirectory) });
     return true;
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/gmail/oauth/start") {

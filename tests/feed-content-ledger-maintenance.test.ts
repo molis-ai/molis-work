@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { FEED_HOME_DATABASE } from "@molis-ai/molis-work-plugin-feed";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { backfillLedger } from "./fixtures/feed-content-ledger-maintenance.mjs";
 
 // FI-4: the maintenance that fills the Home's Feed content ledger from what every project already holds
 // (tests/fixtures/feed-content-ledger-maintenance.mjs). RAC-495.
@@ -17,23 +20,19 @@ function homes(t: TestContext) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const ledgerFile = join(directory, "feed-content.sqlite");
   const ledger = new DatabaseSync(ledgerFile);
-  ledger.exec(FEED_HOME_DATABASE.schema);
+  ledger.exec(FEED_HOME_DATABASE.schema); ledger.exec("PRAGMA user_version=1");
   ledger.close();
-  /** Only the columns the maintenance reads: a project's items (which source), its materials (which body) and its pull receipts. */
+  /** Full production libraries: maintenance must reject plausible partial table stubs too. */
   const project = (name: string, projectId: string, holdings: { materials?: [string, string][]; receipts?: [string, unknown][] }) => {
     const file = join(directory, `${name}.sqlite`);
-    const db = new DatabaseSync(file);
-    db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY);
-      CREATE TABLE feed_items (project_id TEXT NOT NULL, item_id TEXT NOT NULL, source_id TEXT);
-      CREATE TABLE feed_materials (project_id TEXT NOT NULL, material_id TEXT NOT NULL, item_id TEXT NOT NULL, content_ref TEXT);
-      CREATE TABLE feed_source_runs (project_id TEXT NOT NULL, run_id TEXT NOT NULL, source_id TEXT NOT NULL, receipt_json TEXT);`);
-    db.prepare("INSERT INTO project_root VALUES (?)").run(projectId);
+    const store = new LocalProjectDatabase(file), db = store.db;
+    writeProjectRoot(db, projectId, "then");
     (holdings.materials ?? []).forEach(([sourceId, ref], at) => {
-      db.prepare("INSERT INTO feed_items VALUES (?, ?, ?)").run(projectId, `item-${at}`, sourceId);
-      db.prepare("INSERT INTO feed_materials VALUES (?, ?, ?, ?)").run(projectId, `material-${at}`, `item-${at}`, ref);
+      db.prepare("INSERT INTO feed_items(project_id,item_id,source_id,kind,title,source_kind,source_label,origin_status,priority,disposition,source_created_at,source_updated_at,imported_at,updated_at) VALUES(?,?,?,'article','kept','research_library','source','available','normal','inbox','then','then','then','then')").run(projectId, `item-${at}`, sourceId);
+      db.prepare("INSERT INTO feed_materials(project_id,material_id,item_id,title,source_name,content_ref,imported_at,updated_at) VALUES(?,?,?,'kept','source',?,'then','then')").run(projectId, `material-${at}`, `item-${at}`, ref);
     });
-    (holdings.receipts ?? []).forEach(([sourceId, receipt], at) => db.prepare("INSERT INTO feed_source_runs VALUES (?, ?, ?, ?)").run(projectId, `run-${at}`, sourceId, JSON.stringify(receipt)));
-    db.close();
+    (holdings.receipts ?? []).forEach(([sourceId, receipt], at) => db.prepare("INSERT INTO feed_source_runs(project_id,run_id,operation_id,source_id,phase,receipt_json,started_at,updated_at) VALUES(?,?,?,?,'terminal',?,'then','then')").run(projectId, `run-${at}`, `operation-${at}`, sourceId, JSON.stringify(receipt)));
+    store.close();
     return file;
   };
   const held = () => {
@@ -47,6 +46,26 @@ function homes(t: TestContext) {
     spawnSync(process.execPath, [SCRIPT, mode, "--ledger", ledgerFile, ...projects.flatMap(file => ["--project", file]), ...extra, "--json"], { encoding: "utf8" });
   return { project, held, run, ledgerFile, directory };
 }
+
+test("RAC-2332 ledger or project version/structure mismatch refuses every backfill before target writes", t => {
+  for (const [side, sql] of [["ledger", "PRAGMA user_version=2"], ["ledger", "ALTER TABLE feed_content_meta ADD COLUMN unexpected TEXT"],
+    ["project", "PRAGMA user_version=10"], ["project", "CREATE TRIGGER unexpected AFTER INSERT ON events BEGIN SELECT 1; END"]]) {
+    const home = homes(t), project = home.project("one", "project-one", { materials: [["source", body("a")]] }), file = side === "ledger" ? home.ledgerFile : project;
+    const db = new DatabaseSync(file); db.exec(sql); db.close();
+    const before = readFileSync(home.ledgerFile), source = readFileSync(project);
+    assert.throws(() => backfillLedger(home.ledgerFile, [project], { allProjects: true }));
+    assert.deepEqual(readFileSync(home.ledgerFile), before); assert.deepEqual(readFileSync(project), source);
+  }
+});
+
+test("RAC-2332 a failure after inserting holds rolls them all back, including the completeness marker", t => {
+  const home = homes(t), project = home.project("one", "project-one", { materials: [["source", body("a")]] });
+  const before = readFileSync(home.ledgerFile), prepare = DatabaseSync.prototype.prepare;
+  DatabaseSync.prototype.prepare = function(sql) { if (String(sql).startsWith("INSERT OR IGNORE INTO feed_content_meta")) throw new Error("injected ledger failure"); return prepare.call(this, sql); };
+  try { assert.throws(() => backfillLedger(home.ledgerFile, [project], { allProjects: true }), /injected ledger failure/u); }
+  finally { DatabaseSync.prototype.prepare = prepare; }
+  assert.deepEqual(readFileSync(home.ledgerFile), before);
+});
 
 test("RAC-495: list reads and writes nothing; backfill holds what each source's materials and pull receipts name, and marks the ledger complete only when told it has every project", t => {
   const home = homes(t);
@@ -101,7 +120,7 @@ test("RAC-495: the maintenance stops and writes nothing when the ledger is not t
   assert.match(noProject.stderr, /nothing written/u);
 
   const broken = home.project("broken", "project-broken", { materials: [["source-a", body("b")]] });
-  const brokenDb = new DatabaseSync(broken); brokenDb.prepare("INSERT INTO feed_source_runs VALUES ('project-broken', 'run-x', 'source-a', '{not json')").run(); brokenDb.close();
+  const brokenDb = new DatabaseSync(broken); brokenDb.prepare("INSERT INTO feed_source_runs(project_id,run_id,operation_id,source_id,phase,receipt_json,started_at,updated_at) VALUES ('project-broken','run-x','operation-x','source-a','terminal','{not json','then','then')").run(); brokenDb.close();
   const notJson = home.run("backfill", [good, broken], "--all-projects");
   assert.equal(notJson.status, 1);
   assert.match(notJson.stderr, /nothing written/u);

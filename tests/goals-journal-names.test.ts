@@ -129,3 +129,13 @@ test("RAC-799 a Home that is not under the temp directory is a real one: rename 
   assert.equal(window.status, 0, window.stderr);
   assert.notEqual(journalRows(file), before);
 });
+
+test("RAC-2323 Goals name maintenance refuses wrong versions and unknown full-library structure before rewriting history", async t => {
+  for (const change of ["PRAGMA user_version=99", "ALTER TABLE project_browsing_settings ADD COLUMN unexpected TEXT",
+    "CREATE INDEX unexpected ON events(type)", "CREATE VIEW unexpected AS SELECT 1"]) {
+    const directory = await home(t), file = writeOldNamedLibrary(directory, "alpha"), db = new DatabaseSync(file);
+    db.exec(change); db.close();
+    const before = readFileSync(file), result = run(["rename", "--home", directory]);
+    assert.equal(result.status, 1, change); assert.deepEqual(readFileSync(file), before, change);
+  }
+});

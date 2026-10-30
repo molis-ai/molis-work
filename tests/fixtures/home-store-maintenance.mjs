@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Offline, one-store maintenance. SQL files require these checks and refuse to run without them.
-// list|apply --store characters|functions|assistant --database <explicit copy path> [--maintenance-window]
+// list|apply --store characters|functions|assistant|pages|connectors|plugin-runtime --database <explicit copy path> [--maintenance-window]
 // No default Home, business startup, key access or runtime migration. Real writes still require the user's approved window.
 import { isDeepStrictEqual } from "node:util";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
@@ -11,12 +11,16 @@ import { DatabaseSync } from "node:sqlite";
 import { describeSqliteBaseline, describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE } from "@molis-ai/molis-work-module-characters";
 import { FUNCTIONS_STORE_BASELINE } from "@molis-ai/molis-work-module-functions";
-import { ASSISTANT_STORE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_BASELINE, CONNECTORS_BASELINE, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
 
 const stores = {
   characters: { from: 1, to: 2, baseline: CHARACTERS_STORE_BASELINE },
   functions: { from: 3, to: 4, baseline: FUNCTIONS_STORE_BASELINE },
   assistant: { from: 2, to: 3, baseline: ASSISTANT_STORE_BASELINE },
+  pages: { from: 1, to: 2, baseline: PAGES_DATABASE },
+  connectors: { from: 1, to: 2, baseline: CONNECTORS_BASELINE },
+  "plugin-runtime": { from: 2, to: 3, baseline: homeStores().get("plugin-runtime").library.baseline },
 };
 const quote = name => `"${name.replaceAll('"', '""')}"`;
 const counts = db => Object.fromEntries(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
@@ -25,7 +29,7 @@ const versionOf = db => Number(db.prepare("PRAGMA user_version").get().user_vers
 const expected = (owner, current) => describeSqliteBaseline(current ? stores[owner].baseline
   : { version: stores[owner].from, schema: readFileSync(new URL(`./${owner}-before-maintenance.sql`, import.meta.url), "utf8") });
 
-function validate(db, owner, current) {
+export function validateMaintenanceStore(db, owner, current) {
   const store = stores[owner];
   if (!store || store.baseline.version !== store.to) throw new Error("unknown or changed maintenance definition");
   if (versionOf(db) !== (current ? store.to : store.from)) throw new Error(`${owner}: unexpected maintenance version`);
@@ -40,9 +44,9 @@ function validate(db, owner, current) {
 /** Both functions run inside the SQL's existing single transaction; no error may be followed by COMMIT. */
 export function registerMaintenanceChecks(db, owner) {
   let before;
-  db.function("maintenance_before", () => { before = validate(db, owner, false); return 1; });
+  db.function("maintenance_before", () => { before = validateMaintenanceStore(db, owner, false); return 1; });
   db.function("maintenance_after", () => {
-    const after = validate(db, owner, true);
+    const after = validateMaintenanceStore(db, owner, true);
     if (!before || Object.entries(before).some(([table, count]) => after[table] !== count)
       || Object.entries(after).some(([table, count]) => !(table in before) && count !== 0)) throw new Error(`${owner}: maintenance row counts changed`);
     return 1;
@@ -55,7 +59,7 @@ export function maintainStore(file, owner, apply = false) {
   const db = new DatabaseSync(file, { readOnly: !apply });
   try {
     const current = versionOf(db) === stores[owner].to;
-    const before = validate(db, owner, current);
+    const before = validateMaintenanceStore(db, owner, current);
     if (apply && !current) {
       registerMaintenanceChecks(db, owner);
       try { db.exec(readFileSync(new URL(`./${owner}-maintenance-v${stores[owner].to}.sql`, import.meta.url), "utf8")); }

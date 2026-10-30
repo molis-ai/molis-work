@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { journalRows, writeOldNamedLibrary } from "./fixtures/goals-old-names.js";
@@ -62,9 +62,40 @@ test("RAC-799 list reads the catalog's methods and writes nothing", async t => {
   const listed = run(["list", "--home", directory]);
   assert.equal(listed.status, 0, listed.stderr);
   assert.match(listed.stdout, /2 条个人规划方法/u);
-  assert.match(listed.stdout, /personal-a/u);
+  assert.doesNotMatch(listed.stdout, /personal-a|pack_json/u, "preflight only reports counts, not method ids or bodies");
   assert.equal(digest(catalog), before, "the catalog is byte for byte the same");
   assert.equal(existsSync(join(directory, "goals", "goals.db")), false, "and Goals' library was not made");
+});
+
+test("RAC-2323 planning list can count methods when reading method bodies or identifiers is forbidden", async t => {
+  const directory = await home(t), catalog = await oldCatalog(directory), before = readFileSync(catalog), preload = join(directory, "metadata-only.mjs");
+  writeFileSync(preload, `import { DatabaseSync } from 'node:sqlite';
+    const prepare=DatabaseSync.prototype.prepare;
+    DatabaseSync.prototype.prepare=function(sql){
+      if (/SELECT\\s+(?!count\\()/i.test(sql) && /FROM personal_planning_method_packs/i.test(sql)) throw new Error('body read forbidden');
+      return prepare.call(this,sql);
+    };`);
+  const listed = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, SCRIPT, "list", "--home", directory], { encoding: "utf8" });
+  assert.equal(listed.status, 0, listed.stderr); assert.match(listed.stdout, /2 条/u); assert.deepEqual(readFileSync(catalog), before);
+});
+
+test("RAC-2323 planning move rejects a wrong catalog version or complete structure without creating a target or dropping source data", async t => {
+  for (const change of ["UPDATE catalog_meta SET value='23' WHERE key='schema_version'", "ALTER TABLE personal_planning_method_packs ADD COLUMN unexpected TEXT",
+    "CREATE INDEX unexpected ON personal_planning_method_packs(version)", "CREATE VIEW unexpected AS SELECT 1"]) {
+    const directory = await home(t), catalog = await oldCatalog(directory), db = new DatabaseSync(catalog); db.exec(change); db.close();
+    const before = readFileSync(catalog), result = run(["move", "--home", directory]);
+    assert.equal(result.status, 1, change); assert.deepEqual(readFileSync(catalog), before, change);
+    assert.equal(existsSync(join(directory, "goals", "goals.db")), false, change);
+  }
+});
+
+test("RAC-2331 planning source-drop failure reports partial success and leaves both copies for the coordinator", async t => {
+  const directory = await home(t), catalog = await oldCatalog(directory), before = readFileSync(catalog), preload = join(directory, "fail-source-drop.mjs");
+  writeFileSync(preload, `import {DatabaseSync} from 'node:sqlite';const exec=DatabaseSync.prototype.exec;
+    DatabaseSync.prototype.exec=function(sql){if(sql==='DROP TABLE personal_planning_method_packs')throw new Error('injected source failure');return exec.call(this,sql);};`);
+  const result = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, SCRIPT, "move", "--home", directory], { encoding: "utf8" });
+  assert.equal(result.status, 1); assert.match(result.stderr, /部分成功.*目标库已提交.*旧表仍保留/u);
+  assert.deepEqual(readFileSync(catalog), before); assert.deepEqual(homeRows(directory), ROWS.map(row => ({ ...row })));
 });
 
 test("RAC-799 move copies every row to Goals' Home library, reads them back, then drops the catalog's table; run again it changes nothing", async t => {

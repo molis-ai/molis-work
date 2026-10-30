@@ -27,7 +27,7 @@ test("the Shelf catalog maintenance lists, rewrites version 1 as 2 once, keeps e
   await assert.rejects(openTestShelfStore(home, { disabled: true }).snapshot(), /Shelf 目录格式不符/u, "the new build refuses a version 1 catalog");
 
   const tool = (args: string[], env: Record<string, string> = {}) => {
-    const run = spawnSync(process.execPath, [TOOL, ...args, "--json"], { encoding: "utf8", env: { ...process.env, MOLIS_WORK_HOME: elsewhere, ...env } });
+    const run = spawnSync(process.execPath, [TOOL, ...args, "--backup", join(elsewhere, "shelf-before.json"), "--json"], { encoding: "utf8", env: { ...process.env, MOLIS_WORK_HOME: elsewhere, ...env } });
     return { code: run.status, report: run.status === 0 ? JSON.parse(run.stdout) as Record<string, unknown> : null, error: run.stderr };
   };
 
@@ -49,6 +49,7 @@ test("the Shelf catalog maintenance lists, rewrites version 1 as 2 once, keeps e
   const after = readFileSync(catalogFile, "utf8");
   assert.ok(!after.includes("origin_realpath") && !after.includes(privatePath));
   assert.equal(statSync(catalogFile).mode & 0o777, 0o600);
+  assert.deepEqual(readFileSync(join(elsewhere, "shelf-before.json")), before, "the replaced original remains outside Home");
   const reopened = await openTestShelfStore(home, { disabled: true }).snapshot();
   assert.deepEqual(reopened.materials.map(item => item.item_id).sort(), [file.item_id, text.item_id].sort());
   assert.ok(!JSON.stringify(reopened).includes(privatePath));
@@ -62,4 +63,10 @@ test("the Shelf catalog maintenance lists, rewrites version 1 as 2 once, keeps e
   const odd = readFileSync(catalogFile);
   assert.equal(tool(["rewrite", "--home", home]).code, 1);
   assert.deepEqual(readFileSync(catalogFile), odd);
+  // RAC-2330: a correct version with a broken complete layout is refused before publication too.
+  for (const broken of [{ ...JSON.parse(after), version: 1, settings: null }, { ...JSON.parse(after), version: 1, extra: true },
+    { ...JSON.parse(after), version: 1 }]) {
+    writeFileSync(catalogFile, JSON.stringify(broken)); const bytes = readFileSync(catalogFile), result = tool(["rewrite", "--home", home]);
+    assert.equal(result.code, 1); assert.match(result.error, /structure mismatch/u); assert.deepEqual(readFileSync(catalogFile), bytes);
+  }
 });

@@ -20,6 +20,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { pendingGoalsNames } from "./goals-journal-names.mjs";
+import { validatePlanningCatalog, validatePlanningHome } from "../../tests/fixtures/catalog-maintenance-checks.mjs";
 
 const TABLE = "personal_planning_method_packs";
 const COLUMNS = ["method_id", "version", "enabled", "pack_json", "created_at", "updated_at"];
@@ -67,21 +68,28 @@ async function main() {
   const { isOwnedCatalogOwner } = await load("apps/local-host/dist/project-catalog-contract.js");
   const { GOALS_HOME_DATABASE } = await load("plugins/native/goals/dist/home-database.js");
 
-  const catalog = new DatabaseSync(catalogPath);
+  const catalog = new DatabaseSync(catalogPath, { readOnly: options.command === "list" });
   try {
     if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog).owner())) fail(`${catalogPath} 不是 Molis Work 的项目目录库，不动它`);
-    const rows = readRows(catalog);
-    if (rows === null) {
+    const personal = Boolean(catalog.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?").get(TABLE));
+    validatePlanningCatalog(catalog, personal);
+    const targetFile = path.join(home, "goals", "goals.db");
+    if (existsSync(targetFile)) {
+      const existing = new DatabaseSync(targetFile, { readOnly: true });
+      try { validatePlanningHome(existing); } finally { existing.close(); }
+    }
+    if (!personal) {
       // No table is left to hold the refusal, so the other maintenance would go unnoticed: say it here.
       const left = pendingGoalsNames(home);
       if (left.length > 0) fail(`目录库里已经没有个人规划表，但 ${left.length} 个项目库里还留着 Goals 的旧名：运行 node scripts/maintenance/goals-journal-names.mjs rename --home <Home 目录> --maintenance-window`);
       return console.log("目录库里已经没有个人规划表，什么都没改。");
     }
     if (options.command === "list") {
-      console.log(`目录库里有 ${rows.length} 条个人规划方法:`);
-      for (const row of rows) console.log(`  ${row.method_id}  v${row.version}  ${row.enabled ? "启用" : "停用"}`);
+      const count = catalog.prepare(`SELECT count(*) AS n FROM ${TABLE}`).get().n;
+      console.log(`目录库里有 ${count} 条个人规划方法；list 不读取或打印正文与方法编号。`);
       return;
     }
+    const rows = readRows(catalog);
 
     if (!insideTemp(home)) {
       if (!options.window) fail("这是真实 Home：先退出 Molis Work，再加 --maintenance-window 运行");
@@ -96,27 +104,34 @@ async function main() {
 
     const target = openBaselineHomeSqlite(home, "goals", { version: GOALS_HOME_DATABASE.version, schema: GOALS_HOME_DATABASE.schema });
     try {
+      validatePlanningHome(target);
       target.exec("BEGIN IMMEDIATE");
       try {
+        const beforeCount = Number(target.prepare(`SELECT count(*) AS n FROM ${TABLE}`).get().n); let inserted = 0;
         for (const row of rows) {
           const existing = target.prepare(`SELECT ${COLUMNS.join(", ")} FROM ${TABLE} WHERE method_id = ?`).get(row.method_id);
           if (existing) {
             if (!sameRow({ ...existing }, row)) throw new Error(`Home 的 Goals 库里已有不同的 ${row.method_id}，不覆盖`);
             continue;
           }
-          target.prepare(`INSERT INTO ${TABLE} (${COLUMNS.join(", ")}) VALUES (?, ?, ?, ?, ?, ?)`).run(...COLUMNS.map(column => row[column]));
+          inserted += Number(target.prepare(`INSERT INTO ${TABLE} (${COLUMNS.join(", ")}) VALUES (?, ?, ?, ?, ?, ?)`).run(...COLUMNS.map(column => row[column])).changes);
         }
+        for (const row of rows) {
+          const written = target.prepare(`SELECT ${COLUMNS.join(", ")} FROM ${TABLE} WHERE method_id = ?`).get(row.method_id);
+          if (!written || !sameRow({ ...written }, row)) throw new Error("Goals 目标库读回与源记录不一致，不提交");
+        }
+        if (Number(target.prepare(`SELECT count(*) AS n FROM ${TABLE}`).get().n) !== beforeCount + inserted) throw new Error("Goals 目标库行数不符，不提交");
+        validatePlanningHome(target);
         target.exec("COMMIT");
       } catch (error) { target.exec("ROLLBACK"); throw error; }
-      for (const row of rows) {
-        const written = target.prepare(`SELECT ${COLUMNS.join(", ")} FROM ${TABLE} WHERE method_id = ?`).get(row.method_id);
-        if (!written || !sameRow({ ...written }, row)) throw new Error(`读回 ${row.method_id} 与目录库不一致，目录库的表没有删`);
-      }
     } finally { target.close(); }
 
     catalog.exec("BEGIN IMMEDIATE");
-    try { catalog.exec(`DROP TABLE ${TABLE}`); catalog.exec("COMMIT"); }
-    catch (error) { catalog.exec("ROLLBACK"); throw error; }
+    try { validatePlanningCatalog(catalog, true); catalog.exec(`DROP TABLE ${TABLE}`); validatePlanningCatalog(catalog, false); catalog.exec("COMMIT"); }
+    catch (error) {
+      if (catalog.isTransaction) catalog.exec("ROLLBACK");
+      throw new Error("部分成功：Goals 目标库已提交，目录库旧表仍保留。停止并报统筹；不自动重试或撤销目标库。", { cause: error });
+    }
     console.log(`已把 ${rows.length} 条个人规划方法搬到 ${path.join(home, "goals", "goals.db")}，并删除目录库里的表。`);
   } finally { catalog.close(); }
 }

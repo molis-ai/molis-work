@@ -7,6 +7,7 @@ import test, { type TestContext } from "node:test";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { pluginManifestDigest, SqlitePluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { registerMaintenanceChecks } from "./fixtures/home-store-maintenance.mjs";
 
 // ac-trust T1: the Home Runtime's store gains the consent ledger, the pinned publishers and the Host's evidence for each installation
 // record, which makes it version 3. A version 2 store is refused, never upgraded in place; the offline maintenance is
@@ -23,7 +24,7 @@ function read(file: string) {
     values: db.prepare("SELECT * FROM plugin_private_values ORDER BY install_id, item_key").all().map(row => ({ ...row })) }; }
   finally { db.close(); }
 }
-const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
+const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { registerMaintenanceChecks(db, "plugin-runtime"); db.exec(sql); } finally { db.close(); } };
 
 const SHELF = "io.molis.work.shelf";
 function shelfAlwaysOnConsents(file: string) {

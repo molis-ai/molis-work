@@ -1741,6 +1741,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
   - **Shelf 目录 `shelf/catalog.json` 1 → 2**（Shelf S3，① 裁定 D3；候选，未做）：版本 2 的条目不再带 `origin_realpath`，原件由平台的 `materials.claimOriginal` 按条目编号登记；新构建只认版本 2，打开版本 1 的目录会拒绝。维护是停宿主后跑 `node tests/fixtures/shelf-catalog-maintenance.mjs rewrite --home <Home> --maintenance-window`（先在完整备份副本上 `list`，只报版本、条目数和带路径的条目数，不报路径）：去掉每个条目的 `origin_realpath`，版本写成 2，一次改名落盘，再跑一遍什么也不改。路径不搬进平台的登记，所以维护前放进来的副本不再有「原件已变」的提示。只在临时 Home 演练过（`tests/shelf-catalog-maintenance.test.ts`）；这台机器没有真实 Home。目录是 JSON 文件，不在检查清单第 3 节的库版本表里，所以没有进下面那张门禁读的表。
   - **10-17 只读核对**（真实 Home 各库的只读拷贝，读完即删；只读 `user_version` 与 `catalog_meta`、`session_meta` 的版本，不读内容、不碰密钥；真实 Home 跑的是 10-11 构建的安装版 0.2.0）：19 个项目库都是 7，目录库 22、会话库 7，Functions 3，助理、记忆、Form 2，`homeStores()` 登记的其余各库 1，都与基线相符；不符的只有 Pages（真实 1，代码 2）。`plugin-runtime/plugin-runtime.db`、`issues/issues.db`（都是 2）真实 Home 里还没有，新版本第一次打开时按基线新建，不用维护。没有核对的：搜索索引 `search/search.db`（可重建的派生库，版本记在 `search_meta`，不符就重建、不拒绝）和两个 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`）。
 
+维护窗口候选的 SQL 统一经 `tests/fixtures/home-store-maintenance.mjs`（六个 Home 库）或 `tests/fixtures/project-maintenance.mjs`（项目库逐号）注册版本、完整结构、完整性、外键与行数守卫后执行；命令见 CHECKLIST §4.3。Pages 与 Connectors 的历史演练已补成可从仓库复跑的固定 SQL，仍未操作真实 Home。
+
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |

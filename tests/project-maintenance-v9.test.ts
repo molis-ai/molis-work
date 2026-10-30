@@ -1,3 +1,4 @@
+import { registerProjectMaintenanceChecks } from "./fixtures/project-maintenance.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -39,7 +40,7 @@ const read = (file: string) => {
 };
 function apply(file: string, sql = maintenance) {
   const db = new DatabaseSync(file);
-  try { db.exec(sql); } finally { db.close(); }
+  try { registerProjectMaintenanceChecks(db); db.exec(sql); } finally { db.close(); }
 }
 
 test("SYS-15-S6: v8 is refused; offline maintenance preserves jobs/history, pauses dispatch and never guesses installation authority", async t => {
@@ -64,6 +65,7 @@ test("SYS-15-S6: wrong versions and a write failure roll back the entire mainten
   const file = fixture(t), original = read(file);
   const db = new DatabaseSync(file); db.exec("PRAGMA user_version = 7"); db.close();
   assert.throws(() => apply(file)); assert.deepEqual(read(file), { ...original, version: 7 });
-  const reset = new DatabaseSync(file); reset.exec("PRAGMA user_version = 8; CREATE TRIGGER refuse_pause BEFORE UPDATE ON schedule_jobs BEGIN SELECT RAISE(ABORT, 'maintenance write refused'); END"); reset.close();
-  assert.throws(() => apply(file), /maintenance write refused/); assert.deepEqual(read(file), original);
+  const reset = new DatabaseSync(file); reset.exec("PRAGMA user_version = 8"); reset.close();
+  const injected = maintenance.replace("UPDATE schedule_jobs", "CREATE TEMP TRIGGER refuse_pause BEFORE UPDATE ON schedule_jobs BEGIN SELECT RAISE(ABORT, 'maintenance write refused'); END; UPDATE schedule_jobs");
+  assert.throws(() => apply(file, injected), /maintenance write refused/); assert.deepEqual(read(file), original);
 });

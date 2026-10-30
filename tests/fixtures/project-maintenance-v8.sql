@@ -171,6 +171,7 @@ INSERT INTO maintenance_rows (name, before) VALUES
 CREATE TEMP TABLE maintenance_sequence AS SELECT name, seq FROM sqlite_sequence WHERE name IN ('events');
 
 -- The project itself: the one board's id and creation time.
+SELECT project_maintenance_before(8);
 CREATE TABLE project_root (
       project_id TEXT PRIMARY KEY,
       created_at TEXT NOT NULL
@@ -526,5 +527,6 @@ DROP TABLE temp.maintenance_postcondition;
 
 -- The version is part of the transaction: it is rolled back with the rest when anything above fails.
 PRAGMA user_version = 8;
+SELECT project_maintenance_after(8);
 COMMIT;
 PRAGMA foreign_keys = ON;

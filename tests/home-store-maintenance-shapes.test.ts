@@ -10,12 +10,16 @@ import { fileURLToPath } from "node:url";
 import { describeSqliteBaseline, describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE } from "@molis-ai/molis-work-module-characters";
 import { FUNCTIONS_STORE_BASELINE } from "@molis-ai/molis-work-module-functions";
-import { ASSISTANT_STORE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_BASELINE, CONNECTORS_BASELINE, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
 
 const stores = [
   { owner: "characters", from: 1, to: 2, baseline: CHARACTERS_STORE_BASELINE },
   { owner: "functions", from: 3, to: 4, baseline: FUNCTIONS_STORE_BASELINE },
   { owner: "assistant", from: 2, to: 3, baseline: ASSISTANT_STORE_BASELINE },
+  { owner: "pages", from: 1, to: 2, baseline: PAGES_DATABASE },
+  { owner: "connectors", from: 1, to: 2, baseline: CONNECTORS_BASELINE },
+  { owner: "plugin-runtime", from: 2, to: 3, baseline: homeStores().get("plugin-runtime")!.library!.baseline },
 ];
 
 test("RAC-2310 maintenance refuses a wrong old structure at the expected version without changing the database", async t => {

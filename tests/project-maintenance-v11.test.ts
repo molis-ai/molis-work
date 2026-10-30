@@ -1,3 +1,4 @@
+import { registerProjectMaintenanceChecks } from "./fixtures/project-maintenance.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -61,7 +62,7 @@ function fixture(t: TestContext) {
     edge.run("goal.note:goal-1", "goal.note", '{"module":"goals","id":"goal-1"}', '{"module":"goals","id":"goal-2"}', at);
     // What version 10 had recorded: Feed's declaration was its out rules alone, at version 1.
     db.prepare("UPDATE plugin_project_databases SET version = 1, tables_json = ?, created_at = ? WHERE plugin_id = ?").run(V1_TABLES, at, FEED_PLUGIN_ID);
-    db.exec("PRAGMA user_version = 10");
+    db.exec("DROP TABLE plugin_notifications; PRAGMA user_version = 10");
   } finally { db.close(); }
   return file;
 }
@@ -78,7 +79,7 @@ const read = (file: string) => {
     };
   } finally { db.close(); }
 };
-const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
+const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { registerProjectMaintenanceChecks(db); db.exec(sql); } finally { db.close(); } };
 /** The tables the maintenance gives an owner or a namespace; every other table's rows are as they were. */
 const NAMED_TABLES = ["attention_events", "context_edges", "inbox_entries"];
 const FEED_TABLES = ["feed_item_events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources", "listener_deliveries", "listener_instances",
@@ -102,11 +103,12 @@ test("RAC-497, RAC-514: a version 10 library is refused without being touched; t
   const after = read(file);
   assert.equal(after.version, 11);
   for (const table of FEED_TABLES) assert.deepEqual(after.rows[table], original.rows[table], `${table}: every row, its row id included, is as it was`);
-  assert.deepEqual(after.master, original.master, "no table, index or trigger was made or dropped, and nothing of the script's own stays");
-  assert.deepEqual(after.shape, original.shape, "and none changed shape");
+  assert.deepEqual(after.master, read(newLibrary(t)).master, "the v11 notification table and index are present, with no maintenance objects");
+  assert.deepEqual(after.shape, read(newLibrary(t)).shape, "the complete v11 structure matches a fresh production library");
+  assert.deepEqual(after.rows.plugin_notifications, [], "the new notification queue starts empty");
   const { plugin_project_databases: ledgerAfter, ...everyAfter } = after.rows, { plugin_project_databases: ledgerBefore, ...everyBefore } = original.rows;
-  const otherAfter = Object.fromEntries(Object.entries(everyAfter).filter(([name]) => !NAMED_TABLES.includes(name)));
-  const otherBefore = Object.fromEntries(Object.entries(everyBefore).filter(([name]) => !NAMED_TABLES.includes(name)));
+  const otherAfter = Object.fromEntries(Object.entries(everyAfter).filter(([name]) => !NAMED_TABLES.includes(name) && name !== "plugin_notifications"));
+  const otherBefore = Object.fromEntries(Object.entries(everyBefore).filter(([name]) => !NAMED_TABLES.includes(name) && name !== "plugin_notifications"));
   assert.deepEqual(otherAfter, otherBefore, "every row of every other table is as it was");
   assert.deepEqual(ledgerAfter!.filter(row => (JSON.parse(row) as { plugin_id: string }).plugin_id !== FEED_PLUGIN_ID),
     ledgerBefore!.filter(row => (JSON.parse(row) as { plugin_id: string }).plugin_id !== FEED_PLUGIN_ID), "the other plugins' ledger rows are as they were");

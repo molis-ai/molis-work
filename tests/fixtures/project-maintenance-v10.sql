@@ -11,6 +11,7 @@ INSERT INTO maintenance_v10_guard SELECT user_version = 9 FROM pragma_user_versi
 -- so nothing is dropped without a word.
 INSERT INTO maintenance_v10_guard SELECT count(*) = 11 FROM pragma_table_info('inbox_entries');
 INSERT INTO maintenance_v10_guard SELECT count(*) = 7 FROM pragma_table_info('attention_events');
+SELECT project_maintenance_before(10);
 CREATE TABLE plugin_runtime_installs_v10 (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL,
       publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 INSERT INTO plugin_runtime_installs_v10 (install_id, record_json, publisher_trust)
@@ -70,4 +71,5 @@ CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
 PRAGMA user_version = 10;
 DROP TABLE maintenance_v10_guard;
+SELECT project_maintenance_after(10);
 COMMIT;

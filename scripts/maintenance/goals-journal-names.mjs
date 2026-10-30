@@ -14,12 +14,13 @@
 // rows below, reads the library back, and only then commits; a library where a name is already taken is left as it was. Run again, it finds
 // nothing and changes nothing. A Home that is not under the system's temp directory is a real one: `rename` then needs
 // `--maintenance-window` (the person has stopped Molis Work) and refuses a library another process holds.
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { validateProject } from "../../tests/fixtures/project-maintenance.mjs";
 
 export const GOALS_PLUGIN_ID = "io.molis.work.goals";
 /** The name a plugin's rows carry in the shared tables: its id and a colon (`apps/local-host/src/plugin-namespace.ts`). */
@@ -35,8 +36,10 @@ const TABLES = ["events", "idempotency_records", "context_edges", "project_root"
 
 /** What is still bare in one library, by the three tables; `null` for a database that is not a Molis Work project library. */
 export function pendingIn(db) {
+  const version = Number(db.prepare("PRAGMA user_version").get().user_version);
+  validateProject(db, version);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
-  if (!TABLES.every(name => tables.has(name))) return null;
+  if (!TABLES.filter(name => name !== "project_root").every(name => tables.has(name)) || !tables.has(version === 7 ? "boards" : "project_root")) return null;
   const count = (sql, ...values) => Number(db.prepare(sql).get(...values).n);
   return {
     events: count(`SELECT COUNT(*) AS n FROM events WHERE object_type IN (${marks(EVENT_OBJECT_TYPES)})`, ...EVENT_OBJECT_TYPES),
@@ -55,7 +58,12 @@ export function projectLibraries(home) {
   return readdirSync(projects, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && !entry.name.startsWith("."))
     .map(entry => ({ project: entry.name, file: path.join(projects, entry.name, "molis-work.db") }))
-    .filter(library => existsSync(library.file));
+    .filter(library => {
+      if (!existsSync(library.file)) return false;
+      const file = lstatSync(library.file);
+      if (!file.isFile() || file.nlink !== 1) throw new Error("project library must be an ordinary unlinked file");
+      return true;
+    });
 }
 
 /** Every library of the Home that still holds bare Goals names: `[{ project, file, pending }]`, read only. */
@@ -72,10 +80,10 @@ export function pendingGoalsNames(home) {
 }
 
 function renameIn(db) {
-  const before = pendingIn(db);
-  if (!before || total(before) === 0) return null;
   db.exec("BEGIN IMMEDIATE");
   try {
+    const counts = validateProject(db, 11), before = pendingIn(db);
+    if (!before || total(before) === 0) { db.exec("ROLLBACK"); return null; }
     db.prepare(`UPDATE events SET type = ? || type, object_type = ? || object_type WHERE object_type IN (${marks(EVENT_OBJECT_TYPES)})`)
       .run(NAMESPACE, NAMESPACE, ...EVENT_OBJECT_TYPES);
     db.prepare("UPDATE idempotency_records SET operation = ? || operation WHERE instr(operation, ':') = 0").run(NAMESPACE);
@@ -83,9 +91,11 @@ function renameIn(db) {
       .run(NAMESPACE, ...EDGE_RELATION_TYPES, NAMESPACE.length, NAMESPACE);
     const after = pendingIn(db);
     if (total(after) !== 0) throw new Error("改名之后还有没改到的行，没有提交");
+    const afterCounts = validateProject(db, 11);
+    if (Object.entries(counts).some(([table, count]) => afterCounts[table] !== count)) throw new Error("row count changed; nothing committed");
     db.exec("COMMIT");
+    return before;
   } catch (error) { db.exec("ROLLBACK"); throw error; }
-  return before;
 }
 
 function fail(message) {

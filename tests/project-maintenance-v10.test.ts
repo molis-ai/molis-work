@@ -1,3 +1,4 @@
+import { registerProjectMaintenanceChecks } from "./fixtures/project-maintenance.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -35,7 +36,7 @@ const read = (file: string) => {
     shape: describeSqliteSchema(db), maintenance: db.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%maintenance%' OR name LIKE '%\\_v10' ESCAPE '\\'").all().length }; }
   finally { db.close(); }
 };
-const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
+const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { registerProjectMaintenanceChecks(db); db.exec(sql); } finally { db.close(); } };
 
 test("RAC-397: a version 9 library is refused without being touched; the maintenance gives each record the evidence for its execution and leaves the rest as it was", t => {
   const file = fixture(t), original = read(file);

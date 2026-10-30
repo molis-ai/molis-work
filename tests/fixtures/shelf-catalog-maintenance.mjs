@@ -11,47 +11,60 @@
 //       READ ONLY. Says the catalog's version, how many items it holds and how many of them carry a path (never the paths).
 //   node tests/fixtures/shelf-catalog-maintenance.mjs rewrite --home <Home or copy> [--json] [--maintenance-window]
 //       Reads and checks the whole catalog first and stops at the first problem without writing; then writes version 2 next to it
-//       and renames it over the catalog in one step, with the catalog's own mode, and reads it back. Running it again changes
+//       in an explicit private backup folder outside Home and renames it over the catalog in one step, with the catalog's own mode,
+//       and reads it back. Pass --backup <new external original-file path>. Running it again changes
 //       nothing. The real Home (~/.molis-work, $MOLIS_WORK_HOME) is refused unless --maintenance-window says the person approved
 //       the window, with the Host stopped; `list` never accepts it, run `list` on a copy.
 //   Exit code: 0 done or nothing to do, 1 a problem (nothing was written), 2 a bad command or the real Home without the flag.
-import { existsSync, lstatSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { publishMaintenanceJson } from "./publish-maintenance-json.mjs";
 
 const realHomes = () => [path.join(homedir(), ".molis-work"), process.env.MOLIS_WORK_HOME ?? ""].filter(Boolean).map(home => path.resolve(home));
 
 /** A problem found while reading: the run stops before writing anything. */
 const problem = message => Object.assign(new Error(message), { problem: true });
+const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
+function checkShape(catalog) {
+  const fields = ["version", "seeded_sample", "items", "jobs", "clipboard", "current_clip_id", "settings"];
+  if (!object(catalog) || Object.keys(catalog).length !== fields.length || Object.keys(catalog).some(key => !fields.includes(key))
+    || typeof catalog.seeded_sample !== "boolean" || !Array.isArray(catalog.items) || !Array.isArray(catalog.jobs) || !Array.isArray(catalog.clipboard)
+    || !(catalog.current_clip_id === null || typeof catalog.current_clip_id === "string") || !object(catalog.settings)
+    || catalog.items.some(item => !object(item) || typeof item.item_id !== "string" || !Array.isArray(item.source_item_ids) || !Array.isArray(item.children)
+      || !["done", "failed"].includes(item.status) || !(item.failure_reason === null || typeof item.failure_reason === "string"))
+    || catalog.jobs.some(job => !object(job) || !Array.isArray(job.item_ids) || !(job.option_id === null || typeof job.option_id === "string") || typeof job.runtime !== "string")
+    || catalog.clipboard.some(clip => !object(clip) || typeof clip.clip_id !== "string" || !["url", "text"].includes(clip.kind)
+      || ["body", "title", "created_at", "fingerprint"].some(key => typeof clip[key] !== "string"))) throw problem("Shelf catalog complete structure mismatch");
+}
 
 /** Reads the catalog and returns what it is and what version 2 of it would be; throws a problem on anything it cannot vouch for. */
 export function readShelfCatalog(home) {
   const file = path.join(home, "shelf", "catalog.json");
   if (!existsSync(file)) return { file, version: null, items: 0, with_path: 0, next: null };
-  if (!lstatSync(file).isFile()) throw problem(`${file} is not a regular file`);
+  if (!lstatSync(file).isFile() || lstatSync(file).nlink !== 1) throw problem(`${file} is not an ordinary unlinked file`);
   let catalog;
-  try { catalog = JSON.parse(readFileSync(file, "utf8")); } catch (error) { throw problem(`${file} is not JSON: ${error.message}`); }
+  try { catalog = JSON.parse(readFileSync(file, "utf8")); } catch { throw problem(`${file} is not valid JSON`); }
   if (!catalog || typeof catalog !== "object" || !Array.isArray(catalog.items)) throw problem(`${file} has no item list`);
-  if (catalog.version !== 1 && catalog.version !== 2) throw problem(`${file} has version ${JSON.stringify(catalog.version)}, neither 1 nor 2`);
+  if (catalog.version !== 1 && catalog.version !== 2) throw problem(`${file} has an unsupported version, expected 1 or 2`);
+  checkShape(catalog);
   if (catalog.items.some(item => !item || typeof item !== "object" || typeof item.item_id !== "string")) throw problem(`${file} has an item without an id`);
   const withPath = catalog.items.filter(item => Object.hasOwn(item, "origin_realpath")).length;
   if (catalog.version === 2) {
     if (withPath > 0) throw problem(`${file} is version 2 but ${withPath} item(s) still carry origin_realpath`);
     return { file, version: 2, items: catalog.items.length, with_path: 0, next: null };
   }
+  if (withPath !== catalog.items.length || catalog.items.some(item => item.origin_realpath !== null && typeof item.origin_realpath !== "string")) throw problem("Shelf version 1 original-path structure mismatch");
   const items = catalog.items.map(item => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "origin_realpath")));
   return { file, version: 1, items: catalog.items.length, with_path: withPath, next: { ...catalog, version: 2, items } };
 }
 
 /** Rewrites a version 1 catalog as version 2 in one rename; a version 2 catalog, or none, is left as it is. */
-export function rewriteShelfCatalog(home) {
+export function rewriteShelfCatalog(home, backup) {
   const read = readShelfCatalog(home);
   if (!read.next) return { ...read, rewritten: false };
-  const mode = statSync(read.file).mode & 0o777;
-  const temporary = `${read.file}.maintenance-${process.pid}`;
-  writeFileSync(temporary, `${JSON.stringify(read.next, null, 2)}\n`, { mode, flag: "wx" });
-  renameSync(temporary, read.file);
+  publishMaintenanceJson(read.file, backup, read.next);
   const after = readShelfCatalog(home);
   if (after.version !== 2 || after.items !== read.items) throw problem(`${read.file} did not read back as version 2 with ${read.items} items`);
   return { ...read, next: null, rewritten: true };
@@ -60,6 +73,7 @@ export function rewriteShelfCatalog(home) {
 function run(argv) {
   const [mode, ...rest] = argv;
   const at = rest.indexOf("--home"), given = at >= 0 ? rest[at + 1] : undefined;
+  const backupAt = rest.indexOf("--backup"), backup = backupAt >= 0 ? rest[backupAt + 1] : undefined;
   if (!["list", "rewrite"].includes(mode) || !given) return { code: 2, text: "usage: shelf-catalog-maintenance.mjs list|rewrite --home <dir> [--json] [--maintenance-window]" };
   const home = existsSync(given) ? realpathSync(given) : path.resolve(given);
   const real = realHomes().some(each => each === home || (existsSync(each) && realpathSync(each) === home));
@@ -67,7 +81,7 @@ function run(argv) {
     return { code: 2, text: `${home} is the real Home: run list on a copy; rewrite it only with --maintenance-window, the Host stopped` };
   }
   try {
-    const outcome = mode === "list" ? readShelfCatalog(home) : rewriteShelfCatalog(home);
+    const outcome = mode === "list" ? readShelfCatalog(home) : rewriteShelfCatalog(home, backup && path.resolve(backup));
     const report = { file: outcome.file, version: outcome.version, items: outcome.items, with_path: outcome.with_path,
       ...(mode === "list" ? { needs_rewrite: outcome.version === 1 } : { rewritten: outcome.rewritten }) };
     const text = rest.includes("--json") ? JSON.stringify(report, null, 2)
@@ -76,8 +90,7 @@ function run(argv) {
         + (mode === "list" ? (outcome.version === 1 ? "; rewrite makes it version 2" : "; nothing to do") : (outcome.rewritten ? "; rewritten as version 2" : "; nothing to do"));
     return { code: 0, text };
   } catch (error) {
-    if (error?.problem === true) return { code: 1, text: `problem, nothing written: ${error.message}` };
-    throw error;
+    return { code: 1, text: `problem: ${error.message}; stop and inspect the source and external backup` };
   }
 }
 

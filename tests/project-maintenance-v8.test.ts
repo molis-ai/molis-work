@@ -1,3 +1,4 @@
+import { registerProjectMaintenanceChecks } from "./fixtures/project-maintenance.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -197,7 +198,7 @@ function freshDatabase(directory: string, atEight = false): string {
   return path;
 }
 
-const runMaintenance = (path: string) => withDatabase(path, db => { db.exec(MAINTENANCE); });
+const runMaintenance = (path: string) => withDatabase(path, db => { registerProjectMaintenanceChecks(db); db.exec(MAINTENANCE); });
 
 test("PLIB-05: this build's project library is version 11, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
   assert.equal(PROJECT_DATABASE_BASELINE.version, 11, "the offline maintenance chain reaches the current version");
@@ -273,11 +274,12 @@ test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new 
 test("PLIB-05: after the maintenance the plugins' tables open as recorded, this build opens the library, and the Goal written before is still there", async t => {
   const directory = await scratch(t);
   const { home, projectId, databasePath } = await oldHome(directory);
-  const freshPath = freshDatabase(directory);
-  withDatabase(freshPath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
+  const freshPath = freshDatabase(directory, true);
+  withDatabase(freshPath, db => { registerProjectMaintenanceChecks(db); db.exec(NEXT_MAINTENANCE); registerProjectMaintenanceChecks(db); db.exec(FINAL_MAINTENANCE); registerProjectMaintenanceChecks(db); db.exec(LAST_MAINTENANCE); });
+  new LocalProjectDatabase(freshPath).close();
   const fresh = snapshot(freshPath);
   runMaintenance(databasePath);
-  withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
+  withDatabase(databasePath, db => { registerProjectMaintenanceChecks(db); db.exec(NEXT_MAINTENANCE); registerProjectMaintenanceChecks(db); db.exec(FINAL_MAINTENANCE); registerProjectMaintenanceChecks(db); db.exec(LAST_MAINTENANCE); });
   const after = snapshot(databasePath);
 
   withDatabase(databasePath, db => {
@@ -301,7 +303,7 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
     assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);
-  assert.deepEqual(opened.shape, fresh.shape, "opening it as the Host does adds nothing");
+  assert.deepEqual(opened.shape, fresh.shape, "opening the maintained library yields the current production shape, including Inbox's declared table");
   const notInbox = (row: string) => (JSON.parse(row) as { plugin_id: string }).plugin_id !== INBOX_PLUGIN_ID;
   assert.deepEqual(opened.rows.plugin_project_databases!.filter(notInbox), after.rows.plugin_project_databases, "and records nothing new but Inbox's own row: the four rows the maintenance wrote, Goals' among them, stay as they were");
   assert.equal(opened.rows.plugin_project_databases!.length, 5);
@@ -340,7 +342,7 @@ test("PLIB-05: the maintenance stops and changes nothing unless the library is e
     ["a second board", "INSERT INTO boards (project_id, title, created_at, updated_at) VALUES ('another', '另一个', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')", /there is exactly one board/],
     // The board's rows depend on it, so it goes with foreign keys off, as an old build's damage might have left it.
     ["no board", "PRAGMA foreign_keys = OFF; DELETE FROM boards", /there is exactly one board/],
-    ["a row whose project is not the board", "PRAGMA foreign_keys = OFF; UPDATE feed_sources SET project_id = 'elsewhere'", /every foreign key holds/],
+    ["a row whose project is not the board", "PRAGMA foreign_keys = OFF; UPDATE feed_sources SET project_id = 'elsewhere'", /project maintenance integrity check failed/],
   ];
   for (const [what, change, message] of refused) {
     const path = await copy();
@@ -368,7 +370,7 @@ test("PLIB-05: a failure after the tables are rebuilt and the version is set und
 
   const { databasePath } = await oldHome(await scratch(t));
   const before = snapshot(databasePath);
-  assert.throws(() => withDatabase(databasePath, db => { db.exec(failing); }), /CHECK constraint failed: version >= 1/);
+  assert.throws(() => withDatabase(databasePath, db => { registerProjectMaintenanceChecks(db); db.exec(failing); }), /CHECK constraint failed: version >= 1/);
   assert.equal(versionOf(databasePath), 7, "the version is back at 7");
   assert.deepEqual(snapshot(databasePath), before, "tables, indexes, rows, the counter and the version are all as they were");
   // And the script itself is not what fails: the same one without the failing statement goes through on a copy.

@@ -13,25 +13,31 @@
 //       --all-projects, which says the listed projects are every project of the Home, it also marks the ledger complete.
 //   Run it on copies first; on a real Home only with the Host stopped and the window approved, after the project libraries were opened once
 //   with the new build (the ledger library is made then). Exit code: 0 done or nothing to do, 1 a problem (nothing was written), 2 a bad command.
-import { existsSync } from "node:fs";
+import { lstatSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { isDeepStrictEqual } from "node:util";
+import { describeSqliteBaseline, describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { FEED_HOME_DATABASE } from "@molis-ai/molis-work-plugin-feed";
+import { validateProject } from "./project-maintenance.mjs";
 
 const BODY = /^molis-work-feed\/sha256\/[0-9a-f]{64}$/u;
 const problem = message => Object.assign(new Error(message), { problem: true });
 
 function open(file, readOnly) {
-  if (!existsSync(file)) throw problem(`${file} does not exist`);
+  if (!lstatSync(file).isFile() || lstatSync(file).nlink !== 1) throw problem("library must be an ordinary unlinked file");
   return new DatabaseSync(file, { readOnly });
 }
 const hasTable = (db, name) => db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?").get(name).n === 1;
 
 /** Every (source, body) a project holds: the bodies of its materials and the ones its pull receipts name. */
-export function readProjectHoldings(projectFile) {
+export function readProjectHoldings(projectFile, applying = false) {
   const db = open(projectFile, true);
   try {
-    const roots = db.prepare("SELECT project_id FROM project_root").all();
+    const version = Number(db.prepare("PRAGMA user_version").get().user_version);
+    validateProject(db, applying ? 11 : version);
+    const roots = db.prepare(version === 7 ? "SELECT project_id FROM boards" : "SELECT project_id FROM project_root").all();
     if (roots.length !== 1) throw problem(`${projectFile} holds ${roots.length} projects, not one`);
     const projectId = roots[0].project_id, holds = new Set();
     const add = (sourceId, ref) => { if (typeof sourceId === "string" && typeof ref === "string" && BODY.test(ref)) holds.add(JSON.stringify([sourceId, ref])); };
@@ -39,10 +45,9 @@ export function readProjectHoldings(projectFile) {
       for (const row of db.prepare("SELECT i.source_id AS source_id, m.content_ref AS content_ref FROM feed_materials m JOIN feed_items i ON i.project_id = m.project_id AND i.item_id = m.item_id WHERE m.content_ref IS NOT NULL").all()) add(row.source_id, row.content_ref);
     }
     if (hasTable(db, "feed_source_runs")) {
-      for (const row of db.prepare("SELECT source_id, receipt_json FROM feed_source_runs WHERE receipt_json IS NOT NULL").all()) {
-        let receipt; try { receipt = JSON.parse(row.receipt_json); } catch { throw problem(`${projectFile}: a pull receipt of ${row.source_id} is not JSON`); }
-        for (const ref of Array.isArray(receipt?.content_refs) ? receipt.content_refs : []) add(row.source_id, ref);
-      }
+      if (db.prepare("SELECT 1 FROM feed_source_runs WHERE receipt_json IS NOT NULL AND NOT json_valid(receipt_json)").get()) throw problem("a pull receipt is not valid JSON");
+      // Only content-reference metadata leaves SQLite; other receipt fields and material bodies are never read.
+      for (const row of db.prepare("SELECT source_id, refs.value AS content_ref FROM feed_source_runs,json_each(receipt_json,'$.content_refs') AS refs WHERE receipt_json IS NOT NULL AND json_type(receipt_json,'$.content_refs')='array'").all()) add(row.source_id, row.content_ref);
     }
     return { projectId, holds: [...holds].map(value => JSON.parse(value)) };
   } finally { db.close(); }
@@ -50,8 +55,16 @@ export function readProjectHoldings(projectFile) {
 
 function readLedger(ledgerFile, readOnly) {
   const db = open(ledgerFile, readOnly);
-  if (!hasTable(db, "feed_content_holds") || !hasTable(db, "feed_content_meta")) { db.close(); throw problem(`${ledgerFile} has no ledger tables: start the Home once with the new build first`); }
+  try { validateLedger(db); } catch (error) { db.close(); throw error; }
   return db;
+}
+
+function validateLedger(db) {
+  if (FEED_HOME_DATABASE.version !== 1 || db.prepare("PRAGMA user_version").get().user_version !== 1
+    || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(FEED_HOME_DATABASE))
+    || db.prepare("SELECT 1 FROM sqlite_schema WHERE type NOT IN ('table','index')").get()) throw problem("Feed ledger complete version/structure mismatch");
+  if (db.prepare("PRAGMA integrity_check").get().integrity_check !== "ok" || db.prepare("PRAGMA foreign_key_check").all().length) throw problem("Feed ledger integrity check failed");
+  return { holds: Number(db.prepare("SELECT count(*) AS n FROM feed_content_holds").get().n), meta: Number(db.prepare("SELECT count(*) AS n FROM feed_content_meta").get().n) };
 }
 
 export function listLedger(ledgerFile, projectFiles) {
@@ -68,15 +81,19 @@ export function listLedger(ledgerFile, projectFiles) {
 }
 
 export function backfillLedger(ledgerFile, projectFiles, options = {}) {
-  const read = projectFiles.map(file => ({ file, ...readProjectHoldings(file) }));
+  const read = projectFiles.map(file => ({ file, ...readProjectHoldings(file, true) }));
+  if (new Set(read.map(item => item.projectId)).size !== read.length) throw problem("duplicate project identity; completeness cannot be confirmed");
   const ledger = readLedger(ledgerFile, false);
   try {
     ledger.exec("BEGIN IMMEDIATE");
     try {
+      const before = validateLedger(ledger), markedBefore = Boolean(ledger.prepare("SELECT 1 FROM feed_content_meta WHERE key='complete_since'").get());
       const insert = ledger.prepare("INSERT OR IGNORE INTO feed_content_holds (content_ref, project_id, source_id) VALUES (?, ?, ?)");
       let added = 0;
       for (const { projectId, holds } of read) for (const [sourceId, ref] of holds) added += Number(insert.run(ref, projectId, sourceId).changes);
       if (options.allProjects) ledger.prepare("INSERT OR IGNORE INTO feed_content_meta (key, value) VALUES ('complete_since', ?)").run(new Date().toISOString());
+      const after = validateLedger(ledger);
+      if (after.holds !== before.holds + added || after.meta !== before.meta + (options.allProjects && !markedBefore ? 1 : 0)) throw problem("Feed ledger row counts changed unexpectedly");
       ledger.exec("COMMIT");
       return { projects: read.length, holds_added: added, marked: options.allProjects === true };
     } catch (error) { ledger.exec("ROLLBACK"); throw error; }
@@ -97,8 +114,7 @@ function run(argv) {
         : `${report.projects} project(s) read, ${report.holds_added} hold(s) added${report.marked ? ", ledger marked complete" : ""}`;
     return { code: 0, text };
   } catch (error) {
-    if (error?.problem === true) return { code: 1, text: `problem, nothing written: ${error.message}` };
-    throw error;
+    return { code: 1, text: `problem, nothing written: ${error.message}` };
   }
 }
 

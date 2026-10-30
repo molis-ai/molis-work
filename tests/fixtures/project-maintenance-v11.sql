@@ -26,6 +26,7 @@ INSERT INTO maintenance_v11_guard SELECT count(*) = 1 FROM plugin_project_databa
     AND tables_json = '["feed_out_rules","feed_out_rules_project_enabled_idx"]';
 INSERT INTO maintenance_v11_guard SELECT count(*) = 0 FROM inbox_entries WHERE owner_plugin_id IS NOT NULL;
 INSERT INTO maintenance_v11_guard SELECT count(*) = 0 FROM context_edges WHERE edge_key LIKE 'io.molis.work.feed:%';
+SELECT project_maintenance_before(11);
 UPDATE inbox_entries SET owner_plugin_id = 'io.molis.work.feed' WHERE owner_plugin_id IS NULL AND subject_type IN ('feed_item', 'source_fault');
 UPDATE inbox_entries SET owner_plugin_id = 'io.molis.work.goals' WHERE owner_plugin_id IS NULL AND subject_type = 'goal_decision';
 UPDATE attention_events SET owner_plugin_id = 'io.molis.work.feed' WHERE owner_plugin_id IS NULL AND subject_type IN ('feed_item', 'source_fault');
@@ -55,4 +56,5 @@ CREATE TABLE IF NOT EXISTS plugin_notifications (
 CREATE INDEX IF NOT EXISTS plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
 PRAGMA user_version = 11;
 DROP TABLE maintenance_v11_guard;
+SELECT project_maintenance_after(11);
 COMMIT;

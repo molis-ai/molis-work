@@ -7,6 +7,7 @@
 BEGIN IMMEDIATE;
 CREATE TEMP TABLE maintenance_v3_guard (ok INTEGER NOT NULL CHECK (ok = 1));
 INSERT INTO maintenance_v3_guard SELECT user_version = 2 FROM pragma_user_version;
+SELECT maintenance_before();
 CREATE TABLE plugin_runtime_installs_v3 (
   install_id TEXT PRIMARY KEY,
   record_json TEXT NOT NULL,
@@ -42,4 +43,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS plugin_consents_active ON plugin_consents (plu
 CREATE INDEX IF NOT EXISTS plugin_consents_plugin ON plugin_consents (plugin_id);
 PRAGMA user_version = 3;
 DROP TABLE maintenance_v3_guard;
+SELECT maintenance_after();
 COMMIT;

@@ -4,6 +4,7 @@
 BEGIN IMMEDIATE;
 CREATE TEMP TABLE maintenance_v9_guard (ok INTEGER NOT NULL CHECK (ok = 1));
 INSERT INTO maintenance_v9_guard SELECT user_version = 8 FROM pragma_user_version;
+SELECT project_maintenance_before(9);
 CREATE TABLE schedule_action_bindings (
   job_id TEXT PRIMARY KEY REFERENCES schedule_jobs(job_id) ON DELETE CASCADE,
   install_id TEXT NOT NULL,
@@ -15,4 +16,5 @@ CREATE TABLE schedule_action_bindings (
 UPDATE schedule_jobs SET enabled = 0, lease_until = NULL, lease_token = NULL;
 PRAGMA user_version = 9;
 DROP TABLE maintenance_v9_guard;
+SELECT project_maintenance_after(9);
 COMMIT;

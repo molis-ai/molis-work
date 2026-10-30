@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { INBOX_SCENE_BINDINGS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-inbox";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { FUNCTIONS_STORE_BASELINE } from "@molis-ai/molis-work-module-functions";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { moveInboxBinding } from "./fixtures/inbox-binding-maintenance.mjs";
 
 // FI-6 P3: the maintenance that moves a project's `inbox.next` binding from the Functions store to the project's own table
 // (tests/fixtures/inbox-binding-maintenance.mjs). RAC-518.
@@ -17,17 +20,16 @@ function libraries(t: TestContext, options: { table?: boolean; functionsRow?: bo
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const functionsFile = join(directory, "functions.sqlite"), projectFile = join(directory, "project.sqlite");
   const functions = new DatabaseSync(functionsFile);
-  functions.exec("CREATE TABLE function_scene_bindings (scene_id TEXT NOT NULL, project_id TEXT NOT NULL, action_binding_json TEXT NOT NULL, binding_revision TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (scene_id, project_id));");
+  functions.exec(FUNCTIONS_STORE_BASELINE.schema); functions.exec("PRAGMA user_version=4");
   const insert = functions.prepare("INSERT INTO function_scene_bindings VALUES (?, ?, ?, ?, ?)");
   if (options.functionsRow !== false) insert.run("inbox.next", "project", ...ROW);
   insert.run("home.dock", "project", "{}", "home-revision", ROW[2]);
   insert.run("inbox.next", "other", "{}", "other-revision", ROW[2]);
   functions.close();
-  const project = new DatabaseSync(projectFile);
-  project.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY, created_at TEXT NOT NULL);");
-  project.prepare("INSERT INTO project_root VALUES ('project', ?)").run(ROW[2]);
-  if (options.table !== false) project.exec(INBOX_SCENE_BINDINGS_SCHEMA_SQL);
-  if (options.projectRow) project.prepare("INSERT INTO inbox_scene_bindings VALUES ('project', 'inbox.next', ?, ?, ?)").run(...options.projectRow);
+  const project = new LocalProjectDatabase(projectFile);
+  writeProjectRoot(project.db, "project", ROW[2]);
+  if (options.table === false) project.db.exec("DROP TABLE inbox_scene_bindings");
+  if (options.projectRow) project.db.prepare("INSERT INTO inbox_scene_bindings VALUES ('project', 'inbox.next', ?, ?, ?)").run(...options.projectRow);
   project.close();
   const rows = (file: string, statement: string) => { const db = new DatabaseSync(file); try { return db.prepare(statement).all().map(row => ({ ...row })); } finally { db.close(); } };
   return { functionsFile, projectFile, held: () => ({
@@ -75,4 +77,13 @@ test("RAC-518: the maintenance stops and writes nothing when the new table is mi
 
 test("RAC-518: a bad command is refused", () => {
   assert.equal(spawnSync(process.execPath, [SCRIPT, "move"], { encoding: "utf8" }).status, 2);
+});
+
+test("RAC-2331 a source deletion failure keeps the verified target and reports partial success, without deleting either copy", t => {
+  const files = libraries(t), before = files.held(), prepare = DatabaseSync.prototype.prepare;
+  DatabaseSync.prototype.prepare = function(sql) { if (String(sql).startsWith("DELETE FROM function_scene_bindings")) throw new Error("injected source failure"); return prepare.call(this, sql); };
+  try { assert.throws(() => moveInboxBinding(files.functionsFile, files.projectFile), /target project committed.*partial success/u); }
+  finally { DatabaseSync.prototype.prepare = prepare; }
+  assert.deepEqual(files.held().functions, before.functions);
+  assert.deepEqual(files.held().project, [{ scene_id: "inbox.next", binding_revision: "revision-1" }]);
 });

@@ -101,6 +101,19 @@
 
 新Home逐库只读核对版本都是1、`integrity_check` ok、`foreign_key_check`空，内置安装记录与清单一致，目录没有无归属内容。验证新项目、首次连接/授权和重启的当前产品路径；不从旧数据推定成功。记录日期、构建、实际版本和结果后才写维护完成。项目、连接和原MCP授权由用户在新Home重建，Runtime会话按需要重新打开。
 
+内置插件的版本与摘要按 [POLICY.md](POLICY.md) 第 7.8 节核对。先在构建好的仓库根目录打印当前构建的清单：
+
+```sh
+node --input-type=module -e '
+import { pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
+  console.log(manifest.plugin_id, manifest.version, pluginManifestDigest(manifest));
+}'
+```
+
+在获准的只读拷贝中，分别对每个项目库和 `plugin-runtime/plugin-runtime.db` 执行：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。只打开拷贝里的路径，不沿用目录库里指向真实 Home 的路径。项目监督器的名单以登记上的 `project_runtime` 为准，Home 监督器以 `runtime` 为准；逐条确认实际启动的内置插件记录与上面构建清单的版本、摘要一致，`state` 和监督器报告没有启动失败。重启后安装身份与私有数据仍在；本次新 Home 不继承旧安装记录。
+
 出现版本/结构不符、服务异常或核对失败就停，交统筹决定；不改PRAGMA绕过、不自动搬回旧Home或删除旧目录。产品发布版本和读取兼容起算策略不因本次存储起点改变。
 
 ## 5. 发布后

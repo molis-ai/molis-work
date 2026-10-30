@@ -57,7 +57,9 @@ const capAnswer = (L: Translate, input: HTMLInputElement, title: string, contain
   if (over) input.value = [...input.value].slice(0, FORM_ANSWER_LIMIT).join("");
   if (!slot) return;
   if (over) { slot.hidden = false; slot.textContent = tooLongText(L, title); slot.classList.add("is-error"); }
-  else if (slot.textContent === tooLongText(L, title)) { slot.textContent = ""; slot.hidden = true; slot.classList.remove("is-error"); }
+  // The preview's note line is hidden when empty; the full-screen fill page's error line is never hidden (its submit writes into it
+  // without un-hiding it), so hiding it here would swallow the next "required is still empty" or "submission failed" line.
+  else if (slot.textContent === tooLongText(L, title)) { slot.textContent = ""; slot.hidden = slot.matches("[data-form-note]"); slot.classList.remove("is-error"); }
 };
 
 const answerField = (question: FormQuestion) => {

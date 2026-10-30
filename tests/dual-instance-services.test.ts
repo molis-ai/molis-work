@@ -17,9 +17,8 @@ import { openTestHome } from "./fixtures/test-home.js";
  * and stops at the next one (or answers), so the refusal is the instance check's and nothing else's.
  *
  * Which half has what: the Host gives the project half the action dependencies, Agent, installations, notifications and scheduler,
- * the Home half the terminal (it needs the Home's owner files), its own installations (RAC-495a: which projects hold the plugin) and the
- * evidence collector (S-98 provisional: the Home's evidence store, which only the ledger half deletes from),
- * and both halves an authorized directory.
+ * the Home half its own installations (RAC-495a: which projects hold the plugin) and the evidence collector (S-98 provisional: the
+ * Home's evidence store, which only the ledger half deletes from), and both halves an authorized directory and the terminal (S-103).
  */
 
 const NAME = "dualservices", PLUGIN = `io.molis.work.example.${NAME}`;
@@ -103,6 +102,15 @@ test("BL-368, DUAL-16, S-48: the Home half's terminal is refused inside the proj
     { outcome: "actions.forbidden", message: "交互终端只能由当前页面的授权动作启动" }, "refused before any terminal host or panel is reached");
   // Its own action passes that check and stops at the next, an input the terminal refuses, so nothing is spawned.
   assert.deepEqual(await s.run("home", services => services.home.terminal!.open({ key: "Not A Key", command: "/usr/bin/true", title: "探针" })),
+    { outcome: "actions.input_invalid", message: "终端启动参数无效" });
+});
+
+test("RAC-2558 S-103 S-48: the project half's terminal is refused inside the Home half's action", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  assert.deepEqual(await s.run("home", services => services.project.terminal!.open({ key: "probe", command: "/usr/bin/true", title: "探针", directory: { root: "owner_files" } })),
+    { outcome: "actions.forbidden", message: "交互终端只能由当前页面的授权动作启动" }, "refused before any terminal host or panel is reached");
+  // Its own action passes that check and stops at the next, an input the terminal refuses, so nothing is spawned.
+  assert.deepEqual(await s.run("project", services => services.project.terminal!.open({ key: "Not A Key", command: "/usr/bin/true", title: "探针", directory: { root: "owner_files" } })),
     { outcome: "actions.input_invalid", message: "终端启动参数无效" });
 });
 

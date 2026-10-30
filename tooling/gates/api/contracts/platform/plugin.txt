@@ -4057,12 +4057,23 @@ export interface PluginStartContext {
 export interface PluginTerminalClient {
     open(input: {
         key: string;
-        command: string;
         title: string;
+        command: string;
+        args?: readonly string[];
+        directory: PluginTerminalDirectory;
     }): Promise<{
         panelId: string;
     }>;
 }
+
+export type PluginTerminalDirectory = {
+    readonly root: "workspace";
+    readonly workspace_id: string;
+    readonly path?: string;
+} | {
+    readonly root: "owner_files";
+    readonly path?: string;
+};
 
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 

@@ -1260,6 +1260,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 2026-10-30 | 统一维护窗口的Memory两段离线入口（统筹按当次用户决定转达） | 原暂停、另窗；或接下main既有采用合同 | 同窗接下2→3与3→4；真实写入仍另获逐项授权 | #1332 6516758896覆盖6516315418第4项。保留一次性维护机制：2→3只在测试夹具按采用前main计算有效偏好、同事务写采用记录；3→4仅现有Host/storage/SDK采用和核验。产品读路径不加兼容、不推断偏好，不碰#1064/#1059/#1101分支；版本、数字、拒绝/回滚和真实SDK演练见[slices/home-maintenance-window.md](slices/home-maintenance-window.md)。 |
 
+| 2026-10-30 | 真实副本里的退役Workspace安装及关联记录 | 保留待owner确认；或专用工具并逐类由用户决定 | 统筹查历史3bed4c5453确认退役、无现行owner/迁移去处，选专用工具路线B | #1332 6517042142；一次性夹具只按四项delete/keep处理安装/端口绑定/输出/私有值，单库事务、完整结构拒绝，不读私有值正文、不删固定成果；v9先处理再进trust。用户未定前不执行、不当作可信host；见[slices/home-maintenance-window.md](slices/home-maintenance-window.md) RAC-2338。 |
+
 **待决（开工后攒批弹窗问）**：
 
 1. ~~真实 Home 的处理~~：已定，见上表（同事没有要保留的 Home）。已知：`~/.molis-work`，主检出上的 4207 与常驻服务 4173（LaunchAgent `com.adeptify.goalboard.web`，安装版 0.2.0）都用它；`~/.goalboard` 是指向它的符号链接，不是另一个 Home；4208 开工核对时没有在监听。

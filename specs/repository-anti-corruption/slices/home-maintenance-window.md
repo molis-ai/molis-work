@@ -1,6 +1,6 @@
 # 设备 A：统一 Home 维护窗口
 
-状态：准备中；第一步仓库盘点完成，第二步候选 #1538/#1549/#1552/#1553 已交接，BL-780与Memory两段已补演练。第三步本次获准只读复制和预检完成；发现旧workspace身份及关联记录待统筹裁定。第四步未获时间与逐项授权、未开始。Memory2→3→4按统筹6516758896的新决定纳入同窗。负责人：Codex（设备 A）；统筹：Claude 统筹；唯一协调通道：issue #1332。
+状态：准备中；第一步仓库盘点完成，第二步候选 #1538/#1549/#1552/#1553 已交接，BL-780与Memory两段已补演练。第三步本次获准只读复制和预检完成；旧workspace已由统筹确认为退役并指定专用工具，四类处置仍待用户逐项决定。第四步未获时间与逐项授权、未开始。Memory2→3→4按统筹6516758896的新决定纳入同窗。负责人：Codex（设备 A）；统筹：Claude 统筹；唯一协调通道：issue #1332。
 
 ## 本次执行合同
 
@@ -184,7 +184,8 @@ BL-780执行（RAC-2335）：单库单事务，只按当前Goals公开的待决�
 | 1 | 停全部同Home写入者；整份离线备份；再建演练副本 | 按CHECKLIST4.1/4.2，按pid确认服务/端口与进程；逐文件比对、记大小/方法；原Home主密钥只确认存在 | 本次只读副本不能替代此项；任一前提不符停止 |
 | 2 | 项目7→8，`project-maintenance.mjs --target 8` | 18库全部预检通过；原业务表行数保持，新增项目根18行、四个声明账本72行；18条initialize_board请求指纹按原v8 SQL转换 | 旧项目无法由新构建打开；每库单事务，失败零改 |
 | 3 | 项目8→9，同工具target9 | 新空schedule_action_bindings；旧schedule_jobs 1条停用并清lease，时间/历史保留 | 无可信安装授权，不先重新启用；需本人之后重新绑定 |
-| 4 | 项目9→10，同工具target10 | 171安装：host161、sandbox10、其他0；Attention两表加null owner，行数不变 | workspace17条的身份尚待裁定；不得把未确认的host身份直接当作完成，见下方阻塞 |
+| 4a | 退役Workspace，`retired-workspace-maintenance.mjs`（v9、trust前） | 四类分开决定：安装17、绑定34、输出3、私有值3；其他关联0。专用工具四项演练通过，list不SELECT私有值正文，单事务与中途回滚。推荐四类均删，离线备份保留原件 | 留安装仍阻断trust；留绑定/输出/私有值只保留退役数据、不恢复插件。任何删改须用户对四类分别决定 |
+| 4b | 项目9→10，同工具target10 | 维护前171安装：host161、sandbox10、其他0；如果用户批准先删Workspace17，剩154＝host144、sandbox10。Attention两表加null owner，行数不变 | 用户未定前不把17条映成可信host；随后Characters18条在步骤10单独清理 |
 | 5 | 项目v10 BL-780，`goal-decision-reminders-maintenance.mjs apply`；随后项目10→11 | 未归属提醒23＝已结束21、待决定2，重复/未知Goal/reason0；先删21、保留2给原v11。Attention事件177行保留，原v11按subject补owner；Feed账本18行1→2，新增空通知表18份，Feed旧边键0 | 不清旧提醒会留下已结束工作；不跑v11则当前Feed/Inbox不可用。原v11守卫保持不变，测试含v10衔接与v11已忽略状态 |
 | 6 | Goals旧名，`scripts/maintenance/goals-journal-names.mjs rename` | 18库：events5472、idempotency5580、edges0；改名称/游标归属，行数保持 | 不做会被Goals个人方法搬迁屏障拒绝；不再运行旧S9脚本或给Goals子库加版本2 |
 | 7 | Goals个人方法、PG-077成员、W5-17目录，依次`goals-personal-planning-move.mjs move`、`artifacts-project-membership-maintenance.mjs apply`、`catalog-path-maintenance.mjs rewrite` | catalog22有18项目、91成员；个人方法0行，目标Goals1尚未建。搬出空表后删artifacts成员15行/排除0；再22→23删database_path列、18项目保留，实际文件只按Home+project_id派生 | 两库先全预检，目标提交且读回后才删源；源失败保留两库状态并停。#1101若先取23，本步改24并重新演练，不碰其分支 |
@@ -198,12 +199,16 @@ BL-780执行（RAC-2335）：单库单事务，只按当前Goals公开的待决�
 
 所有行都仍为候选未做；4.3步骤在本次演练副本先全套跑通，真实库才沿同一流程执行。运行各步前重算数字；和这里不符即停，不用SQLite改版绕过。脚本内部未提交事务按合同回滚；已提交库或SDK转换后的恢复由统筹按整份离线备份、原路径/原key和后续删除决定安排，不自动逆向改库。被替换原库搬到Home外的700目录，旧备份不清理。
 
-必须由统筹交给用户的决定：维护时间及停服务/备份/安装；上述每项库变换与写入；schedule旧任务1条停用、BL-780删21、Character删36、PG-077删15目录成员；Memory保留旧有效auto=true的物化及SDK加密采用；MCP4条generation和Shelf1条path去除；IM/B2b所需私有内容读取范围。现有授权仅支持第三步只读核对，不能代签第四步。
+必须由统筹交给用户的决定：维护时间及停服务/备份/安装；上述每项库变换与写入；schedule旧任务1条停用、BL-780删21、Character删36、PG-077删15目录成员；Workspace安装17/绑定34/输出3/私有值3四类分别删留；Memory保留旧有效auto=true的物化及SDK加密采用；MCP4条generation和Shelf1条path去除；IM/B2b所需私有内容读取范围。现有授权仅支持第三步只读核对，不能代签第四步。
 
 R-54 ui.commands仅发行存档99、安装0；R-66 disabled0；R-69 native:feed成果线0/版本0，本窗没有需要写的生产者行。T-181：引导journey1、由真实导入收据定位的Pages标题1，半字/替换字符候选0，Todo引导候选0。T-182空workspace1只计数，不清空workspace。不存在的Home新库将在获准新构建的首次装配按当前基线创建，单列“未创建”，不伪称维护通过。
 
-**当前待裁定阻塞（#1332 6517024309）**：旧 `io.molis.work.workspace` 安装17条不在当前生成的内置登记里，另有private_values3、port_bindings34、port_outputs3；archives/events/cursors/resolutions/inputs/port_artifacts0。只读元数据，不读私有值，不把它归作Characters空孤儿。推荐原owner确认身份/去向后形成专门方案，未定前保留，不能直接映射为可信host并宣称窗口可执行。
+**新发现与处理裁定（#1332 6517024309→6517042142）**：旧 `io.molis.work.workspace` 安装17条不在当前生成的内置登记里，另有private_values3、port_bindings34、port_outputs3；archives/events/cursors/resolutions/inputs/port_artifacts0。只读元数据，不读私有值，不把它归作Characters空孤儿。统筹已确认退役、无现行owner或迁移去处；下面的专用工具准备不替代四类用户处置决定。用户未定前保留，不映射为可信host，不宣称窗口可执行。
+
+统筹6517042142已查main历史：退役Workspace包在 `3bed4c5453` 删除，无现行owner或迁移去处，选专用工具路线B。RAC-2338：`retired-workspace-maintenance.mjs`只做一次性单库事务，四类（installs、bindings、outputs、private-values）逐项明确delete/keep后才能apply；只在项目v9、trust升10之前执行，list可读7–11的已知完整结构。私有值只COUNT/DELETE、不SELECT正文；不删固定成果或别的插件内容。任何其他关联记录、错版/完整结构、写中故障均拒绝/回滚；保留类及其他表逐项不变，测试覆盖四类分别保留、源码零值读取和中途回滚。用户未定四类处置时保持原件，若保留安装则仍阻断trust，不因有工具就宣称窗口可执行。副本预检仍17/34/3/3，其他关联0；推荐四类全部删、完整离线备份保留原件；每一类须统筹另行问用户，不外推Characters授权。
 
 136库中96份位于固定40行清单之外：Images内部SQLite93、旧Alchemist1、已下线Sessions1、凭据锁1。HOME-DATA分别说明归属；只查版本/结构/完整性，不读其正文、不据此删除或恢复Sessions业务。Sessions与加密内容仍按原规则备份。原Home主密钥、SDK加密正文、凭据vault与Runtime配置备份没有在第三步被读取；NOT READ不能写成可恢复。
 
 新增演练证据：BL-780五项（含原v11衔接、已忽略状态/全部历史保留、拒绝与写中回滚）通过；readonly四项在加入owner路由和动态Alchemist布局后通过；Memory窗口新三项通过，现有storage/Host/SDK采用三文件23项通过。首次测试夹具的数组取值/SQLite行原型与SDK场景授权错误保留于日志，已按公开合同修正夹具，未放宽生产断言。真实SDK测试不调用模型。
+
+Workspace专用工具验证：4/4项通过；实际副本18库list均通过，17安装/34绑定/3输出/3私有值，其他关联0。v9再检查新增schedule绑定/账本等关联，非0即拒绝。错误夹具首次因input_groups列数写错失败，已改为四个具名列，生产拒绝断言未改。原固定成果和版本在非空夹具中逐值保留，真实Home尚未执行。

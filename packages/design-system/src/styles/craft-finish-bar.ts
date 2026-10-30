@@ -255,7 +255,9 @@ export const CRAFT_BAR_STYLES = `
   }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
-  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"]) {
+  /* The trailing :is(.dock-pin, .bar-chat) keeps this rule's specificity (0,5,1); with only the two states it would be (0,4,1)
+     and .dock-pin.is-leaving below would take transform from a Dock item that is both current and leaving. */
+  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"]):is(.dock-pin, .bar-chat) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
   ${SHELL} .dock-pin[aria-current]::after {

@@ -195,6 +195,9 @@ export class FormStore {
       for (const file of files) {
         const name = [...String(file.name ?? "")].slice(0, 200).join("") || "答卷";
         try {
+          // Content is counted in the units the import action's schema counts (content.maxLength 400,000) and the answers use: the largest
+          // file the schema allows (40 questions × 4000 汉字) is about 160,000 units but about 480 KB of UTF-8, so a 400,000-byte check here
+          // would refuse a valid file.
           if (file.content.length > 400_000) throw formErrors.invalid("文件过大，不像一份答卷");
           const parsed = JSON.parse(file.content) as Record<string, unknown>;
           if (parsed.format !== FORM_ANSWER_FORMAT) throw formErrors.invalid("不是 Molis 问卷答卷文件");

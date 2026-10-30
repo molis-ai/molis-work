@@ -39,6 +39,27 @@ const ratingField = (question: FormQuestion) => {
   return box;
 };
 
+/** The limit said in the page's words: "每题回答最多 4000 个字：<题>" / "Keep each answer within 4000 characters: <题>", the same
+ * sentence and number the offline fill page uses (fillpage.ts), translated through the plugin's own dictionary (messages.ts). */
+const tooLongText = (L: Translate, title: string) => L("form.fill.too-long", { count: FORM_ANSWER_LIMIT, title });
+
+/** Where this page says a field's problem: the full-screen fill page's error line or the preview's note line. */
+const problemSlot = (container: Element) =>
+  container.closest(".form-fill-sheet")?.querySelector<HTMLElement>(".form-fill-error")
+  ?? container.closest("[data-form=workbench]")?.querySelector<HTMLElement>("[data-form-note]")
+  ?? null;
+
+/** The action schema and the store take FORM_ANSWER_LIMIT characters; a maxlength attribute takes UTF-16 units and stopped a
+ * two-unit character at half the limit. This cuts the box to whole characters at the same limit and says it in the page's words. */
+const capAnswer = (L: Translate, input: HTMLInputElement, title: string, container: Element) => {
+  const slot = problemSlot(container);
+  const over = input.value.length > FORM_ANSWER_LIMIT && [...input.value].length > FORM_ANSWER_LIMIT;
+  if (over) input.value = [...input.value].slice(0, FORM_ANSWER_LIMIT).join("");
+  if (!slot) return;
+  if (over) { slot.hidden = false; slot.textContent = tooLongText(L, title); slot.classList.add("is-error"); }
+  else if (slot.textContent === tooLongText(L, title)) { slot.textContent = ""; slot.hidden = true; slot.classList.remove("is-error"); }
+};
+
 const answerField = (question: FormQuestion) => {
   if (question.type === "singleChoice" || question.type === "multiChoice") return choiceField(question);
   if (question.type === "rating") return ratingField(question);
@@ -65,7 +86,8 @@ export const buildFields = (L: Translate, container: Element, questions: readonl
     field.append(answerField(question));
     field.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input:not([type=radio]):not([type=checkbox]),select").forEach((input) => {
       input.id = title.id + "-input"; if (title instanceof HTMLLabelElement) title.htmlFor = input.id; input.setAttribute("aria-labelledby", title.id);
-      input.setAttribute("aria-required", String(question.required)); if (input instanceof HTMLInputElement && input.type === "text") input.maxLength = FORM_ANSWER_LIMIT;
+      input.setAttribute("aria-required", String(question.required));
+      if (input instanceof HTMLInputElement && input.type === "text") input.addEventListener("input", () => capAnswer(L, input, question.title, container));
     });
     container.append(field);
   });

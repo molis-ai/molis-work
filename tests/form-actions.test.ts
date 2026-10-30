@@ -338,3 +338,21 @@ test("RAC-1699: an answer file that cannot be read is listed under its name in w
   assert.deepEqual(result.rejected.map(file => file.name), ["a" + wide(199), "b" + wide(199)], "a 200-character name is kept whole, a longer one is cut to 200 whole characters");
   assert.ok(result.rejected.every(file => file.reason === "文件内容无法读取"), "they are listed because their content cannot be read");
 });
+
+test("RAC-2217: a schema-maximum answer file imports, and one over the 400,000 units is refused as too large", async t => {
+  // The import schema takes 400,000 units of file content (actions.ts maxLength) and each answer at most 4000 characters. The store keeps the
+  // same unit limit on purpose: the largest answer file the schema allows (40 questions × 4000 汉字 = 160,000 characters) is about 480 KB of
+  // UTF-8, so counting bytes at 400,000 here would refuse a valid file; the check stays in the units the schema and the answers use.
+  const home = await mkdtemp(join(tmpdir(), "form-import-size-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const form = store.update(store.create({ project_id: "p", title: "大答卷" }).id,
+    { questions: Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, type: "text" as const, title: `题 ${index + 1}` })) }, "p");
+  const answers: Record<string, string> = {};
+  for (const question of form.questions) answers[question.id] = "字".repeat(4000);
+  const content = JSON.stringify({ format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, answer_id: "answer-0001",
+    submitted_at: "2026-10-08T01:02:03.000Z", questions: form.questions, answers });
+  assert.ok(content.length <= 400_000 && Buffer.byteLength(content, "utf8") > 400_000, "the schema allows it: under 400,000 units, over 400,000 bytes");
+  assert.equal(store.importAnswers(form.id, [{ name: "big.molis-answer.json", content }], "p").imported, 1, "the largest answer file the schema allows is imported");
+  const refused = store.importAnswers(form.id, [{ name: "huge.molis-answer.json", content: "x".repeat(400_001) }], "p");
+  assert.deepEqual([refused.imported, refused.rejected.map(file => file.reason)], [0, ["文件过大，不像一份答卷"]], "content over 400,000 units is refused as too large");
+});

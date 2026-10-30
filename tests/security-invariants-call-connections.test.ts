@@ -236,6 +236,7 @@ async function brokerLeavesRefresh(t: TestContext, leaves: "cancelled" | "stoppe
       // SandboxRunner can answer cancellation first; the real Host request must also finish before checking its storage effects.
       await Promise.all(requests);
       if (leaves === "stopped") {
+        assert.equal(await tokenAbandoned, false, "the stopped call did not end the token request it had sent");
         assert.equal(exchanges, 1);
         assert.equal(seen.length, 1, "the stopped call did not send the second data request");
         assert.deepEqual(Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)])), saved, "nothing of the refresh's answer is written back");

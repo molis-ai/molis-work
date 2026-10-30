@@ -31,13 +31,14 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandb
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
-/** `neverInstalled`: the Runtime has no row for the plugin yet, as for a plugin that is published but has never been installed. */
-async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = [], neverInstalled = false) {
+/** `neverInstalled`: the Runtime has no row for the plugin yet, as for a plugin that is published but has never been installed.
+ * `fixedPluginId`: the generated plugin id to use instead of a random one, so a test can control where it sorts. */
+async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = [], neverInstalled = false, fixedPluginId?: string) {
   const databasePath = join(home, name + '.sqlite'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
   const waiting = builder.update(draft.id, draft.revision, value => { value.active = { token: 'interrupted-draft', stage: 'design' }; value.phase = 'designing'; });
-  const buildId = randomUUID(), pluginId = 'io.molis.work.generated.' + buildId;
+  const buildId = randomUUID(), pluginId = fixedPluginId ?? 'io.molis.work.generated.' + buildId;
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     { id: 'save', kind: 'command', input: { type: 'object', additionalProperties: false, required: ['value'], properties: { value: { type: 'string' } } }, output: { type: 'string' }, effects: { storage: ['write'] }, errors: [], examples: [{ input: { value: 'value' }, output: 'value' }] },
     { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] },
@@ -1093,18 +1094,23 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
 });
 
 // RAC-2406 T-172 review / T-275: the Host close's own call site, not only the shared closePlugin that the project's RAC-1922/1923 pin.
-// An installation whose record goes between the read and the stop is one failure of the aggregate, its instance is let go, and the other
-// installation still stops kept enabled.
-test('RAC-2406 closing the Host keeps going when an installation record goes between the read and the stop', { ...mac, timeout: 90_000 }, async () => {
+// An installation whose record is gone when the close comes to it is one failure of the aggregate, its instance is let go, and the other
+// installation still stops kept enabled. Both plugin ids are fixed so the close order (enabledPluginIds sorts its keys) is the same every
+// run: the record that goes is first, then last. The first order is where "keep going after a failure" is observable — with the record that
+// goes last there is nothing after it the loop could skip.
+for (const [order, gonePluginId, keptPluginId] of [
+  ['first', 'io.molis.work.generated.close-order-a-gone', 'io.molis.work.generated.close-order-z-kept'],
+  ['last', 'io.molis.work.generated.close-order-z-gone', 'io.molis.work.generated.close-order-a-kept'],
+] as const) test(`RAC-2406 closing the Host keeps going when the installation record is gone ${order} in the close order`, { ...mac, timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-record-gone-close-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const fixture = await publishedFixture(home, 'project');
+  const fixture = await publishedFixture(home, 'project', false, [], false, keptPluginId);
   // A second installation in the same project, so the close has another one to keep going with.
   const store = new LocalProjectDatabase(fixture.databasePath);
   let second: { pluginId: string; installId: string } | undefined;
   try {
     const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
-    const buildId = randomUUID(), pluginId = 'io.molis.work.generated.' + buildId;
+    const buildId = randomUUID(), pluginId = gonePluginId;
     const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
       { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
     const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, "export const operations={read:async()=>'empty'};");
@@ -1123,6 +1129,9 @@ test('RAC-2406 closing the Host keeps going when an installation record goes bet
   try {
     const installed = await rig.control(), platform = installed.platform;
     assert.deepEqual(installed.installations().map(entry => entry.state), ['running', 'running'], 'both installations run before the close');
+    // The close walks enabledPluginIds (sorted ascending), so naming the place pins this run as the first or the last case.
+    const closeOrder = platform.supervisor.enabledPluginIds();
+    assert.equal(closeOrder.indexOf(gone.pluginId), order === 'first' ? 0 : closeOrder.length - 1, `the record that goes is ${order} in the close order`);
     saved = await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('SELECT * FROM plugin_runtime_installs WHERE install_id = ?').get(gone.installId) as Record<string, unknown> | undefined);
     assert.ok(saved, 'the second record exists before the close');
     await rig.host.withProject(fixture.ref, runtime => { runtime.store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(gone.installId); });

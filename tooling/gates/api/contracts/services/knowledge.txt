@@ -270,6 +270,7 @@ export interface KnowledgeLocateResponse {
         reason: string;
     }>;
     unsummarized: ActionSubject[];
+    omitted: number;
 }
 
 export interface KnowledgeLocatedSection {

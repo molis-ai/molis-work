@@ -36,6 +36,12 @@ export interface InstructedPrompt {
   readonly data: string;
 }
 
+/**
+ * At most this many characters (code points, as a schema's maxLength counts them) of data go after an instruction to the Host's
+ * text model; the port refuses a longer prompt. A caller that builds its data from many parts fits them within it.
+ */
+export const MODEL_DATA_MAX_CHARS = 180_000;
+
 export function instructed(instruction: InstructionPrompt, data: string): InstructedPrompt {
   return { instruction, data };
 }

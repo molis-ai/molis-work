@@ -242,17 +242,15 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
-// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
-// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
-// page, not an asset, so removing it saves nothing here.
 // T-290, RAC-2412: the settings shell keeps only the address parameters and fragments the settings page being opened reads. Tried: the
 // declarations as "each page's defaults plus the extra variables it reads" (not one full list per page, not a packed encoding, for
 // readability), and one small filter helper injected into the shell and the Home dialog; the review re-audit added provider/new and
 // connected/connection_error and the own-key lookup (+64 B), so this one asset is +1,346 B in all; the increment review then corrected
 // the access page's own parameters (client/client_custom instead of format, +14 B): +1,360 B in all; no new asset.
+// T-235 (merged into main), RAC-2220–2221: the PPT outline box is cut at 20000 characters by its input handler instead of by a maxlength
+// attribute; the admission was [27065, 27380] and the build came out at 27364.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/ppt.js": [27065, 27364],
   "/assets/molis-work-workbench.js": [1148453, 1149813],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

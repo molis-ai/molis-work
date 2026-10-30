@@ -1,64 +1,44 @@
-# W5-17：目录库不再存项目库的绝对路径（目录库 v23）
+# W5-17：目录库不存项目库绝对路径（干净 Home 起点 1）
 
-状态：维护窗口线正在适配当前 main（Codex 设备 A，2026-10-29）；从原分支343f26e46普通merge main ac5735fb2a，不rebase。代码、脚本与演练尚待本轮核收，真实Home未读未写。统筹 #1332 6513987033 分配 S-102、RAC-2300～2399；本片用2300～2309。
+状态：产品候选 #1549，负责人 Codex（设备 A）。普通merge main ea05b7690b，不rebase。按统筹 #1332 6517794305 / 6518340875 转达的用户决定，旧迁移路线取消，目录当前结构直接成为1；真实Home重建、安装与用户验收未开始，等全部代码就绪后用户另说“开始”。统筹分配 S-102、RAC-2300～2399；本片现行验收2300～2303，原2304～2309维护演练取消。
 
-## 1. 目标
+## 1. 目标与边界
 
-路线图 W5-17、c-end-readiness 决定 #21（用户 2026-10-08）：目录库（`projects/catalog.db`）不再存每个项目库的绝对路径，由 Home 和 `project_id` 推出；目录库 v22 → v23；项目路径能跟随目录副本（C-4 的前提）；完整恢复仍受 W5-16 原 Home 与原 key 绑定限制，本片不证明可搬家恢复。
+目录库的 `projects` 不存项目库绝对路径，由可信Home中的projects目录和单段 `project_id` 推导。保留当前公开 `ProjectRecord.database_path` 读出字段、项目布局、动作/Manifest合同及owner，不改变产品版本。目录副本可推导本副本路径不等于完整Home可跨路径/原key恢复。
 
-## 2. 做了什么
+旧Home整体搬开后创建当前Home，不迁移旧目录；删除catalog升级脚本、旧结构夹具和演练，不留读取兼容、启动改表或移库入口。真实Home、服务、Keychain与安装均不在代码片操作范围。
 
-| 项 | 做法 |
+## 2. 实现
+
+| 项 | 现行行为 |
 | --- | --- |
-| 路径推导 | `modules/projects/src/project-paths.ts` 的 `projectDirectoryPath`、`projectDatabasePath`：`<projects 目录>/<project_id>` 与里面的 `molis-work.db`；仓库里只有这一份推导，宿主的删除、演示项目、卸载清点、连接器来源状态都复用它（`managedProjectDirectory` 删除） |
-| 合同字段 | 方案 A：`ProjectRecord.database_path` 留着，`ProjectsRepository` 读取时由 `projects_directory` 和 `project_id` 推出；合同、API 快照、约 60 处读取方不动。`ProjectsModuleOptions.projects_directory` 现在必填 |
-| 表 | `projects` 去掉 `database_path`（含 `UNIQUE`）；`CATALOG_SCHEMA_VERSION` 22 → 23；新构建拒绝 v22（`catalog.unsupported_schema`），产品里没有就地升级 |
-| 死代码 | `ProjectService.updateDatabasePath` 与仓库、模块出口的转发没有调用方，删除 |
-| 事件 | `project.created` 的载荷只剩 `{ project_id }`。已写进库里的历史事件保留旧路径不改；`project_events` 在仓库里只有写入（`repository.ts` 一处 INSERT），没有任何读取方读这个字段，所以留着不会被任何代码当成路径用（统筹要求的 grep 已做，2026-10-23） |
-| 维护脚本 | `tests/fixtures/catalog-path-maintenance.mjs`（`list`、`rewrite`）与演练用例 `tests/catalog-path-maintenance.test.ts`：先全读，有一个项目的库不在推导位置、没有库、或 ID 不是目录名，就一个字都不写（脚本不移文件）；一个事务里重建 `projects`，写完再读一遍；真实 Home 要 `--maintenance-window` 并查占用；做完后两个文件一起删 |
+| 唯一路径推导 | `modules/projects/src/project-paths.ts` 的 `projectDirectoryPath`、`projectDatabasePath`，组成 `<projects>/<project_id>/molis-work.db`；删除、演示项目、卸载清点和连接器来源复用它，移除managedProjectDirectory重复写法 |
+| 公开读模型 | `ProjectsRepository` 用必填 `projects_directory` 与id给 `ProjectRecord.database_path`，保留合同及读取方；已拆分的project-records/workspace/deletion owner不合回大仓储 |
+| 目录结构 | `projects.database_path`及其UNIQUE删除；`CATALOG_SCHEMA_VERSION = 1`。新建一次完成，其他版本拒绝 |
+| 拒绝顺序 | 已存在的目录库先用只读连接调用现有owner/版本检查，再开可写连接，正常打开仍复核；错版本拒绝不先切WAL改变文件头 |
+| 项目身份 | id必须是普通单段目录名，创建和读取拒绝逃逸值，删除/卸载不能用库中的任意字符串碰Home外文件（S-102） |
+| 事件与死代码 | 新 `project.created` 只记project_id；删除无调用方的updateDatabasePath链。事件历史无路径读取方，不做事件转换 |
+| 结构拒绝 | 现行catalog不接受个人规划表；保留原拒绝条件，只将错误说明中的已取消迁移命令改成当前结构拒绝，事实属于Goals Home库 |
 
-## 3. 统筹裁定（2026-10-23）
+## 3. 验收
 
-- 保留合同字段、读取时推导：同意。
-- 历史事件载荷保留旧路径：同意，前提是没有读取方（见上，已核）。
-- 路径不在推导位置的项目：阻止整个重写，脚本永不移文件：同意。
-- 新的项目 ID 校验属于「地址与路径校验」一类，按 `docs/system/SECURITY-INVARIANTS.md` 查现有行：S-11 管的是**外部给的文件引用**不跳出它被给的目录（项目引用、Git 冲突文件，读文件），拒绝的是方案、符号链接、inode 一类；这条管的是**目录库里的一行**（手改或从别处恢复）经 `project_id` 变成存储目录，进而被删除、改名暂存、卸载清点去碰目录之外的东西。对象和后果（删除）都不同，不是同一条的延伸，所以没有并进 S-11，**当时占用统筹分配的 S-61（该号后来用于邀请边界，2026-10-29 改配 S-102）**，表里新写一行，拒绝测试在 `tests/security-invariants-project-storage.test.ts`（先在去掉校验的构建上看它红，再看绿）。
-
-## 4. 验收
-
-| 编号 | 断言 | 测试 |
+| 编号 | 可观察结果 | 测试 |
 | --- | --- | --- |
-| RAC-2300 | 目录库不存路径：项目库由 projects 目录和 ID 推出，目录库拷进另一个 Home 就指向那个 Home 的文件 | `tests/catalog-path-derivation.test.ts` |
-| RAC-2301 | 不是一个普通目录名的 ID 没有目录：创建、读取、列出都以 `catalog.project_storage_invalid` 拒绝 | 同上；S-102 在 `tests/security-invariants-project-storage.test.ts` |
-| RAC-2302 | `project.created` 事件只记项目，不记路径；模块没有移动项目库的入口 | `tests/catalog-path-derivation.test.ts` |
-| RAC-2303 | 推导出的文件名就是存储包给的名字；目录库版本是 23 | 同上 |
-| RAC-2304 | `list` 报每个项目存的路径、推导路径和状态，孤儿库也列出，不写，有要人看的项退出码 3 | `tests/catalog-path-maintenance.test.ts` |
-| RAC-2305 | `rewrite` 遇到 Home 外的库、缺失的库或不是目录名的 ID，一个字都不写 | 同上 |
-| RAC-2306 | `rewrite` 把 v22 目录库变成 v23：没有路径列、行不变、引用 `projects` 的表没有被级联清空、表结构与产品新建的一致、产品能读 | 同上 |
-| RAC-2307 | v23 上再跑 `rewrite` 或 `list`，什么都不改 | 同上 |
-| RAC-2308 | 重写中途失败，v22 目录库原样 | 同上 |
-| RAC-2309 | 真实 Home 不带窗口参数被拒；不是本产品的目录库、版本不对的不动；有进程握着目录库拒绝 | 同上 |
+| RAC-2300 | projects无路径列；项目路径由可信projects目录与id推导，复制目录库后读取指向副本Home | `tests/catalog-path-derivation.test.ts` |
+| RAC-2301 | 非普通目录名id在创建、读取、列出时拒绝；删除、移除demo与清点不能碰目录外文件 | 上述文件；`tests/security-invariants-project-storage.test.ts`（S-102） |
+| RAC-2302 | project.created只记project_id，模块不提供移库接口 | `tests/catalog-path-derivation.test.ts` |
+| RAC-2303 | 存储包文件名一致，目录起点1可新建/重开；完整性ok、FK空；完整当前DDL却版本2时拒绝，文件字节与项目事实不变 | `tests/catalog-path-derivation.test.ts`；`tests/project-catalog.test.ts` |
 
-## 5. 真实 Home 的维护（归用户，合入前统筹问时段）
+原RAC-2304～2309的list/rewrite、事务故障回滚等是已取消迁移的演练，不再执行，其脚本/旧结构/用例删除。S-102继续有真实拒绝断言，不放宽路径或owner门禁。
 
-目录库升到 v23 之后，真实 Home（4207）从主检出跑的旧构建会因版本不符起不来，所以维护要在这个 PR 合入前后紧挨着做。步骤写在 `docs/releases/CHECKLIST.md` 4.5 和 spec §4.1「库版本维护清单」的 `projects/catalog.db` 行；PR 正文里逐条写。
+先整体build；Projects与Host README必跑及路径/目录/存储拒绝相关用例经machine-slot、jobs1、一次性Home；版本表、boundary、health/base、secrets。shared-core/storage Full由统筹排，不在本机跑、不自行加标签。甲档的Codex B验证、Opus high二审由统筹安排。
 
-## 6. 没动
+## 4. 决定与证据
 
-合同、动作、Manifest、API 快照；`project_events` 里历史事件的载荷；项目库本身的路径与布局。
+2026-10-23已裁定保留合同字段、读取时推导；原历史事件无读取方；路径校验属于存储目录删除边界，统筹于2026-10-29改配S-102，不占现已用于邀请的S-61。原方案catalog22→23及#1101撞号排序，均由2026-10-30干净起点决定取代；#1101由原owner衔接，不碰该分支。
 
-## 7. 当前排序与编号
+旧候选曾在当时准确头完成build/boundary/40库核对/health、3个维护及路径文件12项、69个普通文件和1个隔离浏览器文件；这些仅为旧路线历史证据，不算新头验证、真实维护或用户验收。旧获准只读副本保留，现不再读私有数据预检或做跨库迁移。
 
-- 当前使用统筹 2026-10-29 分配的 S-102、RAC-2300～2309；旧 RAC-240～242 已被其他用例使用，不再沿用。
-- 先做项目库维护链与 Goals names→personal move，再做 W5-17；catalog23 若被 #1101 先占，后落分支顺延24。窗口前重核当时 main，不碰 #1101 的分支。
-- 源码候选、临时 Home 演练、真实维护、安装与本人验收分别记录，真实完成前不勾 CHECKLIST。
+当前候选普通merge ea05b7690b；删除3份catalog升级文件，保留产品路径/S-102与分拆后的owner；当前工程结果随准确head交#1332，不勾真实重建完成。
 
-## 8. 当前 main 适配与严格维护
-
-保留 Projects 在 main 的拆分：project-records-repository 拥有项目行，workspace/deletion 各守自己的表，不恢复旧大仓储。新增的安装持有者、Memory采用及Feed测试夹具调用方补可信 projects_directory。旧维护脚本会探测 catalog 存的旧绝对路径，已改为纯文本分类，只检查副本内的派生位置；识别真实Home名称也不读取其文件。
-
-完整旧schema取main ac5735fb2a在一次性Home新建目录库的28个对象（无业务行），个人规划先迁出；目标在副本维护事务提交前逐项describe，与真实新建的当前产品目录比较。保留所有表行数和project rowid；错版、错列/索引/视图/触发器、引用故障和掉表后的注入失败均拒绝回滚。暂用catalog23，#1101先落则后续顺延，窗口前重核。目录可推导不扩展完整Home恢复承诺。
-
-### 2026-10-29 维护窗口候选验证
-
-从旧 W5-17 分支普通合并当前 main，保留分拆后的 Projects owner、当前 project11/Goals1 与 workspace unlink 合同。目录目标号暂为23，#1101先落地则后者顺延；真实 Home 实际版本 NOT READ。完整构建、boundary、40库版本清单核对与稳定 merge-base health 通过。3个维护/推导/S-102文件12项通过；Projects及Host README的69个普通文件和1个隔离浏览器文件全部通过。affected-tests 的 shared-core/storage 提示需全量；本任务明确不跑全量、不加 full-suite，交统筹统一集成裁定。真实副本、维护、安装与本人验收均未发生，合并只能在维护窗口。
+现行工程结果（2026-10-30，冻结main ea05b7690b）：整体build、health/base、boundary、48项资源7,493,088字节和40项版本表通过。核心5文件31项通过；README/直接影响65文件先64通过，projects-module新增的四个目录清理用例仍按旧prepare输入传目录，改为构造模块时绑定可信目录后单文件6项通过，所有删除/共享/事务回滚断言保留。合计70个不同文件验证通过；不重复跑未改源码的已通过用例。本头与secrets/独立验证另记#1332，不表示真实Home执行完成。

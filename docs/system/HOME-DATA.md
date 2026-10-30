@@ -27,7 +27,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
 | `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（8）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
-| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，23）、`sessions/sessions.db`（`session_meta`，7；已下线，仅离线备份技术读取） |
+| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，1）、`sessions/sessions.db`（`session_meta`，7；已下线，仅离线备份技术读取） |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
 
@@ -39,7 +39,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 23（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
+| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 1（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
 | `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 11，插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |

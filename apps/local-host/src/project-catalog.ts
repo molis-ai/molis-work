@@ -157,6 +157,13 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   await fs.mkdir(projectsDirectory, { recursive: true });
   const databasePath = path.join(projectsDirectory, "catalog.db");
   const existed = await exists(databasePath);
+  if (existed) {
+    const inspection = new LocalSqliteStorage(databasePath, { readonly: true });
+    try {
+      assertOwnedCatalog(inspection, databasePath);
+      assertCurrentCatalog(inspection, databasePath);
+    } finally { inspection.close(); }
+  }
   const storage = new LocalSqliteStorage(databasePath);
   return { homeDirectory, databasePath, existed, storage };
 }

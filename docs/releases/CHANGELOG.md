@@ -6,7 +6,7 @@
 
 ### 升级须知（需要动手）
 
-- **目录库 v23（W5-17）**：项目库位置由 Home 与 project_id 推导，目录不再存 database_path；旧v22拒绝直接打开。统一维护窗口先做项目库链和 Goals 的 names→personal move，再按 CHECKLIST §4.3 在副本演练 catalog-path-maintenance 的 list/rewrite；真实维护和安装须当次授权。项目行与rowid、历史事件和其他表保留，脚本不沿旧绝对路径访问文件。完整恢复仍受 W5-16 原Home/原key约束。
+- **目录库起点 1（W5-17，干净 Home）**：项目库位置由 Home 与 project_id 推导，目录不再存 database_path。按用户2026-10-30决定，不迁移旧目录；旧Home整体搬开后创建当前结构1，等代码合入/构建就绪后用户另说“开始”。旧目录版本直接拒绝，无离线升级工具；目录可推导不改变原Home/原key的完整恢复约束。
 
 - **「被谁引用」（`artifacts.links@1`）的输出按声明链接的插件分组**（2026-10-30，BL-646 T-113，`specs/repository-anti-corruption/slices/ac-artifacts.md` §3.5）：输出的 `goals`（`goal_id`、四值 `role`）换成 `plugins`（每组 `plugin_id`、`plugin_title` 与对象的 `id`、`title`、`role: input|output`、`proposal`、`open`）。直接读这个动作输出的调用方（工作流步骤、MCP 客户端、脚本）照新形状改；开发 Home 里固定了 `artifacts.links@1` 的工作流会读到新形状。MCP 客户端要看到 Goal 标题，需同时被授予 `goals.artifacts.link_subjects@1`（原先是 `goals.directory.read`），否则只看到 id。声明了 Manifest `artifacts.links` 的插件，要用 plugin SDK 导出的 `defineArtifactLinkSubjectsAction` 声明一个按 id 说出自己对象名字的动作，否则成果库只显示对象 id。
 - **平台合同删去 Goals 的三个子路径**（2026-10-29，PG-111 T-112，[#1527](https://github.com/molis-ai/molis-work/pull/1527)，`specs/repository-anti-corruption/slices/pg111-goals-contracts.md`）：`@molis-ai/molis-work-contracts/modules/goals`、`/modules/goal-actions`、`/modules/governance-collaboration` 不再导出，按包名导入得 `ERR_PACKAGE_PATH_NOT_EXPORTED`。Goals 的类型、动作描述符与 schema 搬进 Goals 插件（`@molis-ai/molis-work-plugin-goals/contract`），只给 Goals 自己和宿主用。别的插件要调 Goals，照 Coding（`plugins/native/coding/src/goals-actions.ts`）的写法按动作 id 与版本调用，用到的字段就地声明；动作的 id、版本、权限与 schema 都不变。`MCP_TOOLS` 改从 `@molis-ai/molis-work-app-local-host` 导出（原来在 `@molis-ai/molis-work-app-mcp`）。

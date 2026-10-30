@@ -37,7 +37,7 @@
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝（只停 Goals） |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 拒绝（只停 Inbox） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
-| 目录库 | `projects/catalog.db` | 23 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
+| 目录库 | `projects/catalog.db` | 1 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 4 | `user_version` | `modules/functions/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 3 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
 | Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 3 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
@@ -103,7 +103,7 @@
 - [ ] 现在的做法是离线整份备份 Home（`docs/installation.md`「离线备份与恢复边界」）：先退出 App、停止常驻服务和其他写入进程，再把整个 Home 拷到 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点。外部工作区文件不在 Home 里，另行备份。
 - [ ] 服务已停的情况下，备份与原 Home 逐个比对一致（库和配置文件），记下路径、大小和比对方式，写进发布 PR。
 - [ ] Keychain 或环境变量里的密钥不随 Home 文件复制，另行确认还在（`docs/installation.md`）。
-- [ ] 目录库 v23 不再存项目库绝对路径，由当前 Home 与 project_id 推导；v22 须先按第 4.3 节 W5-17 维护。完整恢复仍受 W5-16 的原 Home 路径与原 key 绑定约束，不能仅凭目录可推导就宣称可跨 Home 恢复。
+- [ ] 目录库1不再存项目库绝对路径，由当前Home与project_id推导。用户2026-10-30决定旧Home整体搬开后新建，W5-17迁移已取消；真实重建等用户另说“开始”。目录可推导不扩展跨Home/原key恢复承诺。
 - [ ] 旧备份删不删由用户定，发布者不自行清理；2026-10-08 用户已经定了一次性清理的范围，见第 4.5 节「Home 里没有来路不明的东西」一项。
 
 ### 4.3 第 3 节有库的版本变了：先演练再动真库
@@ -145,7 +145,7 @@
 
 - [ ] **项目库 v9 → v10（Attention 对象归属，S9-0b）。** Entry 和 event 增加明确的 `owner_plugin_id`，未归属旧行保持 null；唯一约束按 owner 区分。实际库沿用统一维护窗口，先备份、给出具体两表维护补丁并在隔离拷贝演练，再按当次授权处理真实 Home；不在启动时改表或猜旧 owner。本片源码与新库验证不等于真实维护完成，见 [S9-0b slice](../../specs/repository-anti-corruption/slices/goals-s9-0b-attention-ledger-services.md)。组合分支若同时改项目 schema，最终版本由集成 carrier 统一。
 
-- [ ] **目录库 v22 → v23（W5-17；候选，未做）。** 与 Goals、维护八同一个批准窗口：先项目库按实际旧版顺序维护到现行版，跑 Goals 的 names→personal move，再在副本上 `node tests/fixtures/catalog-path-maintenance.mjs list --home <副本> --json`。完整旧结构、版本22、所有项目在副本推导位置都成立后，`rewrite` 在一个事务内去掉 `projects.database_path`、保留其余值与 rowid、写23；提交前逐项核目标完整schema、所有表行数、integrity与FK。错版/错结构/路径阻塞或途中失败整个回滚。工具不沿旧绝对路径做文件访问，不移动项目库。重复执行核现行结构后零改；真实执行需 `--maintenance-window`，旧库移交Home外备份，#1101若先落则由后落分支顺延版本，窗口前重核。演练 `tests/catalog-path-maintenance.test.ts`、`tests/catalog-path-derivation.test.ts`。
+- [ ] **目录库 W5-17（原迁移已取消，真实重建未开始）。** 当前结构1没有projects.database_path，代码及S-102拒绝覆盖保留；catalog迁移脚本、旧结构夹具及演练删除。按统筹6517794305，旧Home整体搬开后新建当前Home，不逐库转换，具体执行等全部代码就绪后用户“开始”。
 
 ### 4.4 装新构建
 

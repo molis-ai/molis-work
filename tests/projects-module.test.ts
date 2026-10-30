@@ -119,9 +119,9 @@ function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsM
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
-    const projects = createModule(db);
+    const projects = createModule(db, directory);
     const ids = ["甲", "乙"].map(name => {
-      const record = projects.lifecycle.prepareRecord({ display_name: name, projects_directory: directory, data_class: "user" });
+      const record = projects.lifecycle.prepareRecord({ display_name: name, data_class: "user" });
       projects.lifecycle.register(record, "project.created", "user-1");
       return record.project_id;
     });

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   createProjectsSchema,
   listCatalogProjectsForUninstall,
@@ -15,7 +16,7 @@ import {
 } from "@molis-ai/molis-work-module-projects";
 import { PROJECT_DATABASE_FILENAME } from "@molis-ai/molis-work-storage";
 
-// W5-17 (catalog v23): the project catalog stores no database path. A project's database is <projects directory>/<project_id>/molis-work.db, derived
+// W5-17 (catalog v1, clean Home): the project catalog stores no database path. A project's database is <projects directory>/<project_id>/molis-work.db, derived
 // in one place, so a catalog that is copied, restored or moved points at the files of the Home it now sits in, and no row can name a file outside.
 
 const plugins = { has: (id: string) => id === "goals", companions: () => [] };
@@ -79,7 +80,49 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("RAC-2303 the derived file name is the one the storage package names, and the catalog's version is 23", () => {
+test("RAC-2303 the derived file name is the one the storage package names, and the catalog starts at version 1", () => {
   assert.equal(projectDatabasePath("/home/projects", "p"), join("/home/projects", "p", PROJECT_DATABASE_FILENAME));
-  assert.equal(CATALOG_SCHEMA_VERSION, 23, "catalog v23 is the one that stores no path");
+  assert.equal(CATALOG_SCHEMA_VERSION, 1, "the current catalog stores no path at the clean Home's version 1");
+});
+
+test("RAC-2303 a current catalog reopens at 1; another version is refused without changing its bytes or project facts", async () => {
+  const home = scratch(), file = join(home, "projects", "catalog.db");
+  try {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const project = await catalog.createProject({ display_name: "current catalog", actor_id: "tester" });
+    catalog.close();
+    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    assert.equal(reopened.getProject(project.project_id).database_path, join(home, "projects", project.project_id, "molis-work.db"));
+    reopened.close();
+    const wrong = new Database(file);
+    assert.equal(wrong.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), "1");
+    assert.equal(wrong.pragma("integrity_check", { simple: true }), "ok");
+    assert.deepEqual(wrong.pragma("foreign_key_check"), []);
+    wrong.prepare("UPDATE catalog_meta SET value = '2' WHERE key = 'schema_version'").run();
+    wrong.pragma("journal_mode = DELETE"); wrong.close();
+    const before = readFileSync(file);
+    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "catalog.reader_too_old" });
+    assert.deepEqual(readFileSync(file), before);
+    const preserved = new Database(file, { readonly: true });
+    try {
+      assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), "2");
+      assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "current catalog");
+    } finally { preserved.close(); }
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+// RAC-800 remains a current structural refusal, independent of the cancelled personal-method move tool.
+test("RAC-800 a current catalog has no personal planning table and refuses one without changing the file", async () => {
+  const home = scratch(), file = join(home, "projects", "catalog.db");
+  try {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
+    const db = new Database(file);
+    assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get(), undefined);
+    db.exec("CREATE TABLE personal_planning_method_packs (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)");
+    db.pragma("journal_mode = DELETE"); db.close();
+    const before = readFileSync(file);
+    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
+      error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
+    assert.deepEqual(readFileSync(file), before);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

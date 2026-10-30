@@ -49,14 +49,15 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const PROJECT_QUERY_EXTRAS = ${JSON.stringify(PROJECT_SETTINGS_QUERY_EXTRAS)};
   const ADDRESS_HASHES = ${JSON.stringify(SETTINGS_ADDRESS_HASHES)};
   const PROJECT_ID_HASH_SECTION = ${JSON.stringify(PROJECT_ID_HASH_SECTION)};
+  const declared = (table, key) => Object.prototype.hasOwnProperty.call(table, key) ? table[key] : "";
   const keptQuery = (search, defaults, extras, section) => {
-    const allowed = (defaults + " " + (extras[section] || "")).trim().split(/ +/);
+    const allowed = (defaults + " " + declared(extras, section)).trim().split(/ +/);
     const kept = new URLSearchParams();
     for (const [key, value] of new URLSearchParams(search || "")) if (allowed.includes(key)) kept.append(key, value);
     const text = kept.toString();
     return text ? "?" + text : "";
   };
-  const keptHash = (hash, section) => !hash ? "" : (ADDRESS_HASHES[section] || "").split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
+  const keptHash = (hash, section) => !hash ? "" : declared(ADDRESS_HASHES, section).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
   const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
   const pageOf = (root) => ({

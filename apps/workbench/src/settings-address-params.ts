@@ -16,13 +16,22 @@ export const SETTINGS_ADDRESS_DEFAULTS = { global: "project desktop", project: "
 
 /** Global settings pages that read more than the defaults, by the section the workbench opens (`settings-sections.ts`). */
 export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
+  // directories: apps/workbench/src/settings-local-directories.ts:28-29 reads plugin.
   directories: "plugin",
-  models: "setup template",
+  // models: web-catalog-settings.ts:66-69 reads setup/template/provider (modelTemplatePageData reads new with template once the shell opens it).
+  models: "setup template provider new",
+  // prompts: settings-prompts.ts reads role (and project/desktop from the defaults).
   prompts: "role",
-  library: "provider rule key q kind action version",
-  connections: "setup connector q kind action version",
-  access: "q filter format kind action version",
-  history: "q kind action version",
+  // library (the 能力 catalogue and the rules editor inside it): web-capabilities.ts:22-35 reads project/q/kind/action/version;
+  // the rules editor (apps/workbench/src/functions/client-events.ts:305) reads rule/key. It does not read provider.
+  library: "rule key q kind action version",
+  // connections: web-connector-settings.ts:14 reads setup; scripts/connectors-settings.ts:43,324-335 reads connector/connected/connection_error.
+  connections: "setup connector connected connection_error",
+  // access (MCP access): web-mcp-action-settings.ts:57-58 and scripts/mcp-access.ts:41 read q/filter/format.
+  access: "q filter format",
+  // history: web-capabilities.ts:27 reads q/kind for it.
+  history: "q kind",
+  // diagnostics: web-call-diagnostics.ts:20 reads call.
   diagnostics: "call",
 };
 
@@ -37,7 +46,7 @@ export const PROJECT_ID_HASH_SECTION = "projects";
 
 /** The standalone Home model settings pages that read more than the defaults, by the address the dialog opens. */
 export const HOME_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
-  "/settings/models": "setup template",
-  "/settings/connectors": "setup connector",
-  "/capabilities/connections": "setup connector",
+  "/settings/models": "setup template provider new",
+  "/settings/connectors": "setup connector connected connection_error",
+  "/capabilities/connections": "setup connector connected connection_error",
 };

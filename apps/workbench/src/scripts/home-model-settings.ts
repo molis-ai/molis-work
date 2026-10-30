@@ -8,8 +8,9 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
   // The pages' own address declarations (settings-address-params.ts): this dialog keeps only what the page it opens reads.
   const DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.global)};
   const HOME_QUERY_EXTRAS = ${JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)};
+  const declared = (table, key) => Object.prototype.hasOwnProperty.call(table, key) ? table[key] : "";
   const keptQuery = (search, path) => {
-    const allowed = (DEFAULTS + " " + (HOME_QUERY_EXTRAS[path] || "")).trim().split(/ +/);
+    const allowed = (DEFAULTS + " " + declared(HOME_QUERY_EXTRAS, path)).trim().split(/ +/);
     const kept = new URLSearchParams();
     for (const [key, value] of new URLSearchParams(search || "")) if (allowed.includes(key)) kept.append(key, value);
     const text = kept.toString();

@@ -483,8 +483,12 @@ async function homeModelAddress(href: string): Promise<string> {
 }
 
 test("RAC-2412 S-47 a settings address keeps only the parameters and fragment its page reads", () => {
-  assert.equal(openSettingsAddress("/settings/models?setup=1&template=balanced&x=1#frag"),
-    "/settings/models?setup=1&template=balanced", "models keeps setup and template, drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/models?setup=1&template=balanced&provider=second&new=1&x=1#frag"),
+    "/settings/models?setup=1&template=balanced&provider=second&new=1", "models keeps setup, template, provider and new; drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/connectors?connector=image-api&connected=notion&connection_error=cancelled&setup=s-1&x=1"),
+    "/capabilities/connections?connector=image-api&connected=notion&connection_error=cancelled&setup=s-1", "connectors (opened as the 能力 connections page) keeps connector, connected, connection_error and setup; drops x");
+  assert.equal(openSettingsAddress("/capabilities/library?kind=action&action=feed.list@1&version=2&provider=not-read&x=1"),
+    "/capabilities/library?kind=action&action=feed.list%401&version=2", "library keeps kind, action and version; drops provider (only models reads it) and x");
   assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#agent-diagnostics"),
     "/settings/diagnostics?call=c-1#agent-diagnostics", "diagnostics keeps its call and its fragment");
   assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#elsewhere"),
@@ -497,12 +501,16 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
     "/projects/p1/settings/planning/method-a?project=p1", "a nested planning page keeps project, drops x and #frag");
   assert.equal(openSettingsAddress("/settings/coding-settings?project=p1&desktop=1&x=1", ["coding-settings"]),
     "/settings/coding-settings?project=p1&desktop=1", "a plugin settings page keeps project and desktop, drops x");
+  // A plugin section may be named like an Object property: only the table's own keys count, so it gets the plugin defaults and no hash.
+  assert.equal(openSettingsAddress("/settings/constructor?project=p1&desktop=1&function=not-declared#frag", ["constructor"]),
+    "/settings/constructor?project=p1&desktop=1", "a plugin section named constructor keeps project and desktop, drops an undeclared parameter and the fragment");
 });
 
 test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {
-  const models = new URL(await homeModelAddress("/settings/models?setup=1&template=balanced&x=1#frag"));
+  const models = new URL(await homeModelAddress("/settings/models?setup=1&template=balanced&provider=second&x=1#frag"));
   assert.equal(models.searchParams.get("setup"), "1");
   assert.equal(models.searchParams.get("template"), "balanced");
+  assert.equal(models.searchParams.get("provider"), "second", "the providers page's own choice is kept");
   assert.equal(models.searchParams.get("x"), null, "an undeclared parameter is dropped");
   assert.equal(models.searchParams.get("embed"), "1", "the dialog still asks for the embedded document");
   assert.equal(models.hash, "", "the fragment is dropped");

@@ -298,7 +298,9 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.generations, (_, caller) => ports.read(store => ({ records: store.generations(project(caller)) }))),
     bind(pagesActions.generation, (input, caller) => ports.read(store => ({ record: store.generation(project(caller), input.request_id) }))),
     bind(pagesActions.generate, (input, caller) => {
-      if (input.inputs.reduce((sum, item) => sum + item.body.length, 0) > 100_000) throw pagesErrors.invalid("材料过长，请减少所选条目");
+      const units = input.inputs.reduce((sum, item) => sum + item.body.length, 0);
+      // A character is at most two UTF-16 units, so over 200,000 units is always over 100,000 characters: only the middle band is expanded and counted.
+      if (units > 200_000 || (units > 100_000 && input.inputs.reduce((sum, item) => sum + [...item.body].length, 0) > 100_000)) throw pagesErrors.invalid("材料过长，请减少所选条目");
       const record: PagesGenerationRecord = { ...input, project_id: project(caller), status: "running", document_id: null, error: null, updated_at: new Date().toISOString() };
       return generatePagesFromMaterials(ports, caller, record, ports.complete ? prompt => ports.complete!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined);
     }, () => ports.modelAvailability()),

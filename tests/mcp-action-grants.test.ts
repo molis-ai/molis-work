@@ -88,7 +88,7 @@ test("ACA005-04/06 management owns each generation, preserving permission sets, 
 // RAC-2490 RAC-2492: an MCP client calling an action it holds no grant for is refused as a refusal (kind `forbidden`), at the source, so a
 // reader that tells refusals from failures does not need to know this code; what the client reads in its tool result is unchanged.
 test("RAC-2490 an MCP client's call to an action it was not granted is refused with mcp.action_revoked of kind forbidden, also across the gateway hop", () => {
-  const preference = { version: 3 as const, action_grants: [] };
+  const preference = { version: 1 as const, action_grants: [] };
   const project = view();
   const reference = { capability_id: project.capability_id, version: project.version, provider_id: project.provider.provider_id };
   const refusal = (() => { try { assertMcpActionAuthority(caller, [project], preference, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
@@ -103,7 +103,7 @@ test("RAC-2490 an MCP client's call to an action it was not granted is refused w
 test("RAC-2492 the tool result an MCP client reads for that refusal is unchanged: the same code and message, no kind and no status", () => {
   const project = view();
   const reference = { capability_id: project.capability_id, version: project.version, provider_id: project.provider.provider_id };
-  const refusal = (() => { try { assertMcpActionAuthority(caller, [project], { version: 3, action_grants: [] }, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
+  const refusal = (() => { try { assertMcpActionAuthority(caller, [project], { version: 1, action_grants: [] }, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
   assert.ok(refusal instanceof ActionError);
   const before = new ActionError("mcp.action_revoked", refusal.message);
   assert.equal(formatMcpToolError(refusal), formatMcpToolError(before));

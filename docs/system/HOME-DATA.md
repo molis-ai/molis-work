@@ -6,6 +6,8 @@
 - 第 10 节的真实 Home 清单只用 `ls`、`stat`、`find`、`du` 看了名字、大小和日期，没有打开任何库或数据文件，也没有读任何密钥文件。所以真实库当前盖的是哪个版本，没有核对。只有一处例外，是为了回答旧启动脚本还有没有人在用：读了启动脚本 `bin/goalboard-mcp` 本身（约 1 KB，不含密钥），用 `grep -o` 只取出 Runtime 配置里含 `molis-work` 或 `goalboard` 的路径，用 `ps` 看了在跑的进程的命令行。
 - Home 存储的统一登记已有（W4-11，2026-10-15）：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里每个有数据的条目和它的 owner，库另带基线；各 owner 在打开它的代码旁声明（插件经目录条目的 `home_store` 带进来，类型在 `contracts/platform/plugin` 的 `HomeStoreDeclaration`），卸载清除、插件库的发放和基线用例都读它（见第 9 节）。W5-16 的离线 snapshot 由同一登记提供 owner、库基线、排除项、密封策略和原 key 依赖；带 Home 的枚举还经 installed-library owner 纳入实际动态库。CLI 不另列存储名单。恢复命令仍在后续实施，本表给出更细的子路径与恢复边界。
 
+2026-10-30统一起点：用户决定旧Home整体搬开、以现行结构干净重建，旧迁移/采用/搬迁与残留清理计划取消。[当前分片与授权边界](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)。各片落地前本表逐步对齐实际代码；项目主库和Feed声明已归1。真实Home尚未重建，不把代码版本当实测版本。
+
 ## 1. 怎么读
 
 W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。离线 snapshot 复用该 owner；完整 restore 命令仍待实施。
@@ -40,7 +42,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 22（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。存各项目库的绝对路径（`modules/projects/src/project-service.ts:61`），只能恢复到原路径（`docs/installation.md` 离线备份一节） | purge（`installer/uninstall.ts:46`） |
-| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 11，插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
+| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 1，插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
@@ -126,7 +128,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`） |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref` |
 
-### 4.2 `projects/<id>/molis-work.db`（v11）
+### 4.2 `projects/<id>/molis-work.db`（v1）
 
 基线是 15 段建表语句，来自 8 个目录（`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE`）；项目的身份是 `project_root` 的那一行，引用项目的外键指向它。Goals、governance 和 Feed（含 Sources、Signals、Listener Host）的表不在基线里（S8、FI-5），由各自插件的声明建（见下）：
 
@@ -157,7 +159,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 插件 | 库名 | 表 |
 | --- | --- | --- |
 | Coding（`plugins/native/coding/src/database.ts`） | `coding` | `coding_sessions`、`coding_plan_drafts` |
-| Feed（`plugins/native/feed/src/database.ts`；语句分在 `out-rules.ts` 与 `store/` 下） | `feed`（版本 2，FI-5） | `feed_out_rules`、`feed_items`、`feed_materials`、`feed_item_events`、`feed_sources`、`source_events`、`signals`、`signal_revisions`、`signal_events`、`listener_instances`、`listener_deliveries`、`feed_source_runs` |
+| Feed（`plugins/native/feed/src/database.ts`；语句分在 `out-rules.ts` 与 `store/` 下） | `feed`（版本 1，现行完整声明） | `feed_out_rules`、`feed_items`、`feed_materials`、`feed_item_events`、`feed_sources`、`source_events`、`signals`、`signal_revisions`、`signal_events`、`listener_instances`、`listener_deliveries`、`feed_source_runs` |
 | Goals（`plugins/native/goals/src/project-database.ts`；语句分在同目录的 `project-database-{goals,event-facts,event-state,governance}.ts`） | `goals` | `boards`、`goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs`、`input_bindings`、`goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments`、`goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status`、`goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions`（31 张，含 governance 的 4 张） |
 | Schedule（`plugins/native/schedule/src/database.ts`） | `schedule` | `schedule_conversation_tasks`、`schedule_conversation_turns`、`schedule_plugin_reminders`、`schedule_operations`、`schedule_operation_occurrences` |
 

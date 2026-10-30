@@ -84,7 +84,7 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
   // A package writes the card's words: the card shows them within its limits, cut in whole characters.
   const name = connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS);
   const purpose = connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS);
-  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((name + " " + card.connector_id + " " + purpose).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
+  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
     ${renderConnectorMark(card.connector_id, escapeHtml)}
     <span class="settings-connector-card__body">
       <span class="settings-connector-card__title"><strong>${escapeHtml(name)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>

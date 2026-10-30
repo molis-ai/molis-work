@@ -225,6 +225,12 @@ test("RAC-2418: a package's long connector name and summary are cut to whole cha
   assert.equal(cardName, name, "the card shows the name cut to whole characters");
   assert.equal(cardSummary, summary, "the card shows the summary cut to whole characters");
   assert.equal(html.includes(`<h2 tabindex="-1">${name}</h2>`), true, "the detail shows the same cut name");
+  // The page's filter searches the card's own attribute: cutting what it shows must not hide the words past the limit.
+  const filtered = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: `${wide(120)}tail-name`, summary: "Short, but the name goes on past its limit.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const search = /data-connector-search="([^"]*)"/.exec(filtered)?.[1] ?? "";
+  assert.equal(search.includes("tail-name"), true, "the search attribute keeps the name past the 120th character");
   assert.doesNotMatch(html, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
 });
 

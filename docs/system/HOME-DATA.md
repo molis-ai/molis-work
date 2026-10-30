@@ -76,10 +76,10 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
-| `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 2 · WAL | `issues` |
+| `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 1 · WAL | `issues` |
 | `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
-| `pages/pages.db` | `plugins/native/pages/src/store.ts`（`PAGES_DATABASE`） | 2 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports`、`page_comments` |
-| `form/form.db` | `plugins/native/form/src/store.ts:381`，基线 `:350` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |
+| `pages/pages.db` | `plugins/native/pages/src/store.ts`（`PAGES_DATABASE`） | 1 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports`、`page_comments` |
+| `form/form.db` | `plugins/native/form/src/store.ts:381`，基线 `:350` | 1 · 回滚 | `forms`、`submissions`、`form_copies` |
 | `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
@@ -192,7 +192,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `search/search.db` | `packages/storage/src/adapters/text-search-index.ts:128-146` | SQLite 自带版本 · WAL · `search_meta` 的 `schema` = "2"（`:22`）。缺失、损坏或版本不符时清空重建，这是唯一不拒绝的库 | 可重建 | purge（`search` 已登记） |
+| `search/search.db` | `packages/storage/src/adapters/text-search-index.ts:128-146` | SQLite 自带版本 · WAL · `search_meta` 的 `schema` = "1"（`:22`）。缺失、损坏或版本不符时清空重建，这是唯一不拒绝的库 | 可重建 | purge（`search` 已登记） |
 | `agent-runtime/.molis-runtime-owner.db` | `horizontal/agent-host/src/adapters/prologue-storage-owner.ts:8`：宿主持有 `BEGIN EXCLUSIVE` 来证明自己是 `agent-runtime/` 的唯一执行者 | 锁库，0 字节 | 临时 | purge |
 | `images/runners/<uuid>.db`，旁边 `-journal` | `plugins/native/images/src/store.ts:53`：每个 Images 进程一个锁文件，用来判断“运行中”的任务属于已死进程。进程正常关闭时两个文件都没了（关闭锁连接时 SQLite 回滚并删掉 journal，`releaseLocks` 再删 `.db`）；被杀掉的留下它们，下一次启动时 `reclaimRunnerFiles`（`:88`）把所有能加上独占锁的遗留文件连同 `-journal` 清掉（别的进程持有的、30 秒内新建的、名字不是 `<uuid>.db` 的不动） | 锁库 | 临时 | purge（`images` 目录） |
 | `feed/secrets.lock.sqlite` | `packages/storage/src/adapters/file-secret-store.ts:86`：跨进程互斥用，从不存密钥 | 锁库 | 临时 | purge |

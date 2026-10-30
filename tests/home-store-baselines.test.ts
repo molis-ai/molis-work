@@ -11,7 +11,7 @@ import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@moli
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 2, memory: 4, assistant: 1, functions: 1, form: 2, characters: 1 };
+const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 1, memory: 4, assistant: 1, functions: 1, form: 1, characters: 1 };
 /** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
 const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
@@ -25,7 +25,7 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
  * its personal-method writes and isolated catalog-to-Home move are covered separately, not presented as an existing-Home fixture.
  * Feed's Home reference ledger (feed-content, FI-6) is new with the Feed Home half, so no Home has it either; its v1 is frozen below.
  */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "issues", "goals", "feed-content"];
+const WITHOUT_REAL_HOME_FIXTURE = ["plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "goals", "feed-content"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
   const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));

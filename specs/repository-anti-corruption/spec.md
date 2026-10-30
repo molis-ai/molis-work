@@ -1765,6 +1765,10 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | `characters/characters.sqlite` | 2 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
 | `functions/functions.db` | 4 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
 | `assistant/assistant.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `issues/issues.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行完整DDL、owner与权限保留；旧Home整体搬开后新建，不升级旧数据。新建/重开/错版拒绝见 `slices/clean-home-plugin-stores.md`；真实重建等全部代码就绪后用户“开始”。 |
+| `form/form.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行问卷/回答/发布恢复结构和实体版本保留；旧Home整体搬开后新建，不转换旧数据；库起点1，不改动作版本。真实重建未开始。 |
+| `pages/pages.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 当前文稿/评论/发布恢复完整DDL保留；旧Home整体搬开后新建，不升级旧库；新建/重开及拒绝见本片，真实重建未开始。 |
+| `search/search.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行索引结构保留，元数据起点1；仍按既有派生缓存合同在缺失/损坏/版本不符时重建，从事实owner获得相同结果，不迁移业务库。真实Home未操作。 |
 
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 

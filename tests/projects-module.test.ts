@@ -139,7 +139,7 @@ function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsM
 const rows = (db: Database.Database, table: "workspaces" | "workspace_project_memberships"): number =>
   Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
 
-test("RAC-2105 deleting a project's memberships removes the directory records that no project belongs to any more", () => {
+test("RAC-2453 deleting a project's memberships removes the directory records that no project belongs to any more", () => {
   withTwoProjects(({ db, projects, first, link }) => {
     link(first, "alone");
     assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [1, 1]);
@@ -148,7 +148,7 @@ test("RAC-2105 deleting a project's memberships removes the directory records th
   });
 });
 
-test("RAC-2106 a directory two projects share stays, with the other project's membership, until the last one goes", () => {
+test("RAC-2454 a directory two projects share stays, with the other project's membership, until the last one goes", () => {
   withTwoProjects(({ db, projects, first, second, link }) => {
     const shared = link(first, "shared");
     assert.equal(link(second, "shared"), shared);
@@ -160,7 +160,7 @@ test("RAC-2106 a directory two projects share stays, with the other project's me
   });
 });
 
-test("RAC-2107 of a project's two directories, the one only it belongs to goes and the shared one stays", () => {
+test("RAC-2455 of a project's two directories, the one only it belongs to goes and the shared one stays", () => {
   withTwoProjects(({ db, projects, first, second, link }) => {
     const alone = link(first, "alone"), shared = link(first, "shared");
     link(second, "shared");
@@ -170,7 +170,7 @@ test("RAC-2107 of a project's two directories, the one only it belongs to goes a
   });
 });
 
-test("RAC-2108 a deletion that fails after the memberships go puts the directory records back, and records this deletion did not empty are not touched", () => {
+test("RAC-2456 a deletion that fails after the memberships go puts the directory records back, and records this deletion did not empty are not touched", () => {
   withTwoProjects(({ db, projects, first, second, link }) => {
     link(first, "alone");
     // A directory with no member at all was there before this deletion: it is not this deletion's to remove.

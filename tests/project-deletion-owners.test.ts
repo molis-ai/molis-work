@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -183,7 +183,7 @@ test("the delete dialog lists the library owners' data in the person's language"
   });
 });
 
-test("RAC-2109 deleting a project through the catalog removes the directory record it leaves with no project, and keeps one another project is in", async () => {
+test("RAC-2457 deleting a project through the catalog removes the directory record it leaves with no project, and keeps one another project is in", async () => {
   await withHome(async ({ home, catalog, gone, kept }) => {
     const alone = join(home, "alone"), shared = join(home, "shared");
     mkdirSync(alone, { recursive: true });
@@ -203,7 +203,7 @@ test("RAC-2109 deleting a project through the catalog removes the directory reco
 
     await catalog.deleteProject(deletion(gone));
 
-    assert.deepEqual(directories().map(path => path.split("/").at(-1)), ["shared"], "the directory only the deleted project was in is gone, the shared one stays");
+    assert.deepEqual(directories().map(directory => basename(directory)), ["shared"], "the directory only the deleted project was in is gone, the shared one stays");
     assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => membership.project_id), [kept]);
   });
 });

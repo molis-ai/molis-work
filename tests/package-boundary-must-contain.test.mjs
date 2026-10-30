@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkArtifactsOwnership, checkMigratedGoalsCommandOwnership, checkMigratedGovernanceOwnership, checkPrivateWorkContextOwnership,
-  checkRuntimeHostOwnership, hasImportFrom, hasInCode, hasInText, matchesInCode } from "../scripts/check-package-boundaries.mjs";
+import { builtinCatalogText, checkArtifactsOwnership, checkMigratedFeedUiOwnership, checkMigratedGoalsCommandOwnership, checkMigratedGovernanceOwnership,
+  checkMigratedIntegrationOwnership, checkPrivateWorkContextOwnership, checkProposalUiOwnership, checkProposalUiOwnershipInTree, checkRuntimeHostOwnership,
+  hasImportFrom, hasInCode, hasInText, hasWorkbenchUiContribution, matchesInCode, matchesStatementInCode, mentionsWorkbenchUiContribution } from "../scripts/check-package-boundaries.mjs";
+import { catalogText } from "../scripts/gates/catalog-entries.mjs";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const read = file => readFileSync(path.join(repository, file), "utf8");
@@ -58,22 +60,81 @@ test("RAC-2010 the Goals, Governance, Artifacts, Private Work Context and Runtim
   for (const row of ROWS) assert.ok(read(row.file).includes(row.needle), `${row.file} has ${row.needle}`);
 });
 
-for (const row of ROWS) test(`RAC-2011 ${row.check.name}: ${row.needle} in ${path.basename(row.file)} is a ${row.kind} requirement that taking it out refuses`, () => {
-  assert.ok(checkWith(row.check, row.file, without(read(row.file), row.needle)).length > 0);
-});
+/** The three tests for each row of a table: taking the text out refuses; a code or import row refuses it written only where no code is; a text row also refuses a comment or a regular expression but takes a string. */
+function defineRowTests(rows, [removed, standIns, content]) {
+  for (const row of rows) test(`${removed} ${row.check.name}: ${row.needle} in ${path.basename(row.file)} is a ${row.kind} requirement that taking it out refuses`, () => {
+    assert.ok(checkWith(row.check, row.file, without(read(row.file), row.needle)).length > 0);
+  });
 
-for (const row of ROWS.filter(({ kind }) => kind !== "text")) test(`RAC-2012 ${row.check.name}: ${row.needle} written only in a comment, a string, a regular expression or template text no longer stands in for the ${row.kind}`, () => {
-  const source = without(read(row.file), row.needle);
-  for (const [name, write] of Object.entries(stand)) assert.ok(checkWith(row.check, row.file, source + write(row.needle)).length > 0, `${row.needle} as ${name}`);
-});
+  for (const row of rows.filter(({ kind }) => kind !== "text")) test(`${standIns} ${row.check.name}: ${row.needle} written only in a comment, a string, a regular expression or template text no longer stands in for the ${row.kind}`, () => {
+    const source = without(read(row.file), row.needle);
+    for (const [name, write] of Object.entries(stand)) assert.ok(checkWith(row.check, row.file, source + write(row.needle)).length > 0, `${row.needle} as ${name}`);
+  });
 
-for (const row of ROWS.filter(({ kind }) => kind === "text")) test(`RAC-2013 ${row.check.name}: ${row.needle} is content, so a string or template that holds it counts and a comment or a regular expression does not`, () => {
-  const source = without(read(row.file), row.needle);
-  for (const name of ["a line comment", "a block comment", "a regular expression"]) assert.ok(checkWith(row.check, row.file, source + stand[name](row.needle)).length > 0, `${row.needle} as ${name}`);
-  for (const name of ["a string", "template text"]) {
-    // The text may be one that a string alone cannot hold (the quotes are part of it); only the ones a string can hold are tried.
-    if (!row.needle.includes('"') && !row.needle.includes("${")) assert.deepEqual(checkWith(row.check, row.file, source + stand[name](row.needle)), [], `${row.needle} as ${name}`);
-  }
+  for (const row of rows.filter(({ kind }) => kind === "text")) test(`${content} ${row.check.name}: ${row.needle} is content, so a string or template that holds it counts and a comment or a regular expression does not`, () => {
+    const source = without(read(row.file), row.needle);
+    for (const name of ["a line comment", "a block comment", "a regular expression"]) assert.ok(checkWith(row.check, row.file, source + stand[name](row.needle)).length > 0, `${row.needle} as ${name}`);
+    for (const name of ["a string", "template text"]) {
+      // The text may be one that a string alone cannot hold (the quotes are part of it); only the ones a string can hold are tried.
+      if (!row.needle.includes('"') && !row.needle.includes("${")) assert.deepEqual(checkWith(row.check, row.file, source + stand[name](row.needle)), [], `${row.needle} as ${name}`);
+    }
+  });
+}
+defineRowTests(ROWS, ["RAC-2011", "RAC-2012", "RAC-2013"]);
+
+// T-280: the Feed and Integration sections, Goals' route mount and the proposal UI check, read the same way.
+const FEED_UI = checkMigratedFeedUiOwnership, INTEGRATION = checkMigratedIntegrationOwnership;
+const MORE_ROWS = [
+  { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "renderFeedNativePluginSurface", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/manifest.ts", needle: "routes: [", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/plugin.ts", needle: "createFeedRouteHandlers", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/plugin.ts", needle: "routes,", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/inbox/src/manifest.ts", needle: "routes: [", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/inbox/src/plugin.ts", needle: "createInboxRouteHandlers", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/inbox/src/plugin.ts", needle: "routes,", kind: "code" },
+  { check: FEED_UI, file: "apps/workbench/src/feed-projection-ui.ts", needle: "renderFeedContribution", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/ui.ts", needle: "feedUiContribution", kind: "code" },
+  { check: FEED_UI, file: "packages/ui-host/src/index.ts", needle: "class UiHost", kind: "code" },
+  { check: FEED_UI, file: "packages/ui-host/src/index.ts", needle: "render<TModel>(request", kind: "code" },
+  { check: checkMigratedGoalsCommandOwnership, file: "plugins/native/goals/src/http/types.ts", needle: "actions(request: PluginRouteRequest): BoundActionClient", kind: "code" },
+  { check: checkMigratedGoalsCommandOwnership, file: "plugins/native/goals/src/http/types.ts", needle: "actions: BoundActionClient", kind: "code" },
+  // The client script is a browser script in a template string: its calls are template text.
+  { check: checkProposalUiOwnershipInTree, file: "apps/workbench/src/scripts/client/events-accessibility.ts", needle: "handleGoalProposalSubmit(submittedForm, event)", kind: "text" },
+  { check: INTEGRATION, file: "plugins/official-integrations/github/src/index.ts", needle: '"io.molis.work.integration.github"', kind: "text" },
+  { check: INTEGRATION, file: "plugins/official-integrations/github/src/index.ts", needle: '"adeptify-official-signature-v1"', kind: "text" },
+  { check: INTEGRATION, file: "apps/local-host/src/github-connector.ts", needle: 'from "@molis-ai/molis-work-integration-github"', kind: "import" },
+  { check: INTEGRATION, file: "apps/local-host/src/gmail-connector.ts", needle: 'from "@molis-ai/molis-work-integration-gmail"', kind: "import" },
+];
+
+defineRowTests(MORE_ROWS, ["RAC-2061", "RAC-2062", "RAC-2063"]);
+
+// A requirement written as a pattern: the text the pattern finds is what is taken out and written back.
+const COMPOSITION = "apps/workbench/src/ui-composition.ts", REGISTRY = "apps/workbench/src/plugin-workbench.ts", GOALS_PLUGIN = "plugins/native/goals/src/plugin.ts";
+const PATTERNS = [
+  { check: checkMigratedGoalsCommandOwnership, file: GOALS_PLUGIN, pattern: /routes:\s*goalsRoutes\s*\(\{/u },
+  { check: checkMigratedGoalsCommandOwnership, file: GOALS_PLUGIN, pattern: /actions:\s*request\s*=>/u },
+  { check: checkMigratedGoalsCommandOwnership, file: GOALS_PLUGIN, pattern: /actions\.invoke\(definition,\s*input,\s*request\.execution\)/u },
+  { check: checkProposalUiOwnershipInTree, file: COMPOSITION, pattern: /createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u },
+  { check: checkProposalUiOwnershipInTree, file: COMPOSITION, pattern: /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u },
+  { check: checkProposalUiOwnershipInTree, file: COMPOSITION, pattern: /function createWorkbenchUiHost\(packs:[^=]+?=\s*BUILTIN_PLUGIN_WORKBENCH\)/u },
+  { check: checkProposalUiOwnershipInTree, file: COMPOSITION, pattern: /for\s*\(const pack of packs\)\s*\{\s*for\s*\(const contribution of pack\.contributions\)\s*host\.register\(contribution\)/u },
+  { check: checkProposalUiOwnershipInTree, file: REGISTRY, pattern: /import\s*\{\s*BUILTIN_PLUGIN_CATALOG[^}]*\}\s*from\s*["']\.\/builtin-plugins\.js["']/u },
+  { check: checkProposalUiOwnershipInTree, file: REGISTRY, pattern: /export const BUILTIN_PLUGIN_WORKBENCH[^=]*=\s*pluginWorkbenchPacks\(\)/u },
+  { check: checkProposalUiOwnershipInTree, file: REGISTRY, pattern: /function pluginWorkbenchPacks\(catalog:[^=]+?=\s*BUILTIN_PLUGIN_CATALOG\)/u },
+  { check: checkProposalUiOwnershipInTree, file: REGISTRY, pattern: /return catalog\.flatMap\(entry => entry\.workbench \? \[\{ project_plugin_id: entry\.project_plugin_id, \.\.\.entry\.workbench \}\] : \[\]\)/u },
+];
+
+test("RAC-2060 the Feed and Integration, Goals route mount and proposal UI checks accept the tree as it is, and what they require is there", () => {
+  for (const check of new Set([...MORE_ROWS.map(row => row.check), checkProposalUiOwnershipInTree])) assert.deepEqual(errorsOf(check(repository)), [], check.name);
+  for (const row of MORE_ROWS) assert.ok(read(row.file).includes(row.needle), `${row.file} has ${row.needle}`);
+  for (const { file, pattern } of PATTERNS) assert.ok(pattern.exec(read(file)), `${file} has ${pattern}`);
+});
+for (const { check, file, pattern } of PATTERNS) test(`RAC-2064 ${check.name}: what ${pattern.source.slice(0, 50)}… finds in ${path.basename(file)} is required, and the same words in a comment, a string, a regular expression or template text do not stand in`, () => {
+  const found = pattern.exec(read(file));
+  assert.ok(found, "the file says it as it did");
+  const source = without(read(file), found[0]);
+  assert.ok(checkWith(check, file, source).length > 0, "taking it out refuses");
+  for (const [name, write] of Object.entries(stand)) assert.ok(checkWith(check, file, source + write(found[0])).length > 0, name);
 });
 
 test("RAC-2014 an import is the statement, written with double quotes: the same words in a comment, a string or single quotes are not", () => {
@@ -120,7 +181,7 @@ test("RAC-2016 code beside a literal still counts, and the code inside a templat
 });
 
 test("RAC-2017 nothing is accepted that the plain text check refused: every helper needs the text to be in the file as well", () => {
-  const files = ROWS.map(row => read(row.file));
+  const files = [...ROWS, ...MORE_ROWS].map(row => read(row.file));
   let seed = 20261029, tried = 0;
   const next = limit => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit; };
   for (let round = 0; round < 600; round += 1) {
@@ -136,4 +197,77 @@ test("RAC-2017 nothing is accepted that the plain text check refused: every help
   assert.equal(hasInCode("x/**/y", "x    y"), false);
   assert.equal(hasInText("x/**/y", "x    y"), false);
   assert.equal(matchesInCode("x/**/y", /x {4}y/u), false);
+});
+
+test("RAC-2065 a registration file's comment or string does not list a contribution, and a host.register line in a comment does not register one", () => {
+  const composition = read(COMPOSITION), registry = read(REGISTRY), descriptors = builtinCatalogText(repository);
+  const listed = "contributions: [feedUiContribution]", registration = "plugins/native/feed/src/registration.ts";
+  assert.ok(read(registration).includes(listed));
+  const files = readdirSync(path.join(repository, "plugins/native")).map(directory => `plugins/native/${directory}/package.json`);
+  const readFile = file => { try { return read(file); } catch { return null; } };
+  const catalogWith = edit => catalogText({ files, read: file => (file === registration ? edit(readFile(file)) : readFile(file)) });
+  assert.equal(hasWorkbenchUiContribution(composition, registry, "feedUiContribution", catalogWith(text => text)), true);
+  for (const [name, replacement] of Object.entries({
+    "a line comment": `// ${listed}\n  contributions: []`,
+    "a block comment": `/* ${listed} */ contributions: []`,
+    "a string": `note: ${quoted(listed)}, contributions: []`,
+    "template text": `note: \`${listed}\`, contributions: []`,
+  })) {
+    const edited = catalogWith(text => text.replace(listed, replacement));
+    assert.equal(hasWorkbenchUiContribution(composition, registry, "feedUiContribution", edited), false, name);
+  }
+  const register = "host.register(feedUiContribution)";
+  for (const [name, text] of Object.entries({
+    "a line comment": `// ${register}\n`, "a block comment": `/* ${register} */`, "a string": `const text = ${quoted(register)};`, "template text": `const text = \`${register}\`;`,
+  })) {
+    assert.equal(hasWorkbenchUiContribution(text, "", "feedUiContribution", ""), false, name);
+    assert.equal(hasWorkbenchUiContribution(`${register};\n${text}`, "", "feedUiContribution", ""), true, `${name} beside the real call`);
+  }
+  // The import's path is a string, and the statement must start in code.
+  const imported = "import { BUILTIN_PLUGIN_CATALOG } from \"./builtin-plugins.js\"";
+  assert.ok(registry.includes(imported));
+  for (const wrap of [text => `// ${text}`, text => `/* ${text} */`, text => `const standIn = ${quoted(text)};`, text => `const standIn = \`${text}\`;`]) {
+    assert.equal(hasWorkbenchUiContribution(composition, wrap(imported) + "\n" + registry.replace(imported, ""), "feedUiContribution", descriptors), false);
+  }
+});
+
+test("RAC-2066 a registration that must not be there is still found in a comment: the retired contribution and a Legacy host.register line stay refused", () => {
+  const composition = read(COMPOSITION), registry = read(REGISTRY), descriptors = builtinCatalogText(repository);
+  const retired = "goalsLegacyProposalUiContribution", clientDispatch = "handleGoalProposalSubmit(submittedForm, event)";
+  const ok = (workbench, listing) => checkProposalUiOwnership("", workbench, composition, "", clientDispatch, registry, listing);
+  assert.deepEqual(ok(composition, descriptors), []);
+  const inComment = descriptors.replace("contributions: [feedUiContribution]", "/* contributions: [feedUiContribution, goalsLegacyProposalUiContribution] */ contributions: [feedUiContribution]");
+  assert.match(ok(composition, inComment).join("\n"), /retired/);
+  assert.match(ok(`${composition}\n// host.register(${retired})\n`, descriptors).join("\n"), /retired/);
+  assert.equal(mentionsWorkbenchUiContribution(composition, registry, "feedUiContribution", descriptors), true);
+  assert.equal(mentionsWorkbenchUiContribution("// host.register(x)", "", "x"), true);
+  assert.equal(hasWorkbenchUiContribution("// host.register(x)", "", "x"), false);
+});
+
+test("RAC-2067 a statement pattern must start in code: a comment, a string, a regular expression or template text that holds it does not", () => {
+  const pattern = /import\s*\{\s*X\s*\}\s*from\s*["']\.\/x\.js["']/u, statement = 'import { X } from "./x.js"';
+  assert.equal(matchesStatementInCode(`${statement};`, pattern), true);
+  assert.equal(matchesStatementInCode(`const y = 1; /* c */ ${statement};`, pattern), true);
+  assert.equal(matchesStatementInCode(`import {\n  X,\n} from "./other.js";`, /import\s*\{\s*X\s*\}/u), false, "the pattern is the old test as well");
+  for (const text of [`// ${statement}`, `/* ${statement} */`, `const t = '${statement}';`, `const t = \`${statement}\`;`, `const t = /${regexSource(statement)}/;`, `import { X } from /* c */ "./x.js";`, ""]) {
+    assert.equal(matchesStatementInCode(text, pattern), false, text);
+  }
+  assert.equal(matchesStatementInCode(`${statement}; ${statement};`, new RegExp(pattern.source, "gu")), true, "a global pattern is read the same way");
+});
+
+test("RAC-2068 nothing is accepted that the plain check refused: a registration found by the strict reading is found by the plain one", () => {
+  const composition = read(COMPOSITION), registry = read(REGISTRY), descriptors = builtinCatalogText(repository);
+  let seed = 20261029, strictAccepts = 0;
+  const next = limit => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit; };
+  const cut = text => { const start = next(Math.max(1, text.length - 30)); return text.slice(0, start) + text.slice(start + 1 + next(29)); };
+  for (let round = 0; round < 300; round += 1) {
+    const mutated = [composition, registry, descriptors].map((text, index) => (next(3) === index || next(4) === 0 ? cut(text) : text));
+    for (const name of ["feedUiContribution", "goalsProposalUiContribution", "goalsLegacyProposalUiContribution"]) {
+      if (hasWorkbenchUiContribution(...[mutated[0], mutated[1]], name, mutated[2])) {
+        strictAccepts += 1;
+        assert.equal(mentionsWorkbenchUiContribution(mutated[0], mutated[1], name, mutated[2]), true, name);
+      }
+    }
+  }
+  assert.ok(strictAccepts > 0, "the strict reading still accepts some of the cut sources");
 });

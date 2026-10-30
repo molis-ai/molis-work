@@ -258,6 +258,36 @@ test("RAC-2419: a card names the package that declared it, and the package name 
   assert.doesNotMatch(html, /<img src=x onerror=/, "no markup of a package name reaches the page");
 });
 
+test("RAC-2440: a card's source line cuts a package name to whole characters", () => {
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  // 5,000 characters, 7,500 UTF-16 units: alternating a two-unit emoji and a one-unit Han character, so a unit cut would leave half of one.
+  const title = "🙂汉".repeat(2_500);
+  const html = renderConnectorsSettings({ connectors: [{ connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+    declared_by: { plugin_id: "io.example.package", title } }] }, primitives);
+  const shown = /data-connector-source>来自 ([^<]*)</u.exec(html)?.[1];
+  assert.ok(shown, "the source line is there");
+  const expected = [...title].slice(0, 119).join("") + "…";
+  assert.equal(shown, expected, "the package name is cut to 120 whole characters, the last one an ellipsis");
+  assert.equal([...shown].length, 120);
+  assert.ok(shown.isWellFormed(), "no half of a two-unit character is left over");
+});
+
+test("RAC-2441: a card without a declaring package shows no source line, while null still reads as the platform's own", () => {
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  const base = { connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [] } as const;
+  const unknown = renderConnectorsSettings({ connectors: [{ ...base }] }, primitives);
+  assert.doesNotMatch(unknown, /data-connector-source/u, "an unknown declaring package leaves no source line at all");
+  assert.doesNotMatch(unknown, /Molis Work（内置）/u, "unknown is not the platform's own");
+  const platform = renderConnectorsSettings({ connectors: [{ ...base, declared_by: null }] }, primitives);
+  assert.match(platform, /data-connector-source>来自 Molis Work（内置）</u, "null is the platform's own");
+  const named = renderConnectorsSettings({ connectors: [{ ...base, declared_by: { plugin_id: "io.example.package", title: "Example Package" } }] }, primitives);
+  assert.match(named, /data-connector-source>来自 Example Package</u, "a package's card names it");
+});
+
 test("every connector detail exposes official https setup links", () => {
   const primitives = {
     L: (text: string) => text,

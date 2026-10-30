@@ -8,9 +8,11 @@ export interface ConnectorPrimitives {
   icon(name: "link" | "mail" | "back" | "tree"): string;
 }
 
-/** A package declares a card's name and summary with no length limit: these are the limits the card shows, in characters. */
+/** A package declares a card's name, summary and source line with no length limit: these are the limits the card shows, in characters. */
 export const CONNECTOR_NAME_MAX_CHARS = 120;
 export const CONNECTOR_SUMMARY_MAX_CHARS = 400;
+/** The source line's package name comes from the same Manifest `name` as the card's title, so it has the same limit. */
+export const CONNECTOR_SOURCE_MAX_CHARS = CONNECTOR_NAME_MAX_CHARS;
 
 /** Cut a card's words to `max` whole characters (code points, as the action schemas count), the last one 「…」; never half of one. */
 export function connectorCardText(text: string, max: number): string {

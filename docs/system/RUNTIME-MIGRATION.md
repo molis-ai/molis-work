@@ -251,7 +251,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 - **引用不变（已定）**：4.2 的提供方身份已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），迁来的插件存量的 MCP 授权、工作流步骤、判断规则的场景提供方和代码里写死的 `provider_id` 都不用改写。要改写存量引用的只有已在 Runtime 上的 7 个插件（维护七，[CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节）：开发机的真实 Home 已于 2026-10-11 核对，没有要改写的记录，没写真库；别的 Home 照那一节的做法，先问用户、先备份、在拷贝上列出与演练、逐项核对，工具从 Git 历史取。
 - **删除项目的路径会变**：迁移不改变「项目已删」步骤清什么，但改变它怎么被调用（4.2 末项）。迁移之后第一次在真实 Home 上删项目会走新路径，所以每一族迁完，要在 Home 的拷贝上演练一次：删一个有各插件数据的项目，核对删除收据里每个插件一步，再逐库核对数据没了、别的项目的还在。
 - **Characters 的安装记录**：并进宿主时删掉各项目库里的 `io.molis.work.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。（CHR-1 没有做这一步，2026-10-22：它是 `docs/releases/CHECKLIST.md` 里的维护项。）
-- **项目库 v8**：L1b 让项目库升到 v8（`project_root`、插件的表进账本），有 v7 项目库的 Home 先做维护八（`docs/releases/CHECKLIST.md` 4.3），也不在迁移 PR 里做；脚本与演练是 `tests/fixtures/project-maintenance-v8.sql`、`tests/project-maintenance-v8.test.ts`。
+- **项目库当前起点1**：L1b的project_root和插件表账本结构保持。2026-10-30用户取消旧版本项目维护；旧Home整体搬开后新建，旧升级SQL/夹具/演练删除，等全部代码就绪后用户另说“开始”。
 - 迁移完成后，`uninstall --purge` 列表（Home 存储登记 `homeStores()`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。
 
 ## 8. 门禁怎么随迁移收紧

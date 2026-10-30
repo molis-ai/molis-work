@@ -162,3 +162,51 @@ test("RAC-2282 materials over 200000 UTF-16 units are refused before any charact
     { code: "pages.invalid", message: /材料过长/ });
   assert.equal(f.store.generations("project").length, 0, "nothing of a refused generation is recorded");
 });
+
+// T-254: what the model port measures is the whole prompt, in characters. The materials' JSON sits inside it, so its length is
+// checked here, before the request is taken and a generation record is written (the Host's own refusal used to come one step late).
+const material = (body: string) => ({ entry_id: "entry-1", item_id: "item-1", revision: 1, title: "材料 1", body, url: null,
+  source_label: "来源", captured_at: "initial", provenance: [] });
+const generationInput = (g: number, inputs: ReturnType<typeof material>[]) => ({ request_id: `rac-${g}`, request_hash: `rac-${g}`,
+  title: "材料整理", instructions: "按要求整理。", inputs });
+
+test("RAC-2285 materials whose JSON exceeds the prompt budget are refused before the request is taken, and nothing is recorded", async t => {
+  const f = await fixture(t), body = "\"".repeat(100_000), json = JSON.stringify([material(body)]);
+  assert.ok(json.length > 175_800 && json.length < 351_600, "each quote costs two characters in JSON: inside the band that is counted");
+  await assert.rejects(f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, generationInput(2285, [material(body)])),
+    { code: "pages.invalid", message: /材料过长/ });
+  assert.equal(f.store.generations("project").length, 0, "nothing of a refused generation is recorded");
+  assert.equal(f.dispatches(), 0, "and the model is never asked");
+});
+
+test("RAC-2286 exactly the prompt budget of materials JSON is accepted and one more character is refused", async t => {
+  const f = await fixture(t), overhead = JSON.stringify([material("")]).length;
+  // The bodies are held to 100,000 characters by the check above this one: reach the JSON budget with quotes, two characters each in JSON.
+  const body = (quotes: number) => "\"".repeat(quotes) + "a".repeat(100_000 - quotes);
+  const quotes = 175_800 - overhead - 100_000;
+  assert.equal(JSON.stringify([material(body(quotes))]).length, 175_800, "the materials JSON is exactly the budget");
+  const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, generationInput(2286, [material(body(quotes))])) as { document: { title: string } };
+  assert.equal(made.document.title, "材料整理", "exactly the budget is accepted");
+  assert.equal(f.store.generation("project", "rac-2286")!.status, "completed");
+  assert.equal(JSON.stringify([material(body(quotes + 1))]).length, 175_801, "one more quote is one more JSON character");
+  await assert.rejects(f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    { ...generationInput(2286, [material(body(quotes + 1))]), request_id: "rac-2286-over", request_hash: "rac-2286-over" }),
+    { code: "pages.invalid", message: /材料过长/ }, "one character over the budget is refused");
+  assert.equal(f.store.generations("project").length, 1, "and the refused one leaves no record");
+});
+
+test("RAC-2287 materials JSON over the budget in units but under it in characters (all emoji) is accepted", async t => {
+  const f = await fixture(t), body = "😀".repeat(100_000), json = JSON.stringify([material(body)]);
+  assert.ok(json.length > 175_800, "units alone would refuse it");
+  assert.ok([...json].length < 175_800, "its characters are under the budget");
+  const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, generationInput(2287, [material(body)])) as { document: { title: string } };
+  assert.equal(made.document.title, "材料整理", "the generation ran, counted in characters as the Host counts");
+});
+
+test("RAC-2288 ordinary materials well under the budget still generate the document", async t => {
+  const f = await fixture(t);
+  const inputs = [{ ...material("甲".repeat(3_000)), entry_id: "entry-a", item_id: "item-a" }, { ...material("乙".repeat(3_000)), entry_id: "entry-b", item_id: "item-b" }];
+  const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, generationInput(2288, inputs)) as { document: { title: string } };
+  assert.equal(made.document.title, "材料整理");
+  assert.equal(f.store.generation("project", "rac-2288")!.status, "completed");
+});

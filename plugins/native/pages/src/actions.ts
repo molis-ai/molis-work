@@ -24,6 +24,19 @@ import { PAGES_DOCUMENT_INTAKE, preparePagesIntakeOffers } from "./intake-offers
 import { createPagesDocument, type CreatedPagesDocument } from "./create-document.js";
 
 const text = { type: "string" };
+
+/** The materials' JSON in the prompt, in characters as the Host counts them: 180,000 for the prompt's data, less the fixed 4,109
+ * characters around it (`标题：` + an 80-character title + `\n用户要求：` + 4,000-character requirements + two `\n\n` + the 16-character line
+ * before the JSON), rounded down to leave room. The Host also leaves its own 98 characters of slack above 180,000. */
+export const PAGES_MATERIALS_JSON_MAX_CHARS = 175_800;
+
+/** The materials' JSON is part of the prompt the model port measures in characters: it would refuse this generation anyway when that
+ * JSON pushes the prompt over its limit, so the same check is made here, before the request is taken and a generation record is written.
+ * Units are never fewer than characters and never more than twice as many, so only the band in between needs its characters counted once. */
+function materialsJsonFits(inputs: readonly PagesInputSnapshot[]) {
+  const json = JSON.stringify(inputs);
+  return json.length <= 2 * PAGES_MATERIALS_JSON_MAX_CHARS && (json.length <= PAGES_MATERIALS_JSON_MAX_CHARS || [...json].length <= PAGES_MATERIALS_JSON_MAX_CHARS);
+}
 const id = { type: "string", minLength: 1, pattern: "\\S" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const array = (items: unknown) => ({ type: "array", items });
@@ -300,7 +313,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.generate, (input, caller) => {
       const units = input.inputs.reduce((sum, item) => sum + item.body.length, 0);
       // A character is at most two UTF-16 units, so over 200,000 units is always over 100,000 characters: only the middle band is expanded and counted.
-      if (units > 200_000 || (units > 100_000 && input.inputs.reduce((sum, item) => sum + [...item.body].length, 0) > 100_000)) throw pagesErrors.invalid("材料过长，请减少所选条目");
+      if (units > 200_000 || (units > 100_000 && input.inputs.reduce((sum, item) => sum + [...item.body].length, 0) > 100_000) || !materialsJsonFits(input.inputs)) throw pagesErrors.invalid("材料过长，请减少所选条目");
       const record: PagesGenerationRecord = { ...input, project_id: project(caller), status: "running", document_id: null, error: null, updated_at: new Date().toISOString() };
       return generatePagesFromMaterials(ports, caller, record, ports.complete ? prompt => ports.complete!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined);
     }, () => ports.modelAvailability()),

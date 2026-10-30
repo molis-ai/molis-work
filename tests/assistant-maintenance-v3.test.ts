@@ -1,3 +1,4 @@
+import { registerMaintenanceChecks } from "./fixtures/home-store-maintenance.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -54,7 +55,7 @@ test("RAC-447 a version 2 Assistant store is refused untouched; the maintenance 
   assert.ok(before.works.some(body => body.includes('"kind":"coding"')) && before.rounds.some(body => body.includes('"executor":"coding"'))
     && before.requests.some(row => row.includes('"kind":"coding"')), "the fixture is the old shape");
   const db = new DatabaseSync(file);
-  try { db.exec(maintenance); } finally { db.close(); }
+  try { registerMaintenanceChecks(db, "assistant"); db.exec(maintenance); } finally { db.close(); }
   const after = rows(file);
   assert.equal(after.version, 3);
   assert.ok(!after.works.some(body => body.includes('"coding"')) && !after.rounds.some(body => body.includes('"coding"'))
@@ -77,7 +78,7 @@ test("RAC-448 another version and a failing write roll back the entire Assistant
   for (const version of [0, 3]) {
     const db = new DatabaseSync(file); db.exec(`PRAGMA user_version = ${version}`); db.close();
     const wrong = new DatabaseSync(file);
-    try { assert.throws(() => wrong.exec(maintenance)); } finally { wrong.close(); }
+    try { registerMaintenanceChecks(wrong, "assistant"); assert.throws(() => wrong.exec(maintenance)); } finally { wrong.close(); }
     assert.deepEqual({ ...rows(file), version: 2 }, original, `version ${version}: nothing was changed`);
     const restore = new DatabaseSync(file); restore.exec("PRAGMA user_version = 2"); restore.close();
   }
@@ -85,12 +86,12 @@ test("RAC-448 another version and a failing write roll back the entire Assistant
   for (const table of ["assistant_works", "assistant_rounds", "assistant_requests"]) {
     const blocked = new DatabaseSync(file);
     try {
-      blocked.exec(`CREATE TRIGGER fail_${table} BEFORE UPDATE ON ${table} BEGIN SELECT RAISE(ABORT, '${table} is locked'); END`);
+      blocked.exec(`CREATE TEMP TRIGGER fail_${table} BEFORE UPDATE ON ${table} BEGIN SELECT RAISE(ABORT, '${table} is locked'); END`);
+      registerMaintenanceChecks(blocked, "assistant");
       assert.throws(() => blocked.exec(maintenance), new RegExp(`${table} is locked`));
       assert.equal(blocked.isTransaction, true, "the script stops at the first error and leaves the transaction to be rolled back by closing");
     } finally { blocked.close(); }
     const after = rows(file); // closing the connection rolled the open transaction back
     assert.deepEqual(after, original, `${table}: works, rounds, stored results and the version are all as they were`);
-    const clean = new DatabaseSync(file); clean.exec(`DROP TRIGGER fail_${table}`); clean.close();
   }
 });

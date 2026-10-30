@@ -1,3 +1,4 @@
+import { registerMaintenanceChecks } from "./fixtures/home-store-maintenance.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -29,7 +30,7 @@ const read = (file: string) => {
 };
 function apply(file: string) {
   const db = new DatabaseSync(file);
-  try { db.exec(maintenance); } finally { db.close(); }
+  try { registerMaintenanceChecks(db, "functions"); db.exec(maintenance); } finally { db.close(); }
 }
 
 test("PG-032 P2: a version 3 Functions store is refused untouched; the maintenance adds install_id, keeps every judgment and opens at version 4", t => {
@@ -54,6 +55,6 @@ test("PG-032 P2: another version and a failing write roll back the entire Functi
   const reset = new DatabaseSync(file);
   reset.exec("PRAGMA user_version = 3; ALTER TABLE function_judgments ADD COLUMN install_id TEXT"); reset.close();
   const before = read(file);
-  assert.throws(() => apply(file), /duplicate column/);
+  assert.throws(() => apply(file), /maintenance schema mismatch/);
   assert.deepEqual(read(file), before, "nothing changed, the version is still 3");
 });

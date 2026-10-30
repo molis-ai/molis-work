@@ -1,3 +1,4 @@
+import { registerMaintenanceChecks } from "./fixtures/home-store-maintenance.mjs";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -37,7 +38,7 @@ const read = (file: string) => {
 };
 function apply(file: string) {
   const db = new DatabaseSync(file);
-  try { db.exec(maintenance); } finally { db.close(); }
+  try { registerMaintenanceChecks(db, "characters"); db.exec(maintenance); } finally { db.close(); }
 }
 
 test("SC-2: a version 1 Characters store is refused untouched; the maintenance adds the runs table, keeps every draft and opens at version 2", t => {
@@ -63,7 +64,7 @@ test("SC-2: another version and a failing write roll back the entire Characters 
   // A write that fails after the runs table is made: an index of that name already stands on the drafts.
   const reset = new DatabaseSync(file);
   reset.exec("PRAGMA user_version = 1; CREATE INDEX character_runs_by_character ON character_drafts (owner_actor_id)"); reset.close();
-  assert.throws(() => apply(file), /already exists/);
+  assert.throws(() => apply(file), /maintenance schema mismatch/);
   const after = read(file);
   assert.equal(after.version, 1); assert.deepEqual(after.drafts, original.drafts);
   assert.deepEqual(Object.keys(after.schema.tables), ["character_drafts"], "the runs table made before the failure is rolled back");

@@ -1194,6 +1194,26 @@ test("every path the rules name exists in this repository, so a rename cannot le
   assert.ok(files.has(I18N_TEST), I18N_TEST);
 });
 
+// RAC-2427: docs/system/PARALLEL-DEVELOPMENT.md section 6 names the shared core in two places — the must-run table row and the
+// full-suite condition bullet — and both must carry every package FULL_REGRESSION.corePackages counts (plus the modules/ prefix),
+// so a package added to the rule without the documents (horizontal/agent-host was) fails here instead of drifting again.
+test("RAC-2427 the shared-core lists in PARALLEL-DEVELOPMENT.md name every package FULL_REGRESSION.corePackages counts", () => {
+  const guide = readFileSync(path.join(realRoot, "docs/system/PARALLEL-DEVELOPMENT.md"), "utf8").split("\n");
+  const mustRun = guide.find((line) => line.startsWith("| 共享核心（"));
+  const condition = guide.find((line) => line.startsWith("- 改了 contracts、kernel、plugin-sdk、plugin-runtime"));
+  assert.ok(mustRun, "section 6's must-run table has the shared-core row");
+  assert.ok(condition, "section 6's full-suite condition names the shared-core packages");
+  // The rule names workspace paths; the documents name the same packages without their area, and the modules/ prefix as "modules".
+  const DOCUMENTED: Record<string, string> = {
+    "packages/contracts": "contracts", "packages/kernel": "kernel", "packages/plugin-sdk": "plugin-sdk",
+    "packages/plugin-runtime": "plugin-runtime", "horizontal/agent-host": "horizontal/agent-host",
+  };
+  const documented = [...FULL_REGRESSION.corePackages.map((entry: string) => DOCUMENTED[entry] ?? entry),
+    ...FULL_REGRESSION.corePackagePrefixes.map((prefix: string) => prefix.replace(/\/$/u, ""))];
+  assert.ok(documented.includes("horizontal/agent-host"), "agent-host is shared core, as T-271 added it to the rule");
+  for (const line of [mustRun!, condition!]) for (const name of documented) assert.ok(line.includes(name), `${name} is missing from: ${line}`);
+});
+
 test("in this repository, a change to a package selects every test its README lists as must-run, and each of them exists", () => {
   const files = listFiles(realRoot), packages = discoverPackages(realRoot, files), index = buildTestIndex(realRoot, files, packages);
   assert.ok(packages.length >= 60, `${packages.length} packages`);

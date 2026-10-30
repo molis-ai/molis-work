@@ -252,7 +252,6 @@ const headErrors = (measured, budget, base) => {
 // readability), and one small filter helper injected into the shell and the Home dialog; the review re-audit added provider/new and
 // connected/connection_error and the own-key lookup (+64 B), so this one asset is +1,346 B in all; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [707763, 707886],
   "/assets/molis-work-workbench.js": [1148453, 1149799],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

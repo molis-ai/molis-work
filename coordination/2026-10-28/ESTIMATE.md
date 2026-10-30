@@ -6,6 +6,12 @@
 
 来源记法：`priv:N` = `specs/repository-anti-corruption/privileges.md` 第 N 行（main）；`BL:N` = `specs/BACKLOG.md`；`LN:N` = `coordination/2026-10-14/LINES.md`；`RM:N`、`BD:N` = `coordination/2026-10-28/README.md`、`BOARD.md`；`GL:N` = `docs/system/GLOSSARY.md`；`W511:N` = `slices/w511-connector-oauth-declarations.md`；`MISC:N` = `coordination/2026-10-28/MISC.md`。
 
+> **2026-10-30 更新（统筹）**：用户 07:50Z 定了「干净重建」：真实 Home 不迁移、重建（原 Home 整个 `mv` 到 `~/molis-work-backups/2026-10-30-replaced-by-clean-home/`），各库与带版本的 JSON 一律回到版本 1，删掉旧维护脚本、fixture 与演练（#1332 6517794305、6518340875）。所以第 3 节 ③ 的大部分不再成立：
+> - **作废**：PG-012/PG-094 ③/PG-020 的维护脚本与「目录库 22→23 取号」、W5-17 的一次性维护、FI-4 存量账、A7 的目录改名脚本、BL-739 只读核对。这些归入干净重建线（设备 A 的 Codex，片 2～7），以「删旧脚本 + 版本归 1」收口，不再各开一本。
+> - **仍要做，但不再等窗口**：PG-077 第二步（BL-760/761）只剩代码，维护脚本那一半作废；W5-16 B2b 的真实验证改在重建后的新 Home 上做；W6-05 终回归照旧排在最后。
+> - **新增一步**：干净重建的代码全部合入后，统筹弹窗请用户说「开始」，再动真实 Home。
+> - ③ 由 9～16 本收成约 4～7 本（干净重建线 6 片已在途，不另计）；合计口径相应下调，下次整体重算时改第 1 节的表。
+
 ## 1. 结论
 
 还要约 **52～85 本**，分四类；BL-812、BL-790、发版这三个「进不进完成标准」待裁的大项并入时最多 96 本（取中点约 68）。统筹的粗估是 45～70。

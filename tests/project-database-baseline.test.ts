@@ -114,7 +114,7 @@ test("a new project database is made at the baseline, its plugins' tables made a
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "基线", actor_id: "web-user" });
-  for (const plugin_id of ["coding", "feed", "schedule", "artifacts"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
+  for (const plugin_id of ["coding", "feed", "schedule"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
   catalog.close();
   const created = new DatabaseSync(project.database_path, { readOnly: true });
   try {

@@ -220,6 +220,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
     ["inbox", "Inbox", "inbox"],
     ["schedule", "Schedule", "timer"],
     ["feed", "Feed", "rss"],
+    ["artifacts", "成果", "package"],
   ]);
   const view = {
     snapshot: {
@@ -255,7 +256,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
       runs: [],
       out_rules: [],
     },
-    enabled_plugins: ["goals", "inbox", "schedule", "feed", "artifacts"],
+    enabled_plugins: ["goals", "inbox", "schedule", "feed", "files"],
     stage_data: { schedule: { jobs: [job()], tasks: [] } },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);

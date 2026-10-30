@@ -9,7 +9,7 @@ import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactLinkSubjectsPort, artifactProducerSources, captureHostLog, type ArtifactProducerSource, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
-import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactBrowserUiContribution } from "@molis-ai/molis-work-app-workbench";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the objects that use a version, by how. An Agent's proposal to use a version

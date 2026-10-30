@@ -471,7 +471,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID });
-        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "artifacts", actor_id: LOCAL_PERSON_ACTOR_ID });
+        // Artifact imports use the platform service in every project.
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
       if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));

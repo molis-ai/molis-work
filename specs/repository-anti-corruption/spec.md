@@ -1847,7 +1847,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `packages/test-kit` | 基础 | 11 | 1,242 | `boundaries.ts` 610 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
 | `packages/ui-host` | 基础 | 8 | 808 | `request-client.ts` 298 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `plugins/native/alchemist` | 内置插件 | 106 | 10,872 | `studio/server/db/pulse-repository.ts` 563 | 2 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/artifacts` | 内置插件 | 14 | 820 | `browser-ui.ts` 239 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/coding` | 内置插件 | 206 | 23,321 | `styles.ts` 749 | 3 | 2 | 2 | Runtime | 深 | 已审 |
 | `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |

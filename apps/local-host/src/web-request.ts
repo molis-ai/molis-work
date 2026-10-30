@@ -6,7 +6,7 @@ import { builtinRegistrations } from "./agent-definitions/builtin-registrations.
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
-import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
+import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
@@ -163,7 +163,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
     if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
-    view = { ...view, stage_data: await declaredStageData(view.shown_plugins ?? [], permissions => bindLocalWebActions(localHost, hostReference, permissions)) };
+    view = { ...view, stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action)) };
     const feedActions = bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);

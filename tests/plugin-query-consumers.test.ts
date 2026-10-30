@@ -43,8 +43,8 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     const cache = new Map(), options = { databasePath, projectId, homeDirectory: home };
     const view = () => cachedMolisWorkWebView(cache, runtime.store, options, actions);
     // Schedule's stage reads its own data (`stage_data`), as the person and with only that read's permissions (T-133).
-    const scheduleTasks = async () => ((await declaredStageData(["schedule"], permissions => bindActionClient(host.actionClient(reference),
-      () => ({ ...caller, permissions: [...permissions] })))).schedule as { tasks: unknown[] } | undefined)?.tasks.length ?? 0;
+    const scheduleTasks = async () => ((await declaredStageData(["schedule"], action => bindActionClient(host.actionClient(reference),
+      () => ({ ...caller, permissions: [...action.action.permissions] })))).schedule as { tasks: unknown[] } | undefined)?.tasks.length ?? 0;
     const first = await view();
     assert.equal(first.feed.feed_items.find(row => row.item_id === item.item_id)?.body, null);
     assert.equal(first.feed.inbox_entries.length, 1); assert.equal(await scheduleTasks(), 1);

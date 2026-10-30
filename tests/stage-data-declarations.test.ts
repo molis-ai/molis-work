@@ -3,11 +3,11 @@
 // permissions and knows no plugin by name: the page, and `GET /api/stage/<plugin>` that redraws the stage in place. Schedule is the
 // first plugin drawn this way.
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionError, bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, stageDataAction } from "@molis-ai/molis-work-app-workbench";
 import { scheduleActions, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -59,21 +59,20 @@ test("RAC-2500 Schedule's stage-opening view names its own task list, and the wo
   assert.deepEqual(declaring, ["schedule"], "slice 1 moves Schedule alone; Feed and Inbox follow in slice 2");
 });
 
-/** A binder that records the permissions each stage read is bound with, and answers through `answer`. */
+/** A binder that records the action each stage read is bound for, and answers through `answer`. */
 function recordingBinder(answer: (capabilityId: string) => unknown) {
-  const bound: string[][] = [];
-  const bind = (permissions: readonly string[]): BoundActionClient => {
-    bound.push([...permissions]);
+  const bound: string[] = [];
+  const bind = (action: ActionDefinition): BoundActionClient => {
+    bound.push(`${action.capability_id}@${action.version}`);
     return { discover: async () => [], invoke: async definition => answer(definition.capability_id) as never };
   };
   return { bound, bind };
 }
 
-test("RAC-2505 a stage read is bound to only its own action's permissions, never the owner's, and only for the plugins the page shows", async () => {
+test("RAC-2505 a stage read is bound for its own action alone, and only for the plugins the page shows", async () => {
   const { bound, bind } = recordingBinder(() => ({ jobs: [], tasks: [], operations: [] }));
   assert.deepEqual(await declaredStageData(["schedule", "goals"], bind), { schedule: { jobs: [], tasks: [], operations: [] } });
-  assert.deepEqual(bound, [[...scheduleActions.list.action.permissions]]);
-  assert.ok(!bound[0]!.includes("schedule:write"), "the read cannot write");
+  assert.deepEqual(bound, [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`]);
   const none = recordingBinder(() => { throw new Error("not called"); });
   assert.deepEqual(await declaredStageData(["goals", "pages"], none.bind), {}, "no shown plugin declares a stage read");
   assert.deepEqual(none.bound, [], "a plugin the page does not show is not asked");
@@ -91,7 +90,11 @@ test("RAC-2504 any other failure of a stage read is the page's to show, not an e
   await assert.rejects(declaredStageData(["schedule"], bind), /库坏了/);
 });
 
-test("RAC-2501 RAC-2502 RAC-2503 the page and its redraw take Schedule's stage from its own read; a plugin the project does not show, or one without a stage read, has no redraw", { timeout: 60_000 }, async () => {
+/**
+ * A Home with two projects, one showing Schedule and one not, served by the real web server over a real local Host; `actions` writes
+ * Schedule's tasks as a person who may. Everything is closed and removed after the test.
+ */
+async function servedHome(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "stage-data-"));
   const { scheduled, bare } = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const make = async (name: string) => { const { project_id } = await catalog.createProject({ display_name: name, actor_id: "test" }); return project_id; };
@@ -106,38 +109,70 @@ test("RAC-2501 RAC-2502 RAC-2503 the page and its redraw take Schedule's stage f
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  try {
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const base = (projectId: string) => `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}`;
-    await actions.invoke(scheduleActions.createTask, { title: "Morning digest", instructions: "Read the news", time: "08:00" });
-
-    // RAC-2501: the page's Schedule stage carries the task its own read lists.
-    const page = await fetch(`${base(scheduled.project_id)}/`);
-    assert.equal(page.status, 200);
-    assert.match(await page.text(), /Morning digest/);
-
-    // RAC-2502: the stage is drawn again in place, from a fresh read: a task made after the page shows up in the redraw.
-    await actions.invoke(scheduleActions.createTask, { title: "Evening review", instructions: "Close the day", time: "20:00" });
-    const redraw = await fetch(`${base(scheduled.project_id)}/api/stage/schedule`);
-    assert.equal(redraw.status, 200);
-    assert.equal(redraw.headers.get("cache-control"), "no-store");
-    const html = await redraw.text();
-    assert.match(html, /data-schedule-workbench/);
-    assert.match(html, /Morning digest/);
-    assert.match(html, /Evening review/);
-
-    // RAC-2503: a project that does not show Schedule is refused before anything is drawn or read.
-    const refused = await fetch(`${base(bare.project_id)}/api/stage/schedule`);
-    assert.equal(refused.status, 403);
-    assert.equal((await refused.json() as { code: string }).code, "actions.plugin_disabled");
-    // A plugin whose stage declares no read, or a path below a plugin, is not this route's: the page has no such redraw.
-    for (const path of ["/api/stage/pages", "/api/stage/schedule/tasks", "/api/stage/no-such-plugin"]) {
-      const response = await fetch(base(scheduled.project_id) + path);
-      assert.notEqual(response.status, 200, path);
-      assert.doesNotMatch(await response.text(), /data-schedule-workbench/, path);
-    }
-  } finally {
+  t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close(); await rm(home, { recursive: true, force: true });
+  });
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const base = (projectId: string) => `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}`;
+  return { host, scheduled, bare, actions, base };
+}
+
+test("RAC-2501 RAC-2502 RAC-2503 the page and its redraw take Schedule's stage from its own read; a plugin the project does not show, or one without a stage read, has no redraw", { timeout: 60_000 }, async t => {
+  const { scheduled, bare, actions, base } = await servedHome(t);
+  await actions.invoke(scheduleActions.createTask, { title: "Morning digest", instructions: "Read the news", time: "08:00" });
+
+  // RAC-2501: the page's Schedule stage carries the task its own read lists.
+  const page = await fetch(`${base(scheduled.project_id)}/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /Morning digest/);
+
+  // RAC-2502: the stage is drawn again in place, from a fresh read: a task made after the page shows up in the redraw.
+  await actions.invoke(scheduleActions.createTask, { title: "Evening review", instructions: "Close the day", time: "20:00" });
+  const redraw = await fetch(`${base(scheduled.project_id)}/api/stage/schedule`);
+  assert.equal(redraw.status, 200);
+  assert.equal(redraw.headers.get("cache-control"), "no-store");
+  const html = await redraw.text();
+  assert.match(html, /data-schedule-workbench/);
+  assert.match(html, /Morning digest/);
+  assert.match(html, /Evening review/);
+
+  // RAC-2503: a project that does not show Schedule is refused before anything is drawn or read.
+  const refused = await fetch(`${base(bare.project_id)}/api/stage/schedule`);
+  assert.equal(refused.status, 403);
+  assert.equal((await refused.json() as { code: string }).code, "actions.plugin_disabled");
+  // A plugin whose stage declares no read, or a path below a plugin, is not this route's: the page has no such redraw.
+  for (const path of ["/api/stage/pages", "/api/stage/schedule/tasks", "/api/stage/no-such-plugin"]) {
+    const response = await fetch(base(scheduled.project_id) + path);
+    assert.notEqual(response.status, 200, path);
+    assert.doesNotMatch(await response.text(), /data-schedule-workbench/, path);
+  }
+});
+
+// Verification of slice 1 (#1590, Codex A): the binder was handed the action's permissions, but the local web adapter joined every running
+// installation's back into the caller. What is asserted here is the caller the Host's action client really gets, for the page and its
+// redraw: the person in this project, exactly the action's own permissions, and no other action it may reach.
+test("RAC-2505 the page and its redraw call the stage read as the person in the project with exactly its own permissions and no other action", { timeout: 60_000 }, async t => {
+  const { host, scheduled, actions, base } = await servedHome(t);
+  await actions.invoke(scheduleActions.createTask, { title: "Morning digest", instructions: "Read the news", time: "08:00" });
+  const callers: ActionCallContext[] = [], actionClient = MolisWorkLocalHost.prototype.actionClient;
+  t.mock.method(host, "actionClient", (reference: Parameters<typeof actionClient>[0]) => {
+    const client = actionClient.call(host, reference);
+    return { discover: (context: ActionCallContext) => client.discover(context), invoke(context: ActionCallContext, action: ActionReference, input: unknown) {
+      if (action.capability_id === scheduleActions.list.capability_id) callers.push(context);
+      return client.invoke(context, action, input);
+    } };
+  });
+  for (const path of ["/", "/api/stage/schedule"]) {
+    callers.length = 0;
+    const response = await fetch(base(scheduled.project_id) + path);
+    assert.equal(response.status, 200, path);
+    assert.match(await response.text(), /Morning digest/, path);
+    assert.equal(callers.length, 1, `${path}: the stage read is called once`);
+    const [caller] = callers;
+    assert.deepEqual([caller!.actor_id, caller!.audience, caller!.project_id], [LOCAL_PERSON_ACTOR_ID, "user", scheduled.project_id], path);
+    assert.deepEqual([...caller!.permissions].sort(), [...scheduleActions.list.action.permissions].sort(), `${path}: only the read's own permissions`);
+    assert.deepEqual(caller!.allowed_actions?.map(item => `${item.capability_id}@${item.version}`), [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`], `${path}: no other action`);
+    assert.equal(typeof caller!.validate_authority, "function", `${path}: the installation's grant is still checked per call`);
   }
 });

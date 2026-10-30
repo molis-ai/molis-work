@@ -610,6 +610,13 @@ test("RAC-2401 only a source change under packages/plugin-runtime recommends the
   assert.deepEqual(rulesOf(select(["packages/plugin-runtime/src/main.ts"])), ["shared-core"]);
 });
 
+// RAC-2403: docs/system/PARALLEL-DEVELOPMENT.md:66 and the PR template count horizontal/agent-host as shared core too — it is the
+// one place model calls go through, the only package that depends on @prologue/sdk — so a source change there recommends the full suite.
+test("RAC-2403 only a source change under horizontal/agent-host recommends the full suite", () => {
+  workspacePackage("horizontal/agent-host", "@molis-ai/molis-work-service-agent-host");
+  assert.deepEqual(rulesOf(select(["horizontal/agent-host/src/main.ts"])), ["shared-core"]);
+});
+
 test("the assembly of the host recommends the full suite", () => {
   assert.deepEqual(rulesOf(select(["apps/local-host/src/web-request.ts"])), ["assembly"]);
 });
@@ -1222,6 +1229,7 @@ test("in this repository: shared core recommends the full suite, a document alon
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-runtime/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("horizontal/agent-host/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));

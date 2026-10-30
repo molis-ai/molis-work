@@ -135,11 +135,15 @@ def title_is_broken(text):
     return False
 
 
-def metadata_counts(db, journey_ids=()):
+def metadata_counts(db, journey_ids=(), roles=()):
     result = {}
-    if table_exists(db, "workspaces") and table_exists(db, "workspace_project_memberships"):
+    if "memory" in roles and table_exists(db, "memory_prefs"):
+        result["memory_preference_records"] = scalar(db, "SELECT count(*) FROM memory_prefs")
+    if "memory" in roles and table_exists(db, "memory_markers"):
+        result["memory_adoption_records"] = scalar(db, "SELECT count(*) FROM memory_markers WHERE key='strategy-adoption'")
+    if "catalog" in roles and table_exists(db, "workspaces") and table_exists(db, "workspace_project_memberships"):
         result["empty_workspaces"] = scalar(db, "SELECT count(*) FROM workspaces AS workspace WHERE NOT EXISTS (SELECT 1 FROM workspace_project_memberships AS member WHERE member.workspace_id=workspace.workspace_id)")
-    if table_exists(db, "plugin_runtime_installs"):
+    if {"project", "runtime"}.intersection(roles) and table_exists(db, "plugin_runtime_installs"):
         result["invalid_install_records"] = scalar(db, "SELECT count(*) FROM plugin_runtime_installs WHERE NOT json_valid(record_json)")
         result["disabled_unclassified"] = scalar(db, "SELECT count(*) FROM plugin_runtime_installs WHERE json_valid(record_json) AND json_extract(record_json,'$.state')='disabled'")
         result["characters_installs"] = scalar(db, "SELECT count(*) FROM plugin_runtime_installs WHERE json_valid(record_json) AND json_extract(record_json,'$.plugin_id') IN (?,?)", CHARACTERS)
@@ -154,19 +158,22 @@ def metadata_counts(db, journey_ids=()):
         if table_exists(db, "plugin_event_resolutions"):
             related["plugin_event_resolutions"] = scalar(db, "SELECT count(*) FROM plugin_event_resolutions WHERE json_valid(record_json) AND json_extract(record_json,'$.subscriber_install_id') IN (" + installation + ")", (CHARACTERS[0],))
         result["characters_install_scoped_rows"] = related
-    if table_exists(db, "plugin_runtime_release_artifacts"):
+    if {"project", "runtime"}.intersection(roles) and table_exists(db, "plugin_runtime_release_artifacts"):
         result["ui_commands_in_archives"] = scalar(db, "SELECT count(*) FROM plugin_runtime_release_artifacts WHERE json_valid(artifact_json) AND json_type(artifact_json,'$.manifest.ui.commands') IS NOT NULL")
         result["characters_archives"] = scalar(db, "SELECT count(*) FROM plugin_runtime_release_artifacts WHERE plugin_id IN (?,?)", CHARACTERS)
-    if table_exists(db, "inbox_entries"):
+    if "project" in roles and table_exists(db, "inbox_entries"):
         owner = " AND owner_plugin_id IS NULL" if "owner_plugin_id" in columns(db, "inbox_entries") else ""
         result["unowned_goal_reminders"] = scalar(db, "SELECT count(*) FROM inbox_entries WHERE subject_type='goal_decision'" + owner)
-    if table_exists(db, "library_artifacts"):
+    if "project" in roles and table_exists(db, "library_artifacts"):
         result["native_feed_lines"] = scalar(db, "SELECT count(*) FROM library_artifacts WHERE producer_binding_signature='native:feed' AND producer_plugin_id IN ('io.molis.work.native.feed','io.molis.work.feed')")
-    if table_exists(db, "journeys"):
+    if "onboarding" in roles and table_exists(db, "journeys"):
         # SQLite returns only the quoted title token, preserving escaped lone surrogates. Never return or parse a journey body.
         sql = "SELECT journeys.body -> tree.fullkey FROM journeys,json_tree(journeys.body) AS tree WHERE tree.key='title' AND tree.type='text'"
+        result["onboarding_journeys"] = scalar(db, "SELECT count(*) FROM journeys")
         result["broken_onboarding_titles"] = sum(title_is_broken(json.loads(row[0])) for row in db.execute(sql))
-    if table_exists(db, "pages") and table_exists(db, "page_imports"):
+    if "pages" in roles:
+        result["onboarding_pages_title_check"] = "MISSING_PAGES_OR_IMPORT_RECEIPTS" if not (table_exists(db, "pages") and table_exists(db, "page_imports")) else "NO_RECORDED_JOURNEYS" if not journey_ids else "BY_RECORDED_IMPORTS"
+    if "pages" in roles and table_exists(db, "pages") and table_exists(db, "page_imports"):
         # The old partTitle result was saved in Pages, not back into the journey. A UTF-8 TEXT binding can replace a lone
         # surrogate with U+FFFD: count that as a candidate, never proof that the person's original title was corrupted.
         titles = {}
@@ -176,7 +183,7 @@ def metadata_counts(db, journey_ids=()):
         result["onboarding_page_titles_checked"] = len(titles)
         result["onboarding_page_titles_broken"] = sum(title_is_broken(title) for title in titles.values())
         result["onboarding_page_titles_replacement_candidates"] = sum("\ufffd" in title for title in titles.values())
-    if table_exists(db, "todo_batches"):
+    if "todo" in roles and table_exists(db, "todo_batches"):
         sql = "SELECT batch.body_json -> tree.fullkey FROM todo_batches AS batch,json_tree(batch.body_json) AS tree WHERE batch.origin='onboarding' AND tree.key='title' AND tree.type='text'"
         titles = [json.loads(row[0]) for row in db.execute(sql)]
         result["onboarding_todo_titles_broken"] = sum(title_is_broken(title) for title in titles)
@@ -203,6 +210,7 @@ def inventory(given, checklist):
         finally:
             db.close()
     projects = sorted(projects)
+    declared_files, metadata_roles = set(), {}
     for line in Path(checklist).read_text().splitlines():
         cells = [cell.strip().strip("`") for cell in line.split("|")[1:-1]]
         if len(cells) != 6 or not cells[2].isdigit() or "/" not in cells[1]:
@@ -210,6 +218,18 @@ def inventory(given, checklist):
         position, metadata = cells[1], cells[3]
         file_pattern, _, store = position.partition("#")
         candidates = [root / file_pattern.replace("<project_id>", project) for project in projects] if "<project_id>" in file_pattern else [root / file_pattern]
+        if "<编码后的 project_id>" in file_pattern:
+            candidates = [file for file in files if file.name == Path(file_pattern).name and file.parent.parent == root / "alchemist/projects"] or [root / file_pattern]
+        roles = {role for reference, role in (("CONTEXT_ONBOARDING_BASELINE", "onboarding"), ("PAGES_DATABASE", "pages"), ("TODO_DATABASE", "todo"), ("MEMORY_LEDGER_BASELINE", "memory")) if reference in cells[4]}
+        if file_pattern == "projects/<project_id>/molis-work.db":
+            roles.add("project")
+        if file_pattern == "projects/catalog.db":
+            roles.add("catalog")
+        if file_pattern == "plugin-runtime/plugin-runtime.db":
+            roles.add("runtime")
+        for file in candidates:
+            declared_files.add(file)
+            metadata_roles.setdefault(file, set()).update(roles)
         actual = []
         for file in candidates:
             if position == "feed/secrets.json":
@@ -236,6 +256,8 @@ def inventory(given, checklist):
         result["stores"].append({"position": position, "expected": int(cells[2]), "actual": actual})
     journey_ids = set()
     for file in files:
+        if "onboarding" not in metadata_roles.get(file, ()):
+            continue
         try:
             db = readonly(file)
             try:
@@ -249,7 +271,7 @@ def inventory(given, checklist):
         try:
             db = readonly(file)
             try:
-                counts = metadata_counts(db, journey_ids)
+                counts = metadata_counts(db, journey_ids, metadata_roles.get(file, ()))
                 counts["integrity_ok"] = scalar(db, "PRAGMA integrity_check") == "ok"
                 counts["foreign_key_errors"] = len(db.execute("PRAGMA foreign_key_check").fetchall())
                 result["metadata"][file.relative_to(root).as_posix()] = counts
@@ -257,6 +279,7 @@ def inventory(given, checklist):
                 db.close()
         except (sqlite3.Error, ValueError, UnicodeError):
             result["not_read"].append(file.relative_to(root).as_posix())
+    result["outside_checklist_sqlite_files"] = sum(file not in declared_files for file in files)
     return result
 
 

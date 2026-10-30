@@ -1,16 +1,16 @@
 # 设备 A：统一 Home 维护窗口
 
-状态：准备中；第一步仓库盘点已完成，第二步代码与一次性 Home 演练未完成。第三、四步未获本次授权、未开始。负责人：Codex（设备 A）；统筹：Claude 统筹；唯一协调通道：issue #1332。
+状态：准备中；第一步仓库盘点完成，第二步候选 #1538/#1549/#1552/#1553 已交接，BL-780与Memory两段已补演练。第三步本次获准只读复制和预检完成；发现旧workspace身份及关联记录待统筹裁定。第四步未获时间与逐项授权、未开始。Memory2→3→4按统筹6516758896的新决定纳入同窗。负责人：Codex（设备 A）；统筹：Claude 统筹；唯一协调通道：issue #1332。
 
 ## 本次执行合同
 
-用户 2026-10-29 明确授权盘点、在自己的工作树合 main 和修复维护代码、临时 Home 演练、secrets 后普通推送及开 base main PR。主检出不 checkout/switch/reset/stash。真实 Home 的文件、服务、Keychain、本机安装和配置均未访问；真实拷贝核对须先由统筹弹窗获准，真实写入须另获明确时间与逐项范围。10-29 上一次维护窗口已取消（#1332 评论 6486081779），不沿用那次许可。
+用户 2026-10-29 明确授权盘点、在自己的工作树合 main 和修复维护代码、临时 Home 演练、secrets 后普通推送及开 base main PR。主检出不 checkout/switch/reset/stash。第一、二步没有访问真实 Home；统筹6516315418记录本次用户同意只读复制，第三步按所记范围进行，不停服务、不动源文件与配置、不碰Keychain。真实写入仍须另获明确时间与逐项范围。10-29 上一次维护窗口已取消（#1332 评论 6486081779），不沿用那次许可。
 
 目标是一次可执行、可复核的维护窗口：代码侧准备充分后才问真实拷贝许可，实际维护后才勾 CHECKLIST。使用当前严格基线，不加启动 ALTER、旧值兼容或猜 owner。脚本只在显式路径操作，一库一事务，错版、错结构或失败整库不改；跨库步骤明确每库提交边界和从完整备份恢复的方法，不冒称全 Home 原子。
 
 ## 第一步：仓库盘点（冻结 main ac5735fb2a）
 
-下表版本逐条对 main 定义核过（40 行）；真实值全部 NOT READ。脚本无目录前缀时在 `tests/fixtures/`，测试在 `tests/`。名称拼写与现行 CHECKLIST §3 对齐。不因旧分支远落后而把它的旧版本降回 main。未升版的项不臆造维护脚本；完整性、数量与 owner 检查留到获准的副本。
+下表保留第一步当时的仓库盘点（40 行；当时真实值全部 NOT READ）；第三步的实际版本、工具补齐结果和当前待决项见文末，不将旧缺口描述当作当前状态。脚本无目录前缀时在 `tests/fixtures/`，测试在 `tests/`。名称拼写与现行 CHECKLIST §3 对齐。不因旧分支远落后而把它的旧版本降回 main。
 
 | 库 | main 版本 | 合并后目标 | 维护脚本 | 演练用例 | CHECKLIST / 真实状态 |
 | --- | --- | --- | --- | --- | --- |
@@ -121,3 +121,89 @@ Inbox 绑定（RAC-2331）与 Feed 引用账（RAC-2332）改为完整生产库�
 统筹6515692388追加 T-182：第三步在目录库副本上只数没有任何 workspace_project_memberships 成员的 workspaces（RAC-2328），列入维护计划，由用户逐项决定清不清；不写启动清理。只读复制同时检查复制前后的 WAL 与源文件状态，复制中出现 WAL 或变化就丢弃该副本并记 NOT READ，不报告过时值。
 
 代码侧证据（2026-10-29，尚未真实维护）：19个工具文件的隔离演练通过，后续个人方法源阶段故障追加一项并通过，当前合计99项；原有 Runtime 配置备份与 IM 邀请维护另外两文件12项通过。版本/完整结构拒绝与真实事务回滚都直接执行交付脚本；JSON 在公开 owner 上读回，Feed 更正后用实际 producer 续写下一版。readonly体检4项包含实际 WAL 交错、目录路径陷阱、700/600权限与元数据隐私；T-181另外连实际 Pages导入收据，只读标题列，SQLite把孤立代理转成替换字符的情况仅记候选，不宣称已证实损坏。原三库 #1538、W5-17 #1549 已交接；这些证据不涵盖真实拷贝、维护、安装、Memory完整采用或本人验收。最终合 main、health/boundary/secrets 与 PR 链接在交接时补记。
+
+统筹6516315418（2026-10-30）：本次用户同意按6515560840范围只读复制，写操作仍逐项问；跨库选A，先核全两库版本/结构、每库单事务，源阶段失败明确部分成功并停，由统筹按备份决定；BL-780按v10先清/合、待决定owner留给紧接的v11，已v11再处理null-owner，不放宽v11原守卫。该答复原来将Memory排除；此项已被下述6516758896新决定覆盖，其他边界仍保持。
+
+BL-780执行（RAC-2335）：单库单事务，只按当前Goals公开的待决定与Goal归属函数识别；v10先删已结算/重复的null-owner条目，不改任何owner，并拒绝已有owner的库，保持原v11守卫。v11对同样的存量null-owner清理后，将剩余待决定条目指派给Goals，保留已忽略状态和修订；同一决定已有Goals条目时保留其原状态。Attention事件所有行及原entry_id保留，v11仅给本次处理的已识别null-owner事件补Goals归属（与既有v11归属规则一致），不改时间、类型或日志；v10全部留给原v11 SQL。缺失Goal、异常reason、错版本/完整结构或途中故障均拒绝/回滚，不猜测。演练必须包含v10清理接原v11、v11保留已忽略状态与历史、途中故障和未知项拒绝。
+
+统筹6516758896转达用户的新决定覆盖6516315418第4项：Memory2→3→4由本线接下，进同一窗口；只读拷贝授权不扩为任何真实写入。RAC-2336：一次性工具只在明确路径的离线Home执行2→3，将main历史 `b87cf34d3b^` 的六字段有效偏好及继承规则物化（个人、项目默认和已有项目覆盖；旧无显式值时auto=true，不换成新Home reviewed选择），与existing-home采用记录同一库同一事务提交。已存的开关、消费者和插件限制按原计算保留，未知字段/身份/结构/版本拒绝，不猜测或重设。这个机制只存在维护夹具，产品读取器不新增兼容。RAC-2337：3→4仅调用现有Host `adoptMemoryHome`，由storage原inspect/begin/complete和Agent Host真实SDK采用/核验后发布4；部分成功/失败保留adopting并停，不改PRAGMA冒充采用，不自动回退。一次性Home覆盖v2完整结构、有效偏好独立期望、错误版/结构与写中故障整库回滚，以及真实SDK加密旧正文采用后经现行公开服务读回。真实副本只预检版本/条数，SDK加密正文与密钥仍NOT READ；17,366只是所有加密记录的文件数，不能当作记忆条数。
+
+## 第三步：获准只读副本与维护计划（2026-10-30）
+
+授权来源：统筹在 #1332 的6516315418记录本次用户同意。SQLite源以 `mode=ro&immutable=1` 打开并 `VACUUM INTO`，只打开副本派生路径；没有沿目录库的原绝对路径访问项目库。副本在 `~/molis-work-backups/2026-10-30-readonly-maintenance-window-a/`，目录700、文件600。138份＝136个SQLite和MCP/Shelf两JSON，活动WAL/复制中变化0；136库integrity均ok、foreign_key_check均空。这里不是整份离线备份、密钥可用性或SDK正文可恢复证明。第四步还没有获得时间与逐项授权。
+
+下表逐条对齐CHECKLIST §3的40行。未建库不会在只读阶段打开创建；v7项目里的插件账本不存在，不能把它误报成各插件已升至当前版本。
+
+| 位置 | 本线 main 版本 | 副本实测 |
+| --- | --- | --- |
+| `projects/<project_id>/molis-work.db` | 11 | 7 × 18 |
+| `projects/<project_id>/molis-work.db#coding` | 1 | v7中没有插件账本（18库） |
+| `projects/<project_id>/molis-work.db#feed` | 2 | v7中没有插件账本（18库） |
+| `projects/<project_id>/molis-work.db#goals` | 1 | v7中没有插件账本（18库） |
+| `projects/<project_id>/molis-work.db#inbox` | 1 | v7中没有插件账本（18库） |
+| `projects/<project_id>/molis-work.db#schedule` | 1 | v7中没有插件账本（18库） |
+| `projects/catalog.db` | 22；W5-17候选23，#1101先占号则24 | 22 |
+| `functions/functions.db` | 4 | 3 |
+| `assistant/assistant.db` | 3 | 2 |
+| `plugin-runtime/plugin-runtime.db` | 3 | 副本不存在；未创建 |
+| `plugin-libraries/plugin-libraries.db` | 1 | 副本不存在；未创建 |
+| `plugin-directories/plugin-directories.db` | 1 | 副本不存在；未创建 |
+| `plugin-originals/plugin-originals.db` | 1 | 副本不存在；未创建 |
+| `issues/issues.db` | 2 | 副本不存在；未创建 |
+| `goals/goals.db` | 1 | 副本不存在；未创建 |
+| `feed-content/feed-content.db` | 1 | 副本不存在；未创建 |
+| `memory/memory.db` | 4 | 2 |
+| `knowledge/knowledge.db` | 1 | 副本不存在；未创建 |
+| `form/form.db` | 2 | 2 |
+| `placement/placement.db` | 1 | 1 |
+| `agent-definitions/agent-definitions.db` | 1 | 1 |
+| `agent-declarations/agent-declarations.db` | 1 | 副本不存在；未创建 |
+| `connectors/connectors.db` | 2 | 1 |
+| `context-onboarding/context-onboarding.db` | 1 | 1 |
+| `cognia/cognia.db` | 1 | 1 |
+| `dataset/dataset.db` | 1 | 1 |
+| `images/images.db` | 1 | 1 |
+| `jelly/jelly.db` | 1 | 1 |
+| `lingguang/lingguang.db` | 1 | 1 |
+| `pages/pages.db` | 2 | 1 |
+| `ppt/ppt.db` | 1 | 1 |
+| `todo/todo.db` | 1 | 1 |
+| `workflows/workflows.db` | 1 | 1 |
+| `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | 1 |
+| `server/server.sqlite` | 2 | 1 |
+| `characters/characters.sqlite` | 2 | 1 |
+| `search/search.db` | 2 | 2 |
+| `feed/secrets.json` | 2 | NOT READ（凭据） |
+| `config/mcp-tools.json` | 3 | 2 |
+| `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | 副本不存在；未创建 |
+
+副本预检：18/18项目可按完整v7结构进入v8；Characters/Functions/Assistant/Pages/Connectors五库的完整旧结构全部通过。Memory2完整结构通过，偏好0、strategy-adoption0，现有其他marker2条保留。目录personal move的list为0条；个人规划表仍在，故PG-077与W5-17当前list按其前置条件拒绝，这是必须先搬个人方法/移除该表的顺序约束，未在只读副本上执行DROP或其他维护。
+
+| 顺序 | 库、从→到 / 工具 | 副本预检与预计改动 | 不做的后果 / 恢复边界 |
+| --- | --- | --- | --- |
+| 1 | 停全部同Home写入者；整份离线备份；再建演练副本 | 按CHECKLIST4.1/4.2，按pid确认服务/端口与进程；逐文件比对、记大小/方法；原Home主密钥只确认存在 | 本次只读副本不能替代此项；任一前提不符停止 |
+| 2 | 项目7→8，`project-maintenance.mjs --target 8` | 18库全部预检通过；原业务表行数保持，新增项目根18行、四个声明账本72行；18条initialize_board请求指纹按原v8 SQL转换 | 旧项目无法由新构建打开；每库单事务，失败零改 |
+| 3 | 项目8→9，同工具target9 | 新空schedule_action_bindings；旧schedule_jobs 1条停用并清lease，时间/历史保留 | 无可信安装授权，不先重新启用；需本人之后重新绑定 |
+| 4 | 项目9→10，同工具target10 | 171安装：host161、sandbox10、其他0；Attention两表加null owner，行数不变 | workspace17条的身份尚待裁定；不得把未确认的host身份直接当作完成，见下方阻塞 |
+| 5 | 项目v10 BL-780，`goal-decision-reminders-maintenance.mjs apply`；随后项目10→11 | 未归属提醒23＝已结束21、待决定2，重复/未知Goal/reason0；先删21、保留2给原v11。Attention事件177行保留，原v11按subject补owner；Feed账本18行1→2，新增空通知表18份，Feed旧边键0 | 不清旧提醒会留下已结束工作；不跑v11则当前Feed/Inbox不可用。原v11守卫保持不变，测试含v10衔接与v11已忽略状态 |
+| 6 | Goals旧名，`scripts/maintenance/goals-journal-names.mjs rename` | 18库：events5472、idempotency5580、edges0；改名称/游标归属，行数保持 | 不做会被Goals个人方法搬迁屏障拒绝；不再运行旧S9脚本或给Goals子库加版本2 |
+| 7 | Goals个人方法、PG-077成员、W5-17目录，依次`goals-personal-planning-move.mjs move`、`artifacts-project-membership-maintenance.mjs apply`、`catalog-path-maintenance.mjs rewrite` | catalog22有18项目、91成员；个人方法0行，目标Goals1尚未建。搬出空表后删artifacts成员15行/排除0；再22→23删database_path列、18项目保留，实际文件只按Home+project_id派生 | 两库先全预检，目标提交且读回后才删源；源失败保留两库状态并停。#1101若先取23，本步改24并重新演练，不碰其分支 |
+| 8 | 五Home库：Functions3→4、Assistant2→3、Characters1→2、Pages1→2、Connectors1→2，`home-store-maintenance.mjs`各一库 | Functions14；Assistant设置3/其他0；Characters草稿0；Pages24/导入2；Connectors连接6/绑定2/目标1，原表数量均保持，新表为空。Home Runtime库不存在，不能当作2→3已做 | 任一旧版仍阻止新构建；每库单事务、版本/完整结构拒绝。Functions绑定0，后续Inbox搬迁应为0 |
+| 9 | `prepare-window-stores.mjs`；Inbox绑定、Feed引用账 | 项目11后按Inbox Manifest建空绑定库18份及账本18行；新Feed-content1库，现有hold0，回填只写complete_since标记1；只读扫描不会消费加密正文。Inbox旧场景绑定0 | 不准备目标就不能搬绑定/标完整；source phase失败停且保留两库状态 |
+| 10 | Characters孤儿，`characters-orphan-maintenance.mjs`（项目11后） | 安装18、发行存档18；安装私有值/事件/游标/恢复记录0，现有端口/input阻塞0；预计删36记录。固定Character成果与版本保留，非空成果演练已读回 | 不清则旧安装身份残留；仅本插件作用域，其他记录不动，需本人逐项同意删除 |
+| 11 | Memory2→3→4，`memory-window-maintenance.mjs --step preferences`再`--step sdk` | prefs0/采用0/其他marker2；2→3新增有效偏好2、采用marker1。3→4预期更新偏好2+采用marker1及版本，由真实SDK逐页转换/核验；SDK种类数与加密正文NOT READ，不能估成0 | 不做仍被现行Memory启动门拒绝；2→3单库事务回滚，SDK部分成功保留adopting并停，不回写版本或假装全Home原子 |
+| 12 | MCP JSON2→3、Shelf JSON1→2 | MCP4授权、enabled0、clients2，逐条加generation，权限/启停保持；Shelf1条含path，移除该字段、其余原样。原件外置、发布后经公开owner读回 | 新构建拒绝旧JSON；每份私有外置原件、同盘原子发布，发布后异常停止，由统筹决定恢复 |
+| 13 | IM server1→2、Runtime配置备份B2b | IM rooms0/receipts0，原邀请内容NOT READ；使用现有`im-invite-maintenance.mjs`重建v2。Runtime配置备份可能含凭据，本次未复制/未读，`runtime-config-backup-maintenance.mjs`真实逐项数字NOT READ | 必须先取得含相应凭据读取/密封操作的明确范围；IM被换下原库外置，B2b保持原Keychain，不删旧备份 |
+| 14 | 安装与只读验收 | 仅全部副本演练通过后统筹按依赖合PR，本线用干净合入后main构建。按CHECKLIST4.4/4.5装构建，needs_repair才service install --confirm；核459 Goals、0固定成果、18项目、4授权及所有版本、integrity/FK、安装清单；抽查可读另获内容范围 | 工程/SDK隔离演练不等于真实Home恢复、产品实操或本人验收。旧Session重开/Runtime授权单列本人事项 |
+
+所有行都仍为候选未做；4.3步骤在本次演练副本先全套跑通，真实库才沿同一流程执行。运行各步前重算数字；和这里不符即停，不用SQLite改版绕过。脚本内部未提交事务按合同回滚；已提交库或SDK转换后的恢复由统筹按整份离线备份、原路径/原key和后续删除决定安排，不自动逆向改库。被替换原库搬到Home外的700目录，旧备份不清理。
+
+必须由统筹交给用户的决定：维护时间及停服务/备份/安装；上述每项库变换与写入；schedule旧任务1条停用、BL-780删21、Character删36、PG-077删15目录成员；Memory保留旧有效auto=true的物化及SDK加密采用；MCP4条generation和Shelf1条path去除；IM/B2b所需私有内容读取范围。现有授权仅支持第三步只读核对，不能代签第四步。
+
+R-54 ui.commands仅发行存档99、安装0；R-66 disabled0；R-69 native:feed成果线0/版本0，本窗没有需要写的生产者行。T-181：引导journey1、由真实导入收据定位的Pages标题1，半字/替换字符候选0，Todo引导候选0。T-182空workspace1只计数，不清空workspace。不存在的Home新库将在获准新构建的首次装配按当前基线创建，单列“未创建”，不伪称维护通过。
+
+**当前待裁定阻塞（#1332 6517024309）**：旧 `io.molis.work.workspace` 安装17条不在当前生成的内置登记里，另有private_values3、port_bindings34、port_outputs3；archives/events/cursors/resolutions/inputs/port_artifacts0。只读元数据，不读私有值，不把它归作Characters空孤儿。推荐原owner确认身份/去向后形成专门方案，未定前保留，不能直接映射为可信host并宣称窗口可执行。
+
+136库中96份位于固定40行清单之外：Images内部SQLite93、旧Alchemist1、已下线Sessions1、凭据锁1。HOME-DATA分别说明归属；只查版本/结构/完整性，不读其正文、不据此删除或恢复Sessions业务。Sessions与加密内容仍按原规则备份。原Home主密钥、SDK加密正文、凭据vault与Runtime配置备份没有在第三步被读取；NOT READ不能写成可恢复。
+
+新增演练证据：BL-780五项（含原v11衔接、已忽略状态/全部历史保留、拒绝与写中回滚）通过；readonly四项在加入owner路由和动态Alchemist布局后通过；Memory窗口新三项通过，现有storage/Host/SDK采用三文件23项通过。首次测试夹具的数组取值/SQLite行原型与SDK场景授权错误保留于日志，已按公开合同修正夹具，未放宽生产断言。真实SDK测试不调用模型。

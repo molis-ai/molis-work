@@ -517,7 +517,7 @@ for (const where of ["validate_authority", "assert_authority_current"] as const)
     const f = await fixture(t);
     register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
     assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"]);
-    for (const failure of [new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销"), new ActionError("fixture.reader_broken", "读取器坏了", { kind: "invalid" }), new Error("读取器坏了")]) {
+    for (const failure of [new ActionError("fixture.reader_broken", "读取器坏了", { kind: "invalid" }), new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销"), new Error("读取器坏了")]) {
       await assert.rejects(ask(f, readerRefusing(where, failure), "合同"), (error: unknown) => error === failure,
         `${failure instanceof ActionError ? failure.code : "a plain Error"}: not a refusal, so the query fails as before`);
     }

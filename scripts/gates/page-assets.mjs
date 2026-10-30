@@ -242,16 +242,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
-// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
-// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
-// page, not an asset, so removing it saves nothing here.
 // T-183, RAC-1869–1872: the frame bridge and the context bus cut the title and text of a "put it in" control by whole
 // characters instead of UTF-16 units, one small function in each of the two bundles (they share no module): +63 B and +96 B.
 // Tried: no new asset; one definition per bundle, used at every site there; the Host's own unit limits are not touched.
+// T-235 (merged into main), RAC-2220–2221: the PPT outline box is cut at 20000 characters by its input handler; its admission was
+// [27065, 27380] and the build came out at 27364.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [707763, 707886],
+  "/assets/molis-work-plugins/ppt.js": [27065, 27364],
   "/assets/molis-work-plugin-frame.js": [190560, 190623],
   "/assets/molis-work-workbench.js": [1148453, 1148549],
 };

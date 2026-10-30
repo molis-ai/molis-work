@@ -694,9 +694,13 @@ test("RAC-2251 the onboarding's two project-name fields take 120 two-unit charac
   await waitFor("Boolean(document.getElementById('cx-project-title'))");
   assert.equal(await evaluate("document.getElementById('cx-project-title').getAttribute('maxlength')"), null, "no maxlength: the browser's own limit counts UTF-16 units");
   await evaluate("document.getElementById('cx-project-title').focus()");
+  // The field holds the journey's prefilled title. Select it, so the insert replaces it and the assertions below do not depend on where
+  // `focus()` leaves the caret.
+  await evaluate("document.getElementById('cx-project-title').select()");
   await command("Input.insertText", { text: wide }, sessionId);
   assert.equal(await evaluate("[...document.getElementById('cx-project-title').value].length"), 120, "120 characters are written whole");
   assert.equal(await evaluate("document.getElementById('cx-project-title').value.length"), 240, "120 characters, 240 UTF-16 units");
+  assert.equal(await evaluate("document.getElementById('cx-project-title').value"), wide, "the whole field is what was written: no prefilled draft is left");
   await command("Input.insertText", { text: "🟢" }, sessionId);
   assert.equal(await evaluate("[...document.getElementById('cx-project-title').value].length"), 120, "the 121st character is capped");
   assert.equal(await evaluate("document.getElementById('cx-project-title').value.length"), 240, "the cap keeps whole characters");

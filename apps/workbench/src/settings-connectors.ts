@@ -1,7 +1,7 @@
 import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./functions/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
+import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
@@ -81,11 +81,15 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
   const placeholder = card.availability === "placeholder";
   const method = recommendedMethod(card);
   const direct = !placeholder && !count && (method?.login_ready || readyAccountLogin(card));
-  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name: card.title, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
+  // A package writes the card's words: the card shows them within its limits, cut in whole characters.
+  const name = connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS);
+  const purpose = connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS);
+  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
     ${renderConnectorMark(card.connector_id, escapeHtml)}
     <span class="settings-connector-card__body">
-      <span class="settings-connector-card__title"><strong>${escapeHtml(card.title)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
-      <span class="settings-connector-card__copy">${escapeHtml(connectorPurpose(card, L))}</span>
+      <span class="settings-connector-card__title"><strong>${escapeHtml(name)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
+      <span class="settings-connector-card__copy settings-connector-card__source" data-connector-source>${escapeHtml(L("来自 {package}", { package: card.declared_by?.title ?? L("Molis Work（内置）") }))}</span>
+      <span class="settings-connector-card__copy">${escapeHtml(purpose)}</span>
     </span>
   </button>`;
 }
@@ -132,10 +136,10 @@ export function renderConnectorsSettings(
       <button class="mw-btn mw-btn--ghost settings-connector-back" type="button" data-connectors-back>${icon("back")}${L("返回列表")}</button>
       <header class="settings-connector-detail__head">
         ${renderConnectorMark(card.connector_id, escapeHtml)}
-        <h2 tabindex="-1">${escapeHtml(card.title)}</h2>
+        <h2 tabindex="-1">${escapeHtml(connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS))}</h2>
         <span class="settings-state settings-state--neutral">${escapeHtml(pathLabel(card, L))}</span>
       </header>
-      <p class="settings-connector-purpose">${escapeHtml(connectorPurpose(card, L))}</p>
+      <p class="settings-connector-purpose">${escapeHtml(connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS))}</p>
       <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" hidden></div>
       ${serviceConnections.length ? `<section class="settings-connection-detail-list"><h3>${L("已有连接")}</h3>${serviceConnections.map((connection) => renderConnectionRow(connection, card, primitives, true)).join("")}</section>` : ""}
       ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: escapeHtml, text: L } }) : ""}

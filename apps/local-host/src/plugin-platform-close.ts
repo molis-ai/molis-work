@@ -6,11 +6,13 @@ type ClosingPlatform = Pick<PluginPlatform, "runtime" | "supervisor">;
 
 /**
  * Closes one plugin of a platform that is closing. Closing a Home, a project or the Host is not switching a plugin off: it is stopped with its record
- * kept enabled (`preserve_enabled`), so the next start runs it, and then revoked (the supervisor's own revoke would stop it as disabled).
+ * kept enabled (`preserve_enabled`), and then revoked (the supervisor's own revoke would stop it as disabled). A Home or the Host does not start a
+ * plugin whose record is disabled; a project restarts it all the same (BL-755, choice A), so there only the stored state differs.
  *
  * Only a record the Runtime itself reports as running is stopped. The Supervisor does not see everything the Runtime records: a plugin it counts as
- * running may have crashed there, or been stopped with `preserve_enabled` by someone else (now `installed`). The Runtime refuses a shutdown stop of
- * either (`state_invalid`), as it does of a quarantined one, so those are left as they are, and still revoked.
+ * running may have crashed there, or been stopped with `preserve_enabled` by someone else (now `installed`), and one it counts as failed may still
+ * run there (an upgrade refused before the Runtime was asked, T-227b). The Runtime refuses a shutdown stop of one that is not running
+ * (`state_invalid`), as it does of a quarantined one, so those are left as they are, and still revoked.
  *
  * Only this installation's record is read, so one that cannot be read does not keep another from being closed. A record that is gone is still
  * stopped: the instance it activated in this process is let go, and the stop reports the missing record (T-124). A record that cannot be read for
@@ -29,8 +31,8 @@ export async function closePlugin(platform: ClosingPlatform, pluginId: string, i
  * would have the Supervisor stop the installation it runs as switched off (T-227).
  *
  * The installation the Supervisor holds (supervisedInstall) is read by its own id. A list the Runtime cannot give (one stored record it cannot
- * parse) is one entry of `failures`; the plugins the Supervisor holds are closed all the same, and only the records it does not hold are left
- * unvisited.
+ * parse) is one entry of `failures`; the plugins the Supervisor still counts as enabled (enabledPluginIds: not revoked, not blocked) are closed all
+ * the same, and only the records of other plugins are left unvisited.
  */
 export async function closeHomePlugins(platform: ClosingPlatform, failures: unknown[]): Promise<void> {
   let records: readonly PluginInstanceRecord[] = [];

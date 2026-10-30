@@ -326,9 +326,10 @@ test("RAC-1455 every running project plugin is stopped exactly once with preserv
 });
 
 // RAC-2051 T-227b: an upgrade that fails before the Runtime is asked anything leaves the Supervisor counting the plugin as failed, with the
-// installation the Runtime still runs. The project close stopped only what the Supervisor counted as running, so the revoke stopped that one as
-// switched off, and the project's next start did not run it. Now it is stopped kept enabled, as the running ones are (RAC-1455).
-test("RAC-2051 a project plugin the Supervisor counts as failed while the Runtime still runs it is stopped kept enabled and starts again when the project reopens", async () => {
+// installation the Runtime still runs. The project close stopped only what the Supervisor counted as running, so the revoke stopped that one with
+// no options and its record was stored disabled. Now it is stopped kept enabled and stored installed, as the running ones are (RAC-1455). A project
+// restarts a disabled record too (BL-755, choice A; RAC-1034), so the reopen at the end held before as well: it is a guard, not the difference.
+test("RAC-2051 a project plugin the Supervisor counts as failed while the Runtime still runs it is stopped kept enabled and stored installed", async () => {
   const { home, store, ports } = await openProject();
   let failure: unknown;
   try {

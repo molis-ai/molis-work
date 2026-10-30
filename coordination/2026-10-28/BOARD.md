@@ -238,6 +238,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-294 | Host 里 `cutHead`/`cutUnits` 两份逐字相同的整字截收成一份（防腐清理，MISC「T-246 统筹答 登记」Host 一半；短任务书） | 乙 | A | 190 | — | `apps/local-host/src/contextual/*.ts`、`drafting/draft-data.ts`、`draft-service.ts`、新 `whole-units.ts` 与用例 |
 | T-295 | 包写的连接器名称与说明加长度上限，卡片标「来自 X 包」（先出【方案】）（防腐清理，MISC「T-119 二审 建议」；短任务书） | 乙 | 池 | 191 | T-119（#1561）合入 | `apps/workbench/src/settings-connector-guide.ts`、`settings-connectors.ts`、翻译键、`tests/connectors-settings-behaviors.test.ts` |
 | T-296 | RAC-2463 补 `tokenAbandoned` 断言并补不依赖 darwin 的撤权中途用例（防腐清理，MISC「T-218 二审复核 建议」N1/N2；短任务书；SI 测试，统筹手查） | 丙 | 池 | 192 | T-218（#1558）合入 | `tests/security-invariants-oauth-shared-refresh.test.ts` |
+| T-297 | 连接绑定的插件号、用途号长度判断改按字数 160，不再按 UTF-16 单元数（防腐清理，MISC「T-213 二审 登记」；短任务书） | 丙 | B | 193 | — | `horizontal/connector-host/src/connection-store.ts`、其 bind 既有测试 |
+| T-298 | Coding 着色两种延迟排版情形补成入库浏览器用例，GC 注意事项写进注释（只补用例，需 Chrome ≥153；防腐清理，MISC「T-281 二审 建议」①③；短任务书） | 乙 | 池 | 194 | — | `tests/code-scale.e2e.test.ts` |
+| T-299 | `immersive-shell.ts` 里 `renderPluginRail` 的说明挪回函数上方（防腐清理，MISC「T-266 二审 登记」；短任务书） | 丙 | 池 | 195 | #1576 合入 | `apps/workbench/src/immersive-shell.ts` |
 | T-236 | 包边界门禁里 Goals、Governance、Artifacts、Runtime Host 几段「必须包含」的检查也先去掉注释、字符串、正则和模板文字再判断，不能再靠一段注释或字符串顶替代码（防腐清理，MISC「T-215 起草」`check-package-boundaries.mjs` 一行；派片，方案自定，RAC-2010～2019） | 甲 | Claude（设备 A） | 148 | — | `scripts/check-package-boundaries.mjs`（Feed 那段 T-215 已收紧，不动）、新增或改动的门禁用例文件（方案里列） |
 | T-237 | 内核 `clip` 截情境请求的标题 120、目标 2000、最近 40 时按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」`contextual.ts:170` 一行；派片，方案自定，共享核心 full=true，RAC-2020～2029） | 甲 | Claude（设备 A） | 149 | — | `packages/kernel/src/contextual.ts`、对应用例文件（方案里列） |
 | T-238 | 沙箱模型请求的数据上限与端口上限对齐：数据加最长指令不再超过端口的上限、被端口拒（防腐清理，MISC「T-185 发布」`plugin-sandbox/src/model.ts` 一行；派片，方案自定，RAC-2030～2039；只许变严，若要放宽沙箱边界先问统筹） | 甲 | Claude（设备 A） | 150 | — | `packages/plugin-sandbox/src/model.ts`、对应用例文件（方案里列） |

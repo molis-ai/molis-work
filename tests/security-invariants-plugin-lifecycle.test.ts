@@ -261,6 +261,8 @@ const crashesOnStart = (files: Parameters<typeof readsAndWrites>[0]) => { files[
  */
 async function quarantine(h: Host, publisher: ReturnType<typeof newPublisher>) {
   await h.install(signedPackage(publisher, readsAndWrites));
+  await add(h, "one");
+  assert.deepEqual(await notes(h), ["one"], "the installation holds business data");
   await replaceKeptPackage(h, signedPackage(publisher, crashesOnStart));
   await h.control("disable", { plugin_id: PACKAGE_PLUGIN_ID });
   for (let attempt = 0; attempt < 4; attempt += 1) await h.control("enable", { plugin_id: PACKAGE_PLUGIN_ID }).catch(() => undefined);
@@ -272,12 +274,14 @@ test("RAC-2298 S-84 a quarantined signed-package plugin that meets a package tha
   const h = await installedPackageHost(), publisher = newPublisher();
   try {
     await quarantine(h, publisher);
-    const installed = await only(h), pins = h.ledger.publishers();
+    const installed = await only(h), pins = h.ledger.publishers(), data = await h.data(installed.install_id);
     const directories = (await readdir(join(h.home, "plugin-packages"))).sort();
+    assert.notDeepEqual(data, [], "the quarantined installation still holds its business data");
     await assert.rejects(h.install(signedPackage(publisher, readsAndWrites)), refused("plugin.upgrade_required"), "the same version again, after the quarantine");
     assert.deepEqual(await only(h), installed, "the installation is as it was, still quarantined");
     assert.deepEqual(h.ledger.publishers(), pins, "and its publisher's pin");
     assert.deepEqual((await readdir(join(h.home, "plugin-packages"))).sort(), directories, "and the kept package");
+    assert.deepEqual(await h.data(installed.install_id), data, "and its private data");
   } finally { await h.close(); }
 });
 
@@ -285,7 +289,10 @@ test("RAC-2298 S-84 a signed-package plugin whose kept package is gone that meet
   const h = await installedPackageHost(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, readsAndWrites));
-    const installed = await only(h), pins = h.ledger.publishers();
+    await add(h, "one");
+    assert.deepEqual(await notes(h), ["one"], "the installation holds business data");
+    const installed = await only(h), pins = h.ledger.publishers(), data = await h.data(installed.install_id);
+    assert.notDeepEqual(data, [], "the installation's private data is not empty");
     const root = join(h.home, "plugin-packages"), [directory] = await readdir(root), kept = join(root, directory!);
     for (const file of await readdir(kept)) await unlink(join(kept, file));
     await assert.rejects(h.install(signedPackage(publisher, readsAndWrites)), refused("plugin.upgrade_required"), "the same version again, with the kept package gone");
@@ -293,5 +300,6 @@ test("RAC-2298 S-84 a signed-package plugin whose kept package is gone that meet
     assert.deepEqual(h.ledger.publishers(), pins, "and its publisher's pin");
     assert.deepEqual((await readdir(root)).sort(), [directory], "and the packages kept for it");
     assert.deepEqual(await readdir(kept), [], "with nothing written back");
+    assert.deepEqual(await h.data(installed.install_id), data, "and its private data");
   } finally { await h.close(); }
 });

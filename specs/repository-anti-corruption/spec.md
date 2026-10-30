@@ -1761,6 +1761,10 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 已取消，不再执行旧转换；归维护八，与装下一个版本同一步做；未维护真实 Home，动之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。停宿主并整份备份，在副本上一个事务跑 `tests/fixtures/assistant-maintenance-v3.sql`：只核对 `user_version` 正好是 2；工作正文里 `executor.kind` 为 `coding` 的改成 `plugin` 并补 `plugin_id` 为 `io.molis.work.coding`，轮次正文里 `executor` 为 `coding` 的改成 `plugin`，已发送请求的结果（`assistant_requests.result`，同一个请求标识再发会原样取回）里的 `work.executor` 同工作正文那样改，写版本 3；表、工作与会话的关联（种类仍是 `coding_session`）和其余字段不动。失败整笔回滚。临时库演练是 `tests/assistant-maintenance-v3.test.ts`（RAC-447、RAC-448） |
 | `projects/<project_id>/molis-work.db` | 11 → 1 | 干净Home第一片 | 不迁移旧库；保留现行完整DDL，只在干净Home创建1。旧Home搬开由统筹另获“开始”；错版仍拒绝，项目旧维护链已删。 |
 | `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同第一片 | Feed现行12表和索引不改，声明起点1；旧账本不升级。 |
+| `plugin-runtime/plugin-runtime.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `characters/characters.sqlite` | 2 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `functions/functions.db` | 4 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `assistant/assistant.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
 
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 

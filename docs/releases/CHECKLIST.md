@@ -38,9 +38,9 @@
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 拒绝（只停 Inbox） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 1 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
-| Functions | `functions/functions.db` | 4 | `user_version` | `modules/functions/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
-| 助理 | `assistant/assistant.db` | 3 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
-| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 3 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
+| Functions | `functions/functions.db` | 1 | `user_version` | `modules/functions/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
+| 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
+| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
 | 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 拒绝 |
 | 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 拒绝 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 拒绝 |
@@ -66,7 +66,7 @@
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
 | server（讨论） | `server/server.sqlite` | 2 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
-| 角色 | `characters/characters.sqlite` | 2 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
+| 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 3 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
@@ -76,6 +76,10 @@
 当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；各片完成前，上表按实际代码逐步更新，不提前改未完成项。项目主库与Feed声明已经采用第1版起点，表、索引、权限和事实归属保持现行合同。
 
 版本不符仍整体拒绝，不读取旧形状、不自动升级。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)收口。
+- 角色当前结构保留character_runs原生执行记录与草稿，起点1；旧Home整体搬开后新建，不从Sessions或旧角色库迁移，原SQL与演练删除。
+- 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`）。
+- Home Plugin Runtime当前结构1保留publisher_trust、plugin_consents与plugin_publishers；新Home启动按Manifest幂等登记常开同意，撤销不复活。旧项目/Runtime升级路线已取消，相关片删除工具。
+- 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
 
 ## 4. 真实 Home：搬开后干净重建
 

@@ -22,15 +22,10 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
  *
  * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
- * It stays so every Home has the same schema, and a work's rows in it still go with the work. Dropping it is a later
- * version with a maintenance step on existing Homes, which is not done here.
- *
- * Version 3: the work body's executor is `{ kind: "plugin", plugin_id, … }` and a round's `executor` is `"plugin"`, where
- * version 2 wrote the old Coding-only kind (PG-036, C8-3). The tables are the same; a version 2 store is refused until a maintenance step
- * rewrites those two fields and the work in each finished Send's stored result (`assistant_requests.result`), because a read does not
- * translate them.
+ * It stays in the current schema; this slice changes only the storage version, not any table or stored work shape.
+ * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL

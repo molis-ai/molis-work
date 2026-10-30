@@ -72,9 +72,9 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, caller) } : result;
   };
   return [
-    binding(connectorManagementActions.catalog, (_caller, input) => {
+    binding(connectorManagementActions.catalog, async (_caller, input) => {
       const id = (input as { service_id?: string }).service_id;
-      return { services: listConnectorSettingsCards().filter(entry => !id || entry.connector_id === id) };
+      return { services: (await listConnectorSettingsCards(home)).filter(entry => !id || entry.connector_id === id) };
     }),
     binding(connectorManagementActions.list, async (caller, input) => {
       const service = (input as { service_id?: string }).service_id;

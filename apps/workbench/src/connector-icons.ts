@@ -42,4 +42,4 @@ export const CONNECTOR_ICON_SVG: Readonly<Record<string, string>> = {
   "x": "<svg xmlns=\"http://www.w3.org/2000/svg\" xml:space=\"preserve\" viewBox=\"0 0 512 512\"><path d=\"M304.7 216.8 495.2 0h-45.1L284.6 188.2 152.6 0H.2l199.7 284.7L.2 512h45.1L220 313.2 359.4 512h152.3M61.6 33.3h69.3l319.1 447h-69.3\"/></svg>",
   "zoom": "<svg xmlns=\"http://www.w3.org/2000/svg\" xml:space=\"preserve\" viewBox=\"0 0 512 512\"><path d=\"M256 512c141.4 0 256-114.6 256-256S397.4 0 256 0 0 114.6 0 256s114.6 256 256 256\" style=\"fill:#2196f3\"/><path d=\"M150.2 329.2h169.3V205c0-18.7-15.2-33.9-33.9-33.9H116.4v124.2c0 18.7 15.1 33.9 33.8 33.9M342.1 284l67.7 45.1v-158l-67.7 45.2z\" style=\"fill-rule:evenodd;clip-rule:evenodd;fill:#fff\"/></svg>",
 };
-export function connectorIconSvg(connectorId: string): string | undefined { return CONNECTOR_ICON_SVG[connectorId]; }
+export function connectorIconSvg(connectorId: string): string | undefined { return Object.hasOwn(CONNECTOR_ICON_SVG, connectorId) ? CONNECTOR_ICON_SVG[connectorId] : undefined; }

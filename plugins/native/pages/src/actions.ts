@@ -28,7 +28,7 @@ const text = { type: "string" };
 /** The materials' JSON in the prompt, in characters as the Host counts them: 180,000 for the prompt's data, less the fixed 4,109
  * characters around it (`标题：` + an 80-character title + `\n用户要求：` + 4,000-character requirements + two `\n\n` + the 16-character line
  * before the JSON), rounded down to leave room. The Host also leaves its own 98 characters of slack above 180,000. */
-export const PAGES_MATERIALS_JSON_MAX_CHARS = 175_800;
+const PAGES_MATERIALS_JSON_MAX_CHARS = 175_800;
 
 /** The materials' JSON is part of the prompt the model port measures in characters: it would refuse this generation anyway when that
  * JSON pushes the prompt over its limit, so the same check is made here, before the request is taken and a generation record is written.

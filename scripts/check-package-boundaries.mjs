@@ -42,6 +42,12 @@ function filesUnder(directory, predicate) {
   return result;
 }
 
+/** The entry packages' files that may name a Goals contract: every JavaScript and TypeScript file under `apps/cli/src` and `apps/mcp/src`, with its path relative to `root`. */
+export function readEntrySources(root) {
+  return ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(root, directory), filePath => ENTRY_SOURCE_FILE.test(filePath))
+    .map(filePath => ({ path: path.relative(root, filePath), source: fs.readFileSync(filePath, "utf8") })));
+}
+
 function isWithin(candidate, directory) {
   const relative = path.relative(directory, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
@@ -569,8 +575,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
-    entries: ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(repositoryRoot, directory), filePath => ENTRY_SOURCE_FILE.test(filePath))
-      .map(filePath => ({ path: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8") }))),
+    entries: readEntrySources(repositoryRoot),
   }));
   for (const app of ["mcp", "cli"]) {
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
@@ -1128,12 +1133,12 @@ export function checkNoGoalTypedAdapters(files) {
   return errors;
 }
 
+/** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
+export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
 /**
  * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
  * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
  */
-/** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
-export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
 const CLI_GOALS_TABLE = "GOALS";
 const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */

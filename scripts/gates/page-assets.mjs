@@ -243,10 +243,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 // T-115 (PG-060), RAC-2090–2093: the workbench takes Goals' styles and scripts from its registration. workbench.css +24 B: Goals'
-// narrow-screen rules (two of them moved out of the shell's responsive block, whose base rules are Goals') need an `@media` of their
+// narrow-screen rules (five of them moved out of the shell's responsive block, whose base rules are Goals') need an `@media` of their
 // own now that they leave the shell's. workbench.js +51 B: Goals' settings scripts run from the registration's `settingsClient`, inside
 // the page bootstrap like every plugin's, where the minifier renames their `L` and `form` against the bootstrap's own. Tried: dropping
-// indentation and joins (the server already strips them), trimming the scripts; the same PR takes 26,074 B off settings.css.
+// indentation and joins (the server already strips them), trimming the scripts; the same PR takes 26,294 B off settings.css.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.css": [1233694, 1233718],
   "/assets/molis-work-workbench.js": [1148453, 1148504],

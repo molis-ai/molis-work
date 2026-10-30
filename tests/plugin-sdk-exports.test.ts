@@ -59,11 +59,14 @@ test("the SDK exports are working functions, among them the ones W2-03 added", (
     "defineArtifactPreviewAction", "bindArtifactPreview", "defineArtifactPinAction", "nextPinnedVersion", "defineArtifactCompareAction", "bindArtifactCompare",
     "sameArtifactFields", "objectOrMissing", "defineArtifactContinueAction", "bindArtifactContinue", "defineArtifactReferrersAction", "linkedArtifactVersion",
     "linksToArtifactVersion", "withActionEffect",
+    // BL-646 (T-113): a plugin that declares link kinds names its own objects with this.
+    "defineArtifactLinkSubjectsAction",
     // W3-06 E: the model service takes registered instructions, so a plugin author gets both helpers from the SDK.
     "defineInstructionPrompt", "instructed",
   ]) assert.equal(typeof sdk[name], "function", name);
   assert.deepEqual(sdk.PLUGIN_MODEL_LIMITS, { default_timeout_ms: 120_000, max_timeout_ms: 600_000, default_output_tokens: 5_000, max_output_tokens: 12_000 });
   assert.equal(sdk.FRAGMENT_ANY_OBJECT, "molis.any-object");
+  assert.equal(sdk.ARTIFACT_LINK_SUBJECTS_BATCH, 200);
   assert.ok(sdk.FRAGMENT_INTENTS.length > 0 && sdk.FRAGMENT_GRANULARITIES.length > 0 && sdk.FRAGMENT_ROLES.length > 0);
   assert.equal("defineSearchQueryAction" in sdk, false, "decision 19 removed the on-demand search source");
 

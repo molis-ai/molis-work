@@ -11,7 +11,7 @@ import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext 
 import { inspectApiConnection, resolveApiConnection } from "../apps/local-host/dist/connector-access.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
-import { createPluginConnectionsPort, readConnectorAccount, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createPluginConnectionsPort, homeIntegrationRegistry, readConnectorAccount, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { catalogOAuthMethod, createCatalogProvider, catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
 import { handleConnectorApiMethodsHttp } from "../apps/local-host/dist/web-connector-api-methods.js";
@@ -369,7 +369,30 @@ test("the market pulse sends an OAuth token that does not expire as it is", asyn
   assert.equal(refreshes.length, 0);
 });
 
-test("S-97 FI-C-02: a withdrawn refresh preserves credentials, protocol and prior refusal state", { timeout: 30_000 }, async t => {
+// RAC-1085 (W5-11 slice 5; 用户 10-27 定：只存新令牌): a cancelled call no longer aborts a refresh it already sent. When its answer comes
+// back with nobody waiting, only the rotated credentials are written back; the protocol, the connection and the refusal mark stay as they were.
+// RAC-1088 (W5-11 §5, §10 Q3): the pulse lends an OAuth account's token only while the plugin declaring GitHub's method is enabled. Disabled,
+// the connection sends nothing and refreshes nothing, and the pulse searches anonymously, as it does for any account it cannot use.
+test("RAC-1088 with the plugin declaring GitHub disabled, the market pulse searches anonymously and the OAuth account is neither sent nor refreshed", async t => {
+  const directory = home();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const id = await connectGithubOAuth(directory, { access_token: "live-access", refresh_token: "refresh-1", expires_in: 28_800 });
+  const { refreshes, sent } = githubNetwork(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 28_800 }));
+  const port = alchemistPulseGithub(directory);
+  port.select(id);
+  await port.fetch(GITHUB_SEARCH, {});
+  const registry = await homeIntegrationRegistry(directory);
+  await registry.disable(registry.oauthOwner("github")!.plugin_id);
+  await port.fetch(GITHUB_SEARCH, {});
+  // Expired as well: still nothing is refreshed.
+  connectorProtocolSecrets(directory, id).put("expires", String(Date.now() - 3_600_000));
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.deepEqual(sent, ["Bearer live-access", null, null]);
+  assert.equal(refreshes.length, 0);
+  assert.equal(connectorProtocolSecrets(directory, id).get("oauth"), "refresh-1");
+});
+
+test("S-97 FI-C-02 RAC-1085: a cancelled refresh keeps only the rotated credentials, and leaves protocol and prior refusal state alone", { timeout: 30_000 }, async t => {
   for (const priorRefusal of [false, true]) await t.test(`prior-refusal=${priorRefusal}`, async t => {
     const directory = home();
     let release!: () => void, entered!: () => void, first = priorRefusal;
@@ -393,13 +416,18 @@ test("S-97 FI-C-02: a withdrawn refresh preserves credentials, protocol and prio
     const connection = withConnectorConnections(directory, store => store.require(id));
     const abort = new AbortController(), control = connectorControl({ signal: abort.signal });
     const pending = resolveApiConnection(directory, id, control, "asana", true);
-    const rejected = assert.rejects(pending, /call withdrawn/u);
-    try { await reached; abort.abort(new Error("call withdrawn")); } finally { release(); }
+    const rejected = assert.rejects(pending, /call cancelled/u);
+    try { await reached; abort.abort(new DOMException("call cancelled", "AbortError")); } finally { release(); }
     await rejected;
-    assert.deepEqual(Object.fromEntries(Object.keys(before).map(key => [key, secrets.get(key)])), before);
+    // A refused answer writes nothing; a token answer writes back the access token, the refresh token and the expiry, and nothing else.
+    const after = Object.fromEntries(Object.keys(before).map(key => [key, secrets.get(key)]));
+    if (priorRefusal) {
+      assert.deepEqual({ access: after.access, oauth: after.oauth, client: after.client }, { access: "late-access", oauth: "late-refresh", client: before.client });
+      assert.ok(Number(after.expires) > Date.now(), "the new expiry is written with the tokens");
+    } else assert.deepEqual(after, before);
     assert.deepEqual(withConnectorProtocols(directory, store => store.get(id)), protocol);
     assert.equal(withConnectorConnections(directory, store => store.require(id)).updated_at, connection.updated_at);
-    assert.equal(state(), priorRefusal ? "reauth_required" : "connected", "withdrawal neither sets nor clears the refusal mark");
+    assert.equal(state(), priorRefusal ? "reauth_required" : "connected", "a cancelled call neither sets nor clears the refusal mark");
   });
 });
 
@@ -489,5 +517,9 @@ test("RAC-1082 jira: the token, context and identity requests of an authorizatio
   await completeApiOAuth(directory, callback(start.authorization_url));
   assert.deepEqual(sent, ["https://auth.atlassian.com/oauth/token", "https://api.atlassian.com/oauth/token/accessible-resources",
     `https://api.atlassian.com/ex/jira/${cloud}/rest/api/3/myself`]);
-  assert.equal(apiOAuthContext(directory, start.connection_id)?.account_id, `${cloud}:a-1`);
+  const context = apiOAuthContext(directory, start.connection_id);
+  assert.equal(context?.account_id, `${cloud}:a-1`);
+  // The site the connection was authorized for and its base on the gateway: without them the platform's request check pins no site and
+  // the connection's requests are refused (second review of #1439).
+  assert.deepEqual({ site_url: context?.site_url, base: context?.base }, { site_url: "https://acme.atlassian.net", base: `https://api.atlassian.com/ex/jira/${cloud}` });
 });

@@ -7,6 +7,7 @@ import type { OAuthIdentityDeclaration, PluginOAuthMethodDeclaration } from "@mo
 import {
   oauthAccount,
   oauthAccountRequest,
+  oauthAuthorizationContext,
   oauthAuthorizationUrl,
   oauthContextValue,
   oauthEndpoint,
@@ -405,6 +406,19 @@ test("RAC-1082 context picks: the ids of a list in code-point order, and the id 
   assert.equal(oauthContextValue(pick, resources, { values: { site_url: "https://acme.atlassian.net" }, tenant: "https://acme.atlassian.net" }), "0f6a3c1e-0000-4000-8000-000000000001");
   assert.throws(() => oauthContextValue(pick, resources, { values: { site_url: "https://missing.atlassian.net" }, tenant: "https://missing.atlassian.net" }), { code: "connector.oauth_declarations.context_missing" });
   assert.throws(() => oauthContextValue(pick, [{ url: "https://acme.atlassian.net", id: "../x" }], { values: { site_url: "https://acme.atlassian.net" }, tenant: "https://acme.atlassian.net" }), { code: "connector.oauth_declarations.context_missing" });
+});
+
+test("RAC-1082 an Atlassian authorization adds the site and its base on the gateway, and refuses a gateway id that is not one path segment", () => {
+  for (const serviceId of ["jira", "confluence"]) {
+    const method = catalogOAuthMethod(serviceId)!;
+    const settings = resolveOAuthSettings(serviceId, method, { site_url: "https://acme.atlassian.net" });
+    assert.deepEqual(oauthAuthorizationContext(serviceId, method, settings, { cloud_id: "0f6a3c1e-0000-4000-8000-000000000001" }),
+      { site_url: "https://acme.atlassian.net", base: `https://api.atlassian.com/ex/${serviceId}/0f6a3c1e-0000-4000-8000-000000000001` }, serviceId);
+    for (const cloudId of [undefined, "", ".", "../x", "a/b", "a\\b", "a%2Fb"]) {
+      assert.throws(() => oauthAuthorizationContext(serviceId, method, settings, cloudId === undefined ? {} : { cloud_id: cloudId }),
+        { code: "connector.oauth_declarations.context_missing" }, `${serviceId} ${cloudId}`);
+    }
+  }
 });
 
 // W5-11 slice 4 (RAC-1082, Codex pre-review P3): the flow's requests leave by `sendPublicHttps`, so the call's checks run again once the

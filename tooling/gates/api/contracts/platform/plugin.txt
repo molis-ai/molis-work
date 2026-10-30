@@ -323,6 +323,12 @@ export declare const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.re
 
 export declare const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
 
+export declare const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
+
+export declare const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
+
+export declare const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = "molis.artifacts.link_subjects.v1";
+
 export declare const ARTIFACT_PIN_INPUT_SCHEMA: {
     type: string;
     properties: {
@@ -930,6 +936,23 @@ export interface ArtifactLinkDeclaration {
     kind: string;
     role: "input" | "output";
     proposal?: boolean;
+}
+
+export interface ArtifactLinkSubject {
+    id: string;
+    title: string;
+    open: {
+        surface: string;
+        id: string;
+    };
+}
+
+export interface ArtifactLinkSubjectsInput {
+    ids: string[];
+}
+
+export interface ArtifactLinkSubjectsResult {
+    objects: ArtifactLinkSubject[];
 }
 
 export interface ArtifactPinInput {
@@ -5047,6 +5070,8 @@ export declare function defineArtifactCompareAction(capabilityId: string, typeTi
 
 export declare function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
 
+export declare function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
+
 export declare function defineArtifactPinAction(capabilityId: string, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult>;
 
 export declare function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent>;
@@ -5118,6 +5143,11 @@ export declare function isArtifactCompareAction(action: {
 }): boolean;
 
 export declare function isArtifactContinueAction(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
+export declare function isArtifactLinkSubjectsAction(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;

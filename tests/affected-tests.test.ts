@@ -1195,23 +1195,105 @@ test("every path the rules name exists in this repository, so a rename cannot le
 });
 
 // RAC-2427: docs/system/PARALLEL-DEVELOPMENT.md section 6 names the shared core in two places — the must-run table row and the
-// full-suite condition bullet — and both must carry every package FULL_REGRESSION.corePackages counts (plus the modules/ prefix),
-// so a package added to the rule without the documents (horizontal/agent-host was) fails here instead of drifting again.
-test("RAC-2427 the shared-core lists in PARALLEL-DEVELOPMENT.md name every package FULL_REGRESSION.corePackages counts", () => {
+// full-suite condition bullet — and both must carry exactly the packages FULL_REGRESSION.corePackages counts (plus the modules/ prefix).
+// RAC-2444 pins the same parse against three in-memory mutations, and the PR template's checkbox and the selector's group label too.
+const SHARED_CORE_AREAS = new Set(["horizontal/agent-host"]);
+
+/** The shared core as the two documents write it: an area-qualified path stays whole, every other package by its own name. */
+const sharedCoreNames = (paths: readonly string[], prefixes: readonly string[]) => new Set([
+  ...paths.map((entry) => SHARED_CORE_AREAS.has(entry) ? entry : entry.split("/").pop()!),
+  ...prefixes.map((prefix) => prefix.replace(/\/$/u, "")),
+]);
+
+/** Names in a 、-separated cell or bullet, ignoring descriptive parts such as "local-host 的装配" that are not package names. */
+const writtenNames = (text: string) => new Set(text.split(/[、，,]/u).map((part) => part.trim()).filter((part) => part && !/\s/u.test(part)));
+
+const compareSharedCore = (label: string, actual: ReadonlySet<string>, expected: ReadonlySet<string>) => {
+  const missing = [...expected].filter((name) => !actual.has(name));
+  const extra = [...actual].filter((name) => !expected.has(name));
+  assert.deepEqual({ missing, extra }, { missing: [], extra: [] },
+    `${label} names exactly the shared core; missing [${missing.join(", ")}], extra [${extra.join(", ")}]`);
+};
+
+const sharedCoreDocumentLines = () => {
   const guide = readFileSync(path.join(realRoot, "docs/system/PARALLEL-DEVELOPMENT.md"), "utf8").split("\n");
-  const mustRun = guide.find((line) => line.startsWith("| 共享核心（"));
-  const condition = guide.find((line) => line.startsWith("- 改了 contracts、kernel、plugin-sdk、plugin-runtime"));
-  assert.ok(mustRun, "section 6's must-run table has the shared-core row");
-  assert.ok(condition, "section 6's full-suite condition names the shared-core packages");
-  // The rule names workspace paths; the documents name the same packages without their area, and the modules/ prefix as "modules".
-  const DOCUMENTED: Record<string, string> = {
-    "packages/contracts": "contracts", "packages/kernel": "kernel", "packages/plugin-sdk": "plugin-sdk",
-    "packages/plugin-runtime": "plugin-runtime", "horizontal/agent-host": "horizontal/agent-host",
+  return {
+    mustRun: guide.find((line) => line.startsWith("| 共享核心（")),
+    condition: guide.find((line) => line.startsWith("- 改了 contracts、kernel、plugin-sdk、plugin-runtime")),
   };
-  const documented = [...FULL_REGRESSION.corePackages.map((entry: string) => DOCUMENTED[entry] ?? entry),
-    ...FULL_REGRESSION.corePackagePrefixes.map((prefix: string) => prefix.replace(/\/$/u, ""))];
-  assert.ok(documented.includes("horizontal/agent-host"), "agent-host is shared core, as T-271 added it to the rule");
-  for (const line of [mustRun!, condition!]) for (const name of documented) assert.ok(line.includes(name), `${name} is missing from: ${line}`);
+};
+
+/** The must-run row's shared-core cell: the names between its full-width parentheses, before the other categories in that cell. */
+const mustRunNames = (line: string | undefined) => {
+  assert.ok(line, "section 6's must-run table has the shared-core row");
+  const cell = /共享核心（([^）]+)）/u.exec(line)?.[1];
+  assert.ok(cell, "the shared-core row names its packages in parentheses");
+  return writtenNames(cell);
+};
+
+/** The full-suite condition bullet: packages after "改了 ", and the modules/ prefix it writes as a glob. */
+const conditionNames = (line: string | undefined) => {
+  assert.ok(line, "section 6's full-suite condition names the shared-core packages");
+  const listed = /^- 改了 (.+?)(?: 或任一| |；|$)/u.exec(line)?.[1];
+  assert.ok(listed, "the condition lists the packages after 改了");
+  const names = writtenNames(listed);
+  const glob = /`([a-z0-9-]+)\/\*`/u.exec(line)?.[1];
+  if (glob) names.add(glob);
+  return names;
+};
+
+test("RAC-2427 the shared-core lists in PARALLEL-DEVELOPMENT.md and the full-suite condition name exactly the rule's packages", () => {
+  const { mustRun, condition } = sharedCoreDocumentLines();
+  const expected = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  assert.ok(expected.has("horizontal/agent-host"), "agent-host is shared core, as T-271 added it to the rule");
+  compareSharedCore("section 6's must-run table", mustRunNames(mustRun), expected);
+  compareSharedCore("section 6's full-suite condition", conditionNames(condition), expected);
+});
+
+test("RAC-2444 the shared-core parse rejects an extra name, a missing one and one moved into the row's explanation", () => {
+  const { mustRun, condition } = sharedCoreDocumentLines();
+  const expected = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  compareSharedCore("the unmodified table", mustRunNames(mustRun), expected);
+  compareSharedCore("the unmodified condition", conditionNames(condition), expected);
+  // The old check: one direction, substring anywhere in the line. Both mutations below pass it — the hole this test closes.
+  const oldIncludesLoop = (line: string) => { for (const name of expected) assert.ok(line.includes(name), `${name} is missing from: ${line}`); };
+  // An extra package the rule does not count: the old `line.includes(name)` loop could not see one.
+  const extra = mustRun!.replace("contracts、", "contracts、left-pad、");
+  oldIncludesLoop(extra);
+  assert.throws(() => compareSharedCore("the table with an extra", mustRunNames(extra), expected), /left-pad/u);
+  // A rule package dropped from the list: the old loop would catch this one too, kept so the guard is known to still see it.
+  const missing = mustRun!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the table without kernel", mustRunNames(missing), expected), /kernel/u);
+  // A name moved into the row's trailing explanation: still a substring of the line, so the old loop stayed green.
+  const moved = mustRun!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the table with kernel moved out of the cell", mustRunNames(moved), expected), /kernel/u);
+  const movedLine = `${moved}（kernel 见 rules.mjs）`;
+  oldIncludesLoop(movedLine);
+  assert.throws(() => compareSharedCore("the table with kernel in the explanation", mustRunNames(movedLine), expected), /kernel/u);
+});
+
+test("RAC-2444 the shared core in the PR template and the selector's label is the same rule's set", () => {
+  const template = readFileSync(path.join(realRoot, ".github/pull_request_template.md"), "utf8").split("\n")
+    .find((line) => line.startsWith("- [ ] 共享核心（"))!;
+  assert.ok(template, "the PR template's merge queue section names the shared core");
+  const inside = /共享核心（([^）]+)）/u.exec(template)![1]!;
+  const listed = [...inside.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!);
+  assert.ok(listed.length > 0, "the template lists the shared-core packages in code spans");
+  // The template mixes both forms (`packages/contracts` and `plugin-sdk`), so compare by the name each entry means.
+  const expectedShort = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  const meaning = (name: string) => name.replace(/^packages\//u, "").replace(/\/\*$/u, "");
+  const stale = listed.filter((name) => !expectedShort.has(meaning(name)));
+  assert.deepEqual(stale, [], "every package the template names is still shared core");
+  // "等" marks the list as partial: a template that drops the marker must then name all of them.
+  if (!inside.includes("等")) compareSharedCore("the PR template", new Set(listed.map(meaning)), expectedShort);
+
+  const select = readFileSync(path.join(realRoot, "scripts/affected-tests/select.mjs"), "utf8").split("\n")
+    .find((line) => line.includes('group("shared-core", "shared core ('))!;
+  assert.ok(select, "the selector has a shared-core group");
+  const label = /shared core \(([^)]+)\)/u.exec(select)![1]!;
+  const expectedLabel = new Set([...FULL_REGRESSION.corePackages.map((entry: string) => entry.split("/").pop()!),
+    ...FULL_REGRESSION.corePackagePrefixes.map((prefix: string) => prefix.replace(/\/$/u, ""))]);
+  compareSharedCore("the selector's group label", new Set(label.split(", ").map((name) => name.trim())), expectedLabel);
 });
 
 test("in this repository, a change to a package selects every test its README lists as must-run, and each of them exists", () => {

@@ -137,6 +137,27 @@ test("RAC-2452 a card's hint keeps whole characters, never the high half of one"
   assert.equal(card.hint, "x".repeat(159), "the hint drops the high half: 159 units, no half of a character");
   assert.ok(card.hint.isWellFormed(), "no lone half of a character is left");
   assert.ok(card.hint.length <= 160, "the hint stays within its limit");
+
+  // The other two hints come from the search hit's snippet and from the related pieces' snippets. Both ports are injectable, so the
+  // boundary text can be handed in without touching FTS: a hit's snippet, and a related piece's snippet for a person (snippets on).
+  const boundary = "y".repeat(159) + "🙂";
+  const fromHit = new KnowledgeService({ cards: f.cards, search: async (access, input) => {
+    const answer = await f.search.query(access, input);
+    return { ...answer, hits: answer.hits.map(hit => ({ ...hit, snippet: boundary })) };
+  } });
+  const hitCard = (await fromHit.search(f.access(reader()), { query: "试用" })).cards.find(item => item.subject.id === "p1");
+  assert.ok(hitCard, "the search hit's card is shown");
+  assert.notEqual(hitCard!.matched, "card", "the card comes from the search hit, not from its own words");
+  assert.equal(hitCard!.hint, "y".repeat(159), "the search hit's snippet hint drops the high half");
+  assert.ok(hitCard!.hint.isWellFormed(), "the search hit's hint leaves no lone half");
+
+  const fromRelated = new KnowledgeService({ cards: f.cards,
+    search: async (access, input) => ({ ...(await f.search.query(access, input)), hits: [] }),
+    related: () => [{ kind: "page", id: "p1", snippet: boundary }] });
+  const relatedCard = (await fromRelated.search(f.access(person("a")), { query: "陌生词" })).cards.find(item => item.subject.id === "p1");
+  assert.ok(relatedCard && relatedCard.matched === "related", "the card comes from a related piece");
+  assert.equal(relatedCard!.hint, "y".repeat(159), "the related snippet hint drops the high half");
+  assert.ok(relatedCard!.hint.isWellFormed(), "the related hint leaves no lone half");
 });
 
 test("PMAT-06 PMAT-09 read returns the owner's original text of one section, with what is left", async t => {

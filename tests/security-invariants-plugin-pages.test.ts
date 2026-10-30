@@ -506,8 +506,8 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
     "/settings/diagnostics?call=c-1", "diagnostics drops a fragment it does not read");
   assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&q=feed&filter=all&format=html&bad=1"),
     "/capabilities/access?client=agent%3Aprologue&client_custom=acme&q=feed&filter=all", "the access page keeps its client selector, q and filter; drops format (the page does not read it) and bad");
-  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&q=feed&bad=1", [], "link"),
-    "/capabilities/access?client=agent%3Aprologue&q=feed", "the same retention when a plugin page's link clicks through to the access page");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&project=desk-1&q=feed&filter=all&format=html&bad=1", [], "link"),
+    "/capabilities/access?client=agent%3Aprologue&client_custom=acme&project=desk-1&q=feed&filter=all", "the same retention on the full address when a plugin page's link clicks through to the access page");
   assert.equal(openSettingsAddress("/capabilities/rules?project=p1&rule=r-1&key=k-1&x=1"),
     "/capabilities/rules?project=p1&rule=r-1&key=k-1", "the rules page keeps project, rule and key, drops x");
   assert.equal(openSettingsAddress("/projects/p1/settings/planning/method-a?project=p1&x=1#frag"),

@@ -1,4 +1,4 @@
-import type { ActionSchema } from "../platform/actions.js";
+import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { text, count, array, object, nullable, enumeration } from "./goal-event-action-schemas.js";
 import { goalRecordSchema, goalDecompositionReviewSchema } from "./goal-record-action-schema.js";
 import { goalPolicySchema, goalRelationSchema } from "./goal-policy-action-schemas.js";

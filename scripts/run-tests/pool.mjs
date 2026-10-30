@@ -127,13 +127,17 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   try {
     const attempt = (entry) => runOnce(root, entry.file, timeoutSeconds * 1000, { environment: process.env, testArgs });
     const ok = (result) => ["pass", "skipped"].includes(statusOf(result).status);
+    const report = (result) => `${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`;
+    const failure = (entry, result, round) => `[attempt ${round} failed] ${statusOf(result).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}\n${report(result)}\n`;
     // --bail: a failed file is run again at once (up to `retries` times); one that still fails stops the run: nothing more starts,
     // and the files still running are stopped, so a red run ends at its first failing file instead of after every file.
     const runFile = !bail ? attempt : async (entry) => {
       let result = await attempt(entry);
       for (let round = 1; round <= retries && !culprit && !ok(result); round++) {
         const again = await attempt(entry);
-        if (!culprit) console.log(`[retry ${round}] ${ok(again) ? "ok  " : statusOf(again).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(again.seconds)}`);
+        // The attempt that just failed is shown with the retry line (one console.log, so no other file's output lands between them): a retry
+        // that passes would otherwise leave no trace of why the first one failed. The last attempt is shown by onDone, as for any failed file.
+        if (!culprit) console.log(`${failure(entry, result, round)}[retry ${round}] ${ok(again) ? "ok  " : statusOf(again).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(again.seconds)}`);
         if (ok(again)) return { ...again, flaky: true };
         result = again;
       }
@@ -151,7 +155,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
         console.log(`[${finished}/${files.length}] ${ok(result) ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}  ${tests}`);
         if (ok(result)) { passed += 1; if (result.flaky) flakyAtOnce.push(entry.file); }
         else failed.push({ entry, status, result });
-        if (!ok(result) || verbose) console.log(`${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`);
+        if (!ok(result) || verbose) console.log(report(result));
         if (bail && !ok(result) && !culprit) { culprit = entry; stopRunning(); }
       },
     });

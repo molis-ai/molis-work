@@ -1,6 +1,6 @@
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
-import type { GoalsQueryApi, GoalsPlanningApi, PlanningGraphIssue } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalRecord, GoalTreeProposalItemRecord, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsPlanningApi, PlanningGraphIssue } from "./contract/goals.js";
+import type { GoalTreeProposalRecord, GoalTreeProposalItemRecord, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "./contract/governance-collaboration.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import type { GoalTreeInputReader } from "./goal-tree-inputs.js";
 import type { GoalTreeDecisionNormalizer } from "./goal-tree-decision-inputs.js";

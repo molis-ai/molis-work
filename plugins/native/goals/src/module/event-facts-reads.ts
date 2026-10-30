@@ -8,7 +8,7 @@ import type {
   GoalEventListQuery,
   GoalEventTimelinePage,
   GoalWorkEventRecord,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { GoalsCommandContext } from "./command-support.js";
 import { goalErrors } from "./errors.js";
 import { mapReportEvent, mapStoredWorkEvent, mapTimelineItem } from "./event-facts-mapping.js";

@@ -2,13 +2,12 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
-import { bindGoalsManagementActions, refusePayloadIdentity } from "./goal-callers.js";
+import { bindGoalsManagementActions, goalsHostActions, refusePayloadIdentity } from "./goal-callers.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
@@ -56,7 +55,7 @@ export async function runLocalPluginDevelopment(input: {
 /** The development project's board through the Goals action, as the management entry; a board Goals already made at its start is left as it is. */
 async function ensureBoard(host: MolisWorkLocalHost, reference: LocalHostProjectReference): Promise<void> {
   try {
-    await bindGoalsManagementActions(host.actionClient(reference), reference).invoke(goalEntryActions.initialize, { idempotency_key: "plugin-development-board" });
+    await bindGoalsManagementActions(host.actionClient(reference), reference).invoke(goalsHostActions.initialize, { idempotency_key: "plugin-development-board" });
   } catch (error) {
     if (!(error instanceof ActionError && error.code === "goals.board.exists")) throw error;
   }

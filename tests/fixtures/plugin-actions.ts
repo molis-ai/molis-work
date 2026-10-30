@@ -1,7 +1,7 @@
 import { ActionService, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";

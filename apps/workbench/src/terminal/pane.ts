@@ -1,8 +1,7 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export interface TerminalPaneModel {
-  selected?: Pick<GoalRecord, "goal_id" | "title" | "decomposition_state" | "fulfillment_state"> & { statusHtml: string; event_work?: boolean };
+  selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
   text(value: string, vars?: Record<string, string | number>): string;

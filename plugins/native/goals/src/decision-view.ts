@@ -1,5 +1,5 @@
-import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
+import type { GoalRelationRecord } from "./contract/goals.js";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 export interface GoalsDecisionEvent {
   seq: number;

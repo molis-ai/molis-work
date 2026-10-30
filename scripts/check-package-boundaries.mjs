@@ -196,7 +196,7 @@ function checkMigratedFeedOwnership(repositoryRoot) {
   return { errors };
 }
 
-function checkMigratedIntegrationOwnership(repositoryRoot) {
+export function checkMigratedIntegrationOwnership(repositoryRoot) {
   const errors = [];
   const servicePath = "plugins/native/feed/src/connector-sync.ts";
   const service = fs.readFileSync(path.join(repositoryRoot, servicePath), "utf8");
@@ -256,7 +256,7 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
     }
     const entrypoint = fs.readFileSync(path.join(pluginRoot, "src/index.ts"), "utf8");
     for (const identity of [manifest.plugin_id, manifest.version, manifest.publisher?.signature]) {
-      if (typeof identity === "string" && !entrypoint.includes(JSON.stringify(identity))) {
+      if (typeof identity === "string" && !hasInText(entrypoint, JSON.stringify(identity))) {
         errors.push(`plugins/official-integrations/${name}: source Manifest differs from manifest.json identity`);
       }
     }
@@ -272,14 +272,14 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
     }
     const hostPath = `apps/local-host/src/${composition.provider}-connector.ts`;
     const source = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-    if (!source.includes(composition.packageName) || source.includes(composition.forbidden)) {
+    if (!hasImportFrom(source, composition.packageName) || source.includes(composition.forbidden)) {
       errors.push(`${hostPath}: Host must compose the public Integration without owning Provider protocol`);
     }
   }
   return { errors };
 }
 
-function checkMigratedFeedUiOwnership(repositoryRoot) {
+export function checkMigratedFeedUiOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const renderer = read("apps/workbench/src/renderer.ts");
@@ -301,7 +301,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   }
   const feedPlugin = read("plugins/native/feed/src/plugin.ts");
   const feedManifestText = read("plugins/native/feed/src/manifest.ts");
-  if (!feedManifestText.includes("routes: [") || !feedPlugin.includes("createFeedRouteHandlers") || !feedPlugin.includes("routes,")) {
+  if (!hasInCode(feedManifestText, "routes: [") || !hasInCode(feedPlugin, "createFeedRouteHandlers") || !hasInCode(feedPlugin, "routes,")) {
     errors.push("plugins/native/feed: the Feed page routes must be declared in its Manifest and bound by createFeedPlugin");
   }
   const inboxPlugin = read("plugins/native/inbox/src/plugin.ts");
@@ -321,7 +321,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
       errors.push(`apps/workbench/src/renderer.ts: ${forbidden} must be owned by the Feed UI Contribution`);
     }
   }
-  if (!renderer.includes("renderFeedNativePluginSurface")) {
+  if (!hasInCode(renderer, "renderFeedNativePluginSurface")) {
     errors.push("apps/workbench/src/renderer.ts: Feed caller must render through the Native Plugin adapter");
   }
   for (const forbidden of ["/api/feed", "handleFeedNativePluginHttp", "promoteFeedItemToGoal(", "sendFeedError("]) {
@@ -332,19 +332,19 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (server.includes("/api/inbox")) {
     errors.push("apps/local-host/src/web-request.ts: the Host has no /api/inbox route; the Inbox Plugin declares its routes under /api/plugins/<plugin_id>/");
   }
-  if (!inboxManifestText.includes("routes: [") || !inboxPlugin.includes("createInboxRouteHandlers") || !inboxPlugin.includes("routes,")) {
+  if (!hasInCode(inboxManifestText, "routes: [") || !hasInCode(inboxPlugin, "createInboxRouteHandlers") || !hasInCode(inboxPlugin, "routes,")) {
     errors.push("plugins/native/inbox: the Inbox page routes must be declared in its Manifest and bound by createInboxPlugin");
   }
   if (pluginRoutes.includes("/api/inbox/")) {
     errors.push("plugins/native/feed/src/routes.ts: /api/inbox must be owned by the Inbox Plugin");
   }
-  if (!uiAdapter.includes("renderFeedContribution") || !pluginUi.includes("feedUiContribution")) {
+  if (!hasInCode(uiAdapter, "renderFeedContribution") || !hasInCode(pluginUi, "feedUiContribution")) {
     errors.push("Feed UI must cross the Workbench public contribution entrypoint");
   }
   if (!hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
   }
-  if (!uiHost.includes("class UiHost") || !uiHost.includes("render<TModel>(request")) {
+  if (!hasInCode(uiHost, "class UiHost") || !hasInCode(uiHost, "render<TModel>(request")) {
     errors.push("packages/ui-host: real contribution registry/render behavior is missing");
   }
   return { errors };
@@ -369,12 +369,12 @@ function checkCoordinatorStaysDeleted(repositoryRoot) {
  */
 export function checkGoalsCommandOwnership({ goalsPlugin, httpContext, hostSources }) {
   const errors = [];
-  if (!/routes:\s*goalsRoutes\s*\(\{/u.test(goalsPlugin)
-    || !/actions:\s*request\s*=>/u.test(goalsPlugin)
-    || !/actions\.invoke\(definition,\s*input,\s*request\.execution\)/u.test(goalsPlugin)) {
+  if (!matchesInCode(goalsPlugin, /routes:\s*goalsRoutes\s*\(\{/u)
+    || !matchesInCode(goalsPlugin, /actions:\s*request\s*=>/u)
+    || !matchesInCode(goalsPlugin, /actions\.invoke\(definition,\s*input,\s*request\.execution\)/u)) {
     errors.push("plugins/native/goals/src/plugin.ts: Goals' declared routes must be mounted by the plugin runtime (`routes: goalsRoutes({ … })`) and given the request's BoundActionClient (`actions: request =>`, `actions.invoke(definition, input, request.execution)`)");
   }
-  if (!httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
+  if (!hasInCode(httpContext, "actions(request: PluginRouteRequest): BoundActionClient") || !hasInCode(httpContext, "actions: BoundActionClient")
     || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
     errors.push("plugins/native/goals/src/http/types.ts: Goals HTTP business operations must consume BoundActionClient without direct domain ports");
   }
@@ -414,7 +414,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/module/planning/method-packs.ts",
     "plugins/native/goals/src/module/query.ts",
     "plugins/native/goals/src/module/repository.ts",
-    "packages/contracts/src/modules/goals.ts",
+    "plugins/native/goals/src/contract/goals.ts",
     "plugins/native/goals/src/goal-query-application.ts",
   ];
   for (const relativePath of [
@@ -569,6 +569,8 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
+    entries: ["apps/cli/src", "apps/mcp/src"].flatMap(directory => filesUnder(path.join(repositoryRoot, directory), filePath => ENTRY_SOURCE_FILE.test(filePath))
+      .map(filePath => ({ path: path.relative(repositoryRoot, filePath), source: fs.readFileSync(filePath, "utf8") }))),
   }));
   for (const app of ["mcp", "cli"]) {
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
@@ -631,7 +633,7 @@ export function checkMigratedGovernanceOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
-    "packages/contracts/src/modules/governance-collaboration.ts",
+    "plugins/native/goals/src/contract/governance-collaboration.ts",
     "plugins/native/goals/src/governance/index.ts",
     "plugins/native/goals/src/governance/repository.ts",
     "plugins/native/goals/src/governance/record-store.ts",
@@ -658,7 +660,7 @@ export function checkMigratedGovernanceOwnership(repositoryRoot) {
     }
   }
 
-  const contractPath = "packages/contracts/src/modules/governance-collaboration.ts";
+  const contractPath = "plugins/native/goals/src/contract/governance-collaboration.ts";
   const contract = read(contractPath);
   for (const publicApi of [
     "GovernanceQueryApi",
@@ -1126,11 +1128,23 @@ export function checkNoGoalTypedAdapters(files) {
   return errors;
 }
 
-/** Where the platform's entries take Goals' action descriptors from (PG-031): the contracts subpath, not the Goals plugin package. */
-const GOALS_ACTIONS_MODULE = "@molis-ai/molis-work-contracts/modules/goal-actions";
-const GOALS_ACTIONS = "goalEntryActions";
-/** The modules the CLI dispatcher may reach: the action contract, the published `goalEntryActions` and its own protocol file. */
-const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_ACTIONS_MODULE, "./protocol.js"]);
+/**
+ * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
+ * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
+ */
+/** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
+export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
+const CLI_GOALS_TABLE = "GOALS";
+const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
+/** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
+const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", "./protocol.js"]);
+/** The modules the MCP dispatcher may reach: the action contract and the presentation error type. */
+const MCP_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", "./goal-presentation.js"]);
+/**
+ * A specifier that reaches Goals' contract: the Goals plugin package (its `/contract` subpath included), its source tree by path, or one of the
+ * platform contracts' old Goals subpaths (`modules/goals`, `modules/goal-*`, `modules/governance-collaboration`, moved into the plugin by PG-111).
+ */
+const GOALS_CONTRACT_SPECIFIER = /molis-work-plugin-goals|plugins\/native\/goals\/|modules\/(?:goals|goal-[a-z-]+|governance-collaboration)(?:\.js)?$/u;
 /** The ways the Host opens a project or reaches Goals; the dispatcher is handed the management port and holds none of them. */
 const HOST_CLIENT_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", "withProject", "withScope", "coordinator"]);
 
@@ -1154,44 +1168,38 @@ function moduleReferences(file) {
   return found;
 }
 
-/** What of the Goals descriptors module a reference holds other than `{ goalEntryActions }`; empty when it is just that. */
-function goalsBindingsOtherThanActions(node, kind) {
-  if (kind !== "import") return [`a ${kind} of the whole module`];
-  const clause = node.importClause;
-  if (!clause) return [`a bare import (the transport imports { ${GOALS_ACTIONS} })`];
-  const names = [];
-  if (clause.name) names.push(`default import ${clause.name.text}`);
-  const bindings = clause.namedBindings;
-  if (bindings && ts.isNamespaceImport(bindings)) names.push(`* as ${bindings.name.text}`);
-  if (bindings && ts.isNamedImports(bindings)) {
-    for (const element of bindings.elements) if ((element.propertyName ?? element.name).text !== GOALS_ACTIONS) names.push((element.propertyName ?? element.name).text);
-  }
-  return names;
-}
-
 /**
- * The transport entries reach Goals through the platform, not through a Host client of their own. `cli`: the dispatcher is handed the
- * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalEntryActions` and its protocol file,
- * holds no Host client under any spelling and reads the snapshot through Goals' own action; `cli-project.ts` builds that port with
+ * The transport entries reach Goals through the platform, not through a Host client of their own, and name no Goals contract. `entries`: no
+ * file of the CLI or MCP package references a Goals contract or the Goals package under any syntax. `cli`: the dispatcher is handed the
+ * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, calls each Goals action
+ * by a `GOALS.<name>` entry of the id-and-version table it declares, holds no Host client under any spelling and reads the snapshot through
+ * Goals' own action; `cli-project.ts` builds that port with
  * `bindGoalsManagementActions(<host>.actionClient(reference), reference)`, over the project's client (it starts the project's
  * plugins, Goals among them) and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
  */
-export function checkGoalTransportCallers({ cli, mcp }) {
+export function checkGoalTransportCallers({ cli, mcp, entries }) {
+  // A caller that forgets the entries must not pass the rule by skipping it.
+  if (!Array.isArray(entries)) throw new TypeError("checkGoalTransportCallers: entries (the entry packages' source files) are required");
   const errors = [];
   const dispatcherPath = "apps/cli/src/command-dispatch.ts";
   const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
-  for (const { node, kind, specifier } of moduleReferences(dispatcher)) {
-    if (specifier === undefined) {
-      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract, goalEntryActions and its protocol file`);
-    } else if (!CLI_DISPATCHER_MODULES.has(specifier)) {
-      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract, goalEntryActions and its protocol file`);
-    } else if (specifier === GOALS_ACTIONS_MODULE) {
-      for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${dispatcherPath}: ${held} is not a Goals action; the CLI calls goalEntryActions through the management port`);
+  for (const { path: entryPath, source } of entries) {
+    for (const { kind, specifier } of moduleReferences(ts.createSourceFile(entryPath, source, ts.ScriptTarget.Latest, true))) {
+      if (specifier !== undefined && GOALS_CONTRACT_SPECIFIER.test(specifier)) {
+        errors.push(`${entryPath}: a ${kind} of ${specifier} is a Goals contract; the CLI and MCP call Goals' actions by id and version from the action directory and name no Goals contract (PG-111)`);
+      }
     }
   }
-  const names = new Set(), held = new Set();
+  for (const { kind, specifier } of moduleReferences(dispatcher)) {
+    if (specifier === undefined) {
+      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract and its protocol file`);
+    } else if (!CLI_DISPATCHER_MODULES.has(specifier)) {
+      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract and its protocol file, and takes no Goals descriptor from any Goals contract`);
+    }
+  }
+  const names = new Set(), held = new Set(), called = new Set();
   let snapshot = false;
   const visit = node => {
     if (ts.isIdentifier(node)) {
@@ -1199,29 +1207,49 @@ export function checkGoalTransportCallers({ cli, mcp }) {
       if (HOST_CLIENT_NAMES.has(node.text)) held.add(node.text);
     }
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) held.add(node.argumentExpression.text);
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === GOALS_ACTIONS && node.name.text === "snapshot") snapshot = true;
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
+      const action = node.arguments[0];
+      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === CLI_GOALS_TABLE) {
+        called.add(action.name.text);
+        if (action.name.text === "snapshot") snapshot = true;
+      } else errors.push(`${dispatcherPath}: invoke must name a Goals action of the ${CLI_GOALS_TABLE} table, never a descriptor taken from elsewhere`);
+    }
     ts.forEachChild(node, visit);
   };
   visit(dispatcher);
+  if (!tableDeclared(dispatcher, CLI_GOALS_TABLE)) errors.push(`${dispatcherPath}: declare the ${CLI_GOALS_TABLE} table of Goals action ids and versions the commands call`);
   if (!names.has("CliManagementActions")) errors.push(`${dispatcherPath}: the CLI dispatcher must take the management port the Host builds (CliManagementActions)`);
   for (const name of held) {
     errors.push(`${dispatcherPath}: ${name} is how the Host opens a project or reaches Goals; the CLI calls Goals' actions through the management port and holds no Host client (LocalHostProjectClient, client, withProject, withScope, actionClient, coordinator.goals)`);
   }
-  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalEntryActions.snapshot`);
+  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through ${CLI_GOALS_TABLE}.snapshot`);
 
   errors.push(...checkGoalsManagementWiring(cli.project, "cli"));
   errors.push(...checkMcpGoalTransportCallers(mcp));
   return errors;
 }
 
+/** Whether the file declares `const <name> = { … }` itself (an import of the same name is another module's and is refused elsewhere). */
+function tableDeclared(file, name) {
+  let found = false;
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name && node.initializer) {
+      let initializer = node.initializer;
+      while (ts.isAsExpression(initializer) || ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+      if (ts.isObjectLiteralExpression(initializer)) found = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
 /** The MCP transport holds no Host client; only its Host composition can build the management port. */
 function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) {
   const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts";
   const file = ts.createSourceFile(toolPath, source, ts.ScriptTarget.Latest, true);
-  const allowed = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_ACTIONS_MODULE, "./goal-presentation.js"]);
-  for (const { node, kind, specifier } of moduleReferences(file)) {
-    if (!allowed.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract, goalEntryActions and the presentation error type belong to the transport`);
-    else if (specifier === GOALS_ACTIONS_MODULE) for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${toolPath}: ${held} is not a Goals action`);
+  for (const { kind, specifier } of moduleReferences(file)) {
+    if (!MCP_DISPATCHER_MODULES.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract and the presentation error type belong to the transport, and no Goals contract`);
   }
   const actions = new Set(); let port = false;
   const visit = node => {
@@ -1230,14 +1258,15 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) errors.push(`${toolPath}: ${node.argumentExpression.text} is a Host client`);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0];
-      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === GOALS_ACTIONS) actions.add(action.name.text);
+      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === MCP_GOALS_TABLE) actions.add(action.name.text);
       else errors.push(`${toolPath}: invoke must name a Goals action, never a typed descriptor or caller`);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
-  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke ${GOALS_ACTIONS}.${action}`);
+  if (!tableDeclared(file, MCP_GOALS_TABLE)) errors.push(`${toolPath}: declare the ${MCP_GOALS_TABLE} table of Goals action ids and versions the management tools call`);
+  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke ${MCP_GOALS_TABLE}.${action}`);
 
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;
@@ -1290,7 +1319,7 @@ function withoutCommentsAndRegexes(source) {
 }
 
 /**
- * The three ways a "must contain" check reads a file's text. Each is the old plain `source.includes(…)` (or `regex.test(…)`) AND the same
+ * The ways a "must contain" check reads a file's text. Each is the old plain `source.includes(…)` (or `regex.test(…)`) AND the same
  * look at a blanked copy, so what was refused before is still refused and only what a comment, a string or a regular expression stood in
  * for is refused now.
  * - `hasInCode`: for a name or a piece of syntax (`class X`, `this.f(`, an identifier). It must be in the code: not in a comment, a
@@ -1298,6 +1327,8 @@ function withoutCommentsAndRegexes(source) {
  * - `hasInText`: for text that is the content, an error code, a test title, SQL in a template, `maturity: "partial"`. It must be in the
  *   file's code or in a string or template, not in a comment or a regular expression.
  * - `hasImportFrom`: `from "<specifier>"` must close a real `import` or `export … from` statement, written with double quotes.
+ * - `matchesInCode`: a pattern over code, as `hasInCode` is for a name. `matchesStatementInCode` (below): a pattern that holds a quoted
+ *   path, which must start in code.
  * Not checked by any of them: that the text sits where it is used. A name that is declared and never used, or a string nobody reads,
  * satisfies its check; aliases and renamed imports are not followed.
  */
@@ -1310,6 +1341,20 @@ export function hasImportFrom(source, specifier) {
   const file = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true);
   return file.statements.some(statement => (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
     && statement.moduleSpecifier !== undefined && statement.getText(file).replace(/;$/u, "").endsWith(ending));
+}
+/**
+ * For a pattern whose text holds a quoted path (`import { X } from "./y.js"`): the old `pattern.test(source)` AND a match, on the source
+ * without comments and regular expressions, that STARTS in code. A comment, a regular expression, or a string or template that holds the
+ * statement does not start in code (its first character is inside the literal), so it does not count. Only the start is looked at: the
+ * rest of the match is the pattern's own business, so a literal after a code start is not told apart, and a statement that is real
+ * code but never used satisfies it. `matchAll` does not overlap matches, so a string that holds a run starting like the real statement
+ * can swallow the start of the real one after it; that only refuses more than needed, never accepts more than it should.
+ */
+export function matchesStatementInCode(source, pattern) {
+  if (!pattern.test(source)) return false;
+  const text = withoutCommentsAndRegexes(source), code = withoutCommentsAndLiterals(source);
+  const every = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  return [...text.matchAll(every)].some(found => code[found.index] !== " " && code[found.index] !== "\n");
 }
 
 function unwrapped(node) {
@@ -1470,16 +1515,36 @@ export function builtinCatalogText(repositoryRoot) {
 // Check both registration styles. An import alone is not a registered contribution:
 // the pack must list it and the composition root must register that pack's entries.
 // `descriptors` is the catalog's entries as one array text (builtinCatalogText).
+//
+// `hasWorkbenchUiContribution` is for a registration that must be there: the wiring is read on the code (a comment, a string, a regular
+// expression or template text that shows it does not count), the quoted import paths on the code too (`matchesStatementInCode`), and the
+// catalog's `contributions` on its code (a registration file's comment does not list a contribution). `mentionsWorkbenchUiContribution`
+// is the same look at the plain text, for a registration that must NOT be there: a comment that names it still refuses, as before.
+// Not checked: that the pack's `workbench` is what the registry hands on, or that a listed contribution is the one registered under
+// that name; the check follows the names, not the values.
 export function hasWorkbenchUiContribution(workbench, registry, name, descriptors = "") {
-  if (workbench.includes(`host.register(${name})`)) return true;
-  const importsRegistry = /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u.test(workbench);
-  const registersPacks = /function createWorkbenchUiHost\(packs:[^=]+?=\s*BUILTIN_PLUGIN_WORKBENCH\)/u.test(workbench)
-    && /for\s*\(const pack of packs\)\s*\{\s*for\s*\(const contribution of pack\.contributions\)\s*host\.register\(contribution\)/u.test(workbench);
-  const derivesPacks = /import\s*\{\s*BUILTIN_PLUGIN_CATALOG[^}]*\}\s*from\s*["']\.\/builtin-plugins\.js["']/u.test(registry)
-    && /export const BUILTIN_PLUGIN_WORKBENCH[^=]*=\s*pluginWorkbenchPacks\(\)/u.test(registry)
-    && /function pluginWorkbenchPacks\(catalog:[^=]+?=\s*BUILTIN_PLUGIN_CATALOG\)/u.test(registry)
-    && /return catalog\.flatMap\(entry => entry\.workbench \? \[\{ project_plugin_id: entry\.project_plugin_id, \.\.\.entry\.workbench \}\] : \[\]\)/u.test(registry);
-  const packs = derivesPacks ? descriptors.match(/export const BUILTIN_PLUGIN_CATALOG[^=]*=\s*\[([\s\S]*?)\n\];/u)?.[1] ?? "" : "";
+  return workbenchContributionRegistered(workbench, registry, name, descriptors, {
+    has: hasInCode, matches: matchesInCode, statement: matchesStatementInCode, code: withoutCommentsAndLiterals,
+  });
+}
+
+export function mentionsWorkbenchUiContribution(workbench, registry, name, descriptors = "") {
+  return workbenchContributionRegistered(workbench, registry, name, descriptors, {
+    has: (source, needle) => source.includes(needle), matches: (source, pattern) => pattern.test(source),
+    statement: (source, pattern) => pattern.test(source), code: source => source,
+  });
+}
+
+function workbenchContributionRegistered(workbench, registry, name, descriptors, { has, matches, statement, code }) {
+  if (has(workbench, `host.register(${name})`)) return true;
+  const importsRegistry = statement(workbench, /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u);
+  const registersPacks = matches(workbench, /function createWorkbenchUiHost\(packs:[^=]+?=\s*BUILTIN_PLUGIN_WORKBENCH\)/u)
+    && matches(workbench, /for\s*\(const pack of packs\)\s*\{\s*for\s*\(const contribution of pack\.contributions\)\s*host\.register\(contribution\)/u);
+  const derivesPacks = statement(registry, /import\s*\{\s*BUILTIN_PLUGIN_CATALOG[^}]*\}\s*from\s*["']\.\/builtin-plugins\.js["']/u)
+    && matches(registry, /export const BUILTIN_PLUGIN_WORKBENCH[^=]*=\s*pluginWorkbenchPacks\(\)/u)
+    && matches(registry, /function pluginWorkbenchPacks\(catalog:[^=]+?=\s*BUILTIN_PLUGIN_CATALOG\)/u)
+    && matches(registry, /return catalog\.flatMap\(entry => entry\.workbench \? \[\{ project_plugin_id: entry\.project_plugin_id, \.\.\.entry\.workbench \}\] : \[\]\)/u);
+  const packs = derivesPacks ? code(descriptors).match(/export const BUILTIN_PLUGIN_CATALOG[^=]*=\s*\[([\s\S]*?)\n\];/u)?.[1] ?? "" : "";
   const contributions = [...packs.matchAll(/contributions:\s*\[([^\]]*)\]/gu)]
     .flatMap(match => match[1].split(",").map(value => value.trim()));
   return importsRegistry && registersPacks && contributions.includes(name);
@@ -1493,17 +1558,31 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, leg
   for (const name of ["goalsProposalUiContribution", "goalsDecisionResultsUiContribution"]) {
     if (!hasWorkbenchUiContribution(workbench, registry, name, descriptors)) errors.push(`apps/workbench: DD2 ${name} must be registered with UiHost`);
   }
-  if (hasWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
+  if (mentionsWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
     errors.push("apps/workbench: retired goalsLegacyProposalUiContribution must stay unregistered");
   }
   // W5-06: the shell builds the proposal renderer from the plugin's own surface map; each method mounts a declared surface.
-  if (!/createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u.test(proposalMount)) {
+  if (!matchesInCode(proposalMount, /createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u)) {
     errors.push("apps/workbench: proposal renderers must mount the native contributions");
   }
   void legacyMount;
+  // The client script is a browser script written in a template string, so its calls are template text: `hasInText`, not `hasInCode`.
   if (/const (?:goalTreeDecisionForm|contractDecisionForm|candidateDecisionForm|rewireDecisionForm) =/u.test(clientDispatch)
-      || !clientDispatch.includes("handleGoalProposalSubmit(submittedForm, event)")) errors.push("apps/workbench: proposal submission behavior belongs to the Goals client factory");
+      || !hasInText(clientDispatch, "handleGoalProposalSubmit(submittedForm, event)")) errors.push("apps/workbench: proposal submission behavior belongs to the Goals client factory");
   return errors;
+}
+
+/** `checkProposalUiOwnership` on the tree: the four Workbench files and the registration files it reads. */
+export function checkProposalUiOwnershipInTree(repositoryRoot) {
+  const read = file => fs.readFileSync(path.join(repositoryRoot, file), "utf8");
+  const [renderer, workbench, proposalMount, clientDispatch] = [
+    "apps/workbench/src/renderer.ts",
+    "apps/workbench/src/index.ts",
+    "apps/workbench/src/ui-composition.ts",
+    "apps/workbench/src/scripts/client/events-accessibility.ts",
+  ].map(file => read(file) + (file === "apps/workbench/src/index.ts" ? read("apps/workbench/src/ui-composition.ts") : ""));
+  return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
+    read("apps/workbench/src/plugin-workbench.ts"), builtinCatalogText(repositoryRoot));
 }
 
 export function checkPackageBoundaries(repositoryRoot) {
@@ -1526,18 +1605,7 @@ export function checkPackageBoundaries(repositoryRoot) {
   ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")));
   const errors = [
     ...checkCoordinatorStaysDeleted(repositoryRoot),
-    ...((() => {
-      const [renderer, workbench, proposalMount, clientDispatch] = [
-        "apps/workbench/src/renderer.ts",
-        "apps/workbench/src/index.ts",
-        "apps/workbench/src/ui-composition.ts",
-        "apps/workbench/src/scripts/client/events-accessibility.ts",
-      ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")
-        + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));
-      return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
-        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"),
-        builtinCatalogText(repositoryRoot));
-    })()).map(message => `[proposal-ui-owner] ${message}`),
+    ...checkProposalUiOwnershipInTree(repositoryRoot).map(message => `[proposal-ui-owner] ${message}`),
     ...[
       ["submitGoalTreeProposal", "goal-tree-submission", "proposal-submission-owner"],
       ["checkGoalTreeProposal", "goal-tree-check", "proposal-check-owner"],

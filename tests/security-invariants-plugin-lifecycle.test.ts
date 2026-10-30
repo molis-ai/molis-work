@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, pluginControlActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
@@ -84,6 +87,53 @@ test("BL623-02 S-84 what is not an upgrade is refused and changes nothing: the s
     await assert.rejects(h.install(signedPackage(other, readsAndWrites, { version: "2.0.0" })), refused("plugin.definition_conflict"), "another publisher's package of the same plugin");
     assert.deepEqual(h.ledger.publishers(), pins, "and that publisher was not pinned on the way");
     await unchanged();
+  } finally { await h.close(); }
+});
+
+/** What the install path has written so far: the pinned publishers and the kept packages. */
+const writtenIn = async (h: Host) => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), dirs: (await readdir(join(h.home, "plugin-packages"))).sort() });
+/** Installs as the person; answers the code it was refused with, and whether the pins or the kept packages changed. */
+const installStep = (h: Host) => async (bundle: PluginPackageBundle) => {
+  const before = await writtenIn(h);
+  const code = await h.install(bundle).then(() => "installed", (error: unknown) => error instanceof ActionError ? error.code : String(error));
+  return { code, unchanged: isDeepStrictEqual(await writtenIn(h), before) };
+};
+/** The package declares it can be upgraded to from these versions, and reads and writes notes. */
+const declaring = (...versions: string[]) => (files: Parameters<typeof readsAndWrites>[0], manifest: { upgrade_compatibility?: { compatible_from_versions: string[] } }) => {
+  readsAndWrites(files); manifest.upgrade_compatibility = { compatible_from_versions: versions };
+};
+
+test("RAC-1838 S-75 S-84 another publisher's package whose plugin id is on the dotted path of the installed plugin's is refused at the confirmation with plugin.id_namespace_conflict, before its publisher is pinned or the package is kept; once the plugin is taken off, the id is free", mac, async () => {
+  const h = await installedPackageHost(), a = newPublisher(), b = newPublisher();
+  try {
+    await h.install(signedPackage(a, readsAndWrites));
+    const installed = await only(h), step = installStep(h);
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    results["below the installed id"] = await step(signedPackage(b, readsAndWrites, { pluginId: `${PACKAGE_PLUGIN_ID}.extra` }));
+    results["above the installed id"] = await step(signedPackage(b, readsAndWrites, { pluginId: "io.molis.work.example" }));
+    const refusedUntouched = { code: "plugin.id_namespace_conflict", unchanged: true };
+    assert.deepEqual(results, { "below the installed id": refusedUntouched, "above the installed id": refusedUntouched }, "refused, with no publisher pinned and no package kept");
+    assert.deepEqual(await only(h), installed, "the installation is as it was");
+    await h.control("uninstall", { plugin_id: PACKAGE_PLUGIN_ID, keep_data: false });
+    await h.install(signedPackage(b, readsAndWrites, { pluginId: `${PACKAGE_PLUGIN_ID}.extra` }));
+  } finally { await h.close(); }
+});
+
+test("RAC-1839 S-84 BL-623 its own publisher's package of an installed plugin that is not an upgrade is refused at the confirmation with plugin.upgrade_required, before the package is kept: no new package on disk, and the installation and its data stay", mac, async () => {
+  const h = await installedPackageHost(), publisher = newPublisher();
+  try {
+    await h.install(signedPackage(publisher, readsAndWrites));
+    await add(h, "one");
+    const installed = await only(h), step = installStep(h);
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    results["the same version, declaring it can be upgraded to from itself"] = await step(signedPackage(publisher, declaring("1.0.0")));
+    results["an earlier version"] = await step(signedPackage(publisher, readsAndWrites, { version: "0.9.0" }));
+    results["a later version that declares nothing"] = await step(signedPackage(publisher, upgrade(false), { version: "1.1.0" }));
+    results["a later version that declares another source"] = await step(signedPackage(publisher, declaring("0.5.0"), { version: "1.2.0" }));
+    const refusedUntouched = { code: "plugin.upgrade_required", unchanged: true };
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no package kept");
+    assert.deepEqual(await only(h), installed, "the installation is as it was");
+    assert.deepEqual(await notes(h), ["one"], "and so is its data");
   } finally { await h.close(); }
 });
 

@@ -3,7 +3,7 @@ import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform
 import { goalsRoute } from "./failure.js";
 import { goalsActions } from "../actions.js";
 import { randomUUID } from "node:crypto";
-import { goalRelationTypes, type GoalRelationType } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalRelationTypes, type GoalRelationType } from "../contract/goals.js";
 import type { GoalsRouteContext, GoalsRoutePorts } from "./types.js";
 
 /** A relation the person draws from one Goal to another (`goals.relation-add`), or stops (`goals.relation-deactivate`); both need a reason. */

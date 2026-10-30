@@ -10,7 +10,7 @@ import { createWorkbenchLocale, inWordsOf } from "@molis-ai/molis-work-app-workb
 import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalWorkEventRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { managementCaller, managementGoals, mcpRuntimeCaller } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";

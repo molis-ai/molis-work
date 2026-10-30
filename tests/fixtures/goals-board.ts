@@ -1,5 +1,5 @@
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 

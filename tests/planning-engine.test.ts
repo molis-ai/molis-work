@@ -22,7 +22,7 @@ import {
 
 import { savePersonalMethodInHome } from "./fixtures/personal-planning.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 

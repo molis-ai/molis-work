@@ -5,8 +5,8 @@ import type {
   GoalEventTrustedAuthority,
   GoalEventTrustedDecisionRecord,
   RecordGoalUserDecisionInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceEventDecisionApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+} from "../contract/goals.js";
+import type { GovernanceEventDecisionApi } from "../contract/governance-collaboration.js";
 import { GovernanceProvenance } from "./provenance.js";
 import { json, parseJson } from "./mappers.js";
 import type { GovernanceSqliteDatabase } from "./repository.js";

@@ -1,10 +1,9 @@
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readProjectGuidance } from "../goal-callers.js";
+import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
@@ -156,7 +155,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
 export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "actionClient">, work: StoredWork): Promise<AgentPromptText[]> {
   const reference = work.project_ref;
   if (!reference) return [];
-  let view: ProjectGuidanceView;
+  let view: ProjectGuidanceFacts;
   try { view = await readProjectGuidance(localHost.actionClient(reference), reference); }
   catch { return []; }
   if (view.entries.length === 0) return [];

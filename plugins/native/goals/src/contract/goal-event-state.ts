@@ -1,5 +1,5 @@
-import type { AgentInputTreatment } from "../services/agent-inputs.js";
-import type { ArtifactReference } from "./artifacts.js";
+import type { AgentInputTreatment } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { GoalEventExtraRequirementInput } from "./goal-events.js";
 
 export const goalEventWorkStatuses = ["open", "completed", "cancelled"] as const;

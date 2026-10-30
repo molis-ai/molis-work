@@ -1,4 +1,4 @@
-import type { GoalEventStateView, GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView, GoalPolicy } from "./contract/goals.js";
 
 /** The Web projection of a rule binding; its scope strings are the page's, not the Module's binding scopes. */
 export interface GoalsPolicyBinding {

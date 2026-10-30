@@ -1,9 +1,9 @@
-import { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema, goalRelationEndpoints } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema, goalRelationEndpoints } from "./contract/goal-actions.js";
+export { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema } from "./contract/goal-actions.js";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { type AddGoalRelationInput, type GoalPolicy, type GoalPolicyHistoryRecord, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { type AddGoalRelationInput, type GoalPolicy, type GoalPolicyHistoryRecord, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "./contract/goals.js";
 import { goalAction } from "./action-contract.js";
-import { identifier, boolean, count, object, array, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { identifier, boolean, count, object, array, enumeration } from "./contract/goal-actions.js";
 
 function userOperation<I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> {
   return { ...definition, action: { ...definition.action, audiences: ["user"], permissions: ["goals:decide"] } };

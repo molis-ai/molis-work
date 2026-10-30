@@ -10,7 +10,7 @@ import { DEMO_PROJECT_ID, filesOutputsRefresh, handleProjectPluginHttp, releaseP
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentRunView, type AgentRuntimeCapabilityMatrix, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";

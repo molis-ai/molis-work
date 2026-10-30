@@ -1,4 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
 import type { GoalEventStateView } from "./goal-events.js";
 
 /** Read-only, scoped by the Host's project. Consumers cannot supply another board. */
@@ -13,14 +12,6 @@ import type {
   PlanningMethodDefaultRequirement,
   ResolvedPlanningEventAdoption,
 } from "./goal-events.js";
-
-export const modulesGoalsContract = {
-  contractId: "io.molis.work.module.goals.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/modules/goals.md",
-} as const satisfies ContractDescriptor;
 
 export type GoalDefinitionState = "draft" | "accepted";
 export type GoalDecompositionState =

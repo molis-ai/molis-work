@@ -10,7 +10,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";

@@ -166,7 +166,7 @@
 
 **其余三种「方法」（必须写全名）**
 
-- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `packages/contracts/src/modules/goals.ts:209`，解析与内置包在 `plugins/native/goals/src/module/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `plugins/native/goals/methods/` 下的 Markdown。
+- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `plugins/native/goals/src/contract/goals.ts`，解析与内置包在 `plugins/native/goals/src/module/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `plugins/native/goals/methods/` 下的 Markdown。
 - 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
@@ -185,7 +185,7 @@
 
 **目标资料库（Goals 根记录）**
 
-- 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，外键指项目库的 `project_root`，由 Goals 的 Manifest 声明：`plugins/native/goals/src/project-database-goals.ts` 的 `GOALS_BOARDS_SQL`；记录类型 `GoalsBoardRecord`，`packages/contracts/src/modules/goals.ts`）。它不记项目的名字（S8 起没有 `title` 列，名字的主人是项目目录的 `display_name`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
+- 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，外键指项目库的 `project_root`，由 Goals 的 Manifest 声明：`plugins/native/goals/src/project-database-goals.ts` 的 `GOALS_BOARDS_SQL`；记录类型 `GoalsBoardRecord`，`plugins/native/goals/src/contract/goals.ts`）。它不记项目的名字（S8 起没有 `title` 列，名字的主人是项目目录的 `display_name`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
 - 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/library-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`plugins/native/goals/src/module/command-support.ts:23`，2026-10-08 起的界面文案）。托管的项目数据库必须恰好有一条（`apps/local-host/src/managed-project-database.ts:43`）。
 - 文档写「目标资料库」（与界面同名）；代码里仍叫 Board，改名见 R-A1。
 
@@ -417,7 +417,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-A7 | （已作废，2026-10-23）目录 `plugins/native/work` 与包 `@molis-ai/molis-work-plugin-work` 随 Sessions 下线（SC-4）一起删除，改名不再需要 | — | — | 重做 Sessions 时按 BL-177 另起包名 |
 | R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
 | R-A9 | （已作废，2026-10-25）UI 描述里的 `plugin_id` 不再由插件写，平台按 Manifest 填（3.3 表后第 2 条） | — | — | PG-098 |
-| R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`（`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 已于 2026-10-26 删改，W5-14 片 1）；`packages/contracts/src/modules/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
+| R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`（`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 已于 2026-10-26 删改，W5-14 片 1）；`plugins/native/goals/src/contract/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
 
 ### R-B　持久化或合同里的标识符（改名等于改数据或合同）
 

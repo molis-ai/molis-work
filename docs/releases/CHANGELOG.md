@@ -6,6 +6,12 @@
 
 ### 升级须知（需要动手）
 
+- **Gmail 并进通用 OAuth 流程：旧 Gmail 连接要新增一条，环境变量改名**（2026-10-29，W5-11 第 6 片，T-064，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.4、§10 Q2、Q5、Q6，S-101、RAC-2476～2486）：
+  - 原来用 Gmail 自己的授权流程建立的连接（设置里显示“账号授权”、凭据是 `connector-connection:<id>:access`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；点“重新授权”只会得到“请新增一条连接”。请新增一条 Gmail 连接，在 Feed 来源详情的“使用的账号连接”里换到新连接（换连接会建出独立的新来源、暂停旧来源，原消息保留），新连接可用后删掉旧连接。
+  - Gmail 判断“重新授权是同一个账号”改按 Google 的 `sub`（不再按邮箱）；授权多要 `openid email` 两个 scope。
+  - 平台自己的 Gmail 客户端环境变量改名，不留旧名：`MOLIS_WORK_GMAIL_CLIENT_ID`、`MOLIS_WORK_GMAIL_CLIENT_SECRET` → `MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_ID`、`MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_SECRET`。设置页里存过的 Gmail Client ID / Secret（`connector:gmail:client_id`）不再被读，要在新增连接时重新填，或由部署配置上面两个变量。
+  - `MOLIS_WORK_PUBLIC_BASE_URL` 不再给 Gmail 单独算回调地址；服务器部署要用自己的 HTTPS 回调，在“高级：使用已注册的 HTTPS 回调”里填。Gmail 在 Google 控制台登记过的本机回调 `/api/feed/connectors/gmail/oauth/callback`（可带一段项目路径）继续有效。
+  - 设置页的 `POST /api/settings/connectors/gmail/client`、`gmail/oauth/start` 两个本机路由删除，统一走 `methods/oauth/start`；连接卡片 JSON 里的 `gmail_oauth_configured` 字段删除，`ConnectorMethodOption.oauth` 多一个可选的 `callback_path`。
 - **平台合同删去 Goals 的三个子路径**（2026-10-29，PG-111 T-112，[#1527](https://github.com/molis-ai/molis-work/pull/1527)，`specs/repository-anti-corruption/slices/pg111-goals-contracts.md`）：`@molis-ai/molis-work-contracts/modules/goals`、`/modules/goal-actions`、`/modules/governance-collaboration` 不再导出，按包名导入得 `ERR_PACKAGE_PATH_NOT_EXPORTED`。Goals 的类型、动作描述符与 schema 搬进 Goals 插件（`@molis-ai/molis-work-plugin-goals/contract`），只给 Goals 自己和宿主用。别的插件要调 Goals，照 Coding（`plugins/native/coding/src/goals-actions.ts`）的写法按动作 id 与版本调用，用到的字段就地声明；动作的 id、版本、权限与 schema 都不变。`MCP_TOOLS` 改从 `@molis-ai/molis-work-app-local-host` 导出（原来在 `@molis-ai/molis-work-app-mcp`）。
 - **Feed、Inbox 迁到 Plugin Runtime，下列开放给 MCP 的动作权限集合变宽**（2026-10-28，批 C，[#1327](https://github.com/molis-ai/molis-work/pull/1327)，`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`）：动作 id 与版本不变，没有动作少权限或被删。MCP 授权要求权限集合与授权时逐项相同，所以已经授权这些动作的 MCP 客户端会显示「能力所需权限已变化」，要在设置页重新授权；固定了这些动作的工作流绑定，要重新确认。
   - 多要 `attention:write`：`feed.content.receive`、`feed.items.disposition`、`feed.items.inbox`、`feed.items.promote`、`feed.items.restore`、`feed.rules.create`、`feed.rules.evaluate`、`feed.rules.preview-judgment`、`feed.rules.update`、`feed.sources.delete`、`feed.sources.sync`、`inbox.entry.status`。

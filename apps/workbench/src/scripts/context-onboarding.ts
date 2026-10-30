@@ -526,10 +526,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   async function connect(auto=false) {
     if(!config.gmail_configured) { expanded='gmail';error=L('Google 接入还未准备好，可先使用其他来源。');render();return; }
     source('gmail').selected=true;journey.auto_start=auto;await save();
-    const result=await api('/api/settings/connectors/gmail/oauth/start',{manage_connection:true,onboarding_id:journey.id,desktop});
+    const result=await api('/api/settings/connectors/methods/oauth/start',{service_id:'gmail',display_name:'Gmail',onboarding_id:journey.id,desktop});
     if(globalThis.molisWorkOpenExternalUrl){
-      await globalThis.molisWorkOpenExternalUrl(result.authorizationUrl);journey.oauth_status='pending';render();authTimer=setTimeout(pollAuthorization,1500);
-    }else location.assign(result.authorizationUrl);
+      await globalThis.molisWorkOpenExternalUrl(result.authorization_url);journey.oauth_status='pending';render();authTimer=setTimeout(pollAuthorization,1500);
+    }else location.assign(result.authorization_url);
   }
   async function pollAuthorization() {
     clearTimeout(authTimer);

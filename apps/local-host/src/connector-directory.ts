@@ -1,7 +1,6 @@
 import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
-import { gmailOAuthConfigured } from "./gmail-oauth.js";
 import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
 import { notionOAuthConfigured } from "./notion-oauth.js";
 import { connectorMethodsOf } from "./host-connector-methods.js";
@@ -56,16 +55,21 @@ function githubClientIdConfigured(): boolean {
   return Boolean(readProductEnv("GITHUB_CLIENT_ID"));
 }
 
+/** Whether the product can sign in to the service by its declared `oauth` method: a broker, or a client the declaration accepts. */
+export function connectorLoginReady(serviceId: string): boolean {
+  const declaration = HOST_DECLARED.get(serviceId);
+  return declaration ? connectorMethodsOf(declaration).some(method => method.kind === "oauth" && method.login_ready) : false;
+}
+
 /** The services a connection can be made to, with whether their OAuth apps are configured; accounts are the connections themselves. */
 export function listConnectorSettingsCards() {
   return HOST_CONNECTOR_DIRECTORY.map((entry) => entry.availability === "placeholder"
-    ? { ...entry, github_client_id_configured: false, gmail_oauth_configured: false }
+    ? { ...entry, github_client_id_configured: false }
     : {
       ...entry,
       // Read again on each listing: whether the product's client is configured may have changed.
       method_options: HOST_DECLARED.has(entry.connector_id) ? connectorMethodsOf(HOST_DECLARED.get(entry.connector_id)!) : entry.method_options,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
-      gmail_oauth_configured: entry.auth_kind === "gmail" ? gmailOAuthConfigured() : false,
       notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,
     });
 }

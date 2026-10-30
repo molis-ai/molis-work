@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { completeApiOAuth, connectorProtocolSecrets, createPluginConnectionsPort, homeIntegrationRegistry, listConnectorConnectionViews, pluginSlotScope,
-  readConnectorAccount, startApiOAuth, withConnectorConnections, withConnectorProtocols, type ConnectorProtocolConfiguration } from "@molis-ai/molis-work-app-local-host";
+  readConnectorAccount, startApiOAuth, startSharedRefresh, withConnectorConnections, withConnectorProtocols, type ConnectorProtocolConfiguration } from "@molis-ai/molis-work-app-local-host";
 import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
@@ -457,4 +457,25 @@ test("RAC-1088 while the declaring plugin is disabled an OAuth connection sends 
     assert.equal((await answered).status, 200);
     assert.deepEqual(net.reads, [expired ? "Bearer access-0" : "Bearer old-access"]);
   });
+});
+
+// #1479 second review, advice 1 (W5-11 §7 slice 6): once the answer of a sent refresh is to be dropped because a call lost its authority,
+// a call arriving after that is not joined to it and told its authority is lost; it waits for a refresh of its own.
+test("RAC-2483 a refresh whose answer is dropped takes no new caller, and one whose answer is kept still does", async () => {
+  const lost = { withdrawn: false }, caller = (state: { withdrawn: boolean }) => {
+    const abort = new AbortController();
+    return connectorControl({ signal: abort.signal, current: () => { if (state.withdrawn) throw new Error("调用已失去授权"); } });
+  };
+  const kept = { withdrawn: false };
+  let release!: () => void;
+  const answered = new Promise<void>(resolve => { release = resolve; });
+  for (const [name, state, expected] of [["a caller lost its authority", lost, "discard"], ["every caller still has it", kept, "deliver"]] as const) {
+    const refresh = startSharedRefresh(caller(state), async run => { await answered; await run.settle(); return run.outcome(); });
+    assert.equal(refresh.open, true, `${name}: open while undecided`);
+    state.withdrawn = state === lost;
+    release();
+    assert.equal(await refresh.first.catch(() => "failed"), state === lost ? "failed" : expected, name);
+    await refresh.done;
+    assert.equal(refresh.open, state !== lost, `${name}: ${state === lost ? "closed once the answer is to be dropped" : "still open"}`);
+  }
 });

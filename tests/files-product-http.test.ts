@@ -47,8 +47,9 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     assert.ok(state.body.workspaces.every((item: any) => !Object.hasOwn(item, "project_ids")), "settings do not expose other projects");
     assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] }, false)).status, 403);
     assert.equal((await request(api("workspace", "/select", projects[1]), "POST", { workspace_id: ids[0] })).status, 403);
-    // RAC-2532 (BL-616): the Files this Host runs is its registration's project_runtime, with nothing from the Host; which folder it
-    // browses is the project-settings action. Two folders and none chosen: refused; one chosen: read.
+    // RAC-2532 (BL-616): which folder Files browses is the project-settings action. Two folders and none chosen: refused; one chosen:
+    // read. That the Files this Host runs is its registration's project_runtime, with nothing from the Host, is RAC-571 and RAC-2530's
+    // (tests/builtin-plugin-assembly-gate.test.ts).
     const noSelection = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0])); refused(noSelection, "files.invalid");
     assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] })).status, 200);
     const directory = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0]));

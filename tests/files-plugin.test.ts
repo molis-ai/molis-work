@@ -200,7 +200,7 @@ test("PG061-FILES-01 a Coding or Git event makes Files' own pages read again; a 
   assert.equal(invalidated, 1, "a delivery that is no longer current is refused before it moves anything");
 
   await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(invalidated, 1, "after stop nothing is left to call it");
+  assert.equal(invalidated, 1, "no timer or watcher calls invalidate again");
 });
 
 
@@ -316,7 +316,6 @@ test("RAC-332 BL-366 a workspace change makes Files look again at the folder it 
 });
 
 test("RAC-2531 BL-616 Files' factory takes nothing from the Host: with no folder to browse a read is refused and reaches no workspace read", async () => {
-  assert.equal(createFilesPlugin.length, 0, "the registration's project_runtime calls the factory with nothing");
   const asked: string[] = [];
   const context: PluginStartContext = { install_id: "files-no-folder", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
     deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user", requireGrant: () => {}, services: {

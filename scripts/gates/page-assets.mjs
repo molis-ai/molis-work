@@ -242,24 +242,18 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
-// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
-// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
-// T-229 (MISC, T-190's review), RAC-2190–2191: a note row's preview drops a character cut in half, and the import dialog counts
-// characters instead of UTF-16 units, +106 B on this one asset (first +36 B; the counting loop T-229's review asked for, no array of a
-// whole file, adds the rest). Tried: the shorter form of both writes, a shared cut helper (longer), no new asset.
-// 统筹答 T-229 (2026-10-29, issue 1332 comment 6507055134) approved [76760, 76866]: the extra 70 B is what the review's iterator count costs.
+// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
+// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
+// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
+// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
+// page, not an asset, so removing it saves nothing here.
 // T-183, RAC-1869–1872: the frame bridge and the context bus cut the title and text of a "put it in" control by whole
 // characters instead of UTF-16 units, one small function in each of the two bundles (they share no module): +63 B and +96 B.
 // Tried: no new asset; one definition per bundle, used at every site there; the Host's own unit limits are not touched.
-// T-281, RAC-2076 (user 2026-10-29 chose to keep colouring off the frame that first lays a large block out): Coding's painter waits for
-// the block's first layout (a non-zero height) through a resize observer it releases when the job is replaced or stopped, +202 B on this one asset.
-// Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
-// dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-pages-editor.js": [707763, 707886],
   "/assets/molis-work-plugin-frame.js": [190560, 190623],
   "/assets/molis-work-workbench.js": [1148453, 1148549],
-  "/assets/molis-work-plugins/coding.js": [289674, 289876],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

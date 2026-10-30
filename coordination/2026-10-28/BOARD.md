@@ -225,7 +225,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-279 | BACKLOG 的 BL-901 来源列去掉并不属实的 T-111 #1468（防腐清理，T-258 二审建议；短任务书） | 丙 | 池 | 177 | T-258（#1534）合入 | `specs/BACKLOG.md`（BL-901 一行） |
 | T-282 | 宿主模型端口上限放宽后，核一遍各调用方拼进提示的长度：先交表，有超出的才收紧（先出【方案】；防腐清理，MISC T-185 二审建议；短任务书） | 乙 | 池 | 178 | — | 先只读；改动范围在【方案】里报（`apps/local-host/src` 各调用方，不含 `assistant/`） |
 | T-283 | 删没有元素匹配的死规则 `.account-global-menu`（三条样式 + 测试里的字面量），页面资源只会变小（防腐清理，MISC T-171 发布；短任务书） | 乙 | 池 | 179 | — | `packages/design-system/src/styles/craft-finish-bar.ts`（:258、:276、:278）、`tests/plugin-market-catalog.test.ts`（:84）、`tooling/gates/page-assets.json` |
-| T-284 | Goals 里三份“先按单元短路、再按字数数”的判断合成一份（防腐清理，MISC T-200 二审建议；短任务书） | 乙 | 池 | 180 | — | `plugins/native/goals/src/module/event-system-payload.ts`、`src/module/guidance.ts`、`src/http/create.ts` |
+| T-284 | Goals 里三份“先按单元短路、再按字数数”的判断合成一份（防腐清理，MISC T-200 二审建议；短任务书） | 乙 | 池 | 180 | — | `plugins/native/goals/src/module/event-system-payload.ts`、`src/module/guidance.ts`、`src/http/create.ts`、`plugins/native/goals/src/text-length.ts`（新增，统筹 10-30 确认） |
 | T-285 | 新建 Goal 对话框标题输入框改按字数封顶，不再 `maxlength=120`（防腐清理，MISC T-233 二审建议；短任务书） | 乙 | A | 181 | T-203（#1523）合入 | `plugins/native/goals/src/dialogs-ui.ts`（:48 一带及脚本）、Goals 创建对话框浏览器用例 |
 | T-286 | 删没有调用方的 `assertProjectPluginDatabase`，改正 S-46 行与切片里点名它的文字（防腐清理，MISC 扫描二；短任务书） | 丙 | 池 | 182 | #1578 不碰同文件 | `apps/local-host/src/project-plugin-databases.ts`、`docs/system/SECURITY-INVARIANTS.md`（S-46 行）、`specs/repository-anti-corruption/slices/feed-inbox-store-into-feed.md`（:130） |
 | T-287 | ci-timeouts 加断言：挡合并的作业凡有作业级时限的都 ≥30 分钟，表里 blocking 与 verify 的 needs 一致（防腐清理，MISC T-128 二审登记；短任务书） | 丙 | 池 | 183 | — | `tests/ci-timeouts.test.ts`、`tests/fixtures/ci-workflow.ts`（只读） |

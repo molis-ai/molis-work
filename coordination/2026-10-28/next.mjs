@@ -28,7 +28,7 @@ const DEVICE = { a: "A", b: "B", cx: "Codex", ca: "A-Claude", m: "本机" };
 const SIGNATURE = { a: "DeepSeek（设备 A）", b: "DeepSeek（设备 B）", cx: "Codex（设备 B）", ca: "Claude（设备 A）", m: "Claude" };
 const STAGES = "方案|交接|一审|验证|修复|二审|问统筹|统筹答|合入|空闲|阻塞|main 红|设备";
 // 「【验证增量 T-xxx】」 and the like are the stage itself; 「【验证 T-xxx·执行中】」 progress notes are not stages.
-const HEADER = new RegExp(`^【(${STAGES})(?:增量)?(?:\\s*(T-\\d{3}))?】\\s*(.*)$`);
+const HEADER = new RegExp(`^【(${STAGES})(?:增量)?(?:\\s*(T-\\d{3}))?(?:[／/·][^】]*)?】\\s*(.*)$`);
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
@@ -55,7 +55,7 @@ function parseStage(comment) {
   if (kind === "一审") {
     fixedAt = rest.match(/已小修\s*@([0-9a-f]{7,40})/)?.[1] ?? null;
     // 「可进（入）二审」 wins over a 「要改」 inside the line (「未发现需要改实现的 P1」); 「乙档通过」 is a pass too.
-    verdict = fixedAt ? "已小修" : /(?<!不)可进入?二审/.test(rest) ? "可进二审" : /要改/.test(rest) ? "要改" : /(?<![不未非])通过/.test(rest) ? "可进二审" : null;
+    verdict = fixedAt ? "已小修" : /(?<!不)可进入?二审/.test(rest) ? "可进二审" : /要改/.test(rest) ? "要改" : /(?<![不未非])通过/.test(rest) || /(?<![不未非])可合/.test(rest) ? "可进二审" : null;
   } else if (kind === "验证")
     // 「需要修改」 is a failure; 「暂不签完整通过」「未签整项完成」 are progress, not a pass.
     verdict = /失败|要改|需要修改|[不未非]通过/.test(rest) ? "失败" : /不签|暂不|未签|不是最终/.test(rest) ? null : /通过|PASSED/i.test(rest) ? "通过" : null;

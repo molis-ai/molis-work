@@ -321,7 +321,7 @@ Web 生命周期的实际依赖包括 `web-server-close.ts`、`web-storage-resou
 
 Host 关闭保留原 Home 绑定立即撤下、Alchemist 立即进入 closing 的时点，与原其余资源关闭链并行等待，仍在等模型的前台轮次不能趁关闭等待迟到提交。全部实际关闭均成功后才关闭 Catalog 并释放 lease；不将所有 owner 或 Memory/SDK 一并并行，也不改变记忆先于 SDK 的原业务顺序。既有 Alchemist close/close-late-failure 拒绝断言保持。
 
-早取锁会使原来空的 Home 多出技术目录，因此 `memory/memory-adoption.ts` 的 fresh 判定接收同一个 opaque owner：只有 Home 仅含 `agent-runtime`、且 storage 在 live proof 下核实其中仅有锁/侧车，才仍按新 Home 初始化。已有 SDK、未知文件、ledger、marker 与 prefs 的采用/完整性拒绝保持；不把布尔值或请求字段当作证明，也不读锁原件的字节。与 Memory Draft #1101 `e3d0d4523154f4313b97e5c0c588de36713bf888` 后续合并时保留其独立 profile 校验、`projectDeletionPending`、project deletion 返回端口及 Session pending/live 检查；本片不采用该未接受候选。
+早取锁会使原来空的 Home 多出技术目录，因此 `memory/memory-initialization.ts` 的 fresh 判定接收同一个 opaque owner：只有 Home 仅含 `agent-runtime`、且 storage 在 live proof 下核实其中仅有锁/侧车，才仍按新 Home 初始化。已有 SDK、未知文件、账本版本和完整 prefs 的拒绝保持；2026-10-30 干净重建后不再保留采用标记前置；不把布尔值或请求字段当作证明，也不读锁原件的字节。与 Memory Draft #1101 `e3d0d4523154f4313b97e5c0c588de36713bf888` 后续合并时保留其独立 profile 校验、`projectDeletionPending`、project deletion 返回端口及 Session pending/live 检查；本片不采用该未接受候选。
 
 `system-agent-service.ts` 外层关闭仍按原顺序撤下绑定、关闭记忆、关闭 SDK；只缓存同一关闭尝试，并记录已经完成的记忆关闭，防止 SDK 关闭失败后重复关闭 ledger。context 输入中的身份拒绝仍由原 handlers 决定；resident 在 handler 请求 scope 之后才关联协议 Session 的面板别名，不能让输入伪造 actor 的失败调用先写别名。
 

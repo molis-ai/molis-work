@@ -83,7 +83,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
-| `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；原在目录库，PG-094 S13 由 `scripts/maintenance/goals-personal-planning-move.mjs` 搬来；同一次维护之前先跑 `scripts/maintenance/goals-journal-names.mjs rename`，把各项目库里 Goals 旧的不带前缀的事件、幂等记录和账本关系改成 `io.molis.work.goals:` 下的名字，S9-2） |
+| `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；当前事实归Goals Home半。旧目录表搬迁/旧名事件维护已于2026-10-30取消，旧Home整体搬开后新建，不转换旧事实） |
 | `todo/todo.db` | `plugins/native/todo/src/store.ts:522-524`，基线 `:464` | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |

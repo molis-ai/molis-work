@@ -157,7 +157,7 @@ function snapshot() {
   const boardFile = value("--board-file");
   const board = parseBoard(boardFile ? readFileSync(boardFile, "utf8") : run("git", ["show", `origin/${COORD}:${BOARD}`]));
   const boardSha = boardFile ? "local" : run("git", ["log", "-1", "--format=%h", `origin/${COORD}`, "--", BOARD]).trim();
-  const boardTime = boardFile ? new Date(0).toISOString() : run("git", ["log", "-1", "--format=%cI", `origin/${COORD}`, "--", BOARD]).trim();
+  const boardTime = boardFile ? new Date(0).toISOString() : new Date(run("git", ["log", "-1", "--format=%cI", `origin/${COORD}`, "--", BOARD]).trim()).toISOString(); // UTC, so it compares with comment times as strings
   const mainSha = run("git", ["rev-parse", "--short=9", "origin/main"]).trim();
   const taskOf = (ref) => ref.match(/^task\/T(\d{3})-(a|b|cx|ca|m)$/);
   const branches = run("git", ["ls-remote", "--heads", "origin", "task/*"])

@@ -12,7 +12,7 @@ export interface RuntimeProjectBindingPorts {
   query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships">;
   lifecycle: {
     upsertWorkspaceMembership(workspace: NormalizedRuntimeWorkspaceContext, projectId: string, actorId: string): void;
-    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string, removeEmptyWorkspace: boolean): void;
+    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): void;
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, string | null>): void;
   };
 }
@@ -131,7 +131,6 @@ export class RuntimeProjectBindingCommands {
           normalized.workspace.workspace_id,
           projectId,
           actorId,
-          false,
         );
         const project = this.projects.query.getProject(projectId);
         return {

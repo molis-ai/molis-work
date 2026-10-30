@@ -37,7 +37,8 @@ async function fixture(run: (f: {
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw), aside = asideReply(raw);
     // The Home's background knowledge cards for what a case writes into its project are answered aside: `requests` are the case's own.
     if (aside === undefined) requests.push({ url: request.url!, headers: request.headers, body });

@@ -168,7 +168,11 @@ export function renderConnectorsSettings(
       <div data-connectors-list>
         <section class="settings-connection-section" aria-label="${escapeHtml(L("我的连接"))}">
           <header><div><h2>${L("我的连接")}</h2><p>${L("同一个服务可以连接多个账号，各自保存授权和状态。")}</p></div><button class="mw-btn mw-btn--primary" type="button" data-connectors-add>${L("添加连接")}</button></header>
-          ${connections.length ? `<div class="settings-connection-list">${connections.map((connection) => renderConnectionRow(connection, cards.find((card) => card.connector_id === connection.service_id), primitives)).join("")}</div>`
+          ${connections.length ? `<div class="settings-connection-list">${connections.map((connection) => {
+            // A connection whose service is no longer declared (its package was removed) has no detail panel to open, so its row carries the controls itself.
+            const card = cards.find((entry) => entry.connector_id === connection.service_id);
+            return renderConnectionRow(connection, card, primitives, !card);
+          }).join("")}</div>`
             : `<div class="settings-connection-empty"><strong>${L("从你常用的一个应用开始")}</strong><p>${L("选择下方服务，按提示登录或填写密钥。你可以稍后再添加其他账号。")}</p></div>`}
         </section>
         ${renderPluginSlots(view, cards, connections, { L, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}

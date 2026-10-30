@@ -18,19 +18,19 @@ const probeToken = (n: number) => `fixture-probe-token-${String(n).padStart(4, "
 const caller: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["connectors:management:read", "connectors:management:write"] };
 
 /** What a signed integration package declares; `attach` reads the declarations only, nothing runs. */
-function packageManifest(): PluginManifest {
+function packageManifest(serviceId = SERVICE): PluginManifest {
   return {
     schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Feed probe", kind: "integration",
     publisher: { publisher_id: "example", signature: newPublisher().identity },
     entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, runtime: { scope: "home" },
-    connection_services: [{ service_id: SERVICE, title: "Example feed", group_id: "work", summary: "Example feed fixture", auth_kind: "token",
+    connection_services: [{ service_id: serviceId, title: "Example feed", group_id: "work", summary: "Example feed fixture", auth_kind: "token",
       auth: { methods: [{ kind: "token", label: "Example token" }] }, capabilities: [{ label: "Feed 拉取", fulfillment: "live" }], origins: ["https://api.example-feed.com"] }],
-    integrations: [{ integration_id: SERVICE, kind: "source", service_id: SERVICE }],
+    integrations: [{ integration_id: serviceId, kind: "source", service_id: serviceId }],
   };
 }
-const attach = async (home: TestHome) => (await homeIntegrationRegistry(home.home)).attach(packageManifest(), () => null, () => true);
+const attach = async (home: TestHome, serviceId = SERVICE) => (await homeIntegrationRegistry(home.home)).attach(packageManifest(serviceId), () => null, () => true);
 const detach = async (home: TestHome) => (await homeIntegrationRegistry(home.home)).detach(PLUGIN_ID);
 const cards = async (home: TestHome) => (await home.web.get<{ connectors: Array<ConnectorDirectoryEntry & Record<string, unknown>> }>("/api/settings/connectors")).connectors;
 // A registry keyed by a path no test attaches to lists only the built-in services; nothing reads the disk for it.
@@ -91,4 +91,69 @@ test("RAC-2470 the connections page offers a package's service while it is attac
   assert.match(await page(), new RegExp(`data-connector-open="${SERVICE}"`, "u"));
   await detach(home);
   assert.doesNotMatch(await page(), new RegExp(`data-connector-open="${SERVICE}"`, "u"));
+});
+
+// RAC-2471 to RAC-2475 (BL-740, T-119 fix): a package author chooses the service id, and a package can go while the person's connection stays.
+const connectionsPage = async (home: TestHome) => {
+  const response = await fetch(`${home.origin}/capabilities/connections`);
+  assert.equal(response.status, 200, "the connections page renders");
+  return response.text();
+};
+const connect = async (home: TestHome) => (await home.web.post<{ connection: { connection_id: string } }>("/api/settings/connectors/connections",
+  { service_id: SERVICE, display_name: "Probe account", token: probeToken(3) })).connection.connection_id;
+/** The "my connections" row of one connection: from its first appearance to the end of the section that lists them. */
+const listedRow = (page: string, connectionId: string) => {
+  const from = page.indexOf(`data-connection-row="${connectionId}"`);
+  assert.ok(from >= 0, "the connection is listed");
+  return page.slice(from, page.indexOf("</section>", from));
+};
+
+test("RAC-2471 a package whose service id is an Object.prototype member still gets its card, and the connections page renders", async t => {
+  const home = await openTestHome(t);
+  assert.equal(await attach(home, "constructor"), true);
+  const page = await connectionsPage(home);
+  assert.match(page, /data-connector-open="constructor"/u);
+  assert.match(page, /Example feed fixture/u, "the card says what the package declared");
+  assert.doesNotMatch(page, /native code/u, "nothing inherited from Object.prototype is shown as the card's text");
+});
+
+test("RAC-2472 that page still offers the built-in services next to it", async t => {
+  const home = await openTestHome(t);
+  await attach(home, "constructor");
+  const page = await connectionsPage(home);
+  for (const id of ["gmail", "github"]) assert.match(page, new RegExp(`data-connector-open="${id}"`, "u"), id);
+});
+
+test("RAC-2473 a connection whose package was removed can still be removed from the page, and the removal works", async t => {
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  await attach(home);
+  const connectionId = await connect(home);
+  await detach(home);
+  assert.match(listedRow(await connectionsPage(home), connectionId), /data-connection-manage="remove"/u, "the row carries a remove control");
+  const listed = async () => (await actions.invoke(caller, connectorManagementActions.list, { service_id: SERVICE }) as { connections: Array<{ connection_id: string; revision: string }> }).connections;
+  const [row] = await listed();
+  assert.equal(row?.connection_id, connectionId);
+  await actions.invoke(caller, connectorManagementActions.remove, { connection_id: connectionId, expected_revision: row!.revision });
+  assert.deepEqual(await listed(), [], "the connection is gone");
+});
+
+test("RAC-2474 that row lets the person replace the token, and no longer points to a detail panel that does not exist", async t => {
+  const home = await openTestHome(t);
+  await attach(home);
+  const connectionId = await connect(home);
+  await detach(home);
+  const page = await connectionsPage(home);
+  assert.match(listedRow(page, connectionId), new RegExp(`data-connection-replace="${connectionId}"`, "u"));
+  assert.doesNotMatch(page, new RegExp(`data-connector-open="${SERVICE}"`, "u"), "nothing opens the service's panel");
+});
+
+test("RAC-2475 while the package is attached the listed row is unchanged: it opens the service panel, whose row carries the controls", async t => {
+  const home = await openTestHome(t);
+  await attach(home);
+  const connectionId = await connect(home);
+  const page = await connectionsPage(home);
+  const row = listedRow(page, connectionId);
+  assert.match(row, new RegExp(`data-connector-open="${SERVICE}"`, "u"));
+  assert.doesNotMatch(row, /data-connection-manage/u);
+  assert.equal(page.match(/data-connection-manage="remove"/gu)?.length, 1, "the remove control is in the service panel only");
 });

@@ -51,13 +51,13 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
  */
 async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
-  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[]; readonly workspaces: ProjectPluginSurfacePorts["workspaces"] };
+  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] };
   pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">;
   stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
 }): Promise<MolisWorkWebView> {
   const { store, homeDirectory, pluginServices } = input;
   const surfacePorts = { ...pluginServices, store, projectId: input.projectId, actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml,
-    translate: (value: string) => value, workspaces: input.configuration.workspaces, routePrefix: view.route_prefix };
+    translate: (value: string) => value, routePrefix: view.route_prefix };
   const builtin = await projectPluginStages(surfacePorts, view, input.configuration, input.stageModel);
   view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtin.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtin.ids],
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtin.unavailable] };
@@ -157,10 +157,7 @@ export function createLocalGoalsReadHttp(ports: {
       request.method, url.pathname, readWebView,
       async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
-        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
-          ...catalog.projectPluginMembership(options.project!.project_id),
-          workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
-        })) : null;
+        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
         // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).

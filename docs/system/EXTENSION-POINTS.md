@@ -1,6 +1,6 @@
 # 扩展点清单：怎么加、现在要改几处、目标几处
 
-状态：2026-10-08 按 origin/main `31c357df` 核实（数字都在这个提交上重量过）。全文没有重新核对：之后各次提交只改了当时点名的几处，名字、文件和数字要用先到代码核对。已知过时的两处：「现在：5 个代码文件 + 42 份词典」一段把 `plugins/native/goals/src/safety-ui-model.ts` 算作写了 `"zh" | "en"` 字面量的文件，该文件现在已不含这一字面量，不再算；「生成插件的沙箱」一行的 `UNSUPPORTED_PLATFORM` 现在是 `sandbox.unsupported_platform`（`packages/plugin-sandbox/src/runner.ts`）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
+状态：2026-10-08 按 origin/main `31c357df` 核实（数字都在这个提交上重量过）。全文没有重新核对：之后各次提交只改了当时点名的几处，名字、文件和数字要用先到代码核对。2026-10-30 按 origin/main `24685fcbf` 把第 207 行（界面语言那一段）的数字重新数过（命令与结果见 PR）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
 
 用户决定见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-07 与 2026-10-08 各行；其中 2026-10-08 的第五批（宿主设置写入、界面翻译、调用编号上界面、右栏「讨论」页签与 IM、第三方插件信任、Characters 并进宿主、Runtime 插件的 methods 等）在 PR #312，合入前不在 main 上。
 
@@ -8,7 +8,7 @@
 
 ## 白话说明
 
-Molis Work 是插件基座加多个插件。想加一个东西时，最好只动那个东西自己的包和它的声明，平台里的名单不用改。现实是：加一个内置插件要改十几处平台文件（包依赖、目录、监督器、色调、图标、翻译），加一个界面语言要改约六个代码文件再补 42 份词典。这份清单把每个方向「今天要改哪些文件」逐个点名，写出目标数字，再用六个真实的下一步功能（风险记录插件、Coding 质量保证、新的外部服务、团队与权限、自动化规则、调用诊断）演练一遍，看哪里超过目标、靠什么补。
+Molis Work 是插件基座加多个插件。想加一个东西时，最好只动那个东西自己的包和它的声明，平台里的名单不用改。现实是：加一个内置插件要改十几处平台文件（包依赖、目录、监督器、色调、图标、翻译），加一个界面语言要改约 15 个代码文件再补 53 份词典。这份清单把每个方向「今天要改哪些文件」逐个点名，写出目标数字，再用六个真实的下一步功能（风险记录插件、Coding 质量保证、新的外部服务、团队与权限、自动化规则、调用诊断）演练一遍，看哪里超过目标、靠什么补。
 
 ## 1. 口径
 
@@ -47,7 +47,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 11 | 新横向服务 | 6 | 4 | 同上 |
 | 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 5，接入加角色导入 12–15 | 3 / 2 | 无切片，建议新增 |
 | 13 | 界面插槽 | 5 | 2 | 无切片 |
-| 14 | 界面语言 | 6 个代码文件 + 42 份词典 | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
+| 14 | 界面语言 | 15 个代码文件 + 53 份词典 | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
 | 15 | 操作系统平台 | 20 个 macOS 专用文件 | 4 个适配器 | 属 W1-21（C 端计划），本阶段不实现 |
 
 ## 3. 逐个方向
@@ -202,9 +202,9 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 ### 3.14 界面语言
 
-**怎么加**：此前没有写。中文原文是 key，英文是词典（`apps/workbench/src/i18n.ts`）。现行做法：在 `i18n.ts` 里加语言值，并让 `isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin` 认识它；在 `renderLocaleSwitch` 和设置页的语言开关里加一项；客户端 `L`（`clientI18nScript`）今天写死了 `MOLIS_WORK_EN` 和「非中文即英文」的判断，要一并改；给「现在」列出的 42 份词典各补一份同形的目标语言词典并在汇总处接入；跑 `tests/i18n.test.ts`。
+**怎么加**：此前没有写。中文原文是 key，英文是词典（`apps/workbench/src/i18n.ts`）。现行做法：在 `i18n.ts` 里加语言值，并让 `isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin` 认识它；在 `renderLocaleSwitch` 和设置页的语言开关里加一项；客户端 `L`（`clientI18nScript`）今天写死了 `MOLIS_WORK_EN` 和「非中文即英文」的判断，要一并改；给「现在」列出的 53 份词典各补一份同形的目标语言词典并在汇总处接入；跑 `tests/i18n.test.ts`。
 
-**现在：5 个代码文件 + 42 份词典。** 代码里 `"zh" | "en"` 字面量和两项开关在：`apps/workbench/src/i18n.ts`（`WebLocale`、`WEB_LOCALES`、`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L`）、`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts`、`plugins/native/goals/src/safety-ui-model.ts`。词典 42 份：工作台 14 份（`apps/workbench/src/i18n/` 下 12 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `functions/en.ts`），插件 28 份（16 个插件各一份，加 Goals 的 12 份 `*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
+**现在：15 个代码文件 + 53 份词典。** 代码里 `"zh" | "en"` 字面量在 15 个 `.ts` 文件（`git grep -l '"zh" | "en"' -- '*.ts' ':!tests'`）：工作台 12 个（`apps/workbench/src/i18n.ts` 的 `WebLocale`；`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts` 的 `localeSwitchHref`；`assistant-board-frame.ts`、`assistant-board-specimens.ts`、`assistant-board-text.ts`、`board-plugin-rows.ts`、`condition-frame.ts`、`condition-samples.ts`、`condition-specimens.ts`、`primitive-catalog.ts` 的样本与目录渲染 `lang`），`packages/contracts/src/platform/actions.ts`（`ActionLocale`）与 `plugin-registration.ts`（样本语言的 `"zh" | "en" | "mixed"`）2 个，`plugins/native/issues/src/naming.ts`（标题语言判断）1 个。两项开关：`WEB_LOCALES` 在 `apps/workbench/src/i18n.ts`（`:42`，转出到 `apps/workbench/src/index.ts`、`apps/local-host/src/web-locale.ts`），`isWebLocale` 校验也在 `apps/workbench/src/i18n.ts`。词典 53 份：工作台 21 份（`apps/workbench/src/i18n/` 下 19 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `apps/workbench/src/functions/en.ts`），插件 32 份（20 个插件各一份 `src/en.ts`，加 Goals 的 12 份 `src/*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
 
 **用户 2026-10-08 的决定（#16，`specs/repository-anti-corruption/spec.md` §1「界面翻译」，PR #312；用户没有选推荐的「中文作键」）：全部换成稳定键。** 约 164 个源文件改用稳定键（spec 该行给的数字），词典按所有者分，CI 查缺失、无用与冲突；第 5 波的「翻译按主人分」改成「稳定键」，并先做一个插件样板（W5-03）。换完以后键不再是中文原文，所以中文也要有自己的词典，加语言的做法随之变成：语言清单加一项，每个词典所有者各交一份该语言的词典；上面「怎么加」里客户端 `L` 写死的「非中文即英文」判断因此要改成按词典查。「怎么加」和「现在」写的是换成稳定键之前的做法和数字。
 

@@ -255,7 +255,7 @@ export const CRAFT_BAR_STYLES = `
   }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
-  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"], .account-global-menu[open] > .account-global-trigger) {
+  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"]) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
   ${SHELL} .dock-pin[aria-current]::after {
@@ -273,11 +273,7 @@ export const CRAFT_BAR_STYLES = `
 
   /* The Dock menu: which plugins stay, what is yours everywhere, settings and the account. */
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
-  ${SHELL} .account-global-menu { position: relative; flex: none; }
   ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
-  ${SHELL} .account-global-menu:not([open])[data-market-updates] > .account-global-trigger::after {
-    content: ""; position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-  }
   ${SHELL} .account-global-popover {
     position: absolute; z-index: 60; left: 0; bottom: calc(100% + 10px); display: grid; gap: 1px; width: 264px; max-height: min(70dvh, 620px); overflow: auto; padding: 8px;
     border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);

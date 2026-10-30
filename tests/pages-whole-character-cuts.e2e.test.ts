@@ -51,7 +51,7 @@ test("RAC-2265: an import preview cuts by whole characters, so a two-unit charac
   assert.ok([...shown].length <= 4000, `${[...shown].length} characters shown, at most 4,000`);
   assert.equal(preview.endsWith("…"), true, "more text follows, so the preview says so");
   // RAC-2265, the other half: the ellipsis is decided by characters, not units. 2,500 🟢 are 5,000 UTF-16 units but 2,500 characters, under
-  // the 4,000-character limit, so the preview is the whole text and there is no ellipsis; the old unit cut showed 1,000 of them and "…".
+  // the 4,000-character limit, so the preview is the whole text and there is no ellipsis; the old unit cut showed only 2,000 of them and "…".
   const emojiText = wide.repeat(2500);
   await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-import-files]'); const transfer = new DataTransfer();
     transfer.items.add(new File([${JSON.stringify(emojiText)}], "表情.md", { type: "text/markdown" })); input.files = transfer.files;

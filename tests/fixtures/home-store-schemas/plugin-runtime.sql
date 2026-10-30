@@ -38,4 +38,4 @@ CREATE TABLE IF NOT EXISTS plugin_consents (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS plugin_consents_active ON plugin_consents (plugin_id, publisher_signature, kind, subject) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS plugin_consents_plugin ON plugin_consents (plugin_id);
-PRAGMA user_version = 3;
+PRAGMA user_version = 1;

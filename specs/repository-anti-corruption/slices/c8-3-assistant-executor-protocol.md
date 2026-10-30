@@ -1,6 +1,6 @@
 # C8-3：助理按执行方协议选执行方，删 `assistant-coding.ts`
 
-状态：2026-10-24，`claude/ac-coding-93b25f` 上做完，等 PR 评审与统筹跑全量（本机没有跑浏览器用例和全量）。真实 Home 的助理库 2→3 维护没有执行，脚本与演练在本片，执行归维护八。
+状态：执行方协议代码沿已合入实现；2026-10-30旧助理库2→3维护由干净Home起点1取代，SQL与演练删除，真实重建未开始。工程、Full及实际Home证据分别结算。
 
 ## 目标、证据与边界
 
@@ -28,11 +28,11 @@ PG-036 的 C8-3：助理把一项工作交给哪个插件，只看插件有没�
 - **RAC-441**：不可用的执行方在清单里带原因，点名也拒，除读 `state` 之外它的角色一个也不跑，不留下工作。证明：同上。
 - **RAC-442**：执行方不见了：续发、再次转交都被拒，不记新的一轮、不连新的对象，也不调别的提供方。证明：同上。
 - **RAC-443**：`assistant-coding.ts` 已删，助理目录的源码里没有 Coding 的插件标识、动作名、工作种类。证明：同上（源码扫描）。
-- **RAC-444**：助理库基线是版本 3，版本 2 的库不翻译着读，开库即拒。证明：同上。
+- **RAC-444**：助理当前完整结构起点1，其他版本不翻译着读，开库即拒。证明：同上。
 - **RAC-445**：真实 Home 里助理用协议找到 Coding，清单里的方式是 Coding 自己 `state` 给的五种。证明：`tests/assistant-executor-product.test.ts`。
 - **RAC-446**：真实 Home 里按插件标识把新工作交给 Coding，会话在 Coding 的页面里能看到，方式与那一轮都一致。证明：同上。
 - **RAC-447**：原旧存量转换路线已取消，其SQL/演练删除；现行起点1/完整schema/错版拒绝见 `tests/clean-home-core-stores.test.ts`，执行方拒绝仍由 `tests/security-invariants-assistant-executor.test.ts` 验证，不放宽权限或改写旧值。
-- **RAC-448**：版本不对和中途失败（工作、轮次、请求结果三处各一次）整笔回滚。证明：同上。
+- **RAC-448**：随原存量维护取消，其事务故障演练不再执行；当前新库完整结构与错版本拒绝由 `tests/clean-home-core-stores.test.ts` 验证，不移除执行方权限拒绝。
 - **RAC-449**：保留。
 
 其余沿用的行为（方式记在执行方会话、补充走 `run.control`、RCPT-368 来源、RC-06 排队与回答版本、RC-14 去向、认领已有会话、转交带的说明与文件、跟进删除）由 `tests/assistant-executor.test.ts` 用一个不是 Coding 的协议插件重新断言，原断言一条没有放宽。
@@ -41,7 +41,7 @@ PG-036 的 C8-3：助理把一项工作交给哪个插件，只看插件有没�
 
 - 合同 `contracts/services/assistant`（API 快照已刷新）：`AssistantExecutor` 的 `coding` 种类改为 `plugin`（带 `plugin_id`）；新增 `AssistantExecutorChoice`、`AssistantExecutorOffer`；`AssistantRound.executor`、`AssistantWorkSurroundings.environment.executor` 与 `tools.executor`、`AssistantSendInput.executor`/`executor_session_id`、`AssistantHandover.to` 随之改。
 - HTTP：新增 `GET /api/assistant/executors`；`/send`、`/works/:id/handover` 的请求体按上改。没有别的调用方：成果库的“交给 Coding”（`plugins/native/artifacts/src/handoff-client.ts`）发的页面消息里 `executor` 现在是插件标识 `io.molis.work.coding`。
-- 助理库版本 2→3，见上与 `spec.md` §4.1 的维护清单。
+- 助理当前结构起点1；原2→3维护被干净重建取代，见 `spec.md` §4.1。
 
 ## 与在途 PR 的重叠
 

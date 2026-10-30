@@ -47,7 +47,7 @@
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 拒绝 |
 | Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 拒绝；旧数据搬迁已取消，干净Home创建当前库 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 拒绝 |
-| 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧有效偏好需显式采用，不在启动时重设 |
+| 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧采用路线取消，新Home创建完整reviewed偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
@@ -73,11 +73,13 @@
 | Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog.ts#CATALOG_VERSION` | 拒绝 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
-- Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
-当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；各片完成前，上表按实际代码逐步更新，不提前改未完成项。项目主库与Feed声明已经采用第1版起点，表、索引、权限和事实归属保持现行合同。
+Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；本批已统一上表的存储起点，表、索引、权限和事实归属保持现行合同。
 
-版本不符仍整体拒绝，不读取旧形状、不自动升级。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)收口。
-- 角色当前结构保留character_runs原生执行记录与草稿，起点1；旧Home整体搬开后新建，不从Sessions或旧角色库迁移，原SQL与演练删除。
+版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
+
+版本不符仍整体拒绝，不做历史读取转换、不自动升级。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)收口。
+- 角色当前结构保留character_runs原生执行记录与草稿，起点1；既有检查记录的旧1没有character_runs，同号旧形状不在检查范围内；旧Home整体搬开后新建，不从Sessions或旧角色库迁移，原SQL与演练删除。
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`）。
 - Home Plugin Runtime当前结构1保留publisher_trust、plugin_consents与plugin_publishers；新Home启动按Manifest幂等登记常开同意，撤销不复活。旧项目/Runtime升级路线已取消，相关片删除工具。
 - Sessions已下线，用户2026-10-30确认删除其离线技术登记与reader；新Home不建sessions目录，未知旧目录不被快照读取，旧Home整体搬开后保留。
@@ -95,13 +97,13 @@
 
 本次用户允许不复制备份。把整个 `~/.molis-work` 搬到 `~/molis-work-backups/2026-10-30-replaced-by-clean-home/`，目录700，目标已存在则拒绝覆盖。搬开后不读取、迁移或删除旧数据；不是把旧库搬回新Home。Keychain里的旧Home主密钥不删不改；已存在的只读副本也保留，由用户决定以后处理。
 
-目录库1不再存项目库绝对路径，由当前Home与project_id推导。W5-17迁移已取消；真实重建等用户另说“开始”。目录可推导不扩展跨Home/原key恢复承诺。重建前不要用新构建启动4207；换Session不能消除旧目录库的版本差异。
+目录库1不再存项目库绝对路径，由当前Home与project_id推导。W5-17历史候选v23已于2026-10-30被当前起点1取代，不再执行该号迁移。W5-17迁移已取消；真实重建等用户另说“开始”。目录可推导不扩展跨Home/原key恢复承诺。重建前不要用新构建启动4207；换Session不能消除旧目录库的版本差异。
 
 ### 4.3 先验证干净 Home
 
-使用现行结构直接创建每库第1版。项目/连接/授权不从旧Home继承；不运行旧迁移或残留清理。检查当前存储声明与版本表一致、没有按旧版本分支的启动建表；错版和错结构仍按owner合同拒绝。原迁移八及其后候选全部作废，不能沿旧清单执行。
+使用现行结构直接创建每库第1版。项目/连接/授权不从旧Home继承；不运行旧迁移或残留清理。检查当前存储声明与版本表一致、没有按旧版本分支的启动建表；错版和已有owner合同覆盖的错结构仍拒绝；不推定同号旧形状全被识别。原维护八及其后候选已被2026-10-30干净重建取代：连接库、Pages、项目库/Runtime升级、角色运行表、Functions判断安装号、助理执行方转换、Shelf转换、Goals/Inbox/Feed搬迁与残留改写均取消，不能沿旧清单执行；取消项不保留待做勾选框。
 
-- [ ] **目录库 W5-17（原迁移已取消，真实重建未开始）。** 当前结构1没有projects.database_path，代码及S-102拒绝覆盖保留；catalog迁移脚本、旧结构夹具及演练删除。按统筹6517794305，旧Home整体搬开后新建当前Home，不逐库转换，具体执行等全部代码就绪后用户“开始”。
+- **目录库 W5-17（原迁移已被干净重建取代，真实重建未开始）。** 当前结构1没有projects.database_path，代码及S-102拒绝覆盖保留；catalog迁移脚本、旧结构夹具及演练删除。按统筹6517794305，旧Home整体搬开后新建当前Home，不逐库转换，具体执行等全部代码就绪后用户“开始”。
 
 ### 4.4 装新构建
 

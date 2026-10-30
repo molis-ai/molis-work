@@ -2,7 +2,7 @@
 
 状态：已审定、开工（2026-10-25，迁移线 ac-sc3，叠在 S9-1 分支上；统筹 10-25 审过设计稿并给了七条条件，已写进本稿：§3.4、§3.6、§5.2、§5.3、§7、§8）。统筹 10-25 裁定走「一条链」：S10 与 S11 合成一片（Home 半 + 项目半切 Runtime + 个人规划表搬进 Home 库），之后 S12 删私路，最后 S9-3 纯搬家；每片只推分支、叠着做，不开 PR，等用户维护窗口一起落；不申请 `pluginOutsideMentions` 放行。
 
-2026-10-26 收口适配进行中（PIPE，Root accepted WO）：从已冻结的 batch-42 与记忆线组合 `cbf060ca423afea483bee0440fb30888a7547adb` 普通合入原 PR #1295 `eb617d597e4ff46ed4adee930f793e3f2bea1e23`，按同一稿完成原有模块搬家、双实例、公开动作、Inbox 声明投影、保存点与维护拒绝。使用现行 registration.project_runtime 和 Manifest.runtime.scope，保 W5-15 单写源、现行 SDK/Memory 受控原输入与项目插件原子快照；不恢复已删除的宿主私路或元信息。验收沿本稿 RAC-790～809 和既有维护/Runtime 用例，组合后的源码、精确构建、原始测试和 CI/Full 分别结算。用户本轮授权的是现有实现的远端代码收口；旧库拒绝与 rename→move 顺序保留，真实 Home 的读取、迁移、4207 拉取/重建/重启和本人验收不包含在本次执行中。最终目录版本和 S 号按实际组合核定，不照旧草稿常量改写当前平台。 BL-780 延续本 PR 原 BL-646 的未归属决定提醒维护，现行 main 的 Artifacts BL-646 保留；仅重编，无真实 Home 操作授权。
+2026-10-26 收口适配进行中（PIPE，Root accepted WO）：从已冻结的 batch-42 与记忆线组合 `cbf060ca423afea483bee0440fb30888a7547adb` 普通合入原 PR #1295 `eb617d597e4ff46ed4adee930f793e3f2bea1e23`，按同一稿完成原有模块搬家、双实例、公开动作、Inbox 声明投影、保存点与维护拒绝。使用现行 registration.project_runtime 和 Manifest.runtime.scope，保 W5-15 单写源、现行 SDK/Memory 受控原输入与项目插件原子快照；不恢复已删除的宿主私路或元信息。验收沿本稿 RAC-790～809 和既有维护/Runtime 用例，组合后的源码、精确构建、原始测试和 CI/Full 分别结算。用户本轮授权的是现有实现的远端代码收口；旧库拒绝与 rename→move 顺序保留，真实 Home 的读取、迁移、4207 拉取/重建/重启和本人验收不包含在本次执行中。最终目录版本和 S 号按实际组合核定，不照旧草稿常量改写当前平台。 BL-780 延续本 PR 原 BL-646 的未归属决定提醒维护，现行 main 的 Artifacts BL-646 保留；仅重编，无真实 Home 操作授权。（2026-10-30统筹6528761774更新：BL-780随干净重建取消，历史文字不再作为待办。）
 
 
 本组合的 PLIB-14 修正：先对完整的声明启动名单核双实例两半，再按本项目的库拒绝结果排除不能启动的那一半。旧顺序先排掉 Goals 后被双实例校验当成缺声明，导致整个项目 Runtime 清空；不是双实例声明错误。开发入口的初始化同时改用现行公开描述符 `goalEntryActions.initialize`（version 2），不再保留旧 version 1 字面量；库自己的拒绝码仍由项目库记录，入口没有对应公开动作时回答 `actions.missing`，不恢复宿主直读 Goals 的私路。对外 `runLocalPluginDevelopment` 在它已校验的专用 `state_directory/home` 中装配隔离 Home，供 Goals 的 Home 库与项目半按同一平台规则启动；不再创建无 Home 的 Host。开发状态标记留在父目录，新的 Home 子目录走现行新 Home 的记忆初始化；不修改或绕过记忆采用检查。既有 W3-07-6-01 / A3-DEV-01 的真实产出、重跑与未声明拒绝用例作为红绿反例，不放宽它们。保留声明/信任校验不变，以真实损坏库断言 Goals 项目动作拒绝、独立 Home 半及其他插件照常可用。
@@ -124,11 +124,10 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 
 | 项 | 做法 |
 | --- | --- |
-| 目录库版本 | **取落地时 main 的下一个号，不把 23 写死成前提**（统筹条件 4）。W5-17（`claude/ac-w517-catalog-paths`，目录库 22→23）和本片共用同一个新版本号，只升一次；#1101（`codex/memory-management-pages`，别的作者）也把版本设成 23，我们不碰它的分支：它先合，我们就是 v24，维护时段按版本顺序跑（风险登记 R-52）。本片的变化「目录库不再有 `personal_planning_method_packs`」跟着那一个版本走 |
+| 目录库版本 | 当前完整结构起点1，W5-17原22→23及#1101撞号排序已被2026-10-30干净重建取代；无personal_planning_method_packs，#1101由原owner衔接，本线不改其分支 |
 | 原存量维护 | 用户2026-10-30决定取消；旧名改写/目录个人方法搬迁的脚本、旧夹具与演练删除。当前Goals只读写自己命名空间的事件/幂等/关系与自己Home库的个人方法，新Home只创建当前数据，无读取兼容。 |
-| 原存量维护 | 用户2026-10-30决定取消；旧名改写/目录个人方法搬迁的脚本、旧夹具与演练删除。当前Goals只读写自己命名空间的事件/幂等/关系与自己Home库的个人方法，新Home只创建当前数据，无读取兼容。 |
-| 与 W5-17 的顺序 | 同一窗口先跑 W5-17 的 `rewrite`（旧版 → 新版），再跑本脚本 `move`（新版带表 → 新版不带表）；若 #1101 先合，按版本顺序先跑它的维护。两者谁后合入谁在自己的脚本里调用另一个的 `list` 先检查，不各升一次 |
-| 防漏跑（必须写清） | 两次维护落在同一个版本号上，版本号本身分不出「搬过没有」，所以 `assertCurrentCatalog` 加一条：目录库里还有 `personal_planning_method_packs` 就拒绝（`catalog.unsupported_schema`，提示按顺序先跑 S9-2 的 `rename`、再跑 `move`），避免版本号相同却没搬数据、个人方法静默消失。这张旧表是所有旧 Home 都有的东西，所以也是挡住 S9-2 的那一道：`move` 在任何项目库还留着旧名时什么都不写、不删表，S9-2 没做完这道拒绝就一直在 |
+| 与 W5-17 的顺序 | #1549与#1589只在同一个干净Home批承载落地，不运行rewrite/rename/move；真实搬开重建另等用户“开始” |
+| 旧结构拒绝 | RAC-800保留：当前目录若仍含personal_planning_method_packs即拒绝catalog.unsupported_schema，不读旧数据、不指向已删脚本；同号旧形状未检查的总边界见干净Home主片 |
 | 建表 | `initializeCatalog` 不再调 `createPersonalPlanningMethodSchema`；`project-catalog.ts` 去掉 `personalPlanningMethods`；`HOME-DATA.md` 4.1 目录库表删一行，4.x 加 Goals Home 库；`table-owners.json` 随之 |
 
 ## 6. S12：宿主私路删除
@@ -202,4 +201,4 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 - **测试**：改动涉及的 227 个单元用例文件（`affected-tests` 里按文件改动、共用夹具、包与命名点到的）加早先逐片跑的 81 个；浏览器用例（约 51 个文件用到被改的夹具）和全量不在这里跑，交批里的全量。清扫发现并改了的都是测试侧或文档计数：`project-database-baseline`（双实例的 Goals 项目半也声明项目库表）、`action-contract-snapshot`（没有宿主登记的 Home 层提供方了，改用合成的一条）、`affected-tests`（装配名单 26 → 25、local-host 半 13 → 12）、`artifact-links`（调用者要 `goals:read`）、`assistant-business-gateway`（Goals 要先启动，项目要有根行）、`desktop-tui`（夹具事件要写成 Goals 自己的名字才算进它的游标）、`artifact-browser`（演示样例的 CORE 交付物进了成果库，要看空库的用例改用只有板的夹具）、`personal-plugins-review-fixes`（Home 登记多一个 `goals`）、`goal-deliverable-proposals`（端口多了 `read`/`write`）。`npm-package` 与 `resident-management-actions`、`knowledge-*` 三个是构建过期或机器负载下超时，重建后单独重跑通过。
 - **Inbox 声明（统筹 2026-10-25 的决定）**：见 §6 的「Inbox 读取入口」与 RAC-806～809；Feed/Inbox 迁 Runtime 线（FI-2 #1283、FI-3）不碰这几处，FI-4/FI-6 之后改 `createLocalFeedApplication` 的构造点时基于本栈合入后的样子。
 - **S 号**：原栈 Attention 临时 S-66 与保存点临时 S-67 在本组合按实际合同归号：Attention/ContextLedger 延续 main 的 S-68，保存点新增 S-92（Root 2026-10-26 收口裁定）。沙箱模型 S-66、后台服务 S-67 与 Home 库 S-91 保持原合同。原评审里的临时号仅作历史来源。
-- **没做的**：S9-2（名字、游标、Attention 主人的维护）等用户的维护时段，同 W5-17；真实 Home 一直没碰；目录库版本没升（分支留在 22，落地时取 main 上的下一个号）。
+- **原存量维护已取消（2026-10-30）**：S9-2名字/个人方法搬迁与BL-780旧未归属提醒均由干净重建取代，不再分配历史升级号；真实Home重建仍未开始。

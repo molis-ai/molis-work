@@ -97,7 +97,7 @@ QA 工具只写系统临时目录中的专用子目录；启动前核对真实�
   - 手机只能记录进展、下一步和接手人，不提交用户决定、不启动 Agent、不自动完成 Goal；最终幂等归 Goal 业务事务。
   - 私人版本不原地改成共享；邀请前被选中的 Artifact 必须已是 `team_project` 版本。
   - `mw_*`、`im_*` 表只由本包读写：宿主的 IM 挂载（`apps/local-host/src/im-server.ts`）与 `apps/server` 启动器用 `Identity`、`ContinuityService` 的方法（`roleOf`、`hasMember`、`memberAccess`、`projectOwner`、`closeProjectsExcept`），不写 SQL（`scripts/gates/table-owners.mjs`）。
-  - Home 讨论库 `{home}/server/server.sqlite` 是当前基线 v2，属于用户内容，由 `homeStores()` 登记（[HOME-DATA](../docs/system/HOME-DATA.md)）。普通卸载保留，明确 purge 才清；路径、版本与清除规则改变时同步登记和发布 CHECKLIST。邀请仅存 SHA-256，回执不含 token/path/url；安全 GET 不生成或更换。显式生成/更换与重放都先检查当前 owner，较旧回执不会重新激活旧令牌。v1 仅经离线维护重建，不在读取时转换；存在 `.invite-maintenance.json` 时带码拒绝打开。
+  - Home 讨论库 `{home}/server/server.sqlite` 是当前基线 v1，属于用户内容，由 `homeStores()` 登记（[HOME-DATA](../docs/system/HOME-DATA.md)）。普通卸载保留，明确 purge 才清；路径、版本与清除规则改变时同步登记和发布 CHECKLIST。邀请仅存 SHA-256，回执不含 token/path/url；安全 GET 不生成或更换。显式生成/更换与重放都先检查当前 owner，较旧回执不会重新激活旧令牌。旧 Home 整体搬开后新建当前库，不运行邀请转换工具。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-server run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-http.test.ts tests/cross-device-launcher.test.ts tests/cross-device-gateway.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts tests/server-database-baseline.test.ts tests/security-invariants-im-invites.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

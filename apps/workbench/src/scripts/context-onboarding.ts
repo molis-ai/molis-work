@@ -344,7 +344,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function review() {
     const s=journey.summary, draftsHtml = drafts(), picks = todoPicked ? todoPicked.size : 0;
     const left = question(L('给新项目起个名字'), L('根据已有材料整理了一份项目建议，名字和摘要都可以改。')) + errorLine(error||journey.error)
-      + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + L('项目名称') + '</label><input id="cx-project-title" class="mw-input ob-name__input" maxlength="120" data-plain-field value="' + esc(s.title) + '"></div>'
+      + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + L('项目名称') + '</label><input id="cx-project-title" class="mw-input ob-name__input" data-plain-field value="' + esc(s.title) + '"></div>'
       + '<div class="ob-name"><div class="cx-actions"><span class="ob-label">' + L('工作摘要') + '</span>' + btn({variant:'ghost', size:'sm', label:L(editing ? '完成编辑' : '编辑摘要'), attrs:{'data-action':'edit'}}) + '</div>'
       + (editing ? '<textarea id="cx-summary-editor" class="mw-textarea cx-summary-editor" rows="10" maxlength="100000" aria-label="' + L('编辑摘要') + '">' + esc(s.body) + '</textarea>' : '<div class="cx-summary">' + markdown(s.body) + '</div>') + '</div>'
       + '<p class="ob-note">' + glyph('note') + '<span>' + L('{sources} 个来源 · {n} 份材料', {sources:picked().length, n:s.references.length}) + '</span></p>'
@@ -365,7 +365,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function blankForm() {
     const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('各插件有要推进或等你确认的事时，会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
     const left = question(L('给新项目一个名字'), L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。'))
-      + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" maxlength="120" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
+      + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
       + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
     return {kind:'onboard', view:'blank', step:'来源', left, right:preview,
       bar:{start:exitButton() + steps(stepLabels().length, -1), center:barStatus({glyph:'plus', title:L(materialsOnly ? '带入已读取的资料' : '空白项目'), caption:blankName.trim() ? L('将创建「{name}」', {name:blankName.trim()}) : L('写下名字就可以开始')}),
@@ -652,6 +652,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   /* ───────── What the person does ───────── */
   const root = frame;
   root.addEventListener('input',e=>{
+    // 项目名称封顶 120 个字（码点）：maxlength 按 UTF-16 单元数，含两单元字的名称只能写到 60 个字。
+    if(e.target.id==='cx-project-title'||e.target.id==='cx-blank-name'){const chars=[...e.target.value];if(chars.length>120)e.target.value=chars.slice(0,120).join('');}
     if(e.target.id==='cx-project-title'||e.target.id==='cx-summary-editor'){preserveEdits();const preview=app.querySelector('.ob-project-name');if(preview&&e.target.id==='cx-project-title')preview.textContent=e.target.value.trim()||L('新项目');return;}
     if(e.target.id==='cx-blank-name'){blankName=e.target.value;const typed=blankName.trim();const preview=app.querySelector('.ob-project-name');if(preview)preview.textContent=typed||L('新项目');const status=bar.querySelector('.mw-bar-status__text small');if(status)status.textContent=typed?L('将创建「{name}」',{name:typed}):L('写下名字就可以开始');return;}
     if(e.target.dataset.field&&e.target.tagName!=='SELECT'){

@@ -367,6 +367,7 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
   } finally { staged?.clear(); }
 }
 const refreshes = new Map<string, SharedRefresh<string>>();
+const LOST_AUTHORITY = "等这次刷新的调用已失去授权，换到的令牌不保存";
 /**
  * A connection's access token, refreshed when asked, when it is about to expire or when only the refresh token is left. Each use checks
  * the connection's binding first (`boundMethod`). One refresh per connection at a time, shared by the calls that need it (RAC-1085,
@@ -410,7 +411,7 @@ export async function resolveApiOAuthToken(home: string, id: string, control: Co
  * not abandoned: `connector-shared-refresh.ts`). The last check (W5-11 §2.6, N2(a)) comes after the answer and before anything is written:
  * the plugin declaring the service still enabled as the same install, the connection still bound to it, the connection still there at the
  * revision the refresh read. Then `settle` says what may be written: everything to the participants still waiting; only the rotated
- * credentials when every participant cancelled; nothing when one lost its authority.
+ * credentials when every participant cancelled; nothing when one lost its authority. `outcome` says it once more after the last `await`.
  */
 async function renewed(home: string, id: string, read: { config: OAuthConfiguration; owner: OAuthServiceOwner; method: PluginOAuthMethodDeclaration; revision: string },
   refresh: SharedRefreshRun, { fetchImpl, network }: { fetchImpl?: typeof fetch; network?: OAuthNetwork }, owners: OAuthOwners): Promise<string> {
@@ -423,9 +424,11 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
   if (!next) throw new ApiOAuthError("刷新失败，请重新授权此连接");
   // A refresh sends no context request; it keeps what the token response says again, and what it leaves out stays as it was.
   const kept = declared(() => oauthKept(config.serviceId, method.keep?.map(keep => ({ ...keep, required: false })), json), config.serviceId);
-  const outcome = await refresh.settle();
-  if (outcome === "discard") throw new ApiOAuthError("等这次刷新的调用已失去授权，换到的令牌不保存");
+  if (await refresh.settle() === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
   const owner = await owners(config.serviceId);
+  // The last await: from here to the write nothing yields, so the participants are asked once more now (S-95).
+  const outcome = refresh.outcome();
+  if (outcome === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
   if (!owner || owner.install_id !== read.owner.install_id) throw new ApiOAuthError("声明这个服务的插件在刷新期间已停用或重装，换到的令牌不保存");
   boundMethod(config, owner);
   // A disconnect during the network request must win over a token refresh.

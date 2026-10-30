@@ -18,6 +18,8 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 //   plugin still enabled as the same install, the connection still bound to it and at the same revision); with nobody waiting, only the
 //   rotated credentials are kept (用户 10-27 定：只存新令牌); a call that lost its authority keeps nothing of it, and so does one the
 //   platform withdrew by aborting it: only a cancellation (an abort for `cancelled` or `timeout`, or an `AbortError`) is the caller leaving.
+//   What counts is what holds after the last wait before the write: a call that passed its check and lost its authority while another's
+//   check or the declaring plugin's lookup was out keeps nothing either (S-95, #1479 统筹裁定 T-063).
 // - RAC-1087: a connection bound to another plugin, publisher or token endpoint, or to none, is marked for reauthorization before its
 //   refresh token or client secret is sent anywhere.
 // - RAC-1088: while the declaring plugin is disabled, the connection sends nothing and refreshes nothing; enabled again, it works.
@@ -47,21 +49,36 @@ async function connected(t: TestContext, expired = true) {
     state: () => listConnectorConnectionViews(home, "asana")[0]?.state };
 }
 
-/** The token endpoint holds each refresh until the test releases it (answering access-n and refresh-n+1); the service answers 200. */
-function network(t: TestContext) {
-  const refreshes: Array<{ body: URLSearchParams; release: () => void }> = [], reads: string[] = [];
-  let arrived = () => {};
+/**
+ * The token endpoint holds each refresh until the test releases it (answering access-n and refresh-n+1), or answers at once after
+ * `answerAll`; the service answers 200, or 401 to the bearer `refused` names, and holds a read `holdRead` was asked for until released.
+ */
+function network(t: TestContext, refused?: string) {
+  const refreshes: Array<{ body: URLSearchParams; release: () => void }> = [], reads: string[] = [], held: Array<() => void> = [];
+  const gates: Array<{ reached: () => void; open: Promise<void> }> = [];
+  let arrived = () => {}, answering = false;
   oauthNetwork(t, async (url, init) => {
     if (url === ASANA_TOKEN) {
       const index = refreshes.length;
-      await new Promise<void>(release => { refreshes.push({ body: new URLSearchParams(init.body), release }); arrived(); });
+      await new Promise<void>(release => { refreshes.push({ body: new URLSearchParams(init.body), release }); arrived(); if (answering) release(); });
       return Response.json({ access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, expires_in: 3600 });
     }
     assert.equal(url, ASANA_ME, "no other request");
-    reads.push(Object.entries(init.headers).find(([name]) => name.toLowerCase() === "authorization")?.[1] ?? "");
-    return Response.json({ data: { gid: "someone" } });
+    const bearer = Object.entries(init.headers).find(([name]) => name.toLowerCase() === "authorization")?.[1] ?? "";
+    reads.push(bearer);
+    const gate = gates.shift();
+    if (gate) { gate.reached(); await gate.open; }
+    return bearer === refused ? new Response(null, { status: 401 }) : Response.json({ data: { gid: "someone" } });
   });
-  return { refreshes, reads, next: () => new Promise<void>(resolve => { arrived = resolve; }), releaseAll: () => refreshes.forEach(entry => entry.release()) };
+  const releaseAll = () => { refreshes.forEach(entry => entry.release()); held.forEach(release => release()); };
+  const holdRead = () => {
+    let reached!: () => void, release!: () => void;
+    const at = new Promise<void>(resolve => { reached = resolve; });
+    gates.push({ reached, open: new Promise<void>(resolve => { release = resolve; held.push(resolve); }) });
+    return { reached: at, release };
+  };
+  return { refreshes, reads, next: () => new Promise<void>(resolve => { arrived = resolve; }), releaseAll, holdRead,
+    answerAll: () => { answering = true; releaseAll(); } };
 }
 
 /**
@@ -70,10 +87,18 @@ function network(t: TestContext) {
  */
 function call() {
   const abort = new AbortController();
-  let withdrawn = false;
+  let withdrawn = false, gate: { reached: () => void; open: Promise<void> } | undefined;
   const current = () => { if (withdrawn) throw new Error("调用已失去授权"); };
-  const dispatch: PluginConnectionDispatch = { ...connectorControl({ signal: abort.signal, current }), url: new URL(ASANA_ME), method: "GET", headers: {}, signal: abort.signal };
-  return { dispatch, cancel: (reason: unknown = new ActionError("actions.cancelled", "调用连接已断开")) => abort.abort(reason), withdraw: () => { withdrawn = true; } };
+  // `hold` keeps the call's next `beforeEffect` waiting until the test releases it, and says when it is reached.
+  const beforeEffect = async () => { const held = gate; gate = undefined; if (held) { held.reached(); await held.open; } };
+  const dispatch: PluginConnectionDispatch = { ...connectorControl({ signal: abort.signal, current, beforeEffect }), url: new URL(ASANA_ME), method: "GET", headers: {}, signal: abort.signal };
+  const hold = () => {
+    let reached!: () => void, release!: () => void;
+    const at = new Promise<void>(resolve => { reached = resolve; });
+    gate = { reached, open: new Promise<void>(resolve => { release = resolve; }) };
+    return { reached: at, release };
+  };
+  return { dispatch, hold, cancel: (reason: unknown = new ActionError("actions.cancelled", "调用连接已断开")) => abort.abort(reason), withdraw: () => { withdrawn = true; } };
 }
 const turn = () => new Promise<void>(resolve => setImmediate(resolve));
 
@@ -148,6 +173,55 @@ test("RAC-1085 a call that lost its authority while its refresh was out keeps no
   });
 });
 
+// The participants' checks are asked one after another, and a call that passed may lose its authority while a later one's check is out,
+// or while the refresh asks who declares the service (#1479 统筹裁定 T-063): only what is current after the last wait counts (S-95).
+test("S-95 RAC-1085 calls that passed the refresh's checks and lost their authority while another's check was out keep nothing of the answer", { timeout: 30_000 }, async t => {
+  const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+  const before = { stored: stored(), protocol: protocol() }, [first, second] = [call(), call()];
+  try {
+    const sent = net.next();
+    const pending = [port.request(target, first.dispatch)];
+    await sent;
+    pending.push(port.request(target, second.dispatch));
+    await turn();
+    assert.equal(net.refreshes.length, 1, "the second call joined the refresh in flight");
+    const settled = Promise.allSettled(pending);
+    const held = second.hold();
+    net.refreshes[0]!.release();
+    // The first call passed its check; the second's is out. Both lose their authority before it is back, neither is aborted.
+    await held.reached;
+    first.withdraw(); second.withdraw();
+    held.release();
+    for (const result of await settled) assert.equal(result.status, "rejected");
+    assert.deepEqual(stored(), before.stored, "no credential of the answer is written");
+    assert.equal(protocol(), before.protocol, "no protocol context of the answer is written");
+    assert.deepEqual(net.reads, []);
+  } finally { net.releaseAll(); }
+});
+
+test("S-95 RAC-1085 a call that lost its authority while the refresh asked who declares the service keeps nothing of the answer", { timeout: 30_000 }, async t => {
+  const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+  const registry = await homeIntegrationRegistry(home), owner = registry.oauthOwner.bind(registry);
+  let asked = () => {};
+  t.mock.method(registry, "oauthOwner", (serviceId: string) => { asked(); return owner(serviceId); });
+  const before = { stored: stored(), protocol: protocol() }, lost = call();
+  try {
+    const sent = net.next();
+    const settled = Promise.allSettled([port.request(target, lost.dispatch)]);
+    await sent;
+    // The next lookup is the one after the answer, once the participants' checks passed: the call loses its authority during it.
+    let lookups = 0;
+    asked = () => { lookups += 1; asked = () => {}; lost.withdraw(); };
+    net.refreshes[0]!.release();
+    const [result] = await settled;
+    assert.equal(lookups, 1, "the call lost its authority while the refresh asked who declares the service");
+    assert.equal(result!.status, "rejected");
+    assert.deepEqual(stored(), before.stored, "no credential of the answer is written");
+    assert.equal(protocol(), before.protocol);
+    assert.deepEqual(net.reads, []);
+  } finally { net.releaseAll(); }
+});
+
 // A platform withdrawal can abort the call instead of failing its checks (second review of #1479): a plugin instance stopped
 // (`plugin-runtime` background services abort with `actions.plugin_unavailable`), an authority the call's monitor saw lost
 // (`createExecutionLifetime` aborts with the check's own error), a connection changed under the call (`invalidateConnectorRequests`).
@@ -207,6 +281,57 @@ test("RAC-1085 the declaring plugin disabled, or replaced by another plugin, whi
       assert.deepEqual(net.reads, []);
     } finally { net.releaseAll(); }
   });
+});
+
+test("RAC-1085 the declaring plugin reinstalled, the same plugin and publisher as another install, while the refresh is out: nothing of the answer is written", { timeout: 30_000 }, async t => {
+  const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+  const registry = await homeIntegrationRegistry(home), owner = registry.oauthOwner("asana")!;
+  const before = { stored: stored(), protocol: protocol() };
+  try {
+    const sent = net.next();
+    const pending = port.request(target, call().dispatch);
+    await sent;
+    const refused = assert.rejects(pending, unavailable);
+    await registry.disable(owner.plugin_id);
+    // Another signature of the same publisher's plugin is another install; plugin, publisher and token endpoint stay the same.
+    const again = createCatalogIntegrationPlugin({ connectorId: "asana", providerFor: () => { throw new Error("the test reads no integration records"); } });
+    await registry.enable({ ...again, manifest: { ...again.manifest, publisher: { ...again.manifest.publisher, signature: `${again.manifest.publisher.signature}-reinstalled` } } });
+    const reinstalled = registry.oauthOwner("asana")!;
+    assert.deepEqual([reinstalled.plugin_id, reinstalled.publisher_id, JSON.stringify(reinstalled.method)], [owner.plugin_id, owner.publisher_id, JSON.stringify(owner.method)]);
+    assert.notEqual(reinstalled.install_id, owner.install_id);
+    net.refreshes[0]!.release();
+    await refused;
+    assert.deepEqual(stored(), before.stored, "the rotated credentials are dropped with the rest");
+    assert.equal(protocol(), before.protocol);
+    assert.deepEqual(net.reads, []);
+  } finally { net.releaseAll(); }
+});
+
+test("RAC-1085 two calls the service refuses with 401 at once share one forced refresh", { timeout: 30_000 }, async t => {
+  const { home, stored } = await connected(t, false), net = network(t, "Bearer old-access"), port = createPluginConnectionsPort(home);
+  const [one, two] = [call(), call()];
+  try {
+    // Both calls read with the same token before either is answered.
+    const readOne = net.holdRead(), first = port.request(target, one.dispatch);
+    await readOne.reached;
+    const readTwo = net.holdRead(), second = port.request(target, two.dispatch);
+    await readTwo.reached;
+    // The first is refused and its forced refresh goes out; then the second is refused and forces one while that one is in flight.
+    const sent = net.next();
+    readOne.release();
+    await sent;
+    const forced = two.hold();
+    readTwo.release();
+    await forced.reached;
+    forced.release();
+    await turn();
+    assert.equal(net.refreshes.length, 1, "the second forced refresh joined the one in flight");
+    net.answerAll();
+    assert.deepEqual([(await first).status, (await second).status], [200, 200]);
+    assert.equal(net.refreshes.length, 1, "one token request for both calls");
+    assert.deepEqual(net.reads, ["Bearer old-access", "Bearer old-access", "Bearer access-0", "Bearer access-0"]);
+    assert.deepEqual([stored().access, stored().oauth], ["access-0", "refresh-2"]);
+  } finally { net.releaseAll(); }
 });
 
 test("RAC-1087 a connection bound to another plugin, publisher or token endpoint, or to none, is marked for reauthorization and sends nothing", { timeout: 30_000 }, async t => {

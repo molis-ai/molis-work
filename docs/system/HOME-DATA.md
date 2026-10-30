@@ -115,7 +115,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v23；W5-17 去掉数据库路径列，个人规划先移入 Goals 的 Home 库）
+### 4.1 `projects/catalog.db`（v1；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
 
 | owner | 表 |
 | --- | --- |
@@ -287,7 +287,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
-| A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db`（带 `-wal`、`-shm`） | 目录v23推导项目库位置；完整Home恢复仍按原路径与原key |
+| A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db`（带 `-wal`、`-shm`） | 目录 v1 按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
 | B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | blob 没有密钥读不出，密钥不能换新；没有代码再读它们，备份照旧收 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |

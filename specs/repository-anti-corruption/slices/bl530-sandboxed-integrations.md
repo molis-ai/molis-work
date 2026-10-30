@@ -149,7 +149,7 @@
 - **一个包一个来源**：登记 `bind` 时只给来源的绑定、不说是哪个集成，所以一个包只声明一个来源和它的一个服务，代理才知道这次调用的连接是哪个服务的。
 - **崩溃不放 id**：§2.8 原写崩溃时 `detach`。实现成登记每次 `bind` 都问 Home 实例此刻的贡献，没在运行就是 `plugin.integration_unavailable`；id 只在停用、卸载、发布者被撤销、Host 关闭时放掉。这样崩溃到恢复之间别的包抢不走它的 id，不悄悄换主人。
 - **BL-691 的「升级改了来源要重新确认」**：签名包现在不能就地升级（`installedLifecycle` 拒 `pinned` 的 upgrade，先卸载再装新包），所以另一组来源只能随另一个包和它自己的预览来；来源就在签名的包里，随固定的发布者存在 Home 的包目录、每次启动按签名重读，不另存一份。就地升级签名包时要把来源的比较加进去（随 BL-628 的升级，当前不存在）。
-- **设置页卡片**：登记的 `connectionServices()` 随 `attach/detach` 有它、放掉它，但设置页与新建连接读的是启动时由内置清单算好的 `HOST_CONNECTOR_DIRECTORY`，装上的包的服务还不出卡片。改成读登记是 BL-740，本片只断言登记里没有了。
+- **设置页卡片**：登记的 `connectionServices()` 随 `attach/detach` 有它、放掉它。设置页的卡片、粘贴凭据的新建连接、连接管理的 `catalog` 和连接设置原先读的是启动时由内置清单算好的 `HOST_CONNECTOR_DIRECTORY`，装上的包的服务不出卡片；BL-740（T-119）已改成按 Home 异步读 `homeIntegrationRegistry(home)`（`apps/local-host/src/connector-directory.ts` 的 `homeConnectorDirectory`、`listConnectorSettingsCards(home)`），那个常量已删，`tests/connector-home-directory.test.ts`（RAC-2466～2470）断言卡片与新建连接随 `attach/detach` 出现和消失；卸载不删人的连接记录。
 - **个人插件名单**：集成包不出动作和页面，不算 Home 的个人插件（`running()` 不列它）。
 
 ## 7. 已经做了的（不等 BL-628）

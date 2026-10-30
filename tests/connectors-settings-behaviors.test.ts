@@ -22,10 +22,13 @@ import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-wo
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/dist/connector-account-actions.js";
-import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
+import { listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+
+// What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, gmail_oauth_configured, notion_oauth_configured, ...entry }) => entry);
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";

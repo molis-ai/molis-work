@@ -45,7 +45,7 @@ Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路
 - CLI 分发器只许引用 `platform/actions` 与 `./protocol.js`，MCP 分发器只许引用 `platform/actions` 与 `./goal-presentation.js`；每个 `invoke` 的第一个参数必须是自己声明的表（`GOALS`、`MANAGEMENT_GOAL_ACTIONS`）的一项，表要在文件里声明，要求的调用（CLI 的 `GOALS.snapshot`，MCP 的 `initialize`、`decide`、`treeDecide`）都在。
 - 宿主那一半（`checkGoalsManagementWiring`，`cli-project.ts` 与 `mcp-v1-tool.ts` 的装配）不变；因此事件决定的字段表不放进分发调用的选项里，而是放在宿主造的端口上（`fields`），那条调用文本一个字没变。
 
-先红：同一批新用例在旧门禁上 5 个失败（`t112b-gate-red`），换上新门禁后 9 个全过（RAC-1774 加上原有用例按新表名改写）。
+先红：同一批新用例在旧门禁上 5 个失败（`t112b-gate-red`），换上新门禁后 10 个全过（RAC-1774 加上原有用例按新表名改写）。
 
 ### 对 MCP、CLI 工具生成的影响
 
@@ -62,4 +62,4 @@ Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路
 | RAC-1770 | `@molis-ai/molis-work-plugin-goals/contract` 的运行时导出名单（100 项）与取值不变：`goalPluginActions` 五项、`goalEntryActions` 十二项的 id、版本、读写，`goalEventWorkStatuses`、`goalIntentSourceKinds`、`goalRelationTypes`；平台合同的 `package.json` 不再有 `modules/goals`、`modules/goal-actions`、`modules/governance-collaboration` 出口，按包名导入得 `ERR_PACKAGE_PATH_NOT_EXPORTED`，`packages/contracts/src/modules` 里没有 `goal*`、`governance*` 文件（`tests/goals-contract-ownership.test.ts`） |
 | RAC-1771 | 除 Goals 自己的包和 `tooling/`，`apps`、`packages`、`plugins`、`server`、`horizontal`、`services`、`scripts` 里没有一个已跟踪的源文件写着旧三个子路径；CLI、MCP、Coding、Feed、`server/src` 的源文件不点名 Goals 包或它的源码路径（同上） |
 | RAC-1773 | CLI 的 `GOALS`（七项）、Feed 的 `GOALS`（三项）、MCP 的 `MANAGEMENT_GOAL_ACTIONS`（三项）与 Goals 注册的 `goalEntryActions` 同名项的 id 和版本逐项相等；Coding 的 `GOALS_ACTIONS` 五项与 `goalPluginActions` 的 id、版本、读写、kind、scope、权限相等；`MCP_TOOLS` 的名字与顺序、三个管理工具的描述（手写的搬前原文）、业务字段与 required 与 Goals 登记的定义一致（同上；动作快照另由 `tests/action-contract-snapshot.test.ts` 钉住无差异） |
-| RAC-1774 | 门禁拒绝旧写法：入口任一文件引用 Goals 包、`/contract`、Goals 源码路径或旧三个子路径（十种语法，CLI 与 MCP 各一个文件），拒绝旧的分发器形态（从 `goal-actions` 取 `goalEntryActions`，没有本地表），拒绝不是表项的 `invoke`；注释和字符串里的名字、`platform/actions` 的引用不算（`tests/goals-query-boundaries.test.mjs`） |
+| RAC-1774 | 门禁拒绝旧写法：入口任一文件引用 Goals 包、`/contract`、Goals 源码路径或旧三个子路径（十种语法，CLI 与 MCP 各一个文件），拒绝旧的分发器形态（从 `goal-actions` 取 `goalEntryActions`，没有本地表），拒绝不是表项的 `invoke`；入口文件按 `ENTRY_SOURCE_FILE` 扫 `.ts/.mts/.cts/.tsx/.js/.mjs/.cjs/.jsx`，一个 `.mjs` 里的 Goals 引用被拒，`checkGoalTransportCallers` 不给 `entries` 时抛 `TypeError` 而不是通过；注释和字符串里的名字、`platform/actions` 的引用不算（`tests/goals-query-boundaries.test.mjs`） |

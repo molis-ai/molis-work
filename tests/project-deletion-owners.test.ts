@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
+import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -179,5 +180,30 @@ test("the delete dialog lists the library owners' data in the person's language"
     runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹", "the Host's page alone does not know it"));
     const pages = owners.find(owner => owner.label === "Pages 文稿与文件夹")!;
     runWithLocale("en", () => assert.equal(ownerLabel(pages), "Pages documents and folders"));
+  });
+});
+
+test("RAC-2457 deleting a project through the catalog removes the directory record it leaves with no project, and keeps one another project is in", async () => {
+  await withHome(async ({ home, catalog, gone, kept }) => {
+    const alone = join(home, "alone"), shared = join(home, "shared");
+    mkdirSync(alone, { recursive: true });
+    mkdirSync(shared, { recursive: true });
+    const bind = (projectId: string, workspace: string, thread: string) => catalog.bindRuntimeContext({
+      context: { runtime_id: "codex", stable_work_context_id: thread, host_declares_stable: true, workspace: { canonical_path: workspace, realpath_verified: false } },
+      project_id: projectId, actor_id: "test-user", user_confirmed: true,
+    });
+    bind(gone, alone, "thread-alone");
+    bind(gone, shared, "thread-shared-1");
+    bind(kept, shared, "thread-shared-2");
+    const directories = () => {
+      const db = new Database(catalog.databasePath, { readonly: true });
+      try { return (db.prepare("SELECT canonical_path FROM workspaces ORDER BY canonical_path").all() as Array<{ canonical_path: string }>).map(row => row.canonical_path); } finally { db.close(); }
+    };
+    assert.equal(directories().length, 2);
+
+    await catalog.deleteProject(deletion(gone));
+
+    assert.deepEqual(directories().map(directory => basename(directory)), ["shared"], "the directory only the deleted project was in is gone, the shared one stays");
+    assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => membership.project_id), [kept]);
   });
 });

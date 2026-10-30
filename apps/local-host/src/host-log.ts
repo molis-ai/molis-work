@@ -115,12 +115,31 @@ export const logSearchIndexFailure = (error: unknown, where: string): void =>
   searchIndexFailures.failed(`${where}:${String((error as { code?: unknown } | null)?.code ?? "")}`, error, { where });
 
 /**
+ * "You may not read it" and "it is not there" are answers a reader shows as such, not failures to write. An MCP client's call to an
+ * action it was not granted is refused with `mcp.action_revoked`, which carries no kind yet (giving it one at the source is its own
+ * task), so it is named here.
+ */
+function answeredRefusal(error: unknown): boolean {
+  const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
+  if (code === "mcp.action_revoked") return true;
+  const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
+  return sort === "forbidden" || sort === "not_found";
+}
+
+/**
+ * 「被谁引用」: the plugin that declares a link kind could not name its objects. The 成果库 shows their ids; a refusal is the
+ * caller's answer, anything else (the plugin broke, timed out, is unavailable) is written.
+ */
+export function logLinkSubjectsFailure(error: unknown, pluginId: string): void {
+  if (answeredRefusal(error)) return;
+  hostLog.warn("artifacts", "link_subjects_failed", error, { plugin_id: pluginId });
+}
+
+/**
  * An owner's preview of a version that failed. The caller still shows no preview; "you may not read it" and "it is not there"
  * are answers, and anything else (the owner broke, timed out, is unavailable) is written.
  */
 export function logPreviewFailure(error: unknown, artifactTypeId: string): void {
-  const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
-  const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
-  if (sort === "forbidden" || sort === "not_found") return;
+  if (answeredRefusal(error)) return;
   hostLog.warn("artifacts", "preview_failed", error, { artifact_type_id: artifactTypeId });
 }

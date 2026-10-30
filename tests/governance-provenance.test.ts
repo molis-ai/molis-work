@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GovernanceProvenance } from "./fixtures/goals-modules.js";
-import type { ContractFieldSource, ContractProposalRecord, LegacyGovernanceSnapshot } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { ContractFieldSource, ContractProposalRecord, LegacyGovernanceSnapshot } from "@molis-ai/molis-work-plugin-goals/contract";
 
 const provenance = new GovernanceProvenance();
 const source = (field: ContractFieldSource["field"]): ContractFieldSource => ({ field, source_kind: "user_answer",

@@ -6,7 +6,7 @@ import { CatalogLiveError, catalogWhoami, createCatalogProvider, getCatalogSpec,
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccount, resolveApiOAuthToken } from "./connector-api-oauth.js";
-import { publicOAuthFetch, type OAuthNetwork } from "./connector-oauth-send.js";
+import type { OAuthNetwork } from "./connector-oauth-send.js";
 import { clearRefreshRefused, markRefreshRefused, tokenEndpointRefused } from "./connector-refresh-refusals.js";
 import { resolveUsableNotionToken } from "./notion-oauth.js";
 import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
@@ -63,7 +63,7 @@ export async function resolveApiConnection(home: string, id: string, control: Co
     }
     const oauthId = apiOAuthConnectionId(connection.credential_ref ?? undefined);
     if (oauthId) {
-      const token = await refreshing(() => resolveApiOAuthToken(home, id, control, refresh, network && publicOAuthFetch(control, network)),
+      const token = await refreshing(() => resolveApiOAuthToken(home, id, control, refresh, undefined, undefined, network),
         error => error instanceof ApiOAuthError && error.refused);
       return { connection, token, authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
     }

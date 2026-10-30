@@ -7,7 +7,8 @@ export { MolisWorkServer } from "@molis-ai/molis-work-app-desktop";
 export { runtimeContextHostFromEnvironment } from "@molis-ai/molis-work-app-local-host";
 export type { MolisWorkMcpAudience, MolisWorkMcpToolCallContext, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-app-local-host";
 export type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
-export { MCP_TOOLS as TOOLS, RUNTIME_MCP_TOOLS as RUNTIME_TOOLS, MCP_SERVER_INFO as SERVER_INFO } from "@molis-ai/molis-work-app-mcp";
+export { MCP_TOOLS as TOOLS } from "@molis-ai/molis-work-app-local-host";
+export { RUNTIME_MCP_TOOLS as RUNTIME_TOOLS, MCP_SERVER_INFO as SERVER_INFO } from "@molis-ai/molis-work-app-mcp";
 
 async function runStdio(): Promise<void> {
   const runtimeHost = runtimeContextHostFromEnvironment();

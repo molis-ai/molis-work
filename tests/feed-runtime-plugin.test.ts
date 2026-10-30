@@ -14,7 +14,7 @@ import { captureHostLog, createNotificationDelivery, createPluginPlatform, decla
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction } from "@molis-ai/molis-work-plugin-feed";

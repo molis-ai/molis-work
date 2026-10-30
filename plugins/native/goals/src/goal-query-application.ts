@@ -1,11 +1,11 @@
 import type {
   GoalsQueryApi,
   ProjectGuidanceView,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "./contract/goals.js";
 
 import type { GoalContractView } from "./goal-entry-contract.js";
-import type { GoalPolicy, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalPolicy, GoalRecord } from "./contract/goals.js";
+import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 
 interface GoalReadApplicationPorts {
   now(): Date;

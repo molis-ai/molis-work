@@ -1,4 +1,5 @@
-import { MCP_TOOLS, isPlatformMcpTool, isRuntimeContextMcpTool, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
+import { isPlatformMcpTool, isRuntimeContextMcpTool, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
+import { MCP_TOOLS } from "./mcp-platform-tools.js";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 const errors = defineErrorCodes("mcp", { authority_denied: "forbidden", tool_unknown: "not_found", unexpected_field: "invalid" });

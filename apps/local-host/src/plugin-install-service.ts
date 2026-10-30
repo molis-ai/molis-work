@@ -17,6 +17,7 @@ import { readKeptSandboxPackage, type KeptSandboxPackage } from './sandbox-packa
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
+import { assertUpgradeOf } from './package-upgrade.js';
 import { installedPermissionViews, installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
@@ -67,13 +68,27 @@ interface Held { bundle: PluginPackageBundle; pkg: KeptSandboxPackage; runtime_s
 
 const scopeOf = (manifest: KeptSandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
 
+/** Two different ids on one dotted path (`io.a.b` and `io.a.b.c`), one below the other: the Runtime's test for ids that may not share a path (S-75). */
+const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.startsWith(`${a}.`);
+
 /**
  * A plugin id the Host's build ships, or one on its dotted path (`io.a.b` and `io.a.b.c`), is the Host's (S-75.2): a package takes neither,
  * in either range. The Runtime refuses it again when it installs; here it is refused at the preview, before anything is written (S-84).
  */
 const assertNotHostId = (pluginId: string): void => {
-  const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || id.startsWith(`${pluginId}.`) || pluginId.startsWith(`${id}.`));
+  const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || nested(id, pluginId));
   if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
+};
+
+/**
+ * An installed plugin of another publisher on the dotted path of a package's plugin id (`io.a.b` and `io.a.b.c`, either one below the other) refuses the
+ * package: only the same pinned key's ids may nest (S-75). The Runtime refuses it again when it installs; here it is refused at the confirmation, before
+ * the publisher is pinned or the package is kept (S-84). `installed` is what the package's Runtime holds that is not uninstalled.
+ */
+const assertIdPathFree = (pluginId: string, keyId: string, installed: readonly InstalledPluginEntry[]): void => {
+  const holder = installed.find(({ record }) => record.plugin_id !== pluginId && nested(record.plugin_id, pluginId)
+    && (record.publisher_trust !== 'pinned' || record.publisher_signature !== keyId));
+  if (holder) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与另一个发布者已装的 ${holder.record.plugin_id} 在同一条点分路径上，不能安装`);
 };
 
 export class PluginInstallService {
@@ -147,6 +162,10 @@ export class PluginInstallService {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
     if (present && inHome) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
+    // The two refusals the install makes after the package is kept, asked here instead: an id on the dotted path of another publisher's installed
+    // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
+    assertIdPathFree(held.pkg.manifest.plugin_id, held.key_id, entries);
+    if (present) assertUpgradeOf(held.pkg.manifest, present.record.version);
     if (!pin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');

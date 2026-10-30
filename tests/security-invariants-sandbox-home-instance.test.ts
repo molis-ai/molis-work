@@ -155,3 +155,19 @@ test("RAC-1500 RAC-1501 RAC-1504 RAC-1683 S-84 a package of a plugin installed i
   assert.deepEqual(await operate(h.homeClient(), h.homeCaller(), views, "notes.list", {}), [{ id: "1", text: "kept" }]);
   assert.equal(await operate(h.homeClient(), h.homeCaller(), views, "notes.add", { text: "still" }), true);
 });
+
+test("RAC-1840 S-75 S-84 another publisher's package whose plugin id is on the dotted path of a plugin installed in the Home is refused at the confirmation with plugin.id_namespace_conflict: no pin, no kept package, and the installation stays as it was", mac, async t => {
+  const h = await fixture(t), a = newPublisher(), b = newPublisher();
+  await h.install(homePackage(a));
+  const written = async () => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), dirs: (await readdir(join(h.home, "plugin-packages"))).sort() });
+  const results: Record<string, { code: string | undefined; unchanged: boolean }> = {};
+  for (const [name, bundle] of [["below the installed id", homePackage(b, { pluginId: `${PACKAGE_PLUGIN_ID}.extra` })], ["above the installed id", homePackage(b, { pluginId: "io.molis.work.example" })]] as const) {
+    const before = await written();
+    const outcome = await h.install(bundle).then(() => ({ code: "installed" }), (caught: { code?: string }) => caught);
+    results[name] = { code: outcome.code, unchanged: isDeepStrictEqual(await written(), before) };
+  }
+  const refusedUntouched = { code: "plugin.id_namespace_conflict", unchanged: true };
+  assert.deepEqual(results, { "below the installed id": refusedUntouched, "above the installed id": refusedUntouched }, "refused, with no publisher pinned and no package kept");
+  const installation = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID);
+  assert.deepEqual([installation?.version, installation?.state], ["1.0.0", "running"], "the installation that holds the path is as it was");
+});

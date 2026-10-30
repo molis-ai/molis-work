@@ -2,7 +2,7 @@ import type {
   GoalEventExtraRequirement,
   GoalEventRequirementBinding,
   GoalEventRequirementSource,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;

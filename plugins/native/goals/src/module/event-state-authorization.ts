@@ -15,7 +15,7 @@ import {
   type GoalEventRequirementStatus,
   type GoalEventScope,
   type RecordGoalUserDecisionInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import {
   affectedExistingRequirementIds,
   type CanonicalAgreementChange,

@@ -12,6 +12,11 @@ test("fresh workspace opens on the home tab", () => {
   assert.equal(state.exclusive, null);
 });
 
+// T-114 (PG-094 ②): a work surface is its plugin's id; Goals has no alias. Feed's second surface `sources` is still Feed's.
+test("RAC-1932 a work surface names its plugin by its id, with no Goals alias", () => {
+  assert.deepEqual(["goals", "goal", "pages", "feed", "sources"].map((surface) => ops.pluginOfSurface(surface)), ["goals", "goal", "pages", "feed", "feed"]);
+});
+
 test("opening a plugin shows its default view without adding a mother tab", () => {
   const state = ops.create();
   ops.openPlugin(state, "goals");

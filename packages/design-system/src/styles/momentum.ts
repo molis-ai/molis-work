@@ -35,7 +35,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .tree-resizer::after, .tui-resizer::after { background: var(--line); }
   .document-pane { background: var(--paper); }
   /* Like .mw-loading (primitives.ts): a switch that answers within 250ms keeps the old view and shows no mark. */
-  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goal"] > [data-goal-view] {
+  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goals"] > [data-goal-view] {
     --busy-dim: 0; pointer-events: none; animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
   .goal-document-loading {

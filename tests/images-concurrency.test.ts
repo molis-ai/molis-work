@@ -39,7 +39,8 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
   const counts = new Map<string, number>();
   const aborted = new Set<string>();
   const provider = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const { prompt } = JSON.parse(raw);
     counts.set(prompt, (counts.get(prompt) ?? 0) + 1); requests.set(prompt, res);
     res.on("close", () => { if (!res.writableEnded) aborted.add(prompt); });

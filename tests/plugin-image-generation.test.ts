@@ -128,3 +128,52 @@ test("W5-01-IMGPORT-02: MCP availability metadata cannot recurse into its own au
   assert.equal((await imageTerminal(client, job.id)).status, "succeeded");
   assert.equal(f.calls.length, 1);
 });
+
+// The port's input checks run before the action scope is read: outside an action, input that passes them is refused with image_action_required, input that fails them with image_input_invalid.
+// They count characters, like an action schema's maxLength (Ajv counts code points). WIDE (U+1F7E2) is one character and two UTF-16 units.
+const WIDE = "\u{1F7E2}";
+const passes = { code: "plugin.image_action_required" }, refused = { code: "plugin.image_input_invalid" };
+const portFixture = async (t: Parameters<typeof imageRuntimeFixture>[0]) => {
+  const f = await imageRuntimeFixture(t), service = f.contexts.at(-1)!.services!.imageGeneration!;
+  const request = (patch: Record<string, unknown> = {}) => ({ slot_id: "slot", base_url: f.input.base_url, expected_revision: "revision",
+    protocol: "openai-images" as const, model: "fixture", prompt: "port limit", ...patch }) as Parameters<typeof service.generate>[0];
+  return { f, service, request };
+};
+
+test("RAC-2000 a prompt of 32000 two-unit characters (64000 units) passes the port's input check, one more is refused", async t => {
+  const { f, service, request } = await portFixture(t);
+  await assert.rejects(service.generate(request({ prompt: WIDE.repeat(32_000) })), passes);
+  await assert.rejects(service.generate(request({ prompt: WIDE.repeat(32_001) })), refused);
+  await assert.rejects(service.generate(request({ prompt: "a".repeat(32_000) })), passes);
+  await assert.rejects(service.generate(request({ prompt: "a".repeat(32_001) })), refused);
+  assert.equal(f.calls.length, 0);
+});
+
+test("RAC-2001 every other port limit counts two-unit characters once: the limit passes, one more is refused", async t => {
+  const { service, request } = await portFixture(t);
+  const limits = { slot_id: 128, base_url: 2048, expected_revision: 128, model: 200 };
+  for (const [field, max] of Object.entries(limits)) {
+    await assert.rejects(service.generate(request({ [field]: WIDE.repeat(max) })), passes, `${field} of ${max} characters`);
+    await assert.rejects(service.generate(request({ [field]: WIDE.repeat(max + 1) })), refused, `${field} of ${max + 1} characters`);
+  }
+  await assert.rejects(service.generate(request({ size: WIDE.repeat(64) })), passes);
+  await assert.rejects(service.generate(request({ size: WIDE.repeat(65) })), refused);
+  await assert.rejects(service.generate(request({ protocol: "gemini", aspect_ratio: WIDE.repeat(32) })), passes);
+  await assert.rejects(service.generate(request({ protocol: "gemini", aspect_ratio: WIDE.repeat(33) })), refused);
+  const target = { slot_id: "slot", base_url: "http://127.0.0.1/v1" };
+  await assert.rejects(service.bind(target, WIDE.repeat(160)), passes);
+  await assert.rejects(service.bind(target, WIDE.repeat(161)), refused);
+  await assert.rejects(service.unbind(WIDE.repeat(128)), passes);
+  await assert.rejects(service.unbind(WIDE.repeat(129)), refused);
+});
+
+test("RAC-2002 the port keeps blank refused, counts padding (nothing is trimmed before counting) and refuses a far longer text", async t => {
+  const { service, request } = await portFixture(t);
+  for (const blank of ["", "   ", "\n"]) await assert.rejects(service.generate(request({ model: blank })), refused);
+  await assert.rejects(service.generate(request({ model: `  ${"a".repeat(198)}` })), passes);
+  await assert.rejects(service.generate(request({ model: `  ${"a".repeat(199)}` })), refused);
+  await assert.rejects(service.generate(request({ model: WIDE.repeat(100_001) })), refused);
+  await assert.rejects(service.generate(request({ model: "a".repeat(400_000) })), refused);
+  await assert.rejects(service.generate(request({ model: `${WIDE.repeat(199)}a` })), passes);
+  await assert.rejects(service.generate(request({ model: `${WIDE.repeat(200)}a` })), refused);
+});

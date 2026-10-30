@@ -264,7 +264,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (!tabWorkspace && directGoalRequested && selected && !restoredNavigation) {
       goalWorkspaceMode = "focus";
       setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goal", false, false);
+      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goals", false, false);
       setWorkspaceMode("focus", false);
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
@@ -280,7 +280,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (feedStartRequested && selected && tuiPane) {
       goalWorkspaceMode = "runtime";
       setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goal", false, false);
+      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goals", false, false);
       setWorkspaceMode("runtime", false);
       setMobileView("tui");
       saveUiState();
@@ -395,7 +395,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
-    const goalStageShown = () => (document.body.dataset.desktopSurface || "goal") === "goal";
+    const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
       if (goalStageShown()) await refreshBoard(false, signal);

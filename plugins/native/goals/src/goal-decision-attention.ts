@@ -1,5 +1,5 @@
 import type { AttentionCommands, AttentionQuery } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { goalTreeProposalAttentionGoalId, goalTreeProposalNeedsDecision } from "./decision-groups.js";
 
 /** What Goal-decision Attention uses of Attention: four calls, over this plugin's own entries (the platform's service, or the module in a test). */

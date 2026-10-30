@@ -34,8 +34,12 @@ const kept = (visit: Visit) => ({ install: visit.install, options: { preserve_en
 function recordedStates(home: string, ...visits: Visit[]) {
   const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
   try {
-    const rows = db.prepare("SELECT record_json FROM plugin_runtime_installs").all().map(row => JSON.parse((row as { record_json: string }).record_json) as { install_id: string; state: string });
-    return visits.map(visit => rows.find(row => row.install_id === visit.install)?.state);
+    // Only the rows asked for are parsed: a test may have left another one that cannot be.
+    const row = db.prepare("SELECT record_json FROM plugin_runtime_installs WHERE install_id = ?");
+    return visits.map(visit => {
+      const found = row.get(visit.install) as { record_json: string } | undefined;
+      return found ? (JSON.parse(found.record_json) as { state: string }).state : undefined;
+    });
   } finally { db.close(); }
 }
 
@@ -101,4 +105,106 @@ test("RAC-1828 closing the Home does not fail for a plugin that the stop hook of
   assert.deepEqual(stopsOf(first, second), [kept(first), kept(second)], "the close stops the first; the second was stopped by that hook, and is not stopped again");
   assert.deepEqual(recordedStates(home, first, second), ["installed", "installed"], "both are kept enabled");
   assertRevoked(platform, first, second);
+});
+
+/** The Home's Runtime table, opened for writing by the test to put it in the state a test needs. */
+function editRecords<T>(home: string, edit: (db: DatabaseSync) => T): T {
+  const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"));
+  try { return edit(db); } finally { db.close(); }
+}
+
+// RAC-2180 T-227: the Home has no plugin list of its own, and its close used to begin with one `runtime.list()`, which parses every stored row:
+// one it cannot parse ended the close before any plugin was stopped. Now the installation the Supervisor runs is read on its own.
+test("RAC-2180 one record the Runtime cannot parse does not keep the other Home plugin from closing, and the close still fails as a Home plugin close", { timeout: 60_000 }, async t => {
+  const one = homeProbe("closeone"), two = homeProbe("closetwo");
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [one.definition, two.definition] } });
+  const platform = await host.homePlugins!.ready();
+  const [broken, other] = inCloseOrder(platform, [one, two]), stopsOf = recordStops(platform);
+  editRecords(home, db => db.prepare("UPDATE plugin_runtime_installs SET record_json = '{' WHERE install_id = ?").run(broken.install));
+  await assert.rejects(host.homePlugins!.close(), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.match(error.message, /Home 插件关闭失败/);
+    // Both are about the one record: reading it to stop its installation, and reading the list it is in.
+    assert.equal(error.errors.length, 2, "one failure for that installation, one for the list; none for the other plugin");
+    assert.ok(error.errors.every(item => item instanceof SyntaxError));
+    return true;
+  });
+  assert.deepEqual(stopsOf(broken, other), [kept(other)], "the other plugin is stopped once and kept enabled; the unreadable one is not stopped");
+  assert.deepEqual(recordedStates(home, other), ["installed"]);
+  assertRevoked(platform, broken, other);
+});
+
+// RAC-2181 T-227: a plugin can have two records (a package uninstalled, then installed again under another signature). Revoking it on the
+// older record, while the Supervisor still runs the other one, had the Supervisor stop that one as switched off.
+test("RAC-2181 a Home plugin with an older uninstalled record is still stopped kept enabled, and its revoke stops nothing", { timeout: 60_000 }, async t => {
+  const one = homeProbe("closeone"), two = homeProbe("closetwo");
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [one.definition, two.definition] } });
+  const platform = await host.homePlugins!.ready();
+  const [first, current] = inCloseOrder(platform, [one, two]);
+  const older: Visit = { probe: current.probe, install: `0-${current.install}` };
+  assert.ok(older.install < current.install, "the older record comes first in the Runtime's order");
+  editRecords(home, db => {
+    const record = JSON.parse((db.prepare("SELECT record_json FROM plugin_runtime_installs WHERE install_id = ?").get(current.install) as { record_json: string }).record_json);
+    db.prepare("INSERT INTO plugin_runtime_installs (install_id, record_json, publisher_trust) VALUES (?, ?, ?)")
+      .run(older.install, JSON.stringify({ ...record, install_id: older.install, state: "uninstalled", publisher_signature: "home-closetwo-before" }), record.publisher_trust);
+  });
+  assert.deepEqual(platform.runtime.list().filter(record => record.plugin_id === two.id).map(record => record.install_id), [older.install, current.install]);
+  const stopsOf = recordStops(platform);
+  await assert.doesNotReject(host.homePlugins!.close());
+  // The older record now comes first, so the second probe may be closed first: which order is the Runtime's, and is not what this asserts.
+  const byInstall = (left: { install: string }, right: { install: string }) => left.install.localeCompare(right.install);
+  assert.deepEqual(stopsOf(first, older, current).sort(byInstall), [kept(first), kept(current)].sort(byInstall), "only the running installations are stopped, each once and kept enabled");
+  assert.deepEqual(recordedStates(home, first, older, current), ["installed", "uninstalled", "installed"], "the running one is still enabled; the older one stays uninstalled");
+  assertRevoked(platform, first, current);
+});
+
+// RAC-2182 T-227: a record that is gone by the time the close comes to it is still stopped (T-124, closePlugin), and that stop's failure is
+// thrown with the others as the Home's close failure.
+test("RAC-2182 a Home plugin whose record goes during the close is still let go, and the close fails as a Home plugin close", { timeout: 60_000 }, async t => {
+  const one = homeProbe("closeone"), two = homeProbe("closetwo");
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [one.definition, two.definition] } });
+  const platform = await host.homePlugins!.ready();
+  const [first, gone] = inCloseOrder(platform, [one, two]), stopsOf = recordStops(platform);
+  first.probe.behavior.stop = async () => { editRecords(home, db => db.prepare("DELETE FROM plugin_runtime_installs WHERE install_id = ?").run(gone.install)); };
+  await assert.rejects(host.homePlugins!.close(), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.match(error.message, /Home 插件关闭失败/);
+    assert.deepEqual(error.errors.map(item => (item as { code?: unknown }).code), ["plugin.definition_missing"], "the one failure is the missing record");
+    return true;
+  });
+  assert.deepEqual(stopsOf(first, gone), [kept(first), kept(gone)], "the one whose record is gone is stopped all the same");
+  assert.deepEqual(recordedStates(home, first, gone), ["installed", undefined]);
+  assert.equal(platform.runtime.contribution(gone.install), null, "its instance is let go");
+  assertRevoked(platform, first, gone);
+});
+
+/** An event type no Manifest declares. An upgrade to a definition that carries it fails before the Runtime is asked anything. */
+const undeclaredEvent = { event_type_id: "closeprobe.undeclared", type_version: 1, validate: (payload: unknown) => payload };
+
+// RAC-2050 T-227b: an upgrade that fails before the Runtime is asked anything leaves the Supervisor counting the plugin as failed, with the
+// installation the Runtime still runs. When `list()` cannot be read, that installation was not stopped kept enabled, and the revoke stopped it
+// as switched off. Now the close stops the installation the Supervisor holds, whatever it counts it as, as its revoke would have.
+test("RAC-2050 a Home plugin the Supervisor counts as failed while the Runtime still runs it stays enabled when the list cannot be read", { timeout: 60_000 }, async t => {
+  const one = homeProbe("closeone"), two = homeProbe("closetwo");
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [one.definition, two.definition] } });
+  const platform = await host.homePlugins!.ready();
+  const visits = inCloseOrder(platform, [one, two]);
+  const failed = visits.find(visit => visit.probe === one)!, broken = visits.find(visit => visit.probe === two)!;
+  const upgraded = await platform.supervisor.upgrade(one.id, { ...one.definition, event_types: [undeclaredEvent] });
+  assert.deepEqual([upgraded.status, upgraded.install_id, upgraded.code], ["failed", failed.install, "plugin.event_type_undeclared"]);
+  assert.equal(platform.runtime.get(failed.install).state, "running", "the Runtime still runs it");
+  assert.ok(platform.supervisor.enabledPluginIds().includes(one.id), "and it is still enabled");
+  editRecords(home, db => db.prepare("UPDATE plugin_runtime_installs SET record_json = '{' WHERE install_id = ?").run(broken.install));
+  const stopsOf = recordStops(platform);
+  await assert.rejects(host.homePlugins!.close(), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.match(error.message, /Home 插件关闭失败/);
+    // As in RAC-2180, both are about the record that cannot be read: reading it to stop its installation, and reading the list it is in.
+    assert.equal(error.errors.length, 2, "none for the plugin the Supervisor counts as failed");
+    assert.ok(error.errors.every(item => item instanceof SyntaxError));
+    return true;
+  });
+  assert.deepEqual(stopsOf(failed), [kept(failed)], "the installation the Supervisor holds is stopped once and kept enabled");
+  assert.deepEqual(recordedStates(home, failed), ["installed"], "which a restart runs");
+  assertRevoked(platform, failed, broken);
 });

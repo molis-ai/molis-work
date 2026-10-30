@@ -1,4 +1,4 @@
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { GOALS_ACTIONS } from "./goals-actions.js";
 import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -50,7 +50,7 @@ export function codingGoalTitles(context: PluginStartContext) {
       }
       for (const id of wanted) {
         if (found.has(id) || known(id) !== undefined) continue;
-        const { goal } = await context.services.actions.invoke(goalPluginActions.contract, { goal_id: id }, control).catch(error => {
+        const { goal } = await context.services.actions.invoke(GOALS_ACTIONS.contract, { goal_id: id }, control).catch(error => {
           if (ended(error, beforeWrite)) throw error;
           return { goal: null };
         });

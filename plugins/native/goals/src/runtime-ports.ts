@@ -1,7 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginAttentionClient, PluginContextLedgerClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack } from "./contract/goals.js";
 import type { GoalDecisionAttentionPort } from "./goal-decision-attention.js";
 import type { GoalsEventInput, GoalsIdempotencyInput, GoalsJournal } from "./module/repository.js";
 import type { GovernanceJournal } from "./governance/repository.js";

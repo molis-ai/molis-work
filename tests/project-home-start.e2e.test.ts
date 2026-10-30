@@ -115,7 +115,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   assert.equal(await evaluate(homeHasQuotes), false, "home has no quotation carousel or famous-quote copy");
   assert.equal(await evaluate("window.__homeTimers[8000]"), undefined, "no quote autoplay timer");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   // Soft Workbench home (DESIGN.md → Home): the day strip runs across the top of the day column, and the margin
@@ -327,7 +327,7 @@ test("Home shortcuts persist per project, open their destination, and preserve e
   await reloadPage();await waitFor("document.querySelector('[data-home-shortcut-link]')");
   assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name]').textContent"),"项目文档");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   assert.equal(await evaluate("document.querySelector('[data-directory-shortcuts]')"),null);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");

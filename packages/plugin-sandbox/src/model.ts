@@ -12,8 +12,14 @@ import { SandboxError } from './schema.js';
 
 /** The instruction ids are the register's own tokens (`defineInstructionPrompt`). */
 const INSTRUCTION_ID = /^[a-z0-9][a-z0-9.-]{0,127}$/u;
-/** One call's material: the channel carries it as JSON inside a megabyte, so this is the plugin's bound, not the channel's. */
-export const MODEL_DATA_CHARS = 200_000;
+/**
+ * One call's material, counted in characters as the Host's prompt port counts a prompt (`apps/local-host/src/host-complete-text.ts`): 180_000,
+ * the text that port leaves room for next to the longest instruction a person can save and the "\n\n" between them, so data let through here is
+ * not refused there (T-238).
+ */
+export const MODEL_DATA_CHARS = 180_000;
+/** The same material in UTF-16 units: the bound it had before, as the channel carries it as JSON inside a megabyte. Counting characters does not raise it. */
+const MODEL_DATA_UNITS = 200_000;
 const MODEL_NAME = 200;
 interface SandboxDeadlines { operationTimeoutMs: number; serviceTimeoutMs: number }
 const REQUEST_KEYS = ['prompt_id', 'data', 'system_id', 'selection', 'output', 'timeout_ms', 'max_output_tokens'] as const;
@@ -55,6 +61,13 @@ function instruction(known: readonly InstructionPrompt[], id: unknown, what: str
   return found;
 }
 
+/** UTF-16 units are never fewer than characters, so only data between the two bounds needs its characters counted, once (as the port does). */
+function dataTooLong(data: string): boolean {
+  if (data.length > MODEL_DATA_UNITS) return true;
+  if (data.length <= MODEL_DATA_CHARS) return false;
+  return [...data].length > MODEL_DATA_CHARS;
+}
+
 /**
  * The prompt and the request of one `complete`, from the JSON the package sent. Unknown keys, a missing instruction and a text that is too long
  * are refused here; the ranges of the limits are the Host's client's, so a mistake there gets the same code as for a plugin the Host runs itself.
@@ -62,7 +75,7 @@ function instruction(known: readonly InstructionPrompt[], id: unknown, what: str
 export function modelCall(value: SandboxJson | undefined, known: readonly InstructionPrompt[]): { prompt: InstructedPrompt; request: Omit<PluginModelRequest, 'signal'> } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('A model request is an object');
   for (const key of Object.keys(value)) if (!(REQUEST_KEYS as readonly string[]).includes(key)) throw invalid(`Unknown model request member: ${key}`);
-  if (typeof value.data !== 'string' || value.data.length > MODEL_DATA_CHARS) throw invalid(`The data of a model request is a string of at most ${MODEL_DATA_CHARS} characters`);
+  if (typeof value.data !== 'string' || dataTooLong(value.data)) throw invalid(`The data of a model request is a string of at most ${MODEL_DATA_CHARS} characters`);
   const { output, timeout_ms: timeout, max_output_tokens: maxTokens } = value;
   if (output !== undefined && output !== 'text' && output !== 'json') throw invalid('output is "text" or "json"');
   if (timeout !== undefined && typeof timeout !== 'number') throw invalid('timeout_ms is a number');

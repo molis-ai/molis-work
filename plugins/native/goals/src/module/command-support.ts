@@ -1,7 +1,7 @@
 import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors } from "./errors.js";
 import { createHash } from "node:crypto";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "../contract/goals.js";
 import { GoalsRepository } from "./repository.js";
 
 export interface GoalsCommandContextOptions {

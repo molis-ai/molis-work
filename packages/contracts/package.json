@@ -30,17 +30,9 @@
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
     },
-    "./modules/goals": {
-      "types": "./dist/modules/goals.d.ts",
-      "import": "./dist/modules/goals.js"
-    },
     "./modules/alchemist": {
       "types": "./dist/modules/alchemist.d.ts",
       "import": "./dist/modules/alchemist.js"
-    },
-    "./modules/governance-collaboration": {
-      "types": "./dist/modules/governance-collaboration.d.ts",
-      "import": "./dist/modules/governance-collaboration.js"
     },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
@@ -225,10 +217,6 @@
     "./services/materials": {
       "types": "./dist/services/materials.d.ts",
       "import": "./dist/services/materials.js"
-    },
-    "./modules/goal-actions": {
-      "types": "./dist/modules/goal-actions.d.ts",
-      "import": "./dist/modules/goal-actions.js"
     },
     "./platform/plugin-directory": {
       "types": "./dist/platform/plugin-directory.d.ts",

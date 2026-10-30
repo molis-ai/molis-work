@@ -1,4 +1,4 @@
-import type { ActionDefinition, ActionIntake, ActionResultView } from "../platform/actions.js";
+import type { ActionDefinition, ActionIntake, ActionResultView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
   ProjectGuidanceView, RecordGoalUserDecisionInput } from "./goals.js";
 import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeProposalDecideInput, GoalTreeProposalDecisionResult,

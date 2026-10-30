@@ -59,7 +59,7 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
@@ -166,7 +166,8 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  // RAC-1934: Goals opens on the surface named by its id, as every plugin does (T-114).
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await evaluate("document.querySelector('[data-goal-collapse]')?.click(); document.querySelector('[data-board-view-tab=canvas]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector('[data-goal-node-workspace]')?.hidden !== false");
@@ -183,7 +184,7 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   })()`);
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   const linkedGoal = goalId === "CORE" ? "WEB" : "CORE";
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(linkedGoal) }, sessionId));
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(linkedGoal) + " && document.querySelector('[data-goal-frame-surface]')?.hidden === false");

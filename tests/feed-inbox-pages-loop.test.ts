@@ -215,3 +215,14 @@ test("RAC-2186: a generated document is at most 100,000 characters, however many
     await assert.rejects(generate(store, { ...request(), request_id: "length-refused", request_hash: "hash-refused" }, async () => "😀".repeat(100_001)), /文稿为空或过长/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
+
+test("RAC-2275: a document of 100,001 one-unit characters is refused by the character limit, though its 100,001 units are far under the unit limit", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-ascii-length-"));
+  const store = openPagesStore(home);
+  try {
+    const accepted = await generate(store, { ...request(), request_id: "ascii-accepted", request_hash: "hash-ascii-accepted" }, async () => "a".repeat(100_000));
+    assert.equal(accepted.replayed, false);
+    // 100,001 one-unit characters are 100,001 units, way under the 200,000-unit half of the check: only the character count can refuse them.
+    await assert.rejects(generate(store, { ...request(), request_id: "ascii-refused", request_hash: "hash-ascii-refused" }, async () => "a".repeat(100_001)), /文稿为空或过长/);
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});

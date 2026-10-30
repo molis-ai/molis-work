@@ -1,6 +1,6 @@
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createGoalsActionHandlers } from "./actions.js";
 import { readMolisWorkSnapshot } from "./snapshot-query.js";

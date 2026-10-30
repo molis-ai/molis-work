@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsContextRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
 import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextItem, type GoalsContextView } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { L, currentLocale } from "@molis-ai/molis-work-app-local-host";
 import { createGoalStateExplainer } from "@molis-ai/molis-work-plugin-goals";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";

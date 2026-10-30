@@ -89,7 +89,17 @@ test("RAC-2196 the data a drafting model reads is cut to its bounds without leav
   const data = JSON.parse(calls[0]!.prompt) as { 材料: string; 补充: string; 来源: { 标题: string } };
   assert.deepEqual([data.材料, data.补充, data.来源.标题], ["x".repeat(7_999), "y".repeat(599), "z".repeat(199)],
     "each part keeps its whole characters up to its bound of 8000, 600 and 200 UTF-16 units");
-  assert.equal(LONE_HALF.test(calls[0]!.prompt), false, "no half of a character anywhere in what the model reads");
+  // JSON.stringify writes a lone half as a \ud83d escape, so a check of the prompt text alone could never fail: check the parsed values.
+  for (const [name, value] of [["材料", data.材料], ["补充", data.补充], ["来源标题", data.来源.标题]] as const) {
+    assert.equal(LONE_HALF.test(value), false, `no half of a character in ${name}`);
+  }
+  // The request id is cut to the same bound the schema counts (maxLength, in characters), in whole characters.
+  const split = await draftIntake({ target: target(), request_id: `${"r".repeat(159)}🙂尾`, material: material({ text: "材料" }) }, ports());
+  const requestId = split.input.request_id as string;
+  assert.deepEqual([[...requestId].length, requestId.endsWith("🙂"), LONE_HALF.test(requestId)], [160, true, false],
+    "160 characters, the two-unit character kept whole, and no half of one");
+  const plain = await draftIntake({ target: target(), request_id: "r".repeat(200), material: material({ text: "材料" }) }, ports());
+  assert.equal(plain.input.request_id, "r".repeat(160), "a plain request id is cut to its first 160 characters, as before");
 });
 
 test("RAC-2197 the card's summary cuts a long first field at 39 units without leaving the half of a character", async () => {

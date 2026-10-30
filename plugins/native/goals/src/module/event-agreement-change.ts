@@ -7,7 +7,7 @@ import {
   type GoalEventExtraRequirementInput,
   type GoalEventRequirementRevisionInput,
   type GoalEventRequirementStatus,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import {
   assertAllowedKeys,
   assertConfigText,

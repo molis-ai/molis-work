@@ -9,7 +9,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { GoalEventConfigView, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventConfigView, PlanningMethodPackInput } from "@molis-ai/molis-work-plugin-goals/contract";
 
 function eventMethod(methodId: string, note: string, versionLabel: string): PlanningMethodPackInput {
   return {

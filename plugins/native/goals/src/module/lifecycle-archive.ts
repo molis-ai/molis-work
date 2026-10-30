@@ -7,7 +7,7 @@ import type {
   GoalRecord,
   GoalTrashResult,
   GoalsActorWrite,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 import { rowText } from "./repository.js";

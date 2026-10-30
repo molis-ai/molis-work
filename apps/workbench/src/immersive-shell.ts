@@ -25,17 +25,14 @@ const say = (L: ImmersiveShellPrimitives["L"], template: string, values: Readonl
 
 /**
  * Navigation comes from the Plugin catalog's Manifests, not from a list kept
- * here. Adding a Plugin must never mean editing the shell.
- *
- * `surface` keeps the historical Goals value: the URL surface predates the
- * Manifest id and changing it would break existing links and saved tabs.
+ * here. Adding a Plugin must never mean editing the shell. A plugin's work
+ * surface is its id, Goals' too (T-114).
  */
-const SURFACE_OVERRIDES: Readonly<Record<string, string>> = { goals: "goal" };
 
 function directoryPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
   return railEntries(enabled, directory).map(entry => ({
     id: entry.id,
-    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    surface: entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
@@ -73,7 +70,7 @@ function currentListPlugin(directory: string): string {
 function islandPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
   return islandEntries(enabled, directory).map(entry => ({
     id: entry.id,
-    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    surface: entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
@@ -82,21 +79,6 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
   }));
 }
 
-/**
- * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
- * the person's own entries (灵光, 对话, 群聊 — reached from anywhere, so they come first),
- * where the work lives (home and the four backbone plugins), which tools this project uses,
- * and at the foot the account with the system settings.
- *
- * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
- * 全部工具 opens the rest in place, grouped, with the ways to extend them at the end. Everything
- * keeps its entry; nothing moves when the list opens. Every entry stays a direct child of the
- * list so the travelling selection chip can reach it.
- *
- * Only the backbone is listed here. Every other Plugin is listed in the group its view names
- * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
- * a Plugin never edits the shell.
- */
 /**
  * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
  * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
@@ -128,6 +110,18 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
   return [...going];
 }
 
+/**
+ * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
+ * where the work lives (the project home, then the backbone plugins), and which tools this
+ * project uses, in the group each plugin's view names (`group`, W5-06 2b): 灵光 leads the
+ * personal group, and one that names no group, including one added later, lands in 更多, so
+ * adding a Plugin never edits the shell.
+ *
+ * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
+ * 全部插件 opens the rest in place, grouped, and the ways to extend them are rendered separately
+ * by `renderPickerExtend`. Everything keeps its entry; nothing moves when the list opens. Every
+ * entry stays a direct child of the list so the travelling selection chip can reach it.
+ */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
@@ -290,7 +284,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
     </div>
     <strong data-immersive-plugin-title hidden>Goals</strong>
-    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goal" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
+    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goals" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>

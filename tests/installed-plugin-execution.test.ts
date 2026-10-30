@@ -13,7 +13,7 @@ import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime'
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { createPluginPlatform, MolisWorkLocalHost, molisWorkHostProjectReference, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
-import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
+import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';

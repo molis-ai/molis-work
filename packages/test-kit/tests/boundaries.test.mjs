@@ -160,7 +160,7 @@ test("allows explicit public Contract subpaths", () => {
     "packages/contracts",
     "foundation",
     [],
-    [".", "./modules/goals"],
+    [".", "./modules/artifacts"],
   );
   const importer = boundaryPackage(
     "@molis-ai/molis-work-module-shelf",
@@ -173,7 +173,7 @@ test("allows explicit public Contract subpaths", () => {
     evaluateImportBoundary({
       importer,
       target: contracts,
-      specifier: "@molis-ai/molis-work-contracts/modules/goals",
+      specifier: "@molis-ai/molis-work-contracts/modules/artifacts",
       sourceFile: "modules/shelf/src/index.ts",
     }),
     [],
@@ -182,7 +182,7 @@ test("allows explicit public Contract subpaths", () => {
 
 test("extracts static, dynamic, re-export, and CommonJS imports", () => {
   const source = `
-    import type { Goal } from "@molis-ai/molis-work-contracts/modules/goals";
+    import type { Goal } from "@molis-ai/molis-work-contracts/modules/artifacts";
     export { capability } from "@molis-ai/molis-work-kernel";
     const lazy = import("@molis-ai/molis-work-plugin-goals/internal");
     const legacy = require("better-sqlite3");
@@ -191,7 +191,7 @@ test("extracts static, dynamic, re-export, and CommonJS imports", () => {
   `;
 
   assert.deepEqual(extractImportSpecifiers(source), [
-    "@molis-ai/molis-work-contracts/modules/goals",
+    "@molis-ai/molis-work-contracts/modules/artifacts",
     "@molis-ai/molis-work-kernel",
     "@molis-ai/molis-work-plugin-goals/internal",
     "better-sqlite3",

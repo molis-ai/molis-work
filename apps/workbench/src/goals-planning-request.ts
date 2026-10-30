@@ -1,5 +1,5 @@
 import { matchGoalsPlanningRoute, selectGoalsPlanningPageMethod, type GoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 
 export interface WorkbenchPlanningPageOwners {
   methods: readonly PlanningMethodPack[];

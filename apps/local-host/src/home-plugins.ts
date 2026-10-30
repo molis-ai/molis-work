@@ -22,7 +22,7 @@ import { openHomePluginStore } from "./home-plugin-store.js";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
-import { closePlugin } from "./plugin-platform-close.js";
+import { closeHomePlugins } from "./plugin-platform-close.js";
 import { bindHomeRegistration } from "./home-registration.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
@@ -165,8 +165,8 @@ export class HomePluginHost {
     this.installed?.close(); this.installed = undefined;
     try {
       const platform = this.platform;
-      // Every record goes through closePlugin, which reads it again and stops only one the Runtime reports running.
-      if (platform) for (const record of platform.runtime.list()) await closePlugin(platform, record.plugin_id, record.install_id, failures);
+      // closeHomePlugins says what is stopped, and what is only revoked; a record it cannot read is one of the failures thrown below.
+      if (platform) await closeHomePlugins(platform, failures);
     } finally {
       this.releaseProjectOwners?.(); this.releaseProjectOwners = undefined;
       this.installationDirectory?.dispose(); this.installationDirectory = undefined;

@@ -1,6 +1,6 @@
 import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
-import type { GoalsActorWrite as ActorWrite } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsActorWrite as ActorWrite } from "../contract/goals.js";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 /** Own Board creation and the current Goal pointer alongside Goal lifecycle facts. */
 export class MolisWorkCommands {

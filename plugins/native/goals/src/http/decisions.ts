@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsFailure, goalsRoute } from "./failure.js";
 import { goalsActions } from "../actions.js";
-import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecideInput } from "../contract/governance-collaboration.js";
 import type { GoalsRoutePorts } from "./types.js";
 
 /** `goals.tree-decide`: the person's decision on a proposed change to the Goal tree, item by item or the whole proposal. */

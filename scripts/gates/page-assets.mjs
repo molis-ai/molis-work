@@ -246,8 +246,7 @@ const headErrors = (measured, budget, base) => {
 // attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
 // spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
 // units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
-// page, not an asset, so removing it saves nothing here. (T-176's lingguang.js entry was used up: its ceiling equals the budget now, so it
-// is deleted in this change to the gate, as the comment above requires.)
+// page, not an asset, so removing it saves nothing here.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-pages-editor.js": [707763, 707886],
 };

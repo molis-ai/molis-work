@@ -1,6 +1,6 @@
 import type {
   GoalEventScope,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 export const EMPTY_SCOPE: GoalEventScope = {
   requirement_ids: [],

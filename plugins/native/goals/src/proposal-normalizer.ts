@@ -11,7 +11,7 @@ import type {
   GoalTreeProposalNarrative,
   ProposalAffectedObject,
   GovernanceProvenanceApi,
-} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+} from "./contract/governance-collaboration.js";
 
 const GOAL_TREE_ITEM_KEYS = new Set([
   "item_id",

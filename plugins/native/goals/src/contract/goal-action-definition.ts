@@ -1,4 +1,4 @@
-import type { ActionAudience, ActionDefinition, ActionSchema, PlacementRelationRole } from "../platform/actions.js";
+import type { ActionAudience, ActionDefinition, ActionSchema, PlacementRelationRole } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** `plugins` opens one action to installed plugins too (still under the plugin's own granted permissions).
  * Every Goals write is authored by a Session when a Runtime makes it. */

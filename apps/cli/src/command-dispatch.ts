@@ -1,6 +1,16 @@
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { printCliJson as print } from "./protocol.js";
+
+/** The Goals actions a command calls, by the id and version the action directory lists them under; the Host finds each one. */
+const GOALS = {
+  initialize: { capability_id: "goals.board.initialize", version: 2 },
+  treeSubmit: { capability_id: "goals.tree.submit", version: 1 },
+  treeRead: { capability_id: "goals.tree.read", version: 1 },
+  treeCheck: { capability_id: "goals.tree.check", version: 2 },
+  treeDecide: { capability_id: "goals.tree.decide", version: 2 },
+  active: { capability_id: "goals.active.set", version: 1 },
+  snapshot: { capability_id: "goals.snapshot.read", version: 2 },
+} as const;
 
 /**
  * What a command may do, handed over by the Host: Goals' actions as the person on this machine, for the one project the command is
@@ -8,7 +18,7 @@ import { printCliJson as print } from "./protocol.js";
  */
 export interface CliManagementActions {
   readonly project_id: string;
-  invoke<Output>(definition: ActionDefinition<unknown, Output>, input: Record<string, unknown>, evidence?: unknown): Promise<Output>;
+  invoke<Output = unknown>(reference: { readonly capability_id: string; readonly version: number }, input: Record<string, unknown>, evidence?: unknown): Promise<Output>;
 }
 
 /** CLI wire conversion: a command's JSON payload becomes the input of one Goals action, which keeps validation and transaction ownership. */
@@ -24,36 +34,36 @@ export async function dispatchCliProjectCommand(
   switch (operation) {
   case "init":
     bound(String(project_id));
-    print(await actions.invoke(goalEntryActions.initialize, { idempotency_key: String(input.idempotency_key) }));
+    print(await actions.invoke(GOALS.initialize, { idempotency_key: String(input.idempotency_key) }));
     break;
   case "goal-tree-propose":
     bound(project_id);
-    print(await actions.invoke(goalEntryActions.treeSubmit, payload));
+    print(await actions.invoke(GOALS.treeSubmit, payload));
     break;
   case "goal-tree-read":
     bound(project_id);
-    print(await actions.invoke(goalEntryActions.treeRead, payload));
+    print(await actions.invoke(GOALS.treeRead, payload));
     break;
   case "goal-tree-check":
     bound(project_id);
-    print(await actions.invoke(goalEntryActions.treeCheck, payload));
+    print(await actions.invoke(GOALS.treeCheck, payload));
     break;
   case "goal-tree-decide": {
     // The decision is the person's: `authority` only points at the conversation it came from, and the Host builds who decides.
     const { authority, ...decision } = payload;
     bound(project_id);
-    print(await actions.invoke(goalEntryActions.treeDecide, decision, authority));
+    print(await actions.invoke(GOALS.treeDecide, decision, authority));
     break;
   }
   case "active-goal":
     bound(String(project_id));
-    print(await actions.invoke(goalEntryActions.active, {
+    print(await actions.invoke(GOALS.active, {
       goal_id: String(input.goal_id), reason: String(input.reason), idempotency_key: String(input.idempotency_key),
     }));
     break;
   case "snapshot":
     bound(String(project_id));
-    print(await actions.invoke(goalEntryActions.snapshot, {}));
+    print(await actions.invoke(GOALS.snapshot, {}));
     break;
   default:
     throw new Error(`未知 V1 operation: ${operation}`);

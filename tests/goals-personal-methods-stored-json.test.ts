@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";

@@ -1,4 +1,4 @@
-import type { GoalEventAcknowledgementBy, GoalEventAcknowledgementCategory, GoalEventSystemPayload } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventAcknowledgementBy, GoalEventAcknowledgementCategory, GoalEventSystemPayload } from "./contract/goals.js";
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";

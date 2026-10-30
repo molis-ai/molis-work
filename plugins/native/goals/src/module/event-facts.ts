@@ -1,15 +1,12 @@
 import type {
   ConfigureGoalEventsApplicationInput,
   ConfigureGoalEventsInput,
-  ApplyGoalConcernInput,
-  CiteGoalDecisionInput,
   ConfigureGoalEventsResult,
-  CreateGoalIntentRequirementInput,
-  CreateGoalIntentResult,
   GoalIntentSourceKind,
   GoalEventAdoptedPlanningRequest,
   GoalEventConfigView,
   GoalEventFactsApi,
+  GoalEventIntentApi,
   GoalEventHistoryPage,
   GoalEventHistoryQuery,
   GoalEventLatestReports,
@@ -17,20 +14,13 @@ import type {
   GoalEventListPage,
   GoalEventListQuery,
   GoalEventRequirementStatus,
+  GoalEventStateApi,
   GoalEventTimelinePage,
-  GoalEventTrustedDecisionRecord,
   GoalWorkEventRecord,
-  RecordGoalProgressSummaryInput,
-  RecordGoalUserDecisionInput,
   ReportGoalEventsInput,
   ReportGoalEventsRecordedResult,
-  RequestGoalDecisionInput,
   ResolvedPlanningEventAdoption,
-  RecordGoalNoteInput,
-  ResumeGoalEventWorkInput,
-  SetGoalEventAgreementInput,
-  SubmitGoalEventClosureInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { GoalsCommandContext } from "./command-support.js";
 import { GoalEventConfiguration } from "./event-facts-configure.js";
 import { GoalEventFactsConfig } from "./event-facts-config.js";
@@ -49,8 +39,11 @@ import { resolveGoalPolicy } from "./query.js";
 export class GoalEventFacts implements GoalEventFactsApi {
   private readonly records: GoalEventFactsRepository;
   private readonly configWrites: GoalEventFactsConfig;
-  private readonly state: GoalEventState;
-  private readonly intent: GoalEventIntent;
+  /** The concrete classes stay private; outside the facade only the contract's state and intent calls are reachable. */
+  private readonly eventState: GoalEventState;
+  private readonly eventIntent: GoalEventIntent;
+  readonly state: GoalEventStateApi;
+  readonly intent: GoalEventIntentApi;
   private readonly configuration: GoalEventConfiguration;
   private readonly reporting: GoalEventReporting;
   private readonly reads: GoalEventReads;
@@ -58,7 +51,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
   constructor(private readonly context: GoalsCommandContext) {
     this.records = new GoalEventFactsRepository(context.repository.db);
     this.configWrites = new GoalEventFactsConfig(context, this.records);
-    this.state = new GoalEventState(
+    this.eventState = new GoalEventState(
       context,
       this.records,
       new GoalEventStateRepository(context.repository.db),
@@ -71,9 +64,11 @@ export class GoalEventFacts implements GoalEventFactsApi {
         readCompletionContext: (projectId, goalId) => this.readCompletionContext(projectId, goalId),
       },
     );
-    this.intent = new GoalEventIntent(context, this.records, this.state, (kind) => eventActorKind(kind));
-    this.configuration = new GoalEventConfiguration(context, this.records, this.configWrites, this.state);
-    this.reporting = new GoalEventReporting(context, this.records, this.configWrites, this.state);
+    this.eventIntent = new GoalEventIntent(context, this.records, this.eventState, (kind) => eventActorKind(kind));
+    this.state = this.eventState;
+    this.intent = this.eventIntent;
+    this.configuration = new GoalEventConfiguration(context, this.records, this.configWrites, this.eventState);
+    this.reporting = new GoalEventReporting(context, this.records, this.configWrites, this.eventState);
     this.reads = new GoalEventReads(context, this.records);
   }
 
@@ -148,94 +143,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
   isEventStateOwner(projectId: string, goalId: string): boolean {
     this.context.requireGoal(projectId, goalId);
-    return this.state.isEventStateOwner(projectId, goalId);
-  }
-
-  readWorkState(projectId: string, goalId: string) {
-    return this.state.readWorkState(projectId, goalId);
+    return this.eventState.isEventStateOwner(projectId, goalId);
   }
 
   runImmediate<T>(operation: () => T): T {
     return this.context.repository.immediate(operation);
-  }
-
-  adoptOwner(input: {
-    project_id: string;
-    goal_id: string;
-    actor_id: string;
-    source: "intent" | "configuration" | "continue";
-    outcome?: string;
-  }): void {
-    this.state.adoptOwner(input);
-  }
-
-  replayIntent(projectId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null {
-    return this.intent.replay(projectId, actorId, idempotencyKey, hash);
-  }
-
-  rememberIntent(
-    projectId: string,
-    actorId: string,
-    idempotencyKey: string,
-    hash: string,
-    result: CreateGoalIntentResult,
-    at: string,
-  ): void {
-    this.intent.remember(projectId, actorId, idempotencyKey, hash, result, at);
-  }
-
-  recordIntentArtifacts(input: {
-    project_id: string;
-    goal_id: string;
-    actor_id: string;
-    actor_kind?: "user" | "runtime";
-    source_kind?: GoalIntentSourceKind;
-    outcome?: string;
-    requirements?: CreateGoalIntentRequirementInput[];
-  }): void {
-    this.intent.recordArtifacts(input);
-  }
-
-  readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string) {
-    return this.state.readProgressReceipt(projectId, goalId, actorId, key);
-  }
-
-  recordProgress(input: RecordGoalProgressSummaryInput) {
-    return this.state.recordProgress(input);
-  }
-
-  applyConcern(input: ApplyGoalConcernInput) {
-    return this.state.applyConcern(input);
-  }
-
-  requestDecision(input: RequestGoalDecisionInput) {
-    return this.state.requestDecision(input);
-  }
-
-  citeDecision(input: CiteGoalDecisionInput) {
-    return this.state.citeDecision(input);
-  }
-
-  recordTrustedDecision(
-    input: RecordGoalUserDecisionInput,
-    persistGovernance: (normalized: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord,
-  ) {
-    return this.state.recordTrustedDecision(input, persistGovernance);
-  }
-
-  setAgreement(input: SetGoalEventAgreementInput) {
-    return this.state.setAgreement(input);
-  }
-
-  submitClosure(input: SubmitGoalEventClosureInput) {
-    return this.state.submitClosure(input);
-  }
-
-  resumeWork(input: ResumeGoalEventWorkInput) {
-    return this.state.resumeWork(input);
-  }
-
-  recordNote(input: RecordGoalNoteInput) {
-    return this.state.recordNote(input);
   }
 }

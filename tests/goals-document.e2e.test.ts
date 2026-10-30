@@ -104,7 +104,7 @@ test("public document clients isolate requests and keep Host callbacks, failure 
   }>(`(async () => {
     const createClient = (${GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT});
     const aPane = document.createElement('section');
-    aPane.innerHTML = '<aside>Host sibling</aside><div data-work-surface="goal"><article data-goal-view="initial-a"></article></div>';
+    aPane.innerHTML = '<aside>Host sibling</aside><div data-work-surface="goals"><article data-goal-view="initial-a"></article></div>';
     const bPane = document.createElement('section');
     // A pane without the Goal surface holds only the document (its host header left the markup in bc79f8a49).
     bPane.innerHTML = '<article data-goal-view="initial-b"></article>';

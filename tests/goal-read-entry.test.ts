@@ -11,7 +11,7 @@ import {
 import { managementGoals } from "./goal-management-caller.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView } from "@molis-ai/molis-work-plugin-goals/contract";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { serveTestHost } from "./fixtures/test-home.js";

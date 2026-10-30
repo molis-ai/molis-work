@@ -6,7 +6,7 @@ import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin
 /** AP3 Workbench client segment: refresh-decisions. */
 export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       setMobileView(restoredMobileView);
-      if (hashTargetId && activeDesktopSurface === "goal") void revealDeepLinkFromId(hashTargetId);
+      if (hashTargetId && activeDesktopSurface === "goals") void revealDeepLinkFromId(hashTargetId);
     };
 
     saveUiState = () => {
@@ -38,10 +38,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       const titlePane = titleState && (titleState.panes.find((pane) => pane.id === titleState.focusedPaneId) || titleState.panes[0]);
       const titleTab = titlePane?.tabs.find((tab) => tab.id === titlePane.activeTabId);
       const ownsTitle = !titleState || (!titleState.exclusive && (tabWorkspace.isEmbedded()
-        ? activeDesktopSurface === "goal"
+        ? activeDesktopSurface === "goals"
         : titleTab?.plugin === "goals" && titleTab.kind === "item" && titleTab.itemId === goalId));
       if (ownsTitle) document.title = item.goal.title + " · Molis Work";
-      if (resetScroll && activeDesktopSurface === "goal") documentPane.scrollTop = 0;
+      if (resetScroll && activeDesktopSurface === "goals") documentPane.scrollTop = 0;
       immersiveNavigation?.sync();
       return true;
     };

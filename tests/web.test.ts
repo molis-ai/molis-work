@@ -252,7 +252,7 @@ function assertInlineScriptsCompile(html: string): void {
   }
 }
 
-function workSurfaceHtml(html: string, surface: "goal" | "feed"): string {
+function workSurfaceHtml(html: string, surface: "goals" | "feed"): string {
   const marker = `data-work-surface="${surface}"`;
   const start = html.indexOf(marker);
   assert.notEqual(start, -1, `missing ${surface} work surface`);

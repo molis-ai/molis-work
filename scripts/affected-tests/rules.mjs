@@ -18,11 +18,13 @@ export const FULL_REGRESSION = {
    * Whole packages that are shared core. `modules/` is every package under it. plugin-sdk joined on 2026-10-10 (spec §1, W3-03):
    * it holds the runtime tools that authors and the platform share, the execution lifetime, the Manifest and
    * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). plugin-runtime joined on
-   * 2026-10-30: docs/system/PARALLEL-DEVELOPMENT.md line 66 counts it as shared core, since it is the Plugin Runtime's assembly and
-   * lifecycle, which the Kernel and every plugin's execution go through. The owners' list in scripts/package-owners.mjs (SHARED_CORE)
-   * decides who reviews a package and is deliberately not the same list: it also carries local-host, workbench and agent-host.
+   * 2026-10-30: docs/system/PARALLEL-DEVELOPMENT.md line 66 counts it as shared core; its README says it manages the Plugin definition,
+   * install identity, permission grants, starting, crash recovery and uninstalling of an installation, so a Host can track the state
+   * and access of one installation. agent-host joined on 2026-10-30: the same line 66 and the PR template count it as shared core; it is
+   * the one package that depends on @prologue/sdk, and every model call goes only through it (AGENTS.md). The owners' list in
+   * scripts/package-owners.mjs (SHARED_CORE) decides who reviews a package and is not the same list: it also carries local-host and workbench.
    */
-  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk", "packages/plugin-runtime"],
+  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk", "packages/plugin-runtime", "horizontal/agent-host"],
   corePackagePrefixes: ["modules/"],
   /**
    * "local-host 的装配、workbench 外壳": 25 files, from three places (how each got on the list is checked against the READMEs by

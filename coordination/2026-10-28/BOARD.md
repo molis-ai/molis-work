@@ -234,8 +234,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-290 | BL-543：外壳转设置地址时只转各设置页声明认的查询参数（先出【方案】；安全边界，二审按甲；防腐清理；短任务书） | 乙 | A | 186 | — | `apps/workbench/src/scripts/client/settings-directory.ts`（其余在【方案】里报）、可能 `docs/system/SECURITY-INVARIANTS.md` |
 | T-291 | 「被谁引用」两处只加用例：工作流读取、`logLinkSubjectsFailure`（防腐清理，MISC T-113 二审增量 ①②；短任务书） | 乙 | 池 | 187 | #1552 合入 | #1552 合入后的 `tests/artifact-links.test.ts` / `tests/artifact-source-and-links.test.ts` |
 | T-292 | Shelf 目录名的整字用例补 `x×179+🙂` 的目录例，改掉用例里一句过时的注释（防腐清理，T-255 二审登记；短任务书） | 丙 | 池 | 188 | — | `tests/shelf-item-names.test.ts` |
-| T-293 | 三处按包写的 `service_id` 下标查表改 `Object.hasOwn`，每处补 `constructor` 用例（防腐清理，MISC「T-119 二审复核 登记」；短任务书） | 丙 | A | 189 | — | `apps/local-host/src/connector-cli-setup.ts`、`connector-mcp-endpoint.ts`、`connector-record-actions.ts` 及各自既有测试 |
-| T-294 | Host 里 `cutHead`/`cutUnits` 两份逐字相同的整字截收成一份（防腐清理，MISC「T-246 统筹答 登记」Host 一半；短任务书） | 乙 | A | 190 | — | `apps/local-host/src/contextual/*.ts`、`drafting/draft-data.ts`、`draft-service.ts`、新 `whole-units.ts` 与用例 |
+| T-293 | 三处按包写的 `service_id` 下标查表改 `Object.hasOwn`，每处补 `constructor` 用例（防腐清理，MISC「T-119 二审复核 登记」；短任务书） | 丙 | 池 | 189 | — | `apps/local-host/src/connector-cli-setup.ts`、`connector-mcp-endpoint.ts`、`connector-record-actions.ts` 及各自既有测试 |
+| T-294 | Host 里 `cutHead`/`cutUnits` 两份逐字相同的整字截收成一份（防腐清理，MISC「T-246 统筹答 登记」Host 一半；短任务书） | 乙 | 池 | 190 | — | `apps/local-host/src/contextual/*.ts`、`drafting/draft-data.ts`、`draft-service.ts`、新 `whole-units.ts` 与用例 |
 | T-295 | 包写的连接器名称与说明加长度上限，卡片标「来自 X 包」（先出【方案】）（防腐清理，MISC「T-119 二审 建议」；短任务书） | 乙 | 池 | 191 | T-119（#1561）合入 | `apps/workbench/src/settings-connector-guide.ts`、`settings-connectors.ts`、翻译键、`tests/connectors-settings-behaviors.test.ts` |
 | T-296 | RAC-2463 补 `tokenAbandoned` 断言并补不依赖 darwin 的撤权中途用例（防腐清理，MISC「T-218 二审复核 建议」N1/N2；短任务书；SI 测试，统筹手查） | 丙 | 池 | 192 | T-218（#1558）合入 | `tests/security-invariants-oauth-shared-refresh.test.ts` |
 | T-297 | 连接绑定的插件号、用途号长度判断改按字数 160，不再按 UTF-16 单元数（防腐清理，MISC「T-213 二审 登记」；短任务书） | 丙 | B | 193 | — | `horizontal/connector-host/src/connection-store.ts`、其 bind 既有测试 |

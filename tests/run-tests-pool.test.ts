@@ -217,7 +217,7 @@ test(${JSON.stringify(name)}, async () => {
 };
 const occurrences = (text: string, needle: string) => text.split(needle).length - 1;
 
-test("RAC-2100 --bail: a file that fails and then passes on its retry still shows the output of the failed attempt, before its retry line, and is listed as flaky", () => {
+test("RAC-2450 --bail: a file that fails and then passes on its retry still shows the output of the failed attempt, before its retry line, and is listed as flaky", () => {
   const made = directory();
   const flaky = attemptFixture(made, "flaky", 1);
   const steady = attemptFixture(made, "steady", 0);
@@ -230,7 +230,7 @@ test("RAC-2100 --bail: a file that fails and then passes on its retry still show
   assert.match(output, /flaky, failed and then passed on a retry \(1\):\n\s+\S*flaky\.test\.mjs/);
 });
 
-test("RAC-2101 --bail: every failed attempt of a file that keeps failing shows its output exactly once", () => {
+test("RAC-2451 --bail: every failed attempt of a file that keeps failing shows its output exactly once", () => {
   const made = directory();
   const broken = attemptFixture(made, "broken", 3);
   const other = attemptFixture(made, "other", 0);
@@ -243,7 +243,7 @@ test("RAC-2101 --bail: every failed attempt of a file that keeps failing shows i
   assert.equal(occurrences(output, "other-attempt"), 0, "nothing after the failing file started");
 });
 
-test("RAC-2102 --bail: the timeout note belongs to the attempt that was killed and appears once", () => {
+test("RAC-2452 --bail: the timeout note belongs to the attempt that was killed and appears once", () => {
   const made = directory();
   const slow = attemptFixture(made, "slow", 0, "if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 60_000));");
   const steady = attemptFixture(made, "steady", 0);

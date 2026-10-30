@@ -247,8 +247,13 @@ const headErrors = (measured, budget, base) => {
 // spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
 // units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
 // page, not an asset, so removing it saves nothing here.
+// T-249, RAC-2265–2269: five cuts in the Pages browser client now take whole characters (or whole UTF-16 units, for the draft the
+// Assistant's 100,000-unit context check takes), using two small functions in the existing browser/dom.ts. The old T-203 entry
+// (707763 → 707886, used up on main) is dropped. Approved once by 6526056404: pages-editor.js +342 B, plugins/pages.js +104 B;
+// T-204 changes both assets and lands first, so after it merges this branch re-measures against the new merge-base.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [707763, 707886],
+  "/assets/molis-work-pages-editor.js": [707886, 708228],
+  "/assets/molis-work-plugins/pages.js": [38946, 39050],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -212,6 +212,52 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /出站动作未兑现/);
 });
 
+test("RAC-2418: a package's long connector name and summary are cut to whole characters, never half of one", () => {
+  const wide = (count: number) => "🟢".repeat(count);
+  const html = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: wide(200), summary: wide(500), availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const name = `${wide(119)}…`, summary = `${wide(399)}…`;
+  assert.equal([...name].length, 120, "the name limit is 120 characters, the last one 「…」");
+  assert.equal([...summary].length, 400, "the summary limit is 400 characters, the last one 「…」");
+  const cardName = /<span class="settings-connector-card__title"><strong>([^<]*)<\/strong>/.exec(html)?.[1];
+  const cardSummary = /<span class="settings-connector-card__copy">([^<]*)<\/span>/.exec(html)?.[1];
+  assert.equal(cardName, name, "the card shows the name cut to whole characters");
+  assert.equal(cardSummary, summary, "the card shows the summary cut to whole characters");
+  assert.equal(html.includes(`<h2 tabindex="-1">${name}</h2>`), true, "the detail shows the same cut name");
+  // The page's filter searches the card's own attribute: cutting what it shows must not hide the words past the limit.
+  const filtered = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: `${wide(120)}tail-name`, summary: "Short, but the name goes on past its limit.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const search = /data-connector-search="([^"]*)"/.exec(filtered)?.[1] ?? "";
+  assert.equal(search.includes("tail-name"), true, "the search attribute keeps the name past the 120th character");
+  assert.doesNotMatch(html, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
+});
+
+test("RAC-2419: a card names the package that declared it, and the package name is escaped", () => {
+  // The page's translator, so the source line reads as a person sees it.
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;");
+  const primitives = { L, escapeHtml, icon: () => "" };
+  const github = HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "github")!;
+  assert.deepEqual(github.declared_by, { plugin_id: "io.molis.work.integration.github", title: "GitHub" },
+    "the card names the declaring plugin by its Manifest name, not by its id");
+  for (const id of ["model-api", "typesafe", "image-api", "mcp-bearer"]) {
+    assert.equal(HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === id)!.declared_by, null, `${id} is the platform's own`);
+  }
+  const html = renderConnectorsSettings({ connectors: [
+    github,
+    HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "model-api")!,
+    { connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+      declared_by: { plugin_id: "io.example.package", title: '<img src=x onerror="alert(1)">' } },
+  ] }, primitives);
+  assert.match(html, /data-connector-source>来自 GitHub</u, "a package's card says where it comes from");
+  assert.match(html, /来自 Molis Work（内置）/, "the platform's own cards say so too, no exception for built-ins");
+  assert.match(html, /来自 &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/, "the package name is escaped");
+  assert.doesNotMatch(html, /<img src=x onerror=/, "no markup of a package name reaches the page");
+});
+
 test("every connector detail exposes official https setup links", () => {
   const primitives = {
     L: (text: string) => text,

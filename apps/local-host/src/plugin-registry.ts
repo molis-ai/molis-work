@@ -89,9 +89,7 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
   const next = [...enabled];
   for (const personal of PERSONAL_PLUGIN_IDS) {
     if (excluded.has(personal) || next.includes(personal)) continue;
-    const artifactsAt = next.indexOf("artifacts");
-    if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
-    else next.push(personal);
+    next.push(personal);
   }
   return next;
 }

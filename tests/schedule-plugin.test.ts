@@ -254,7 +254,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
       runs: [],
       out_rules: [],
     },
-    enabled_plugins: ["goals", "inbox", "schedule", "feed", "artifacts"],
+    enabled_plugins: ["goals", "inbox", "schedule", "feed", "files"],
     schedule_jobs: [job()],
     schedule_tasks: [],
   } as MolisWorkWebView;

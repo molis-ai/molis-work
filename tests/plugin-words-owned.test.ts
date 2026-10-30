@@ -53,7 +53,7 @@ test("RAC-771 a third-party Plugin's action title and description are English wh
   runWithLocale("zh", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/));
 }));
 
-test("RAC-2345 platform action text uses the platform dictionary and cannot name an arbitrary Plugin dictionary", () => withAcme(() => {
+test("RAC-2342 platform action text uses the platform dictionary and cannot name an arbitrary Plugin dictionary", () => withAcme(() => {
   runWithLocale("en", () => {
     const platform = { ...entry(), provider_id: "io.platform.provider", words_of: ACME };
     assert.match(rows(platform), /<h3>整理笔记<\/h3>/, "a retired words_of property does not select another owner's dictionary");

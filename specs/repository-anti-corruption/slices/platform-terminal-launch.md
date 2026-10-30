@@ -55,7 +55,7 @@
 | RAC-2550 | 项目插件在本项目已关联工作目录的子目录里起终端，`pwd -P` 是它；面板号按身份派生；本插件本项目的页面能附着、写入，同项目的别的插件、别的项目的同一插件的页面附着被拒 | 新文件 |
 | RAC-2551 | 没声明 `terminal:run`：Home、项目两种实例都没有 `services.terminal`；声明为可选、人没批准：调用被拒，不起进程 | 新文件 |
 | RAC-2552 | 撤掉 `terminal:run`、停用、卸载、项目实例停止，各一例，之后面板不在了；旧激活的句柄在动作之外调不回答、在新激活的动作里调被拒，都不起进程 | 新文件 |
-| RAC-2553 | 查询动作、受众 `agent` / `workflow` / `mcp`、动作没声明 `terminal:run`、在任何动作之外、在本插件另一个安装的动作里调，各一例，`actions.forbidden`，不起进程 | 新文件 |
+| RAC-2553 | 查询动作、只读调用（`query_only`、`read_only_effects` 各一例，内核在分派时就拒，到不了服务）、受众 `agent` / `workflow` / `mcp` / `plugin`（`plugin` 是本安装在任何动作之外调自己的动作，由服务拒）、动作没声明 `terminal:run`、在任何动作之外、在本插件另一个安装的动作里调，各一例，`actions.forbidden`，不起进程 | 新文件 |
 | RAC-2554 | 别的项目的、不存在的 `workspace_id`；`..`、`sub/../..`、`/etc`、NUL、空段、`./sub`；链到根外的符号链接；文件；不存在的目录；没有主人文件；没持有 `workspace:read`；Home 实例无项目的调用——按第 4 条的码拒，不起进程 | 新文件 |
 | RAC-2555 | 多一个键（`cwd`、`project_id`、`actor_id`、`install_id`、`env`，以及 `directory` 里多一个键）、相对或含 NUL 的程序、超过 32 项或含 NUL、非字符串、超长的参数、不合格式的 key、空或超长的标题、没有 `directory`、别的 `root`——`actions.input_invalid`，不起进程；两个不同的人、同一 key，面板号不同 | 新文件 |
 | RAC-2556 | 目录解析卡在读项目目录库这一处等待时，撤 `terminal:run`、撤 `workspace:read`、取消原调用，各一例，`open` 被拒，不起进程 | 新文件 |

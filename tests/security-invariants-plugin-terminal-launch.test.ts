@@ -33,7 +33,7 @@ type Project = Awaited<ReturnType<Fixture["project"]>>;
 
 /**
  * One plugin, in the halves asked for. Each half offers: `run`, a user command that declares terminal:run; `undeclared`, a user command
- * that does not; `query`, a user query that declares it; `others`, a command for Agents, workflows and MCP that declares it. The test says
+ * that does not; `query`, a user query that declares it; `others`, a command for Agents, workflows, MCP and plugins that declares it. The test says
  * what the next call does (`use`), and the action answers with what came back or the code and message it was refused with.
  */
 function launchProbe(name: string, options: { terminal?: boolean; ownerFiles?: boolean; halves?: readonly Where[] } = {}) {
@@ -43,7 +43,7 @@ function launchProbe(name: string, options: { terminal?: boolean; ownerFiles?: b
     ({ capability_id: `${name}.${where}-${suffix}`, version: 1, operation, action: { title: `${where} ${suffix}`, description: "启动终端探针", kind: operation === "query" ? "query" : "operation",
       scope: where, audiences, permissions, ...(operation === "command" ? { scheduling: "concurrent" as const } : {}), subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
   const actionsOf = (where: Where) => ({ run: define(where, "run", "command", ["user"], declared), undeclared: define(where, "undeclared", "command", ["user"], []),
-    query: define(where, "query", "query", ["user"], declared), others: define(where, "others", "command", ["agent", "workflow", "mcp"], declared) });
+    query: define(where, "query", "query", ["user"], declared), others: define(where, "others", "command", ["agent", "workflow", "mcp", "plugin"], declared) });
   const actions = Object.fromEntries(halves.map(where => [where, actionsOf(where)])) as Record<Where, ReturnType<typeof actionsOf>>;
   const files = { read: `${name}:files-read`, write: `${name}:files-write` };
   const required = options.ownerFiles ? [files.read, files.write] : [];
@@ -294,7 +294,7 @@ test("RAC-2552 S-103 revoking terminal:run, disabling, uninstalling and stopping
   await ended(uninstalled.panelId, "uninstalling");
 });
 
-test("RAC-2553 S-103 a query, another audience, an action that does not declare terminal:run, no action and another installation's action are refused", { timeout: 60_000 }, async t => {
+test("RAC-2553 S-103 a query, a read-only call, another audience (the plugin's own included), an action that does not declare terminal:run, no action and another installation's action are refused", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchcalls"), other = launchProbe("launchcallsother");
   const f = await open(t, [probe, other]), project = await f.project("调用不对");
   const { workspace_id } = await linkWorkspace(t, f, project);
@@ -302,6 +302,15 @@ test("RAC-2553 S-103 a query, another audience, an action that does not declare 
   const person = await f.host.localPersonContext(project.reference);
   const cases: Array<[string, () => Promise<Outcome>]> = [
     ["query", () => run(f, probe, "project", "query", own => opened(own, launch(f, "query", markers.query!, { root: "workspace", workspace_id })), { project })],
+    // A read-only caller cannot run a command at all: the kernel refuses it before the service is reached.
+    ...(["query_only", "read_only_effects"] as const).map((flag): [string, () => Promise<Outcome>] => [flag, () => run(f, probe, "project", "run",
+      own => opened(own, launch(f, flag.replace(/_/gu, "-"), markers[flag]!, { root: "workspace", workspace_id })), { project, caller: { ...person, [flag]: true } })]),
+    ["plugin", async () => {
+      // The installation's own call outside any action is the `plugin` audience (PG-028): the Host issues that caller, the test cannot.
+      probe.use(own => opened(own, launch(f, "plugin", markers.plugin!, { root: "workspace", workspace_id })));
+      try { return await probe.services.project!.actions!.invoke(probe.actions.project.others, {}) as Outcome; }
+      catch (error) { return { outcome: String((error as { code?: string }).code), message: String(error) }; }
+    }],
     ...(["agent", "workflow", "mcp"] as const).map((audience): [string, () => Promise<Outcome>] => [audience, () => run(f, probe, "project", "others",
       own => opened(own, launch(f, audience, markers[audience]!, { root: "workspace", workspace_id })), { project, caller: { ...person, audience, runtime_session_id: `launch-${audience}` } })]),
     ["undeclared", () => run(f, probe, "project", "undeclared", own => opened(own, launch(f, "undeclared", markers.undeclared!, { root: "workspace", workspace_id })), { project })],
@@ -314,7 +323,7 @@ test("RAC-2553 S-103 a query, another audience, an action that does not declare 
   const markers: Record<string, string> = Object.fromEntries(cases.map(([key]) => [key, f.marker()]));
   for (const [key, call] of cases) {
     const answer = await call();
-    await refused(f, answer, "actions.forbidden", markers[key]!, panelOf(install.install_id, project.project_id, key), key);
+    await refused(f, answer, "actions.forbidden", markers[key]!, panelOf(install.install_id, project.project_id, key.replace(/_/gu, "-")), key);
   }
 });
 

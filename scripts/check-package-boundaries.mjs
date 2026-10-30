@@ -1128,12 +1128,12 @@ export function checkNoGoalTypedAdapters(files) {
   return errors;
 }
 
+/** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
+export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
 /**
  * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
  * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
  */
-/** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
-export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
 const CLI_GOALS_TABLE = "GOALS";
 const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */

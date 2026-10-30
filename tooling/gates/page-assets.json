@@ -5,8 +5,8 @@
     "/assets/molis-work-arrival.css": 678927,
     "/assets/molis-work-capabilities.js": 54350,
     "/assets/molis-work-knowledge.js": 26940,
-    "/assets/molis-work-pages-editor.js": 708228,
-    "/assets/molis-work-plugin-frame.js": 190560,
+    "/assets/molis-work-pages-editor.js": 707886,
+    "/assets/molis-work-plugin-frame.js": 190623,
     "/assets/molis-work-plugins/alchemist.css": 151,
     "/assets/molis-work-plugins/alchemist.js": 52556,
     "/assets/molis-work-plugins/characters.js": 30152,
@@ -47,7 +47,7 @@
     "/assets/molis-work-plugins/workflows.js": 71581,
     "/assets/molis-work-settings.css": 931397,
     "/assets/molis-work-workbench.css": 1233233,
-    "/assets/molis-work-workbench.js": 1148453,
+    "/assets/molis-work-workbench.js": 1148549,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

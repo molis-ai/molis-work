@@ -12,6 +12,24 @@ test("RAC-2408 input delivery details name the browser version, the window bound
   assert.equal(inputDeliveryDetails({ window: "0,0 1440x960" }), "; chrome=unavailable; window=0,0 1440x960; inner=unavailable");
 });
 
+test("RAC-2443 only the window read failing leaves the window unavailable and the version and viewport intact", async () => {
+  const reads: string[] = [];
+  const browser: InputDeliverySource = {
+    sessionId: "SESSION-3",
+    command: async <T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> => {
+      reads.push(method + " " + JSON.stringify(params) + " " + (sessionId ?? "-"));
+      if (method === "Browser.getVersion") return { product: "Chrome/153.0.8010.12" } as T;
+      if (method === "Target.getTargetInfo") return { targetInfo: { targetId: "TARGET-1" } } as T;
+      assert.equal(method, "Browser.getWindowForTarget", "the only failing read is the window one");
+      throw new Error("Browser.getWindowForTarget closed");
+    },
+    evaluate: async <T>(): Promise<T> => ({ width: 1440, height: 960 } as T),
+  };
+  assert.deepEqual(await inputDeliveryValues(browser), { chrome: "Chrome/153.0.8010.12", window: undefined, inner: "1440x960" },
+    "the window is unavailable, the version and the viewport are still there, and the diagnostics are not swallowed");
+  assert.ok(reads.some(read => read.startsWith("Browser.getWindowForTarget")), "the window read was reached and recorded");
+});
+
 test("RAC-2408 the diagnostics read the version, the target window and the viewport, and reads that fail are left unavailable", async () => {
   const reads: string[] = [];
   const browser: InputDeliverySource = {

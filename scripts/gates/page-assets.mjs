@@ -245,15 +245,23 @@ const headErrors = (measured, budget, base) => {
 // T-249, RAC-2265–2269: five cuts in the Pages browser client now take whole characters (or whole UTF-16 units, for the draft the
 // Assistant's 100,000-unit context check takes), using two small functions in the existing browser/dom.ts. The old T-203 entry
 // (707763 → 707886) is used up on main and dropped. Approved once by 6526056404: pages-editor.js +342 B, plugins/pages.js +104 B;
-// after T-203 (and any later main changes to these assets) the branch re-measures against the new merge-base. Tried: both functions
-// live in the existing browser/dom.ts (no new file, defined once; import.ts already imports it), firstCharacters stops at the limit
-// instead of spreading the whole text, cutUnits is two lines, no page text or dictionary change.
+// after T-203 and later main changes it re-measures against the new merge-base. Tried: both functions live in the existing
+// browser/dom.ts (no new file, defined once; import.ts already imports it), firstCharacters stops at the limit instead of spreading
+// the whole text, cutUnits is two lines, no page text or dictionary change.
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-pages-editor.js": [707886, 708228],
+  "/assets/molis-work-plugins/pages.js": [38946, 39050],
 // T-235 (merged into main), RAC-2220–2221: the PPT outline box is cut at 20000 characters by its input handler; its admission was
 // [27065, 27380] and the build came out at 27364.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/ppt.js": [27065, 27364],
+<<<<<<< HEAD
   "/assets/molis-work-pages-editor.js": [707886, 708228],
   "/assets/molis-work-plugins/pages.js": [38946, 39050],
+=======
+  "/assets/molis-work-plugin-frame.js": [190560, 190623],
+  "/assets/molis-work-workbench.js": [1148453, 1148549],
+>>>>>>> origin/main
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

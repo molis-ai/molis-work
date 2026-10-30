@@ -50,6 +50,17 @@ test("RAC-2265: an import preview cuts by whole characters, so a two-unit charac
   assert.equal(shown.endsWith(wide), true, "the two-unit character at the cut is whole");
   assert.ok([...shown].length <= 4000, `${[...shown].length} characters shown, at most 4,000`);
   assert.equal(preview.endsWith("…"), true, "more text follows, so the preview says so");
+  // RAC-2265, the other half: the ellipsis is decided by characters, not units. 2,500 🟢 are 5,000 UTF-16 units but 2,500 characters, under
+  // the 4,000-character limit, so the preview is the whole text and there is no ellipsis; the old unit cut showed 1,000 of them and "…".
+  const emojiText = wide.repeat(2500);
+  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-import-files]'); const transfer = new DataTransfer();
+    transfer.items.add(new File([${JSON.stringify(emojiText)}], "表情.md", { type: "text/markdown" })); input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+  await pages.waitFor("document.querySelector('.pages-import-body')?.textContent.length > 4000", 20_000);
+  const fullPreview = await pages.evaluate<string>("document.querySelector('.pages-import-body')?.textContent || ''");
+  assert.equal(fullPreview, emojiText, "2,500 two-unit characters are under the 4,000-character limit, so the preview is the whole text");
+  assert.equal(fullPreview.endsWith("…"), false, "nothing follows, so the preview does not claim more");
+  assert.equal([...fullPreview].length, 2500, "2,500 characters in the preview");
 });
 
 /** A Pages document whose body is `body`, open in the project; the comments side view is opened with `openPanel` or by a comment itself. */
@@ -93,7 +104,8 @@ test("RAC-2267: the quote sent to the comments side cuts by whole characters at 
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === "引文"`);
   await pages.evaluate("window.__tools = null; document.addEventListener('molis:context-tools', event => { window.__tools = event.detail; }); document.querySelector('.ProseMirror')?.focus();");
   await pages.click(".ProseMirror");
-  for (const type of ["keyDown", "keyUp"]) await browser.command("Input.dispatchKeyEvent", { type, key: "a", code: "KeyA", modifiers: 4 }, browser.sessionId);
+  // The editor's "Mod-a" is Command on macOS and Ctrl elsewhere (prosemirror-keymap follows the platform); Linux has no Meta+A in the editor.
+  for (const type of ["keyDown", "keyUp"]) await browser.command("Input.dispatchKeyEvent", { type, key: "a", code: "KeyA", modifiers: process.platform === "darwin" ? 4 : 2 }, browser.sessionId);
   await pages.waitFor("Boolean(window.__tools?.context_id)", 15_000);
   await pages.evaluate(`document.querySelector('[data-pages=workbench]').dispatchEvent(new CustomEvent('molis:context-tool-invoke', { bubbles: true,
     detail: { context_id: window.__tools.context_id, id: 'comment' } }))`);
@@ -128,6 +140,7 @@ test("RAC-2268/RAC-2269: the draft handed to the Assistant and a block note's su
   await browser.waitFor("window.__answers.length === 1", 10_000);
   const draft = await browser.evaluate<{ text: string }>("window.__answers[0]");
   assert.equal(halfAtEnd(draft.text), false, "RAC-2268: the draft handed to the Assistant does not end in half a character");
+  assert.equal(draft.text.length, 99999, "RAC-2268: the 99,999 single-unit characters are kept and only the cut half is dropped, not a unit more");
   assert.ok(draft.text.length <= 100000, `RAC-2268: ${draft.text.length} UTF-16 units, at most the 100,000 the Assistant's context check accepts`);
   await browser.evaluate(commandFor("notes", "r-notes"));
   await browser.waitFor("window.__answers.length === 2", 10_000);

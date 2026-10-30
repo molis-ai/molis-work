@@ -250,7 +250,9 @@ const headErrors = (measured, budget, base) => {
 // T-249, RAC-2265–2269: five cuts in the Pages browser client now take whole characters (or whole UTF-16 units, for the draft the
 // Assistant's 100,000-unit context check takes), using two small functions in the existing browser/dom.ts. The old T-203 entry
 // (707763 → 707886, used up on main) is dropped. Approved once by 6526056404: pages-editor.js +342 B, plugins/pages.js +104 B;
-// T-204 changes both assets and lands first, so after it merges this branch re-measures against the new merge-base.
+// T-204 changes both assets and lands first, so after it merges this branch re-measures against the new merge-base. Tried: both
+// functions live in the existing browser/dom.ts (no new file, defined once; import.ts already imports it), firstCharacters stops at
+// the limit instead of spreading the whole text, cutUnits is two lines, no page text or dictionary change.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-pages-editor.js": [707886, 708228],
   "/assets/molis-work-plugins/pages.js": [38946, 39050],

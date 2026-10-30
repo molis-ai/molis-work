@@ -115,3 +115,6 @@
 | 干净 Home 批 Opus 二审 建议③（统筹 10-30 转） | `tests/server-database-baseline.test.ts:26` | 补一条 WAL 模式下版本不对的用例。丙，**等干净 Home 批合入后再开** | 统筹 2026-10-30 |
 | 干净 Home 批 Opus 二审 建议④（统筹 10-30 转） | Feed 的 `home-plugin.ts:22-23`、`content-ledger.ts:60` | 保留着一条“等维护”分支，干净重建后没有出口，批合入后删掉。乙，**等干净 Home 批合入后再开** | 统筹 2026-10-30 |
 | RAC-2072 在 CI 上稳定超 50 ms（高优先级，统筹 10-30 转） | `tests/code-scale.e2e.test.ts:88`、`plugins/native/coding/src/code-paint-client.ts` | 第一个着色片的强制布局 47～51 ms，最长帧 50.2～58.4 ms，T-131 #1575 的 Full 连红 4 次。已进 T-322（设备 A，乙），合入前统筹按用户 10-15 规则跳过并在 PR 上引用本行；合入后在 #1332 报，删本行 | 统筹 2026-10-30 |
+| T-235 二审 建议①（#1604，6530586548；统筹 10-30 裁） | `tests/ppt-outline-length.e2e.test.ts:64`、`:94` | RAC-2222 里 `slides() >= 1` 是空断言（新建演示稿本来就带一页空白幻灯片）。改成「提交后页数 > 提交前」或断言具体页标题。加强断言不算放宽。丙，等 #1604 合入后写书 | 统筹 2026-10-30 |
+| T-235 二审 建议②（#1604；统筹 10-30 裁） | `plugins/native/ppt/src/browser/outline.ts`、`tests/ppt-outline-length.e2e.test.ts` | 大纲框里放超多 emoji（约 20000 个字）时真 Backspace 慢：B 超时 15 秒、A 复现到 120 秒，单单元汉字只要 8 ms。处理器本身 O(n)，成因未证实。先复现并量，**复现不了就关本行**；找到原因前不派人。乙 | 统筹 2026-10-30 |
+| T-313 二审 建议（#1611，6530668889） | `horizontal/knowledge/src/text.ts`（`clipAround` 起点）、`horizontal/knowledge/src/locate.ts:39`、`horizontal/knowledge/src/index.ts:103` | 同类按单元截：`clipAround` 的起点仍可能落在代理对中间；`tree.title.slice(0, 120)`、`card.brief.slice(0, HINT_CHARS)` 也按 UTF-16 单元。先核下游按什么数、是否已有单，再写书。乙 | 派单线 2026-10-30 |

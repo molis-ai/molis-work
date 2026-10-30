@@ -228,11 +228,11 @@ export function createLocalArtifactHttp() {
       const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
         .filter(item => !file || continuerReadsFile(item, file)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
       const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
-      const goals = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
+      const linked = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
       // Documents and other objects that link to this version (五.1), each answered by its own plugin; one that cannot answer is left out.
-      const referrers = goals && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
+      const referrers = linked && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
-      const links = goals ? { ...goals, referrers } : undefined;
+      const links = linked ? { ...linked, referrers } : undefined;
       const goalInput = !links || !context.goalsAvailable || await context.goalsAvailable();
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"

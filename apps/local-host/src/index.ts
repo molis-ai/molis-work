@@ -88,7 +88,7 @@ export {
 
 export { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions, type DemoFeedSourceOptions } from "./demo-feed-library.js";
 export { createNotificationDelivery, declaredNotificationReceivers } from "./plugin-notification-delivery.js";
-export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
+export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, artifactLinkSubjectActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
 export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
@@ -124,7 +124,7 @@ export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
-export { artifactActionProvider } from "./artifact-actions.js";
+export { artifactActionProvider, artifactLinkSubjectsPort } from "./artifact-actions.js";
 export { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";

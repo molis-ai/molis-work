@@ -201,6 +201,35 @@ export function isArtifactReferrersAction(action: { input_type?: string; output_
   return action.input_type === ARTIFACT_REFERRERS_INPUT_TYPE && action.output_type === ARTIFACT_REFERRERS_OUTPUT_TYPE;
 }
 
+/**
+ * 「被谁引用」 for the links a plugin declares (`artifacts.links`, BL-646): the 成果库 finds the edges itself and asks the plugin
+ * that declared their kind what its objects are called and where they open. An id the plugin cannot name (gone, or not for the
+ * caller) is left out of the answer, and the 成果库 shows the id. It is asked as the caller of `artifacts.links`, so it reaches the
+ * same audiences that action does; at most 200 ids per call, the 成果库 asks in batches.
+ */
+export const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
+export const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
+export const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = "molis.artifacts.link_subjects.v1";
+export interface ArtifactLinkSubjectsInput { ids: string[] }
+export interface ArtifactLinkSubject { id: string; title: string; open: { surface: string; id: string } }
+export interface ArtifactLinkSubjectsResult { objects: ArtifactLinkSubject[] }
+
+export function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult> {
+  const id = { type: "string", minLength: 1 };
+  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+    title: `链接到成果的${objectTitle}`, description: `按 id 读出链接到成果库版本的${objectTitle}的名字和打开位置；读不到的不返回，不修改数据。`,
+    kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [],
+    input_type: ARTIFACT_LINK_SUBJECTS_INPUT_TYPE, output_type: ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE,
+    input_schema: { type: "object", properties: { ids: { type: "array", items: id, minItems: 1, maxItems: ARTIFACT_LINK_SUBJECTS_BATCH } }, required: ["ids"], additionalProperties: false },
+    output_schema: { type: "object", properties: { objects: { type: "array", items: { type: "object", properties: { id, title: { type: "string" },
+      open: { type: "object", properties: { surface: id, id }, required: ["surface", "id"], additionalProperties: false } }, required: ["id", "title", "open"], additionalProperties: false } } },
+      required: ["objects"], additionalProperties: false } } };
+}
+
+export function isArtifactLinkSubjectsAction(action: { input_type?: string; output_type?: string }): boolean {
+  return action.input_type === ARTIFACT_LINK_SUBJECTS_INPUT_TYPE && action.output_type === ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE;
+}
+
 /** The version a link points at, as the 成果库 gives it out (`…/artifacts/<id>/versions/<n>`, with or without a project). */
 export function linkedArtifactVersion(href: string): ArtifactReference | null {
   let path: string;

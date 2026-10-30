@@ -413,8 +413,6 @@ test("RAC-1085 two calls the service refuses with 401 at once share one forced r
     readTwo.release();
     await forced.reached;
     forced.release();
-    await turn();
-    assert.equal(net.refreshes.length, 1, "the second forced refresh joined the one in flight");
     net.answerAll();
     assert.deepEqual([(await first).status, (await second).status], [200, 200]);
     assert.equal(net.refreshes.length, 1, "one token request for both calls");

@@ -108,7 +108,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 带 `L()` 文案 | 再加 `tests/i18n.test.ts` |
 | 路由 | 再加所有读这条路由的用例 |
 | 界面 | 受影响的浏览器用例（排时段、串行）；PR 模板里的浅深色与三个宽度的截图。动了共用样式、皮肤、外壳或底栏的，再跑 `pnpm visual:compare`：在本机 Chrome 里把关键界面按 1440、1024、390 三个宽度、浅深色各拍一张，与 main 逐像素比对（同一棵树拍两次一像素不差，所以有差就是分支的；报告在 `.impeccable/qa/review/visual/compare/report.html`，用法见 `scripts/visual-compare.mjs` 开头） |
-| 共享核心（contracts、kernel、plugin-sdk、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 58 分钟：2026-10-16 在 1,017 个文件上测，W5-12；之前串行 76–78 分钟） |
+| 共享核心（contracts、kernel、plugin-sdk、plugin-runtime、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 58 分钟：2026-10-16 在 1,017 个文件上测，W5-12；之前串行 76–78 分钟） |
 | 每个阶段收尾 | 全量一次，作为阶段证据 |
 
 测试与包的引用：一个测试进程既读包的 `src` 又读它的构建（包名、`dist`）就加载了两份，`instanceof`、模块级缓存和 `AsyncLocalStorage` 会对不上。改了包的出口、搬了名字或 rebase 之后，`node scripts/test-imports.mjs --check` 列出这样的测试，`--report` 按规则出重写计划（公开的名字走包入口，其余走 `dist` 里的同一个模块），`--write` 落地；`pnpm health:check` 对每个测试文件及独立子进程夹具要求这个数为零；改旧基线或 `--update` 也不能放过混用（`tooling/gates/README.md`）。
@@ -156,7 +156,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：
 
-- 改了 contracts、kernel、plugin-sdk 或任一 `modules/*`（名单是 rules.mjs 的 `corePackages` 与 `corePackagePrefixes`，第 6 节表里的「共享核心」一行同此）。
+- 改了 contracts、kernel、plugin-sdk、plugin-runtime 或任一 `modules/*`（名单是 rules.mjs 的 `corePackages` 与 `corePackagePrefixes`，第 6 节表里的「共享核心」一行同此）。
 - 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，共 25 个文件，不含 `index.ts` 出口，来源有三处。测试逐条核对这些来源：下面说“README 点到”的文件，README 里真有这个文件名；说“枢纽表”的，第 2 节的表里真有，README 里没有；两个 README 的「从哪里读代码」表里用途写了“装配”或“组合”的文件都在名单上；两个 README 里“阅读装配方式”指到的文件，在名单上或明确排除。
   - 两个包 README 按文件名点到的 17 个：local-host 的 `project-host`、`home-plugins`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`home-side`（宿主与它的 Home 的登记，W3-06 D0）；workbench 的 `ui-composition`、`shell-page-renderer`、`home-plugin-page`、`scripts/client/initialization`、`browser-assets`（workbench README 同一张表），以及 `builtin-plugins`、`plugin-catalog`、`plugin-workbench`（workbench README 不变量里“派生相应投影”那一句点到的 `src/` 下三个文件；注意 README 没点到客户端程序 `scripts/client/plugin-workbench`，它是下一条里的），再加 `apps/local-host/src/workbench-renderer.ts`（workbench README“阅读装配方式”指到的现有调用方，12 行，把 Workbench renderer 绑到这个 Host 的语言、桌面端口和 Goals 默认值上）。
   - 第 2 节枢纽表里把东西接在一起的 7 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（`AGENTS.md` 把每个新内置插件的装配点指到它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`，以及浏览器端的客户端程序 `scripts/client/plugin-workbench`。

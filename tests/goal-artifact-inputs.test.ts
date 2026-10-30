@@ -51,7 +51,8 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   assert.deepEqual([recorded.input.reference, recorded.input.proposed, recorded.replayed], [{ artifact_id: "pages-brief", version: 2 }, false, false]);
   assert.equal((await (await post({ reference: { artifact_id: "pages-brief", version: 2 }, used: true })).json() as { replayed: boolean }).replayed, true);
   assert.match(await (await fetchProject(`${origin}/api/goals/V1/document`)).text(), /data-goal-input-fixed>[\s\S]*?<strong>[^<]+<\/strong><\/a><span class="goal-input-mode" data-goal-input-mode="fixed">固定的第 2 版<\/span>/);
-  assert.match(await detail(2), new RegExp(`href="/projects/${DEMO_PROJECT_ID}/goals/V1">[^<]+</a><span>输入</span>`));
+  // Listed under Goals and opened as a workbench item (BL-646, RAC-2085).
+  assert.match(await detail(2), /data-artifact-linked-plugin="io\.molis\.work\.goals"><li><a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="V1" data-workbench-item-title="[^"]+">[^<]+<\/a><span>输入<\/span>/u);
 
   // An archived version is neither offered nor accepted; removing keeps the version itself.
   library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 1 });

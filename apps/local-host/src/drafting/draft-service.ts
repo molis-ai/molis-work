@@ -52,7 +52,11 @@ function baseInput(input: DraftInput): Record<string, unknown> {
     if (value !== undefined) base[target.material_field] = value;
   }
   const shape = properties.request_id;
-  if (isRecord(shape) && !present(base.request_id)) base.request_id = input.request_id.slice(0, typeof shape.maxLength === "number" ? Math.min(160, shape.maxLength) : 160);
+  if (isRecord(shape) && !present(base.request_id)) {
+    // The schema's maxLength counts characters (the kernel's Ajv counts code points), so cut in whole characters and never past that many.
+    const max = typeof shape.maxLength === "number" ? Math.min(160, shape.maxLength) : 160;
+    base.request_id = [...input.request_id.slice(0, 2 * max)].slice(0, max).join("");
+  }
   return base;
 }
 

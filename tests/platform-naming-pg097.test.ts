@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { closeSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readlinkSync, readSync, rmSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readlinkSync, readSync, realpathSync, rmSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -66,7 +66,7 @@ test("RAC-427: no current tracked text reads the retired helper variables; the m
 
 test("RAC-427: the platform storage function carries no Feed name, and the path it returns is unchanged", () => {
   assertRetiredNameAbsent(tracked, retiredStorageName);
-  runWithMolisWorkHome("/tmp/pg097-home", () => assert.equal(resolveHomeSecurityDirectory(), path.join("/tmp/pg097-home", "feed")));
+  runWithMolisWorkHome("/tmp/pg097-home", () => assert.equal(resolveHomeSecurityDirectory(), path.join(realpathSync("/tmp"), "pg097-home", "feed"), "S-11 resolves the Home to its real path at entry: on macOS /tmp is a link to /private/tmp, so the storage path is the real one"));
 });
 
 test("RAC-427: writing either retired name in previously omitted tracked text makes the real check fail", () => {

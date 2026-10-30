@@ -4,7 +4,7 @@ import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
 import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
 import { notionOAuthConfigured } from "./notion-oauth.js";
 import { connectorMethodsOf } from "./host-connector-methods.js";
-import { builtinIntegrationDeclarations, type IntegrationDeclarationsView } from "./builtin-integrations.js";
+import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
 
 /**
@@ -45,8 +45,13 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView): r
   });
 }
 
-export const HOST_CONNECTOR_DIRECTORY: readonly ConnectorDirectoryEntry[] = connectorDirectory(builtinIntegrationDeclarations());
-const HOST_DECLARED = new Map(builtinIntegrationDeclarations().connectionServices().map(({ declaration }) => [declaration.service_id, declaration]));
+/**
+ * The services a connection can be made to in this Home: what the Home's registry declares now, a built-in plugin's and an installed
+ * integration package's alike. It is built on each call, so a package attached or detached is seen at once.
+ */
+export async function homeConnectorDirectory(home: string): Promise<readonly ConnectorDirectoryEntry[]> {
+  return connectorDirectory(await homeIntegrationRegistry(home));
+}
 
 function githubClientIdConfigured(): boolean {
   try {
@@ -55,20 +60,24 @@ function githubClientIdConfigured(): boolean {
   return Boolean(readProductEnv("GITHUB_CLIENT_ID"));
 }
 
-/** Whether the product can sign in to the service by its declared `oauth` method: a broker, or a client the declaration accepts. */
-export function connectorLoginReady(serviceId: string): boolean {
-  const declaration = HOST_DECLARED.get(serviceId);
-  return declaration ? connectorMethodsOf(declaration).some(method => method.kind === "oauth" && method.login_ready) : false;
+/**
+ * Whether the product can sign in to the service by its declared `oauth` method: a broker, or a client the declaration accepts.
+ * Read from this Home's registry, so a service an installed package declares is answered the same way as a built-in one.
+ */
+export async function connectorLoginReady(home: string, serviceId: string): Promise<boolean> {
+  const entry = (await homeConnectorDirectory(home)).find(row => row.connector_id === serviceId);
+  return Boolean(entry?.method_options?.some(method => method.kind === "oauth" && method.login_ready));
 }
 
-/** The services a connection can be made to, with whether their OAuth apps are configured; accounts are the connections themselves. */
-export function listConnectorSettingsCards() {
-  return HOST_CONNECTOR_DIRECTORY.map((entry) => entry.availability === "placeholder"
+/**
+ * The services a connection can be made to in this Home, with whether their OAuth apps are configured; accounts are the connections
+ * themselves. Read again on each listing: whether the product's client is configured may have changed.
+ */
+export async function listConnectorSettingsCards(home: string) {
+  return (await homeConnectorDirectory(home)).map((entry) => entry.availability === "placeholder"
     ? { ...entry, github_client_id_configured: false }
     : {
       ...entry,
-      // Read again on each listing: whether the product's client is configured may have changed.
-      method_options: HOST_DECLARED.has(entry.connector_id) ? connectorMethodsOf(HOST_DECLARED.get(entry.connector_id)!) : entry.method_options,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
       notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,
     });

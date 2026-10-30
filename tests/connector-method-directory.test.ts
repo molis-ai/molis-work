@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
 import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
-import { HOST_CONNECTOR_DIRECTORY, listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
+import { listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
 import { recommendedMethod, renderConnectorSetup } from "../apps/workbench/src/settings-connector-guide.ts";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts/connectors-settings.ts";
+
+// A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
+// without the three flags a listing adds from this machine's own settings.
+const HOME = "connector-method-directory-test-home";
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
 
 test("every catalog service and the two host account services have official method choices", () => {
   const ids = new Set(["github", "gmail", ...CATALOG_CONNECTORS.map((row) => row.id)]);
@@ -46,7 +51,7 @@ test("restricted or preview methods retain their real availability limits", () =
   hasNote("bitbucket", "token", /App Password 已停用/);
 });
 
-test("all current Connector cards expose a method directory with safe official links", () => {
+test("all current Connector cards expose a method directory with safe official links", async () => {
   assert.deepEqual(
     new Set(HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id)),
     new Set([...Object.keys(OFFICIAL_CONNECTOR_METHODS), "model-api", "typesafe", "image-api", "mcp-bearer"]),
@@ -57,7 +62,7 @@ test("all current Connector cards expose a method directory with safe official l
       assert.ok(method.links.every((link) => link.url.startsWith("https://")), `${row.connector_id}:${method.kind}`);
     }
   }
-  const settingsCards = listConnectorSettingsCards();
+  const settingsCards = await listConnectorSettingsCards(HOME);
   assert.deepEqual(new Set(settingsCards.map((row) => row.connector_id)), new Set(HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id)));
   assert.ok(settingsCards.every((row) => row.method_options?.length), "settings endpoint cards must forward method options");
   const html = renderConnectorsSettings({
@@ -86,8 +91,9 @@ test("every displayed official method has an executable host adapter and configu
   }
 });
 
-test("ASC-28: MCP method facts distinguish authentication from OAuth client registration", () => {
-  const mcp = (id: string) => listConnectorSettingsCards().find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
+test("ASC-28: MCP method facts distinguish authentication from OAuth client registration", async () => {
+  const cards = await listConnectorSettingsCards(HOME);
+  const mcp = (id: string) => cards.find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
   const github = mcp("github");
   assert.equal(github.mcp?.client_registration, "manual");
   assert.match(github.mcp?.note ?? "", /认证方式：OAuth 或 Bearer/);

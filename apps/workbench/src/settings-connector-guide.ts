@@ -62,7 +62,7 @@ const CONNECTOR_PURPOSE: Record<string, string> = {
 
 /** What a connector is for: the workbench's own sentence where it has one, else the catalog's summary (the catalog's words are its own; specs/font-and-skin-system FSS-36). */
 export function connectorPurpose(card: ConnectorSettingsCardView, L: Translate): string {
-  return card.connector_id in CONNECTOR_PURPOSE ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
+  return Object.hasOwn(CONNECTOR_PURPOSE, card.connector_id) ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
 }
 
 export function officialLinks(links: readonly ConnectorSetupLink[], p: ConnectorPrimitives): string {
@@ -86,7 +86,7 @@ const COMPOSITE: Record<string, { separator: string; fields: readonly [string, s
 
 export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPrimitives): { fields: string; separator?: string } {
   const { L, escapeHtml: e } = p;
-  const composite = COMPOSITE[card.connector_id];
+  const composite = Object.hasOwn(COMPOSITE, card.connector_id) ? COMPOSITE[card.connector_id] : undefined;
   const fields = composite ? composite.fields.map(([label, type, placeholder]) => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
     : `<label class="settings-connector-field"><span>${e(L(card.token_label || "API Key / 访问令牌"))}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
   return { fields, separator: composite?.separator };

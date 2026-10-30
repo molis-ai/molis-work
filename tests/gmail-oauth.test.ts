@@ -212,12 +212,12 @@ test("RAC-2485 / RAC-2486: the product's Gmail client is MOLIS_WORK_CONNECTOR_GM
   for (const key of keys) delete process.env[key];
   const origin = "http://127.0.0.1:19358";
   process.env.MOLIS_WORK_GMAIL_CLIENT_ID = "old-name-client"; process.env.MOLIS_WORK_GMAIL_CLIENT_SECRET = "old-name-secret";
-  assert.equal(connectorLoginReady("gmail"), false, "the old names are not a client");
+  assert.equal(await connectorLoginReady(home, "gmail"), false, "the old names are not a client");
   await assert.rejects(startApiOAuth(home, { serviceId: "gmail", displayName: "Gmail", clientId: "", origin }), /Client ID/u);
   process.env.MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_ID = "product-client";
-  assert.equal(connectorLoginReady("gmail"), false, "the declaration wants a secret with the client");
+  assert.equal(await connectorLoginReady(home, "gmail"), false, "the declaration wants a secret with the client");
   process.env.MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_SECRET = "product-secret";
-  assert.equal(connectorLoginReady("gmail"), true);
+  assert.equal(await connectorLoginReady(home, "gmail"), true);
   const started = await startApiOAuth(home, { serviceId: "gmail", displayName: "Gmail", clientId: "", origin });
   assert.equal(new URL(started.authorization_url).searchParams.get("client_id"), "product-client");
   assert.doesNotMatch(JSON.stringify(started), /product-secret|old-name/u);

@@ -248,7 +248,8 @@ export type { FragmentOffersInput, FragmentActionOffer, FragmentOfferChoice, Fra
 /**
  * 成果库 helpers for a type your plugin produces (declared in the manifest's `artifacts.produces`): preview a version as a file,
  * pin the current object as a new version (`nextPinnedVersion` numbers it), compare a version with its object, start new work
- * from a version, and list your objects that link to one.
+ * from a version, list your objects that link to one, and name your objects behind the link kinds you declare (`artifacts.links`,
+ * at most `ARTIFACT_LINK_SUBJECTS_BATCH` ids per call).
  */
 export {
   defineArtifactPreviewAction, bindArtifactPreview,
@@ -256,10 +257,12 @@ export {
   defineArtifactCompareAction, bindArtifactCompare, sameArtifactFields, objectOrMissing,
   defineArtifactContinueAction, bindArtifactContinue,
   defineArtifactReferrersAction, linkedArtifactVersion, linksToArtifactVersion,
+  defineArtifactLinkSubjectsAction, ARTIFACT_LINK_SUBJECTS_BATCH,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   ArtifactPreviewInput, ArtifactPinInput, ArtifactPinResult, ArtifactLineHead, ArtifactCompareInput, ArtifactCompareResult, ArtifactCompareState,
   ArtifactContinueInput, ArtifactContinueResult, ArtifactReferrersInput, ArtifactReferrer, ArtifactReferrersResult,
+  ArtifactLinkSubjectsInput, ArtifactLinkSubject, ArtifactLinkSubjectsResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */

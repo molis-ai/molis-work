@@ -242,15 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
-// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
-// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
-// T-229 (MISC, T-190's review), RAC-2190–2191: a note row's preview drops a character cut in half, and the import dialog counts
-// characters instead of UTF-16 units, +106 B on this one asset (first +36 B; the counting loop T-229's review asked for, no array of a
-// whole file, adds the rest). Tried: the shorter form of both writes, a shared cut helper (longer), no new asset.
-// 统筹答 T-229 (2026-10-29, issue 1332 comment 6507055134) approved [76760, 76866]: the extra 70 B is what the review's iterator count costs.
+// T-115 (PG-060), RAC-2090–2093: the workbench takes Goals' styles and scripts from its registration. workbench.css +24 B: Goals'
+// narrow-screen rules (two of them moved out of the shell's responsive block, whose base rules are Goals') need an `@media` of their
+// own now that they leave the shell's. workbench.js +51 B: Goals' settings scripts run from the registration's `settingsClient`, inside
+// the page bootstrap like every plugin's, where the minifier renames their `L` and `form` against the bootstrap's own. Tried: dropping
+// indentation and joins (the server already strips them), trimming the scripts; the same PR takes 26,074 B off settings.css.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/jelly.js": [76760, 76866],
+  "/assets/molis-work-workbench.css": [1233694, 1233718],
+  "/assets/molis-work-workbench.js": [1148453, 1148504],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

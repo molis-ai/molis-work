@@ -10,7 +10,7 @@ import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.m
 import { pluginStylesBuildFixture } from "./fixtures/plugin-styles-build.ts";
 
 // PG-070 (RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts, per plugin, the rule
-// blocks that name it and are still there (the first slice's splitter; Goals' document styles, which page-assets imports
+// blocks that name it and are still there (the first slice's splitter; Goals' document styles, which its registered sheets put
 // straight into the shared sheets). A frame does not make the count zero and declaring a class shared does not hide a rule.
 // Each number only falls.
 //

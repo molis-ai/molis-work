@@ -1,4 +1,3 @@
-import { GOALS_PROPOSAL_MOBILE_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const RESPONSIVE_STYLES = `
   @container (max-width: 660px) {
     .goal-factor-nav, .goal-factor-panels { margin-left: 0; }
@@ -142,8 +141,6 @@ export const RESPONSIVE_STYLES = `
     .relation-form > footer button { align-self: flex-end; }
     .relation-editor-action { display: none; }
     .history-list li { grid-template-columns: 1fr; gap: 4px; }
-    .decision-record-heading { align-items: flex-start; }
-    .decision-guidance { grid-template-columns: 1fr; }
     .decision-guidance > section { border-right: 0; border-bottom: 1px solid var(--line); }
     .decision-guidance > section:last-child { border-bottom: 0; }
     .decision-scenario dl > div { grid-template-columns: 1fr; gap: 4px; }
@@ -151,7 +148,6 @@ export const RESPONSIVE_STYLES = `
     .decision-result { grid-template-columns: auto minmax(0, 1fr); }
     .decision-result-links { grid-column: 2; justify-items: start; }
     .decision-result-links a { justify-content: flex-start; text-align: left; }
-${GOALS_PROPOSAL_MOBILE_STYLES}
     .decision-reason { grid-template-columns: 1fr; gap: 4px; }
     .decision-reason > span { padding-top: 0; }
     .goal-situation { grid-template-columns: 1fr 1fr; }

@@ -33,6 +33,12 @@ export interface PluginWorkbenchRegistration {
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
   /**
+   * Where the shared workbench sheet puts what it holds of `stylesheet`: "over-shell" (the default) after the shell's own
+   * layers, so the plugin's rules win ties with them; "beneath-shell" before those layers (the canvas, density, primitives and
+   * finish), for a page the shell draws and restyles, so the shell's later rules still win ties with the plugin's.
+   */
+  readonly stylesheetLayer?: "over-shell" | "beneath-shell";
+  /**
    * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace (`.<project_plugin_id>-…`,
    * `[data-<project_plugin_id>-…]`) as a sheet of its own, which only the frames that need it link; every other rule stays in
    * the shared workbench sheet. These are the classes (no dot) of that namespace which something outside the plugin's own
@@ -69,6 +75,16 @@ export interface PluginWorkbenchRegistration {
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;
+  /**
+   * The rules of the settings pages this plugin's settings contributions draw. The settings sheet carries them, and so does the
+   * workbench sheet, where settings open inside a project.
+   */
+  readonly settingsStylesheet?: string;
+  /**
+   * For a plugin without a frame whose page the shell draws: the factories that page's script calls, by name. The shell takes
+   * them from this registration (`pluginPageClient`), never from the plugin's package.
+   */
+  readonly pageClients?: Readonly<Record<string, string>>;
   readonly searchRow?: PluginSearchRow;
   /**
    * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it

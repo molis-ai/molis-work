@@ -81,7 +81,7 @@ export {
 } from "./settings-models.js";
 
 export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
-export { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

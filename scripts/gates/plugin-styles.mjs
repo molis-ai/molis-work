@@ -19,9 +19,9 @@
 // reference budget, current budget and build declarations, so rules returning to the shared sheet remain visible. A new
 // prefix may move rules into the plugin's own sheet; --update records it when the measured remainder does not grow.
 //
-// Goals is measured the same way in spirit: it has no registered stylesheet and no frame, and `apps/workbench/src/page-assets.ts`
-// imports `GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES` and `PLANNING_SETTINGS_STYLES` straight into the shared sheets, so its
-// three explicitly enumerated document style constants are held there and frozen; this is not import discovery.
+// Goals is measured the same way in spirit, but by name: it has no frame, so its registration's `stylesheet` and
+// `settingsStylesheet` stay whole in the shared sheets, and the three style constants this gate has always counted there
+// (`GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES`, `PLANNING_SETTINGS_STYLES`) are held and frozen; this is not import discovery.
 //
 // A number may only fall. `--update` refuses when any plugin grew relative to the reference (with `--base`: the merge-base's
 // copy, otherwise the committed file) and it refuses to write a plugin the file does not know, so a new plugin with rules in
@@ -32,8 +32,8 @@
 //    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Text Stats is such a plugin today; its rules
 //    stay shared because it has no frame, and its number is not part of this budget.
 //  - Rules a plugin keeps in a host module rather than its registration stylesheet are not seen: only the registered
-//    `stylesheet` and, for Goals, the three constants named above are measured. A fourth Goals constant newly imported by
-//    page-assets is not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
+//    `stylesheet` and, for Goals, the three constants named above are measured. Rules Goals' registered sheets newly take in
+//    beyond those three are not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
 //    when adding the constant, then run plugin-styles-gate.test.ts and plugin-styles --base. No other Goals exports are scanned.
 //  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is
 //    not counted. Names only inside `:is()` or `:where()` are stripped before that verdict, so `:is(.feed-card){color:red}`
@@ -197,10 +197,10 @@ async function measureFromBuild(knownPrefixes) {
     if (rules > 0) measured[id] = rules;
   }
 
-  // Goals has no registered stylesheet and no frame: page-assets imports its document styles straight into the shared sheets.
+  // Goals has no frame: its registered sheets stay whole in the shared sheets; the three constants it has always counted are measured by name.
   const goals = await distModule("plugins/native/goals/dist/index.js", "the shell-drawn Goals document styles");
   const goalsStyles = ["GOALS_DOCUMENT_STYLES", "TRASH_GOAL_STYLES", "PLANNING_SETTINGS_STYLES"];
-  for (const name of goalsStyles) if (typeof goals[name] !== "string") return fail(`plugins/native/goals/dist/index.js no longer exports ${name}, which page-assets imports into the shared sheets`);
+  for (const name of goalsStyles) if (typeof goals[name] !== "string") return fail(`plugins/native/goals/dist/index.js no longer exports ${name}, which Goals' registered sheets put in the shared sheets`);
   const goalsRules = countRules(goalsStyles.map((name) => goals[name]).join(""));
   if (goalsRules > 0) measured.goals = goalsRules;
 

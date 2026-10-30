@@ -86,6 +86,9 @@ export class PluginPageAuthority {
    */
   private left(page: Page): ActionError {
     if (!this.activations.has(page.activation)) return refused();
+    // Only the page's own authority, no route permission: a page's grant is fixed when it is activated, and every withdrawal goes
+    // through `revoke` (`withdrawPages`), which closes the page as forbidden. If a grant could change while the page is open, this
+    // would have to check the route's permission too, or a page that lost it would still leave as a cancellation (T-218 S3).
     try { page.activation.assertCurrent(); } catch { return refused(); }
     return cancelled();
   }

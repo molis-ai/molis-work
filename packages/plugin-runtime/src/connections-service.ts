@@ -28,7 +28,8 @@ const HEADER_NAME = /^[a-z0-9!#$%&'*+.^_`|~-]{1,128}$/u;
 const HEADER_VALUE_INVALID = /[^\t\x20-\x7e\x80-\xff]/u;
 
 /**
- * The plugin's own signal for one request, as the platform reads a caller leaving: whatever reason the plugin aborts it for, it is a
+ * An in-process plugin's own signal for one request, as the platform reads a caller leaving (a sandboxed integration's request carries the
+ * broker's lifetime of the call instead, a platform reason that is not read here): whatever reason the plugin aborts it for, it is a
  * cancellation (`actions.cancelled`) while the call still has its authority (`authority` passes), and the authority's own error once it
  * has lost it. A refresh shared by the request then keeps its rotated tokens only for a cancellation, and a call whose authority is gone
  * cannot make its abort one (S-95, T-218). `done` takes the listener off the plugin's signal when the request ends.
@@ -183,16 +184,15 @@ export function createCallConnectionsClient(port: CallConnectionsPort, connectio
       enter(slot, request?.record_key);
       const checked = connectionRequest(request);
       if (checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("集成拉取只能发 GET 或 HEAD 请求");
-      const own = ownSignal(request?.signal, () => call.current());
-      try {
-        const signal = AbortSignal.any([call.signal, own.signal].filter(item => item !== undefined));
-        const current = currentFor(signal);
-        const beforeEffect = async () => { current(); await call.beforeEffect(); current(); };
-        await beforeEffect(); current();
-        const response = await port.request(connection, { ...checked, signal, beforeEffect, current });
-        await beforeEffect();
-        return response;
-      } finally { own.done(); }
+      // Not the plugin's own signal: a sandboxed plugin cannot hand one in, and the one here is the broker's lifetime of the call. Its
+      // reason (`sandbox.stopped` when the integration is switched off or removed) is the platform's, passed on as it is (T-218 M1).
+      const signal = AbortSignal.any([call.signal, request?.signal].filter(item => item !== undefined));
+      const current = currentFor(signal);
+      const beforeEffect = async () => { current(); await call.beforeEffect(); current(); };
+      await beforeEffect(); current();
+      const response = await port.request(connection, { ...checked, signal, beforeEffect, current });
+      await beforeEffect();
+      return response;
     },
     async describe(slot: string, record_key?: string): Promise<PluginConnectionDescription> {
       enter(slot, record_key);

@@ -26,9 +26,11 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 //   platform withdrew by aborting it: only a cancellation (an abort for `cancelled` or `timeout`, or an `AbortError`) is the caller leaving.
 //   What counts is what holds after the last wait before the write: a call that passed its check and lost its authority while another's
 //   check or the declaring plugin's lookup was out keeps nothing either (S-95, #1479 统筹裁定 T-063).
-// - RAC-2458～2462 (T-218): the person closing a plugin page, its request ending, and a plugin aborting its own request are the caller
-//   leaving: the platform aborts them as `actions.cancelled`, so the rotated tokens are kept. Only while the call still has its authority:
-//   one that has lost it is aborted for that, and keeps nothing (a page whose activation is withdrawn, a plugin without its grant).
+// - RAC-2458～2461 (T-218): the person closing a plugin page, its request ending, and an in-process plugin aborting its own request are
+//   the caller leaving: the platform aborts them as `actions.cancelled`, so the rotated tokens are kept. Only while the call still has its
+//   authority: one that has lost it is aborted for that, and keeps nothing (a page whose activation is withdrawn, a plugin without its grant).
+// - RAC-2462～2464 (T-218 M1): a sandboxed integration hands in no signal of its own; the one its request carries is the broker's lifetime
+//   of the call, whose reason (`sandbox.stopped`) is the platform's and passed on as it is, so a stopped integration keeps nothing.
 // - RAC-1087: a connection bound to another plugin, publisher or token endpoint, or to none, is marked for reauthorization before its
 //   refresh token or client secret is sent anywhere.
 // - RAC-1088: while the declaring plugin is disabled, the connection sends nothing and refreshes nothing; enabled again, it works.
@@ -568,7 +570,10 @@ test("S-95 RAC-2460 RAC-2461 a plugin aborting its own request is a cancellation
   });
 });
 
-test("S-95 RAC-2462 a sandboxed integration aborting its own request is a cancellation only while its call is current", async () => {
+// T-218 M1: a sandboxed plugin cannot hand in a signal of its own (broker.ts); the one a sandboxed integration's request carries is the broker's
+// lifetime of the call, ended by the platform (`sandbox.stopped` when the integration is switched off or removed). Its reason is passed on as
+// it is, current call or not, so a shared refresh reads it as the platform's and keeps nothing (RAC-2463 runs the real broker on darwin).
+test("S-95 RAC-2462 a sandboxed integration's request ended by the broker carries the broker's own reason, never made a cancellation", async () => {
   for (const lost of [false, true]) {
     let current = true, reason: unknown;
     const control = connectorControl({ current: () => { if (!current) throw new ActionError("actions.forbidden", "这次拉取已失去授权"); } });
@@ -576,11 +581,12 @@ test("S-95 RAC-2462 a sandboxed integration aborting its own request is a cancel
       dispatch.signal.addEventListener("abort", () => { reason = dispatch.signal.reason; reject(reason); }, { once: true });
     }), describe: () => ({ bound: true }) };
     const client = createCallConnectionsClient(port, { plugin_id: "io.molis.work.example.pull", service_id: "asana", connection_id: "connection" }, "source", control);
-    const own = new AbortController(), answered = client.request("source", { url: ASANA_ME, signal: own.signal });
+    const broker = new AbortController(), answered = client.request("source", { url: ASANA_ME, signal: broker.signal });
     await turn();
     if (lost) current = false;
-    own.abort(new Error("插件不要了"));
+    const stopped = new ActionError("sandbox.stopped", "沙箱已停止");
+    broker.abort(stopped);
     await assert.rejects(answered);
-    assert.equal(codeOf(reason), lost ? "actions.forbidden" : "actions.cancelled", lost ? "a call no longer current is withdrawn" : "a current call leaving is a cancellation");
+    assert.equal(reason, stopped, lost ? "a call no longer current still carries the broker's reason" : "a current call ended by the broker is not a cancellation");
   }
 });

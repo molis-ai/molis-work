@@ -6,12 +6,20 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import { maintainCharactersOrphans } from "./fixtures/characters-orphan-maintenance.mjs";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 function fixture(t: test.TestContext) {
   const home = mkdtempSync(join(tmpdir(), "characters-orphans-")), file = join(home, "project.db");
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const store = new LocalProjectDatabase(file); writeProjectRoot(store.db, "project", "then");
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
+  artifacts.commands.registerVersion({ project_id: "project", actor_id: "owner", artifact_id: "fixed-character", version: 1,
+    artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
+    producer: { plugin_id: CHARACTER_PLUGIN_ID, plugin_version: "0.3.0", binding_signature: CHARACTER_PUBLISHER_SIGNATURE },
+    ...pinnedArtifact("published Character"), content: { kind: "inline", payload: parseCharacterContent({ character_id: "character", title: "published Character", instructions: "retained instructions", host_tools: null, source: { owner_actor_id: "owner", draft_revision: 1 } }) } });
   for (const [install, plugin] of [["old", "io.molis.work.characters"], ["kept", "io.example.kept"]]) {
     store.db.prepare("INSERT INTO plugin_runtime_installs VALUES(?,?,'host')").run(install, JSON.stringify({ plugin_id: plugin, permissions: ["storage:private"] }));
     store.db.prepare("INSERT INTO plugin_runtime_release_artifacts VALUES(?, 'publisher', '1', 'digest', '{}')").run(plugin);
@@ -35,6 +43,7 @@ test("RAC-2329 Characters cleanup removes only the named installation and its sc
   assert.deepEqual(readFileSync(file), bytes); assert.doesNotMatch(JSON.stringify(listed), /private-value|kept body|io.example/u);
   assert.equal(maintainCharactersOrphans(file, true).changed, true);
   const after = dump(file);
+  assert.equal(after.library_artifact_versions.length, 1, "the old Characters installation is removed, its fixed published version remains");
   for (const [table, rows] of Object.entries(before)) {
     const expected = table in listed.remove ? rows.filter(row => row.install_id !== "old" && row.source_install_id !== "old" && row.subscriber_install_id !== "old"
       && row.sender_install_id !== "old" && row.plugin_id !== "io.molis.work.characters" && row.resolution_id !== "old") : rows;

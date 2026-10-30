@@ -25,7 +25,7 @@ import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { browserAddress } from "../apps/local-host/dist/browser/browser-host.js";
+import { browserAddress, safeFilename } from "../apps/local-host/dist/browser/browser-host.js";
 import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
 
 /*
@@ -236,4 +236,32 @@ test("a workspace file is read whole for a preview (plugins only), still inside 
     assert.deepEqual(kind, ["directory", "text", "bytes"]);
     assert.match(workspaceReadActions.file.action.description, /bytes.*宿主运行的.*capabilities\.consumes.*插件.*生成的沙箱插件.*拒绝/u);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+// ---- T-231: the name a saved download keeps ---------------------------------------------------------------------------------
+/** A half of a two-unit character whose other half is missing: what a cut in the middle of one leaves at the end. */
+const LONE_HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+
+test("RAC-2200 a download's file name is cut in whole characters, and its extension is kept", () => {
+  // A name of 200 units or fewer comes back as it was (only the characters a file name cannot hold are replaced).
+  for (const name of ["report.pdf", "照片 2026-10-30.png", `${"a".repeat(195)}.pdf`, `${"a".repeat(196)}.pdf`]) {
+    assert.equal(safeFilename(name), name, `${name.length} units fit`);
+  }
+  assert.equal(safeFilename("a/b:c*.pdf"), "a_b_c_.pdf");
+  // A name over the limit without an extension is cut at 200 units, as before.
+  assert.equal(safeFilename("x".repeat(250)), "x".repeat(200));
+  // With an extension the base is cut to leave room for it, so the extension is never lost.
+  assert.equal(safeFilename(`${"x".repeat(200)}.pdf`), `${"x".repeat(196)}.pdf`);
+  assert.equal(safeFilename(`${"y".repeat(198)}.html`), `${"y".repeat(195)}.html`);
+  // Cutting in UTF-16 units would end inside this 🙂, and the whole extension would go with it; a whole-character cut keeps it.
+  const split = safeFilename(`${"x".repeat(195)}🙂.pdf`);
+  assert.equal(split, `${"x".repeat(195)}.pdf`);
+  assert.deepEqual([split.length, LONE_HALF.test(split), split.endsWith(".pdf")], [199, false, true], "no half of a character, the extension kept");
+  // The character that fits is kept whole: 196 x's and the 🙂 are 198 units, the cut is inside neither.
+  assert.equal(safeFilename(`${"x".repeat(196)}🙂.pdf`), `${"x".repeat(196)}.pdf`);
+  // An extension-looking tail that is not one (11 letters, or a bare dot) is part of the base: it is cut, not protected.
+  assert.equal(safeFilename(`${"z".repeat(200)}.abcdefghijk`), "z".repeat(200));
+  assert.equal(safeFilename(`${"z".repeat(200)}.`), "z".repeat(200));
+  // Nothing left to name is a download, as before.
+  assert.equal(safeFilename(""), "download");
 });

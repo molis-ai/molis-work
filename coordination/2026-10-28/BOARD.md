@@ -227,7 +227,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | W5-10 余下的巨大单元（T-060、T-061） | Claude（设备 A） | T-058（#1387）、T-059（#1410）已合入，它们的锁已放（统筹 2026-10-29 06:35Z）；T-060、T-061 等 #1101 |
 | W5-11 第 4～10 片（声明式 OAuth 余下，含 BL-790 第 10 片；号从 T-062 起） | Claude（设备 A） | 每片开工时在 #1332 的【方案】里报，统筹记到这里 |
 | 合同链 T-110～T-113（PG-111 Feed 加 MISC:19 → W5-14 R-A5/R-A6 → PG-111 Goals 加 BL-781 → BL-646，串行） | Claude（设备 A） | 每本开工时在 #1332 的【方案】里报，统筹记到这里；T-112 等 T-165（Goals board- 文件改名）合入后再开工（统筹 2026-10-29 03:40Z）；T-165 已合入（#1441，main `5a88022f7`），T-112 可开工 |
-| 工作台摘 Goals 链 T-114～T-118（PG-094 ② 加 PG-060 → PG-060 末片 → PG-064 → 小收尾，串行；不碰 T-043 的文件）。ESTIMATE 第 66、67 行即本链前两项（统筹 2026-10-29 05:00Z：T-170 不发，并入 T-114；起草线材料 `task-drafts/STOPPED-goal-aliases.md`） | Claude（设备 A） | 同上 |
+| 工作台摘 Goals 链 T-114～T-118（T-114 已合入 #1524；T-115 统筹 10-30 04:00Z 派给 t281-ca，RAC-2090～2099；PG-094 ② 加 PG-060 → PG-060 末片 → PG-064 → 小收尾，串行；不碰 T-043 的文件）。ESTIMATE 第 66、67 行即本链前两项（统筹 2026-10-29 05:00Z：T-170 不发，并入 T-114；起草线材料 `task-drafts/STOPPED-goal-aliases.md`） | Claude（设备 A） | 同上 |
 | 连接器尾巴 T-119～T-122（BL-740、`integration-providers.ts`、FI-7b、BL-530 批 B） | Claude（设备 A） | 同上 |
-| 零碎甲行 T-123（MISC:10；T-036 已合入 main `1fb5cf413`，可开工）、T-124（MISC:18，等 T-042）；只出方案 T-125（BL-802）、T-126（BL-636） | Claude（设备 A） | 同上；T-125、T-126 用户裁完才写代码 |
+| 零碎甲行 T-123（MISC:10；T-036 已合入 main `1fb5cf413`，可开工；统筹 10-30 04:00Z 派给 t280-ca，RAC-2100～2104）、T-124（MISC:18，等 T-042）；只出方案 T-125（BL-802）、T-126（BL-636） | Claude（设备 A） | 同上；T-125、T-126 用户裁完才写代码 |
 | 双实例页面归属 T-127（改成「哪一半有舞台视图就由哪一半画」，先出【方案】，含半边停着时的判据） | Claude（设备 A） | `apps/local-host/src/home-plugin-http.ts`、`apps/local-host/src/project-plugin-stages.ts`，其余在【方案】里报 |

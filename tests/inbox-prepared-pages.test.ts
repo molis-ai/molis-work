@@ -132,7 +132,7 @@ test("completed Inbox generation returns the currently edited original document 
 test("RAC-2280 materials of 120000 UTF-16 units but 60000 characters (all emoji) are accepted", async t => {
   const f = await fixture(t);
   const body = "😀".repeat(60_000);
-  assert.equal(body.length, 120_000, "1.2 units a character: the old unit-counted check refused this");
+  assert.equal(body.length, 120_000, "2 units a character: the old unit-counted check refused this");
   const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
     { request_id: "rac-2280-materials", request_hash: "rac-2280", title: "材料整理", instructions: "按要求整理。",
       inputs: [{ entry_id: "entry-1", item_id: "item-1", revision: 1, title: "材料 1", body, url: null, source_label: "来源", captured_at: "initial", provenance: [] }] }) as { document: { title: string } };

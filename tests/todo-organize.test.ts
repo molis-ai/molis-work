@@ -406,6 +406,17 @@ test("RAC-1678: adopting a candidate keeps its whole why as the source's reason,
   assert.equal(reviewed.decision?.reason, reason, "the ignored candidate keeps its 100-character reason whole");
 });
 
+// T-222: organizing shares the materials of one request among model calls by counting each in whole characters, as it reads them. A 🟢 is one
+// character but two UTF-16 units; a family of three people joined by zero-width joiners is five characters (code points) and eight units.
+/** What the model was given in one call, read back from the one JSON line between BEGIN_ and END_ in the prompt's data (RAC-1698 and T-222 read the
+ * same line; `other` is that text without its 🟢, which RAC-1698 alone checks). */
+const givenMaterials = (prompt: InstructedPrompt) => {
+  const lines = prompt.data.split("\n");
+  const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
+  return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length,
+    other: [...entry.text].filter(character => character !== "🟢").join("") }));
+};
+
 test("RAC-1698: organizing reads a material's first 60000 whole characters: the model gets no half character, and only a material over 60000 characters is marked as partly read", async t => {
   // One 🟢 is one character but two UTF-16 units. The first material is "a" and 60000 of them: 60001 characters, one more than organizing
   // reads. Cut at 60000 units it would end with the first half of the 30000th 🟢; cut at 60000 characters it is "a" and 59999 of them.
@@ -413,30 +424,15 @@ test("RAC-1698: organizing reads a material's first 60000 whole characters: the 
   const long = { title: "六万零一个字的材料", text: "a" + "🟢".repeat(60_000) }, whole = { title: "四万个字的材料", text: "🟢".repeat(40_000) };
   const f = fixture(t, () => JSON.stringify({ candidates: [], reference_only: [] }));
   const { batch } = await f.me.invoke(organize.extract, { materials: [long, whole] });
-  // What the model was given of each material, read back from the one JSON line between BEGIN_ and END_ in the prompt's data.
-  const given = (prompt: InstructedPrompt) => {
-    const lines = prompt.data.split("\n");
-    const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
-    return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length,
-      other: [...entry.text].filter(character => character !== "🟢").join("") }));
-  };
   assert.equal(f.prompts.length, 2, "each of the two materials is a part of its own, as before");
-  assert.deepEqual(given(f.prompts[0]!), [{ material: 1, characters: 60_000, units: 119_999, other: "a" }],
+  assert.deepEqual(givenMaterials(f.prompts[0]!), [{ material: 1, characters: 60_000, units: 119_999, other: "a" }],
     "the model gets the first 60000 whole characters of the long material, no half character");
-  assert.deepEqual(given(f.prompts[1]!), [{ material: 2, characters: 40_000, units: 80_000, other: "" }],
+  assert.deepEqual(givenMaterials(f.prompts[1]!), [{ material: 2, characters: 40_000, units: 80_000, other: "" }],
     "the model gets all 40000 characters of the shorter material");
   assert.deepEqual(batch.materials.map(material => material.read), ["truncated", "read"], "only the material over 60000 characters is marked as partly read");
   assert.deepEqual(batch.materials.map(material => material.note), ["只读了前 60000 字", ""], "only that material says it read the first 60000 characters");
 });
 
-// T-222: organizing shares the materials of one request among model calls by counting each in whole characters, as it reads them. A 🟢 is one
-// character but two UTF-16 units; a family of three people joined by zero-width joiners is five characters (code points) and eight units.
-/** What the model was given in one call, read back from the one JSON line between BEGIN_ and END_ in the prompt's data (as RAC-1698 reads it). */
-const givenMaterials = (prompt: InstructedPrompt) => {
-  const lines = prompt.data.split("\n");
-  const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
-  return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length }));
-};
 const ofText = (text: string, extra: { title?: string; read?: "failed" } = {}) => ({ title: extra.title ?? "材料", text, ...(extra.read ? { read: extra.read } : {}) });
 const emoji = (count: number) => ofText("🟢".repeat(count));
 const plain = (count: number, character = "x") => ofText(character.repeat(count));
@@ -475,7 +471,7 @@ test("RAC-2157: organizing gives the model materials of 🟢 together as far as 
   // Each is 15000 characters and 30000 units. Two are 30000 characters and share a call; a third would make 45000, over the 40000 a call is given, and goes in the next.
   const f = fixture(t, nothing);
   const { batch } = await f.me.invoke(organize.extract, { materials: [{ ...emoji(15_000), title: "甲" }, { ...emoji(15_000), title: "乙" }, { ...emoji(15_000), title: "丙" }] });
-  assert.deepEqual(f.prompts.map(givenMaterials), [
+  assert.deepEqual(f.prompts.map(prompt => givenMaterials(prompt).map(({ material, characters, units }) => ({ material, characters, units }))), [
     [{ material: 1, characters: 15_000, units: 30_000 }, { material: 2, characters: 15_000, units: 30_000 }],
     [{ material: 3, characters: 15_000, units: 30_000 }],
   ], "materials 1 and 2 go to the first call, whole, and material 3 to the second");

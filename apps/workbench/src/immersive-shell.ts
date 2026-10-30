@@ -81,21 +81,6 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
 }
 
 /**
- * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
- * the person's own entries (灵光, 对话, 群聊 — reached from anywhere, so they come first),
- * where the work lives (home and the four backbone plugins), which tools this project uses,
- * and at the foot the account with the system settings.
- *
- * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
- * 全部工具 opens the rest in place, grouped, with the ways to extend them at the end. Everything
- * keeps its entry; nothing moves when the list opens. Every entry stays a direct child of the
- * list so the travelling selection chip can reach it.
- *
- * Only the backbone is listed here. Every other Plugin is listed in the group its view names
- * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
- * a Plugin never edits the shell.
- */
-/**
  * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
  * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
  * specs/archive/plugin-e2e-review/spec.md §3.1.
@@ -126,6 +111,18 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
   return [...going];
 }
 
+/**
+ * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
+ * where the work lives (the project home, then the backbone plugins), and which tools this
+ * project uses, in the group each plugin's view names (`group`, W5-06 2b): 灵光 leads the
+ * personal group, and one that names no group, including one added later, lands in 更多, so
+ * adding a Plugin never edits the shell.
+ *
+ * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
+ * 全部插件 opens the rest in place, grouped, and the ways to extend them are rendered separately
+ * by `renderPickerExtend`. Everything keeps its entry; nothing moves when the list opens. Every
+ * entry stays a direct child of the list so the travelling selection chip can reach it.
+ */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],

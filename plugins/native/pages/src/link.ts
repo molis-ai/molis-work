@@ -1,3 +1,5 @@
+import { wholeEnds } from "./whole-characters.js";
+
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 const HAS_SCHEME = /^[a-z][\w+.-]*:/iu;
 const BARE_DOMAIN = /^[\w-]+(\.[\w-]+)+([/?#].*)?$/u;
@@ -36,10 +38,10 @@ export function acceptedImageFile(file: { type: string; size: number }): boolean
 
 const MAX_CAPTION = 200;
 
-/** A one-line picture caption. Line breaks become spaces, and anything past 200 characters is cut. */
+/** A one-line picture caption. Line breaks become spaces, and anything past 200 UTF-16 units is cut, never between the two units of one character. */
 export function safePagesImageCaption(value: unknown): string {
   const raw = String(value ?? "").replace(/[\r\n\t]+/gu, " ").replace(/ {2,}/gu, " ").trim();
-  return raw.slice(0, MAX_CAPTION);
+  return wholeEnds(raw.slice(0, MAX_CAPTION));
 }
 
 /** Pixel width for an image block. Zero means the picture uses the full line. */
@@ -65,10 +67,10 @@ export function linkClickOpens(event: { button: number; metaKey: boolean; ctrlKe
   return event.metaKey || event.ctrlKey;
 }
 
-/** A one-line bookmark name. Line breaks become spaces, and anything past 120 characters is cut. */
+/** A one-line bookmark name. Line breaks become spaces, and anything past 120 UTF-16 units is cut, never between the two units of one character. */
 export function safePagesBookmarkTitle(value: unknown): string {
   const raw = String(value ?? "").replace(/[\r\n\t]+/gu, " ").replace(/ {2,}/gu, " ").trim();
-  return raw.slice(0, 120);
+  return wholeEnds(raw.slice(0, 120));
 }
 
 /** Short label for a bookmark card: the site, or the address of a mailto link. */

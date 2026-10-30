@@ -242,13 +242,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
-// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
-// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
-// page, not an asset, so removing it saves nothing here.
+// T-204 (MISC T-157/T-158 起草), RAC-1978–1984: the Pages page and editor cut what they tell the Assistant, a picture caption, a bookmark name and an export file name
+// on a whole character instead of between the two UTF-16 units of one, +80 B on pages.js and +198 B on pages-editor.js (one shared two-line function and its calls).
+// Tried: the same regex written at every call site, +64 B on pages.js (one call) but +450 B on pages-editor.js (nine calls), so the shared function is kept; no new asset,
+// no new text. Measured after merging main (which had admitted pages-editor.js to 707886 in T-203), so the editor's start is that 707886.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [707763, 707886],
+  "/assets/molis-work-plugins/pages.js": [38946, 39026],
+  "/assets/molis-work-pages-editor.js": [707886, 708084],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

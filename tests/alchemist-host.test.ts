@@ -424,18 +424,23 @@ test("RAC-2410: the Alchemist prompt is refused whole over the port's limit, and
   const schema = { type: "object", properties: { reply: { type: "string" } } };
   const input = (operationId: string, userPrompt: string) => ({ operationId, purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""),
     userPrompt, jsonSchema: schema });
+  // The approved port limit, pinned here independently of the implementation (统筹答 2026-10-30 16:33Z / 6527953411): 180,000 characters of
+  // data + 20,000 of instructions + 100 slack. Both inputs below are built from this number, so a caller that lowers its own limit without
+  // the contract changing fails the comparison and the exact case instead of shrinking the boundary with it.
+  const APPROVED_PROMPT_MAX_CHARS = 200_100;
+  assert.equal(ALCHEMIST_PROMPT_MAX_CHARS, APPROVED_PROMPT_MAX_CHARS, "the caller's limit is the approved 200,100");
   const prefix = alchemistPromptText("检查长度", schema, "").length;
-  // Exactly at the limit in characters but over it in UTF-16 units (the answers are two-unit characters), so the character count decides:
-  // this prompt passes; one more character is refused. A unit-counted limit would refuse this one, and `>=` would refuse it too.
-  const exact = "😀".repeat(ALCHEMIST_PROMPT_MAX_CHARS - prefix);
+  // Exactly at the approved limit in characters but over it in UTF-16 units (the answers are two-unit characters), so the character count
+  // decides: this prompt passes; one more character is refused. A unit-counted limit would refuse this one, and `>=` would refuse it too.
+  const exact = "😀".repeat(APPROVED_PROMPT_MAX_CHARS - prefix);
   await assert.rejects(port.generate(input("too-long", exact + "x")), { code: "alchemist.prompt_too_long", kind: "invalid" });
   assert.equal(requests, 0, "a prompt one character over the limit never reaches the model");
   assert.deepEqual((await port.generate(input("exact", exact))).json, { ok: true, value: { reply: "ok" } });
   assert.equal(requests, 1, "exactly at the limit in characters the prompt is dispatched");
-  // A prompt in the band the old 180,000 data-slot number refused (between 180,000 and the port's 200,100) is dispatched: the instructions
-  // ride in `system` here, so this prompt may use the port's whole limit.
+  // A prompt in the band the old 180,000 data-slot number refused (between 180,000 and the approved 200,100) is dispatched: the
+  // instructions ride in `system` here, so this prompt may use the port's whole limit.
   assert.deepEqual((await port.generate(input("band", "x".repeat(190_000)))).json, { ok: true, value: { reply: "ok" } });
-  assert.equal(requests, 2, "a prompt between 180,000 and the port's limit is dispatched");
+  assert.equal(requests, 2, "a prompt between 180,000 and the limit is dispatched");
   // 90,000 emoji are 180,000 UTF-16 units but 90,000 characters: the limit counts characters, so this prompt fits and is dispatched.
   assert.deepEqual((await port.generate(input("emoji-fits", "😀".repeat(90_000)))).json, { ok: true, value: { reply: "ok" } });
   assert.equal(requests, 3, "a prompt within the limit in characters is dispatched");

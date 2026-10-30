@@ -59,9 +59,13 @@ test("RAC-2220: the outline box takes 20000 two-unit characters, the same count 
   await open.waitFor(`document.querySelector('[data-ppt-outline-text]').value.length === ${2 * LIMIT}`);
   assert.deepEqual(await open.box(), { units: 2 * LIMIT, characters: LIMIT, only: true }, "20000 whole characters (40000 units) fit in the box");
   assert.equal(await open.noteHidden(), true, "the box was not capped, so nothing says it was");
+  // A flat run of 20000 emoji has no heading, and the outline action makes one slide per heading; replace it with a one-heading outline
+  // through the browser's own input, then submit: the deck must gain a slide, which one already has before submitting.
+  await open.replaceWith("# 标题\n## 第一节\n大字内容\n## 第二节\n更多内容");
+  const before = open.slides();
   await open.click("[data-ppt-outline-submit]");
   await open.waitFor("!document.querySelector('[data-ppt-outline-dialog]').open", 20_000);
-  assert.ok(open.slides() >= 1, "the action took the outline and made slides, so the page and the action take the same count");
+  assert.ok(open.slides() > before, `the action took the outline and made slides (${before} before, ${open.slides()} after; a draft already has one blank page)`);
 });
 
 test("RAC-2221: typing past 20000 characters stops at 20000 whole characters and says the limit the action uses", { timeout: 60_000 }, async t => {
@@ -86,10 +90,11 @@ test("RAC-2222: cutting back under the limit takes the prompt back and the outli
   assert.equal(await open.noteHidden(), false, "the length prompt is shown at the cap");
   const lang = await open.evaluate<string>("document.documentElement.lang");
   assert.ok(lang.startsWith("zh"), `the observation ran on a zh page (document lang ${JSON.stringify(lang)})`);
-  await open.replaceWith("短大纲");
+  await open.replaceWith("# 标题\n## 短大纲\n提示收回后仍要提交成功\n## 第二节\n再来一页");
   await open.waitFor("document.querySelector('[data-ppt-outline-error]').hidden === true");
   assert.equal(await open.noteHidden(), true, "back within the limit the prompt is taken back");
+  const before = open.slides();
   await open.click("[data-ppt-outline-submit]");
   await open.waitFor("!document.querySelector('[data-ppt-outline-dialog]').open", 20_000);
-  assert.ok(open.slides() >= 1, "the outline still submits after the prompt was taken back");
+  assert.ok(open.slides() > before, `the outline still submits and makes slides after the prompt was taken back (${before} before, ${open.slides()} after)`);
 });

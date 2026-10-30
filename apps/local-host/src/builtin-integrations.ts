@@ -18,7 +18,7 @@ export function builtinIntegrationDefinitions(providerFactory: IntegrationProvid
 }
 
 /** What a reader of the declarations may do: look, never declare. */
-export type IntegrationDeclarationsView = Pick<IntegrationDeclarations, "connectionServices" | "hasSource" | "integration" | "listIntegrations">;
+export type IntegrationDeclarationsView = Pick<IntegrationDeclarations, "connectionServices" | "hasSource" | "integration" | "listIntegrations" | "pluginName">;
 
 let builtinDeclarations: IntegrationDeclarations | undefined;
 

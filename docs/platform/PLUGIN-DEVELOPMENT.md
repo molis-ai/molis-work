@@ -233,6 +233,10 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 当前全局设置的贡献发现与这两项声明只对内置目录兑现；已安装 Runtime 插件仍会经过 SDK 声明校验，但尚未接上动态设置贡献与数据准备。细则见 [插件界面 Skill](../../skills/molis-plugin-dev/ui.md)。
 
+### 舞台的数据
+
+打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
+
 ## 插件版本升级
 
 插件发布新版本时，递增 Manifest `version`。`upgrade_compatibility` 只接受精确的 SemVer 来源版本；较高目标版本的来源必须早于目标版本，每个来源版本只能列在以下一项：
@@ -424,7 +428,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility` 和 `runtime`（只能写 `{ scope: "home" }`，见下）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
 
-**集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片现在还只列宿主自带的服务（BL-740）。
+**集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片、粘贴凭据的新建连接读这个 Home 的集成登记，所以包声明的服务有它的卡片、能新建连接，卸载后卡片随之消失（人建好的连接记录留着）。
 
 安装管理当前合同为 `plugins.install.preview@3`、`plugins.installed.list@2`：范围/来源与当前权限是各自输出的一部分，固定旧版本的引用须重新选择。两者只给本人，没有 MCP 工具；确认安装仍为 `plugins.install.confirm@1`。
 

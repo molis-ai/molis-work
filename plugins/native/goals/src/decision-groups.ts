@@ -1,7 +1,6 @@
 import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { findGoalView } from "./proposal-ui-model.js";
-import type { GoalsSafetyItem } from "./safety-ui-model.js";
-import type { GoalsDecisionView, GoalsDecisionGroup } from "./decision-view.js";
+import type { GoalsDecisionItem, GoalsDecisionView, GoalsDecisionGroup } from "./decision-view.js";
 
 export function goalTreeProposalNeedsDecision(proposal: GoalTreeProposalRecord): boolean {
   return (proposal.state === "pending" || proposal.state === "partially_applied") &&
@@ -24,14 +23,14 @@ export function goalTreeProposalAttentionGoalId(
   return null;
 }
 
-export function goalTreeProposalOwnerGoalId<T extends GoalsSafetyItem>(proposal: GoalTreeProposalRecord, view: GoalsDecisionView<T>): string | null {
+export function goalTreeProposalOwnerGoalId<T extends GoalsDecisionItem>(proposal: GoalTreeProposalRecord, view: GoalsDecisionView<T>): string | null {
   return goalTreeProposalAttentionGoalId(
     proposal,
     (goalId) => Boolean(findGoalView(view, goalId)),
   );
 }
 
-export function buildDecisionGroups<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>): GoalsDecisionGroup<T>[] {
+export function buildDecisionGroups<T extends GoalsDecisionItem>(view: GoalsDecisionView<T>): GoalsDecisionGroup<T>[] {
   const groups = new Map<string, GoalsDecisionGroup<T>>();
   const ensure = (goalId: string | null): GoalsDecisionGroup<T> => {
     const key = goalId ?? "$board";
@@ -53,11 +52,11 @@ export function buildDecisionGroups<T extends GoalsSafetyItem>(view: GoalsDecisi
     .sort((left, right) => right.goalTreeProposals.length - left.goalTreeProposals.length);
 }
 
-export function pendingDecisionCount<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>): number {
+export function pendingDecisionCount<T extends GoalsDecisionItem>(view: GoalsDecisionView<T>): number {
   return view.snapshot.goal_tree_proposals.filter((item) => goalTreeProposalNeedsDecision(item)).length;
 }
 
-export function countGoalDecisions<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>, goalId: string): number {
+export function countGoalDecisions<T extends GoalsDecisionItem>(view: GoalsDecisionView<T>, goalId: string): number {
   const group = buildDecisionGroups(view).find((item) => item.item?.goal.goal_id === goalId);
   return group?.goalTreeProposals.length ?? 0;
 }

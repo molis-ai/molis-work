@@ -49,11 +49,13 @@ function connectionFromRow(row: Row): ConnectorConnectionRecord {
   };
 }
 
-function requiredText(value: unknown, label: string, max: number): string {
-  if (typeof value !== "string" || !value.trim() || value.trim().length > max) {
+/** Counts UTF-16 units, unless told otherwise: ids a port admits by characters (`bind`) must be counted the same way here. */
+function requiredText(value: unknown, label: string, max: number, counted: "units" | "characters" = "units"): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (typeof value !== "string" || !text || (counted === "characters" ? [...text].length : text.length) > max) {
     throw connectorErrors["connector.connection.invalid"](`${label}不能为空且最多 ${max} 个字符`);
   }
-  return value.trim();
+  return text;
 }
 
 export type ConnectorTokenInput = { serviceId: string; displayName: string; token: string; accountLabel?: string | null; authMethod?: "token" | "oauth" };
@@ -353,8 +355,8 @@ export class ConnectorConnectionStore {
     // `plugin-installation:<install>`, or `…/project:<project>/record:<key>` for a `per_record` slot. One that does not read back is refused.
     const scope = requiredText(input.scopeId, "作用域", 512);
     if (isPluginBindingScope(scope) && !parsePluginBindingScope(scope)) throw pluginBindingErrors.scope_invalid("插件连接槽的作用域无效");
-    const plugin = requiredText(input.pluginId, "插件", 160);
-    const slot = requiredText(input.slotId, "用途", 160);
+    const plugin = requiredText(input.pluginId, "插件", 160, "characters");
+    const slot = requiredText(input.slotId, "用途", 160, "characters");
     this.db.prepare(`INSERT INTO connector_bindings (scope_id,plugin_id,slot_id,connection_id,updated_at)
       VALUES (?,?,?,?,?) ON CONFLICT(scope_id,plugin_id,slot_id) DO UPDATE SET connection_id=excluded.connection_id,updated_at=excluded.updated_at`)
       .run(scope, plugin, slot, connection.connection_id, this.now().toISOString());

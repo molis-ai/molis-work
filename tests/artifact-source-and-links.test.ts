@@ -117,9 +117,10 @@ test("a pinned document that moved to another place says so, instead of saying i
   assert.match(moved, /第一稿/);
 });
 
-// RAC-2088: an MCP client granted 「被谁引用」 and Goals' naming action reads the Goal titles, as it did when they came from Goals'
+// RAC-2088 RAC-2495: an MCP client granted 「被谁引用」 and Goals' naming action reads the Goal titles, as it did when they came from Goals'
 // directory; with the naming action taken away it sees the ids. RAC-2084: Goals names only the Goals that are there.
-test("RAC-2088 an MCP client reads the Goal titles under 「被谁引用」 when granted Goals' naming action, and ids without it", async t => {
+// RAC-2495: not being granted the naming action is told as a refusal by the kind the grant check gives it, not by its code.
+test("RAC-2088 RAC-2495 an MCP client reads the Goal titles under 「被谁引用」 when granted Goals' naming action, and ids without it", async t => {
   const served = await openTestHome(t);
   const project = await served.createProject("artifact-links-mcp");
   await seedDemoGoals(project.database_path, project.project_id);
@@ -151,5 +152,5 @@ test("RAC-2088 an MCP client reads the Goal titles under 「被谁引用」 when
   try {
     assert.deepEqual(await seen(), [["io.molis.work.goals", ["V1=V1"]]], "not granted the naming action: the id, and no failure");
   } finally { restore(); }
-  assert.deepEqual(entries.filter(entry => entry.event === "link_subjects_failed"), [], "not being granted it is an answer, not a failure to log (RAC-2089)");
+  assert.deepEqual(entries.filter(entry => entry.event === "link_subjects_failed"), [], "not being granted it is an answer, not a failure to log (RAC-2089, RAC-2495)");
 });

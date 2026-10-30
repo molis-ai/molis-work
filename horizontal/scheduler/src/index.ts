@@ -114,17 +114,6 @@ export const SCHEDULER_SCHEMA_SQL = `
 ${SCHEDULE_ACTION_BINDINGS_SCHEMA}
 `;
 
-export function scheduleFingerprint(db: ScheduleSqliteDatabase): string {
-  db.exec(SCHEDULER_SCHEMA_SQL);
-  const jobs = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS updated FROM schedule_jobs",
-  ).get() as { n: number; updated: string };
-  const wakeups = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(finished_at), '') AS updated FROM schedule_wakeups",
-  ).get() as { n: number; updated: string };
-  return JSON.stringify({ jobs, wakeups });
-}
-
 function abortExecutionAfterCommit(execution: { controller: AbortController } | undefined, reason: string, afterCommit: (effect: () => void) => void): void {
   afterCommit(() => execution?.controller.abort(new Error(reason)));
 }

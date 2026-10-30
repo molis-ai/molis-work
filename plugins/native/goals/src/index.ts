@@ -23,7 +23,6 @@ export * from "./goal-tree-contract.js";
 export * from "./policy-ui.js";
 export * from "./policy-ui-model.js";
 export { GOALS_POLICY_EN } from "./policy-en.js";
-export * from "./safety-ui-model.js";
 export * from "./tree-order.js";
 export { GOALS_SAFETY_EN } from "./safety-en.js";
 export * from "./policy-client.js";

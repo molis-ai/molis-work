@@ -103,7 +103,7 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 | S2 | BL-736 | 项目、Home、官方集成、开发目录四个生产点传 `inProcess`；夹具集合；§3.6 的门禁 | RAC-994～996 |
 | S3 | BL-737 | 私有开发宿主与 `developInPrivateHost` 限制，两个测试调整 | RAC-997 |
 | S4 | BL-738 | §3.7：Manifest 与沙箱定义逐项对账，必要时预览阶段拒绝 | RAC-998 |
-| S5 | BL-739 | 真实 Home 只读核对与（如有）维护；§3.8 的文档与 S-75 行 | RAC-999 |
+| S5 | 原BL-739（随干净重建取消） | 原真实Home只读核对与维护已取消（统筹T-321，6529444914）；§3.8现行说明与S-75行保持 | RAC-999（原核对不再执行） |
 
 | 编号 | 内容 | 证据 |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 | RAC-996 | 常驻宿主（项目与 Home）里，漏写 `trust` 的启动条目、夹具以外的 `unsigned` 进程内启动条目都被拒；登记的内置条目与沙箱包条目不受影响 | `tests/security-invariants-in-process.test.ts`（Runtime 与监督器）、`tests/security-invariants-in-process-host.test.ts`（常驻宿主的项目与 Home） |
 | RAC-997 | `developInPrivateHost` 只接受私有开发宿主；普通/真实 Home Host 被拒（`actions.forbidden`）；负载里的身份字段与项目不一致照旧被拒；真实开发入口只用其已校验状态自己的 Home，并保 Goals 公开 initialize 与同库破坏拒绝 | `tests/management-door-identity.test.ts`（前置拒绝用无参 factory）、`tests/goals-project-database-refusal.test.ts`（真实开发入口先成功，再破坏同一 development.db） |
 | RAC-998 | 映射不了沙箱形态的 Manifest 在预览阶段被拒并带具名码、不留装了不生效的状态；对账结果为空集：`readSandboxPackage` 已拒绝任何不等于沙箱形态的 Manifest（`plugin.declaration_invalid`，S-84），本片只补断言 | `tests/security-invariants-plugin-install.test.ts`（S-84 原有的加 7 个逐项用例） |
-| RAC-999 | 真实 Home 与各项目库的核对结果记入 `docs/`，无违例或已维护（**核对未做，见 BL-739**）；S-75 行、`ac-trust-install.md` C1/RAC-383、`THIRD-PARTY-PLUGINS.md` 与注释已按 §3.8 更新 | `pnpm health:check`；文档核对 |
+| RAC-999 | 原真实Home与各项目库核对随干净重建取消（原BL-739，T-321 6529444914），不将取消记为已核对；S-75 行、`ac-trust-install.md` C1/RAC-383、`THIRD-PARTY-PLUGINS.md` 与注释已按 §3.8 更新 | `pnpm health:check`；文档核对 |
 
 测试按槽位跑，只跑改到的文件：`packages/plugin-runtime` 的单元、`tests/security-invariants-in-process.test.ts`、新的门禁用例、`tests/plugin-development-artifacts.test.ts`、`tests/management-door-identity.test.ts`、`tests/goals-project-database-refusal.test.ts`，加 `pnpm test:security`；全量交 CI 与统筹。
 
@@ -126,7 +126,7 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 | --- | --- | --- |
 | D1 | 开发目录怎么处理（§3.3）。**统筹 2026-10-26 裁定 O2。** | **O2 保持进程内、收成唯一封闭例外（推荐）**；O3 只做沙箱形态（砍掉 Integration 的开发循环，产品取舍，要用户定）；O1 不推荐。统筹定 O2 就不必问用户；选 O3 要问用户 |
 | D2 | 例外机制的默认（§3.2）。**裁定 B。** | **B：没给 `inProcess` 就不查，生产靠门禁强制必写（推荐）**，改动在 Runtime、四个生产点与新门禁，测试几乎不动；A：必填（同 `hostIds`），裸 Runtime 也严格，约 85 个测试文件要机械改一遍（`hostIds: ISOLATED_HOST_IDS` 一族），换来的只是裸 Runtime 也严格，对生产没有额外保证 |
-| D3 | 真实 Home 只读核对（§3.5）。**统筹转述用户同意；会话里被权限分类器拦下，未做（BL-739）。** | 要读真实 Home 的副本，按规矩要用户同意。推荐 S5 前问一次；不同意就只在测试里证明、文档里写明未核对 |
+| D3 | 原真实Home只读核对（§3.5，原BL-739），当时被权限分类器拦下、未做；2026-10-30随干净重建取消（T-321 6529444914） | 不再推进旧Home核对或维护；现行安全拒绝由测试证明，真实重建另等用户“开始” |
 | D4 | `developInPrivateHost` 限制成私有开发宿主（§3.4）。**裁定做，已实现。** | 推荐做；代价是两个现有测试改造 Host 的建法 |
 | D5 | 安全表怎么记。**裁定扩 S-75 加 ⑥，已写。** | **扩 S-75 加 ⑥（推荐）**，同 D6 先例；新开 S 号则要等号段 |
 

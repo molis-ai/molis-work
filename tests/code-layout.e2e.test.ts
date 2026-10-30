@@ -110,6 +110,21 @@ test("VUX-33: a long physical line remains readable while its colouring advances
   assert.equal(await evaluate<string>("code.textContent"), source);
 });
 
+test("VUX-33: a large block put in before it is on the page reads whole and is coloured once it is laid out", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(BOOT);
+  // RAC-2077 (T-281): its colouring waits for its first layout instead of being dropped because it was not on the page yet.
+  await evaluate(`pre.remove(); window.text = ${JSON.stringify(SOURCE)}; paint.paintInto(code, text, 'ts')`);
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))");
+  assert.deepEqual(await evaluate("[code.textContent === text, code.querySelectorAll('[class^=tok-]').length]"), [true, 0], "off the page it reads whole and is not coloured yet");
+  await evaluate("document.body.prepend(pre)");
+  await waitFor("matches(text)", 30_000);
+  assertGeometry(await evaluate<Geometry>(codeGeometry), SOURCE);
+});
+
 test("VUX-33: Coding retains its pre and code line boxes, including text coloured before attachment", { timeout: 120_000 }, async t => {
   const browser = await openCoding(t); if (!browser) return;
   const { evaluate, waitFor, start } = browser;

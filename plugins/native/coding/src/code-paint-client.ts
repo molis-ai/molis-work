@@ -28,7 +28,7 @@ interface PaintElement extends PaintChild {
   replaceChildren(...nodes: (PaintNode | string)[]): void;
 }
 interface PaintObserver { observe(node: PaintElement, options?: { childList: boolean }): void; disconnect(): void }
-declare const ResizeObserver: new (changed: () => void) => PaintObserver;
+declare const ResizeObserver: new (changed: (entries: Array<{ contentRect: { height: number } }>) => void) => PaintObserver;
 declare const MutationObserver: new (changed: () => void) => PaintObserver;
 declare const document: { createTextNode(text: string): PaintText; createElement(tag: string): PaintElement;
   fonts: { addEventListener(event: string, changed: () => void): void; removeEventListener(event: string, changed: () => void): void } };
@@ -43,7 +43,8 @@ type Tokens = (text: string, language: string, from?: number) => Piece[];
  * coloured afresh (reopened from history) shows its text at once and is coloured a slice of lines a frame, the same way,
  * so later layout reads do not traverse one accumulated inline formatting context. Large blocks start colouring in the frame
  * after their first layout, so that layout carries no colouring: a resize observer on the first layout block is told after layout
- * and stops watching (user 2026-10-29, T-281); a block not laid out (not on the page, hidden) waits until it is. Small blocks colour where made. Newline-aligned blocks keep layout local, even when a small
+ * and stops watching once the block has a height (user 2026-10-29, T-281). A block not laid out (not on the page, hidden, or in a
+ * content-visibility subtree the browser skips, such as an offscreen Coding turn) waits until it is. Small blocks colour where made. Newline-aligned blocks keep layout local, even when a small
  * streamed block grows large; a newer text that keeps what is coloured goes on from there, a changed one starts at its line.
  * Pieces go in 4,096 at a time: one call with every piece of a large block would pass more arguments than the engine takes. `growCode` is
  * `molisStreamText`'s `grow` for a fenced block: the block, its copy button and its leading pieces stay, and `source` keeps the
@@ -131,7 +132,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
       job.state = next;
       if (job.at < job.text.length || !job.framed) requestAnimationFrame(() => step()); else slicing.delete(target);
     };
-    if (text.length <= SLICE) step(true); else (job.waiting = new ResizeObserver(() => { job.waiting?.disconnect(); if (slicing.get(target) === job) requestAnimationFrame(() => step()); })).observe(job.regions[0]!.node); return true;
+    if (text.length <= SLICE) step(true); else (job.waiting = new ResizeObserver((entries) => { if (!entries.some(entry => entry.contentRect.height)) return; job.waiting?.disconnect(); if (slicing.get(target) === job) requestAnimationFrame(() => step()); })).observe(job.regions[0]!.node); return true;
   };
   const blockLanguage = (code: PaintElement, text: string) => languageOf([...code.classList].find(name => name.startsWith("language-")) || "")
     || (/^\s*[[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : "");

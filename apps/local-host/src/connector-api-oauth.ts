@@ -410,8 +410,8 @@ export async function resolveApiOAuthToken(home: string, id: string, control: Co
  * One refresh of a connection, as `startSharedRefresh` runs it. Its request is checked before it is sent, never after (a sent refresh is
  * not abandoned: `connector-shared-refresh.ts`). The last check (W5-11 §2.6, N2(a)) comes after the answer and before anything is written:
  * the plugin declaring the service still enabled as the same install, the connection still bound to it, the connection still there at the
- * revision the refresh read. Then `settle` says what may be written: everything to the participants still waiting; only the rotated
- * credentials when every participant cancelled; nothing when one lost its authority. `outcome` says it once more after the last `await`.
+ * revision the refresh read. After `settle` and the last `await`, `outcome` says what may be written: everything to the participants still
+ * waiting; only the rotated credentials when every participant cancelled; nothing when one lost its authority.
  */
 async function renewed(home: string, id: string, read: { config: OAuthConfiguration; owner: OAuthServiceOwner; method: PluginOAuthMethodDeclaration; revision: string },
   refresh: SharedRefreshRun, { fetchImpl, network }: { fetchImpl?: typeof fetch; network?: OAuthNetwork }, owners: OAuthOwners): Promise<string> {
@@ -424,7 +424,8 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
   if (!next) throw new ApiOAuthError("刷新失败，请重新授权此连接");
   // A refresh sends no context request; it keeps what the token response says again, and what it leaves out stays as it was.
   const kept = declared(() => oauthKept(config.serviceId, method.keep?.map(keep => ({ ...keep, required: false })), json), config.serviceId);
-  if (await refresh.settle() === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
+  await refresh.settle();
+  if (refresh.outcome() === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
   const owner = await owners(config.serviceId);
   // The last await: from here to the write nothing yields, so the participants are asked once more now (S-95).
   const outcome = refresh.outcome();

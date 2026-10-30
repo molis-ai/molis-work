@@ -8,6 +8,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { completeApiOAuth, connectorProtocolSecrets, createPluginConnectionsPort, homeIntegrationRegistry, listConnectorConnectionViews, pluginSlotScope,
   readConnectorAccount, startApiOAuth, withConnectorConnections, withConnectorProtocols, type ConnectorProtocolConfiguration } from "@molis-ai/molis-work-app-local-host";
 import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 
@@ -27,6 +28,8 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 const ORIGIN = "http://localhost:19358";
 const ASANA_TOKEN = "https://app.asana.com/-/oauth_token";
 const ASANA_ME = "https://app.asana.com/api/1.0/users/me";
+const NOTION_TOKEN = "https://api.notion.com/v1/oauth/token";
+const NOTION_ME = "https://api.notion.com/v1/users/me";
 const unavailable = (error: unknown) => error instanceof ActionError && error.code === "connector.plugin_requests.connection_unavailable";
 const target = { plugin_id: "io.molis.work.example.sharedrefresh", install_id: "install-rac1085", slot_id: "account", service_id: "asana" };
 
@@ -52,18 +55,27 @@ async function connected(t: TestContext, expired = true) {
 /**
  * The token endpoint holds each refresh until the test releases it (answering access-n and refresh-n+1), or answers at once after
  * `answerAll`; the service answers 200, or 401 to the bearer `refused` names, and holds a read `holdRead` was asked for until released.
+ * For Notion, whose refresh still leaves by the global fetch until it joins the generic flow (W5-11 slice 7), that fetch answers the same.
  */
-function network(t: TestContext, refused?: string) {
+function network(t: TestContext, refused?: string, service: "asana" | "notion" = "asana") {
   const refreshes: Array<{ body: URLSearchParams; release: () => void }> = [], reads: string[] = [], held: Array<() => void> = [];
   const gates: Array<{ reached: () => void; open: Promise<void> }> = [];
   let arrived = () => {}, answering = false;
+  const tokenUrl = service === "notion" ? NOTION_TOKEN : ASANA_TOKEN, me = service === "notion" ? NOTION_ME : ASANA_ME;
+  const refreshed = async (body: string) => {
+    const index = refreshes.length;
+    await new Promise<void>(release => { refreshes.push({ body: new URLSearchParams(body), release }); arrived(); if (answering) release(); });
+    return Response.json(service === "notion"
+      ? { access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, workspace_id: "workspace", workspace_name: "Workspace", bot_id: "bot" }
+      : { access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, expires_in: 3600 });
+  };
+  if (service === "notion") t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
+    assert.equal(String(url), NOTION_TOKEN, "no other request by the global fetch");
+    return refreshed(String(init?.body ?? ""));
+  });
   oauthNetwork(t, async (url, init) => {
-    if (url === ASANA_TOKEN) {
-      const index = refreshes.length;
-      await new Promise<void>(release => { refreshes.push({ body: new URLSearchParams(init.body), release }); arrived(); if (answering) release(); });
-      return Response.json({ access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, expires_in: 3600 });
-    }
-    assert.equal(url, ASANA_ME, "no other request");
+    if (url === tokenUrl) return refreshed(init.body);
+    assert.equal(url, me, "no other request");
     const bearer = Object.entries(init.headers).find(([name]) => name.toLowerCase() === "authorization")?.[1] ?? "";
     reads.push(bearer);
     const gate = gates.shift();
@@ -85,13 +97,13 @@ function network(t: TestContext, refused?: string) {
  * One plugin call: its abort (by default the cancellation the action gateway makes when the caller goes, `actions.cancelled`), and an
  * authority it can lose without being aborted.
  */
-function call() {
+function call(url = ASANA_ME) {
   const abort = new AbortController();
   let withdrawn = false, gate: { reached: () => void; open: Promise<void> } | undefined;
   const current = () => { if (withdrawn) throw new Error("调用已失去授权"); };
   // `hold` keeps the call's next `beforeEffect` waiting until the test releases it, and says when it is reached.
   const beforeEffect = async () => { const held = gate; gate = undefined; if (held) { held.reached(); await held.open; } };
-  const dispatch: PluginConnectionDispatch = { ...connectorControl({ signal: abort.signal, current, beforeEffect }), url: new URL(ASANA_ME), method: "GET", headers: {}, signal: abort.signal };
+  const dispatch: PluginConnectionDispatch = { ...connectorControl({ signal: abort.signal, current, beforeEffect }), url: new URL(url), method: "GET", headers: {}, signal: abort.signal };
   const hold = () => {
     let reached!: () => void, release!: () => void;
     const at = new Promise<void>(resolve => { reached = resolve; });
@@ -220,6 +232,75 @@ test("S-95 RAC-1085 a call that lost its authority while the refresh asked who d
     assert.equal(protocol(), before.protocol);
     assert.deepEqual(net.reads, []);
   } finally { net.releaseAll(); }
+});
+
+/**
+ * A Home with a Notion account (access `old-access`, refresh `refresh-1`) bound to the plugin's slot. Notion keeps its own refresh until it
+ * joins the generic flow (W5-11 slice 7), under the same rules (`notion-oauth.ts`).
+ */
+async function notionConnected(t: TestContext) {
+  const home = await mkdtemp(join(tmpdir(), "oauth-shared-refresh-notion-")); t.after(() => rm(home, { recursive: true, force: true }));
+  const id = "22222222-2222-4222-8222-222222222222", prefix = `connector-connection:${id}`;
+  const refs = { access: `${prefix}:access`, refresh: `${prefix}:refresh`, workspace: `${prefix}:workspace` };
+  const secrets = <T>(run: (store: ReturnType<typeof createFileSecretStore>) => T) => runWithMolisWorkHome(home, () => run(createFileSecretStore()));
+  secrets(store => {
+    store.put("connector:notion:client_id", "notion-app"); store.put("connector:notion:client_secret", "notion-secret");
+    store.put(refs.access, "old-access"); store.put(refs.refresh, "refresh-1");
+  });
+  withConnectorConnections(home, store => {
+    store.upsertOAuth({ connectionId: id, serviceId: "notion", displayName: "Notion", accessRef: refs.access, refreshRef: refs.refresh });
+    store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: "notion", connectionId: id });
+  });
+  const stored = () => secrets(store => Object.fromEntries(Object.entries(refs).map(([key, ref]) => [key, store.get(ref)])));
+  return { home, stored, target: { ...target, service_id: "notion" } };
+}
+
+// Notion's refresh asked the participants for the last time at the end of `settle`, and wrote after `await refresh.settle()` resumed: a
+// withdrawal already queued ran in between (#1479 补位验证 6513862465, 统筹裁定 T-063). Whatever the code between the last check and the
+// write, a withdrawal that comes before anything is written must leave nothing written: the test withdraws both calls 0, 1, 2… microtasks
+// after the second call's check comes back, no timer involved, and at each depth either the write came first or nothing is written.
+test("S-95 RAC-1085 Notion: calls that lost their authority in the microtask after the refresh's last check came back keep nothing of the answer", { timeout: 60_000 }, async t => {
+  let withdrawnFirst = 0;
+  for (let depth = 0; depth <= 24; depth++) await t.test(`both withdrawn ${depth} microtasks after the second call's check came back`, async t => {
+    const { home, stored, target: slot } = await notionConnected(t), net = network(t, "Bearer old-access", "notion"), port = createPluginConnectionsPort(home);
+    const before = stored(), [first, second] = [call(NOTION_ME), call(NOTION_ME)];
+    try {
+      // Both calls read with the old token and are refused; the first's forced refresh goes out, then the second joins it.
+      const readOne = net.holdRead(), pending = [port.request(slot, first.dispatch)];
+      await readOne.reached;
+      const readTwo = net.holdRead();
+      pending.push(port.request(slot, second.dispatch));
+      await readTwo.reached;
+      const sent = net.next();
+      readOne.release();
+      await sent;
+      const joining = second.hold();
+      readTwo.release();
+      await joining.reached;
+      joining.release();
+      await turn();
+      assert.equal(net.refreshes.length, 1, "the second call joined the refresh in flight");
+      const settled = Promise.allSettled(pending);
+      // The first call's check passes at once, the second's is held; neither call is aborted.
+      const checking = second.hold();
+      net.refreshes[0]!.release();
+      await checking.reached;
+      let atWithdrawal: unknown, chain = Promise.resolve();
+      checking.release();
+      for (let step = 0; step < depth; step++) chain = chain.then(() => {});
+      void chain.then(() => { atWithdrawal = stored(); first.withdraw(); second.withdraw(); });
+      const results = await settled;
+      if (JSON.stringify(atWithdrawal) !== JSON.stringify(before)) {
+        assert.deepEqual(atWithdrawal, stored(), "written whole before the withdrawal, and nothing after it");
+        return;
+      }
+      withdrawnFirst += 1;
+      for (const result of results) assert.equal(result.status, "rejected");
+      assert.deepEqual(stored(), before, "no credential of the answer is written");
+      assert.deepEqual(net.reads, ["Bearer old-access", "Bearer old-access"], "no request was sent with the new token");
+    } finally { net.releaseAll(); }
+  });
+  assert.ok(withdrawnFirst > 0, "some withdrawal came before the write");
 });
 
 // A platform withdrawal can abort the call instead of failing its checks (second review of #1479): a plugin instance stopped

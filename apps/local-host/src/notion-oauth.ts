@@ -178,7 +178,10 @@ export async function resolveUsableNotionToken(connectionId: string, control: Co
       }
       throw error;
     }
-    const outcome = await refresh.settle();
+    // A withdrawal already queued runs before this `await` resumes: what may be written is asked here, and from `outcome`'s answer to
+    // the write nothing yields (S-95, #1479 统筹裁定 T-063).
+    await refresh.settle();
+    const outcome = refresh.outcome();
     if (outcome === "discard") throw new Error("等这次刷新的调用已失去授权，换到的令牌不保存");
     if (store.get(refs.refresh)?.trim() !== refreshToken) throw new Error("Notion 连接在刷新期间已改变，请重试");
     beforePersist();

@@ -5,7 +5,7 @@ import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 // participants, never to the call that started it: a participant whose call ends only takes itself out. Before the request is sent at
 // least one participant must still be current, or it is not sent. Once sent it is not aborted because the participants left, only its
 // own time limit ends it: a service that rotates its refresh token (Microsoft, Atlassian, X…) may already have retired the old one.
-// What the answer may then write is `settle`'s to say, after the caller's own last check, and `outcome`'s once more right before it writes:
+// What the answer may then write is `outcome`'s to say, asked after `settle` and the caller's own last `await`, right before it writes:
 // a participant that passed its check may lose its authority while another's check is awaited, or while the caller awaits its own.
 
 /**
@@ -19,10 +19,11 @@ export interface SharedRefreshRun {
   /** The checks of the refresh's own request, before it is sent: one participant still current. It never aborts the sent request. */
   readonly control: ConnectorCallControl;
   /**
-   * After the answer: each remaining participant's `beforeEffect`, then every remaining participant's `current` again once the last of
-   * those checks is back, and from them what may be written.
+   * After the answer: each remaining participant's `beforeEffect`, one after another, leaving the ones that no longer pass. It says
+   * nothing of what may be written: a participant that passed may lose its authority while a later one's check is out, and a withdrawal
+   * already queued runs before the caller resumes, so the caller asks `outcome` after its own last `await` (S-95, #1479 统筹裁定 T-063).
    */
-  settle(): Promise<SharedRefreshOutcome>;
+  settle(): Promise<void>;
   /**
    * What may be written now: every remaining participant's `current`, synchronously. The caller asks it after its own last `await` and
    * writes in the same synchronous run, so no participant can lose its authority between this answer and the write (S-95).
@@ -89,10 +90,9 @@ export function startSharedRefresh<T>(first: ConnectorCallControl, run: (refresh
     return delivered ? "deliver" : withdrawn ? "discard" : "write_back";
   };
   // A participant that passed its `beforeEffect` may lose its authority while the next one's is awaited: none of these answers counts
-  // until `outcome` asks them all again after the last.
-  const settle = async (): Promise<SharedRefreshOutcome> => {
+  // until `outcome` asks them all again, in the caller's write's own synchronous run.
+  const settle = async (): Promise<void> => {
     for (const participant of [...participants]) await checked(participant);
-    return outcome();
   };
   // A participant leaves when its call is aborted; it is answered once the refresh ends, and then by its own checks first.
   const enter = (call: ConnectorCallControl): Participant => {

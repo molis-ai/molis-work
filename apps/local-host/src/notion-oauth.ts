@@ -1,9 +1,9 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { CatalogLiveError, NotionOAuthError, notionAuthorizationUrl, notionOAuthToken, type NotionOAuthTokens } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { oauthConnectionRefs, oauthRefreshGuard } from "./connector-oauth-targets.js";
+import { startSharedRefresh, type SharedRefresh } from "./connector-shared-refresh.js";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 const PREFIX = "connector:notion:";
@@ -15,54 +15,9 @@ const CALLBACK_PATH = "/api/settings/connectors/notion/oauth/callback";
 const PENDING_TTL_MS = 10 * 60_000;
 
 type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId: string; expectedRevision?: string; displayName?: string };
-const refreshInFlight = new Map<string, ReturnType<typeof notionRefreshParticipants> & { promise: Promise<string> }>();
-
-/** A shared account refresh belongs to its live callers, never to the first caller alone. */
-function notionRefreshParticipants() {
-  const controller = new AbortController();
-  const participants = new Set<{ control: ConnectorCallControl; leave: () => void }>();
-  let ended = false;
-  const current = () => {
-    controller.signal.throwIfAborted();
-    for (const participant of participants) {
-      try { participant.control.signal.throwIfAborted(); participant.control.current(); return; }
-      catch { participant.leave(); }
-    }
-    controller.signal.throwIfAborted();
-  };
-  const beforeEffect = async () => {
-    for (const participant of participants) {
-      try {
-        await participant.control.beforeEffect();
-        participant.control.signal.throwIfAborted(); participant.control.current();
-        current(); return;
-      } catch { participant.leave(); }
-    }
-    controller.signal.throwIfAborted();
-  };
-  const close = () => {
-    ended = true;
-    controller.abort();
-    for (const participant of participants) participant.leave();
-  };
-  return {
-    control: { signal: controller.signal, beforeEffect, current } satisfies ConnectorCallControl,
-    ended: () => ended,
-    close,
-    join(control: ConnectorCallControl) {
-      controller.signal.throwIfAborted();
-      control.signal.throwIfAborted(); control.current();
-      const participant = { control, leave: () => {
-        control.signal.removeEventListener("abort", participant.leave);
-        participants.delete(participant);
-        if (!participants.size) { ended = true; controller.abort(); }
-      } };
-      participants.add(participant);
-      control.signal.addEventListener("abort", participant.leave, { once: true });
-      return participant.leave;
-    },
-  };
-}
+// One refresh per refresh token at a time, shared by the calls waiting on it (`connector-shared-refresh.ts`, W5-11 §2.6). Until this
+// flow joins the generic one (W5-11 slice 7) it keeps its own map: the same rules, its own last check.
+const refreshInFlight = new Map<string, SharedRefresh<string>>();
 function pendingIndex(): Array<{ state: string; at: number }> {
   // No pending sign-ins, or an index a crash left torn: either way no sign-in is waiting to be finished.
   try { return JSON.parse(createFileSecretStore().get(PENDING_INDEX) || "[]"); } catch { return []; }
@@ -185,7 +140,12 @@ export async function completeNotionOAuth(input: {
   return { ...tokens, connectionId: pending.connectionId, expectedRevision: pending.expectedRevision, ...(pending.displayName ? { displayName: pending.displayName } : {}) };
 }
 
-/** A connection's Notion access token, refreshed once when asked or when only the refresh token is left. */
+/**
+ * A connection's Notion access token, refreshed once when asked or when only the refresh token is left. A call arriving while a refresh
+ * is in flight joins it; a refresh that was sent is not abandoned when its callers leave. Its answer is written only after the last check
+ * (the refresh token and the connection unchanged): all of it while a caller still waits, only the rotated tokens when every caller
+ * cancelled (the user's decision of 2026-10-27), nothing when one lost its authority.
+ */
 export async function resolveUsableNotionToken(connectionId: string, control: ConnectorCallControl, forceRefresh = false, fetchImpl?: typeof fetch): Promise<string | null> {
   await control.beforeEffect(); control.current();
   const beforePersist = oauthRefreshGuard(resolveMolisWorkHome(), connectionId);
@@ -195,45 +155,41 @@ export async function resolveUsableNotionToken(connectionId: string, control: Co
   if (!current && store.get(refs.refresh)) forceRefresh = true;
   if (!forceRefresh || !store.get(refs.refresh)) return current;
   const key = JSON.stringify([resolveMolisWorkHome(), refs.refresh]);
-  let shared = refreshInFlight.get(key);
-  let leave: () => void;
-  if (!shared || shared.ended()) {
-    const participants = notionRefreshParticipants();
-    leave = participants.join(control);
-    const refreshControl = participants.control;
-    const pending = (async () => {
-      const refreshToken = store.get(refs.refresh)?.trim();
-      const snapshot = store.get(`${refs.access}:client`);
-      const { clientId, clientSecret } = snapshot ? JSON.parse(snapshot) as ReturnType<typeof credentials> : credentials();
-      if (!refreshToken || !clientId || !clientSecret) throw new Error("Notion 缺少刷新凭据，请重新授权");
-      let tokens: NotionOAuthTokens;
-      try {
-        tokens = await notionOAuthToken({
-          clientId, clientSecret, grant: { type: "refresh_token", refreshToken }, fetchImpl: controlledConnectorFetch(fetchImpl ?? fetch, refreshControl),
-        });
-      } catch (error) {
-        await refreshControl.beforeEffect(); refreshControl.current();
-        if (error instanceof NotionOAuthError && [400, 401, 403].includes(error.status)) {
-          throw new CatalogLiveError("needs_auth", error.status, "Notion 授权已失效，请重新授权");
-        }
-        throw error;
+  const inFlight = refreshInFlight.get(key);
+  if (inFlight) return inFlight.join(control);
+  const shared = startSharedRefresh(control, async refresh => {
+    const refreshToken = store.get(refs.refresh)?.trim();
+    const snapshot = store.get(`${refs.access}:client`);
+    const { clientId, clientSecret } = snapshot ? JSON.parse(snapshot) as ReturnType<typeof credentials> : credentials();
+    if (!refreshToken || !clientId || !clientSecret) throw new Error("Notion 缺少刷新凭据，请重新授权");
+    // Checked before it is sent, never after: a sent refresh is not abandoned. It is bound only by its own time limit, the generic flow's
+    // 25 s (`connector-api-oauth.ts`), never by its callers leaving.
+    const checks = refresh.control;
+    const send: typeof fetch = async (url, init) => {
+      await checks.beforeEffect(); checks.current();
+      return (fetchImpl ?? fetch)(url, { ...init, signal: AbortSignal.any([AbortSignal.timeout(25_000), ...(init?.signal ? [init.signal] : [])]) });
+    };
+    let tokens: NotionOAuthTokens;
+    try {
+      tokens = await notionOAuthToken({ clientId, clientSecret, grant: { type: "refresh_token", refreshToken }, fetchImpl: send });
+    } catch (error) {
+      if (error instanceof NotionOAuthError && [400, 401, 403].includes(error.status)) {
+        throw new CatalogLiveError("needs_auth", error.status, "Notion 授权已失效，请重新授权");
       }
-      await refreshControl.beforeEffect(); refreshControl.current();
-      if (store.get(refs.refresh)?.trim() !== refreshToken) throw new Error("Notion 连接在刷新期间已改变，请重试");
-      beforePersist();
-      saveTokens(tokens, refs);
-      return tokens.accessToken;
-    })().finally(() => {
-      participants.close();
-      if (refreshInFlight.get(key)?.promise === pending) refreshInFlight.delete(key);
-    });
-    shared = { ...participants, promise: pending };
-    refreshInFlight.set(key, shared);
-  } else leave = shared.join(control);
-  try {
-    const token = await shared.promise;
-    await control.beforeEffect(); control.current();
-    return token;
-  } catch (error) { await control.beforeEffect(); control.current(); throw error; }
-  finally { leave(); }
+      throw error;
+    }
+    // A withdrawal already queued runs before this `await` resumes: what may be written is asked here, and from `outcome`'s answer to
+    // the write nothing yields (S-95, #1479 统筹裁定 T-063).
+    await refresh.settle();
+    const outcome = refresh.outcome();
+    if (outcome === "discard") throw new Error("等这次刷新的调用已失去授权，换到的令牌不保存");
+    if (store.get(refs.refresh)?.trim() !== refreshToken) throw new Error("Notion 连接在刷新期间已改变，请重试");
+    beforePersist();
+    if (outcome === "deliver") saveTokens(tokens, refs);
+    else { store.put(refs.refresh, tokens.refreshToken); store.put(refs.access, tokens.accessToken); }
+    return tokens.accessToken;
+  });
+  refreshInFlight.set(key, shared);
+  void shared.done.then(() => { if (refreshInFlight.get(key) === shared) refreshInFlight.delete(key); });
+  return shared.first;
 }

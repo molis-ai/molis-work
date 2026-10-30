@@ -15,7 +15,7 @@ import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, SANDBOX_I
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createCallConnectionsClient, type CallConnection, type CallConnectionsPort, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { createSandboxRunner, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
-import { createCallConnectionsPort, sandboxIntegrationContribution, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createCallConnectionsPort, homeIntegrationRegistry, oauthEndpointFingerprint, sandboxIntegrationContribution, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ConnectorProtocolStore } from "@molis-ai/molis-work-service-connector-host";
 import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
@@ -160,7 +160,10 @@ test("S-95: a service the platform's table does not have reaches only the origin
 
 // This covers the shared registered-service OAuth transport branch, not admission of a second package claiming GitHub's service id.
 // The process, SDK proxy, connections broker, Host port, TLS request and OAuth resolver below are all the production implementations.
-test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or resend after its call is withdrawn", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
+// W5-11 slice 5 (RAC-1085; 用户 10-27 定：只存新令牌, 【王一骏裁定 T-063 · 更正】): a refresh already sent is not aborted when its call is
+// cancelled. Its answer keeps only the rotated access token, refresh token and expiry, and the cancelled call sends nothing more. A call
+// that loses its authority keeps nothing (tests/security-invariants-oauth-shared-refresh.test.ts).
+test("S-95 S-97 FI-C-02 RAC-1085: the real sandbox broker sends nothing more after its call is cancelled, and keeps only the rotated credentials of the refresh it already sent", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
   // The refresh leaves by `sendPublicHttps` (W5-11 slice 4), so the token endpoint is answered on github.com by the same stand-in.
   let entered!: () => void, release!: () => void, exchanges = 0, tokenAbandoned: Promise<boolean> | undefined;
   const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
@@ -184,8 +187,12 @@ test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or
       accessRef: `${prefix}access`, refreshRef: `${prefix}oauth`, expiresRef: `${prefix}expires` }));
     const db = new DatabaseSync(homeSqlitePath(directory, "connectors")), protocols = new ConnectorProtocolStore(db);
     t.after(() => { if (db.isOpen) db.close(); });
+    // Bound to the plugin declaring GitHub now, as an authorization of the generic flow leaves it (RAC-1087).
+    const owner = (await homeIntegrationRegistry(directory)).oauthOwner("github")!, method = owner.method;
+    assert.ok(method?.kind === "oauth", "GitHub declares its OAuth flow as data");
     const configuration = { connectionId: id, sessionId: id, serviceId: "github", protocol: "oauth" as const,
-      displayName: "Sandbox OAuth", clientId: "fixture-client", origin: "http://localhost:19358", redirectUri: "http://localhost:19358/callback", context: {}, settings: {} };
+      displayName: "Sandbox OAuth", clientId: "fixture-client", origin: "http://localhost:19358", redirectUri: "http://localhost:19358/callback", context: {}, settings: {},
+      binding: { plugin_id: owner.plugin_id, publisher_id: owner.publisher_id, endpoint: oauthEndpointFingerprint(method) } };
     protocols.save(configuration);
     t.mock.method(globalThis, "fetch", async () => assert.fail("no OAuth request goes through the global fetch"));
     const port = createCallConnectionsPort(directory, { testServer, lookup, allowAddress: () => true }), requests: Promise<void>[] = [];
@@ -215,17 +222,18 @@ test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or
     try {
       await reached;
       assert.equal(seen.length, 1, "the original TLS request reached the service and returned 401");
-      abort.abort(new Error("sandbox call withdrawn"));
-      // The stand-in answers in this process: wait until it sees the connection go, or its answer would race the client's abort.
-      assert.equal(await tokenAbandoned, true, "the cancelled call ended the token request before its answer");
-      release();
+      abort.abort(new DOMException("sandbox call cancelled", "AbortError")); release();
       await rejected;
       // SandboxRunner can answer cancellation first; the real Host request must also finish before checking its storage effects.
       await Promise.all(requests);
+      assert.equal(await tokenAbandoned, false, "the cancelled call did not end the token request it had sent");
       assert.equal(exchanges, 1);
-      assert.equal(seen.length, 1, "the cancelled refresh did not send the second data request");
-      assert.deepEqual(Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)])), saved);
-      assert.deepEqual(protocols.get(id), configuration);
+      assert.equal(seen.length, 1, "the cancelled call did not send the second data request");
+      const kept = Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)]));
+      assert.deepEqual([kept[`${prefix}access`], kept[`${prefix}oauth`], kept[`${prefix}client`]], ["late-access", "late-refresh", saved[`${prefix}client`]],
+        "only the rotated credentials are written back");
+      assert.notEqual(kept[`${prefix}expires`], saved[`${prefix}expires`]);
+      assert.deepEqual(protocols.get(id), configuration, "nothing but the credentials is written");
       assert.equal(withConnectorConnections(directory, store => store.require(id)).updated_at, account.updated_at);
       assert.equal(port.describe({ ...github, connection_id: id }).state, "connected", "cancellation is not a refresh refusal");
     } finally { release(); await runner.stop(); }

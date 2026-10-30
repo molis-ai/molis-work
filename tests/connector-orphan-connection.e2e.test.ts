@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { homeIntegrationRegistry, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -11,6 +13,21 @@ const PLUGIN_ID = "io.molis.work.example.orphanprobe";
 const SERVICE = "example-orphan";
 /** A throwaway credential made per call, so no credential-shaped literal sits in the file. */
 const probeToken = (n: number) => `fixture-orphan-probe-token-${String(n).padStart(4, "0")}`;
+
+/** How long a diagnostic request may take: a Host that took the connection but never answers must not hide the navigation error. */
+const DIAGNOSTIC_DEADLINE_MS = 2_000;
+/** The answer's status, or "unreachable" within a short fixed deadline; the diagnostic never hangs past it. */
+async function diagnosticStatus(url: string): Promise<number | "unreachable"> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DIAGNOSTIC_DEADLINE_MS);
+  try {
+    return (await fetch(url, { signal: controller.signal })).status;
+  } catch {
+    return "unreachable";
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** What a signed integration package declares; `attach` reads the declarations only, nothing runs. */
 function packageManifest(): PluginManifest {
@@ -25,6 +42,21 @@ function packageManifest(): PluginManifest {
     integrations: [{ integration_id: SERVICE, kind: "source", service_id: SERVICE }],
   };
 }
+
+// The diagnostic request may not hang: a Host that took the connection and never answers would otherwise hide the original error.
+test("RAC-2424 a diagnostic request that never answers reports within its deadline, not as a test timeout", { timeout: 20_000 }, async () => {
+  const server = createServer(() => { /* accept the request, never answer it */ });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+  const started = Date.now();
+  try {
+    assert.equal(await diagnosticStatus(`http://127.0.0.1:${port}/capabilities/connections`), "unreachable");
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+  assert.ok(Date.now() - started < DIAGNOSTIC_DEADLINE_MS + 3_000, `reported in ${Date.now() - started} ms`);
+});
 
 test("RAC-2424 an orphan connection row replaces its token and removes itself from the page, both persisting across a reopen", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
@@ -41,7 +73,7 @@ test("RAC-2424 an orphan connection row replaces its token and removes itself fr
       await navigate(() => command("Page.navigate", { url: connectionsUrl }, sessionId));
       await waitFor("document.querySelector('[data-connectors-settings]')?.dataset.connectorsBound === '1'", 20_000);
     } catch (error) {
-      const status = await fetch(connectionsUrl).then(response => response.status).catch(() => "unreachable");
+      const status = await diagnosticStatus(connectionsUrl);
       const page = await evaluate("JSON.stringify({ href: location.href, ready: document.readyState, title: document.title, body: (document.body?.innerText || '').slice(0, 200) })").catch(() => "unavailable");
       throw new Error("Opening " + connectionsUrl + " failed: status " + status + "; page " + page + "; console " + (pageErrors.slice(-4).join(" | ") || "none"), { cause: error });
     }

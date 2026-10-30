@@ -5,31 +5,24 @@ import { defaultPrefs, isCompletePrefs, memoryErrors } from "@molis-ai/molis-wor
 import { hasOnlyStorageOwnerFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 
-/** Current ledger format and complete product prefs, not SDK entry classification or migration. */
+/** Initialize only a fresh Home's complete product prefs; an existing ledger must already contain current prefs. */
 export function prepareMemoryHome(home: string, owner?: StorageOwner): boolean {
   const hasLedger = existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE));
   const newHome = !hasLedger && freshMemoryHome(home, owner);
-  if (!hasLedger && !newHome) throw memoryErrors.unavailable("这个 Home 的记忆尚未采用当前格式；请备份后完成采用，再重新启动");
+  if (!hasLedger && !newHome) throw memoryErrors.unavailable("这个非空 Home 缺少记忆库，不会将它当作新 Home 初始化");
   const ledger = openMemoryLedger({ homeDirectory: home });
   let initialized = false;
   try {
     if (newHome) ledger.transaction(() => {
-      // Another supported entry may have initialized this empty Home while this connection was opening.
-      if (ledger.marker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption")) return;
-      if (ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal") || ledger.prefs(LOCAL_PERSON_ACTOR_ID, "project-default")) {
-        throw memoryErrors.unavailable("这个 Home 已有记忆设置但尚未完成采用；请完成采用后重新启动");
-      }
+      // A concurrent supported entry may have initialized the same fresh Home first; never overwrite its choice.
+      if (ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal") || ledger.prefs(LOCAL_PERSON_ACTOR_ID, "project-default")) return;
       ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", defaultPrefs("personal", "reviewed"));
       ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", defaultPrefs("project", "reviewed"));
-      ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "new-home" }, new Date().toISOString());
       initialized = true;
     });
-    const adopted = ledger.marker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption")?.body;
-    if (!adopted || typeof adopted !== "object" || !("origin" in adopted)
-      || (adopted.origin !== "new-home" && adopted.origin !== "existing-home")
-      || !isCompletePrefs(ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal"))
+    if (!isCompletePrefs(ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal"))
       || !isCompletePrefs(ledger.prefs(LOCAL_PERSON_ACTOR_ID, "project-default"))) {
-      throw memoryErrors.unavailable("这个 Home 的记忆采用尚未完成；请在备份副本上完成采用，再重新启动");
+      throw memoryErrors.unavailable("这个 Home 缺少完整的现行记忆设置，不会补造或转换设置");
     }
     return initialized;
   } finally { ledger.close(); }

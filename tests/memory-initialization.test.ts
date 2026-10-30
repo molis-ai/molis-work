@@ -25,7 +25,7 @@ const originalPrefs = { enabled: true, task_recall: true, form: true, auto: true
   consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {} };
 
 function scratch(t: TestContext) {
-  const home = mkdtempSync(join(tmpdir(), "molis-memory-adoption-"));
+  const home = mkdtempSync(join(tmpdir(), "molis-memory-initialization-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   return home;
 }
@@ -62,7 +62,7 @@ async function learnedAutomatic(home: string, env: Awaited<ReturnType<typeof ope
       const original_input = { input_id: crypto.randomUUID(), text: automatic.text, written_by: "person" as const, occurred_at: new Date().toISOString() };
       const run = await env.adapter.start({ ...owner, session, workspace: "none", task: automatic.text, original_input, role_id: "assistant",
         role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
-      const view = await untilSetup(async () => { const value = await env.adapter.read(run.ref); return value.phase === "completed" ? value : undefined; }, "adoption original completed");
+      const view = await untilSetup(async () => { const value = await env.adapter.read(run.ref); return value.phase === "completed" ? value : undefined; }, "current original completed");
       const original = view.original_input; assert.ok(original); assert.equal(original.written_by, "person");
       sources.push({ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, original.ref.session_id, "original", original.ref.input_id]), version: "1",
         text: original.text, speaker: { kind: "person", id: owner.actor_id }, derivation: "original", occurred_at_ms: Date.parse(original.occurred_at) });
@@ -104,18 +104,17 @@ test("a new Home is reviewed; manual saving and reading work, and a later saved 
   } finally { await env.close(); }
 });
 
-// MEM-24: this is the explicit output of offline adoption, never a runtime conversion of missing fields.
-test("adopted effective defaults retain automatic writing, project overrides and plugin restrictions after restart", async t => {
-  const home = scratch(t), adopted = openMemoryLedger({ homeDirectory: home });
-  adopted.transaction(() => {
-    adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { ...originalPrefs, auto: false, consumers: { ...originalPrefs.consumers, assistant: false } });
-    adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true, agent: false },
+// RAC-2372 MEM-24: current complete saved choices survive restart; no adoption or missing-field conversion.
+test("current complete saved preferences retain automatic writing, project overrides and plugin restrictions after restart", async t => {
+  const home = scratch(t), saved = openMemoryLedger({ homeDirectory: home });
+  saved.transaction(() => {
+    saved.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { ...originalPrefs, auto: false, consumers: { ...originalPrefs.consumers, assistant: false } });
+    saved.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true, agent: false },
       plugins: { blocked: { allowed: false, kinds: ["convention"] } } });
-    adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, `project:${PROJECT_A}`, { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true },
+    saved.savePrefs(LOCAL_PERSON_ACTOR_ID, `project:${PROJECT_A}`, { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true },
       plugins: { blocked: { allowed: false, kinds: ["convention"] }, limited: { allowed: true, kinds: ["preference"] } } });
-    adopted.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "existing-home" }, "2026-10-22T00:00:00Z");
   });
-  adopted.close();
+  saved.close();
   await createProject(home);
   let extractionCalls = 0;
   await connectorAssistantModel(t, home, body => {
@@ -156,13 +155,12 @@ function files(directory: string) {
 }
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
-for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs", "adopting"] as const) {
+for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {
   test(`an existing Home with ${shape} is refused without interpreting it as a new user`, async t => {
     const home = scratch(t);
     mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
     if (shape !== "missing-ledger") {
       const ledger = openMemoryLedger({ homeDirectory: home });
-      ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "existing-home" }, "2026-10-22T00:00:00Z");
       if (shape === "partial-prefs") {
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { auto: true });
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
@@ -171,11 +169,6 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
         const { enabled: _enabled, task_recall: _task, ...prior } = originalPrefs;
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", prior);
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
-      }
-      if (shape === "adopting") {
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", originalPrefs);
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
-        ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "adopting", original_origin: "existing-home" }, "2026-10-23T00:00:00Z");
       }
       ledger.close();
       if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }
@@ -223,7 +216,7 @@ test("creating a new catalog first initializes reviewed settings before its firs
   finally { await env.close(); }
 });
 
-test("adopted profiles require every switch and consumer, and only current plugin rules", () => {
+test("current profiles require every switch and consumer, and only current plugin rules", () => {
   assert.equal(isCompletePrefs(originalPrefs), true);
   assert.equal(isCompletePrefs({ ...originalPrefs, consumers: { agent: false } }), false);
   assert.equal(isCompletePrefs({ ...originalPrefs, learn_from_ui: undefined }), false);

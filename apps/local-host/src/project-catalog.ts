@@ -1,5 +1,5 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
-import { prepareMemoryHome } from "./memory/memory-adoption.js";
+import { prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -149,7 +149,7 @@ export interface LocalCatalogPlatform {
   }): DesktopPanelCatalogApi;
 }
 
-/** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
+/** The complete memory preference gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   prepareMemoryHome(homeDirectory);

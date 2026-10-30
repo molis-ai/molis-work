@@ -88,7 +88,7 @@ storage 只负责严格文件技术、SQLite backup/完整性；registry、编�
 | --- | --- | --- |
 | RAC-109-S-06 | 普通文件与 SQL 文件的静态不合法是 invalid，复制中变化是 conflict；原版本、取消和 I/O 含义保持 | 生产 storage 公开口和 `createHomeSnapshot`，真实链接、CHECK/外键坏数据、完整性查询函数缺失、外键声明不合法、坏 SQLite b-tree 页、缺 metadata 表/列、错 schema、实际读写/backup 边界改源；无成功目录、普通失败无暂存，源除测试明确注入的改动外不写 |
 | RAC-109-S-07 | 实际 Home CLI 的 JSON 失败保留稳定 code/kind，普通文件、SQL 和 metadata 均能区分 invalid 与 conflict，无正文泄露 | 真实子进程运行生产 `runLocalCli`，实际源文件和库故障，核退出码、stderr JSON、空 stdout、源字节及临时输出 |
-| RAC-104-S-08 | SC-4 退役库仅为备份集：备份链只读 meta 与完整性；正确、错 owner、错版本都不查业务行、不写源库 | 生产 `readSqliteSnapshotMetadata` 及持锁完整备份；记录真实连接上的 SQL/只读资格并逐条检查允许的元数据/PRAGMA，源文件集合、字节、权限与时间不变，正确库备份可读，错误库不发布 |
+| RAC-104-S-08 | 原SC-4退役目录备份reader已随2026-10-30用户决定取消，登记/reader/旧声明夹具/专门演练删除；现行源码禁止重新登记它，未知旧目录不被打开 | `tests/sessions-offline.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts`（RAC-2378）；当前库的完整性/元数据/源零写仍由现行快照拒绝用例覆盖 |
 
 文件边界是 storage 的 `snapshot-files.ts` / `snapshot-sqlite.ts`、Host 的 `home-snapshot.ts` / `cli-home.ts`，直接回归/夹具与必要 README/本段；FIX8 在源码定型后串行做格式。先整体构建冻结父并保存新增回归红，再最小实现、整体 build、README 必需与直接回归、boundary、`health --base origin/main`、test-imports 和推前 fresh-fetch secrets。原始命令/日志、固定父/头与构建指纹交 REVIEW/TEST；shared-core full 只交 Claude 统一排期，不将作者 PASS 当作 full、合入或本人验收。
 
@@ -204,7 +204,7 @@ REVIEW 6383768725 与独立 TEST 6383805807 发现两个当前验收必须修的
 
 一次性维护先完整核旧条目、路径、文本编码与已有 vault/原钥匙，拒绝未知文件、链接和损坏数据；list 不写 Home。apply 先把备份条目原件与原 vault 密文保存在 Home 外新建私有目录，不复制任何 master。写 `runtime-config-backups/.maintenance.json` 后才调用现有 owner 密封正文、在原路径原子安装引用；全体正文、权限和密文依赖核对并刷盘后才解除标记。发布中断或 I/O 失败保留标记、原件和已写的密文/引用，明确报未完成与恢复位置，不假称跨文件整笔回滚；正常 Runtime 备份读取/捕获在标记期间拒绝。保持宿主停止，按外部原件恢复旧条目和原 vault 后重试，或完整核对现行结果后解除标记。旧 raw、当前引用、失败/杀进程、原件恢复及完成后无原文的证据都只用临时 Home。
 
-维护入口是临时夹具 `tests/fixtures/runtime-config-backup-maintenance.mjs`，先 `list --home <离线副本> --json`，再 `apply --home <离线副本> --backup <Home外全新私有目录> --json`。输出只含数量/状态与恢复位置，不含正文。真实 Home 的 list 必须在副本运行；apply 还需当次已授权停机窗口及 `--maintenance-window`，本任务不运行。失败后保持停止，按 marker 的 backup 逐文件恢复 `.bak` 原字节/权限及原 vault 密文；`vault_existed=false` 时核对后移除本次新 vault，保留所有原 key。仅清理 marker.pid 对应、已确认进程停止后的原子临时文件（`.<basename>.<pid>.<time>.tmp`），不能按全局模式清理。确认原件已完整恢复后才移除 marker 并重试。外部旧原文按敏感维护材料保留在新快照范围之外；真实维护完成后删除夹具与演练。
+原Runtime配置备份转换已于2026-10-30取消，夹具与演练删除；当前备份仍由owner密封、核同Home原key并按当前描述符恢复，旧原文格式拒绝，不产生替代key。旧Home整体搬开后新建，真实操作等用户另说“开始”。
 
 storage 提供 SecretStore owner 的只读快照预检入口：输入明确 Home 与快照中的 v2 密文，严格核格式、后端及每个条目的认证；按快照的后端读取同 Home 已有 master，返回非敏感依赖引用与数量，不返回主密钥或正文。Runtime 备份 owner 的明确读取共用同一只读校验，按已核归属的引用取得单条正文，避免普通 `get()` 的进程缓存掩盖原 key 已丢失；该读取不扩大到检测和一般返回。不初始化带锁库的 store，不创建目录/锁/新 key，不因现 Home 密文已损坏而放弃可用快照。空 vault 不建立密钥依赖；有密文时缺 key、错 key、错后端和损坏密文均拒绝，原 Home 的文件与字节不变。现有加解密与 master 选择仍由原 owner 持有。
 

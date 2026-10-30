@@ -31,7 +31,7 @@ export function runtimeConfigBackupPath(homeDirectory: string, runtimeId: Suppor
 async function ready(home: string): Promise<void> {
   try { await fs.lstat(path.join(home, "runtime-config-backups", ".maintenance.json")); }
   catch (error) { if (absent(error)) return; throw error; }
-  throw errors.maintenance_pending("原配置备份维护尚未完成，请保持宿主停止并按维护记录恢复");
+  throw errors.maintenance_pending("配置备份目录包含未完成操作标记，不能读写备份");
 }
 
 async function directory(home: string, runtimeId: SupportedRuntimeId, create: boolean): Promise<string | null> {
@@ -86,7 +86,7 @@ async function original(home: string, authRef: string): Promise<string | null> {
   catch { throw errors.key_unavailable("原配置的密文或原主密钥不可用，不会创建替代密钥"); }
 }
 
-/** The owner also supplies this primitive to the one-time offline maintenance; no master material is returned. */
+/** The owner seals the current backup descriptor; no master material is returned. */
 export async function sealRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string, contents: string, mode: number): Promise<RuntimeConfigBackupReference> {
   runtimeConfigBackupPath(home, runtimeId, planId);
   if (typeof contents !== "string") throw errors.invalid("原配置正文必须是文字");

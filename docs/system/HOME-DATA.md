@@ -29,7 +29,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
 | `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（8）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
-| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，1）、`sessions/sessions.db`（`session_meta`，7；已下线，仅离线备份技术读取） |
+| 自己的 meta 表 | 1 | `projects/catalog.db`（catalog_meta）；退役Sessions登记与reader已删除 |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
 
@@ -46,8 +46,8 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
-| `sessions/sessions.db` | `apps/local-host`（只在 `src/home-stores.ts` 登记；Sessions 插件已下线，无业务 reader/建表，见 4.3） | SQLite 自带版本 · WAL · `session_meta.schema_version` = 7（仅离线备份核原 owner/meta 版本 7，不读业务事实） | 必备份，与 `sessions/content/` 同一时点 | purge（`installer/uninstall.ts:51`） |
-| `sessions/content/blobs/**` 与 `sessions/content/content.key` | `apps/local-host`（只在 `src/home-stores.ts` 登记；写入它们的实现已随 Sessions 插件删除） | 加密文件（AES-256-GCM，每个 blob 封套 `v: 1`）；密钥是一个 32 字节文件 | blobs 必备份；`content.key` 是密钥：没有密钥 blob 读不出，不能换新密钥 | purge（`installer/uninstall.ts:51`，整个 `sessions/`） |
+
+
 
 ### 3.2 助理与平台服务（Home 级）
 
@@ -99,13 +99,13 @@ Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当�
 | --- | --- | --- | --- | --- |
 | `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；安装/发行物/KV 事实，以及 Home 级的同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`（ac-trust），归 `packages/plugin-runtime`；`apps/local-host/src/home-plugin-store.ts` 组合当前结构 | SQLite 当前基线 1 · 回滚；旧版或坏结构拒绝 | 必备份 | purge |
 | `plugin-libraries/plugin-libraries.db` | 宿主；`apps/local-host/src/installed-plugin-libraries.ts`（PG-022 P1b）：装进来、由宿主自己运行的插件的 Home 库的账本，一个插件 ID 一行（发布者取自安装记录、库名、版本、表的哈希）；用到时才建，库本身在 `<home>/<库名>/<库名>.db`，不在登记里，由账本的行带出 | SQLite 当前基线 1 · 拒绝；`uninstall --purge-user-data` 读它清这些库 | 必备份 | purge |
-| `server/server.sqlite` | `server`；`server/src/database.ts` 的 `openServerDatabase` / `SERVER_DATABASE_BASELINE`；本机由 `apps/local-host/src/im-server.ts` 挂载。右栏讨论的群聊、成员、消息、Thread 与回执都归 server | SQLite 带版本 · WAL · 2（W5-16 B1，v1 须离线维护） | 必备份（第 7 节 E 组），有正文与成员事实；`im_rooms.invite_token_hash`、`mw_sessions.token_hash`、`mw_codes.hash` 只存哈希，邀请回执只存安全状态，原令牌不入库。非项目群按令牌的 SHA-256 入群，项目群不开放邀请；原文只留生成时页面内存 | purge（`server` 已登记，普通卸载保留） |
+| `server/server.sqlite` | `server`；`server/src/database.ts` 的 `openServerDatabase` / `SERVER_DATABASE_BASELINE`；本机由 `apps/local-host/src/im-server.ts` 挂载。右栏讨论的群聊、成员、消息、Thread 与回执都归 server | SQLite 当前基线1 · WAL；旧Home整体搬开后新建，错版/错结构拒绝 | 必备份（第 7 节 E 组），有正文与成员事实；`im_rooms.invite_token_hash`、`mw_sessions.token_hash`、`mw_codes.hash` 只存哈希，邀请回执只存安全状态，原令牌不入库。非项目群按令牌的 SHA-256 入群，项目群不开放邀请；原文只留生成时页面内存 | purge（`server` 已登记，普通卸载保留） |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 已登记，整个目录） |
 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts`（`createAlchemistSearchPort`，基线 `ALCHEMIST_SEARCH_BASELINE`；目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 带版本 · WAL · 1（W2-05） | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
 
-**讨论库 v1 → v2 的维护（W5-16 B1）。** 运行时拒绝 v1，不就地转换。一次性脚本 `tests/fixtures/im-invite-maintenance.mjs` 只在已停止全部写入的副本上先 `list --home <副本> --json`；输出版本和数量，不输出凭据。`apply --home <副本> --backup <Home 外的新目录>` 将现行房间令牌改哈希、邀请回执改安全状态，用新文件重建以清掉旧页和 WAL 中的原文；保留已分享链接及其他全部事实。原件移交显式 0700 备份目录，按敏感材料保管，不能进入新快照。真实 Home 的维护尚未执行，仍与 W5-17、Goals S9 同一个获批窗口，先 list 副本；脚本及演练在维护后删除。
+**讨论库当前起点1。** 用户2026-10-30取消旧邀请转换，旧Home整体搬开后新建当前库；保留当前邀请哈希与安全回执，原工具/演练删除。
 
-维护发布用 `server/.invite-maintenance.json` 留下原件和私有暂存目录的位置。完整 v2 库已发布并刷盘之后，先删除含原文的私有工作目录并确认父目录刷盘，再删阻断标记；完整回滚也按这个清理顺序。工作副本清理失败或清理前中断时，`openServerDatabase` 仍带 `im.invite_maintenance.pending` 拒绝，不能把敏感副本带入新快照。发布后的工作目录、标记或目录刷盘收尾失败，会明确报「v2 已发布、收尾未确认」并给出工作目录和 Home 外原件备份位置，保留完整新库及原件，不在标记移除后倒回旧库，也不由外层清理重试掩盖结果。保持宿主停止，核对 v2 完整性，删除敏感工作副本并确认 Home 内无原文字节后，才解除残留标记；也可按记录把备份中的 `server.sqlite` 及其原有侧车完整放回原位置，清完暂存后删标记，再重新演练/执行维护。不猜版本、不丢旧原件。这个标记和暂存不属于可备份业务数据，存在时不能把 Home 当成已完成维护。
+原IM邀请离线转换、原件暂存和发布标记路线已于2026-10-30取消，工具与演练删除。现行库保留令牌哈希、当前安全邀请回执；旧Home整个搬开后新建，不把旧库或暂存副本带入当前Home。
 
 实验插件的私有库 `plugins/experiments/private.sqlite` 随插件在 2026-10-10 删除（`specs/repository-anti-corruption/spec.md` §1）；已有 Home 里的 `plugins/experiments/` 由维护六移出（`docs/releases/CHECKLIST.md` 第 4 节）。
 
@@ -165,15 +165,13 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。Goal 与 Governance 两个存储模块已并入插件包（`src/module/`、`src/governance/`，S9-3），读写这些表的 SQL 与建表的包是同一个包，`tooling/gates/table-owners.json` 的 `shared` 里这批登记已删。
 
-### 4.3 `sessions/sessions.db`（v7，已下线）
+### 4.3 Sessions（已下线，不在当前 Home 登记）
 
-Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions.db` 或 `sessions/content/`：库里的表（`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs`）与加密内容块是旧数据，留在原处，不读、不迁移、不转换。它们仍登记在 `apps/local-host/src/home-stores.ts`（owner 是 `apps/local-host`），所以备份照旧包含、`uninstall --purge-user-data` 照旧删除整个 `sessions/`。W5-16 只在原登记内给出纯字面离线元数据；持同一 Home lease 的通用备份链核原 owner/meta 版本 7 与 SQLite 完整性，backup API 包含已提交 WAL，密封 blob 原字节同点保留，原 key 仅记录同 Home 依赖。未知版本、坏库或缺必要 key 拒绝，不读 Session 业务表、不解密正文、不迁移、不恢复业务服务；正常 Host 首次启动与重启仍不得打开或初始化它。
-
-删除项目不再有 `sessions` 所有者：旧库里属于被删项目的 Session 记录不会被清（已接受的遗留，随旧库留到 SC-5）。SC-5 才会在备份副本上清理 `<home>/sessions/`，需要用户逐步批准；真实 Home 不在本片动。Sessions 重做时的数据形状另议（BL-177），不沿用这个库。
+用户2026-10-30确认删除退役Sessions的技术登记、离线元数据reader、旧夹具与演练。新Home不创建sessions目录；快照对未知旧目录按既有未知条目规则拒绝，不打开其中SQLite或正文。旧数据留在整体搬开的旧Home里，不删除，也不通过现行程序转换。Coding/Prologue当前会话仍由各自owner保存，与这份退役目录无关。重新设计仍是BL-177，本片没有恢复Sessions产品。
 
 ### 4.4 `placement/placement.db`、`assistant/assistant.db`、`server/server.sqlite`
 
-见 3.2、3.4：placement 是 `context_edges` 加宿主的 `placement_titles`；assistant 是宿主的 12 张 `assistant_*` 加 `context_edges`；server 是 `server` 包的 `mw_*` 与 `im_*`。`modules/context-ledger` 的 `context_edges` 因此在 5 个文件里各有一份同样的表：目录库、项目库、`sessions.db`、`placement.db`、`assistant.db`。
+见 3.2、3.4：placement 是 `context_edges` 加宿主的 `placement_titles`；assistant 是宿主的 12 张 `assistant_*` 加 `context_edges`；server 是 `server` 包的 `mw_*` 与 `im_*`。`modules/context-ledger` 的 `context_edges` 因此在4个当前库文件里各有一份同样的表：目录库、项目库、placement.db、assistant.db。
 
 ### 4.5 共享日志表与跨 owner 直接 SQL 的门禁
 
@@ -209,7 +207,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
 | `agent-runtime/storage.key` | SDK `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`（`KEY_FILE`，`:6`）：32 字节，首次以 `wx` 创建，0600 | 密钥文件 | 密钥：丢了 `records/` 里的加密正文读不出 | purge |
 | `agent-runtime/image-intake/` | `horizontal/agent-host/src/adapters/prologue-documents.ts:33` | 目录 | 临时 | purge |
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
-| `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 2（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
+| `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
 | `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
 | `feed/evidence/blobs/**`、`feed/evidence-recovered-v2/blobs/**` | `packages/storage/src/adapters/evidence-content.ts:46-47`（恢复根目录是 `<根>-recovered-v2`，`:47`）：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，但没有 `secrets.json` 加 Keychain 主密钥就读不出（密钥引用 `system:feed:evidence-content-key:v1`、`:v2`，`:15-16`） | purge |
 | `alchemist/projects/<id>/search-content/`，及其 `-recovered-v2` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
@@ -218,7 +216,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `shelf/catalog.json`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 2（`modules/shelf/src/store.ts:54`；Shelf S3 由 1 升到 2，条目不再带原件路径，维护见防腐 spec §4.1 维护八） | 必备份 | purge（`installer/uninstall.ts:52`） |
+| `shelf/catalog.json`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 1（`modules/shelf/src/catalog.ts#CATALOG_VERSION`；现行条目不带原件路径，旧目录转换取消） | 必备份 | purge（`installer/uninstall.ts:52`） |
 | `browser/sites.json` | `apps/local-host/src/browser/browser-surfaces.ts:36`：侧栏浏览器允许、拒绝了哪些站点，助理能否使用浏览器 | JSON · `version` = 1（`:61`） | 必备份 | purge |
 | `browser/profile/` | `apps/local-host/src/browser/browser-host.ts:81`：侧栏浏览器的 Chrome 用户数据目录（`--user-data-dir`，`:147`），含该浏览器里登录过的站点的 Cookie 等登录态 | 目录（Chrome 自己的格式） | 密钥（登录态）；沿第 7 节既有明确排除，恢复后重新登录，不能声称已恢复登录态 | purge |
 | `browser/downloads/`、`browser/uploads/`、`browser/browser.pid` | `apps/local-host/src/browser/browser-host.ts:82-83`、`:206` | 目录、PID 文件 | 临时 | purge |
@@ -244,7 +242,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
 | `config/onboarding.json` | `apps/local-host/src/onboarding.ts:6`：首次引导状态，0600（`:99`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/project-arrival.json` | `apps/local-host/src/project-arrival.ts:11`：最近打开的项目与到达状态，0600（`:66`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
-| `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 3 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
+| `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 1 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |
 | `logs/web-service.log`、`logs/web-service.error.log` | `installer/web-service-platform.ts:37-38`：LaunchAgent 的标准输出与错误 | 文本 | 日志 | purge（`installer/uninstall.ts:48`） |
 | `logs/action-calls.jsonl` | `apps/local-host/src/action-call-log.ts`：诊断记录，不存输入输出。每个命令一行，读取只在失败时一行，处理器之前就被拒的调用一行（标「未执行」）；被拒的行与失败的读取只存谁、什么动作、结果与错误码，执行过又失败的命令另存前 200 字的错误信息；每行带这次操作的编号 `call_id`；连续相同的结果合并成一行（另存最近 20 个编号）；超过 2000 行时重写，执行过的命令留最近 1000 条、其余留最近 200 条；没有编号的旧行不读，重写时去掉 | JSON Lines | 日志 | purge（`installer/uninstall.ts:48`） |
@@ -290,7 +288,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
 | A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db`（带 `-wal`、`-shm`） | 目录 v1 按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
-| B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | blob 没有密钥读不出，密钥不能换新；没有代码再读它们，备份照旧收 |
+| B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | 退役目录不再登记、现行快照不读；旧Home整体搬开后保留，不改旧key、不删除 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |
 | E 个人内容 | 10 个个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、Alchemist 工作室库、`characters/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；v2 邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |

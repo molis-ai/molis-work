@@ -31,11 +31,6 @@ const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ 
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs") }),
-    // SC-4: no business reader; only the leased offline backup consumes this literal metadata, and purge keeps its directory.
-    ...owned("apps/local-host", { path: "sessions", snapshot: { retained: {
-      database: { file: "sessions.db", metadata: { table: "session_meta", owner: "molis-work-session-registry-v1", version: 7 } },
-      content: { directory: "content/blobs", dependency: "content/content.key" },
-    } } }),
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,

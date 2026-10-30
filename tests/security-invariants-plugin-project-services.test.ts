@@ -383,7 +383,7 @@ test("S-68 ATTN-OWNER-08 a real successful RSS pull resolves only the old source
   const values = new Map<string, string>();
   const secrets: SecretStore = { get: key => values.get(key) ?? null, put: (key, value) => { values.set(key, value); },
     delete: key => { values.delete(key); }, createIfAbsent(key, value) { if (values.has(key)) return false; values.set(key, value); return true; },
-    deleteIfPresent: key => values.delete(key), backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 2 }) };
+    deleteIfPresent: key => values.delete(key), backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 1 }) };
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "evidence") });
   let pulls = 0;
   const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createSourcePullRuntime({

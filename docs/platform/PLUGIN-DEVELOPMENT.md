@@ -233,6 +233,10 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 当前全局设置的贡献发现与这两项声明只对内置目录兑现；已安装 Runtime 插件仍会经过 SDK 声明校验，但尚未接上动态设置贡献与数据准备。细则见 [插件界面 Skill](../../skills/molis-plugin-dev/ui.md)。
 
+### 舞台的数据
+
+打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
+
 ## 插件版本升级
 
 插件发布新版本时，递增 Manifest `version`。`upgrade_compatibility` 只接受精确的 SemVer 来源版本；较高目标版本的来源必须早于目标版本，每个来源版本只能列在以下一项：

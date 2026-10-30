@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { connectorDirectory, connectorManagementActions, connectorSetupAction, homeIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
+import { connectorDirectory, connectorManagementActions, connectorSetupAction, homeIntegrationRegistry, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 
@@ -101,20 +103,23 @@ const connectionsPage = async (home: TestHome) => {
 };
 const connect = async (home: TestHome) => (await home.web.post<{ connection: { connection_id: string } }>("/api/settings/connectors/connections",
   { service_id: SERVICE, display_name: "Probe account", token: probeToken(3) })).connection.connection_id;
-/** The "my connections" row of one connection: from its first appearance to the end of the section that lists them. */
+/** The "my connections" row of one connection: from its first appearance to the next row, or to the end of the section that lists them. */
 const listedRow = (page: string, connectionId: string) => {
   const from = page.indexOf(`data-connection-row="${connectionId}"`);
   assert.ok(from >= 0, "the connection is listed");
-  return page.slice(from, page.indexOf("</section>", from));
+  const ends = [page.indexOf('data-connection-row="', from + 1), page.indexOf("</section>", from)].filter(index => index >= 0);
+  return page.slice(from, Math.min(...ends));
 };
 
-test("RAC-2471 a package whose service id is an Object.prototype member still gets its card, and the connections page renders", async t => {
+test("RAC-2471 a package whose service id is an Object.prototype member still gets its card and a placeholder mark, and the connections page renders", async t => {
   const home = await openTestHome(t);
   assert.equal(await attach(home, "constructor"), true);
   const page = await connectionsPage(home);
   assert.match(page, /data-connector-open="constructor"/u);
   assert.match(page, /Example feed fixture/u, "the card says what the package declared");
   assert.doesNotMatch(page, /native code/u, "nothing inherited from Object.prototype is shown as the card's text");
+  assert.match(page, /settings-connector-mark--fallback" data-connector-mark="constructor"[^>]*>CO</u, "its mark is the two-letter placeholder");
+  assert.doesNotMatch(page, /native%20code/u, "nor as its icon");
 });
 
 test("RAC-2472 that page still offers the built-in services next to it", async t => {
@@ -137,14 +142,24 @@ test("RAC-2473 a connection whose package was removed can still be removed from 
   assert.deepEqual(await listed(), [], "the connection is gone");
 });
 
-test("RAC-2474 that row lets the person replace the token, and no longer points to a detail panel that does not exist", async t => {
+test("RAC-2474 that row lets the person replace the token, points to no detail panel and offers no re-authorization that has nowhere to go", async t => {
   const home = await openTestHome(t);
   await attach(home);
   const connectionId = await connect(home);
+  const oauthId = randomUUID();
+  runWithMolisWorkHome(home.home, () => {
+    const prefix = `probe:${oauthId}`, secrets = createFileSecretStore();
+    for (const [key, value] of Object.entries({ access: probeToken(4), refresh: probeToken(5), expires_at: new Date(Date.now() + 3_600_000).toISOString() })) secrets.put(`${prefix}:${key}`, value);
+    withConnectorConnections(home.home, store => store.upsertOAuth({ connectionId: oauthId, serviceId: SERVICE, displayName: "Probe OAuth",
+      accessRef: `${prefix}:access`, refreshRef: `${prefix}:refresh`, expiresRef: `${prefix}:expires_at` }));
+  });
   await detach(home);
   const page = await connectionsPage(home);
   assert.match(listedRow(page, connectionId), new RegExp(`data-connection-replace="${connectionId}"`, "u"));
   assert.doesNotMatch(page, new RegExp(`data-connector-open="${SERVICE}"`, "u"), "nothing opens the service's panel");
+  const oauthRow = listedRow(page, oauthId);
+  assert.match(oauthRow, /data-connection-manage="remove"/u, "an authorized connection can still be removed");
+  assert.doesNotMatch(oauthRow, /data-connection-reauthorize/u, "but there is no authorization to start for a service that is no longer declared");
 });
 
 test("RAC-2475 while the package is attached the listed row is unchanged: it opens the service panel, whose row carries the controls", async t => {

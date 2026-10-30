@@ -341,8 +341,8 @@ test("RAC-1699: an answer file that cannot be read is listed under its name in w
 
 test("RAC-2217: a large valid answer file (40×4000 汉字, about 480 KB) imports, and content over the store's 400,000-unit guard is refused", async t => {
   // Two layers count the file differently: the import action's schema takes content.maxLength 400,000 code points (Ajv), while this store
-  // keeps its own guard of 400,000 UTF-16 units. That guard is generous for a valid answer file — 40 questions × 4000 汉字 is about 160,000
-  // units, about 480 KB of UTF-8 — so it never refuses a valid file even though the two counts differ; the assertions keep that behaviour.
+  // keeps its own guard of 400,000 UTF-16 units. This sample is 40 answers of 4000 汉字 each: about 160,000 units in the answers, a file
+  // under the guard and over 400,000 bytes of UTF-8, imported; the assertions keep that behaviour.
   const home = await mkdtemp(join(tmpdir(), "form-import-size-")), store = openFormStore(home);
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const form = store.update(store.create({ project_id: "p", title: "大答卷" }).id,

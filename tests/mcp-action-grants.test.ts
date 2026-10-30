@@ -3,7 +3,9 @@ import test from "node:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ActionCallContext, ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorFromResponse, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority, openByDefault } from "../apps/local-host/dist/mcp-action-grants.js";
 import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, writeMcpActionGrants, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
@@ -81,6 +83,32 @@ test("ACA005-04/06 management owns each generation, preserving permission sets, 
     await assert.rejects(writeMcpActionGrant(home, first), { code: "actions.configuration_unavailable" });
     assert.equal(await readFile(file, "utf8"), text, "old or broken storage is not rewritten at read or management");
   }
+});
+
+// RAC-2490 RAC-2492: an MCP client calling an action it holds no grant for is refused as a refusal (kind `forbidden`), at the source, so a
+// reader that tells refusals from failures does not need to know this code; what the client reads in its tool result is unchanged.
+test("RAC-2490 an MCP client's call to an action it was not granted is refused with mcp.action_revoked of kind forbidden, also across the gateway hop", () => {
+  const preference = { version: 3 as const, action_grants: [] };
+  const project = view();
+  const reference = { capability_id: project.capability_id, version: project.version, provider_id: project.provider.provider_id };
+  const refusal = (() => { try { assertMcpActionAuthority(caller, [project], preference, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
+  assert.ok(refusal instanceof ActionError);
+  assert.deepEqual([refusal.code, refusal.kind], ["mcp.action_revoked", "forbidden"]);
+  const { status, body } = actionErrorResponse(refusal);
+  assert.equal(status, 403, "the status comes from the kind, by the one table in the plugin SDK");
+  const received = actionErrorFromResponse(status, body);
+  assert.deepEqual([received.code, received.kind, received.message], ["mcp.action_revoked", "forbidden", refusal.message], "the MCP process reads the same refusal back");
+});
+
+test("RAC-2492 the tool result an MCP client reads for that refusal is unchanged: the same code and message, no kind and no status", () => {
+  const project = view();
+  const reference = { capability_id: project.capability_id, version: project.version, provider_id: project.provider.provider_id };
+  const refusal = (() => { try { assertMcpActionAuthority(caller, [project], { version: 3, action_grants: [] }, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
+  assert.ok(refusal instanceof ActionError);
+  const before = new ActionError("mcp.action_revoked", refusal.message);
+  assert.equal(formatMcpToolError(refusal), formatMcpToolError(before));
+  assert.equal(formatMcpToolError(refusal, "call-1"), formatMcpToolError(before, "call-1"));
+  assert.deepEqual(JSON.parse(formatMcpToolError(refusal)), { error: refusal.message, code: "mcp.action_revoked" });
 });
 
 test("MCP grants are exact for client, project, Home, provider, version and accepted permissions; no permission borrowing", () => {

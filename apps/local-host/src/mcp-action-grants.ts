@@ -1,9 +1,11 @@
-import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
 import { actionGrantKey } from "./mcp-settings-store.js";
 
 type GrantFacts = { readonly action_grants: readonly McpActionGrant[] };
+/** A client calling what it holds no grant for (any more) is refused: a refusal, which every reader can tell by its kind. */
+const grantErrors = defineErrorCodes("mcp", { action_revoked: "forbidden" });
 
 /** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
 export const actionClientAudience = (clientId: string) => clientId.startsWith("agent:") ? "agent" as const : "mcp" as const;
@@ -66,7 +68,7 @@ export function assertMcpActionAuthority(caller: ActionCallContext, catalog: rea
   const allowed = resolveMcpActionContext(caller, catalog, preference).allowed_actions ?? [];
   if (!allowed.some(item => item.capability_id === reference.capability_id && item.version === reference.version
     && item.provider_id === reference.provider_id)) {
-    throw new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销或发生变化，请重新检查对外接入设置");
+    throw grantErrors.action_revoked("此客户端的能力授权已撤销或发生变化，请重新检查对外接入设置");
   }
 }
 

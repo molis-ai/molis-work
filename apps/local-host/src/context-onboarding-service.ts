@@ -10,7 +10,7 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-module-artifacts";
-import { cutUnits } from "./drafting/draft-data.js";
+import { cutHead } from "./whole-units.js";
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -519,7 +519,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {
-          const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle.length <= 200 ? summaryTitle : cutUnits(summaryTitle, 199) + "…",
+          const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle.length <= 200 ? summaryTitle : cutHead(summaryTitle, 199) + "…",
             source_id: "onboarding:" + id + ":summary", content: text });
           journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });
         }

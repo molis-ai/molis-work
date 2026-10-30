@@ -64,3 +64,9 @@ test("RAC-2042 text without two-unit characters is recorded exactly as before", 
 test("RAC-2043 an empty message is recorded as empty", async () => {
   assert.equal(await messageOf(new Error("")), "");
 });
+
+// RAC-2428 (T-308): the cut drops only a half left at the cut point. A long message that itself carries a lone half away from the cut
+// is recorded as it came: dropping every lone half instead would change the message body and keep the four tests above green.
+test("RAC-2428 a long message's own lone half away from the cut point is left as it came", async () => {
+  assert.equal(await messageOf(new Error(a(10) + "\uD83D" + a(300))), a(10) + "\uD83D" + a(189), "10 + 1 + 189 = 200 units, the half away from the cut kept");
+});

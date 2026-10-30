@@ -242,13 +242,12 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-203 (MISC T-085 起草), RAC-1974–1977: the Pages comment box is cut at 20000 characters by its input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a comment of two-unit characters at 10000), +123 B on this one asset (a unit check, a
-// spread, a slice and a join in one handler). Tried: a shared function +168 B, always spreading +76 B (allocates on every key), cutting by
-// units only +69 B (rewrites the box on every key past 20000 units); no new asset, no new text; the maxlength attribute is a server-drawn
-// page, not an asset, so removing it saves nothing here.
+// T-235 (MISC T-203 起草), RAC-2220–2221: the PPT outline box is cut at 20000 characters by its input handler instead of by a maxlength
+// attribute (which counts UTF-16 units and stopped a two-unit character at 10000), and says the limit through the plugin's own dictionary,
+// +299 B on this one asset; the admission was granted at [27065, 27380] and the build came out at 27364 after shrinking. Tried: inline
+// bilingual text and a separate helper were larger; the maxlength attribute is a server-drawn page, not an asset, so removing it saves nothing.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [707763, 707886],
+  "/assets/molis-work-plugins/ppt.js": [27065, 27364],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

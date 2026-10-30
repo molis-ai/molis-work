@@ -451,7 +451,7 @@
 - **重新授权旧连接**：`startApiOAuth` 对没有通用配置的连接（旧形状）不再要求填 Client ID，按新连接同样的方式取 broker 或产品客户端；回调规则 8 比不到原账号，得到“请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接”，只写 §3.4 左边一列（RAC-2480）。
 - **共用刷新**：`SharedRefresh` 多一个 `open`，`outcome()` 得出 `discard` 之后为 `false`；`resolveApiOAuthToken`（和 Notion）只加入 `open` 的刷新，之后来的有效调用在连接的队列里另排一次（#1479 二审建议 1，RAC-2483）。
 - **环境变量**：Gmail 的产品客户端只认 `MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_ID/SECRET`（`connector-product-auth.ts` 读 `CONNECTOR_<SVC>_OAUTH_*`，`readProductEnv` 加 `MOLIS_WORK_` 前缀），旧名 `MOLIS_WORK_GMAIL_CLIENT_*`、设置页存的 `connector:gmail:client_*`、`MOLIS_WORK_PUBLIC_BASE_URL` 的 Gmail 回调都不读；卡片和入门流程的“可连接”由声明算（`connectorLoginReady`），`gmail_oauth_configured` 字段删除（RAC-2485、RAC-2486）。
-- **测试**：`tests/gmail-oauth.test.ts` 重写成通用流程上的 Gmail（RAC-2476、2477、2478、2481、2484、2485/2486，S-09 的“Gmail's return address must be a loopback host”改在通用发起上断言同一件事）、`tests/security-invariants-oauth-legacy-shape.test.ts`（RAC-2479、2480、2482）、`tests/security-invariants-oauth-shared-refresh.test.ts` 加 RAC-2483；`tests/gmail-factory-boundaries.test.ts` 只剩 provider 的两条（RAC-127/128），OAuth 实例的三条随代码删；`context-onboarding`、`connector-connections`、`connector-setup`、`connector-call-control`、`security-invariants-connector-*` 里按 Gmail 专门流程写的断言改成通用流程。
+- **测试**：`tests/gmail-oauth.test.ts` 重写成通用流程上的 Gmail（RAC-2476、2477、2478、2481、2484、2485/2486，S-09 的“Gmail's return address must be a loopback host”改在通用发起上断言同一件事）、`tests/security-invariants-oauth-non-protocol.test.ts`（RAC-2479、2480、2482）、`tests/security-invariants-oauth-shared-refresh.test.ts` 加 RAC-2483；`tests/gmail-factory-boundaries.test.ts` 只剩 provider 的两条（RAC-127/128），OAuth 实例的三条随代码删；`context-onboarding`、`connector-connections`、`connector-setup`、`connector-call-control`、`security-invariants-connector-*` 里按 Gmail 专门流程写的断言改成通用流程。
 
 ### 2.7 `auth_kind` 收窄
 
@@ -697,7 +697,7 @@
 | RAC-2476 | Gmail 的完整流程在通用流程上走通：发起（默认回调是它登记过的别名）→ 别名回调 → 连接可用（通用凭据引用、account_label 是邮箱）→ 取令牌，授权用 `openid email gmail.readonly` | 宿主用例，假的 Google（`tests/gmail-oauth.test.ts`） |
 | RAC-2477 | 入门流程发起的 Gmail 授权，成功、取消、失败都回到入门页（带 `desktop`），journey 只在仍等这个 state 时才改；被更新的发起顶掉的旧回调得到失败页、不改 journey、不建连接；journey 不在选来源阶段或不存在时不能发起 | 同上 |
 | RAC-2478 | Gmail 重新授权要求 Google 的 `sub` 不变（邮箱变了照过），`sub` 不同则拒，连接和凭据一个字节不变 | 同上 |
-| RAC-2479 | 旧形状的 Gmail 连接：列表状态 `reauth_required` 并带提示，`resolveApiConnection` 不发请求、不落进 token 分支，`if_available` 回 `null`；token 连接与 Notion、GitHub（各自的专门流程还在）照旧 | 安全用例（`tests/security-invariants-oauth-legacy-shape.test.ts`） |
+| RAC-2479 | 旧形状的 Gmail 连接：列表状态 `reauth_required` 并带提示，`resolveApiConnection` 不发请求、不落进 token 分支，`if_available` 回 `null`；token 连接与 Notion、GitHub（各自的专门流程还在）照旧 | 安全用例（`tests/security-invariants-oauth-non-protocol.test.ts`） |
 | RAC-2480 | 旧形状的 Gmail 连接点重新授权，换到令牌后得到“请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接”，`account_label` 与这次算出的邮箱相同时同样如此；连接、旧凭据、protocol 配置一个字节不变，不新建连接，state 被消耗 | 同上 |
 | RAC-2481 | 回调别名只在路径（含一段项目段）正好等于记录里存的 `redirect_uri` 时收；别的服务不能用 Gmail 的别名发起，别的主机、带查询参数的地址、两段项目路径、别的前缀都不是回调 | 宿主用例（`tests/gmail-oauth.test.ts`） |
 | RAC-2482 | Gmail 包里没有 `oauth*.ts`、`token-refs.ts`，也不引用密钥库；Host 没有 `gmail/client`、`gmail/oauth/start` 路由 | 安全用例，读包源码 + 真实路由处理器 |

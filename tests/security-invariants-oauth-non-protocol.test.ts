@@ -14,28 +14,28 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 // a Gmail connection made by the dedicated flow it replaced is `auth_method: "oauth"` with credentials that are not the generic flow's.
 // It is not read, not refreshed and not sent anywhere; reconnecting it ends with "add a new connection" and writes nothing of it. A
 // connection of another shape, and the services whose flows are still their own (Notion, GitHub), are not touched.
-// - RAC-2479: the legacy connection says reauth_required and why, and no request leaves for it.
+// - RAC-2479: the non-protocol connection says reauth_required and why, and no request leaves for it.
 // - RAC-2480: reconnecting it writes only what §3.4 allows on its left, never the connection, its credentials or its bindings.
 // - RAC-2482: the Gmail package has no secret store and the Host no longer has Gmail's own routes.
 
 const ORIGIN = "http://127.0.0.1:19358";
-const LEGACY = "3f8a1c52-77d0-4a6e-9b31-0c2d5e7f9a14";
+const NON_PROTOCOL = "3f8a1c52-77d0-4a6e-9b31-0c2d5e7f9a14";
 const TOKEN = "https://oauth2.googleapis.com/token", USERINFO = "https://openidconnect.googleapis.com/v1/userinfo";
 
 /** A Gmail connection as the dedicated flow made it: `connector-connection:<id>:access` and its refresh and expiry, no protocol configuration. */
-function legacyGmail(t: TestContext) {
-  const home = mkdtempSync(join(tmpdir(), "molis-oauth-legacy-")); t.after(() => rmSync(home, { recursive: true, force: true }));
-  const refs = { access: `connector-connection:${LEGACY}:access`, refresh: `connector-connection:${LEGACY}:refresh`, expires: `connector-connection:${LEGACY}:expires_at` };
+function nonProtocolGmail(t: TestContext) {
+  const home = mkdtempSync(join(tmpdir(), "molis-oauth-nonprotocol-")); t.after(() => rmSync(home, { recursive: true, force: true }));
+  const refs = { access: `connector-connection:${NON_PROTOCOL}:access`, refresh: `connector-connection:${NON_PROTOCOL}:refresh`, expires: `connector-connection:${NON_PROTOCOL}:expires_at` };
   runWithMolisWorkHome(home, () => {
     const secrets = createFileSecretStore();
-    secrets.put(refs.access, "stale-access"); secrets.put(refs.refresh, "legacy-refresh"); secrets.put(refs.expires, new Date(Date.now() + 3600_000).toISOString());
+    secrets.put(refs.access, "stale-access"); secrets.put(refs.refresh, "stale-refresh"); secrets.put(refs.expires, new Date(Date.now() + 3600_000).toISOString());
   });
-  withConnectorConnections(home, store => store.upsertOAuth({ connectionId: LEGACY, serviceId: "gmail", displayName: "Gmail · me", accountLabel: "me@example.test",
+  withConnectorConnections(home, store => store.upsertOAuth({ connectionId: NON_PROTOCOL, serviceId: "gmail", displayName: "Gmail · me", accountLabel: "me@example.test",
     accessRef: refs.access, refreshRef: refs.refresh, expiresRef: refs.expires }));
   const everything = () => JSON.stringify({
     connections: withConnectorConnections(home, store => store.list()),
     secrets: runWithMolisWorkHome(home, () => Object.values(refs).map(ref => createFileSecretStore().get(ref))),
-    protocol: withConnectorProtocols(home, store => store.get(LEGACY)) ?? null,
+    protocol: withConnectorProtocols(home, store => store.get(NON_PROTOCOL)) ?? null,
   });
   return { home, refs, everything };
 }
@@ -48,20 +48,20 @@ function silent(t: TestContext) {
 }
 
 test("RAC-2479: a Gmail connection of the dedicated flow's shape is reauth_required with a note, is never read or refreshed, and nothing is sent for it", async t => {
-  const f = legacyGmail(t), sent = silent(t);
+  const f = nonProtocolGmail(t), sent = silent(t);
   const [view] = listConnectorConnectionViews(f.home, "gmail") as Array<{ state: string; reauth_note?: string }>;
   assert.equal(view!.state, "reauth_required");
   assert.match(view!.reauth_note ?? "", /新增一条连接.*重新绑定/u);
   const before = f.everything();
-  await assert.rejects(resolveApiConnection(f.home, LEGACY, connectorControl(), "gmail"), /新增一条连接/u);
-  await assert.rejects(resolveApiConnection(f.home, LEGACY, connectorControl(), "gmail", true), /新增一条连接/u);
-  assert.equal(await resolveApiConnection(f.home, LEGACY, connectorControl(), "gmail", "if_available"), null, "no refresh path");
+  await assert.rejects(resolveApiConnection(f.home, NON_PROTOCOL, connectorControl(), "gmail"), /新增一条连接/u);
+  await assert.rejects(resolveApiConnection(f.home, NON_PROTOCOL, connectorControl(), "gmail", true), /新增一条连接/u);
+  assert.equal(await resolveApiConnection(f.home, NON_PROTOCOL, connectorControl(), "gmail", "if_available"), null, "no refresh path");
   assert.deepEqual(sent, []);
   assert.equal(f.everything(), before, "reading it changes nothing, and does not fall into the token branch");
 });
 
-test("RAC-2479: only the legacy shape is marked: a token connection, and a Notion connection until its own slice, are read as before", async t => {
-  const home = mkdtempSync(join(tmpdir(), "molis-oauth-legacy-")); t.after(() => rmSync(home, { recursive: true, force: true }));
+test("RAC-2479: only the non-protocol shape is marked: a token connection, and a Notion connection until its own slice, are read as before", async t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-oauth-nonprotocol-")); t.after(() => rmSync(home, { recursive: true, force: true }));
   silent(t);
   const token = withConnectorConnections(home, store => store.createToken({ serviceId: "gmail", displayName: "Gmail token", token: "pasted-token", authMethod: "token" }));
   const notion = withConnectorConnections(home, store => store.createToken({ serviceId: "notion", displayName: "Notion", token: "notion-access", authMethod: "oauth" }));
@@ -70,17 +70,17 @@ test("RAC-2479: only the legacy shape is marked: a token connection, and a Notio
   assert.equal((await resolveApiConnection(home, notion.connection_id, connectorControl(), "notion")).token, "notion-access");
 });
 
-test("RAC-2480: reconnecting a legacy Gmail connection ends with \"add a new connection\" and writes only the consumed state, whatever account comes back", async t => {
-  const f = legacyGmail(t);
+test("RAC-2480: reconnecting a non-protocol Gmail connection ends with \"add a new connection\" and writes only the consumed state, whatever account comes back", async t => {
+  const f = nonProtocolGmail(t);
   oauthNetwork(t, async url => url === TOKEN ? Response.json({ access_token: "new-access", refresh_token: "new-refresh", expires_in: 3600 })
     : (assert.equal(url, USERINFO), Response.json({ sub: "sub-1", email: "me@example.test" })));
   const before = f.everything();
   // The same address as the account label, the very case that must not be taken for the original account.
-  const started = await startApiOAuth(f.home, { serviceId: "gmail", displayName: "Gmail", clientId: "gmail-app", clientSecret: "gmail-secret", connectionId: LEGACY, origin: ORIGIN });
+  const started = await startApiOAuth(f.home, { serviceId: "gmail", displayName: "Gmail", clientId: "gmail-app", clientSecret: "gmail-secret", connectionId: NON_PROTOCOL, origin: ORIGIN });
   const state = new URL(started.authorization_url).searchParams.get("state")!;
   await assert.rejects(completeApiOAuth(f.home, { origin: ORIGIN, state, code: "c", callback: `${ORIGIN}/api/feed/connectors/gmail/oauth/callback` }), /请新增一条连接.*重新绑定/u);
   assert.equal(f.everything(), before, "the connection, its credentials and its bindings are as they were");
-  assert.equal(connectorProtocolSecrets(f.home, LEGACY).get("access") ?? null, null, "nothing of the new tokens was staged for it");
+  assert.equal(connectorProtocolSecrets(f.home, NON_PROTOCOL).get("access") ?? null, null, "nothing of the new tokens was staged for it");
   assert.equal(withConnectorConnections(f.home, store => store.list()).length, 1, "no connection was added in its place");
   await assert.rejects(completeApiOAuth(f.home, { origin: ORIGIN, state, code: "c", callback: `${ORIGIN}/api/feed/connectors/gmail/oauth/callback` }), /./u, "the state was consumed");
 });
@@ -90,7 +90,7 @@ test("RAC-2482: the Gmail package holds no secret store, and the Host has no Gma
   const files = readdirSync(source).filter(name => name.endsWith(".ts"));
   assert.deepEqual(files.filter(name => name.startsWith("oauth") || name === "token-refs.ts"), [], "its OAuth code is gone");
   for (const name of files) assert.doesNotMatch(readFileSync(new URL(name, source), "utf8"), /molis-work-storage|SecretStore|hasSecret|secrets\(\)|resolveAuthRef: *\(?[^)]*\)? *=> *createFile/u, name);
-  const home = mkdtempSync(join(tmpdir(), "molis-oauth-legacy-")); t.after(() => rmSync(home, { recursive: true, force: true }));
+  const home = mkdtempSync(join(tmpdir(), "molis-oauth-nonprotocol-")); t.after(() => rmSync(home, { recursive: true, force: true }));
   const server = createServer(async (req, res) => { const handled = await handleLocalConnectorsSettingsHttp(req, res, new URL(req.url!, "http://127.0.0.1"), home); if (!handled) { res.writeHead(404); res.end(); } });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise<void>(resolve => server.close(() => resolve())));

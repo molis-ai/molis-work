@@ -17,6 +17,7 @@ import { createSandboxRunner, sandboxServicesFor, type SandboxCallControl, type 
 import { pollingIntegrationBinding } from '@molis-ai/molis-work-plugin-sdk';
 import type { InstalledRelease } from './installed-release.js';
 import { GONE } from './plugin-builder/installed.js';
+import { staleInstallation } from './installed-plugin-host.js';
 
 export const sandboxIntegrationErrors = defineErrorCodes('host', { integration_pull_invalid: 'upstream', integration_source_invalid: 'invalid' });
 
@@ -86,6 +87,8 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
   const manifest = release.packaged!.manifest, contract = release.design.contract;
   const integration = manifest.integrations![0]!, service = manifest.connection_services!.find(item => item.service_id === integration.service_id)!;
   let runner: Promise<SandboxRunner> | undefined;
+  /** The instance started last; `stop()` marks it withdrawn before anything else, so its calls stop counting as current at once. */
+  let instance: { withdrawn: boolean } | undefined;
   return {
     manifest,
     execution: 'sandbox',
@@ -93,7 +96,13 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
       context.requireGrant('storage:private');
       const services = sandboxServicesFor(context.services, {});
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
-      const live = () => host.assertLive(identity);
+      const started = instance = { withdrawn: false };
+      // Withdrawn as soon as `stop()` begins, and again by the context's own grant once the runtime revokes it: the runtime saves the
+      // state as stopped only after `stop()` returns, so the installation record alone still reads running while the runner is stopped.
+      const live = () => {
+        if (started.withdrawn) throw staleInstallation('集成插件已停用或卸载');
+        context.requireGrant('storage:private'); host.assertLive(identity);
+      };
       const open = () => {
         if (runner) return runner;
         const created = runner = createSandboxRunner({ bundlePath: release.bundlePath, contract, grants: approved, services, identity });
@@ -119,7 +128,11 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
           SANDBOX_INTEGRATION_SOURCE_SLOT, { signal: control.signal,
             current: () => { control.current(); live(); }, beforeEffect: async () => { await control.beforeEffect(); control.current(); live(); } }) });
     },
-    async stop() { const current = runner; runner = undefined; await current?.then(item => item.stop(), () => undefined); },
+    async stop() {
+      if (instance) instance.withdrawn = true;
+      instance = undefined;
+      const current = runner; runner = undefined; await current?.then(item => item.stop(), () => undefined);
+    },
   };
 }
 

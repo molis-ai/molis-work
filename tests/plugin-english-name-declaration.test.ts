@@ -9,12 +9,11 @@ import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { renderPickerExtend, renderPluginMarket, renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, islandEntries, pluginDirectoryFor, pluginMarketCards, pluginTabTitles, railEntries } from "../apps/workbench/src/plugin-catalog.ts";
-import { renderPluginDirectoryData, sanitizePluginDirectory, type PluginDirectoryEntry } from "../apps/workbench/src/plugin-directory.ts";
-import { EN } from "../apps/workbench/src/i18n/en.ts";
-import { SHARED_WORDS_EN } from "../apps/workbench/src/i18n/shared-words-en.ts";
-import { runningPluginDirectory, type DirectorySource } from "../apps/local-host/src/plugin-directory.ts";
+import {
+  BUILTIN_PLUGIN_CATALOG, EN, builtinPluginDirectory, islandEntries, pluginDirectoryFor, pluginMarketCards, pluginTabTitles, railEntries,
+  renderPickerExtend, renderPluginDirectoryData, renderPluginMarket, renderPluginRail, sanitizePluginDirectory, type PluginDirectoryEntry,
+} from "@molis-ai/molis-work-app-workbench";
+import { runningPluginDirectory, type DirectorySource } from "@molis-ai/molis-work-app-local-host";
 
 const primitives = (lang: "en" | "zh") => ({ L: (value: string) => value, escapeHtml, icon: (name: string) => `<svg data-icon="${name}"></svg>`, htmlLang: () => lang });
 
@@ -97,10 +96,10 @@ test("RAC-1721 the directory carries the English through the sanitizer and the v
   const nav = railEntries([], pluginDirectoryFor([entry!])).find(item => item.id === LEDGER);
   assert.equal(nav?.label_en, "Ledger", "the placed view carries its own title_en");
   // What the Host sends is publisher text: control characters become spaces, the line is trimmed and cut, and nothing is kept that is not text.
-  const raw: PluginDirectoryEntry = { id: "raw", plugin_id: "io.molis.work.raw", name: "原", name_en: "  A\u0007B  ", chosen: false, ui: { views: [
+  const raw: PluginDirectoryEntry = JSON.parse(JSON.stringify({ id: "raw", plugin_id: "io.molis.work.raw", name: "原", name_en: "  A\u0007B  ", chosen: false, ui: { views: [
     { view_id: "nav", slot: "navigator", title: "原", title_en: "😀".repeat(100) },
     { view_id: "isle", slot: "island", title: "岛", title_en: "\u0001\u0002" },
-    { view_id: "other", slot: "navigator", title: "它", title_en: 5 as unknown as string }] } };
+    { view_id: "other", slot: "navigator", title: "它", title_en: 5 }] } }));
   const [clean] = sanitizePluginDirectory([raw]);
   assert.equal(clean?.name_en, "A B");
   assert.equal([...(clean?.ui.views[0]?.title_en ?? "")].length, 80);
@@ -196,7 +195,7 @@ test("RAC-1728 the name and the body are two places: 成果 is Artifacts as a na
   assert.equal(declared("artifacts")?.name_en, "Artifacts");
   assert.equal(EN["成果"], "Results", "the Host's body word is not touched by the plugin's name");
   assert.equal(declared("todo")?.name_en, "Todo");
-  assert.equal(SHARED_WORDS_EN["待办"], "Todo", "the to-do is one word in the name and in the body");
+  assert.equal(EN["待办"], "Todo", "the to-do is one word in the name and in the body");
 });
 
 test("RAC-1729 the built-in Manifests still pass the platform's Manifest check, and no version moved", () => {

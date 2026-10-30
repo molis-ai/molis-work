@@ -245,8 +245,9 @@ const headErrors = (measured, budget, base) => {
 // T-223 (MISC T-184 发布), RAC-2160–2164: the workbench's plugin-frame bridge cuts the name a plugin page file is saved under by whole
 // characters (200, extension kept) instead of 200 UTF-16 units, one small function in links.ts, +137 B on this one asset. Tried: whole
 // characters without keeping the extension +41 B (does not fix the dropped extension), cutting by units and dropping a dangling half
-// +143 B, an early return for a name that fits +163 B; no new asset, no new text. The main-side T-203 entry (707763 → 707886) is used up
-// (its ceiling equals the budget now), so it is deleted here as the convention says.
+// +143 B, an early return for a name that fits +163 B; no new asset, no new text. The main-side T-203 entry (707763 → 707886) and the
+// main-side T-235 entry (/assets/molis-work-plugins/ppt.js, 27065 → 27364) are used up (their ceilings equal the budgets now), so they
+// are deleted here as the convention says.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [190560, 190697],
 };

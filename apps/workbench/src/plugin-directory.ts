@@ -12,6 +12,8 @@ export interface PluginDirectoryEntry {
   readonly id: string;
   readonly plugin_id: string;
   readonly name: string;
+  /** The English interface's name for it (the Manifest's `name_en`): drawn only where the shell draws `name` itself. */
+  readonly name_en?: string;
   /** Whether the project's plugin list chooses it (a built-in). Otherwise it is in the project because it runs there. */
   readonly chosen: boolean;
   /**
@@ -43,6 +45,8 @@ const key = (value: unknown): string | null => typeof value === "string" && KEY.
 
 function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>, chosen: boolean): UiViewDeclaration | null {
   const viewId = key(view.view_id), title = line(view.title, 80);
+  // A view that opens nothing from the rail has no title the shell draws, so its English is not kept.
+  const titleEn = view.slot === "navigator" || view.slot === "island" ? line(view.title_en, 80) : null;
   if (!viewId || !title || !(UI_VIEW_SLOTS as readonly string[]).includes(view.slot)) return null;
   const known = (name: unknown) => typeof name === "string" && icons.has(name) ? name : undefined;
   const station = view.creates ? key(view.creates.station) : null, createTitle = view.creates ? line(view.creates.title, 40) : null;
@@ -50,6 +54,7 @@ function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>, chose
   const icon = known(view.icon), startIcon = known(view.start?.icon);
   return {
     view_id: viewId, slot: view.slot, title,
+    ...(titleEn ? { title_en: titleEn } : {}),
     ...(icon ? { icon } : {}),
     ...(view.accepts_objects === true ? { accepts_objects: true } : {}),
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
@@ -74,12 +79,12 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
   const seen = new Set<string>();
   const entries: PluginDirectoryEntry[] = [];
   for (const entry of directory.slice(0, MAX_ENTRIES)) {
-    const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80);
+    const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80), nameEn = line(entry.name_en, 80);
     if (!id || !pluginId || !name || seen.has(id)) continue;
     seen.add(id);
     const chosen = entry.chosen === true;
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
+    entries.push({ id, plugin_id: pluginId, name, ...(nameEn ? { name_en: nameEn } : {}), chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
   }
   return entries;
 }

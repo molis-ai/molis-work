@@ -174,3 +174,5 @@
 | 防腐 spec 归档 | 现行规则（保留机制、§5.1 包清单表、§5a）搬到 `docs/system/`，门禁改读新位置，其余整目录归档 | W6-06 里 1 本甲 |
 
 盘点（统筹 16:45Z）另核：W5-14 R-A4/R-B 不用用户裁（R-B 10-26 已裁不做，R-A4 只改标识符）；W6-03 RAC-11 不用裁（创作台没删，`studio:replay` 在）；W6-02 已完成（BL-804/805 由 T-005、T-003 收）；BOARD:279 写「T-120 已合入」与 main 不符，待核。
+
+**PG-070 拆账（统筹 10-30 17:35Z）**：「Coding 自己的客户端 3b」已随 batch-37 #1287（BL-605，RAC-543～548）做完，PG-070 行写旧了。余项：① T-146（设置页样式表去掉整张 `CODING_STYLES`，等 T-115）；② T-146 合入后再出一本（乙，池）：`styles/settings.ts:504-507` 的 4 条 `.coding-settings` 规则经 #1551 加的 `settingsStylesheet` 搬进 Coding 的登记、`CHARACTERS_STYLES` 搬出两张共用表、按名字接的设置脚本（`initialization.ts:1,126`、`scripts/settings.ts:7,115`）——用户 10-25「插件尽可能独立」要求共用表里的也搬出。PG-070 两本合入后关行。

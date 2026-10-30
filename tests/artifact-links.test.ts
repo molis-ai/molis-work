@@ -6,8 +6,8 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
-import { artifactLinkKinds, artifactLinkSubjectActions, artifactProducerSources, type ArtifactProducerSource } from "@molis-ai/molis-work-app-local-host";
-import { ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { artifactLinkKinds, artifactLinkSubjectActions, artifactLinkSubjectsPort, artifactProducerSources, captureHostLog, type ArtifactProducerSource, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
@@ -179,4 +179,38 @@ test("RAC-2086: the link-subjects contract is recognised by its types, and the H
   const found = artifactLinkSubjectActions(artifactProducerSources());
   assert.deepEqual([...found].map(([pluginId, action]) => [pluginId, action.capability_id, action.version]), [[GOALS, "goals.artifacts.link_subjects", 1]]);
   assert.deepEqual([...artifactLinkSubjectActions([notesSource])].map(([pluginId]) => pluginId), ["example.notes"]);
+});
+
+// RAC-2089: the Host's half of the naming. A port is given a client that records what it is asked, or fails the way a caller is refused.
+const declarer = () => new Map([["example.notes", { capability_id: "notes.artifacts.link_subjects", version: 1 }]]);
+const caller = { ...person, audience: "mcp" as const } as never;
+
+test("RAC-2089 the Host asks the declaring plugin pinned as provider, about the asked ids only, and keeps only those", async () => {
+  const calls: unknown[][] = [];
+  const port = artifactLinkSubjectsPort({ invoke: async (...args: unknown[]) => {
+    calls.push(args.slice(1));
+    return { objects: [{ id: "N1", title: "Field notes", open: { surface: "notes", id: "N1" } }, { id: "N9", title: "Not asked", open: { surface: "notes", id: "N9" } }] };
+  } } as never, declarer);
+  const named = await port("example.notes", ["N1"], caller);
+  assert.deepEqual(calls, [[{ capability_id: "notes.artifacts.link_subjects", version: 1, provider_id: "example.notes" }, { ids: ["N1"] }]],
+    "pinned to the declaring plugin, so another installation that registered the same capability id is never asked");
+  assert.deepEqual([...named], [["N1", { title: "Field notes", open: { surface: "notes", id: "N1" } }]]);
+  assert.deepEqual([...await port("example.other", ["X1"], caller)], [], "a plugin without the action is not asked");
+});
+
+test("RAC-2089 a refusal (forbidden, not found, an MCP client not granted the action) is the caller's answer and is not logged; any other failure is, without its text", async () => {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    const failing = (error: unknown) => artifactLinkSubjectsPort({ invoke: async () => { throw error; } } as never, declarer)("example.notes", ["N1"], caller);
+    for (const refusal of [new ActionError("actions.forbidden", "not yours"), new ActionError("actions.subject_unavailable", "gone", { kind: "not_found" }),
+      new ActionError("mcp.action_revoked", "this client was not granted it")]) {
+      assert.deepEqual([...await failing(refusal)], []);
+    }
+    assert.deepEqual(entries, [], "refusals write nothing");
+    assert.deepEqual([...await failing(new Error("the notes store broke: secret body text"))], []);
+  } finally { restore(); }
+  assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
+    [["warn", "artifacts", "link_subjects_failed", { name: "Error" }, { plugin_id: "example.notes" }]]);
+  assert.doesNotMatch(JSON.stringify(entries), /secret body text/u, "the failure's text is not written");
 });

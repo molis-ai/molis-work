@@ -114,9 +114,14 @@ const searchIndexFailures = repeatingFailure("search", "index_update_failed");
 export const logSearchIndexFailure = (error: unknown, where: string): void =>
   searchIndexFailures.failed(`${where}:${String((error as { code?: unknown } | null)?.code ?? "")}`, error, { where });
 
-/** "You may not read it" and "it is not there" are answers a reader shows as such, not failures to write. */
+/**
+ * "You may not read it" and "it is not there" are answers a reader shows as such, not failures to write. An MCP client's call to an
+ * action it was not granted is refused with `mcp.action_revoked`, which carries no kind yet (giving it one at the source is its own
+ * task), so it is named here.
+ */
 function answeredRefusal(error: unknown): boolean {
   const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
+  if (code === "mcp.action_revoked") return true;
   const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
   return sort === "forbidden" || sort === "not_found";
 }

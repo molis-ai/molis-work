@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, LocalProjectDatabase, seedDemoGoals, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -146,5 +146,10 @@ test("RAC-2088 an MCP client reads the Goal titles under 「被谁引用」 when
   assert.deepEqual(await seen(), [["io.molis.work.goals", [`V1=${v1}`]]]);
   assert.deepEqual((await mcp.client.invoke(mcp.caller, namesAction, { ids: ["V1", "NO-SUCH-GOAL"] }) as { objects: Array<{ id: string }> }).objects.map(item => item.id), ["V1"]);
   await served.revoke("links-mcp", project.project_id, [namesAction]);
-  assert.deepEqual(await seen(), [["io.molis.work.goals", ["V1=V1"]]], "not granted the naming action: the id, and no failure");
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    assert.deepEqual(await seen(), [["io.molis.work.goals", ["V1=V1"]]], "not granted the naming action: the id, and no failure");
+  } finally { restore(); }
+  assert.deepEqual(entries.filter(entry => entry.event === "link_subjects_failed"), [], "not being granted it is an answer, not a failure to log (RAC-2089)");
 });

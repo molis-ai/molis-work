@@ -124,7 +124,7 @@ export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
-export { artifactActionProvider } from "./artifact-actions.js";
+export { artifactActionProvider, artifactLinkSubjectsPort } from "./artifact-actions.js";
 export { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";

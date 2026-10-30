@@ -12,7 +12,8 @@ test("RAC-2201 a stored Shelf name over 180 UTF-16 units is cut in whole charact
   const home = mkdtempSync(join(tmpdir(), "shelf-item-names-"));
   try {
     const store = openTestShelfStore(home, { disabled: true });
-    // 179 x's and the 🙂 are 181 units: cutting at unit 180 would leave the 🙂's high half alone.
+    // 179 x's and the 🙂 are 181 units. A file's extension now stays: the stem is cut to the 177 units the extension leaves, which
+    // lands in the middle of the x's, and the cut still never leaves half of a character. A folder keeps no extension and is cut at 180.
     const split = await store.admit({ filename: `${"x".repeat(179)}🙂.md`, bytes: Buffer.from("正文") });
     // The extension now stays: 180 units are 177 x's plus ".md", and the cut still lands between whole characters.
     assert.equal(split.name, `${"x".repeat(177)}.md`, "the extension is kept, and the stem is cut to the room it leaves");
@@ -86,9 +87,16 @@ test("RAC-2295 a folder's stored name keeps its old cut: the dotted tail goes, w
     assert.equal(folder.name, "x".repeat(180), "a folder name is cut at 180 units, as before; nothing is kept as an extension");
     assert.equal(folder.kind, "folder");
     assert.ok(store.readChild(folder.item_id, "chapter.txt").bytes.equals(Buffer.from("章")), "its child is still readable");
-    // The stored name survives reopening the Home.
+    // 179 x's and the 🙂 are 181 units: cutting at unit 180 alone would leave the 🙂's high half, so a folder's name loses that half and
+    // keeps 179 whole x's (no extra x is dropped).
+    const whole = await store.admitFolder({ name: `${"x".repeat(179)}🙂`, entries: [{ relative: "chapter.txt", bytes: Buffer.from("章") }] });
+    assert.equal(whole.name, "x".repeat(179), "the folder name is cut between whole characters");
+    assert.deepEqual([whole.name.length, LONE_HALF.test(whole.name)], [179, false], "179 units, and no half of a character");
+    // The stored names survive reopening the Home.
     const reopened = openTestShelfStore(home, { disabled: true });
     const again = (await reopened.snapshot()).materials.find((item) => item.item_id === folder.item_id);
     assert.equal(again?.name, "x".repeat(180), "and the stored name is the old cut after a reopen");
+    const wholeAgain = (await reopened.snapshot()).materials.find((item) => item.item_id === whole.item_id);
+    assert.equal(wholeAgain?.name, "x".repeat(179), "and the whole-character cut is stored too");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

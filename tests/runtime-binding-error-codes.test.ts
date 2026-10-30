@@ -175,10 +175,10 @@ test("RAC-1650 removing a membership the workspace really has: the membership go
     // (c) the Session binding is another fact: it still resolves to Alpha, and no unbind was recorded for it.
     assert.equal(removed.resolution.project?.project_id, alpha.project_id);
     assert.deepEqual(catalog.listRuntimeContextBindingEvents(member).map((event) => event.type), ["context.bound"]);
-    // (d) the project and its database stay; the workspace record stays with no member (unlinkWorkspaceMembership(…, false)).
+    // (d) the project and its database stay; the empty workspace record is removed with its last member.
     assert.equal(catalog.getProject(alpha.project_id).display_name, "Alpha");
     assert.equal((await stat(alpha.database_path)).isFile(), true);
-    assert.deepEqual(directoryRecord()?.project_ids, []);
+    assert.equal(directoryRecord(), undefined);
     // (e) removing it again finds no membership: nothing changes, nothing is reported.
     const again = unbind();
     assert.equal(again.changed, false);
@@ -221,5 +221,28 @@ test("RAC-1814 create-and-bind from a Runtime with only a project directory make
     const replay = await create();
     assert.equal(replay.connection?.project_id, projectId);
     assert.equal(catalog.listProjects().length, 1);
+  });
+});
+
+test("RAC-2241 unlinking one of two projects from a workspace keeps the workspace record for the other", async () => {
+  await withCatalog(async (catalog, directory) => {
+    const alpha = await catalog.createProject({ display_name: "Alpha", actor_id: "owner" });
+    const beta = await catalog.createProject({ display_name: "Beta", actor_id: "owner" });
+    const workspacePath = join(directory, "shared-workspace");
+    await mkdir(workspacePath, { recursive: true });
+    const workspace = { canonical_path: workspacePath, realpath_verified: false };
+    const member = (id: string): RuntimeWorkContext => ({ ...session(id), workspace });
+    const first = catalog.bindRuntimeContext({ context: member("shared-first"), project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
+    const workspaceId = first.context.workspace!.workspace_id;
+    catalog.bindRuntimeContext({ context: member("shared-second"), project_id: beta.project_id, actor_id: "runtime-codex", user_confirmed: true });
+    const directoryRecord = () => catalog.listWorkspaceDirectory().find((record) => record.workspace_id === workspaceId);
+    assert.deepEqual(directoryRecord()?.project_ids.slice().sort(), [alpha.project_id, beta.project_id].sort());
+    // Unlinking one project leaves the other a member: the workspace record stays, without the unlinked project.
+    const removed = catalog.unbindRuntimeContext({ context: member("shared-first"), actor_id: "runtime-codex",
+      user_confirmed: true, binding_scope: "workspace", project_id: alpha.project_id });
+    assert.equal(removed.changed, true);
+    assert.deepEqual(directoryRecord()?.project_ids, [beta.project_id]);
+    assert.deepEqual(catalog.listWorkspaceMemberships().filter((membership) => membership.workspace_id === workspaceId)
+      .map((membership) => membership.project_id), [beta.project_id]);
   });
 });

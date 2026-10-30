@@ -137,8 +137,8 @@ export class ProjectsModule implements ProjectsApplicationApi {
       normalizeWorkspace: normalizeProjectWorkspace,
       upsertWorkspaceMembership: (workspace, projectId, actorId) =>
         this.workspaces.upsertMembership(workspace, projectId, actorId),
-      unlinkWorkspaceMembership: (workspaceId, projectId, actorId, removeEmptyWorkspace) =>
-        this.workspaces.unlink(workspaceId, projectId, actorId, removeEmptyWorkspace),
+      unlinkWorkspaceMembership: (workspaceId, projectId, actorId) =>
+        this.workspaces.unlink(workspaceId, projectId, actorId),
     };
   }
 }

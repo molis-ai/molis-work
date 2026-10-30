@@ -26,7 +26,8 @@ test('installed and authoring model calls bind their own release through the rea
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = 'file';
   const systems: string[] = [];
   const server = createServer(async (request, response) => {
-    let raw = ''; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw);
     systems.push(JSON.stringify(body.messages.filter((message: { role: string }) => message.role === 'system')));
     response.writeHead(200, { 'content-type': 'text/event-stream' });

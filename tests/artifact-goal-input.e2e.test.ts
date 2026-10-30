@@ -17,14 +17,14 @@ for (const width of [1440, 390]) {
       ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, "1") });
     await navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/artifacts/pages-brief/versions/1` }, sessionId));
     await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-goal-input] summary'))", 15_000);
-    assert.match(await evaluate<string>("document.querySelector('[data-artifact-links]').innerText"), /还没有目标引用这一版/);
+    assert.match(await evaluate<string>("document.querySelector('[data-artifact-links]').innerText"), /还没有引用这一版的对象/);
 
     await click("[data-artifact-goal-input] summary");
     await waitFor("[...document.querySelectorAll('[data-artifact-goal-input] select option')].some(option => option.value === 'V1')", 10_000);
     await evaluate("(() => { const select = document.querySelector('[data-artifact-goal-input] select'); select.value = 'V1'; select.dispatchEvent(new Event('change', { bubbles: true })); })()");
     await click("[data-artifact-goal-input-form] button[type=submit]");
-    // The detail reloads and 「被谁引用」 names the Goal, as an input.
-    await waitFor("Boolean(document.querySelector('[data-artifact-links] a[href$=\"/goals/V1\"]'))", 15_000);
+    // The detail reloads and 「被谁引用」 names the Goal under Goals, as an input, opening it as a workbench item (RAC-2085).
+    await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))", 15_000);
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-links] li').innerText"), /输入/);
     const inputs = await evaluate<{ inputs: Array<{ reference: { artifact_id: string; version: number }; proposed: boolean }> }>(
       `fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`)}).then(response => response.json())`);

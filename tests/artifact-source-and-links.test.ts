@@ -41,7 +41,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(fresh, /在 Pages 打开原对象/);
   assert.ok(fresh.includes("openPlugin=pages") && fresh.includes(`openItem=${created.id}`), "the way back opens the pinned document in Pages");
   // No Goal uses it yet.
-  assert.match(fresh, /被谁引用[\s\S]*还没有目标引用这一版/);
+  assert.match(fresh, /被谁引用[\s\S]*还没有引用这一版的对象/);
 
   // Starring changes the document's revision but not its content: still the same.
   let current = (await (await fetchProject(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
@@ -55,7 +55,8 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(changed, /原文已改，这里仍是第 1 版/);
   assert.match(changed, /第一稿/);
 
-  // Goals that take it as input or hand it in are listed under 「被谁引用」, each opening the Goal.
+  // Goals that take it as input or hand it in are listed under 「被谁引用」 in Goals' group, named by Goals' own link-subjects
+  // action asked as the caller (RAC-2084), each opening the Goal as a workbench item (RAC-2085).
   await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
@@ -63,8 +64,11 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const linked = await detail(pinned.artifact_id, pinned.version);
   const v1 = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "PLATFORM")!.title;
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  assert.ok(linked.includes(`href="/projects/${DEMO_PROJECT_ID}/goals/V1">${html(v1)}</a><span>交付物</span>`), "the Goal that hands it in");
-  assert.ok(linked.includes(`href="/projects/${DEMO_PROJECT_ID}/goals/PLATFORM">${html(platform)}</a><span>输入</span>`), "the Goal that takes it as input");
+  const goalLink = (id: string, title: string) => `<a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="${id}" data-workbench-item-title="${html(title)}">${html(title)}</a>`;
+  assert.ok(linked.includes(`<h3 class="artifact-links-heading">Goals</h3><ul data-artifact-linked-plugin="io.molis.work.goals">`), "listed under Goals");
+  assert.ok(linked.includes(`${goalLink("V1", v1)}<span>交付物</span>`), "the Goal that hands it in");
+  assert.ok(linked.includes(`${goalLink("PLATFORM", platform)}<span>输入</span>`), "the Goal that takes it as input");
+  assert.ok(!linked.includes(`/projects/${DEMO_PROJECT_ID}/goals/`), "no row is a Goals address");
 
   // A document whose text links to this version is listed too (五.1), and opens in Pages; links to another version are not.
   const path = `/artifacts/${encodeURIComponent(pinned.artifact_id)}/versions/${pinned.version}`;

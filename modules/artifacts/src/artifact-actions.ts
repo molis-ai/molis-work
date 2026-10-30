@@ -91,9 +91,9 @@ export const artifactsActions = {
   importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) })),
   goalEmbeds: define<{ goal_id: string; supported_types?: ArtifactConsumerType[] }, { embeds: GoalArtifactEmbed[] }>("goals.embeds", "读取目标成果引用", "读取原 Ledger 明确关联的输入和输出及固定版本，保留失效引用，不猜测关系", "query", object({ goal_id: id, supported_types: consumerTypes }, ["goal_id"]),
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
-  links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
-    "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
-      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } }),
+  links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "按声明链接种类的插件分组，列出把这一版作为输入或产出（含提议的）的对象，以及其他引用的数量；不修改数据",
+    "query", object({ reference }), object({ plugins: array(object({ plugin_id: id, plugin_title: text, objects: array(object({ id, title: text,
+      role: { enum: ["input", "output"] }, proposal: { type: "boolean" }, open: object({ surface: id, id }) })) })), other: { type: "integer", minimum: 0 } }),
     read),
   pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
     "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
@@ -122,8 +122,11 @@ export interface ArtifactActionPorts {
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
   openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
-  /** A Goal's title for 「被谁引用」, asked as the caller; null when absent or unreadable. */
-  goalTitle?(goalId: string, caller: ActionExecutionContext): string | null | Promise<string | null>;
+  /**
+   * What the declaring Plugin calls its linking objects and where they open, asked as the caller (「被谁引用」, BL-646); an id it does
+   * not name is absent from the answer.
+   */
+  linkSubjects?(pluginId: string, ids: readonly string[], caller: ActionExecutionContext): Promise<ReadonlyMap<string, ArtifactLinkSubjectView>>;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
   typeTitle?(artifactTypeId: string): string | null;
   /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
@@ -133,19 +136,41 @@ export interface ArtifactActionPorts {
   /** Give the port this version, or with `restore` its former source; returns the ports as they are afterwards. */
   bindPluginInput?(artifact: ArtifactVersionRecord, input: { plugin_id: string; port: string; restore: boolean }, caller: ActionExecutionContext): Promise<ArtifactPluginInput[]>;
 }
-/** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed as either; other links counted. */
-interface ArtifactReferences {
-  goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>;
+export interface ArtifactLinkSubjectView { title: string; open: { surface: string; id: string } }
+/**
+ * Who refers to one version (A4b, 「被谁引用」): by the Plugin that declares the link kind (BL-646), its objects that take the version
+ * as input or output, or have it proposed as either; edges of no declared kind are counted as other.
+ */
+export interface ArtifactReferences {
+  plugins: Array<{ plugin_id: string; plugin_title: string; objects: Array<{ id: string; title: string; role: "input" | "output"; proposal: boolean; open: { surface: string; id: string } }> }>;
   other: number;
 }
-/** The role a declared link kind gives the object that wrote it, in the words 「被谁引用」 shows. */
-const referenceRole = (kind: ArtifactLinkKind): ArtifactReferences["goals"][number]["role"] =>
-  kind.role === "input" ? (kind.proposal ? "proposed_input" : "input") : (kind.proposal ? "proposed" : "deliverable");
 /** A version people can still hand on: in the 成果库, readable and not archived. */
 function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference): ArtifactVersionRecord {
   const artifact = ports.artifacts.query.getArtifactVersion(ports.projectId, reference);
   if (!artifact || artifact.availability !== "available" || artifact.lifecycle_state === "archived") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
   return artifact;
+}
+/**
+ * 「被谁引用」 by the Plugin that declares each link kind (BL-646). Each Plugin is asked once, about its own objects only; an object
+ * it does not name (no answer, a failure, or not for this caller) shows its id and opens on the surface its edges were written as.
+ */
+async function referringPlugins(ports: ArtifactActionPorts, references: ReadonlyArray<{ edge: { source: { id: string } }; kind: ArtifactLinkKind }>,
+  caller: ActionExecutionContext): Promise<ArtifactReferences["plugins"]> {
+  const byPlugin = new Map<string, { title: string; rows: Array<(typeof references)[number]> }>();
+  for (const row of references) {
+    const group = byPlugin.get(row.kind.plugin_id) ?? { title: row.kind.plugin_title, rows: [] };
+    byPlugin.set(row.kind.plugin_id, { ...group, rows: [...group.rows, row] });
+  }
+  const groups = await Promise.all([...byPlugin].map(async ([pluginId, group]) => {
+    const named = await ports.linkSubjects?.(pluginId, [...new Set(group.rows.map(row => row.edge.source.id))], caller).catch(() => null) ?? null;
+    const objects = group.rows.map(({ edge, kind }) => {
+      const subject = named?.get(edge.source.id);
+      return { id: edge.source.id, title: subject?.title ?? edge.source.id, role: kind.role, proposal: kind.proposal, open: subject?.open ?? { surface: kind.module, id: edge.source.id } };
+    });
+    return { plugin_id: pluginId, plugin_title: group.title, objects: objects.sort((a, b) => a.title.localeCompare(b.title)) };
+  }));
+  return groups.sort((a, b) => a.plugin_title.localeCompare(b.plugin_title));
 }
 
 export function createArtifactActionHandlers(ports: ArtifactActionPorts): ActionHandlerBinding[] {
@@ -222,9 +247,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.projectId } }).filter(edge => edge.state === "active"
         && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
       const references = edges.flatMap(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind === null ? [] : [{ edge, kind }]; });
-      const goals = await Promise.all(references.map(async ({ edge, kind }) => ({ goal_id: edge.source.id,
-        title: await ports.goalTitle?.(edge.source.id, caller as ActionExecutionContext) ?? edge.source.id, role: referenceRole(kind) })));
-      return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
+      return { plugins: await referringPlugins(ports, references, caller as ActionExecutionContext), other: edges.length - references.length } satisfies ArtifactReferences;
     }),
     ...bindWorkflowContentHandlers(artifactsContentActions, {
       list: () => ports.artifacts.query.listArtifacts(ports.projectId).filter(record => record.availability === "available" && record.lifecycle_state !== "archived")

@@ -516,7 +516,7 @@ test("RAC-2159: the most one call carries: 40000 characters of 🟢 shared by se
   }
 });
 
-test("RAC-2411: one organizing call whose data is over the prompt's data slot is refused before dispatch, saying by how much", async t => {
+test("RAC-2413: one organizing call whose data is over the prompt's data slot is refused before dispatch, saying by how much", async t => {
   // Materials are split into 40,000-character calls, so a big batch is not refused as a whole (RAC-2158 keeps that). The data of one call
   // also carries every existing todo, and that count has no limit: here 700 todos of 200 characters push one call's data over the 180,000
   // the Host leaves for data. The refusal comes before any model call or batch record and counts characters, saying how much over it is.

@@ -11,7 +11,7 @@ type FeedItemDetail = Parameters<WorkbenchRenderer["renderPersistedFeedItemDetai
 export interface PluginStageFragmentPorts {
   /** The plugins this project shows: a stage of one it does not have is refused, not drawn. */
   readonly shown: () => Promise<readonly string[]>;
-  readonly renderer: Pick<WorkbenchRenderer, "renderInboxWorkbenchFragment" | "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
+  readonly renderer: Pick<WorkbenchRenderer, "renderInboxWorkbenchFragment" | "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail" | "declaredStageFragment">;
   readonly readWebView: () => Promise<MolisWorkWebView>;
   /** Drops the page's cached view: the page asks for a stage after it changed something, and must see that change. */
   readonly invalidateWebView: () => void;
@@ -24,7 +24,8 @@ const FEED_ITEM_STAGE = /^feed\/items\/([^/]+)$/;
 
 /**
  * `GET /api/stage/<plugin>`: a stage the page redraws in place after a change, drawn by the shell from the same page view as the page
- * itself; `GET /api/stage/feed/items/<item_id>` is one Feed item's reader. The plugin owns what the stage shows (its actions and its
+ * itself. Any plugin whose stage declares its data (`stage_data`) has one, with no row here (T-133); Feed and Inbox still have theirs
+ * by name until they declare it too. `GET /api/stage/feed/items/<item_id>` is one Feed item's reader. The plugin owns what the stage shows (its actions and its
  * routes under /api/plugins/<plugin_id>/); the shell owns drawing it.
  */
 export async function handlePluginStageFragmentHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: PluginStageFragmentPorts): Promise<boolean> {
@@ -35,7 +36,7 @@ export async function handlePluginStageFragmentHttp(request: IncomingMessage, re
   const draw = itemId !== undefined ? () => feedItemDetail(decodeURIComponent(itemId), url, ports)
     : stage === "inbox" ? async () => ports.renderer.renderInboxWorkbenchFragment(await ports.readWebView())
     : stage === "feed" ? async () => ports.renderer.renderFeedWorkbenchFragment(await ports.readWebView())
-    : undefined;
+    : declared(stage, ports);
   if (!draw) return false;
   try {
     if (!(await ports.shown()).includes(plugin)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
@@ -54,4 +55,10 @@ async function feedItemDetail(itemId: string, url: URL, ports: PluginStageFragme
   const { item, inboxActive, promoteAvailable } = await ports.feedItem(itemId);
   return ports.renderer.renderPersistedFeedItemDetail(item, ports.routePrefix, { entryId: itemId, inboxActive, promoteAvailable, inboxEntry: null,
     surface: url.searchParams.get("surface") === "frame-block" ? "frame-block" : undefined });
+}
+
+/** The stage a plugin declares its data for, drawn again from a fresh page view; undefined (not this route's) for any other path. */
+function declared(stage: string, ports: PluginStageFragmentPorts): (() => Promise<string>) | undefined {
+  const draw = stage.includes("/") ? undefined : ports.renderer.declaredStageFragment(stage);
+  return draw ? async () => draw(await ports.readWebView()) : undefined;
 }

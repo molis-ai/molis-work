@@ -27,12 +27,14 @@
 //   missing      there is no database at the derived path
 // WHAT IS NOT TOUCHED: `project_events` keeps the `database_path` its `project.created` events were written with (the event table is an append-only
 // history, not the owner of the path), and no project database is opened or moved.
-import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { isDeepStrictEqual } from "node:util";
+import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 
 const OWNER = "molis-work-project-catalog-v1";
 const FROM = 22, TO = 23;
@@ -56,12 +58,30 @@ export function classify(home, row) {
   const stored = String(row.database_path);
   if (!derived) return { project_id: row.project_id, stored, derived, state: "bad-id" };
   const resolved = path.resolve(stored), parent = path.dirname(resolved);
-  const same = resolved === derived || existsSync(resolved) && existsSync(derived) && realpathSync(resolved) === realpathSync(derived);
+  // A stored path can point into the live Home while this script is inspecting a copy. Compare text only; never stat/open that path.
+  const same = resolved === derived;
   const state = same ? "in-place"
     : path.basename(resolved) === DATABASE_FILE && path.basename(parent) === row.project_id && path.basename(path.dirname(parent)) === "projects" ? "other-home"
     : "outside";
   return { project_id: row.project_id, stored, derived, state: existsSync(derived) ? state : state === "outside" ? "outside" : "missing" };
 }
+
+const schemaFor = version => {
+  const reference = new DatabaseSync(":memory:");
+  try {
+    reference.exec(readFileSync(new URL("./catalog-before-w517.sql", import.meta.url), "utf8"));
+    if (version === TO) {
+      reference.exec("DROP TABLE projects");
+      reference.exec(PROJECTS_TABLE("projects"));
+      reference.exec(DISPLAY_INDEX);
+    }
+    return describeSqliteSchema(reference);
+  } finally { reference.close(); }
+};
+const matchesSchema = (db, version) => !db.prepare("SELECT 1 FROM sqlite_master WHERE type IN ('view', 'trigger') LIMIT 1").get()
+  && isDeepStrictEqual(describeSqliteSchema(db), schemaFor(version));
+const rowCounts = db => db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all()
+  .map(row => [row.name, Number(db.prepare(`SELECT count(*) AS n FROM "${row.name.replaceAll('"', '""')}"`).get().n)]);
 
 const BLOCKING = new Set(["outside", "bad-id", "missing"]);
 
@@ -82,16 +102,18 @@ function inspect(home, db) {
   const meta = key => db.prepare("SELECT value FROM catalog_meta WHERE key = ?").get(key)?.value;
   if (meta("owner") !== OWNER) return { problem: "the catalog does not name Molis Work as its owner" };
   const version = Number(meta("schema_version"));
-  if (version === TO) return { version, projects: [], orphans: [] };
+  if (version === TO) return matchesSchema(db, TO) ? { version, projects: [], orphans: [] } : { problem: "current catalog schema mismatch" };
   if (version !== FROM) return { problem: `the catalog is at version ${version}; this tool only knows ${FROM} -> ${TO}` };
-  const columns = db.prepare("PRAGMA table_info(projects)").all().map(column => column.name);
-  if (!columns.includes("database_path")) return { problem: "a version 22 catalog whose projects table has no database_path column" };
+  if (!matchesSchema(db, FROM)) return { problem: "old catalog schema mismatch; run the preceding catalog maintenance first" };
+  if (db.prepare("PRAGMA integrity_check").all().some(row => row.integrity_check !== "ok")
+    || db.prepare("PRAGMA foreign_key_check").all().length) return { problem: "old catalog integrity check failed" };
   const projects = readProjects(db).map(row => classify(home, row));
   return { version, projects, orphans: orphans(home, new Set(projects.map(project => project.project_id))) };
 }
 
-const realHomes = () => [path.join(homedir(), ".molis-work"), path.join(homedir(), ".goalboard"), process.env.MOLIS_WORK_HOME ?? ""].filter(Boolean)
-  .flatMap(candidate => { try { return [realpathSync(candidate)]; } catch { return []; } });
+// Recognize the configured locations lexically; rehearsals must never stat the person's Home merely to identify its name.
+const realHomes = () => [path.join(homedir(), ".molis-work"), path.join(homedir(), ".goalboard"), process.env.MOLIS_WORK_HOME ?? ""]
+  .filter(Boolean).map(candidate => path.resolve(candidate));
 
 /** Which of the Host's ports something listens on, or null when lsof is not there to ask. */
 function listening() {
@@ -128,17 +150,21 @@ function rebuild(home, file) {
       if (found.problem) throw new Error(found.problem);
       const blocked = found.projects.filter(project => BLOCKING.has(project.state));
       if (blocked.length) { db.exec("ROLLBACK"); return { blocked, ...found }; }
-      const before = db.prepare(`SELECT ${KEPT_COLUMNS} FROM projects ORDER BY project_id`).all();
+      const countsBefore = rowCounts(db);
+      const before = db.prepare(`SELECT rowid AS kept_rowid, ${KEPT_COLUMNS} FROM projects ORDER BY project_id`).all();
       db.exec(PROJECTS_TABLE("projects_next"));
-      db.exec(`INSERT INTO projects_next (${KEPT_COLUMNS}) SELECT ${KEPT_COLUMNS} FROM projects`);
+      db.exec(`INSERT INTO projects_next (rowid, ${KEPT_COLUMNS}) SELECT rowid, ${KEPT_COLUMNS} FROM projects`);
       db.exec("DROP TABLE projects");
       db.exec("ALTER TABLE projects_next RENAME TO projects");
       db.exec(DISPLAY_INDEX);
       db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(TO));
-      const after = db.prepare(`SELECT ${KEPT_COLUMNS} FROM projects ORDER BY project_id`).all();
+      const after = db.prepare(`SELECT rowid AS kept_rowid, ${KEPT_COLUMNS} FROM projects ORDER BY project_id`).all();
       if (JSON.stringify(after) !== JSON.stringify(before)) throw new Error("the rebuilt projects table does not hold the rows it was built from");
       const dangling = db.prepare("PRAGMA foreign_key_check").all();
       if (dangling.length) throw new Error(`${dangling.length} row(s) of the catalog reference a project that is not there after the rebuild`);
+      if (!isDeepStrictEqual(rowCounts(db), countsBefore)) throw new Error("catalog row counts changed");
+      const problems = currentProblems(db);
+      if (problems.length) throw new Error(problems.join("; "));
       db.exec("COMMIT");
       return { blocked: [], ...found, rewrote: true };
     } catch (error) {
@@ -149,16 +175,16 @@ function rebuild(home, file) {
 }
 
 /** Read the catalog again after the rewrite, from a new connection: the version, the missing column, and the integrity of the file. */
-function verify(file) {
-  return withCatalog(file, { readOnly: true }, db => {
-    const problems = [];
-    if (db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value !== String(TO)) problems.push("the catalog is not at version 23");
-    if (db.prepare("PRAGMA table_info(projects)").all().some(column => column.name === "database_path")) problems.push("projects still has database_path");
-    if (db.prepare("PRAGMA integrity_check").get()?.integrity_check !== "ok") problems.push("the catalog fails its integrity check");
-    if (db.prepare("PRAGMA foreign_key_check").all().length) problems.push("the catalog has rows that reference a missing project");
-    return problems;
-  });
+function currentProblems(db) {
+  const problems = [];
+  if (db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value !== String(TO)) problems.push(`the catalog is not at version ${TO}`);
+  if (!matchesSchema(db, TO)) problems.push("current catalog schema mismatch");
+  const integrity = db.prepare("PRAGMA integrity_check").all();
+  if (integrity.length !== 1 || integrity[0].integrity_check !== "ok") problems.push("the catalog fails its integrity check");
+  if (db.prepare("PRAGMA foreign_key_check").all().length) problems.push("the catalog has rows that reference a missing project");
+  return problems;
 }
+const verify = file => withCatalog(file, { readOnly: true }, currentProblems);
 
 export function run(argv) {
   const [mode, ...rest] = argv;
@@ -174,6 +200,7 @@ export function run(argv) {
   }
   const file = path.join(home, "projects", "catalog.db");
   if (!existsSync(file)) return { code: 1, error: `${file} does not exist` };
+  if (!lstatSync(path.dirname(file)).isDirectory() || !lstatSync(file).isFile() || lstatSync(file).nlink !== 1) return { code: 1, error: "the catalog must be an ordinary file inside the copy" };
   let found;
   try { found = withCatalog(file, { readOnly: true }, db => inspect(home, db)); }
   catch (error) { return { code: 1, error: `the catalog cannot be read: ${String(error.message).slice(0, 200)}` }; }

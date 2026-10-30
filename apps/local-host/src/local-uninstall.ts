@@ -10,7 +10,7 @@ import { isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 /** Read-only Catalog inspection and the existing Demo lifecycle for local uninstall. */
 export function createLocalUninstallService(options: Omit<MolisWorkUninstallServiceOptions, "projects">, withMolisWorkProjectCatalog: LocalWebCatalogRunner): MolisWorkUninstallService {
-  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   const projects: UninstallProjectAccess = {
     async inspect() {
       const databasePath = path.join(homeDirectory, "projects", "catalog.db");

@@ -1,32 +1,27 @@
-import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "../assistant/assistant-agent.js";
-import { agentRegistration, declaredMethods, withInstructions, type BuiltinAgent } from "./agent-definitions.js";
-import { BUILTIN_INLINE_AGENT_PROMPTS, BUILTIN_INLINE_AGENT_ROLES, BUILTIN_INSTRUCTIONS, SYSTEM_INSTRUCTION_SOURCES, UNUSED_MANIFEST_AGENTS } from "./builtin-instructions.js";
+import { agentRegistration, withInstructions, type BuiltinAgent } from "./agent-definitions.js";
+import { BUILTIN_INLINE_AGENT_PROMPTS, BUILTIN_INLINE_AGENT_ROLES, BUILTIN_INSTRUCTIONS, SYSTEM_INSTRUCTION_SOURCES } from "./builtin-instructions.js";
 
-/** The system's own Agents and every built-in Plugin that declares one, as the Host starts them. */
+/**
+ * The system's own Agents, as the Host starts them. A plugin's Agent block is registered by its running definition, with the Home's
+ * remembered declaration standing in while it does not run (PG-051).
+ */
 export function builtinAgents(): BuiltinAgent[] {
-  const agents: BuiltinAgent[] = [{ owner_id: ASSISTANT_PLUGIN_ID, source: { kind: "system", module: "assistant", title: "个人工作助理" },
-    manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS }];
-  for (const [pluginId, agent] of BUILTIN_PLUGIN_AGENTS) {
-    if (UNUSED_MANIFEST_AGENTS.has(pluginId)) continue;
-    const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
-    agents.push({ owner_id: pluginId, source: { kind: "plugin", plugin_id: pluginId, plugin_version: manifest?.version ?? "", title: manifest?.name ?? pluginId },
-      manifest: agent.manifest, prompts: agent.prompts, skills: agent.skills });
-  }
-  return agents;
+  return [{ owner_id: ASSISTANT_PLUGIN_ID, source: { kind: "system", module: "assistant", title: "个人工作助理" }, manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS }];
 }
 
-/** Where an owner of instruction prompts comes from: a built-in Plugin, or one of the Host's own modules. */
+/** Where an owner the Host registers comes from: the platform itself, or Alchemist, which the Host serves (until it runs as a definition). */
 function sourceOf(ownerId: string): AgentDefinitionSource {
   const system = SYSTEM_INSTRUCTION_SOURCES[ownerId];
-  if (system) return { kind: "system", module: ownerId.slice("system:".length), title: system };
-  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === ownerId)?.manifest;
+  if (system) return { kind: "system", ...system };
+  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === ownerId)?.manifest;
   return { kind: "plugin", plugin_id: ownerId, plugin_version: manifest?.version ?? "", title: manifest?.name ?? ownerId };
 }
 
-/** Everything the Host registers when it starts: every built-in Agent, and every instruction a built-in model call uses. */
+/** Everything the Host registers when it starts: the system's Agents, and every instruction and Agent the Host itself calls. */
 export function builtinRegistrations(): AgentDefinitionRegistration[] {
   const registrations = withInstructions(builtinAgents().map(agent => agentRegistration(agent.owner_id, agent.source, agent.manifest, agent.prompts)), BUILTIN_INSTRUCTIONS, sourceOf);
   for (const inline of BUILTIN_INLINE_AGENT_PROMPTS) {
@@ -35,13 +30,5 @@ export function builtinRegistrations(): AgentDefinitionRegistration[] {
     else registrations.push({ owner_id: inline.owner_id, source: sourceOf(inline.owner_id), prompts: [structuredClone(inline.prompt)], roles: [] });
   }
   for (const inline of BUILTIN_INLINE_AGENT_ROLES) registrations.find(row => row.owner_id === inline.owner_id)?.roles.push(structuredClone(inline.role));
-  // Methods a built-in Plugin offers to other Agents: registered with it, bodies from its package, exactly as declared.
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
-    if (!entry.manifest.methods?.length) continue;
-    const { methods, notes } = declaredMethods(entry.manifest.methods, entry.methods);
-    const owner = registrations.find(row => row.owner_id === entry.manifest.plugin_id);
-    if (owner) { owner.methods = methods; if (notes.length) owner.notes = [...owner.notes ?? [], ...notes]; }
-    else registrations.push({ owner_id: entry.manifest.plugin_id, source: sourceOf(entry.manifest.plugin_id), prompts: [], roles: [], methods, ...(notes.length ? { notes } : {}) });
-  }
   return registrations;
 }

@@ -7,16 +7,21 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
+
+// Same launch cost as goals-actions.test.ts: tsx compiles the TS entry per spawn (~5 s cold; 8.55 s test, 11.54 s
+// file alone). 60 s left no margin on a loaded machine, so the ceiling is measured at 120 s instead of guessing.
+const LAUNCHER_TIMEOUT = 120_000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async t => {
+test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: LAUNCHER_TIMEOUT }, async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -39,16 +44,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
   let pending: Promise<Awaited<ReturnType<typeof sdk.callTool>>> | undefined;
   try {
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
-    const registry = await openWorkSessionRegistry({ homeDirectory: home });
-    const sessionId = registry.explicitlyLinkSession({ runtime_id: context.runtime_id, native_runtime_session_id: session,
-      actor_id: "user", user_confirmed: true, project_id: project.project_id }).session_id;
-    registry.appendEvent({ session_id: sessionId, source: "molis_work", kind: "status",
-      source_id: "before-goals-mcp", content: "Existing Session history" });
-    // SC-1 / PG-081: Goals retain the Session author without changing its record or existing history.
-    const sessionBefore = registry.get(sessionId);
-    const eventsBefore = registry.events(sessionId);
-    registry.close();
-    // The Session history MCP must replay is written through the action client. The typed door is the local person.
+    // The history MCP must replay is written through the action client. The typed door is the local person.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
     const sessionCaller = { actor_id: clientId, audit_actor_id: auditActor, actor_kind: "runtime" as const, runtime_session_id: session,
       audience: "mcp" as const, project_id: project.project_id, permissions: ["goals:read", "goals:write"] };
@@ -112,7 +108,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     assert.notEqual(refusedCallId, noteCallId, "every tool call is an operation of its own");
     const refusedRow = host.callLog!.find(refusedCallId!)[0];
     assert.deepEqual([refusedRow?.refused, refusedRow?.ok, refusedRow?.actor_id, refusedRow?.code], [true, false, clientId, "actions.input_invalid"]);
-    const stored = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, note.event_id));
+    const stored = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, input.goal_id, note.event_id));
     assert.equal(stored.actor_id, auditActor); assert.equal(stored.actor_kind, "runtime");
     assert.equal((stored.payload as { body: string }).body, newInput.body);
     assert.ok(policies.includes(clientId), "policy receives the grant principal, never the historical author");
@@ -146,7 +142,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
     assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(molisWorkActionToolName(goalsActions.note)), false);
-    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
+    const events = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 2);
     const stateView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.state.capability_id)!;
     await served.revoke(clientId, project.project_id, [stateView]);
@@ -166,11 +162,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
       assert.ok(JSON.parse(await management.callTool(aliases.list, {})).goals.some((goal: { goal_id: string }) => goal.goal_id === input.goal_id));
       await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "actions.input_invalid" });
     } finally { await management.close(); }
-    const inspect = await openWorkSessionRegistry({ homeDirectory: home });
-    try {
-      assert.deepEqual(inspect.get(sessionId), sessionBefore, "MCP calls leave the complete Session record unchanged");
-      assert.deepEqual(inspect.events(sessionId), eventsBefore, "MCP calls preserve existing Session events without adding any");
-    } finally { inspect.close(); }
   } finally {
     release?.(); await pending?.catch(() => undefined); await sdk.close();
     await served.close(); await host.close(); await rm(home, { recursive: true, force: true });

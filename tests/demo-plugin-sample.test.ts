@@ -5,24 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID,
-  DEMO_CORE_ARTIFACT_ID,
-  DEMO_GITHUB_SOURCE_ID,
-  DEMO_GMAIL_SOURCE_ID,
-  GoalProjectApplication,
-  LocalProjectDatabase,
-  
-  createLocalFeedApplication,
-  openHostShelfStore,
-  openWorkSessionRegistry,
-  seedDemoBoard,
-  seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
-  openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_PROJECT_ID, DEMO_CORE_ARTIFACT_ID, DEMO_GITHUB_SOURCE_ID, DEMO_GMAIL_SOURCE_ID, LocalProjectDatabase, seedDemoPluginSurfaces, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { FEED_CAPTURE_ARTIFACT_TYPE_ID, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
+import { GoalProjectApplication, seedBoard } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 async function withDirectory<T>(prefix: string, run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
@@ -63,7 +52,8 @@ async function assertDemoPluginFacts(input: {
 }): Promise<void> {
   const store = new LocalProjectDatabase(input.databasePath);
   try {
-    const snapshot = createLocalFeedApplication(store.db).snapshot(input.projectId);
+    const feed = createLocalFeedApplication(store.db);
+    const snapshot = feed.snapshot(input.projectId);
     const kinds = new Set(snapshot.sources.map((source) => source.kind));
     assert.ok(kinds.has("rss"));
     assert.ok(kinds.has("youtube_channel"));
@@ -86,31 +76,30 @@ async function assertDemoPluginFacts(input: {
     assert.ok(active.some((entry) => entry.reason === "source_fault"));
     assert.ok(history.some((entry) => entry.status === "done"));
     assert.ok(history.some((entry) => entry.status === "dismissed"));
-    const artifacts = openProjectVersionStores(store).artifacts.query.listArtifacts(input.projectId);
+    const { query } = openProjectVersionStores(store).artifacts;
+    const artifacts = query.listArtifacts(input.projectId);
     assert.ok(artifacts.some((artifact) => artifact.artifact_id === DEMO_CORE_ARTIFACT_ID));
-    assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
+    // RAC-510: the 「目标树」 rule captured its article once, with the writer the Runtime Feed is given, so Feed's Manifest is the producer.
+    const rule = feed.outRules.list(input.projectId).find((candidate) => candidate.match.contains === "目标树");
+    const article = snapshot.feed_items.find((item) => item.title === "第一次把模糊想法收成目标树");
+    assert.ok(rule && article);
+    const captures = artifacts.filter((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID).map((capture) => ({
+      item: capture.metadata.feed_item_id, rule: capture.metadata.rule_id, plugin: capture.producer_plugin_id, version: capture.producer_plugin_version,
+      signature: capture.producer_binding_signature, versions: query.listArtifactVersions(input.projectId, capture.artifact_id).length,
+    }));
+    assert.deepEqual(captures, [{ item: article.item_id, rule: rule.rule_id, plugin: feedManifest.plugin_id, version: feedManifest.version,
+      signature: feedManifest.publisher.signature, versions: 1 }]);
   } finally {
     store.close();
   }
-  const registry = await openWorkSessionRegistry({ homeDirectory: input.homeDirectory });
-  try {
-    const sessions = registry.list({ project_id: input.projectId })
-      .filter((session) => session.metadata.regenerable_demo === true);
-    assert.ok(sessions.length >= 2);
-    assert.ok(sessions.every((session) => registry.eventCount(session.session_id) > 0));
-    assert.ok(sessions.every((session) => !session.native_runtime_session_id));
-  } finally {
-    registry.close();
-  }
-  assert.ok(
-    (await openHostShelfStore(input.homeDirectory).snapshot()).materials.some((item) => item.name === "试用示例.pdf"),
-  );
+  // The Shelf sample is Shelf's: the resident Host puts it back through `shelf.sample.seed` (shelf-actions.test.ts), the catalog does not.
+  assert.equal(existsSync(join(input.homeDirectory, "shelf")), false, "making the demo writes nothing into Shelf's files");
 }
 
 test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
   await withDirectory("molis-work-demo-board-only-", async (directory) => {
     const databasePath = join(directory, "fixture.db");
-    seedDemoBoard(databasePath);
+    seedBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
       const snapshot = createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID);
@@ -177,7 +166,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(created.status, "created");
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "schedule"],
       );
       await assertDemoPluginFacts({
         databasePath: created.project.database_path,
@@ -195,7 +184,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(reset.status, "reset");
       assert.deepEqual(
         catalog.listProjectPlugins(reset.project.project_id),
-        ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "schedule"],
       );
       await assertDemoPluginFacts({
         databasePath: reset.project.database_path,

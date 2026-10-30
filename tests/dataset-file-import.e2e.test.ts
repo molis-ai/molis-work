@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -32,25 +32,28 @@ async function openImport(t: TestContext) {
   await idle();
   await child.frameCommand('Page.setInterceptFileChooserDialog', { enabled: true });
   await evaluate(`(() => {
-    const text = File.prototype.text, fetch = window.fetch;
+    const text = File.prototype.text, original = window.molisWorkRequest;
     window.importRequests = []; window.readCount = 0;
     File.prototype.text = async function() {
       window.readCount++;
       if (window.pauseRead) await new Promise((resolve, reject) => { window.releaseRead = resolve; window.failRead = reject; });
       return text.call(this);
     };
-    window.fetch = async (url, init) => {
+    // The page asks through molisWorkRequest: the body is the object it sends, a refusal is a thrown failure carrying the status.
+    window.molisWorkRequest = Object.assign(async (url, init) => {
       const path = new URL(url, ${JSON.stringify(origin)}).pathname;
       const importing = init?.method === 'POST' && path.endsWith('/import-csv');
-      const entry = importing ? { path, body: JSON.parse(init.body) } : null;
+      const entry = importing ? { path, body: init.body } : null;
       if (entry) window.importRequests.push(entry);
-      const response = await fetch(url, init);
+      let result, failure = null;
+      try { result = await original(url, init); } catch (error) { failure = error; }
       if (entry) {
-        entry.status = response.status;
+        entry.status = failure ? failure.status : 200;
         if (window.pauseResponse) await new Promise(resolve => { window.releaseResponse = resolve; });
       }
-      return response;
-    };
+      if (failure) throw failure;
+      return result;
+    }, original);
   })()`);
   const choose = async (confirm = true) => {
     await evaluate("delete window.releaseRead; delete window.failRead; delete window.releaseResponse");

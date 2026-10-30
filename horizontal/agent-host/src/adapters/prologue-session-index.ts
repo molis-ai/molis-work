@@ -23,6 +23,11 @@ export interface SessionIndex {
   owner: PrologueRestoredSession["owner"];
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
   attempts: Array<PrologueStartInput["provenance"] & { action_tool_scope?: string; refused?: { code: string; at: string }; step_board?: ExactRef<"task-board">; step_prefix?: string; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; stop_reason?: string; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming; desktop_target?: string;
+    /** The first occurrence owns text; later attempts refer to that immutable input in this same Session. */
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
+    original_input_ref?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInputRef;
+    /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */
+    memory_context?: { consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
     /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */
     write_checks?: Record<string, AgentWriteCheckNote> }>;
   rewinds?: PrologueRewindIntent[];

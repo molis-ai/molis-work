@@ -1,16 +1,4 @@
-import type { ArtifactReference } from "../modules/artifacts.js";
-import type { UiCommandInputKind, UiViewObjectRef } from "./ui.js";
 import type { PluginRouteMethod } from "./plugin-manifest.js";
-
-/** Each variant's `kind` must stay a declared UI command input kind. */
-type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> =
-  { kind: Kind } & Payload;
-
-export type PluginCommandInput =
-  | PluginCommandInputOf<"current">
-  | PluginCommandInputOf<"object", { ref: UiViewObjectRef }>
-  | PluginCommandInputOf<"agent-session", { session_id: string }>
-  | PluginCommandInputOf<"artifacts", { references: readonly ArtifactReference[] }>;
 
 export interface PluginRouteRequest {
   method: PluginRouteMethod;

@@ -5,7 +5,9 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
-import { bindGoalsManagementActions } from "./goals-actions.js";
+import { bindGoalsManagementActions } from "./goal-callers.js";
+import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
+import path from "node:path";
 
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new ActionError(code, message, { details });
 
@@ -15,7 +17,7 @@ interface McpV1ToolCaller {
   audience: "runtime" | "management";
   /** The Runtime's bound project; null for the management audience. */
   runtimeConnection: MolisWorkRuntimeConnection | null;
-  resident?: { home: string; origin: string; signal?: AbortSignal };
+  resident?: { home: string; origin: string; signal?: AbortSignal; ensureResident?(): Promise<void> };
 }
 
 /**
@@ -32,6 +34,13 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     throw new ActionError("mcp.path_required",
       "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
   }
+  if (audience === "management" && caller.resident?.ensureResident) {
+    // The production MCP forwards even validation to this Home; it never prepares or opens a local project/catalog.
+    return dispatchMcpProjectTool(residentManagementActions({ home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,
+      ensureResident: caller.resident.ensureResident, databasePath: path.resolve(location),
+      projectId: String(arguments_.project_id), fallback: () => { throw new ActionError("actions.service_unavailable", "生产 MCP 不在本地执行管理操作"); } }),
+      name, arguments_, { audience, createError: createPresentationError });
+  }
   const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
@@ -46,10 +55,11 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     databasePath,
     projectId,
   });
-  const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference, { signal: caller.resident?.signal });
+  const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference), reference, { signal: caller.resident?.signal });
   const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
   if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
   if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });
+  if (!owned && name === "molis_work_v1_initialize" && audience === "management") await ensureStandaloneProjectRoot(caller.localHost, reference);
   if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
   const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
     home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,

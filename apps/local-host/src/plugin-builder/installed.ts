@@ -3,70 +3,38 @@
  * uninstall; this definition only proxies to the plugin's sandboxed process. The plugin's code never runs in the
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
-import type { PluginDefinition, PluginManifest, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, sandboxDatabase, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { resolvePluginComponentCall, validatePluginPresentation, PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
+import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { sandboxPluginManifest, sandboxUiContribution } from '../sandbox-plugin-manifest.js';
+import { releaseVersion } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
-export const releaseVersion = (version: number) => `${version}.0.0`;
-const ENTRIES = 'sandbox:entries';
-const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
+/** A sandbox error after which the process is not used again: the next call starts a new one. */
+export const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-const uiContribution = (pluginId: string) => pluginId + '.ui.v1';
-
-/** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
-export function storageTransactions(storage: PluginPrivateStorage): NonNullable<SandboxServices['storage']> {
-  if (!storage.compareAndSet) throw new Error('插件存储不支持原子写入');
-  let chain: Promise<unknown> = Promise.resolve();
-  return {
-    transaction(context, mutate) {
-      const run = async () => {
-        await context.beforeEffect?.();
-        context.signal.throwIfAborted();
-        const raw = storage.get(ENTRIES);
-        const working = new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []);
-        const before = JSON.stringify([...working]);
-        const result = mutate(working);
-        await context.beforeEffect?.();
-        context.signal.throwIfAborted();
-        const after = JSON.stringify([...working]);
-        if (after !== before && !storage.compareAndSet!(ENTRIES, raw, after)) throw new Error('数据被同时修改，请重试');
-        return result;
-      };
-      const next = chain.then(run, run);
-      chain = next.then(() => undefined, () => undefined);
-      return next;
-    },
-  };
-}
 
 /**
  * What a generated plugin declares to the Host: a release's Manifest, or for a trial of a build that has none yet, the one it
  * would install with at version 0.
  */
 export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
-  const uiId = uiContribution(release.pluginId);
-  return {
-    schema_version: 2, host_api_version: 2, plugin_id: release.pluginId, version: releaseVersion(release.version), name: release.design.title, kind: 'app',
-    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) },
-    entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
-    ...(earlierVersions.length ? { upgrade_compatibility: { compatible_from_versions: earlierVersions.map(releaseVersion) } } : {}),
-    permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
-    capabilities: { provides: [], consumes: release.design.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
-    ...(release.design.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
-    routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: release.design.title, contribution_id: uiId }] },
-  };
+  return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
+    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract) });
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
+export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]>;
+    /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
+    assertLive?(identity: Readonly<SandboxIdentity>): void } = {},
+  /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
+  declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
-  const manifest = generatedPluginManifest(release, compatibleFrom), uiId = uiContribution(release.pluginId);
+  const manifest = declared ?? generatedPluginManifest(release, compatibleFrom), uiId = sandboxUiContribution(release.pluginId);
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
   return {
@@ -75,18 +43,13 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
     execution: 'sandbox',
     async start(context) {
       context.requireGrant('storage:private');
-      const storage = context.services?.storage;
-      if (!storage) throw new Error('插件存储尚未装配');
-      // The project's library only when the Manifest declares the plugin's tables there (`databases.project`).
-      const database = context.services?.project_database;
-      const services: SandboxServices = { storage: storageTransactions(storage), ...(database ? { projectDatabase: sandboxDatabase(database) } : {}),
-        ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}),
-        // The activation's drawing of questions, cards and next steps, reached through the broker like every other service.
-        ...(context.services?.interaction ? { interaction: context.services.interaction } : {}) };
+      // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
+      const services = sandboxServicesFor(context.services, host);
+      const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
-          identity: { projectId: context.project_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' } });
+          identity });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
         return created;
@@ -118,13 +81,13 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             const binding = capabilityPolicyBinding(operation.effects, capabilities);
             let policyChanged = false;
             const beforeEffect = async () => {
-              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
               if (!host.capabilities || !dependencies.length) return;
               if (capabilityPolicyBinding(operation.effects, await host.capabilities()) !== binding) {
                 policyChanged = true;
                 throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
               }
-              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
             };
             await beforeEffect();
             const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
@@ -144,7 +107,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             }
           } catch (error) { return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }
         } }],
-        views: [{ descriptor: { contribution_id: uiId, plugin_id: release.pluginId, kind: 'primary-page', label: release.design.title, slots: [] },
+        views: [{ descriptor: { contribution_id: uiId, kind: 'primary-page', label: release.design.title, slots: [] },
           render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],
       };
     },

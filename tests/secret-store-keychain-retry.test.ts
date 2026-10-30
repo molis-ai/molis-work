@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createFileSecretStore, createLazyFileSecretStore, openBaselineHomeSqlite, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, createLazyFileSecretStore, openBaselineHomeSqlite, openExistingHomePayload, sealExistingHomePayload, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTORS_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { functionsActions } from "@molis-ai/molis-work-module-functions";
@@ -82,6 +82,29 @@ for (const [reason, behavior] of [
       assert.deepEqual(readFileSync(file), before);
     }, behavior));
 }
+
+test("S-12 RAC-104-B2b-01: an empty Keychain vault keeps its original backend for normal reopening and read-only owner payloads",
+  { skip: process.platform !== "darwin" }, () => withKeychainFixture(({ home, root, allow }) => {
+    allow();
+    runWithMolisWorkHome(home, () => createFileSecretStore().delete("fixture"));
+    const file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+    assert.deepEqual(JSON.parse(before.toString()).entries, {});
+    process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+    resetSecretStoreCache();
+    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().backend().kind), "keychain+aes-gcm");
+    const sealed = sealExistingHomePayload(home, "original-owner", "private owner contents");
+    assert.equal(openExistingHomePayload(home, "original-owner", sealed), "private owner contents");
+    assert.equal(sealed.backend, "keychain+aes-gcm");
+    assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+    // The only PATH directory now has no security executable: neither a system lookup nor a replacement key is possible.
+    rmSync(join(root, "bin", "security")); resetSecretStoreCache();
+    // S-12 RAC-104-B2b-07: a fresh environment value cannot replace the vault's recorded Keychain backend.
+    process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 31).toString("base64");
+    assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /Keychain/u);
+    assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /original Keychain item.*HOME-DATA\.md/u);
+    assert.throws(() => openExistingHomePayload(home, "original-owner", sealed), { code: "storage.secrets_snapshot.key_unavailable" });
+    assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+  }, "exit 36"));
 
 test("Keychain failure does not block another Home or cache ordinary environment-key failures", { skip: process.platform !== "darwin" }, async () => {
   await withKeychainFixture(({ root, home, calls }) => {
@@ -195,14 +218,16 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       const address = server.address();
       assert.ok(address && typeof address === "object");
       const origin = `http://127.0.0.1:${address.port}`;
-      for (const route of ["/api/functions", "/api/functions/published", "/api/functions/by-key/lazy_keychain"]) {
+      for (const route of ["/api/functions", "/api/functions/published"]) {
         const response = await fetch(origin + route);
         assert.equal(response.status, 200, route);
         assert.match(await response.text(), /lazy_keychain/u);
       }
-      assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
       const actions = bindActionClient(actionHost.homeActionClient(),
         () => ({ actor_id: "test", project_id: null, audience: "mcp", permissions: ["functions:invoke"] }));
+      // BL-081 ②: the by-key HTTP describe was deleted; the same read goes through the Functions action.
+      assert.match(JSON.stringify(await actions.invoke(functionsActions.describe, { function_key: live.function_key })), /lazy_keychain/u);
+      assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
       for (let i = 0; i < 3; i++) await assert.rejects(() => actions.invoke(functionsActions.invoke, { function_key: live.function_key, input: "needs actual credential" }), /Keychain/u);
       assert.equal(providerCalls, 0);
       assert.deepEqual(calls(), ["find-generic-password"]);

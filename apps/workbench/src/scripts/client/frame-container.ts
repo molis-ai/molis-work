@@ -16,7 +16,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   if (!tabsEl || !shell || !surfaceEl || !canvasEl || !worldEl) return noop;
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
-  const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
+  const kindLabel = (kind) => ({ feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
   let openIds = [];
   let curTab = LIST_TAB;
   let lastBoard = LIST_TAB;
@@ -25,8 +25,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   let ignoreClick = false;
   let ready = false;
   const enabled = () => document.body.dataset.boardView === "current" && Boolean(shell);
-  const isFrameTabActive = () => enabled() && getSurface() === "goal" && !boardTab(curTab);
-  const isKanbanTabActive = () => enabled() && getSurface() === "goal" && curTab === KANBAN_TAB;
+  const isFrameTabActive = () => enabled() && getSurface() === "goals" && !boardTab(curTab);
+  const isKanbanTabActive = () => enabled() && getSurface() === "goals" && curTab === KANBAN_TAB;
   const knownIds = () => new Set(visibleGoals().map((item) => item.goal.goal_id));
   const goalTitle = (goalId) => visibleGoals().find((item) => item.goal.goal_id === goalId)?.goal.title || goalId;
   const loadedFrames = new Set();
@@ -70,7 +70,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!boardTab(curTab) && !openIds.includes(curTab)) curTab = lastBoard;
   };
   const applySurface = () => {
-    const onGoal = getSurface() === "goal";
+    const onGoal = getSurface() === "goals";
     const showFrame = onGoal && !boardTab(curTab);
     shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
@@ -120,7 +120,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const loadFeedBody = async (body, block) => {
     const row = liveAssetRow(block);
     const itemId = block.itemRef || row?.dataset.feedItemId || (row?.dataset.inboxSubjectType === "feed" ? row.dataset.inboxSubjectId : "") || block.itemId;
-    const html=await molisWorkRequest(toRoute("/api/feed/items/"+encodeURIComponent(itemId)+"/detail?preset=feed&surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
+    const html=await molisWorkRequest(toRoute("/api/stage/feed/items/"+encodeURIComponent(itemId)+"?surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
     const template = document.createElement("template");
     template.innerHTML = html.trim();
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector(".frame-reading") || template.content.firstElementChild;
@@ -141,36 +141,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       body.replaceChildren(...reading.childNodes);
     } else body.replaceChildren(reading);
   };
-  const loadSessionBody = async (body, block) => {
-    const payload=await molisWorkRequest(toRoute("/api/sessions/"+encodeURIComponent(block.itemId)+"/content"),{fallback:L("无法打开这个内容")});
-    const article = document.createElement("article");
-    article.className = "frame-reading";
-    article.dataset.frameReading = "session";
-    const events = Array.isArray(payload.events)
-      ? payload.events.filter((event) => String(event.content || "").trim() || ["tool", "artifact", "terminal_output", "user_message", "runtime_message"].includes(event.kind))
-      : [];
-    if (!events.length) {
-      const empty = document.createElement("p");
-      empty.className = "frame-block-status";
-      empty.textContent = payload.native_error?.message || L("还没有可显示的执行内容");
-      article.append(empty);
-      body.replaceChildren(article);
-      return;
-    }
-    const list = document.createElement("ol");
-    list.className = "frame-session-events";
-    events.slice(0, 16).forEach((event) => {
-      const item = document.createElement("li");
-      const label = document.createElement("strong");
-      label.textContent = event.label || event.kind || "";
-      const text = document.createElement("span");
-      text.textContent = String(event.content || "").slice(0, 400);
-      item.append(label, text);
-      list.append(item);
-    });
-    article.append(list);
-    body.replaceChildren(article);
-  };
   const fillBody = async (article, block, force) => {
     const body = article?.querySelector("[data-frame-block-body]");
     if (!body || !block) return;
@@ -187,7 +157,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       if (block.kind === "inbox") loadInboxBody(body, block);
       else if (block.kind === "feed") await loadFeedBody(body, block);
       else if (block.kind === "artifact") await loadArtifactBody(body, block);
-      else if (block.kind === "session") await loadSessionBody(body, block);
       else {
         const fallback = document.createElement("p");
         fallback.textContent = block.caption || kindLabel(block.kind);
@@ -203,8 +172,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const renderTabs = () => {
     if (knownIds().size) prune();
     tabsEl.hidden = true;
-    const workspaceTabs = document.querySelector("[data-titlebar-tabs]");
-    if (workspaceTabs) workspaceTabs.hidden = false;
     shell.querySelectorAll("[data-board-view-tab]").forEach((button) => {
       const current = boardTab(curTab) && button.dataset.boardViewTab === curTab;
       button.classList.toggle("is-current", current);
@@ -248,12 +215,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       tab.title = goalTitle(goalId);
       if (curTab === goalId) tab.setAttribute("aria-current", "page");
       const label = document.createElement("span");
-      label.textContent = goalTitle(goalId);
+      label.textContent = tab.title;
       const close = document.createElement("button");
       close.type = "button";
       close.className = "container-tab-close";
       close.dataset.containerTabClose = goalId;
-      close.setAttribute("aria-label", L("关闭 Frame：{title}", { title: goalTitle(goalId) }));
+      close.setAttribute("aria-label", L("关闭 Frame：{title}", { title: tab.title }));
       close.title = L("关闭");
       close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
       tab.append(label, close);
@@ -274,16 +241,16 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const frame = frameOf(curTab);
     const item = visibleGoals().find((entry) => entry.goal.goal_id === curTab);
     surfaceEl.dataset.frameGoal = curTab;
-    surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(curTab);
+    const put = (selector, text) => { const el = surfaceEl.querySelector(selector); if (el.textContent !== text) el.textContent = text; };
+    put('[data-frame-goal-title]', goalTitle(curTab));
     const status = item?.display_status || item?.status || "";
     const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
     const source = document.querySelector('[data-goal-id="' + CSS.escape(curTab) + '"] .goal-status');
     statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
-    statusEl.setAttribute("data-frame-goal-status", "");
     if (source) statusEl.innerHTML = source.innerHTML;
     else statusEl.textContent = item?.status_label || L(status);
     statusEl.dataset.status = status;
-    surfaceEl.querySelector('[data-frame-goal-outcome]').textContent = item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。");
+    put('[data-frame-goal-outcome]', item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。"));
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
     setCamera();
     worldEl.replaceChildren();
@@ -329,10 +296,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     shell.removeAttribute("data-goal-planning");
     shell.removeAttribute("data-goal-rules");
     shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => row.setAttribute("aria-pressed", "false"));
-    const already = curTab === view && getSurface() === "goal";
+    const already = curTab === view && getSurface() === "goals";
     lastBoard = view;
     curTab = view;
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     host.activateGoalsMother?.();
     sync();
     if (!already) setWorkspaceMode("graph");
@@ -347,7 +314,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     frameOf(goalId);
     if (!openIds.includes(goalId)) openIds.push(goalId);
     curTab = goalId;
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     setWorkspaceMode("graph");
     sync();
     persist();
@@ -364,7 +331,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!enabled()) return;
     const previous = curTab;
     if (!boardTab(curTab)) curTab = lastBoard;
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     sync();
     if (previous !== curTab) persist();
   };
@@ -384,7 +351,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     curTab = CANVAS_TAB;
     host.activateGoalsMother?.();
     setDirectory("goals", true, false);
-    setWorkSurface("goal");
+    setWorkSurface("goals");
     setWorkspaceMode("graph");
     applySelection(goalId);
     locateGraphNode(goalId);
@@ -405,7 +372,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const readAsset = (target) => {
     if (!target?.closest) return null;
-    if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-open-session-add], [data-feed-filter-trigger], [data-feed-filter-panel], [data-container-tabs], [data-frame-block]")) return null;
+    if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-feed-filter-trigger], [data-feed-filter-panel], [data-container-tabs], [data-frame-block]")) return null;
     const row = target.closest("[data-frame-asset]");
     if (!row) return null;
     return {
@@ -492,7 +459,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const assets = new Map();
     document.querySelectorAll("[data-frame-asset]").forEach((row) => {
       const asset = readAsset(row);
-      if (asset?.id && ["feed", "inbox", "session", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
+      if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";

@@ -2,18 +2,15 @@ import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
-  PERSONAL_PLUGIN_IDS,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  pluginMarketCards,
-  pluginWorkbenchClientAsset,
-  railEntries,
+  pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -74,7 +71,6 @@ import {
   moveRow,
   moveSpan,
   nudgeSpan,
-  openPagesStore,
   pagesActions,
   addTableColumn,
   moveTableColumn,
@@ -106,9 +102,7 @@ import {
   outdentListItem,
   removeCodeIndent,
   pagesSchema,
-  placeFloating,
   scrollChildIntoView,
-  scrollShouldFollow,
   replaceEnclosingRow,
   revealHeading,
   headingIndexAt,
@@ -189,6 +183,7 @@ import {
   unwrapAtStart,
   unwrapColumns,
 } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { highlightRanges } from "@molis-ai/molis-work-plugin-pages/code-highlight";
 import { Fragment, Slice } from "prosemirror-model";
 import { EditorState, NodeSelection, TextSelection, type Command } from "prosemirror-state";
@@ -197,20 +192,35 @@ import {
   renderMolisWorkWorkbenchClientScript,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-pages";
 const OTHER = "project-other";
 
-function saveFunctionSource(script: string): string {
-  const start = script.indexOf("const save = async");
-  const end = script.indexOf("const queueSave", start);
+/** The Pages page's own TypeScript (it is bundled into the client pack, RAC-159): what its code does is read in the sources. */
+function pagesBrowserSource(file: string): string {
+  return readFileSync(new URL(`../plugins/native/pages/src/browser/${file}`, import.meta.url), "utf8");
+}
+
+/** All of the page's TypeScript, for what is read by name (selectors, icons, calls) and not by how the minifier writes it. */
+function pagesBrowserSources(): string {
+  const dir = new URL("../plugins/native/pages/src/browser/", import.meta.url);
+  return readdirSync(dir).filter((file) => file.endsWith(".ts")).map((file) => readFileSync(new URL(file, dir), "utf8")).join("\n");
+}
+
+function saveFunctionSource(): string {
+  const script = pagesBrowserSource("document.ts");
+  const start = script.indexOf("export async function save(");
+  const end = script.indexOf("export function queueSave", start);
   assert.ok(start >= 0 && end > start, "找不到 save()");
   return script.slice(start, end);
 }
 
-function fillEditorSource(script: string): string {
-  const start = script.indexOf("const fillEditor");
-  const end = script.indexOf("const closeEditor", start);
+function fillEditorSource(): string {
+  const script = pagesBrowserSource("editor.ts");
+  const start = script.indexOf("export function fillEditor");
+  const end = script.indexOf("export function closeEditor", start);
   assert.ok(start >= 0 && end > start, "找不到 fillEditor()");
   return script.slice(start, end);
 }
@@ -275,8 +285,8 @@ test("标题里按回车落到正文开头", () => {
     pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
   ]);
   assert.equal(docStart(image), image.child(0).nodeSize + 1);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /Editor\.focusStart\(editor\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /event\.isComposing/);
+  assert.match(pagesBrowserSource("events.ts"), /page\.Editor\.focusStart\(page\.editor\)/);
+  assert.match(pagesBrowserSource("events.ts"), /event\.isComposing/);
 });
 
 test("三击选中整块文字，图片则选中那一块", () => {
@@ -298,9 +308,11 @@ test("三击选中整块文字，图片则选中那一块", () => {
   const textAt = image.child(0).nodeSize + 1;
   assert.deepEqual(tripleClickSelection(image, textAt), { from: textAt, to: textAt + 1, atom: false });
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /handleTripleClick\(current, pos\)/);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
+  assert.match(editor, /handlePagesTripleClick\(current: EditorView, pos: number\)/);
   assert.match(editor, /tripleClickSelection\(current\.state\.doc, pos\)/);
+  const mounted = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(mounted, /handleTripleClick: handlePagesTripleClick/);
 });
 
 test("按住 Alt 拖开会复制一块，原来的还在", () => {
@@ -360,7 +372,7 @@ test("已经选中一块时，按住 Shift 再点另一块会扩到那一块", (
   assert.deepEqual(blockSpanToRow(callout, bing, inside), { anchor: bing, head: yi });
   assert.equal(blockSpanToRow(callout, yi, outside), null);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
   assert.match(editor, /blockSpanToRow\(current\.state\.doc, anchor, point\.pos\)/);
 });
 
@@ -523,11 +535,13 @@ test("点到正文下面的空白会落到一个空段落", () => {
   assert.equal(after.doc.child(0).textContent, "甲");
   assert.equal(after.doc.child(1).textContent, "");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const down = editor.indexOf("mousedown(current, event)");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
+  const down = editor.indexOf("mousedown(current: EditorView, event: MouseEvent)");
   const placed = editor.indexOf("focusBelowContent(current.state)", down);
   assert.ok(editor.indexOf("coordsAtPos", down) > down);
   assert.ok(placed > editor.indexOf("coordsAtPos", down));
+  const mounted = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(mounted, /handleDOMEvents: \{ \.\.\.pagesDomEvents/);
 });
 
 test("Pages 是个人插件，不进项目启用名单", () => {
@@ -537,13 +551,13 @@ test("Pages 是个人插件，不进项目启用名单", () => {
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
-  const market = pluginMarketCards().find((card) => card.id === "pages");
+  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages");
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const owner = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);
@@ -699,33 +713,37 @@ test("阅读面没有粗左边线和后台表单顶栏", () => {
   assert.match(PAGES_STYLES, /--content-select/);
   assert.match(PAGES_STYLES, /outline:\s*none !important/);
   assert.doesNotMatch(PAGES_STYLES, /pages-handle-tray/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-more/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /dialog\[open\]/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /closeMore\(\);\s*moreButton\?\.focus\(\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /if \(moveMenu && !moveMenu\.hidden\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /if \(createMenu && !createMenu\.hidden\)/);
+  const events = pagesBrowserSource("events.ts");
+  assert.match(pagesBrowserSource("click.ts"), /data-pages-more/);
+  assert.match(events, /dialog\[open\]/);
+  assert.match(events, /closeMore\(page\);\s*moreButton\?\.focus\(\)/);
+  assert.match(events, /if \(moveMenu && !moveMenu\.hidden\)/);
+  assert.match(events, /if \(createMenu && !createMenu\.hidden\)/);
 });
 
 test("工作台客户端保存不重挂内核", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.ok(script.includes(JSON.stringify(PERSONAL_PLUGIN_IDS)));
-  assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /fillEditor/);
-  assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /setDoc/);
-  assert.match(fillEditorSource(PAGES_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
+  // Which market card is personal is the Host's mark on the card (W5-02 B1); the client keeps no list of its own.
+  assert.doesNotMatch(script, /PERSONAL_PLUGIN_IDS/);
+  assert.doesNotMatch(saveFunctionSource(), /fillEditor/);
+  assert.doesNotMatch(saveFunctionSource(), /setDoc/);
+  assert.match(fillEditorSource(), /clearTimeout\(page\.saveTimer\)/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.kind = "page"/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /ICON\("star"\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /ICON\("note"\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-move/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-drop/);
-  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-folder[^\-]/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-promote/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /runAi/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.routePrefix/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /route\(withProject\(/);
-  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /className = "pages-row"/);
+  const browser = pagesBrowserSources();
+  assert.match(browser, /ICON\("star"\)/);
+  assert.match(browser, /ICON\("note"\)/);
+  assert.match(browser, /data-pages-move/);
+  assert.match(browser, /data-pages-drop/);
+  assert.doesNotMatch(browser, /data-pages-folder[^\-]/);
+  assert.match(browser, /data-pages-promote/);
+  assert.match(browser, /runAi/);
+  // The page asks the shared host for the routes (RAC-158): no project prefix or route list of its own.
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\(/);
+  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.routePrefix|withProject/);
+  assert.doesNotMatch(browser, /className = "pages-row"/);
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /window\.prompt|window\.confirm/);
 });
 
@@ -2885,10 +2903,12 @@ test("选中待办再按空格是勾选，不是换成空格", () => {
     if (item < 0 && node.type.name === "task_item") item = pos;
   });
   assert.equal(toggleTaskGroup(pagesState(mixed), 0, item), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
   const space = editor.indexOf("toggleTaskGroup(current.state");
   const replace = editor.indexOf("replaceSelectedBlock(current.state, text)");
   assert.ok(space > 0 && replace > space);
+  const mounted = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(mounted, /handleTextInput: handlePagesTextInput/);
 });
 
 test("空行粘贴网址变成书签，选中的字只加链接", () => {

@@ -1,10 +1,11 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, localWebActionContext, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
@@ -36,8 +37,8 @@ async function openDual(t: TestContext) {
   const homeInstall = () => host.homePlugins!.installation(PLUGIN_ID)!;
   // The project instance, installed into the project's own database the way a project's Plugin Runtime does.
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-  const installId = runtime.install({ definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] }).install.install_id;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] }).install.install_id;
   t.after(async () => { await runtime.stop(installId).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); });
   const setHomeGrants = async (grants: string[]) => {
     await platform.runtime.stop(homeInstall().install_id); platform.runtime.grant(homeInstall().install_id, grants);
@@ -51,7 +52,7 @@ async function openDual(t: TestContext) {
   const validate = (context: ActionCallContext, definition: ActionDefinition<Record<string, never>, string>) =>
     context.validate_authority!({ ...definition, provider_id: offered(context)[definition.capability_id] });
   return { host, reference, runtime, installId, homeInstall, projectInstall: () => runtime.get(installId), setHomeGrants, setProjectGrants, offered, call, validate,
-    context: () => localWebActionContext(host, reference, []) };
+    context: () => host.localPersonContext(reference) };
 }
 
 test("DUAL-06 the Home instance and the project instance share one install_id, hold their own generations, and each instance's actions are accepted on its own record", async t => {
@@ -115,7 +116,7 @@ test("DUAL-06 a nested call is checked against its own database's generation: re
   const before = await s.context();
   const generation = s.projectInstall().installation_generation;
   await s.runtime.stop(s.installId); await s.runtime.uninstall(s.installId);
-  s.runtime.install({ definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] });
+  s.runtime.install({ trust: { level: "unsigned" }, definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] });
   await s.runtime.start(s.installId);
   assert.equal(s.projectInstall().install_id, s.homeInstall().install_id);
   assert.notEqual(s.projectInstall().installation_generation, generation, "the reinstalled project instance is a new installation");

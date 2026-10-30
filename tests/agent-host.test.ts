@@ -9,9 +9,12 @@ import type {
   AgentRuntimeAdapter,
   AgentRuntimeCapability,
   AgentSessionView,
+  AgentStartInput,
   AgentStartRequest,
   AgentReviewRequest,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AgentHost, AgentReviewQueue, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 
@@ -117,7 +120,16 @@ function startRequest(roleId: string, runtimeId = "prologue"): AgentStartRequest
   };
 }
 
+/** The same start as a plugin asks for it: who it is for is the plugin's caller, never the input. */
+function startInput(roleId: string): AgentStartInput {
+  const { session, task, role_id, directory } = startRequest(roleId);
+  return { session, task, role_id, directory };
+}
+
 const authority = { manifest, authorizedDirectories: [DIRECTORY] };
+const pluginManifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "Fixture", kind: "app",
+  publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
+  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, agent: manifest };
 
 function prologueRig() {
   const stops: string[] = [];
@@ -564,7 +576,12 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
 
   interface Context { project_id: string }
   const registry = new CapabilityRegistry<Context>();
-  const dispose = registerAgentHostCapabilities<Context>(registry, {
+  // Each call here is the fixture plugin's, in the project it is called in, carrying the caller the Host issued it there (sessions and
+  // rounds are a plugin's own actions).
+  const caller = (source: Context): HostPluginCaller => ({ project_id: source.project_id, plugin_id: PLUGIN, install_id: "install-1", actor_id: "tester", assertActive() {}, declaration: { manifest: pluginManifest } });
+  const asPlugin: Parameters<typeof registerAgentHostCapabilities<Context>>[0] = { register: (definition, handler) => registry.register(definition, (source, input) =>
+    handler(source, input, { beforeEffect: async () => {}, assertAuthorityCurrent: () => {}, consumer: "plugin", plugin: caller(source) })) };
+  const dispose = registerAgentHostCapabilities<Context>(asPlugin, {
     agentHost: () => host,
     authority: () => ({ manifest, authorizedDirectories: [DIRECTORY] }),
     projectId: (context) => context.project_id,
@@ -588,7 +605,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   const otherContext = {project_id:"another-board"};
   for(const operation of [
     () => registry.invoke(otherContext, agentHostCapabilities.readSession, [ownedSession]),
-    () => registry.invoke(otherContext, agentHostCapabilities.startRun, ["prologue",startRequest("reader")]),
+    () => registry.invoke(otherContext, agentHostCapabilities.startRun, ["prologue",startInput("reader")]),
     () => registry.invoke(otherContext, agentHostCapabilities.readRun, [ownedSession,{run_id:"run-1",session_id:"session-1"}]),
     () => registry.invoke(otherContext, agentHostCapabilities.controlRun, [ownedSession,{run_id:"run-1",session_id:"session-1"},{kind:"stop"}]),
     () => registry.invoke(otherContext, agentHostCapabilities.readCommandOutput, [ownedSession,{call_id:"c1"}]),
@@ -605,14 +622,14 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   // Starting through the Capability still goes through the Host's own authority.
   const handle = await registry.invoke(context, agentHostCapabilities.startRun, [
     "prologue",
-    startRequest("reader"),
+    startInput("reader"),
   ]);
   assert.equal(handle.frozen.execution, "read-only");
 
   await assert.rejects(
     () => registry.invoke(context, agentHostCapabilities.startRun, [
       "fixture-read-only",
-      { ...startRequest("builder"), session: { session_id: "session-1", runtime_id: "fixture-read-only" } },
+      { ...startInput("builder"), session: { session_id: "session-1", runtime_id: "fixture-read-only" } },
     ]),
     (error: unknown) => error instanceof ActionError
       && error.code === "agent.capability_unavailable",
@@ -705,11 +722,11 @@ test("MCP selections require declared authority, canonical provenance and exact 
   const host=new AgentHost();let starts=0,cancels=0;
   const adapter=adapterFor({runtimeId:'prologue',supported:['mcp','text-edit','command'],onCancel:()=>cancels++});
   const selected={server:'configured-server',tool:'write-note',version:'shape-1',configuration_version:3};
-  const granted={...authority,manifest:{...manifest,mcp:true},method_owner:{project_id:BOARD,plugin_id:PLUGIN}};
+  const granted={...authority,manifest:{...manifest,mcp:true},skill_owner:{project_id:BOARD,plugin_id:PLUGIN}};
   adapter.mcpLibrary={
     list:async()=>[],save:async()=>{throw new Error('unused');},control:async()=>{},
     validateSources:async(_owner,refs)=>[...refs],
-    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.method_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
+    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.skill_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
   };
   const original=adapter.start.bind(adapter);
   adapter.start=async request=>{starts++;assert.equal(request.mcp_tools?.[0]?.server_label,'Canonical service');const run=await original(request);run.frozen.mcp_tools=structuredClone(request.mcp_tools!);return run;};

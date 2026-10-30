@@ -2,7 +2,7 @@ import path from "node:path";
 import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
+import { composeAgentHost, workspaceRefFor, type AgentHostComposition, type AgentHostCompositionOptions } from "./agent-host-composition.js";
 import { hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
 import { referenceKindsPort } from "./agent-reference-kinds.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
@@ -13,7 +13,8 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
-import { registerMemoryHost } from "./memory/memory-host.js";
+import { recordMemoryUsage, registerMemoryHost } from "./memory/memory-host.js";
+import { memoryRuntime } from "./memory/memory-runtime.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -33,10 +34,10 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const opened = openConfiguredModels(storageHome);
     try { return await operation(opened?.store); } finally { opened?.storage.close(); }
   };
-  return localHost.ensureAgentService(storageHome, () => {
-    prepareMemoryHome(storageHome);
+  return localHost.ensureAgentService(storageHome, storageOwner => {
+    prepareMemoryHome(storageHome, storageOwner);
     const connectors = createAgentConnectorPorts(storageHome);
-    const service = composeAgentHost({
+    const service: AgentHostComposition = composeAgentHost({
       localHost, homeDirectory: storageHome,
       projectReference: async projectId => {
         if (!owner.withCatalog) throw new Error("项目连接目录尚未装配");
@@ -58,6 +59,10 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
+        memory: memoryRuntime(localHost, storageHome, () => service.agentHost.adapter("prologue"), async projectId => owner.withCatalog
+          ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.database_path) : undefined),
+        memoryUsage: receipt => recordMemoryUsage(localHost, receipt),
+        storageOwner,
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
         // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
@@ -97,12 +102,19 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     owner.release = () => { unbind(); unbindBuilder(); };
     owners.set(localHost, owner);
     const dispose = service.dispose.bind(service);
-    service.dispose = () => { owner.release?.(); owners.delete(localHost); memory.close(); return dispose(); };
+    let closing: Promise<void> | undefined;
+    service.dispose = () => closing ??= (async () => {
+      memory.stopBusiness();
+      owner.release?.();
+      await dispose();
+      memory.close();
+      owners.delete(localHost);
+    })().catch(error => { closing = undefined; throw error; });
     return service;
   });
 }
 
-/** A closing Host stops offering its Home's inference at once, so its successor can bind before teardown finishes. */
+/** Withdraw inference immediately; the Home's storage owner stays held until actual teardown finishes. */
 export function releaseSystemAgentService(localHost: MolisWorkLocalHost): void {
   owners.get(localHost)?.release?.();
 }

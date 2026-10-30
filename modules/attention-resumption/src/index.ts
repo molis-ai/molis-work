@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   AttentionApi,
+  AttentionInboxDeclarations,
   AttentionEntryRecord,
   AttentionEvent,
   AttentionReason,
@@ -11,17 +12,6 @@ import type {
   AttentionSubjectType,
   CreateAttentionEntryInput,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-attention-resumption",
-  packagePath: "modules/attention-resumption",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/attention-resumption",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["attention.query.v1", "attention.command.v1"],
-} as const;
 
 type Row = Record<string, unknown>;
 type Statement = {
@@ -63,6 +53,7 @@ export const ATTENTION_STATUS_TRANSITIONS: Readonly<
 const INBOX_ENTRIES_COLUMNS = `
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
       reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
@@ -72,13 +63,16 @@ const INBOX_ENTRIES_COLUMNS = `
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (project_id, entry_id),
-      UNIQUE (project_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id)
 `;
 
 /** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
 export const ATTENTION_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS inbox_entries (${INBOX_ENTRIES_COLUMNS});
+    CREATE UNIQUE INDEX IF NOT EXISTS inbox_entries_owned_subject_idx
+      ON inbox_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS inbox_entries_unassigned_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
     CREATE INDEX IF NOT EXISTS inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
     CREATE INDEX IF NOT EXISTS inbox_entries_project_subject_idx
@@ -88,6 +82,7 @@ export const ATTENTION_SCHEMA_SQL = `
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       type TEXT NOT NULL,
       subject_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
@@ -101,16 +96,24 @@ export class AttentionModule implements AttentionApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),
     get: (projectId: string, entryId: string) => this.get(projectId, entryId),
+    listInbox: (projectId: string, declared: AttentionInboxDeclarations) => this.list(projectId).filter(entry => inInbox(entry, declared)),
+    getInbox: (projectId: string, entryId: string, declared: AttentionInboxDeclarations) => {
+      const entry = this.get(projectId, entryId);
+      if (!inInbox(entry, declared)) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
+      return entry;
+    },
     findActiveForSubject: (
       projectId: string,
       subjectType: AttentionSubjectType,
       subjectId: string,
-    ) => this.findActiveForSubject(projectId, subjectType, subjectId),
+      ownerPluginId: string | null = null,
+    ) => this.findActiveForSubject(projectId, subjectType, subjectId, ownerPluginId),
     findForSubject: (
       projectId: string,
       subjectType: AttentionSubjectType,
       subjectId: string,
-    ) => this.findForSubject(projectId, subjectType, subjectId),
+      ownerPluginId: string | null = null,
+    ) => this.findForSubject(projectId, subjectType, subjectId, ownerPluginId),
   };
 
   readonly commands = {
@@ -133,8 +136,8 @@ export class AttentionModule implements AttentionApi {
       status: AttentionStatus,
       expectedRevision?: number,
     ) => this.setStatus(projectId, entryId, status, expectedRevision),
-    deleteSubject: (projectId: string, subjectType: AttentionSubjectType, subjectId: string) =>
-      this.deleteSubject(projectId, subjectType, subjectId),
+    deleteSubject: (projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId: string | null = null) =>
+      this.deleteSubject(projectId, subjectType, subjectId, ownerPluginId),
   };
 
   readonly events = {
@@ -167,14 +170,15 @@ export class AttentionModule implements AttentionApi {
     projectId: string,
     subjectType: AttentionSubjectType,
     subjectId: string,
+    ownerPluginId: string | null,
   ): AttentionEntryRecord | null {
     const row = this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE project_id = ? AND subject_type = ? AND subject_id = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?
         AND status IN ('open', 'in_progress')
       ORDER BY CASE reason WHEN 'manual' THEN 0 ELSE 1 END, updated_at DESC, entry_id
       LIMIT 1
-    `).get(projectId, subjectType, subjectId) as Row | undefined;
+    `).get(projectId, subjectType, subjectId, ownerPluginId) as Row | undefined;
     return row ? mapAttentionEntry(row) : null;
   }
 
@@ -182,12 +186,13 @@ export class AttentionModule implements AttentionApi {
     projectId: string,
     subjectType: AttentionSubjectType,
     subjectId: string,
+    ownerPluginId: string | null,
   ): AttentionEntryRecord[] {
     return (this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE project_id = ? AND subject_type = ? AND subject_id = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?
       ORDER BY updated_at DESC, entry_id
-    `).all(projectId, subjectType, subjectId) as Row[]).map(mapAttentionEntry);
+    `).all(projectId, subjectType, subjectId, ownerPluginId) as Row[]).map(mapAttentionEntry);
   }
 
   private create(input: CreateAttentionEntryInput): { entry: AttentionEntryRecord; created: boolean } {
@@ -197,15 +202,17 @@ export class AttentionModule implements AttentionApi {
       if (!this.subjects.exists(input.project_id, input.subject_type, input.subject_id)) {
         throw attentionErrors.invalid_reference(referenceMessage(input.subject_type));
       }
+      const owner = ownerOf(input.owner_plugin_id ?? null);
       const existing = this.db.prepare(`
         SELECT * FROM inbox_entries
-        WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
-      `).get(input.project_id, input.subject_type, input.subject_id, input.reason) as Row | undefined;
+        WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ? AND owner_plugin_id IS ?
+      `).get(input.project_id, input.subject_type, input.subject_id, input.reason, owner) as Row | undefined;
       if (existing) return { entry: mapAttentionEntry(existing), created: false };
       const at = input.at ?? this.now().toISOString();
       const entry: AttentionEntryRecord = {
         project_id: input.project_id,
         entry_id: input.entry_id ?? `inboxentry-${randomUUID()}`,
+        owner_plugin_id: owner,
         subject_type: input.subject_type,
         subject_id: input.subject_id,
         reason: input.reason,
@@ -219,12 +226,13 @@ export class AttentionModule implements AttentionApi {
       assertShape(entry);
       this.db.prepare(`
         INSERT INTO inbox_entries (
-          project_id, entry_id, subject_type, subject_id, reason, status,
+          project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status,
           detail_json, revision, created_at, updated_at, completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         entry.project_id,
         entry.entry_id,
+        entry.owner_plugin_id,
         entry.subject_type,
         entry.subject_id,
         entry.reason,
@@ -266,14 +274,14 @@ export class AttentionModule implements AttentionApi {
     }).immediate();
   }
 
-  private deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): number {
+  private deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId: string | null): number {
     return this.db.transaction(() => {
-      const entries = this.findForSubject(projectId, subjectType, subjectId);
+      const entries = this.findForSubject(projectId, subjectType, subjectId, ownerPluginId);
       if (entries.length === 0) return 0;
       const at = this.now().toISOString();
       this.db.prepare(
-        "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ?",
-      ).run(projectId, subjectType, subjectId);
+        "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?",
+      ).run(projectId, subjectType, subjectId, ownerPluginId);
       for (const entry of entries) this.appendEvent(entry, "inbox_entry.deleted", at, "Inbox 引用已删除");
       return entries.length;
     }).immediate();
@@ -299,12 +307,13 @@ export class AttentionModule implements AttentionApi {
   ): void {
     this.db.prepare(`
       INSERT INTO attention_events (
-        event_id, project_id, entry_id, type, subject_type, subject_id, at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        event_id, project_id, entry_id, owner_plugin_id, type, subject_type, subject_id, at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       `attention-event-${randomUUID()}`,
       entry.project_id,
       entry.entry_id,
+      entry.owner_plugin_id,
       type,
       entry.subject_type,
       entry.subject_id,
@@ -315,7 +324,7 @@ export class AttentionModule implements AttentionApi {
       entry_id: entry.entry_id,
       type,
       reason,
-      payload: { subject_type: entry.subject_type, subject_id: entry.subject_id, reason: entry.reason },
+      payload: { owner_plugin_id: entry.owner_plugin_id, subject_type: entry.subject_type, subject_id: entry.subject_id, reason: entry.reason },
       at,
     });
   }
@@ -323,14 +332,6 @@ export class AttentionModule implements AttentionApi {
   private now(): Date {
     return this.options.now?.() ?? new Date();
   }
-}
-
-export function assertAttentionTransition(from: AttentionStatus, to: AttentionStatus): void {
-  assertTransition(from, to);
-}
-
-export function assertAttentionEntryShape(entry: AttentionEntryRecord): void {
-  assertShape(entry);
 }
 
 function assertReference(subjectType: AttentionSubjectType, subjectId: string): void {
@@ -349,6 +350,7 @@ function assertReason(subjectType: AttentionSubjectType, reason: AttentionReason
 }
 
 function assertShape(entry: AttentionEntryRecord): void {
+  ownerOf(entry.owner_plugin_id);
   assertReference(entry.subject_type, entry.subject_id);
   const forbidden = ["title", "summary", "body", "message", "content", "credential", "cursor"];
   for (const key of forbidden) {
@@ -381,6 +383,7 @@ function mapAttentionEntry(row: Row): AttentionEntryRecord {
   const entry: AttentionEntryRecord = {
     project_id: text(row.project_id),
     entry_id: text(row.entry_id),
+    owner_plugin_id: row.owner_plugin_id as string | null,
     subject_type: text(row.subject_type) as AttentionSubjectType,
     subject_id: text(row.subject_id),
     reason: text(row.reason) as AttentionReason,
@@ -400,11 +403,22 @@ function mapAttentionEvent(row: Row): AttentionEvent {
     event_id: text(row.event_id),
     project_id: text(row.project_id),
     entry_id: text(row.entry_id),
+    owner_plugin_id: ownerOf(row.owner_plugin_id),
     type: text(row.type) as AttentionEvent["type"],
     subject_type: text(row.subject_type) as AttentionSubjectType,
     subject_id: text(row.subject_id),
     at: text(row.at),
   };
+}
+
+/** Unassigned entries are the person's Inbox; an owned one is, only when its own owner declared its kind (`attention.inbox`). */
+function inInbox(entry: AttentionEntryRecord, declared: AttentionInboxDeclarations): boolean {
+  return entry.owner_plugin_id === null || declared.get(entry.owner_plugin_id)?.has(entry.subject_type) === true;
+}
+
+function ownerOf(value: unknown): string | null {
+  if (value === null || typeof value === "string" && value.trim()) return value;
+  throw attentionErrors.invalid_reference("Attention 对象必须有明确的主人或 null");
 }
 
 function text(value: unknown): string {
@@ -424,5 +438,3 @@ function json<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

@@ -1,6 +1,6 @@
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
   addColumn, unwrapColumns, deleteBlock, deleteRow, deleteSpan, duplicateBlock, duplicateRow,
   duplicateSpan, turnSpanInto, setRowsTone, blockMenuKey, hoverMenuIndex,
@@ -10,7 +10,7 @@ import { spanRows, spanRoots } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { hoverKey, EMPTY_HOVER, nudgeEditor, runBlockCommand } from "./editor-block-selection.js";
 import type { Translate } from "./editor-types.js";
-import { t, dsIcon, escapeHtml, keepSelectedVisible } from "./editor-view-ui.js";
+import { t, dsIcon, escapeHtml, keepSelectedVisible, keepFocus } from "./editor-view-ui.js";
 
 type MenuMode = "root" | "turn" | "tone";
 
@@ -38,7 +38,7 @@ function menuItem(icon: string, label: string, run: () => void, danger = false, 
   if (opens)
     button.dataset.pagesMenuOpen = "1";
   button.innerHTML = `${dsIcon(icon)}<span>${escapeHtml(label)}</span>`;
-  button.addEventListener("mousedown", (event) => event.preventDefault());
+  button.addEventListener("mousedown", keepFocus);
   button.addEventListener("click", (event) => {
     event.preventDefault();
     run();
@@ -63,7 +63,7 @@ function appendToneChoices(menu: HTMLElement, translate: Translate | undefined, 
       button.dataset.pagesTone = tone || "none";
       button.setAttribute("aria-label", name);
       button.title = name;
-      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("mousedown", keepFocus);
       button.addEventListener("click", (event) => {
         event.preventDefault();
         pick(kind, tone);

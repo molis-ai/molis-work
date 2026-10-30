@@ -5,8 +5,9 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { FEED_ITEMS_SCHEMA_SQL, fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { feedLedgerKey, feedLedgerPort } from "./fixtures/feed-ledger.js";
 
 const access: ContextAccess = { actor_id: "alice", scope: { kind: "personal", id: "project-a" } };
 const reference = (module: ObjectRef["module"], id: string, version: number | null = null): ObjectRef =>
@@ -73,12 +74,14 @@ function feedHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-a'); INSERT INTO project_root VALUES ('project-b');");
+  // Feed's tables are its declaration's (FI-5): the platform makes them when it opens a library, and Feed's store does not.
+  db.exec(FEED_ITEMS_SCHEMA_SQL);
   const ledger = createContextLedger(db, { authorize: (request) => request.scope.kind === "personal" });
   let feed: FeedModule;
   let fail = false;
   const attention = new AttentionModule(db, { exists: (projectId, _type, itemId) => feed.query.exists(projectId, itemId) });
   const open = (api: ContextLedgerApi = ledger) => {
-    feed = new FeedModule(db, attention, { ledger: api, eventSink: () => { if (fail) throw new Error("event failed"); } });
+    feed = new FeedModule(fromBetterSqlite(db), attention, { ledger: feedLedgerPort(api), eventSink: () => { if (fail) throw new Error("event failed"); } });
     return feed;
   };
   const ingest = (id: string) => feed.commands.ingest({ project_id: "project-a", source_id: "source-a",
@@ -107,9 +110,9 @@ test("Feed uses Ledger as sole link owner across relink, restart and deletion wi
     const reopened = h.open();
     assert.equal(reopened.query.get("project-a", item.item_id).linked_goal_id, "goal-2");
     assert.equal(reopened.query.get("project-a", item.item_id).title, item.title);
-    assert.deepEqual(h.ledger.query.history(access, `feed.goal:${item.item_id}`).map((edge) => edge.target.id), ["goal-1", "goal-2"]);
+    assert.deepEqual(h.ledger.query.history(access, feedLedgerKey(`feed.goal:${item.item_id}`)).map((edge) => edge.target.id), ["goal-1", "goal-2"]);
     reopened.commands.deleteBySource("project-a", "source-a");
-    assert.equal(h.ledger.query.get(access, `feed.goal:${item.item_id}`), null);
+    assert.equal(h.ledger.query.get(access, feedLedgerKey(`feed.goal:${item.item_id}`)), null);
     assert.equal(reopened.query.findByLinkedGoal("project-a", "goal-2"), null);
     assert.deepEqual(h.attention.query.list("project-a"), []);
   } finally { h.db.close(); }
@@ -127,6 +130,6 @@ test("Feed link and Attention changes roll back with Ledger when event persisten
     assert.deepEqual(feed.query.get("project-a", item.item_id), item);
     assert.deepEqual(h.attention.query.list("project-a"), beforeAttention);
     assert.deepEqual(feed.events.list("project-a"), beforeEvents);
-    assert.deepEqual(h.ledger.query.history(access, `feed.goal:${item.item_id}`), []);
+    assert.deepEqual(h.ledger.query.history(access, feedLedgerKey(`feed.goal:${item.item_id}`)), []);
   } finally { h.db.close(); }
 });

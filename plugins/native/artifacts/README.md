@@ -2,6 +2,8 @@
 
 把成果库里人要留存、引用的固定版本展示为项目可引用、可浏览、可导出的成果，并给 Plugin 提供受授权约束的读写客户端；插件之间交接的过程项不在这里出现。
 
+（2026-10-26，PG-077：成果库的动作、权限和它写的「导入的文件」类型是平台的，由 `modules/artifacts` 提供，宿主把动作登记成平台提供方（`kind` 为 `system`，id 仍是 `io.molis.work.artifacts`），类型登记成宿主自己的产出者；本包的 Manifest 只剩项目键、页面视图和英文词典，不声明动作、权限和成果类型，随 PG-077 第二步一起删。下面凡写「本插件注册动作」处读作历史描述，现行动作合同见 `modules/artifacts/src/artifact-actions.ts`。）
+
 ## 从文档工具导入
 
 在项目的 Artifacts 目录点击「导入文档」，选择来源、粘贴文档链接或选择文件，然后点击导入。成功后可打开精确版本阅读正文、查看来源并导出版本 JSON。在线来源复用「设置 → 连接器」中的凭据，不需要在导入页粘贴密钥。
@@ -55,13 +57,16 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/browser.ts](src/browser.ts) | 浏览、版本与导出 |
-| [src/actions.ts](src/actions.ts) | 统一动作合同与业务处理器 |
-| [src/project-reference.ts](src/project-reference.ts) | 项目引用打开 |
-| [src/plugin-client.ts](src/plugin-client.ts) | 安装专属 SDK 动作与客户端 |
-| [src/plugin-operations.ts](src/plugin-operations.ts) | 固定身份的成果/过程项 owner 操作 |
-| [src/plugin-action-contracts.ts](src/plugin-action-contracts.ts) | 直调与 SDK 共用的输入投影和动作 schema |
-| [src/goal-context.ts](src/goal-context.ts) | 目标中的 Artifact 引用 |
+| [src/browser-view.ts](src/browser-view.ts) | 成果页的视图类型与版本路径（读取在模块） |
+| [modules/artifacts/src/artifact-actions.ts](../../../modules/artifacts/src/artifact-actions.ts) | 动作合同与业务处理器（ac-artifacts A2 搬到成果库模块） |
+| [modules/artifacts/src/artifact-browser.ts](../../../modules/artifacts/src/artifact-browser.ts) | 浏览、版本与导出 |
+| [modules/artifacts/src/artifact-project-reference.ts](../../../modules/artifacts/src/artifact-project-reference.ts) | 项目引用打开 |
+| [modules/artifacts/src/artifact-document-import.ts](../../../modules/artifacts/src/artifact-document-import.ts) | 文件与外部文档导入 |
+| [modules/artifacts/src/artifact-original-store.ts](../../../modules/artifacts/src/artifact-original-store.ts) | 大文件原件的存取（插件只留 Home 存储登记与项目删除时的清理） |
+| [modules/artifacts/src/plugin-client.ts](../../../modules/artifacts/src/plugin-client.ts) | 安装专属 SDK 动作与客户端（ac-artifacts A2 搬到成果库模块） |
+| [modules/artifacts/src/plugin-operations.ts](../../../modules/artifacts/src/plugin-operations.ts) | 固定身份的成果/过程项 owner 操作 |
+| [modules/artifacts/src/plugin-action-contracts.ts](../../../modules/artifacts/src/plugin-action-contracts.ts) | 直调与 SDK 共用的输入投影和动作 schema |
+| [modules/artifacts/src/artifact-goal-context.ts](../../../modules/artifacts/src/artifact-goal-context.ts) | 目标中的 Artifact 引用 |
 
 可对照现有调用方 [apps/local-host/src/plugin-executor.ts](../../../apps/local-host/src/plugin-executor.ts) 阅读装配方式。
 
@@ -101,7 +106,7 @@ node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document
 - 负责：Artifact 浏览、嵌入、文档导入与组合。
 - 不负责：Artifact 事实与 Store、生产方与消费方的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（页面部件 `/ui`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。
   - 在线文档内容变化时新增版本，旧版本与精确引用保留；空正文、超限、权限错误和截断结果不产生成功的 Artifact。
@@ -116,8 +121,5 @@ node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document
 - [职责与接入说明](../../../docs/modules/artifacts.md)
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ar3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

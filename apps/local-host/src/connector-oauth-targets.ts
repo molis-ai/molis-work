@@ -1,3 +1,4 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { randomUUID } from "node:crypto";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -62,4 +63,12 @@ export function oauthConnectionRefs(connectionId: string): { access: string; ref
     refresh: `connector-connection:${connectionId}:refresh`,
     expiresAt: `connector-connection:${connectionId}:expires_at`,
   };
+}
+
+/** An account-level reader's current revision, combined with its existing caller control when it has one. */
+export function connectorAccountControl(home: string, connectionId: string,
+  caller: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void>; current?: () => void } = {}): ConnectorCallControl {
+  const signal = caller.signal ?? AbortSignal.any([]), accountCurrent = oauthRefreshGuard(home, connectionId);
+  const current = () => { signal.throwIfAborted(); caller.current?.(); accountCurrent(); signal.throwIfAborted(); };
+  return { signal, current, beforeEffect: async () => { current(); await caller.beforeEffect?.(); current(); } };
 }

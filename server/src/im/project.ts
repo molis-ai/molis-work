@@ -19,8 +19,8 @@ export function ensureProjectRoom(db: ImDatabase, reads: ImReads, projectId: str
     if (!room) {
       room = { id: randomUUID() };
       const now = new Date().toISOString();
-      db.prepare(`INSERT INTO im_rooms(id,title,owner_id,invite_token,created_at,updated_at,project_id)
-        VALUES (?,?,?,?,?,?,?)`).run(room.id, project.title, project.owner_id, randomUUID(), now, now, projectId);
+      db.prepare(`INSERT INTO im_rooms(id,title,owner_id,created_at,updated_at,project_id)
+        VALUES (?,?,?,?,?,?)`).run(room.id, project.title, project.owner_id, now, now, projectId);
     }
     else
       db.prepare('UPDATE im_rooms SET title=? WHERE id=?').run(project.title, room.id);

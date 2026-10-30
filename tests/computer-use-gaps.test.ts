@@ -21,6 +21,7 @@ import {
   computerRecordFileSource,
   confirmArrivedTooSoon,
   handleAgentReviewHttp,
+  handleComputerHttp,
   handleUnscopedAgentReviews,
   handleUnscopedComputerFiles,
   refuseCapture,
@@ -28,6 +29,7 @@ import {
   refuseLanding,
   refuseSelfApproval,
   reviewProjectFor,
+  type ComputerShelf,
   type DeskContext,
 } from "@molis-ai/molis-work-app-local-host";
 
@@ -375,104 +377,113 @@ test("a refused picture after the action is not recorded as a successful step", 
   assert.equal((opened as DeskContext & { injected(): number }).injected(), 0);
 });
 
-test("W3-10-4-01: the computer tab posts the record text and its latest screenshot to the Shelf", async () => {
+test("W3-10-4-01 RAC-910: the computer tab hands the record's words to the Host, which puts them and the latest screenshot on the Shelf", async () => {
   const source = readFileSync(new URL("../apps/workbench/src/side-panel-computer.ts", import.meta.url), "utf8");
   const start = source.indexOf("const putComputerRecordOnShelf=async(env)=>{");
   const end = source.indexOf("const putOnShelf=");
   assert.ok(start > 0 && end > start);
-  assert.match(source.slice(end, end + 180), /putComputerRecordOnShelf\(\{request:molisWorkRequest,routePrefix,say,sayError,L,state,now:Date\.now\(\)\}\)/);
+  assert.match(source.slice(end, end + 180), /putComputerRecordOnShelf\(\{request:molisWorkRequest,routePrefix,say,sayError,L,state\}\)/);
+  // PG-057: the panel no longer reaches Shelf's own routes; only the Host does, through Shelf's public actions.
+  assert.doesNotMatch(source, /io\.molis\.work\.shelf/);
   const put = new Function(`${source.slice(start, end)} return putComputerRecordOnShelf;`)() as (env: {
     request: UiRequestCall;
     routePrefix: string; say: (text: string) => void; sayError: (error: unknown, fallback?: string) => void;
-    L: (text: string, vars?: Record<string, string | number>) => string; state: { record_id?: string }; now: number;
+    L: (text: string, vars?: Record<string, string | number>) => string; state: { record_id?: string };
   }) => Promise<void>;
   const record = { outcome: "completed", goal: "算一笔", conclusion: "", started_at: "2026-10-11T00:00:00.000Z", steps: [{ summary: "打开", shot: "001.png", app: { name: "TextEdit" } }] };
-  const png = new Uint8Array([1, 2, 3, 4]).buffer;
-  const run = async (reply: (url: string, init?: { method?: string; body?: string }) => { ok: boolean; status: number; json: () => Promise<unknown>; arrayBuffer?: () => Promise<ArrayBuffer> } | "throw") => {
+  const run = async (shelved: { ok: boolean; status: number; body: unknown }) => {
     const calls: { url: string; method: string; body?: string }[] = [];
     const said: string[] = [];
-    const request=createUiRequest({
-      origin:"http://127.0.0.1:4173",token:()=>"page-token",newKey:()=>"computer-shelf-request-key",translate:(text)=>text,
-      fetch:async(input,init)=>{
-        const url=new URL(input).pathname;
-        calls.push({url,method:init.method,...(init.body?{body:init.body}:{})});
-        const next=reply(url,init);
-        if(next==="throw")throw new Error("shelf broke");
-        return new Response(url.endsWith("/001.png")&&next.ok?png:JSON.stringify(await next.json()),{status:next.status,headers:{"content-type":url.endsWith("/001.png")&&next.ok?"image/png":"application/json"}});
+    const request = createUiRequest({
+      origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "computer-shelf-request-key", translate: (text) => text,
+      fetch: async (input, init) => {
+        const url = new URL(input).pathname;
+        calls.push({ url, method: init.method, ...(init.body ? { body: init.body } : {}) });
+        const body = url.endsWith("/api/computer/records/rec-1") ? { record } : shelved.body;
+        return new Response(JSON.stringify(body), { status: url.endsWith("/shelf") ? shelved.status : 200, headers: { "content-type": "application/json" } });
       },
     });
-    await put({
-      request,routePrefix:"",
-      sayError:(error,fallback)=>{said.push(error instanceof Error?error.message:fallback??"");},
-      say: (text) => { said.push(text); },
-      L: (text) => text,
-      state: { record_id: "rec-1" },
-      now: 5,
-    });
+    await put({ request, routePrefix: "/projects/p1", say: (text) => { said.push(text); },
+      sayError: (error, fallback) => { said.push(error instanceof Error ? error.message : fallback ?? ""); },
+      L: (text, vars) => text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? "")), state: { record_id: "rec-1" } });
     return { calls, said };
   };
-  const json = (value: unknown, ok = true, status = ok ? 200 : 500) => ({ ok, status, json: async () => value, arrayBuffer: async () => png });
-  const textOnly = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (init?.method === "POST" && url === "/api/plugins/io.molis.work.shelf/items") return json({}, false, 500);
-    return json({});
-  });
-  assert.equal(textOnly.calls.filter(call => call.url === "/api/plugins/io.molis.work.shelf/items").length, 1);
-  assert.deepEqual(textOnly.said, ["没能放进 Shelf。"]);
-  const thrown = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (init?.method === "POST" && url === "/api/plugins/io.molis.work.shelf/items" && init.body?.includes("\"text\"")) return json({ item: { item_id: "shelf-1" } });
-    if (url.endsWith("/001.png")) return "throw";
-    return json({});
-  });
-  assert.equal(thrown.calls.some(call => call.url.endsWith("/001.png")), true);
-  assert.equal(thrown.calls.some(call => call.url === "/api/plugins/io.molis.work.shelf/items" && call.body?.includes("bytes_base64")), false);
-  assert.equal(thrown.calls.filter(call => call.url === "/api/plugins/io.molis.work.shelf/items/shelf-1/delete").length, 1);
-  assert.deepEqual(thrown.said, ["连不上 Molis Work 服务，请稍后重试"]);
-  let deletes = 0;
-  const retried = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (url.includes("/delete")) { deletes += 1; return json({}, deletes > 1, deletes > 1 ? 200 : 500); }
-    if (url.endsWith("/001.png")) return json({}, false, 404);
-    if (init?.method === "POST") return json({ item: { item_id: "shelf-4" } });
-    return json({});
-  });
-  assert.equal(deletes, 2);
-  assert.equal(retried.calls.some(call => call.body?.includes("bytes_base64")), false);
-  assert.deepEqual(retried.said, ["没能放进 Shelf。"]);
-  const nameless = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (init?.method === "POST") return json({ item: {} });
-    return json({});
-  });
-  assert.equal(nameless.calls.some(call => call.url.endsWith("/001.png")), false);
-  assert.deepEqual(nameless.said, ["没能放进 Shelf。"]);
-  const stored = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (url.endsWith("/001.png")) return json({}, true);
-    if (init?.body?.includes("bytes_base64")) return json({ item: { item_id: "shot-1" } });
-    if (init?.method === "POST") return json({ item: { item_id: "shelf-1" } });
-    return json({});
-  });
-  assert.equal(stored.calls.some(call => call.body?.includes("\"mime\":\"image/png\"")), true);
-  assert.equal(stored.calls.some(call => call.url.includes("/delete")), false);
+  const stored = await run({ ok: true, status: 200, body: { item_id: "shelf-1", shot: true } });
+  assert.deepEqual(stored.calls.map(call => [call.method, call.url]), [["GET", "/projects/p1/api/computer/records/rec-1"], ["POST", "/projects/p1/api/computer/records/rec-1/shelf"]]);
+  const posted = JSON.parse(stored.calls[1]!.body!) as { title: string; text: string };
+  assert.match(posted.title, /^算一笔（/);
+  assert.match(posted.text, /目标：算一笔/);
+  assert.match(posted.text, /- 『TextEdit』打开/);
   assert.deepEqual(stored.said, ["已放进 Shelf。"]);
-  const again = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (url.endsWith("/001.png")) return json({}, true);
-    if (init?.body?.includes("bytes_base64")) return json({ error: "这次操作已经提交，不会重复执行" }, false, 409);
-    if (init?.method === "POST") return json({ item: { item_id: "shelf-2" } });
-    return json({});
+  const failed = await run({ ok: false, status: 500, body: { error: "Shelf 不在" } });
+  assert.equal(failed.said.length, 1);
+  assert.notEqual(failed.said[0], "已放进 Shelf。");
+});
+
+test("RAC-910 RAC-911: the Host puts a record on the Shelf only through Shelf's actions, and takes the text back when the screenshot cannot follow", async () => {
+  const home = mkdtempSync(path.join(tmpdir(), "cu-shelf-"));
+  const records = new ComputerRecords(home);
+  const withShot = records.start({ session_id: "s", run_id: null, project_id: null, goal: "算一笔" });
+  records.step(withShot.id, { kind: "act", app: { bundle_id: "com.apple.TextEdit", name: "TextEdit" }, summary: "打开" }, new Uint8Array([1, 2, 3, 4]));
+  const wordsOnly = records.start({ session_id: "s", run_id: null, project_id: null, goal: "只有文字" });
+  records.step(wordsOnly.id, { kind: "note", app: null, summary: "想了想" });
+  type Admit = Parameters<ComputerShelf["admit"]>[0];
+  let behave: { admit?: (input: Admit, n: number) => Promise<{ item: { item_id: string } }>; remove?: (n: number) => Promise<unknown> } = {};
+  let admitted: Admit[] = [], removed: string[] = [];
+  const shelf = (): ComputerShelf => ({
+    admit: async input => { admitted.push(input); return behave.admit ? behave.admit(input, admitted.length) : { item: { item_id: `item-${admitted.length}` } }; },
+    remove: async itemId => { removed.push(itemId); return behave.remove ? behave.remove(removed.length) : { deleted: true }; },
   });
-  assert.equal(again.calls.some(call => call.url.includes("/delete")), false);
-  assert.deepEqual(again.said, ["已放进 Shelf。"]);
-  const busy = await run((url, init) => {
-    if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (url.endsWith("/001.png")) return json({}, true);
-    if (init?.body?.includes("bytes_base64")) return json({ code: "request.in_flight" }, false, 409);
-    if (init?.method === "POST") return json({ item: { item_id: "shelf-3" } });
-    return json({});
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    void handleComputerHttp(request, response, url, { records, shelf, settings: new ComputerSettings(home), helper: {} as never, desk: {} as never })
+      .then(handled => { if (!handled) { response.writeHead(404); response.end(); } });
   });
-  assert.equal(busy.calls.filter(call => call.url === "/api/plugins/io.molis.work.shelf/items/shelf-3/delete").length, 1);
-  assert.deepEqual(busy.said, ["没能放进 Shelf。"]);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post = async (id: string, body: unknown) => {
+    const response = await fetch(`${base}/api/computer/records/${id}/shelf`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  const reset = (next: typeof behave = {}) => { behave = next; admitted = []; removed = []; };
+  try {
+    const stored = await post(withShot.id, { title: "算一笔", text: "目标：算一笔" });
+    assert.deepEqual(stored, { status: 200, body: { item_id: "item-1", shot: true } });
+    assert.deepEqual(admitted, [{ title: "算一笔", text: "目标：算一笔" }, { filename: "001.png", mime: "image/png", bytes_base64: Buffer.from([1, 2, 3, 4]).toString("base64") }]);
+    assert.deepEqual(removed, []);
+
+    reset();
+    assert.deepEqual(await post(wordsOnly.id, { title: "只有文字", text: "想了想" }), { status: 200, body: { item_id: "item-1", shot: false } });
+    assert.equal(admitted.length, 1);
+
+    // The screenshot's admit fails: the text copy is taken back, and the person is told it did not go on the Shelf.
+    reset({ admit: async (_input, n) => { if (n === 2) throw new Error("Shelf 写不进"); return { item: { item_id: "shelf-1" } }; } });
+    const shotFailed = await post(withShot.id, { title: "算一笔", text: "目标：算一笔" });
+    assert.notEqual(shotFailed.status, 200);
+    assert.deepEqual(removed, ["shelf-1"]);
+
+    // A delete that fails once is tried once more.
+    reset({ admit: async (_input, n) => { if (n === 2) throw new Error("Shelf 写不进"); return { item: { item_id: "shelf-4" } }; },
+      remove: async n => { if (n === 1) throw new Error("暂时删不掉"); return { deleted: true }; } });
+    assert.notEqual((await post(withShot.id, { title: "算一笔", text: "目标：算一笔" })).status, 200);
+    assert.deepEqual(removed, ["shelf-4", "shelf-4"]);
+
+    // The text's admit fails, or names no item: nothing else is tried and nothing is left to take back.
+    reset({ admit: async () => { throw new Error("Shelf 不在"); } });
+    assert.notEqual((await post(withShot.id, { title: "算一笔", text: "目标：算一笔" })).status, 200);
+    assert.deepEqual([admitted.length, removed], [1, []]);
+    reset({ admit: async () => ({ item: {} as { item_id: string } }) });
+    assert.notEqual((await post(withShot.id, { title: "算一笔", text: "目标：算一笔" })).status, 200);
+    assert.deepEqual([admitted.length, removed], [1, []]);
+
+    // An unknown record or missing words reach no Shelf action.
+    reset();
+    assert.equal((await post("missing-record", { title: "x", text: "y" })).status, 404);
+    assert.equal((await post(withShot.id, { title: "", text: "y" })).status, 400);
+    assert.equal((await post(withShot.id, { title: "x" })).status, 400);
+    assert.equal(admitted.length, 0);
+  } finally {
+    server.close();
+    rmSync(home, { recursive: true, force: true });
+  }
 });

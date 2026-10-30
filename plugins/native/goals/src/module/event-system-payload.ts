@@ -1,0 +1,257 @@
+import {
+  goalEventAcknowledgementCategories,
+  goalEventAcknowledgementTreatments,
+  goalEventDecisionPurposes,
+  goalEventSystemOperations,
+  type GoalEventAcknowledgementBy,
+  type GoalEventAcknowledgementCategory,
+  type GoalEventAcknowledgementReference,
+  type GoalEventAcknowledgementTreatment,
+  type GoalEventAgreementChange,
+  type GoalProgressArtifactSource,
+  type GoalEventConcernStatus,
+  type GoalEventDecisionEffect,
+  type GoalEventDecisionOption,
+  type GoalEventDecisionPurpose,
+  type GoalEventScope,
+  type GoalEventSystemPayload,
+  type GoalEventUnmetReason,
+  type GoalEventWorkStatus,
+} from "../contract/goals.js";
+
+export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalEventSystemPayload {
+  const operation = raw.operation;
+  if (typeof operation !== "string" || !(goalEventSystemOperations as readonly string[]).includes(operation)) {
+    return emptyProgress();
+  }
+  switch (operation) {
+    case "progress_summary":
+      return {
+        operation,
+        ...(parseGoalProgressSource(raw.source) ? { source: parseGoalProgressSource(raw.source)! } : {}),
+        summary: text(raw.summary),
+        based_on_cursor: Number(raw.based_on_cursor) || 0,
+        next_step: nullable(raw.next_step),
+        next_actor: nullable(raw.next_actor),
+      };
+    case "concern_opened":
+      return {
+        operation,
+        concern_id: text(raw.concern_id),
+        title: text(raw.title),
+        statement: text(raw.statement),
+        scope: asScope(raw.scope),
+        blocks_closure: raw.blocks_closure === true,
+      };
+    case "concern_resolved":
+    case "concern_accepted":
+    case "concern_overturned":
+      return {
+        operation,
+        concern_id: text(raw.concern_id),
+        status: operation === "concern_resolved" ? "resolved" : operation === "concern_accepted" ? "accepted" : "overturned",
+        reason: text(raw.reason),
+        supporting_event_ids: asStringArray(raw.supporting_event_ids),
+        cited_decision_id: nullable(raw.cited_decision_id),
+        previous_status: asConcernStatus(raw.previous_status),
+      };
+    case "decision_requested":
+      return {
+        operation,
+        request_id: text(raw.request_id),
+        question: text(raw.question),
+        options: Array.isArray(raw.options) ? raw.options as GoalEventDecisionOption[] : [],
+        scope: asScope(raw.scope),
+        purpose: asPurpose(raw.purpose),
+        proposed_change: asChange(raw.proposed_change),
+      };
+    case "user_decision":
+      return {
+        operation,
+        decision_id: text(raw.decision_id),
+        governance_decision_id: text(raw.governance_decision_id),
+        request_id: nullable(raw.request_id),
+        selected_option_id: nullable(raw.selected_option_id),
+        conclusion: text(raw.conclusion),
+        accepts_requirements: raw.accepts_requirements === true,
+        effects: Array.isArray(raw.effects) ? raw.effects as GoalEventDecisionEffect[] : [],
+        scope: asScope(raw.scope),
+        authorized_change: asChange(raw.authorized_change),
+        config_version: Number(raw.config_version) || 0,
+        agreement_version: Number(raw.agreement_version) || 0,
+      };
+    case "decision_cited":
+      return {
+        operation,
+        decision_id: text(raw.decision_id),
+        scope: asScope(raw.scope),
+      };
+    case "agreement_set":
+      return {
+        operation,
+        outcome: text(raw.outcome),
+        version: Number(raw.version) || 0,
+        config_version: Number(raw.config_version) || 0,
+        change: asChange(raw.change) ?? {},
+      };
+    case "closure_submitted":
+      return {
+        operation,
+        kind: raw.kind === "cancel" ? "cancel" : "complete",
+        result: nullable(raw.result),
+        reason: text(raw.reason),
+        completion_applied: raw.completion_applied === true,
+        unmet_reasons: Array.isArray(raw.unmet_reasons) ? raw.unmet_reasons as GoalEventUnmetReason[] : [],
+        expected_config_version: Number(raw.expected_config_version) || 0,
+        expected_agreement_version: Number(raw.expected_agreement_version) || 0,
+        config_version: Number(raw.config_version) || 0,
+        agreement_version: Number(raw.agreement_version) || 0,
+      };
+    case "completion_reopened":
+      return {
+        operation,
+        requirement_ids: asStringArray(raw.requirement_ids),
+        reason: text(raw.reason),
+        previous_work_status: asWorkStatus(raw.previous_work_status, "completed"),
+      };
+    case "work_resumed":
+      return {
+        operation,
+        reason: text(raw.reason),
+        previous_work_status: asWorkStatus(raw.previous_work_status, "cancelled"),
+      };
+    case "event_owner_continued":
+      return {
+        operation,
+        previous_fulfillment: raw.previous_fulfillment === "satisfied" ? "satisfied" : "unmet",
+        reopened: raw.reopened === true,
+        previous_work_status: raw.previous_work_status == null
+          ? null
+          : asWorkStatus(raw.previous_work_status, "open"),
+      };
+    case "observation_note":
+      return {
+        operation,
+        body: text(raw.body),
+      };
+    case "intent_created":
+      return {
+        operation,
+        source_kind: asSourceKind(raw.source_kind),
+      };
+    case "input_acknowledged":
+      return {
+        operation,
+        reference: asAcknowledgementReference(raw.reference),
+        treatment: asAcknowledgementTreatment(raw.treatment),
+        note: text(raw.note),
+        read_cursor: Number(raw.read_cursor) || 0,
+        by: asAcknowledgementBy(raw.by),
+      };
+    default:
+      return emptyProgress();
+  }
+}
+
+function emptyProgress(): GoalEventSystemPayload {
+  return {
+    operation: "progress_summary",
+    summary: "",
+    based_on_cursor: 0,
+    next_step: null,
+    next_actor: null,
+  };
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function nullable(value: unknown): string | null {
+  if (value == null) return null;
+  const next = String(value).trim();
+  return next ? next : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)) : [];
+}
+
+function asPurpose(value: unknown): GoalEventDecisionPurpose {
+  if (typeof value === "string" && (goalEventDecisionPurposes as readonly string[]).includes(value)) {
+    return value as GoalEventDecisionPurpose;
+  }
+  return "suggestion";
+}
+
+function asChange(value: unknown): GoalEventAgreementChange | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as GoalEventAgreementChange;
+}
+
+function asScope(value: unknown): GoalEventScope {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    requirement_ids: asStringArray(raw.requirement_ids),
+    event_ids: asStringArray(raw.event_ids),
+    concern_ids: asStringArray(raw.concern_ids),
+    action: raw.action == null || raw.action === "" ? null : String(raw.action),
+  };
+}
+
+function asConcernStatus(value: unknown): GoalEventConcernStatus {
+  if (value === "resolved" || value === "accepted" || value === "overturned" || value === "open") return value;
+  return "open";
+}
+
+function asWorkStatus(value: unknown, fallback: GoalEventWorkStatus): GoalEventWorkStatus {
+  if (value === "open" || value === "completed" || value === "cancelled") return value;
+  return fallback;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function asAcknowledgementTreatment(value: unknown): GoalEventAcknowledgementTreatment {
+  return (goalEventAcknowledgementTreatments as readonly unknown[]).includes(value) ? value as GoalEventAcknowledgementTreatment : "noted";
+}
+
+function asAcknowledgementReference(value: unknown): GoalEventAcknowledgementReference {
+  const raw = asRecord(value);
+  const category = (goalEventAcknowledgementCategories as readonly unknown[]).includes(raw.category) ? raw.category as GoalEventAcknowledgementCategory : "note";
+  return { event_id: text(raw.event_id), category, operation: nullable(raw.operation), title: text(raw.title), journal_seq: Number(raw.journal_seq) || 0 };
+}
+
+function asAcknowledgementBy(value: unknown): GoalEventAcknowledgementBy {
+  const raw = asRecord(value);
+  const channel = raw.channel === "mcp" || raw.channel === "assistant" ? raw.channel : "agent";
+  return { channel, runtime_id: nullable(raw.runtime_id), session_id: nullable(raw.session_id) };
+}
+
+function asSourceKind(value: unknown): "web" | "onboarding" | "feed" | "runtime" | "tree" {
+  if (value === "web" || value === "onboarding" || value === "feed" || value === "runtime" || value === "tree") {
+    return value;
+  }
+  return "web";
+}
+
+/** A progress report's source is optional; one that does not hold up creates no navigation. */
+export function parseGoalProgressSource(raw: unknown): GoalProgressArtifactSource | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const source = raw as Partial<GoalProgressArtifactSource>;
+  if (typeof source.artifact_id !== "string" || !source.artifact_id.trim() || !withinCharacters(source.artifact_id, 1000)
+    || !Number.isInteger(source.version) || source.version! < 1 || typeof source.title !== "string" || !source.title.trim() || !withinCharacters(source.title, 1000)
+    || !source.origin || typeof source.origin.plugin_id !== "string" || !/^[a-z][a-z0-9.-]{0,99}$/.test(source.origin.plugin_id)
+    || typeof source.origin.item_id !== "string" || !source.origin.item_id.trim() || !withinCharacters(source.origin.item_id, 1000)) return undefined;
+  return { artifact_id: source.artifact_id, version: source.version!, title: source.title,
+    origin: { plugin_id: source.origin.plugin_id, item_id: source.origin.item_id } };
+}
+
+/**
+ * Whether `value` holds at most `limit` characters (code points): a character may take two UTF-16 units. A string of more than
+ * `limit * 2` units is over the limit whatever it holds, so only a shorter one is spread; what a caller sends has no other bound.
+ */
+function withinCharacters(value: string, limit: number): boolean {
+  return value.length <= limit * 2 && [...value].length <= limit;
+}

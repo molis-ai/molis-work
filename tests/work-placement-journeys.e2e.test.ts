@@ -3,7 +3,8 @@ import test, { type TestContext } from "node:test";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { formFillPageHtml, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formFillPageHtml } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -137,7 +138,8 @@ test("placement journey: no project yet — start in the personal space, finish 
   await waitFor("document.querySelector('dialog.placement-dialog')?.open", 12_000);
   await click(`dialog.placement-dialog input[name="to"][value="${club.project_id}"]`);
   await click("dialog.placement-dialog [data-placement-confirm]");
-  await cardButton("已移到 项目「读书会」", "在新位置打开");
+  // AC3: listen before the click replaces the owner document; URL/content assertions run in the new one.
+  await j.navigate(() => cardButton("已移到 项目「读书会」", "在新位置打开"));
   await waitFor(`location.pathname === '/projects/${club.project_id}/'`, 15_000);
   await j.pages.waitFor(`${j.visible("[data-pages-title]")}?.value === '读书笔记：长期主义'`, 15_000);
   assert.equal((await current())?.id, doc.id, "the same document, now in the project");
@@ -198,7 +200,8 @@ test("placement journey: one document used by two projects and a Goal — edit, 
 
   // A move that fails (the chosen project is deleted while the dialog is open) says why, keeps the dialog for another
   // choice, and leaves the document where it was, still editable.
-  await press(`[data-placement-related] [data-placement-open="${doc.id}"]`);
+  // AC4: opening the original crosses projects and unloads this document's Runtime waits.
+  await j.navigate(() => press(`[data-placement-related] [data-placement-open="${doc.id}"]`));
   await waitFor(`location.pathname === '/projects/personal/'`, 15_000);
   await j.pages.waitFor(`${j.visible("[data-pages-title]")}?.value === '竞品调研（含定价）'`, 15_000);
   await panel("move");

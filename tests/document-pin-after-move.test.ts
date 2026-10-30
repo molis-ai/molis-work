@@ -4,12 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, nextPinnedVersion, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-ppt/contract";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
 import { formActions, FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // A document that was pinned in a project, moved away and moved back: its record starts counting fixed versions again
 // (they stay with the old project), but the project's 成果库 still holds the earlier ones. The next pin must be a new
@@ -46,8 +47,8 @@ async function fixture(t: test.TestContext, permissions: readonly string[]) {
   const refB = molisWorkHostProjectReference({ databasePath: join(home, "b.sqlite"), projectId: "pb" });
   const callerA: ActionCallContext = { actor_id: "owner", project_id: "pa", audience: "user", permissions: [...permissions] };
   const callerB: ActionCallContext = { ...callerA, project_id: "pb" };
-  await host.withProject(refA, runtime => runtime.coordinator.initializeBoard({ project_id: "pa", actor_id: "owner", idempotency_key: "a" }));
-  await host.withProject(refB, runtime => runtime.coordinator.initializeBoard({ project_id: "pb", actor_id: "owner", idempotency_key: "b" }));
+  await initializeBoard(host, refA, { actor_id: "owner", idempotency_key: "a" });
+  await initializeBoard(host, refB, { actor_id: "owner", idempotency_key: "b" });
   const a = bindActionClient(host.actionClient(refA), () => callerA), b = bindActionClient(host.actionClient(refB), () => callerB);
   const versions = (ref: typeof refA, project: string, artifactId: string) => host.withProject(ref, runtime => runtime.artifacts.query.listArtifactVersions(project, artifactId));
   // The same project as another actor of the Home: a workflow, an Agent or an MCP client.

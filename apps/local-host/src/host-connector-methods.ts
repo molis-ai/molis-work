@@ -1,6 +1,8 @@
 import type { ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
-import { API_OAUTH_PROVIDERS } from "./connector-api-oauth-providers.js";
+import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
+import type { PluginConnectionServiceDeclaration, PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { isDeclaredOAuth } from "@molis-ai/molis-work-plugin-sdk/oauth";
+import { oauthMethodOption } from "./connector-oauth-declarations.js";
 import { MCP_SERVERS } from "./connector-mcp.js";
 import { CONNECTOR_CLIS, cliAvailability } from "./connector-cli.js";
 import { connectorProductAuth, productApiLoginReady } from "./connector-product-auth.js";
@@ -47,11 +49,26 @@ const HOST_METHODS: Readonly<Record<string, readonly ConnectorMethodOption[]>> =
   ],
 };
 
-export function connectorMethodsFor(connectorId: string): readonly ConnectorMethodOption[] {
+/** Whether the platform's own tables hold the ways to connect this service (the MCP and CLI data stays there until W5-11). */
+export function hasConnectorMethods(connectorId: string): boolean {
+  return Object.hasOwn(HOST_METHODS, connectorId) || Object.hasOwn(OFFICIAL_CONNECTOR_METHODS, connectorId);
+}
+
+/**
+ * The ways to connect a declared service: the tables' when they hold it, with the OAuth option read from the declaration's `oauth`
+ * method; otherwise the token method its declaration gives, and no other.
+ */
+export function connectorMethodsOf(declaration: PluginConnectionServiceDeclaration): readonly ConnectorMethodOption[] {
+  if (hasConnectorMethods(declaration.service_id)) return connectorMethodsFor(declaration.service_id, declaration.auth.methods.find(isDeclaredOAuth));
+  if (!declaration.auth.methods.some(method => method.kind === "token")) return [];
+  return [{ kind: "token", support: "paste", note: declaration.auth_help ?? "", links: declaration.setup_links ?? [] }];
+}
+
+/** The table's ways for a service; `oauth` is the service's declared OAuth method, without which the OAuth way stays the table's link. */
+export function connectorMethodsFor(connectorId: string, oauth?: PluginOAuthMethodDeclaration): readonly ConnectorMethodOption[] {
   return HOST_METHODS[connectorId] ?? officialMethodsFor(connectorId).map(method => {
-    const oauth = API_OAUTH_PROVIDERS[connectorId];
-    if (method.kind === "oauth" && oauth) return { ...method, support: "in_app", login_ready: productApiLoginReady(connectorId), note: "在服务商官方页面登录并确认权限；每条连接独立刷新。",
-      oauth: { client_secret_required: !oauth.optionalSecret, fields: oauth.fields ?? [], note: oauth.note } };
+    if (method.kind === "oauth" && oauth) return { ...method, support: "in_app", login_ready: productApiLoginReady(connectorId, oauth), note: "在服务商官方页面登录并确认权限；每条连接独立刷新。",
+      oauth: oauthMethodOption(oauth) };
     if (method.kind === "cli" && CONNECTOR_CLIS[connectorId]) return { ...method, support: "in_app", note: "在这里运行官方 CLI 登录，再用真实只读请求验证并连接当前账号。", cli: cliAvailability(connectorId) };
     const mcp = MCP_SERVERS[connectorId];
     if (method.kind === "mcp" && mcp) return { ...method, support: "in_app",

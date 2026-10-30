@@ -9,6 +9,7 @@ import { bindActionClient, type ActionCallContext, type ActionReference } from "
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { pagesActions as actions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { handleContextualHttp, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // specs/context-program §21.8 step 4 (W3-B1): Pages' three 「放进左边」 writes at the landing the page reported.
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
@@ -27,7 +28,7 @@ async function fixture(run: (f: { client: ReturnType<MolisWorkLocalHost["actionC
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
     await run({ client, caller, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }

@@ -26,7 +26,7 @@ export class WebServiceEnvironment {
   readonly portCheck: NonNullable<MolisWorkWebServiceManagerOptions["portCheck"]>;
   readonly transitionDelayMilliseconds: number;
   constructor(options: MolisWorkWebServiceManagerOptions = {}) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+    this.homeDirectory = resolveConfiguredHome(options.homeDirectory);
     this.userHomeDirectory = path.resolve(
       options.userHomeDirectory
         ?? (options.homeDirectory ? path.dirname(this.homeDirectory) : os.homedir()),

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 import { PLUGIN_COMPONENTS, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
 import {
   AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
@@ -15,7 +15,8 @@ import {
 // states, phases and pointer labels. What the build record carries (the model's answers, the host's step labels and errors)
 // and the capability directory's titles are data and stay as written.
 
-const english = createWorkbenchLocale(() => "en").L, chinese = createWorkbenchLocale(() => "zh").L;
+// The studio is the plugin builder's: its English is the plugin's own, applied as the studio's frame and contribution get it.
+const english = pageText("en", "plugin-builder"), chinese = pageText("zh");
 const HAN = /\p{Script=Han}/u;
 
 test("the studio stage in English has no Chinese label, aria-label or title, and the Chinese stage keeps its labels", () => {
@@ -96,7 +97,7 @@ test("every Chinese string the studio client writes goes through the translator,
 });
 
 // Messages the studio's routes send as they are, which the page translates where it shows them: the request-time answers a person
-// reaches by asking (agent-surface.ts, agent-workflow.ts, agent-store.ts). The workflow's errors raised while a build runs (a model
+// reaches by asking (agent-surface.ts and its studio-*.ts parts, agent-workflow.ts, agent-store.ts). The workflow's errors raised while a build runs (a model
 // answer that fails validation, a gate or an acceptance that fails) are build-record text and stay as written (BL-125).
 const ROUTE_MESSAGES = [
   "请先选择构建使用的模型", "请先在右上角选择构建使用的模型", "所选模型尚未配置，请在模型设置中完成配置", "试用数据被同时修改，请重试", "还没有接通的功能可以试用", "这个插件当前没有运行，请在创作台里启用", "找不到这个插件的已安装版本",
@@ -108,7 +109,7 @@ const ROUTE_MESSAGES = [
 
 test("the studio's route messages are still what the server throws, and each has English", async () => {
   const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-  const sources = (await Promise.all(["apps/local-host/src/plugin-builder/agent-surface.ts", "plugins/native/plugin-builder/src/agent-workflow.ts", "plugins/native/plugin-builder/src/agent-store.ts"]
+  const sources = (await Promise.all(["apps/local-host/src/plugin-builder/agent-surface.ts", "apps/local-host/src/plugin-builder/studio-ports.ts", "apps/local-host/src/plugin-builder/studio-preview.ts", "apps/local-host/src/plugin-builder/studio-images.ts", "plugins/native/plugin-builder/src/agent-workflow.ts", "plugins/native/plugin-builder/src/agent-store.ts"]
     .map(file => readFile(join(repoRoot, file), "utf8")))).join("\n");
   for (const message of ROUTE_MESSAGES) {
     assert.ok(sources.includes("'" + message + "'"), `${message}: a route still sends it (reword the server message and this list together)`);

@@ -6,7 +6,7 @@ import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
-import { GLOBAL_SEARCH_FACTORY_SCRIPT, SEARCH_ITEM_TAB_SURFACES } from "./global-search.js";
+import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { ATTENTION_FACTORY_SCRIPT } from "./attention.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -17,8 +17,15 @@ import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
 import { SIDE_FILES_FACTORY_SCRIPT } from "../../side-panel-files.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
-/** AP3 Workbench client segment: initialization. */
+/**
+ * AP3 Workbench client segment: initialization.
+ *
+ * `itemTabs` are the surfaces whose tab opens one object by id: the platform's Artifacts, and each plugin the page's directory
+ * (`script[data-plugin-directory]`, written by the Host from the Manifests its Runtimes run) says has a view that accepts objects
+ * (W5-06 余项 2). The script keeps no list by plugin.
+ */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
+    const itemTabs = ["artifacts", ...JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id)];
     const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
     boardLifetime = mountPluginClient(document.body);
 
@@ -54,8 +61,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState, setMobileView,
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
-    // "转为待办" in other plugins shows only where Todo is on this page.
-    document.body.toggleAttribute("data-todo-available", Boolean(document.querySelector('[data-work-surface="todo"]')));
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
       membership: pluginMembership,
@@ -68,11 +73,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
-    // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3).
-    // A surface that opens its items as tabs (the 成果库 opens a version) gets the item; the rest choose the record in their list.
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin) ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
+    // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
+    // object's tab where the surface opens objects by id, else the record in the plugin's list.
+    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
+      ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
-      translate: L,
+      translate: L, itemTabs,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -94,10 +100,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
       api,
-      messageApi: async (pathname,method,body) => {
-        try { return await api(pathname,method,body); }
-        catch(error) { if(error.status===409 && error.body?.state==='failed')return error.body;throw error; }
-      },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       openTarget: (target) => {
@@ -128,7 +130,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
-    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
+    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(), itemTabs,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
@@ -262,7 +264,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (!tabWorkspace && directGoalRequested && selected && !restoredNavigation) {
       goalWorkspaceMode = "focus";
       setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goal", false, false);
+      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goals", false, false);
       setWorkspaceMode("focus", false);
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
@@ -278,7 +280,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (feedStartRequested && selected && tuiPane) {
       goalWorkspaceMode = "runtime";
       setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goal", false, false);
+      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goals", false, false);
       setWorkspaceMode("runtime", false);
       setMobileView("tui");
       saveUiState();
@@ -376,10 +378,24 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         if (referenceRequest === request && referenceDialog.open) body.textContent = text;
       } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
     });
+    const restartWorkspace = document.querySelector("[data-tab-workspace]");
+    document.addEventListener("click", async (event) => {
+      const button = event.target?.closest?.("button[data-project-plugin-restart]");
+      const stage = button?.closest("[data-work-surface]"), parent = stage?.parentElement;
+      const holder = parent?.matches("[data-tab-pane-body]") ? parent.parentElement?.parentElement : parent;
+      const operation = button?.dataset.projectPluginRestart, pluginId = button?.dataset.restartPlugin;
+      if (!button || button.disabled || !pluginId || !["restart", "release-quarantine"].includes(operation)
+        || !stage?.matches('[data-project-plugin-unavailable="workbench"]') || button.parentElement !== stage.firstElementChild
+        || parent?.closest("[data-work-surface]") || holder?.parentElement !== restartWorkspace
+        || !holder?.matches("[data-surface-pool], [data-tab-panes], [data-tab-exclusive]")) return;
+      button.disabled = true;
+      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
+      catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
+    });
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
-    const goalStageShown = () => (document.body.dataset.desktopSurface || "goal") === "goal";
+    const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
       if (goalStageShown()) await refreshBoard(false, signal);

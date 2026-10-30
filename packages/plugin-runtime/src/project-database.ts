@@ -30,6 +30,14 @@ export const pluginProjectDatabaseErrors = defineErrorCodes("plugin.project_data
   shape_mismatch: "conflict",
   /** A statement that reaches past the plugin's own tables, or does more than read or change rows (`project-database-statements.ts`). */
   statement_refused: "forbidden",
+  /** A sandboxed plugin's statement ran past its time, and the process it ran in was killed (`apps/local-host` `project-statement-process.ts`). */
+  statement_timeout: "timeout",
+  /** The process a sandboxed plugin's statement ran in grew past its memory and was killed. */
+  statement_memory: "too_large",
+  /** A sandboxed plugin's read gave more rows or bytes than one answer carries. */
+  result_too_large: "too_large",
+  /** The process that runs a sandboxed plugin's statements would not start, or ended on its own. */
+  process_failed: "unavailable",
 });
 
 /** One entry of a database's schema table, as storage's `listSqliteObjects` gives it. */
@@ -171,6 +179,19 @@ const record = (row: LedgerRow, where = ""): PluginProjectDatabaseRecord => {
   return { plugin_id: row.plugin_id, publisher_signature: row.publisher_signature, store_name: row.store_name, version: Number(row.version),
     objects, created_at: row.created_at };
 };
+
+/** The actual ledger subversions for an offline backup; no table creation, write transaction, or plugin activation. */
+export function listPluginProjectDatabases(connection: PluginRuntimeDatabase): readonly PluginProjectDatabaseRecord[] {
+  const rows = connection.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json, created_at FROM plugin_project_databases ORDER BY plugin_id").all() as LedgerRow[];
+  return rows.map(row => {
+    const entry = record(row);
+    if (!Number.isSafeInteger(entry.version) || entry.version < 1 || !Array.isArray(entry.objects)
+      || !entry.objects.every(name => typeof name === "string" && name.length > 0)) {
+      throw pluginProjectDatabaseErrors.shape_mismatch("项目插件库账本的版本或对象列表无效，未生成快照");
+    }
+    return entry;
+  });
+}
 
 /**
  * Open a plugin's tables in a project's library, making them the first time (PLIB-02, PLIB-04). In one write transaction: with no

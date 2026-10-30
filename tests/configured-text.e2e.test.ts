@@ -18,7 +18,8 @@ for (const width of [1440, 390]) {
     t.after(() => { process.env = old; resetSecretStoreCache(); });
     const received: string[] = [];
     const model = createServer(async (request, response) => {
-      let body = ""; for await (const chunk of request) body += chunk;
+      const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = Buffer.concat(chunks).toString("utf8");
       // The Home's background knowledge cards for the demo project's pieces are answered aside: `received` is Lingguang's and Jelly's.
       const payload = JSON.parse(body), aside = asideReply(body); if (aside === undefined) received.push(payload.model);
       const title = "从同一角度再拍一张窗边的照片。";

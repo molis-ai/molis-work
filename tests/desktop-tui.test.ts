@@ -1,4 +1,5 @@
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
+import { tabWorkspaceSource } from "./tab-workspace-files.js";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
@@ -9,10 +10,9 @@ import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { WebSocket, type RawData } from "ws";
 import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -30,6 +30,9 @@ import {
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
 import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
 // The Goal terminal's client, split by concern since SC-3 (apps/workbench/src/terminal/client*.ts); read together as one program.
@@ -161,7 +164,9 @@ function addProjectGoal(
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
+    application.goals.commands.createGoal(
       project.project_id,
       {
         goal_id: goalId,
@@ -263,7 +268,9 @@ function addProjectAcceptedGoal(
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
+    application.goals.commands.createGoal(
       project.project_id,
       {
         goal_id: goalId,
@@ -546,10 +553,10 @@ test("PTY PATH still finds node when NVM_BIN is absent", () => {
   }
 });
 
-test("Web and Desktop share one project workbench; Desktop only adds native chrome hooks", () => {
+test("Web and Desktop share one project workbench; Desktop only adds native chrome hooks", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-desktop-render-"));
   const databasePath = join(directory, "demo.db");
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
@@ -578,7 +585,6 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browserMarkup, /data-directory-panel="sessions"/);
     assert.doesNotMatch(browserMarkup, /data-directory-open="sessions"/);
     assert.doesNotMatch(browserMarkup, /data-plugin-section="sessions"/);
-    assert.match(browserMarkup, /data-session-stage-shell[\s\S]*data-session-stage-chrome[\s\S]*data-session-stage-list/);
     assert.match(browser, /data-goal-stage-chrome[\s\S]*data-open-create[\s\S]*data-tree-filter-trigger[\s\S]*data-board-switch/);
     assert.match(browser, /data-tree-depth="4"/);
     assert.match(browser, /data-goal-id="WEB-SCAN-ROW"/);
@@ -598,11 +604,11 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const pluginStrip = browser.match(/<nav class="[^"]*plugin-rail immersive-plugin-strip"[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(pluginStrip);
     assert.match(pluginStrip, /data-plugin-id="home"[^>]*data-work-surface-open="home"/);
-    for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
+    for (const plugin of ["goals", "inbox", "feed", "artifacts"]) {
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
     assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a 常开插件, a tab of the side panel, not an entry of the switcher");
-    assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
+    assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"/);
     // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
     // input; the side panel's one button (Shelf and 灵光 are its tabs); then the project, whose menu holds the person.
@@ -627,7 +633,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const railItems = pluginStrip?.slice(pluginStrip.indexOf('<div class="plugin-rail-items"'), pluginStrip.indexOf("data-rail-tools-toggle") + "data-rail-tools-toggle".length) ?? "";
     assert.match(railItems, /^<div class="plugin-rail-items"[^>]*><button[^>]*data-plugin-id="home"/);
     // The backbone sits under the first purpose heading, 推进 (plugin-e2e-review §3.1).
-    assert.match(railItems, /data-plugin-id="home"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">推进<\/p>[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-plugin-id="sessions"[\s\S]*data-rail-tools-toggle/);
+    assert.match(railItems, /data-plugin-id="home"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">推进<\/p>[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-rail-tools-toggle/);
     assert.doesNotMatch(railItems, /data-plugin-id="(market|plugin-builder|settings)"/, "the market and the studio are buttons at the head of the switcher, settings under the project");
     assert.match(extend, /data-global-menu[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="plugin-builder"/);
     assert.ok(browser.indexOf('class="plugin-picker-extend"') < browser.indexOf('class="plugin-rail-items"'), "the two buttons are above the project's own entry");
@@ -642,7 +648,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser, /\*\{scrollbar-width:none\}/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
     assert.match(directGoal, /data-desktop-directory="root"/);
-    assert.match(directGoal, /data-desktop-surface="goal"/);
+    assert.match(directGoal, /data-desktop-surface="goals"/);
     assert.doesNotMatch(directGoal, /data-directory-panel="goals"/);
     assert.match(directGoal, /data-goal-stage-chrome/);
     assert.match(browser, /class="navigator-project-primary"/);
@@ -723,17 +729,16 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="sessions"/);
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="sessions"/);
-    assert.match(desktopMarkup, /data-session-stage-shell/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-shelf-stage-shell/, "Shelf has no stage in the work area; it opens in its side tab");
     assert.match(desktop, /data-plugin-section="feed"/);
     assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);
-    assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goal"/);
+    assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goals"/);
     assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed" data-feed-preset="feed"/);
     assert.doesNotMatch(desktop, /data-directory-open="goals"|data-directory-open="feed"|data-directory-open="sources"|data-directory-open="sessions"|data-directory-open="inbox"|data-directory-open="artifacts"|data-directory-open="shelf"|data-feed-views/);
     assert.doesNotMatch(desktop, /data-work-surface-open="promotion"|data-work-surface-open="visual"/);
-    assert.match(desktop, /data-work-surface="goal" data-work-surface-label="Goals"/);
+    assert.match(desktop, /data-work-surface="goals" data-work-surface-label="Goals"/);
     assert.match(desktop, /data-work-surface="inbox" data-work-surface-label="Inbox"[^>]*hidden/);
     assert.match(desktop, /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
     assert.doesNotMatch(desktop, /data-directory-panel="promotion"|data-directory-panel="visual"/);
@@ -788,7 +793,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /html\[data-native-desktop="true"\] body\.immersive-workbench \[data-titlebar-tabs\] \.tab-scroll/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; min-width: 0; \}/);
-    const tabWorkspaceClient = readFileSync(new URL("../apps/workbench/src/scripts/client/tab-workspace.ts", import.meta.url), "utf8");
+    const tabWorkspaceClient = tabWorkspaceSource();
     assert.match(tabWorkspaceClient, /documentElement\.dataset\.nativeDesktop === "true"/);
     assert.match(tabWorkspaceClient, /spacer\.dataset\.tauriDragRegion = ""/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /grid-template-columns: var\(--plugin-rail-width\) var\(--tree-width/);
@@ -821,8 +826,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
     assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true\) =>/);
     assert.match(desktop, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
-    assert.match(desktop, /setDesktopWorkSurface\("goal", false, false\)/);
-    assert.match(desktop, /pluginForSurface = \(surface\) => surface === "goal" \? "goals"/);
+    assert.match(desktop, /setDesktopWorkSurface\("goals", false, false\)/);
+    assert.doesNotMatch(desktop, /pluginForSurface/, "a surface is its plugin's id; nothing turns one into the other (T-114)");
     assert.match(desktop, /directoryPanelFor/);
     assert.match(desktop, /let desktopDirectoryOrigin = null/);
     assert.match(desktop, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
@@ -1053,13 +1058,14 @@ test("compound parent terminals become read-only and direct execution APIs requi
         .prepare("UPDATE goals SET fulfillment_state = 'satisfied' WHERE goal_id IN (?, ?)")
         .run("TUI-CHILD", "TUI-PARENT");
       // This test-only fixture mutation bypasses the coordinator, so publish a
-      // matching cursor event just as every supported product write does.
+      // matching cursor event just as every supported product write does: under
+      // Goals' own names, the events its cursor counts.
       completionStore.appendEvent({
         eventId: "desktop-tui-compound-completed",
         projectId: fixture.project.project_id,
         actorId: "test-user",
-        type: "test.fixture.updated",
-        objectType: "goal",
+        type: `${GOALS_PLUGIN_ID}:test.fixture.updated`,
+        objectType: `${GOALS_PLUGIN_ID}:goal`,
         objectId: "TUI-PARENT",
         reason: "测试复合 Goal 完成后的只读终端",
         payload: { child_goal_id: "TUI-CHILD" },
@@ -1132,7 +1138,7 @@ test("Feed processing opens Runtime and fills context without sending it", () =>
   assert.match(WORKBENCH_UI_SOURCE, /workspaceMode: action === "start" \? "runtime" : "focus"/);
   assert.match(WORKBENCH_UI_SOURCE, /feedStartRequested/);
   assert.match(WORKBENCH_UI_SOURCE, /goalWorkspaceMode = "runtime"/);
-  assert.match(WORKBENCH_UI_SOURCE, /setDesktopWorkSurface\("goal", false, false\)/);
+  assert.match(WORKBENCH_UI_SOURCE, /setDesktopWorkSurface\("goals", false, false\)/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work-feed-runtime-autofill:/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /await writePrompt\(false, pending\.itemId\)/);
   assert.match(PTY_CLIENT_SOURCE, /const query = new URLSearchParams\(\)/);
@@ -1159,7 +1165,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.match(page, /data-feed-entry-id="feed-item-test"/);
     assert.match(page, /用 Item 启动真实工作/);
     assert.doesNotMatch(page, /测试来源资料/);
-    const detailResponse = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/detail`);
+    const detailResponse = await webFetch(`${origin}${prefix}/api/stage/feed/items/feed-item-test`);
     assert.equal(detailResponse.status, 200);
     const detail = await detailResponse.text();
     assert.match(detail, /测试来源资料/);
@@ -1172,7 +1178,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.match(page, /data-feed-type-filter/);
     assert.match(page, /data-feed-time-filter/);
 
-    const read = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/read`, {
+    const read = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/read`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
@@ -1182,7 +1188,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.ok(readBody.item.read_at);
     assert.equal(readBody.item.revision, 1);
 
-    const addInbox = async () => webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/inbox`, {
+    const addInbox = async () => webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/inbox`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: 1 }),
@@ -1196,7 +1202,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.doesNotMatch(pageAfterInbox, /data-feed-entry-id="inbox:/);
     assert.match(pageAfterInbox, /data-inbox-detail="/);
 
-    const missingRevision = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/start`, {
+    const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
@@ -1204,7 +1210,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(missingRevision.status, 400);
     assert.match(await missingRevision.text(), /刷新 Item/);
 
-    const started = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/start`, {
+    const started = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: 1 }),
@@ -1212,7 +1218,6 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(started.status, 200);
     const startedBody = await started.json() as {
       goal_id: string;
-      goal_path: string;
       created: boolean;
       runtime_autofill: boolean;
       item: { revision: number };
@@ -1220,9 +1225,10 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(startedBody.created, true);
     assert.equal(startedBody.runtime_autofill, true);
     assert.equal(startedBody.item.revision, 2);
-    assert.match(startedBody.goal_path, new RegExp(`${prefix}/goals/`));
+    // The page builds the Goal's address from its id: Feed's route answers with the Goal, not with a path of the shell (FI-7).
+    assert.match(startedBody.goal_id, /\S/);
 
-    const stalePromote = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/promote`, {
+    const stalePromote = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: 1 }),
@@ -1230,7 +1236,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(stalePromote.status, 409);
     assert.match(await stalePromote.text(), /已经变化/);
 
-    const promotedAgain = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/promote`, {
+    const promotedAgain = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: startedBody.item.revision }),
@@ -1316,7 +1322,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     const address = firstServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const started = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const started = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1331,7 +1337,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     revision = startedBody.item.revision;
     assert.equal(startedBody.created, true);
 
-    const repeated = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const repeated = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1357,7 +1363,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     const address = restartedServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const restarted = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const restarted = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1407,13 +1413,13 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const page = await (await webFetch(`${origin}${prefix}`)).text();
     assert.match(page, new RegExp(`data-feed-entry-id="${itemId}"[^>]*data-feed-entry-type="feed"`));
     assert.doesNotMatch(page, /data-feed-entry-id="inbox:/);
-    const listed = await webFetch(`${origin}${prefix}/api/inbox`);
+    const listed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);
     assert.equal(listed.status, 200);
     const listedBody = await listed.json() as { entries: Array<{ entry_id: string; subject_id: string }> };
     const inboxEntryId = listedBody.entries.find((entry) => entry.subject_id === itemId)?.entry_id;
     assert.ok(inboxEntryId);
 
-    const completed = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
+    const completed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "done", expected_revision: 1 }),
@@ -1423,7 +1429,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     assert.equal(completedBody.entry.status, "done");
     assert.equal(completedBody.entry.revision, 2);
 
-    const completedAgain = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
+    const completedAgain = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "done", expected_revision: 2 }),
@@ -1432,7 +1438,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const completedAgainBody = await completedAgain.json() as { entry: { status: string; revision: number } };
     assert.equal(completedAgainBody.entry.revision, 2, "repeating the same Inbox result stays idempotent");
 
-    const reopened = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
+    const reopened = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "open", expected_revision: 2 }),
@@ -1442,7 +1448,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     assert.equal(reopenedBody.entry.status, "open");
     assert.equal(reopenedBody.entry.revision, 3);
 
-    const saved = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/save`, {
+    const saved = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/save`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1452,7 +1458,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     assert.equal(savedBody.item.disposition, "saved");
     revision = savedBody.item.revision;
 
-    const started = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const started = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1479,7 +1485,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const address = restartedServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const repeated = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const repeated = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1527,10 +1533,10 @@ test("Inbox Message save and start survives a Web restart without duplicating it
   }
 });
 
-test("TUI menu greys out runtimes whose CLI is missing", () => {
+test("TUI menu greys out runtimes whose CLI is missing", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-desktop-cli-"));
   const databasePath = join(directory, "demo.db");
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
@@ -2025,4 +2031,40 @@ test("control token persists in the Molis Work home across server restarts", () 
   assert.match(first, /^[A-Za-z0-9_-]{32,}$/);
   const stored = readFileSync(join(homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8").trim();
   assert.equal(stored, first);
+});
+
+// T-114 (PG-094 ②): a plugin's work surface is its id. Goals had the one alias (`goals` → `goal`) and the four
+// functions that turned one into the other; with them gone, Goals is no different from any other plugin here.
+const surfacePages = async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-surface-id-"));
+  const databasePath = join(directory, "demo.db");
+  await seedDemoGoals(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const view = buildMolisWorkWebView(store, new GoalProjectApplication(store), { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
+    return { desktop: renderMolisWorkWeb(view, undefined, false, false, "", true), directGoal: renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id) };
+  } finally {
+    store.close();
+  }
+};
+
+test("RAC-1930 each plugin button opens the surface named by its own id; Goals' stage is the surface `goals`", async () => {
+  const { desktop } = await surfacePages();
+  const buttons = [...desktop.matchAll(/<button[^>]*\bdata-plugin-id="([^"]+)"[^>]*\bdata-work-surface-open="([^"]+)"/g)];
+  assert.ok(buttons.some(([, id]) => id === "goals"), "the Goals button is on the page");
+  assert.deepEqual(buttons.filter(([, id, surface]) => id !== surface).map(([, id, surface]) => `${id} → ${surface}`), []);
+  assert.match(desktop, /data-work-surface="goals" data-work-surface-label="Goals"/);
+  assert.doesNotMatch(desktop, /data-work-surface(?:-open)?="goal"/);
+});
+
+test("RAC-1931 the workbench's scripts and styles, Goals' own client parts included, say `goal` only as an object kind, never as a surface", () => {
+  const scripts = [renderMolisWorkWorkbenchClientScript(), renderMolisWorkWorkbenchStylesheet()].join("\n");
+  const surfaceGoal = /(?:Surface|surface|SURFACE)\b[^;\n]{0,40}"goal"(?!s)|"goal"(?!s)[^;\n]{0,25}(?:Surface|surface)|surface(?:-open)?=\\?"goal\\?"/g;
+  assert.deepEqual([...scripts.matchAll(surfaceGoal)].map(([hit]) => hit), []);
+  assert.doesNotMatch(scripts, /SURFACE_OVERRIDES|pluginForSurface|pluginSurface\b/);
+});
+
+test("RAC-1933 a page opened on a Goal starts on the surface `goals`", async () => {
+  const { directGoal } = await surfacePages();
+  assert.match(directGoal, /data-desktop-surface="goals"/);
 });

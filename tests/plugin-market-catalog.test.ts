@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon } from "@molis-ai/molis-work-design-system";
-import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderPickerExtend, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
+import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
@@ -31,10 +32,25 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.doesNotMatch(html, /plugin-market-controls/);
 });
 
-test("the Dock menu reserves a live update-count marker on the market entry", () => {
-  // The market left the rail for the Dock menu at the foot of the window; the marker travels with it.
-  const html = renderAccountGlobalItems({ L: value => value, escapeHtml: String, icon }, []);
-  assert.match(html, /data-plugin-id="market"[^>]*aria-label="插件市场"[^>]*>[\s\S]*data-market-update-count hidden/);
+test("RAC-1310 a market card says what it brings and what it takes, from the directory's companions", () => {
+  const marked = (marks: Readonly<Record<string, { companions?: readonly string[] }>>) =>
+    builtinPluginDirectory().map(entry => ({ ...entry, ...marks[entry.id] }));
+  const card = (html: string, id: string) => html.match(new RegExp(`<article[^>]*data-market-plugin="${id}"[^>]*>`))?.[0] ?? "";
+  const related = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, {}, marked({ feed: { companions: ["inbox"] } }));
+  assert.match(card(related, "feed"), /data-market-needs="inbox"/, "adding Feed brings Inbox");
+  assert.match(card(related, "inbox"), /data-market-needed-by="feed"/, "removing Inbox takes Feed with it");
+  const plain = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, {}, marked({}));
+  assert.doesNotMatch(plain, /data-market-needs|data-market-needed-by/, "no companions, no attributes");
+});
+
+test("the switcher's market button carries the live update-count marker", () => {
+  // The market is a button at the head of the bottom bar's switcher, beside search (renderPickerExtend); the client looks it up
+  // under `[data-global-menu]` and lights the marker inside it (apps/workbench/src/scripts/client/plugin-workbench.ts).
+  const html = renderPickerExtend({ L: value => value, escapeHtml: String, icon }, []);
+  assert.match(html, /^<div class="plugin-picker-extend" data-global-menu /, "the group the client looks the market up in");
+  const market = html.match(/<button [^>]*data-plugin-id="market"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? "";
+  assert.match(market, /title="插件市场">[\s\S]*<span data-slot="button-label">插件市场<\/span>/, "the market button names itself");
+  assert.match(market, /<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"><\/b><\/button>$/, "the marker is inside the market button, hidden until there are updates");
 });
 
 test("plugin market destination menu factory has no nested template interpolation", () => {
@@ -51,7 +67,7 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey: "var\(--hue-gray\)"/);
-  const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^\n]+\});/)![1]!);
+  const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^{}\n]*\})/)![1]!);
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).
@@ -60,4 +76,10 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(script, /\[data-feed-rows\]/);
   assert.doesNotMatch(script, /feedList\.insertBefore\(wrap, feedEmpty\)/);
   new Function(script);
+});
+
+test("RAC-1824 the market entry is looked for in the switcher's own group, and the update dot is lit on the switcher alone", () => {
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(`const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"]');`), "the market entry has one place to be found");
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(`updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);`), "the dot is lit on the switcher");
+  assert.doesNotMatch(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /data-plugin-strip\] \[data-plugin-id="market"\]|account-global-menu/, "neither the rail nor an account menu is looked at");
 });

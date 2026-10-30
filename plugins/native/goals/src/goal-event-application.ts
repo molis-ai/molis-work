@@ -17,6 +17,7 @@ import {
   type GoalEventDirectoryPage,
   type GoalEventDirectoryQuery,
   type GoalEventFactsApi,
+  type GoalEventStateApi,
   type GoalEventHistoryPage,
   type GoalEventHistoryQuery,
   type GoalEventListPage,
@@ -43,7 +44,7 @@ import {
   type ResumeGoalEventWorkInput,
   type SetGoalEventAgreementInput,
   type SubmitGoalEventClosureInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "./contract/goals.js";
 
 
 const STATE_REPORT_LIMIT = 5;
@@ -73,7 +74,7 @@ export class GoalEventApplication {
     }
     const hash = intentHash(input);
     return this.ports.events.runImmediate(() => {
-      const replay = this.ports.events.replayIntent(input.project_id, input.actor_id, input.idempotency_key, hash);
+      const replay = this.ports.events.intent.replay(input.project_id, input.actor_id, input.idempotency_key, hash);
       if (replay) return { ...replay, replayed: true };
       const result = this.ports.commands.createGoal(input.project_id, {
         goal_id: input.goal_id?.trim() || undefined,
@@ -91,7 +92,7 @@ export class GoalEventApplication {
         idempotency_key: `${input.idempotency_key}::identity`,
         reason: "保存原始意图",
       });
-      this.ports.events.recordIntentArtifacts({
+      this.ports.events.intent.recordArtifacts({
         project_id: result.goal.project_id,
         goal_id: result.goal.goal_id,
         actor_id: input.actor_id,
@@ -137,22 +138,22 @@ export class GoalEventApplication {
         recorded: true,
         completion_effect: false,
       };
-      this.ports.events.rememberIntent(
+      this.ports.events.intent.remember(
         input.project_id, input.actor_id, input.idempotency_key, hash, created, new Date().toISOString(),
       );
       return created;
     });
   }
 
-  adoptOwner(input: Parameters<GoalEventFactsApi["adoptOwner"]>[0]): void {
-    this.ports.events.adoptOwner(input);
+  adoptOwner(input: Parameters<GoalEventStateApi["adoptOwner"]>[0]): void {
+    this.ports.events.state.adoptOwner(input);
   }
 
   readState(projectId: string, goalId: string): GoalEventStateView {
     const goal = this.requireGoal(projectId, goalId);
     const config = this.ports.events.readConfig(projectId, goalId);
     const requirements = this.ports.events.readCurrentRequirements(projectId, goalId);
-    const work = this.ports.events.readWorkState(projectId, goalId);
+    const work = this.ports.events.state.readWorkState(projectId, goalId);
     const latest = this.ports.events.listLatestReports(projectId, goalId, { limit: STATE_REPORT_LIMIT });
     const latestReports = latest.reports.map(reportSummary);
     const gaps: GoalEventWorkGap[] = requirements
@@ -277,23 +278,23 @@ export class GoalEventApplication {
   }
 
   readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null {
-    return this.ports.events.readProgressReceipt(projectId, goalId, actorId, key);
+    return this.ports.events.state.readProgressReceipt(projectId, goalId, actorId, key);
   }
 
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult {
-    return this.ports.events.recordProgress(input);
+    return this.ports.events.state.recordProgress(input);
   }
 
   applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult {
-    return this.ports.events.applyConcern(input);
+    return this.ports.events.state.applyConcern(input);
   }
 
   requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult {
-    return this.ports.events.requestDecision(input);
+    return this.ports.events.state.requestDecision(input);
   }
 
   citeDecision(input: CiteGoalDecisionInput): GoalEventDecisionResult {
-    return this.ports.events.citeDecision(input);
+    return this.ports.events.state.citeDecision(input);
   }
 
   recordTrustedDecision(input: RecordGoalUserDecisionInput): GoalEventDecisionResult {
@@ -304,23 +305,23 @@ export class GoalEventApplication {
         "用户决定必须经 Host 受保护入口与 Governance 来源校验，不能由 Runtime 自填",
       );
     }
-    return this.ports.events.recordTrustedDecision(input, (normalized) => persist(normalized));
+    return this.ports.events.state.recordTrustedDecision(input, (normalized) => persist(normalized));
   }
 
   setAgreement(input: SetGoalEventAgreementInput): GoalEventAgreementResult {
-    return this.ports.events.setAgreement(input);
+    return this.ports.events.state.setAgreement(input);
   }
 
   submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult {
-    return this.ports.events.submitClosure(input);
+    return this.ports.events.state.submitClosure(input);
   }
 
   resumeWork(input: ResumeGoalEventWorkInput): GoalEventResumeResult {
-    return this.ports.events.resumeWork(input);
+    return this.ports.events.state.resumeWork(input);
   }
 
   recordNote(input: RecordGoalNoteInput) {
-    return this.ports.events.recordNote(input);
+    return this.ports.events.state.recordNote(input);
   }
 
   private requireGoal(projectId: string, goalId: string): GoalRecord {
@@ -341,7 +342,7 @@ export function hostEventDecisionAuthority(
     actor_kind: "user",
     authority_source: source,
     conversation_ref: `${source}:${projectId}`,
-    message_ref: `${source}-event-decision:${idempotencyKey}`,
+    message_ref: `${source}:${idempotencyKey}`,
   };
 }
 

@@ -9,7 +9,7 @@ import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
 
-// specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
+// S-23 (PA-23), specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
 // ends — and the step goes on only when the Host starts the session's next round, through the same start checks.
 
 function reply(tool?: { name: string; input: object }, text = "done"): string {
@@ -45,8 +45,8 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
   const requests: Array<{ who: "parent" | "child"; body: string }> = [];
   const errors: unknown[] = [];
   const respond = async (request: IncomingMessage, response: ServerResponse) => {
-    let raw = "";
-    for await (const chunk of request) raw += String(chunk);
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw) as { system: unknown; tools?: Array<{ name: string }> };
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found", not counted as a run.
     const review = endingReviewAnswer(body, () => []);

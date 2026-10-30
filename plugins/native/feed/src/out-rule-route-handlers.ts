@@ -1,7 +1,7 @@
 import { feedRuleActions } from "./rule-actions.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import { parseFeedOutRulePatch, parseFeedOutRuleWrite } from "./out-rules.js";
 
 function requireRuleId(value: string | undefined): string {
@@ -10,7 +10,6 @@ function requireRuleId(value: string | undefined): string {
 }
 
 export function createFeedOutRuleRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
-  const changed = () => options.changed();
   return {
     "feed.out-rules.judgments": async () => ({ status: 200, body: await options.actions.invoke(feedRuleActions.judgments, {}) }),
     "feed.out-rules.preview-judgment": async ({ request }) => ({ status: 200, body: await options.actions.invoke(feedRuleActions.previewJudgment, request.body as unknown as { judgment: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference; item_id: string }) }),
@@ -22,23 +21,19 @@ export function createFeedOutRuleRouteHandlers(options: FeedRouteHandlerPorts): 
       const ids = request.body.item_ids;
       if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) throw feedErrors.invalid_transition("请选择消息试跑规则");
       const result = await options.actions.invoke(feedRuleActions.evaluate, { item_ids: ids });
-      changed();
       return { status: 200, body: result };
     },
     "feed.out-rules.list": async () => ({ status: 200, body: await options.actions.invoke(feedRuleActions.list, {}) }),
     "feed.out-rules.create": async ({ request }) => {
       const body = await options.actions.invoke(feedRuleActions.create, parseFeedOutRuleWrite(request.body));
-      changed();
       return { status: 201, body };
     },
     "feed.out-rules.update": async ({ params, request }) => {
       const body = await options.actions.invoke(feedRuleActions.update, { rule_id: requireRuleId(params.rule_id), patch: parseFeedOutRulePatch(request.body) });
-      changed();
       return { status: 200, body };
     },
     "feed.out-rules.delete": async ({ params }) => {
       const body = await options.actions.invoke(feedRuleActions.delete, { rule_id: requireRuleId(params.rule_id) });
-      changed();
       return { status: 200, body };
     },
   };

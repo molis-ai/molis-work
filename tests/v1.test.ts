@@ -4,9 +4,10 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { main as runPublicCli } from "../apps/desktop/launchers/cli/main.js";
-import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { GoalProjectApplication, boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 
 function fixture(start = "2026-08-15T00:00:00.000Z") {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-v1-"));
@@ -92,7 +93,7 @@ test("public CLI exposes install, service, demo, uninstall, and Molis Work V1; t
     assert.doesNotMatch(logs.join("\n"), /import-v3/);
     assert.doesNotMatch(logs.join("\n"), /profiles|strategy|coverage|handoff|replay/);
     assert.equal(await runPublicCli(["profiles"]), 1);
-    assert.match(errors.join("\n"), /提供 install、service <operation>、demo <operation>、uninstall、plugin <operation> 和 v1/);
+    assert.match(errors.join("\n"), /提供 install、service <operation>、demo <operation>、uninstall、plugin <operation>、home snapshot 和 v1/);
   } finally {
     console.log = originalLog;
     console.error = originalError;
@@ -113,7 +114,7 @@ test("fresh SQLite authority creates a usable board and reopens idempotently", (
 
   const reopened = new LocalProjectDatabase(path);
   assert.equal(reopened.db.pragma("user_version", { simple: true }), PROJECT_DATABASE_BASELINE.version);
-  assert.equal(reopened.snapshot("board-1").board.project_id, "board-1");
+  assert.equal(boardSnapshot(reopened, "board-1").board.project_id, "board-1");
   reopened.close();
 });
 
@@ -185,9 +186,9 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   assert.ok(secondView.runtime_prompt_prefix.startsWith(stablePrefix));
   assert.equal((secondView.runtime_prompt_prefix.match(/<\/MOLIS_WORK_PROJECT_GUIDANCE>/g) ?? []).length, 1);
   assert.match(secondView.runtime_prompt_prefix, /&lt;\/MOLIS_WORK_PROJECT_GUIDANCE&gt;/);
-  assert.deepEqual(store.snapshot("board-1").project_guidance.map((entry) => entry.position), [1, 2]);
+  assert.deepEqual(boardSnapshot(store, "board-1").project_guidance.map((entry) => entry.position), [1, 2]);
   assert.equal(
-    (store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'project.guidance_added'").get() as { count: number }).count,
+    (store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = ?").get(`${GOALS_PLUGIN_ID}:project.guidance_added`) as { count: number }).count,
     2,
   );
 
@@ -290,7 +291,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
   assert.deepEqual(inactiveView.entries, []);
   assert.equal(inactiveView.inactive_entries.length, 1);
   assert.doesNotMatch(inactiveView.runtime_prompt_prefix, /回滚和安装路径/);
-  assert.deepEqual(store.snapshot("board-1").project_guidance, []);
+  assert.deepEqual(boardSnapshot(store, "board-1").project_guidance, []);
 
   const restored = coordinator.goals.commands.updateProjectGuidance({
     project_id: "board-1",
@@ -357,7 +358,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
     }),
     (error: unknown) => error instanceof ActionError && error.code === "goals.project_guidance.total_too_large",
   );
-  assert.equal(store.snapshot("board-1").project_guidance.length, 8);
+  assert.equal(boardSnapshot(store, "board-1").project_guidance.length, 8);
   store.close();
 });
 
@@ -393,8 +394,8 @@ test("only satisfied Goals can be archived and restoration preserves completion 
   assert.equal(archived.goal.fulfillment_state, "satisfied");
   assert.equal(archived.goal.acceptance_criteria.length, 1);
   assert.equal(archived.active_goal_cleared, true);
-  assert.equal(store.snapshot("board-1").board.active_goal_id, null);
-  assert.ok(store.goalsQuery.getGoal("board-1", "archive-target")?.archived_at);
+  assert.equal(boardSnapshot(store, "board-1").board.active_goal_id, null);
+  assert.ok(goalsQueryOf(store).getGoal("board-1", "archive-target")?.archived_at);
 
   setNow("2026-08-15T02:00:00.000Z");
   const restored = coordinator.goals.lifecycle.setArchived(
@@ -406,9 +407,9 @@ test("only satisfied Goals can be archived and restoration preserves completion 
   assert.equal(restored.goal.archived_by, null);
   assert.equal(restored.goal.fulfillment_state, "satisfied");
   const archiveEvents = store.db
-    .prepare("SELECT type FROM events WHERE object_id = ? AND type IN ('goal.archived', 'goal.restored') ORDER BY seq")
-    .all("archive-target") as Array<{ type: string }>;
-  assert.deepEqual(archiveEvents.map((event) => event.type), ["goal.archived", "goal.restored"]);
+    .prepare("SELECT type FROM events WHERE object_id = ? AND type IN (?, ?) ORDER BY seq")
+    .all("archive-target", `${GOALS_PLUGIN_ID}:goal.archived`, `${GOALS_PLUGIN_ID}:goal.restored`) as Array<{ type: string }>;
+  assert.deepEqual(archiveEvents.map((event) => event.type), [`${GOALS_PLUGIN_ID}:goal.archived`, `${GOALS_PLUGIN_ID}:goal.restored`]);
   store.close();
 });
 
@@ -458,17 +459,17 @@ test("Goal trash preserves history, deactivates only active relations, and resto
   assert.equal(trashed.active_goal_cleared, true);
   assert.deepEqual(trashed.deactivated_relation_ids, [activeRelation]);
   assert.equal(trashed.goal.trashed_by, "user-1");
-  assert.equal(store.snapshot("board-1").board.active_goal_id, null);
+  assert.equal(boardSnapshot(store, "board-1").board.active_goal_id, null);
   assert.deepEqual(coordinator.listTrashedGoals("board-1").map((goal) => goal.goal_id), ["trash-target"]);
 
-  const afterTrash = store.snapshot("board-1");
+  const afterTrash = boardSnapshot(store, "board-1");
   assert.ok(afterTrash.goals.some((goal) => goal.goal_id === "trash-target" && goal.trashed_at));
   assert.equal(afterTrash.relations.find((item) => item.relation_id === activeRelation)?.state, "inactive");
   assert.equal(afterTrash.relations.find((item) => item.relation_id === inactiveRelation)?.state, "inactive");
   assert.ok(
     afterTrash.goals.find((goal) => goal.goal_id === "trash-target")?.acceptance_criteria.length,
   );
-  assert.ok(store.goalsQuery.getGoal("board-1", "trash-target")?.trashed_at);
+  assert.ok(goalsQueryOf(store).getGoal("board-1", "trash-target")?.trashed_at);
   assert.equal(coordinator.listTrashedGoals("board-1").some((item) => item.goal_id === "trash-target"), true);
   assert.throws(
     () =>
@@ -500,16 +501,16 @@ test("Goal trash preserves history, deactivates only active relations, and resto
   assert.deepEqual(restored.restored_relation_ids, [activeRelation]);
   assert.deepEqual(restored.pending_relation_ids, []);
   assert.equal(restored.goal.trashed_at, null);
-  const afterRestore = store.snapshot("board-1");
+  const afterRestore = boardSnapshot(store, "board-1");
   assert.equal(afterRestore.relations.find((item) => item.relation_id === activeRelation)?.state, "active");
   assert.equal(afterRestore.relations.find((item) => item.relation_id === inactiveRelation)?.state, "inactive");
   assert.equal(coordinator.listTrashedGoals("board-1").length, 0);
   assert.deepEqual(
     store.db
-      .prepare("SELECT type FROM events WHERE object_id = ? AND type IN ('goal.trashed', 'goal.restored_from_trash') ORDER BY seq")
-      .all("trash-target")
+      .prepare("SELECT type FROM events WHERE object_id = ? AND type IN (?, ?) ORDER BY seq")
+      .all("trash-target", `${GOALS_PLUGIN_ID}:goal.trashed`, `${GOALS_PLUGIN_ID}:goal.restored_from_trash`)
       .map((row: { type: string }) => row.type),
-    ["goal.trashed", "goal.restored_from_trash"],
+    [`${GOALS_PLUGIN_ID}:goal.trashed`, `${GOALS_PLUGIN_ID}:goal.restored_from_trash`],
   );
   assert.equal(
     coordinator.goals.lifecycle.setTrashed(
@@ -551,8 +552,8 @@ test("Goal trash rolls the whole deletion transaction back on relation failure",
       ),
     /injected trash relation failure/,
   );
-  assert.equal(store.goalsQuery.getGoal("board-1", "trash-active-work")?.trashed_at, null);
-  assert.equal(store.snapshot("board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
+  assert.equal(goalsQueryOf(store).getGoal("board-1", "trash-active-work")?.trashed_at, null);
+  assert.equal(boardSnapshot(store, "board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
   assert.equal(
     store.db.prepare("SELECT COUNT(*) AS count FROM goal_trash_records WHERE goal_id = ?").get("trash-active-work").count,
     0,
@@ -600,14 +601,14 @@ test("a Relation waits safely until both independently trashed endpoints are res
   );
   assert.deepEqual(leftRestored.restored_relation_ids, []);
   assert.deepEqual(leftRestored.pending_relation_ids, [relationId]);
-  assert.equal(store.snapshot("board-1").relations.find((item) => item.relation_id === relationId)?.state, "inactive");
+  assert.equal(boardSnapshot(store, "board-1").relations.find((item) => item.relation_id === relationId)?.state, "inactive");
   const rightRestored = coordinator.goals.lifecycle.setTrashed(
     "board-1",
     { goal_id: "trash-right", trashed: false, reason: "两端都恢复后才恢复关系" },
     { actor_id: "user-1", idempotency_key: "restore-right" },
   );
   assert.deepEqual(rightRestored.restored_relation_ids, [relationId]);
-  assert.equal(store.snapshot("board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
+  assert.equal(boardSnapshot(store, "board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
   store.close();
 });
 
@@ -676,8 +677,8 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
       error instanceof ActionError && error.code === "goals.relation.not_active",
   );
   const event = store.db
-    .prepare("SELECT reason FROM events WHERE type = 'relation.deactivated' AND object_id = ?")
-    .get(added.relation_id) as { reason: string } | undefined;
+    .prepare("SELECT reason FROM events WHERE type = ? AND object_id = ?")
+    .get(`${GOALS_PLUGIN_ID}:relation.deactivated`, added.relation_id) as { reason: string } | undefined;
   assert.equal(event?.reason, "扩展结果已经并入新的独立 Goal");
   store.close();
 });
@@ -710,7 +711,7 @@ test("Goal Tree create payload rejects retired acceptance_criteria fields before
     }),
     (error: unknown) => error instanceof ActionError && error.code === "goals.goal_tree_proposal.payload_unknown",
   );
-  assert.equal(store.goalsQuery.getGoal("board-1", "criterion-conflicting-goal"), null);
+  assert.equal(goalsQueryOf(store).getGoal("board-1", "criterion-conflicting-goal"), null);
   store.close();
 });
 
@@ -749,7 +750,7 @@ test("Goal Tree proposal rejects cross-proposal item ID reuse with a structured 
 
 test("a failed unified Goal Tree submission leaves neither proposal rows nor canonical writes", () => {
   const { store, coordinator } = fixture();
-  const beforeGoals = store.snapshot("board-1").goals;
+  const beforeGoals = boardSnapshot(store, "board-1").goals;
   store.db.exec(`
     CREATE TRIGGER reject_goal_tree_item
     BEFORE INSERT ON goal_tree_proposal_items
@@ -773,8 +774,8 @@ test("a failed unified Goal Tree submission leaves neither proposal rows nor can
       }),
     /forced goal tree item failure/,
   );
-  assert.equal(store.snapshot("board-1").goal_tree_proposals.length, 0);
-  assert.deepEqual(store.snapshot("board-1").goals, beforeGoals);
+  assert.equal(boardSnapshot(store, "board-1").goal_tree_proposals.length, 0);
+  assert.deepEqual(boardSnapshot(store, "board-1").goals, beforeGoals);
   store.close();
 });
 

@@ -25,6 +25,14 @@ test("模型设置经正式 HTTP 保存、验证、重开与隔离，凭据不�
     prompt_cache: "off", enabled: true, models: [{ model_id: "MiniMax-M3", enabled: true, context_tokens: 200000, vision: true }] };
   try {
     let origin = await start("a");
+    const setup = await (await fetch(origin + "/api/settings/models?setup=1")).json() as { templates: Array<{ template_id: string; fills_model: boolean }>; draft?: unknown };
+    assert.equal(setup.templates.some(item => item.template_id === "deepseek" && item.fills_model && !("base_url" in item)), true);
+    assert.equal(setup.draft, undefined);
+    const drafted = await (await fetch(origin + "/api/settings/models?setup=1&template=deepseek")).json() as { draft: { template_id: string; provider: { base_url: string; models: Array<{ model_id: string }> } } };
+    assert.equal(drafted.draft.template_id, "deepseek");
+    assert.equal(drafted.draft.provider.base_url, "https://api.deepseek.com");
+    assert.equal(drafted.draft.provider.models[0]?.model_id, "deepseek-flash");
+    assert.equal(JSON.stringify(drafted).includes("api_key"), false);
     const mutate = (body: unknown, method = "POST", authorized = true) => fetch(origin + "/api/settings/models/minimax", {
       method, headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
         ...(authorized ? { "x-molis-work-control-token": controlToken } : {}) },

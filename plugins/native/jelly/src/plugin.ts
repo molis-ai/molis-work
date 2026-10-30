@@ -1,5 +1,5 @@
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginModelConfigurationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
 import { jellyErrors } from "./error.js";
 import { jellyManifest } from "./manifest.js";
@@ -7,24 +7,20 @@ import { jellyRoutes } from "./plugin-routes.js";
 import { createJellyServiceHandlers } from "./service-actions.js";
 import { JellyStore, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
+import { JELLY_INSTRUCTIONS } from "./prompts.js";
 
-/** Trusted startup declaration. Runtime only honors the copy carried by the Host entry. */
-export const JELLY_MODEL_CONFIGURATION: PluginModelConfigurationDeclaration = {
-  preference: { store_name: "jelly", file_name: "preferences.json" },
-  custom_provider: { provider_id: "jelly-text", display_name: "Jelly 模型" },
-  actions: { read: { capability_id: "jelly.model.settings", version: 1 }, save: { capability_id: "jelly.model.configure", version: 1 } },
-};
 const unavailable = (): ActionAvailability => ({ available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" });
 
 /** One Home Runtime instance owns every Jelly action, view, and HTTP route. */
 export function createJellyPlugin(): PluginDefinition {
-  return { manifest: jellyManifest, async start(context) {
+  return { manifest: jellyManifest, instructions: JELLY_INSTRUCTIONS, async start(context) {
     for (const permission of jellyManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, model = context.services?.model, configuration = model?.configuration;
     if (!database || !configuration) throw new ActionError("actions.unredeemed", "宿主未提供 Jelly 库或模型设置服务");
     const stores: JellyStores = {
       read: run => run(new JellyStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); } })),
+        run: () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); },
+        savepoint: () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); } })),
       write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new JellyStore(transaction))),
     };
     const settings = async <T>(run: () => Promise<T>) => {

@@ -1,19 +1,18 @@
-import { realpathSync } from "node:fs";
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { clearShelfRuntimeCache } from "@molis-ai/molis-work-module-shelf";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
-import { openHostShelfStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 test("Shelf DropAgent parity: full copies, reading, comparison, actions and client bridges", { timeout: 180_000 }, async (t) => {
   const bin = await mkdtemp(join(tmpdir(), "shelf-parity-agent-"));
-  const previous = { agent: process.env.MOLIS_WORK_SHELF_AGENT, path: process.env.MOLIS_WORK_SHELF_AGENT_PATH };
+  const previousPath = process.env.MOLIS_WORK_LOCAL_TOOLS_PATH;
   // The terminal on the shelf is the person's own: the only executable either the HTTP host or the explicit store
   // selects for it is this shell fixture. Automatic recipes run through the shared Prologue model instead (a5228fe9),
   // so the combine below gets the same injected Host port the Shelf domain tests use.
@@ -24,15 +23,10 @@ if [ "$1" = "--help" ]; then
 fi
 `);
   await chmod(join(bin, "claude"), 0o755);
-  process.env.MOLIS_WORK_SHELF_AGENT = "claude";
-  process.env.MOLIS_WORK_SHELF_AGENT_PATH = bin;
-  clearShelfRuntimeCache();
+  process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = bin;
   t.after(async () => {
-    if (previous.agent === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT;
-    else process.env.MOLIS_WORK_SHELF_AGENT = previous.agent;
-    if (previous.path === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT_PATH;
-    else process.env.MOLIS_WORK_SHELF_AGENT_PATH = previous.path;
-    clearShelfRuntimeCache();
+    if (previousPath === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS_PATH;
+    else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = previousPath;
     await rm(bin, { recursive: true, force: true });
   });
   const browser = await openGoalBrowser(t, true);
@@ -58,9 +52,9 @@ fi
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
       models: [{ model_id: "fixture-model", enabled: true }] });
   }));
-  const shelf = openHostShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
+  const shelf = openTestShelfStore(homeDirectory, { pathEnvironment: bin }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
-  assert.equal(shelf.runtime().executable, join(bin, "claude"));
+  assert.equal((await shelf.runtime()).executable, join(bin, "claude"));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   // Shelf's side panel tab, in the document the panel's frame loads (specs/side-shelf §3.2).
@@ -223,10 +217,10 @@ fi
     await click("[data-shelf-back]");
   });
 
-  await t.test("native copy client contract sends full selected paths only after pending edits are persisted", async () => {
+  await t.test("native copy client contract sends the selected files' relative paths only after pending edits are persisted", async () => {
     // This records the client/native invocation contract, not the macOS pasteboard.
     await browser.evaluate(`window.parityNativeCalls=[]; window.__TAURI__={core:{invoke:async (name,payload)=>{
-      if(name!=='shelf_copy_files') return;
+      if(name!=='files_copy') return;
       const response=await fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/items/${first.item_id}/file`)},{cache:'no-store'});
       window.parityNativeCalls.push({name,payload,saved:await response.text()});
     }}}`);
@@ -240,7 +234,7 @@ fi
     await click(`${row(first.item_id)} [data-shelf-row-action="copy"]`);
     await browser.waitFor("window.parityNativeCalls.length === 1");
     const single = await browser.evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
-    assert.deepEqual(single.payload.paths, [realpathSync(join(shelf.root, first.relative_path))]);
+    assert.deepEqual(single.payload.paths, [first.relative_path]);
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
     await click("[data-shelf-edit]");
@@ -252,7 +246,7 @@ fi
     await command("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
     await browser.waitFor("window.parityNativeCalls.length === 2");
     const multi = await browser.evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
-    assert.deepEqual([...multi].sort(), [realpathSync(join(shelf.root, first.relative_path)), realpathSync(join(shelf.root, second.relative_path))].sort());
+    assert.deepEqual([...multi].sort(), [first.relative_path, second.relative_path].sort());
   });
 
   await t.test("wheel send reopens a dead terminal while its pane remains open (client contract)", async () => {

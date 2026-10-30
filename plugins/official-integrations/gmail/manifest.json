@@ -1,11 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "plugin_id": "io.molis.work.integration.gmail",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "name": "Gmail",
   "kind": "integration",
   "publisher": { "publisher_id": "io.adeptify", "signature": "adeptify-official-signature-v1" },
-  "host_api_version": 1,
+  "host_api_version": 2,
   "entrypoints": [
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
@@ -18,5 +18,64 @@
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.gmail"] }
+  "ui": { "contributions": ["settings.integration.gmail"] },
+  "connection_services": [
+    {
+      "service_id": "gmail",
+      "title": "Gmail",
+      "group_id": "mail",
+      "summary": "本机账号。Feed 只读收信。",
+      "auth_kind": "gmail",
+      "auth": {
+        "methods": [
+          {
+            "kind": "oauth",
+            "grant": "authorization_code",
+            "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_url": "https://oauth2.googleapis.com/token",
+            "scopes": ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"],
+            "pkce": "S256",
+            "parameters": { "access_type": "offline", "prompt": "consent" },
+            "identity": {
+              "url": "{account}/v1/userinfo",
+              "account_id": [["identity:/sub"]],
+              "label": ["identity:/email", "identity:/name", "identity:/sub"]
+            }
+          }
+        ]
+      },
+      "capabilities": [
+        {
+          "label": "Feed 只读收信",
+          "fulfillment": "live"
+        },
+        {
+          "label": "发送邮件",
+          "fulfillment": "unfulfilled"
+        }
+      ],
+      "outbound_note": "出站动作未兑现：当前只读收信，不发送邮件。",
+      "setup_links": [
+        {
+          "label": "启用 Gmail API",
+          "url": "https://console.cloud.google.com/apis/library/gmail.googleapis.com"
+        },
+        {
+          "label": "创建 OAuth 客户端",
+          "url": "https://console.cloud.google.com/apis/credentials"
+        },
+        {
+          "label": "在 OAuth Playground 拿令牌",
+          "url": "https://developers.google.com/oauthplayground"
+        }
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "integration_id": "gmail",
+      "kind": "source",
+      "service_id": "gmail"
+    }
+  ]
 }

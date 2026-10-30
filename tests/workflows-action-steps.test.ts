@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,13 +6,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
-import { WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { SCHEDULE_ACTION_PERMISSIONS, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { defineAction, definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("a workflow step runs any registered action — even one the Host never heard of — by mapping handed-over fields", { timeout: 120_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), "workflows-action-steps-"));
@@ -47,8 +50,8 @@ test("a workflow step runs any registered action — even one the Host never hea
     permissions: [{ permission: "tickets:write", required: true, reason: "建工单" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [create.definition] }, async start() { return { kind: "app", actions: [create.handler] }; } });
   const runtime = await host.withProject(reference, project => new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined,
-    { actions: { registry: host.actionRegistry(reference), project_id: PROJECT } }));
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: PROJECT } }));
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
   await runtime.start(installed.install_id);
 
   const caller = { actor_id: "web-user", project_id: PROJECT, audience: "user" as const,

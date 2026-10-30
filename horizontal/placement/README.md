@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | `PlacementService`：描述、关联、移动、复制、转成、关联资料、位置索引 |
+| [src/index.ts](src/index.ts) | `PlacementService` 保留描述、关联、移动恢复与位置索引；同文件函数处理 Goal 查询、复制/转成与位置显示，操作仍绑定原实例的读取与提交 |
 
 合同在 `@molis-ai/molis-work-contracts/services/placement`（系统动作）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的放置协议 `molis.placement.move/copy.v1`）。Host 装配在 [apps/local-host/src/placement-actions.ts](../../apps/local-host/src/placement-actions.ts)。
 
@@ -42,18 +42,17 @@ pnpm --filter @molis-ai/molis-work-service-placement build
 - 不变量：
   - Host 每次调用创建保留原信号和同步授权检查的服务端口；关系、标题缓存与跨 owner 目标提交在各自实际写点复查。共享服务不保存可覆盖的当前 caller，已知部分提交保留供人核对。
   - 对象正文与是否存在只向所有者读取；本服务只保存自己记下的关系与最近见过的标题（缓存）。
+  - 「挂到 Goal」这类由所有者保存的对象—目标关系，按动作上的 `placement_relation` 声明在目录里找（列出、挂上、取消、候选、建成五个角色），不按能力 id、不点插件名；缺哪个角色那个操作就是 `placement.target_unavailable`；同一个关联被不止一个可用的提供方声明时，所有操作都是 `placement.relation_ambiguous`，五个角色只取自同一个提供方（PG-032）。
   - 移动保持对象身份，旧引用经位置索引找到新位置；移入某项目时，指向该项目的“用于项目”关系自动去掉。
+  - 移动、复制与移回原处只选择唯一可用的匹配动作；多个匹配时报 `placement.target_unavailable`，`kind: conflict`，`details.actions` 列出冲突动作，不调用任一方或写放置账本。只执行移动/复制时不解析另一协议；描述会检查两者。payload 转换只在目标创建成功且原调用控制允许后缓存源标题。
   - 删除与读不到分开：所有者报 `not_found` 才是“原对象已删除”，其余是“暂时读不到”并带原因。
   - 改变位置与访问范围的动作只对本机用户开放；助理和工作流只能读取描述。
-- 改动后必跑：`node scripts/run-tests.mjs tests/work-placement-restart.test.ts tests/work-placement.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/work-placement-restart.test.ts tests/work-placement.test.ts tests/placement-relation.test.ts tests/placement-relation-declarations.test.ts tests/placement-provider-ambiguity.test.ts`
 - 相关手册：[specs/archive/work-placement/spec.md](../../specs/archive/work-placement/spec.md)、[skills/molis-plugin-dev/placement.md](../../skills/molis-plugin-dev/placement.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/services/placement`
-- Migration Goals: `goal-reorg-f2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

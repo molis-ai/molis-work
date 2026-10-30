@@ -4,73 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import {
-  CodexRuntimeSessionAdapter,
-  MolisWorkPtyHost,
-  RuntimeHostRouter,
-  type RuntimeSessionAdapter,
-  type RuntimeSessionCapabilities,
-} from "@molis-ai/molis-work-service-runtime-host";
-
-const ALL_NATIVE: RuntimeSessionCapabilities = {
-  create: "native",
-  list: "native",
-  discover: "native",
-  read: "native",
-  resume: "native",
-  events: "native",
-  handoff: "native",
-  message: "native",
-};
-
-test("Runtime Host registers a provider, exposes its matrix, and returns honest unsupported results", async () => {
-  const calls: string[] = [];
-  const adapter: RuntimeSessionAdapter = {
-    runtime_id: "fake",
-    capabilities: ALL_NATIVE,
-    async invoke(capability, input) {
-      calls.push(capability);
-      return { status: "ok", source: "native", capability, value: input };
-    },
-  };
-  const host = new RuntimeHostRouter();
-  host.register(adapter);
-
-  assert.deepEqual(host.matrix(["fake", "fake"]), [{ runtime_id: "fake", capabilities: ALL_NATIVE }]);
-  const started = await host.invoke("fake", "create", { prompt: "go" });
-  assert.equal(started.status, "ok");
-  assert.deepEqual(calls, ["create"]);
-
-  const missing = await host.invoke("missing", "resume", {});
-  assert.equal(missing.status, "unsupported");
-  if (missing.status === "unsupported") assert.equal(missing.code, "runtime.capability_unavailable");
-});
-
-test("Codex Adapter translates resume and returns a working event unsubscribe", async () => {
-  const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
-  let listener: ((event: { method: string; params: unknown }) => void) | null = null;
-  const adapter = new CodexRuntimeSessionAdapter({
-    async request(method, params) {
-      calls.push({ method, params });
-      return { accepted: true };
-    },
-    subscribe(next) {
-      listener = next;
-      return () => { listener = null; };
-    },
-  });
-
-  assert.equal((await adapter.invoke("resume", { threadId: "thread-a" })).status, "ok");
-  const received: unknown[] = [];
-  const events = await adapter.invoke("events", { listener: (event: unknown) => received.push(event) });
-  assert.equal(events.status, "ok");
-  assert.equal(typeof listener, "function");
-  (listener as unknown as (event: unknown) => void)({ method: "changed", params: "output" });
-  assert.deepEqual(received, [{ method: "changed", params: "output" }]);
-  if (events.status === "ok") (events.value as { unsubscribe(): void }).unsubscribe();
-  assert.equal(listener, null);
-  assert.deepEqual(calls, [{ method: "thread/resume", params: { threadId: "thread-a" } }]);
-});
+import { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 
 test("Terminal PTY supports attach, input, process exit cleanup, and a fresh recovery spawn", async () => {
   const cwd = mkdtempSync(path.join(os.tmpdir(), "molis-work-runtime-host-"));
@@ -147,6 +81,29 @@ test("Terminal PTY forwards Ctrl-C and killAll terminates every active process",
   } finally { host.killAll(); }
 });
 
+test("RAC-1604: a terminal's replay keeps only its newest 200,000 characters, while the live output carries everything", async () => {
+  // horizontal/runtime-host/README.md「重放缓冲有上限」: REPLAY_LIMIT in src/adapters/terminal-pty.ts:16.
+  const LIMIT = 200_000;
+  let output = "";
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit() { /* the terminal stays open until killAll */ },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  try {
+    host.spawn({
+      panelId: "long", command: "/bin/sh", cwd: os.tmpdir(),
+      args: ["-c", `head -c ${LIMIT + 100_000} /dev/zero | tr '\\000' x; printf END; exec cat`],
+    });
+    await waitUntil(() => output.endsWith("END"), tick);
+    assert.equal(output, "x".repeat(LIMIT + 100_000) + "END", "the live output is never clipped");
+    const attached = host.spawn({ panelId: "long", attachOnly: true });
+    assert.equal(attached.attached, true);
+    assert.equal(attached.replay.length, LIMIT, "the replay stops at the limit");
+    assert.equal(attached.replay, "x".repeat(LIMIT - 3) + "END", "the replay keeps the newest output");
+  } finally { host.killAll(); }
+});
+
 function processExited(pid: number): boolean {
   try { process.kill(pid, 0); return false; }
   catch (error) {
@@ -169,3 +126,115 @@ async function waitUntil(
     ]);
   }
 }
+test("RAC-1645: a terminal process that exits by itself leaves no replay behind, and attaching afterwards still gets nothing", async () => {
+  // docs/horizontal/runtime-host.md「有限 replay 与退出清理」: the exit handler in src/adapters/terminal-pty.ts drops the replay with the handle.
+  let output = "";
+  const exited: string[] = [];
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit(panelId) { exited.push(panelId); },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  try {
+    host.spawn({ panelId: "self", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", "printf done"] });
+    assert.equal(host["replay"].has("self"), true, "a started terminal has a replay");
+    await waitUntil(() => exited.includes("self"), tick);
+    assert.match(output, /done/);
+    assert.equal(host.alive("self"), false);
+    assert.equal(host["replay"].has("self"), false, "the replay leaves with the process that exited by itself");
+    assert.deepEqual(host.spawn({ panelId: "self", attachOnly: true }), { attached: false, started: false, replay: "" }, "attaching after the exit still gets nothing");
+  } finally { host.killAll(); }
+});
+
+test("RAC-1646: when the old process of a restarted terminal exits late, the new process keeps its replay and stays alive", async () => {
+  // kill() then spawn() on one panel is a restart; the guard at the top of the exit handler ignores the old process's exit.
+  let output = "";
+  const exited: string[] = [];
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit(panelId) { exited.push(panelId); },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  // The old shell ignores the SIGHUP and SIGTERM that kill() sends, so it outlives the restart until the test ends it.
+  host.spawn({ panelId: "restart", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'trap "" HUP TERM; printf "old:%s\\n" "$$"; exec cat'] });
+  const old = host["sessions"].get("restart");
+  let next = old;
+  let oldExited = false;
+  old.onExit(() => { oldExited = true; });
+  try {
+    await waitUntil(() => /old:\d+\r?\n/.test(output), tick);
+    host.kill("restart");
+    host.spawn({ panelId: "restart", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'printf "new:%s\\n" "$$"; exec cat'] });
+    next = host["sessions"].get("restart");
+    await waitUntil(() => /new:\d+\r?\n/.test(output), tick);
+    assert.equal(oldExited, false, "the old process is still running after the restart");
+    assert.match(host["replay"].get("restart") ?? "", /new:\d+/, "the restarted terminal has its own replay");
+    old.kill("SIGKILL");
+    await waitUntil(() => oldExited, tick);
+    assert.match(host["replay"].get("restart") ?? "", /new:\d+/, "the old process's exit leaves the new process's replay in place");
+    assert.equal(host.alive("restart"), true, "the old process's exit leaves the new process running");
+    assert.deepEqual(exited, [], "the old process's exit is not reported for the panel");
+  } finally {
+    host.killAll();
+    old.kill("SIGKILL");
+    next.kill();
+  }
+});
+
+test("RAC-1672: after a restart, output the old process still prints stays out of the new process's replay and is not sent to the panel", async () => {
+  // kill() then spawn() on one panel is a restart; the guard at the top of the data handler drops what the old process prints afterwards.
+  let output = "";
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit() { /* the restarted terminal stays open until killAll */ },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  // The old shell ignores the SIGHUP and SIGTERM that kill() sends, so it outlives the restart and still echoes what it is sent.
+  host.spawn({ panelId: "restart", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'trap "" HUP TERM; printf "old:%s\\n" "$$"; exec cat'] });
+  const old = host["sessions"].get("restart");
+  let oldOutput = "";
+  // Added after the host's own listener, so a chunk reaches it only after the host has handled that chunk.
+  old.onData((data) => { oldOutput += data; });
+  try {
+    await waitUntil(() => /old:\d+\r?\n/.test(output), tick);
+    host.kill("restart");
+    host.spawn({ panelId: "restart", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'printf "new:%s\\n" "$$"; exec cat'] });
+    await waitUntil(() => /new:\d+\r?\n/.test(output), tick);
+    old.write("stale\n");
+    await waitUntil(() => oldOutput.includes("stale"), tick);
+    assert.match(host["replay"].get("restart") ?? "", /new:\d+/, "the new process keeps its own replay");
+    assert.doesNotMatch(host["replay"].get("restart") ?? "", /stale/, "the old process's late output stays out of the new process's replay");
+    assert.doesNotMatch(output, /stale/, "the old process's late output is not sent to the panel");
+  } finally {
+    host.killAll();
+    old.kill("SIGKILL");
+  }
+});
+
+test("RAC-1673: after a kill with no restart, output the old process still prints does not put a replay back and is not sent to the panel", async () => {
+  // kill() drops the session and its replay; the guard at the top of the data handler keeps the old process from writing a replay back.
+  let output = "";
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit() { /* the host ignores the exit of a process it has killed */ },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  // The old shell ignores the SIGHUP and SIGTERM that kill() sends, so it outlives the kill and still echoes what it is sent.
+  host.spawn({ panelId: "gone", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'trap "" HUP TERM; printf "old:%s\\n" "$$"; exec cat'] });
+  const old = host["sessions"].get("gone");
+  let oldOutput = "";
+  // Added after the host's own listener, so a chunk reaches it only after the host has handled that chunk.
+  old.onData((data) => { oldOutput += data; });
+  try {
+    await waitUntil(() => /old:\d+\r?\n/.test(output), tick);
+    host.kill("gone");
+    assert.equal(host["replay"].has("gone"), false, "kill drops the replay");
+    old.write("stale\n");
+    await waitUntil(() => oldOutput.includes("stale"), tick);
+    assert.equal(host["replay"].has("gone"), false, "the old process's late output does not put a replay back");
+    assert.doesNotMatch(output, /stale/, "the old process's late output is not sent to the panel");
+  } finally {
+    host.killAll();
+    old.kill("SIGKILL");
+  }
+});

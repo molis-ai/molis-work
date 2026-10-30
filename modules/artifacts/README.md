@@ -19,7 +19,7 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 | [src/content.ts](src/content.ts) | opaque 内容处理 |
 | [src/repository.ts](src/repository.ts) | 记录与查询 |
 
-可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
+可对照现有调用方 [plugins/native/goals/src/plugin.ts](../../plugins/native/goals/src/plugin.ts) 阅读装配方式。
 
 ## 接入与边界
 
@@ -67,8 +67,5 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - [职责与接入说明](../../docs/modules/artifacts.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/artifacts`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ar1`, `goal-reorg-ar3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

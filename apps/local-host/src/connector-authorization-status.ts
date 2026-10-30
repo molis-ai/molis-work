@@ -117,14 +117,15 @@ export function connectorAuthorizationInitiator(home: string, id: string): Conne
 }
 
 /**
- * An action that continues a prepared request (`connectors.setup.execute`, `connectors.local.execute`, `connectors.cli.install`,
- * `connectors.cli.connect`) runs it only for whoever prepared it: the same person, project and session. The person's own page continues
- * any request of theirs through its own routes and is not asked.
+ * An action that continues, reads or cancels a prepared request (`connectors.setup.execute`, `connectors.local.execute`,
+ * `connectors.cli.install`, `connectors.cli.connect`, `connectors.authorization.read`, `connectors.authorization.cancel`) uses it only for
+ * whoever prepared it: the same person, project and session. The person's own page continues, reads and cancels any request of theirs
+ * through its own routes and is not asked.
  */
 export function requireConnectorInitiator(home: string, id: string, caller: Pick<ActionCallContext, "actor_id" | "project_id" | "runtime_session_id">): void {
   const initiator = connectorAuthorizationInitiator(home, id);
   if (!initiator || initiator.actor_id !== caller.actor_id || initiator.project_id !== caller.project_id || initiator.runtime_session_id !== caller.runtime_session_id)
-    throw setupErrors.foreign_request("只能继续当前用户、项目和会话自己准备的接入");
+    throw setupErrors.foreign_request("只能读取、取消或继续当前用户、项目和会话自己准备的接入");
 }
 
 /** Protocol recovery inspects active requests; this does not expose their one-use state. */

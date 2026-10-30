@@ -2,36 +2,17 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
-import { PERSONAL_PLUGIN_IDS, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores, PERSONAL_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { EN } from "@molis-ai/molis-work-app-workbench";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import {
-  WORKFLOWS_CLIENT_FACTORY_SCRIPT,
-  WORKFLOWS_PLUGIN_ID,
-  WORKFLOWS_EN,
-  WORKFLOWS_PROJECT_PLUGIN_ID,
-  applyFunctionRule,
-  insertStation,
-  linkReadiness,
-  manualLink,
-  moveStation,
-  newStation,
-  openWorkflowsStore,
-  parseAiHandoff,
-  parseChain,
-  removeStation,
-  setLink,
-  workflowsManifest,
-  type WorkflowChain,
-  type WorkflowInstance,
-  type WorkflowLink,
-} from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_MESSAGES, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const fn = (body: string, title = ""): WorkflowLink => ({ kind: "function", title_template: title, body_template: body, instructions: "" });
 const ai = (instructions: string): WorkflowLink => ({ kind: "ai", title_template: "", body_template: "", instructions });
@@ -103,12 +84,10 @@ test("工作流程是个人插件，排在左边栏，客户端脚本能解析�
   assert.doesNotThrow(() => new Function("return " + WORKFLOWS_CLIENT_FACTORY_SCRIPT));
   assert.doesNotMatch(WORKFLOWS_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
   const used = new Set<string>();
-  // The client quotes its copy with single quotes: L('…') and tx('…').
-  for (const match of WORKFLOWS_CLIENT_FACTORY_SCRIPT.matchAll(/\b(?:L|tx)\('((?:[^'\\]|\\.)*)'/g)) used.add(match[1]!.replace(/\\n/g, "\n"));
-  assert.ok(used.size > 80, `found only ${used.size} strings; the pattern no longer matches the client`);
-  // Workflow copy lives in WORKFLOWS_EN, which the Workbench merges into its dictionary.
-  const missing = [...used].filter((key) => !(key in WORKFLOWS_EN) && !(key in EN));
-  assert.deepEqual(missing, []);
+  // The bundle carries its copy as double-quoted stable keys, and every one of them is defined.
+  for (const match of WORKFLOWS_CLIENT_FACTORY_SCRIPT.matchAll(/"(workflows\.[a-z.-]+)"/g)) used.add(match[1]!);
+  assert.ok(used.size > 80, `found only ${used.size} keys; the pattern no longer matches the client`);
+  assert.deepEqual([...used].filter((key) => !(key in WORKFLOWS_MESSAGES)), []);
   // Every station a run can reach opens the item handed to it, not just its list.
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /molis-work:select-item/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /panePlugin/);

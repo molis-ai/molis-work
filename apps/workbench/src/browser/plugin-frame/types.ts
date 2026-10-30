@@ -1,18 +1,12 @@
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { HostReviewFactory } from "./review-slots.js";
-import type { UiRequest, UiRequestScope, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 
-export type Translate = (key: string, values?: Record<string, string | number>) => string;
-export interface FrameScope extends UiRequestScope {
-  readonly alive: boolean;
-  readonly visible: boolean;
-  readonly signal: AbortSignal;
-  own(cleanup: () => void): () => void;
-  dispose(): void;
-  frame(callback: () => void): number;
+export type Translate = UiClientTranslate;
+export interface FrameScope extends UiClientScope {
   listen(target: EventTarget, name: string, callback: EventListener): () => void;
-  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
   observe(observer: MutationObserver, target: Node, options: MutationObserverInit): MutationObserver;
 }
 export interface FrameHost {
@@ -42,7 +36,10 @@ export interface FrameConfig {
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
   surface: string;
-  nativeFiles: boolean; todoAvailable: boolean;
+  pluginId: string;
+  nativeFiles: boolean;
+  /** Object kind → the one surface that opens it, from what the plugins declare; a kind that is not unique is left out. */
+  subjectSurfaces: Readonly<Record<string, string>>;
   stage: { title: string; description: string };
   shortcuts: string[];
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
@@ -68,7 +65,7 @@ export type FrameUp =
   | { type: "embed-close"; id: number }
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number } | { type: "refresh-shell" }
-  | { type: "make-todo"; id: number; input: {title: string; sources: Array<{kind: string; title: string; excerpt: string; reason: string; subject: {kind: string; id: string}; open: {surface: string; id: string}}> } }
+  | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }
   | { type: "draft"; id: number; key: string; value?: string | null }
   | { type: "shortcut"; keys: string } | { type: "close-side" }
@@ -89,7 +86,6 @@ export type FrameDown =
   | { type: "embedded"; id: number; error?: string }
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "document"; id: number; html?: string; error?: string }
-  | { type: "todo-made"; id: number; item?: {id: string; title: string}; replayed?: boolean; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }
   | { type: "native-files-done"; id: number; error?: string }
@@ -103,17 +99,18 @@ declare global {
   var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
   var molisFrameFillMessage: Translate;
-  var molisWorkRequest: UiRequest;
   var molisPageTerminal: UiPageTerminal;
   var molisWorkControlHeaders: UiRequest["headers"];
   var MOLIS_WORK_MESSAGES: Record<string, string>;
   var MOLIS_WORK_PLUGIN_TITLES: Record<string, string>;
+  /** Each plugin's own English by plugin id: a frame takes its plugin's under the page's, and no other plugin's. */
+  var MOLIS_WORK_PLUGIN_WORDS: Record<string, Record<string, string>> | undefined;
   var L: Translate;
-  var molisWorkbenchPluginFactories: Record<string, (host: FrameHost & Record<string, unknown>) => void>;
+  var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
   var molisPluginFrames: { mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
   var molisFrameUi: (translate: Translate) => {
     mountPluginClient(root: HTMLElement): FrameScope | null;
-    interaction: (root: Element, options: Record<string, unknown>) => unknown;
+    interaction: typeof import("@molis-ai/molis-work-design-system").createInteractionClient;
     receipts: unknown;
     surfaceFocus(host: { translate: Translate; surfaceOnly: true }): void;
   };

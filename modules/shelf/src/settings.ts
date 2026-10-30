@@ -9,7 +9,7 @@ import type {
   ShelfPanelKeySlot,
   ShelfSettingsPatch,
   ShelfShortcutAction,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "./contract.js";
 import { defaultShelfHotKeys, normalizeHotKeys, parseHotkeysPatch } from "./hotkeys.js";
 import { SHELF_RECIPE_ORDER } from "./recipes.js";
 import { SHELF_ENGINES } from "./runtimes.js";

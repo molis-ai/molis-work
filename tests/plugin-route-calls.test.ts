@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -38,7 +39,7 @@ async function routesPlugin(declared: readonly string[], routes: (activation: Ac
     },
     async stop(context) { ends.get(context)?.(); },
   };
-  const runtime = new PluginRuntime(), { install } = runtime.install({ definition, deployment: "local", grants: [] });
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }), { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] });
   await runtime.start(install.install_id);
   const route = (route_id: string): PluginRouteBinding => {
     const offered = runtime.contribution(install.install_id);

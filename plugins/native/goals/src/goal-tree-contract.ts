@@ -1,19 +1,11 @@
-import type { GoalTreeProposalDecisionResult as StoredGoalTreeDecisionResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-export type { GoalTreeSemanticReview } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-export type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecisionResult as StoredGoalTreeDecisionResult } from "./contract/governance-collaboration.js";
+export type { GoalTreeSemanticReview } from "./contract/governance-collaboration.js";
+import type { GoalTreeProposalCheckResult } from "./contract/governance-collaboration.js";
+export type { GoalTreeProposalCheckResult } from "./contract/governance-collaboration.js";
+import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput } from "./contract/governance-collaboration.js";
 
-export interface GoalTreeProposalListQuery {
-  project_id: string;
-  proposal_id?: string;
-  root_goal_id?: string;
-}
-
-export interface GoalTreeProposalListResult {
-  observed_event_cursor: number;
-  proposals: GoalTreeProposalRecord[];
-}
+export type { GoalTreeProposalListQuery, GoalTreeProposalListResult } from "./contract/governance-collaboration.js";
+import type { GoalTreeProposalListQuery, GoalTreeProposalListResult } from "./contract/governance-collaboration.js";
 
 export type GoalTreeProposalDecisionResult = StoredGoalTreeDecisionResult<never>;
 

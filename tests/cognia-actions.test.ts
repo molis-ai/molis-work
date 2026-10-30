@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { COGNIA_ACTIONS, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_ACTIONS, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { MolisWorkLocalHost, directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {
@@ -69,8 +70,17 @@ test("uploaded and directory imports use original preview receipts, bytes and fi
   const scanned = await f.bound.invoke(actions.scan, { grant_id: grant.grant_id, path: "." });
   assert.equal(scanned.files.find(row => row.path === "alias.md")!.data, undefined);
   assert.equal(Buffer.from(scanned.files.find(row => row.path === "local.md")!.data!, "base64").toString(), "Local evidence");
-  const local = await f.bound.invoke(actions.previewDirectory, { grant_id: grant.grant_id, path: ".", kind: "markdown" });
-  assert.equal((await f.bound.invoke(actions.commit, { preview_id: local.preview.id })).receipt.added, 1);
+  const vaultLocator = `local:${vault}`;
+  const local = await f.bound.invoke(actions.previewDirectory, { grant_id: grant.grant_id, path: ".", kind: "markdown", locator: vaultLocator });
+  assert.equal(local.preview.source.name, "vault", "the folder name comes from the granted root, not the scan fallback");
+  assert.equal(local.preview.source.locator, vaultLocator, "the source identity is the stable local locator, not this grant");
+  const committed = await f.bound.invoke(actions.commit, { preview_id: local.preview.id });
+  assert.equal(committed.receipt.added, 1);
+  const secondGrant = await directoryForHome(f.home).select({ plugin_id: "io.molis.work.cognia", project_id: null, actor_id: f.caller.actor_id }, async () => ({ status: "picked", path: vault }));
+  assert.ok(secondGrant);
+  const again = await f.bound.invoke(actions.previewDirectory, { grant_id: secondGrant.grant_id, path: ".", kind: "markdown", locator: vaultLocator });
+  assert.equal(again.preview.source.id, committed.receipt.source_id, "a new grant for the same directory keeps the same source identity");
+  assert.equal(again.preview.entries.find(entry => entry.path === "local.md")!.status, "unchanged", "and the same file is unchanged, not imported again");
   await assert.rejects(f.bound.invoke(actions.scan, { grant_id: "missing", path: "." }), /授权|目录/);
   await f.bound.invoke(actions.deleteSource, { id: a.receipt.source_id });
   assert.ok(!(await f.read()).materials.some(m => m.id === material.id));

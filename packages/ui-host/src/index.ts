@@ -1,6 +1,6 @@
 import { uiHostErrors } from "./ui-errors.js";
 import type {
-  UiContribution,
+  OwnedUiContribution,
   UiContributionDescriptor,
   UiHostApi,
   UiMountRequest,
@@ -17,20 +17,7 @@ export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
 export { createUiFailureView, createUiRequest, UI_REQUEST_CLIENT_SCRIPT } from "./request-client.js";
 export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiTranslate, UiViewDocument, UiViewElement } from "./request-client.js";
-export type { UiPlacedView, UiViewRegistryInput } from "./view-registry.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-ui-host",
-  packagePath: "packages/ui-host",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/ui",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["ui.contribution.registry.v1", "ui.surface.render.v1", "ui.slot.mount.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+export type { UiPlacedView, UiViewRegistryInput, UiViewRegistryManifest } from "./view-registry.js";
 
 
 
@@ -39,15 +26,21 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
  * interprets Feed, Goal, Artifact, or other product state.
  */
 export class UiHost implements UiHostApi {
-  private readonly contributions = new Map<string, UiContribution<unknown>>();
+  private readonly contributions = new Map<string, OwnedUiContribution<unknown>>();
   private readonly slots: ReadonlyMap<string, UiSlotDescriptor>;
+  private readonly drawingAs: (owner: string, draw: () => string) => string;
 
-  /** `slots` are the places this host offers; `mountDeclared` puts a surface in the one its contribution names. */
-  constructor(options: { readonly slots?: readonly UiSlotDescriptor[] } = {}) {
+  /**
+   * `slots` are the places this host offers; `mountDeclared` puts a surface in the one its contribution names. `drawingAs` wraps
+   * each contribution's rendering with the plugin that owns it (the platform filled that in from the Manifest), so the page can
+   * apply that plugin's own settings to what the plugin draws and to nothing else.
+   */
+  constructor(options: { readonly slots?: readonly UiSlotDescriptor[]; readonly drawingAs?: (owner: string, draw: () => string) => string } = {}) {
     this.slots = new Map((options.slots ?? []).map((slot) => [slot.slot_id, slot]));
+    this.drawingAs = options.drawingAs ?? ((_owner, draw) => draw());
   }
 
-  register<TModel>(contribution: UiContribution<TModel>): void {
+  register<TModel>(contribution: OwnedUiContribution<TModel>): void {
     const contributionId = contribution.descriptor.contribution_id.trim();
     if (!contributionId) {
       throw uiHostErrors.surface_invalid("UI Contribution 必须声明稳定 ID");
@@ -55,7 +48,7 @@ export class UiHost implements UiHostApi {
     if (this.contributions.has(contributionId)) {
       throw uiHostErrors.contribution_conflict(`UI Contribution ${contributionId} 已注册`);
     }
-    this.contributions.set(contributionId, contribution as UiContribution<unknown>);
+    this.contributions.set(contributionId, contribution as OwnedUiContribution<unknown>);
   }
 
   unregister(contributionId: string): void {
@@ -73,7 +66,7 @@ export class UiHost implements UiHostApi {
     if (!contribution) {
       throw uiHostErrors.contribution_not_found(`找不到 UI Contribution ${request.contribution_id}`);
     }
-    return contribution.render(request as UiRenderRequest<unknown>);
+    return this.drawingAs(contribution.descriptor.plugin_id, () => contribution.render(request as UiRenderRequest<unknown>));
   }
 
   mount<TModel>(request: UiMountRequest<TModel>): UiMountResult {
@@ -97,7 +90,7 @@ export class UiHost implements UiHostApi {
       slot_id: request.slot.slot_id,
       contribution_id: contribution.descriptor.contribution_id,
       surface: surface.surface_id,
-      html: contribution.render(request.contribution as UiRenderRequest<unknown>),
+      html: this.drawingAs(contribution.descriptor.plugin_id, () => contribution.render(request.contribution as UiRenderRequest<unknown>)),
     };
   }
 

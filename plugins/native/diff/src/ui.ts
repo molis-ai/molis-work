@@ -1,10 +1,11 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { renderDiff, type DiffViewLabels, type DiffViewModel, type DiffViewPrimitives } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
+import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 import type { DiffInputGroup } from "./comparison.js";
 
 export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";
@@ -32,21 +33,28 @@ export const DIFF_LABELS: DiffViewLabels = {
 export type DiffUiPrimitives = DiffViewPrimitives;
 export type DiffUiModel = Omit<DiffViewModel<DiffInputGroup>, "labels">;
 
-export const diffUiDescriptor: UiContributionDescriptor = {
+export const diffUiDescriptor: UiContributionDeclaration = {
   contribution_id: DIFF_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.diff",
   kind: "primary-page",
   navigation_id: "diff",
   label: "Diff",
   surfaces: [
     { surface_id: "comparison", target_slot_id: "workbench.main", format: "declarative-html" },
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [],
 };
 
-export const diffUiContribution: UiContribution<DiffUiModel> = {
+export const diffUiContribution: UiContribution<DiffUiModel | CompanionStageModel> = {
   descriptor: diffUiDescriptor,
-  render(request: UiRenderRequest<DiffUiModel>): string {
-    return renderDiff({ ...request.model, labels: DIFF_LABELS });
+  render(request: UiRenderRequest<DiffUiModel | CompanionStageModel>): string {
+    return request.surface === "workbench" ? renderDiffStage(request.model as CompanionStageModel) : renderDiff({ ...(request.model as DiffUiModel), labels: DIFF_LABELS });
   },
 };
+
+/** Diff's stage in the project page: a refresh, a way to Files, and the comparison the page's client fills. */
+export function renderDiffStage(model: CompanionStageModel): string {
+  const { text } = model.primitives;
+  return renderCompanionListStage({ surface: "diff", label: "Diff", refresh: text("diff.stage.refresh"),
+    files: { enabled: model.shown_plugins?.includes("files") ?? false, open: text("diff.stage.open-files"), add: text("diff.stage.add-files") } });
+}

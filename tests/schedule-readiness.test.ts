@@ -1,6 +1,7 @@
 import { SchedulePluginRouteTable, SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./schedule-direct-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +18,8 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
+import { scheduleHost, zh } from "./fixtures/schedule-host.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the dialog and still
 // allows creation. The workspace is what the runner checks when it wakes up; the model is read from the model catalog as a
@@ -55,7 +58,7 @@ test("the readiness action is a project query that reports what the Host reports
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
     const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
     const row = (await client.discover(caller)).find(item => item.capability_id === s.readiness.capability_id);
     assert.ok(row, "listed in the one directory");
@@ -98,7 +101,7 @@ test("a Host that gives no readiness check answers the way other missing host po
 });
 
 test("the create dialog carries two hidden hints, one per missing thing, and nothing in it blocks creating", () => {
-  const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: value => value, formatDate: value => value };
+  const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
   const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
   const dialog = html.slice(html.indexOf("data-schedule-create-dialog"), html.indexOf("</dialog>", html.indexOf("data-schedule-create-dialog")));
   for (const kind of ["model", "workspace"]) {
@@ -115,7 +118,7 @@ test("the create dialog carries two hidden hints, one per missing thing, and not
 });
 
 test("each hint says where to fix it with a plain link: the model settings, and the project's workspace settings", () => {
-  const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: value => value, formatDate: value => value };
+  const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
   const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
   const hint = (kind: string) => new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>([\\s\\S]*?)</div>`).exec(html)?.[1] ?? "";
   assert.match(hint("model"), /<a href="\/settings\/models"[^>]*>打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
@@ -132,7 +135,7 @@ test("each hint says where to fix it with a plain link: the model settings, and 
 });
 
 test("the client reads readiness when the dialog opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /route\("\/readiness"\)[\s\S]{0,400}\.catch\(/);
+  assert.match(readFileSync("plugins/native/schedule/src/browser/form.ts", "utf8"), /read<Readiness>\(page\.host, "\/readiness"\)[\s\S]{0,300}\.catch\(/);
 });
 
 // The dialog asks the Host each time it opens for a new task. The answer belongs to that opening: if the person has since closed the
@@ -182,8 +185,8 @@ async function scheduleDialog() {
       asked.push(async answer => { resolve(new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } })); await flush(); });
     });
   }) as typeof fetch;
-  const factory = Function(`return (${SCHEDULE_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string }) => void;
-  factory({ translate: value => value, route: path => path });
+  const factory = Function(`return (${SCHEDULE_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
+  factory(scheduleHost());
   const detail = fakeNode();
   detail.querySelector("h1").textContent = "晨报";
   detail.querySelector("[data-schedule-task-notify]").value = "true";

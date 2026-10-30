@@ -18,7 +18,7 @@ const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const ledgerOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return db.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json FROM plugin_project_databases ORDER BY plugin_id").all().map(row => ({ ...row })); } finally { db.close(); } };
 /** The built-in project plugins that declare tables in the library, as the Host reads them from the one catalog. */
-const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope !== "home" && entry.manifest.databases?.project).map(entry => entry.manifest);
+const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.manifest.runtime?.scope !== "home" || entry.runtime?.dual_instance === true) && entry.manifest.databases?.project).map(entry => entry.manifest);
 /** What a library is once the Host has opened it: the baseline, then each declaring plugin's own statements. */
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => manifest.databases!.project!.schema)].join("\n"));
 /** The eleven tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09). */
@@ -27,10 +27,33 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-// The fixture is that schema as of version 9: changing any owner's tables means a new version and a new fixture, never a silent drift.
-test("the project database baseline is version 9 and the platform's and Modules' current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 9);
+// ATTN-OWNER-07: the fixture is that schema as of version 11 (FI-5: the Feed items, Sources, Signals and Listener Host tables are Feed's
+// declaration's, so they left the baseline; version 10 was ac-trust T1 and S9-0b together): changing any owner's tables means a new
+// version and a new fixture, never a silent drift.
+test("the project database baseline is version 11 and the platform's and Modules' current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 11);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
+});
+
+test("ATTN-OWNER-07 a version 9 project with legal namespace-shaped ids is refused without rewriting its schema or rows", () => {
+  const home = mkdtempSync(join(tmpdir(), "attention-v9-refusal-")), file = join(home, "project.db");
+  try {
+    const old = new DatabaseSync(file);
+    old.exec(fixture("project-database-schema-v9.sql"));
+    old.exec("PRAGMA user_version = 9");
+    old.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("p", "2026-10-24");
+    old.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("p", "io.molis.work.example:entry", "goal_decision", "io.molis.work.example:goal", "goal_decision", "open", "2026-10-24", "2026-10-24");
+    const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
+    old.close();
+    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 11);
+    const after = new DatabaseSync(file, { readOnly: true });
+    try {
+      assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, 9);
+      assert.deepEqual(describeSqliteSchema(after), before.schema);
+      assert.deepEqual(after.prepare("SELECT * FROM inbox_entries").all(), before.rows);
+    } finally { after.close(); }
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no plugin's tables, Goals' among them, can enter it", () => {
@@ -50,9 +73,11 @@ test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no 
 });
 
 test("PLIB-02: the plugins' tables are the ones version 7 had in the baseline, the project they belong to now the root instead of the board", () => {
-  assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.schedule"]);
+  assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.inbox", "io.molis.work.schedule"]);
   const before = shape(fixture("project-database-schema-v7.sql")).tables;
   for (const manifest of declaring) {
+    // Inbox's scene binding table (FI-6 P3) is no table of version 7: Inbox declared none then.
+    if (manifest.plugin_id === "io.molis.work.inbox") continue;
     for (const [table, now] of Object.entries(shape(manifest.databases!.project!.schema).tables)) {
       const then = before[table];
       assert.ok(then, `${table} was in version 7`);
@@ -61,7 +86,10 @@ test("PLIB-02: the plugins' tables are the ones version 7 had in the baseline, t
         if (table !== "boards") assert.deepEqual(now, then, table);
         continue;
       }
-      assert.deepEqual(now, { ...then, foreign_keys: then.foreign_keys.map(key => key.table === "boards" ? { ...key, table: "project_root" } : key) }, table);
+      // The shape lists keys in the order of their table and column, so the key that moved from the board to the root moves in the list too.
+      const foreignKeys = then.foreign_keys.map(key => key.table === "boards" ? { ...key, table: "project_root" } : key)
+        .sort((left, right) => `${left.table}.${left.from}`.localeCompare(`${right.table}.${right.from}`));
+      assert.deepEqual(now, { ...then, foreign_keys: foreignKeys }, table);
     }
   }
 });
@@ -70,7 +98,7 @@ test("PLIB-09: the project is one root row; the eleven tables and Goals' board, 
   const tables = opened.tables;
   assert.deepEqual(tables.project_root!.columns.map(column => column.name), ["project_id", "created_at"]);
   const pointing = (target: string) => Object.entries(tables).filter(([, table]) => table.foreign_keys.some(key => key.table === target)).map(([name]) => name).sort();
-  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards"].sort());
+  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards", "inbox_scene_bindings"].sort(), "and Inbox's scene binding table (FI-6 P3), declared since version 7");
   const goals = declaring.find(manifest => manifest.plugin_id === GOALS_PLUGIN_ID)!;
   const declared = Object.keys(shape(goals.databases!.project!.schema).tables);
   assert.ok(declared.includes("boards"), "the board is a table Goals declares, no longer one of the baseline's");
@@ -93,7 +121,7 @@ test("a new project database is made at the baseline, its plugins' tables made a
   } finally { created.close(); }
   assert.deepEqual(shapeOf(project.database_path), opened);
   const ledger = ledgerOf(project.database_path);
-  assert.deepEqual(ledger.map(row => [row.plugin_id, row.publisher_signature, row.store_name, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.publisher.signature, manifest.databases!.project!.store_name, 1]).sort());
+  assert.deepEqual(ledger.map(row => [row.plugin_id, row.publisher_signature, row.store_name, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.publisher.signature, manifest.databases!.project!.store_name, manifest.databases!.project!.version]).sort());
 
   // Opening the project's pages starts its plugins and their owners; none of them makes a table of its own any more.
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: "project-database-baseline-token-123456789" });

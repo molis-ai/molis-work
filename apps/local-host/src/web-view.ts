@@ -1,14 +1,15 @@
-import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
+import { emptyGoalsDocumentCollection, goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
-import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
-import { listFeedSourceCatalog } from "./feed-source-service.js";
+import { listFeedSourceCatalog } from "./source-vocabulary.js";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { shownProjectPlugins } from "./plugin-registry.js";
 
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
@@ -62,6 +63,9 @@ export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: 
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
+    // Which plugins the page shows is the Host's fact (W5-02 PR-B). Without a project's selection: the shell's page default and the
+    // personal plugins. A project's view is given its Catalog's selection per request instead (`projectWebView`), never this.
+    ...(options.project ? {} : { shown_plugins: shownProjectPlugins(PAGE_PLUGINS_WITHOUT_SELECTION) }),
     ...projection,
   };
 }
@@ -71,9 +75,11 @@ export async function cachedMolisWorkWebView(
   store: LocalProjectDatabase,
   options: WebViewOptions,
   actions: BoundActionClient,
+  goalsHere = true,
 ): Promise<MolisWorkWebView> {
-  // Always authorize through the shared service before reusing any cached content.
-  const collection = await actions.invoke(goalsActions.collection, {});
+  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400, by its plugin list)
+  // reads as one with none; in a project with Goals, a read Goals refuses is an error to show.
+  const collection = goalsHere ? await actions.invoke(goalsActions.collection, {}) : emptyGoalsDocumentCollection(options.projectId);
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,
@@ -84,6 +90,8 @@ export async function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     home_directory: options.homeDirectory ?? "",
+    // A view drawn without Goals is not the one to reuse once Goals is added, even at the same cursor.
+    goals_here: goalsHere,
     // Materials bound to a Goal are written without a journal event, so the cursor alone would keep an old list.
     input_bindings: collection.input_bindings.map(binding => [binding.binding_id, binding.state]),
   });

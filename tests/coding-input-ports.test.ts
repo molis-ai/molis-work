@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +12,7 @@ import { CODING_PLUGIN_ID, CODING_UI_CONTRIBUTION_ID, codingManifest, type Codin
 import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { charactersActions } from "@molis-ai/molis-work-module-characters";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -24,7 +25,7 @@ import { deferred } from "./fixtures/home-runtime.js";
 
 // Coding reads what it used to be handed by the Host through the platform instead (W5-01 C2; specs/coding-plugin §4 H): the models
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
-// public actions `characters.list` and the plugin-only `characters.runnable` (PG-086), each declared in its Manifest and checked by the
+// public actions `characters.list` and the `characters.runnable` (PG-086), each declared in its Manifest and checked by the
 // platform's grant. The person's `characters.execution` (the local program and folders) stays out of a plugin's reach. There is no
 // `ready` port to wait for.
 
@@ -55,7 +56,7 @@ function directoryHtml(platform: { supervisor: { contribution(pluginId: string):
     primitives: { escape: value => String(value), icon: () => "", text: value => value, formatDate: value => value.slice(0, 10) } } });
 }
 const until = async (done: () => boolean, ms = 5_000) => { for (const end = Date.now() + ms; !done() && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50)); assert.ok(done(), "the awaited step happened"); };
-const registration = (service: ActionService) => ({ registry: service, client: service, project_id: DEMO_PROJECT_ID });
+const registration = (service: Pick<ActionService, "registerProvider" | "invoke" | "discover">) => ({ registry: service, client: service, project_id: DEMO_PROJECT_ID });
 
 test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as optional for its two explicit drafts, and lists the draft, Goals and Characters actions it reads through under consumes", () => {
   const modelPermissions = codingManifest.permissions.filter(declared => declared.permission.startsWith("model:"));
@@ -69,7 +70,7 @@ test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as 
     assert.ok(consumed.includes(definition.capability_id), `Coding lists ${definition.capability_id} under consumes`);
   }
   assert.equal(consumed.includes(charactersActions.execution.capability_id), false, "Coding does not ask for how a Character is launched");
-  assert.deepEqual(charactersActions.runnable.action.audiences, ["plugin"], "the runnable answer is for plugins only");
+  assert.deepEqual(charactersActions.runnable.action.audiences, ["user", "plugin"], "the runnable answer is for the person (the Assistant's picker, RAC-458) and plugins, nobody else");
   assert.deepEqual(charactersActions.execution.action.audiences, ["user"], "the local program and folders stay the person's");
 });
 
@@ -78,7 +79,9 @@ test("W5-01-CODING-24 Coding reads the model list and each model's availability 
   const s = await codingSdkRuntime(t, { wrapCoding: definition => ({ ...definition, async start(context: PluginStartContext) { model = context.services?.model; return definition.start(context); } }) });
   const installed = s.platform.runtime.list().find(record => record.plugin_id === CODING_PLUGIN_ID) ?? assert.fail("Coding is installed");
   assert.equal(installed.grants.includes("model:read"), true);
-  assert.equal(installed.grants.includes("model:invoke"), false, "the installation was never given the right to send");
+  // The Host build holds every permission its Manifest declares (hostBuildGrants), model:invoke too, which Coding declares for the platform's
+  // draft action alone (CODING-23); what keeps complete() out of its reach is the action gate below, not the missing grant.
+  assert.equal(installed.grants.includes("model:invoke"), true, "the Host build holds its declared optional model:invoke");
   const client = model ?? assert.fail("Coding was given services.model");
   assert.deepEqual(client.choices().map(({ provider_id, model_id }) => ({ provider_id, model_id })), [{ provider_id: "fixture", model_id: "fixture" }]);
   assert.equal(client.availability({ provider_id: "fixture", model_id: "fixture" }).available, true);
@@ -198,7 +201,7 @@ async function consumers() {
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   const contexts = new Map<string, PluginStartContext>();
   const plugin = (name: string, consumes: string[]): PluginDefinition => ({
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
@@ -207,7 +210,7 @@ async function consumers() {
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], routes: [] },
     async start(context) { contexts.set(name, context); return { kind: "app", actions: [], routes: [] }; } });
   const start = async (name: string, consumes: string[], grants: string[]) => {
-    const installed = runtime.install({ definition: plugin(name, consumes), deployment: "local", grants }).install;
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin(name, consumes), deployment: "local", grants }).install;
     await runtime.start(installed.install_id);
     return installed;
   };
@@ -262,15 +265,9 @@ test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed a
 
 test("W5-01-CODING-31 SYS15-Q2 recovery retries after a failed Agent read without a page; coding.state never starts a loop", { timeout: 60_000 }, async t => {
   const waits: unknown[] = [];
-  const s = await codingSdkRuntime(t, { wrapCapabilities: client => new Proxy(client, { get(target, key) {
-    const value = Reflect.get(target, key, target);
-    if (key !== "invoke") return typeof value === "function" ? value.bind(target) : value;
-    return async (definition: { capability_id: string }, ...rest: unknown[]) => {
-      if (definition.capability_id !== agent.awaitContinuations.capability_id) return (value as (...args: unknown[]) => unknown).call(target, definition, ...rest);
-      waits.push(rest[0]);
-      throw new Error("Agent 运行时没有起来");
-    };
-  } }) });
+  const s = await codingSdkRuntime(t);
+  // The wait for a continuation (an action, R8 batch 4) reaches the task graph and fails there, as when the runtime is not up.
+  t.mock.method(s.adapter.collaboration!, "awaitReady", async (...args: unknown[]) => { waits.push(args); throw new Error("Agent 运行时没有起来"); });
   assert.equal(waits.length, 0, "a project with no session tied to an Agent run starts no loop");
   await s.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "tied", title: "重启前的会话", runtime_id: "prologue", at });
   await s.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "tied", "sdk", at);

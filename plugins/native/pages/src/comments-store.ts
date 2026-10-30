@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PagesCommentAnchor, PagesCommentMessage, PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesCommentAnchor, PagesCommentMessage, PagesCommentThread, PagesRecord } from "./contract.js";
 import { pagesErrors } from "./error.js";
 import type { PagesSql } from "./store.js";
 
@@ -14,6 +14,17 @@ export interface AppendPagesComment {
   expected_version?: number;
 }
 
+/** The first `limit` whole characters of `value`: never half of one (an emoji is one character, two UTF-16 units), and read no further than that. */
+function firstCharacters(value: string, limit: number): string {
+  let end = 0, count = 0;
+  for (const character of value) {
+    if (count === limit) break;
+    end += character.length;
+    count += 1;
+  }
+  return value.slice(0, end);
+}
+
 /** Reads the current document's marks; there is no text-search reattachment. */
 export function pageAnnotations(body: PagesRecord["body"]): Map<string, { text: string; excerpt: string }> {
   const marks = new Map<string, { text: string; excerpt: string }>();
@@ -22,7 +33,7 @@ export function pageAnnotations(body: PagesRecord["body"]): Map<string, { text: 
     const node = value as { text?: string; marks?: Array<{ type: string; attrs?: { id?: string; text?: string } }>; content?: unknown[] };
     for (const mark of node.marks ?? []) if (mark.type === "comment" && mark.attrs?.id) {
       const previous = marks.get(mark.attrs.id);
-      marks.set(mark.attrs.id, { text: String(mark.attrs.text ?? ""), excerpt: ((previous?.excerpt ?? "") + (node.text ?? "")).slice(0, 2000) });
+      marks.set(mark.attrs.id, { text: String(mark.attrs.text ?? ""), excerpt: firstCharacters((previous?.excerpt ?? "") + (node.text ?? ""), 2000) });
     }
     node.content?.forEach(visit);
   };
@@ -54,7 +65,7 @@ export class PagesComments {
       const page = this.page(input.page_id, projectId);
       let thread = this.read(input.page_id, input.thread_id);
       const body = input.body.trim();
-      if (!body || body.length > 20000) throw pagesErrors.invalid("评论须为 1 到 20000 个字");
+      if (!body || [...body].length > 20000) throw pagesErrors.invalid("评论须为 1 到 20000 个字");
       const prior = thread?.messages.find(message => message.author === "user" && message.request_id === input.request_id);
       if (prior) {
         if (prior.body !== body || prior.reply_to !== input.reply_to) throw pagesErrors.invalid("这次发送的内容已改变，请重新发送");

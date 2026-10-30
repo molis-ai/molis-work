@@ -1,14 +1,14 @@
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import {
-  LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, seedDemoBoard,
-} from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID, FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
+import { ActionError, bindActionClient, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalProjectDatabase, MolisWorkLocalHost, feedItemForReader, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { FEED_PLUGIN_ID, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
 
 const PROJECT = "project-feed-promotion";
 
@@ -20,7 +20,7 @@ function fixture(titles: string[], options: { disableGoals?: () => boolean; disa
     actionAvailability: (_caller, view) => options.disableGoals?.() && view.provider.plugin_id === GOALS_PLUGIN_ID
       ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从项目移除" }
       : options.disableFeed?.() && view.provider.plugin_id === FEED_PLUGIN_ID ? { available: false, code: "actions.plugin_disabled", reason: "Feed 已从项目移除" } : { available: true } });
-  seedDemoBoard(databasePath, PROJECT);
+  seedBoard(databasePath, PROJECT);
   const seed = new LocalProjectDatabase(databasePath);
   const feed = createLocalFeedApplication(seed.db);
   const source = createLocalFeedSourceService(seed.db, PROJECT).register({ kind: "web_query", query: "Review external input" }).source;
@@ -29,7 +29,7 @@ function fixture(titles: string[], options: { disableGoals?: () => boolean; disa
     priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item);
   seed.close();
   const reference = molisWorkHostProjectReference({ databasePath, projectId: PROJECT });
-  const permissions = [...new Set([...feedManifest.permissions.map(entry => entry.permission), "goals:read", "goals:write"])];
+  const permissions = [...new Set([...feedManifest.permissions.map(entry => entry.permission), "goals:read", "goals:write", "context-ledger:write"])];
   const person: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions };
   const runtime: ActionCallContext = { actor_id: "runtime:promoter", audit_actor_id: "runtime:promoter:session", runtime_session_id: "session",
     actor_kind: "runtime", audience: "agent", project_id: PROJECT, permissions };
@@ -57,7 +57,7 @@ test("Feed promotion makes the Goal and binds the item through Goals' actions, l
     assert.equal(linked.linked_goal_id, first.goal_id);
     assert.equal(linked.disposition, "promoted");
     // The item is a confirmed input of the Goal: Goals holds the receipt, with the digest of what was confirmed, and it is the person's.
-    const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
+    const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
     const bindings = await receipts(first.goal_id);
     assert.deepEqual(bindings.map(receipt => [receipt.source_type, receipt.source_ref, receipt.state, receipt.created_by, receipt.input_name]),
       [["feed_item", `feed-item:${item!.item_id}`, "confirmed", "web-user", "Feed Item 输入"]]);
@@ -102,7 +102,7 @@ test("Feed promotion source survives later notes and a reopen of the Host", asyn
     // More events than one page of history holds: the source of the Goal must not depend on the first page.
     await f.host.withProject(f.reference, runtime => {
       for (let index = 0; index < 41; index++) {
-        runtime.coordinator.goalEvents.recordNote({ project_id: PROJECT, goal_id: promoted.goal_id, actor_id: "runtime-1", actor_kind: "runtime",
+        goalApplicationOf(runtime).goalEvents.recordNote({ project_id: PROJECT, goal_id: promoted.goal_id, actor_id: "runtime-1", actor_kind: "runtime",
           body: `继续核对外部反馈 ${index + 1}`, idempotency_key: `feed-source-retention-${index}` });
       }
     });
@@ -149,7 +149,8 @@ test("a promotion that fails between Goals and Feed leaves one Goal that the ret
   try {
     const goals = async () => (await f.person.invoke(goalsActions.list, { limit: 100 })).goals;
     const before = (await goals()).length;
-    await f.host.withProject(f.reference, runtime => runtime.store.db.exec(`CREATE TEMP TRIGGER fail_promotion_input BEFORE INSERT ON input_bindings
+    // Goals' own tables take no trigger (a statement with one is refused), so the failure comes at the input's edge in the Context Ledger.
+    await f.host.withProject(f.reference, runtime => runtime.store.db.exec(`CREATE TRIGGER fail_promotion_input BEFORE INSERT ON context_edges WHEN NEW.edge_key LIKE '${GOALS_PLUGIN_ID}:%'
       BEGIN SELECT RAISE(ABORT, 'injected_promotion_input_failure'); END`));
     await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), /injected_promotion_input_failure/);
     const unlinked = (await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item;
@@ -157,7 +158,7 @@ test("a promotion that fails between Goals and Feed leaves one Goal that the ret
     assert.equal(unlinked.revision, item!.revision);
     const orphan = (await goals()).filter(goal => goal.title.startsWith("处理 Feed Item"));
     assert.equal(orphan.length, 1, "Goals kept the Goal the first attempt made");
-    const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
+    const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
     assert.deepEqual(await receipts(orphan[0]!.goal_id), []);
 
     await f.host.withProject(f.reference, runtime => runtime.store.db.exec("DROP TRIGGER fail_promotion_input"));
@@ -174,10 +175,10 @@ test("a leftover Goal the person has discarded is not taken up again: promoting 
   const [item] = f.items;
   try {
     const goals = async () => (await f.person.invoke(goalsActions.list, { limit: 100 })).goals.filter(goal => goal.title.startsWith("处理 Feed Item"));
-    const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
+    const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
     const discard = (goalId: string) => f.person.invoke(goalsActions.trash, { goal_id: goalId, trashed: true, reason: "Discard the leftover", user_confirmed: true, idempotency_key: `discard-${goalId}` });
     const failInput = (on: boolean) => f.host.withProject(f.reference, runtime => on
-      ? runtime.store.db.exec(`CREATE TEMP TRIGGER fail_promotion_input BEFORE INSERT ON input_bindings BEGIN SELECT RAISE(ABORT, 'injected_promotion_input_failure'); END`)
+      ? runtime.store.db.exec(`CREATE TRIGGER fail_promotion_input BEFORE INSERT ON context_edges WHEN NEW.edge_key LIKE '${GOALS_PLUGIN_ID}:%' BEGIN SELECT RAISE(ABORT, 'injected_promotion_input_failure'); END`)
       : runtime.store.db.exec("DROP TRIGGER fail_promotion_input"));
     const promote = () => f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision });
     const stillUnlinked = async () => {
@@ -231,7 +232,7 @@ test("a promotion whose Feed action is withdrawn while Goals worked starts no fu
   const f = fixture(["Review external input"], { disableFeed: () => withdrawn });
   const [item] = f.items;
   try {
-    const receipts = () => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT));
+    const receipts = () => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT));
     const liveGoals = async () => (await f.person.invoke(goalsActions.list, { limit: 100 })).goals.filter(goal => goal.title.startsWith("处理 Feed Item"));
     // The item's Goal was discarded, so the next promotion first reads the directory and then, finding nothing, writes a new Goal.
     const first = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision });
@@ -256,7 +257,7 @@ test("a promotion whose Feed action is withdrawn after Goals made the Goal write
   const f = fixture(["Review external input"], { disableFeed: () => withdrawn });
   const [item] = f.items;
   try {
-    const receipts = () => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT));
+    const receipts = () => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT));
     const liveGoals = async () => (await f.person.invoke(goalsActions.list, { limit: 100 })).goals.filter(goal => goal.title.startsWith("处理 Feed Item"));
     afterGoalsCall(f, goalsActions.create.capability_id, () => { withdrawn = true; });
     await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "actions.plugin_disabled" });
@@ -276,7 +277,7 @@ test("a promotion whose Feed action is withdrawn after Goals made the Goal write
 test("promotion walks the keys of the item's revision past every Goal that can no longer take work", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-keys-"));
   const databasePath = join(home, "project.db");
-  seedDemoBoard(databasePath, PROJECT);
+  seedBoard(databasePath, PROJECT);
   const store = new LocalProjectDatabase(databasePath);
   try {
     const feed = createLocalFeedApplication(store.db);
@@ -308,7 +309,7 @@ test("promotion walks the keys of the item's revision past every Goal that can n
 test("a call withdrawn while Goals worked writes nothing of Feed's: neither the new-Goal path nor the existing-Goal path links or changes the item", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-withdrawn-"));
   const databasePath = join(home, "project.db");
-  seedDemoBoard(databasePath, PROJECT);
+  seedBoard(databasePath, PROJECT);
   const store = new LocalProjectDatabase(databasePath);
   try {
     const feed = createLocalFeedApplication(store.db);
@@ -343,10 +344,10 @@ test("the reader's promotion button follows the promote action: shown while Goal
   const f = fixture(["Review external input"], { disableGoals: () => removed });
   const [item] = f.items;
   try {
+    // The shell's reader (`/api/stage/feed/items/<id>`) asks the Host what to offer for one item, as the person.
     const rendered: boolean[] = [];
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions: f.person, routePrefix: "", inboxEntries: async () => [], changed: () => {}, hydrateItem: row => row,
-      hydrateSnapshot: async snapshot => snapshot, sourceCatalog: () => [], renderWorkbench: () => "", renderDetail: (_item, options) => { rendered.push(options.promoteAvailable); return "<div></div>"; } }));
-    const detail = async () => assert.equal((await table.handle({ method: "GET", pathname: `/api/feed/items/${item!.item_id}/detail`, query: new URLSearchParams(), body: {} }))?.status, 200);
+    const view = async () => ({ feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] } });
+    const detail = async () => { rendered.push((await feedItemForReader(f.person, item!.item_id, view)).promoteAvailable); };
     await detail();
     removed = true;
     await detail();
@@ -377,7 +378,7 @@ test("only the person names the creation channel: a Runtime's promotion is recor
     const promoted = await f.runtime.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision });
     assert.equal(promoted.created, true);
     assert.equal((await f.runtime.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
-    const owned = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT).filter(binding => binding.goal_id === promoted.goal_id));
+    const owned = await f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(binding => binding.goal_id === promoted.goal_id));
     assert.deepEqual(owned.map(binding => binding.created_by), ["runtime:promoter:session"]);
   } finally { await f.done(); }
 });
@@ -390,7 +391,7 @@ test("only the person's promotion confirms the input: an assistant, Agent, workf
     const receipts = await Promise.all(callers.map(async ([, caller], index) => {
       const item = f.items[index]!;
       const promoted = await f.client.invoke(caller, feedItemActions.promote, { item_id: item.item_id, expected_revision: item.revision }) as { goal_id: string };
-      const owned = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === promoted.goal_id));
+      const owned = await f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === promoted.goal_id));
       return owned.map(receipt => [receipt.state, receipt.created_by, receipt.reason]);
     }));
     assert.deepEqual(callers.map(([name], index) => [name, receipts[index]]), [
@@ -399,6 +400,54 @@ test("only the person's promotion confirms the input: an assistant, Agent, workf
       ["workflow", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["mcp", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
     ]);
+  } finally { await f.done(); }
+});
+
+// Goals reads the person from what the Host sets on the nested caller of a plugin's action directory (S-43), so only the person's own call to
+// Feed's action confirms, and only for Feed's own source (the `feed` channel, a `feed_item` input; S-99 provisional): an assistant, Agent,
+// workflow or MCP client handing in through Feed, a scene's run, a caller that only claims the person, another plugin handing in for the person
+// (Workflows), and a plugin's own call (a Feed timer: `plugin` audience, which these Goals actions are not open to) never do. A delegation that
+// names no channel is the Runtime's: Feed's own promotion always names `feed` for the person.
+test("Goals takes the person only from the Host's delegated caller: no other origin confirms an input or names the Goal's channel", async () => {
+  const f = fixture(["Delegated"]);
+  const [item] = f.items;
+  const delegated = (delegated_audience: ActionAudience, extra: Partial<ActionCallContext> = {}): ActionCallContext =>
+    ({ ...f.personContext, audience: "workflow", delegated_by: FEED_PLUGIN_ID, delegated_audience, ...extra });
+  const callers: Array<[string, ActionCallContext]> = [["person", delegated("user")], ["agent", delegated("agent")], ["workflow", delegated("workflow")],
+    ["mcp", delegated("mcp")], ["scene", delegated("user", { scene_binding: { scene_id: "feed.capture", binding_id: "capture-binding" } })],
+    ["claimed", { ...f.personContext, audience: "workflow", delegated_audience: "user" }],
+    ["other plugin", { ...f.personContext, audience: "workflow", delegated_by: "io.molis.work.native.workflows", delegated_audience: "user" }]];
+  const intent = (key: string) => ({ title: "Delegated promotion", outcome: "Checked", why: "Who asked", business_logic: "Only the trusted caller", priority: 50, idempotency_key: key });
+  const confirm = (goal_id: string) => ({ goal_id, source: { kind: "feed_item" as const, id: item!.item_id }, name: "Feed Item 输入", snapshot_digest: `sha256:${"0".repeat(64)}`, reason: "who asked" });
+  const receipts = () => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).map(receipt => [receipt.goal_id, receipt.state]));
+  try {
+    const outcomes: unknown[] = [];
+    for (const [name, caller] of callers) {
+      const named = await f.client.invoke(caller, goalsActions.create, { ...intent(`named-${name}`), source_kind: "feed" }).then(() => "named", (error: ActionError) => error.code);
+      const { goal } = await f.client.invoke(caller, goalsActions.create, intent(`plain-${name}`)) as { goal: { goal_id: string } };
+      await f.client.invoke(caller, goalsActions.inputsConfirm, confirm(goal.goal_id));
+      const state = (await receipts()).find(([goalId]) => goalId === goal.goal_id)?.[1];
+      outcomes.push([name, named, (await f.person.invoke(goalsActions.state, { goal_id: goal.goal_id })).intent.source_kind, state]);
+    }
+    assert.deepEqual(outcomes, [
+      ["person", "named", "runtime", "confirmed"],
+      ["agent", "actions.input_invalid", "runtime", "proposed"],
+      ["workflow", "actions.input_invalid", "runtime", "proposed"],
+      ["mcp", "actions.input_invalid", "runtime", "proposed"],
+      ["scene", "actions.input_invalid", "runtime", "proposed"],
+      ["claimed", "actions.input_invalid", "runtime", "proposed"],
+      ["other plugin", "actions.input_invalid", "runtime", "proposed"],
+    ]);
+
+    // Feed's own timer reaches Goals as the plugin's own call (`plugin` audience, S-73), which neither action admits; a caller only shaped like
+    // one is refused before that, as only the Host issues a plugin's caller. Either way nothing is created or recorded.
+    for (const definition of [goalsActions.create, goalsActions.inputsConfirm]) assert.equal(definition.action.audiences?.includes("plugin"), false, definition.capability_id);
+    const before = await receipts();
+    const timer: ActionCallContext = { ...f.personContext, actor_id: "plugin:feed", audience: "plugin", delegated_by: FEED_PLUGIN_ID, delegated_audience: "plugin" };
+    await assert.rejects(f.client.invoke(timer, goalsActions.create, intent("timer")), { code: "host.plugin_caller_invalid" });
+    const { goal } = await f.person.invoke(goalsActions.create, intent("timer-target"));
+    await assert.rejects(f.client.invoke(timer, goalsActions.inputsConfirm, confirm(goal.goal_id)), { code: "host.plugin_caller_invalid" });
+    assert.deepEqual(await receipts(), before);
   } finally { await f.done(); }
 });
 
@@ -426,7 +475,7 @@ test("promotion uses the caller's own grants: a client allowed only the promotio
 test("an item that changed while Goals worked is refused and Feed writes nothing for it", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-stale-"));
   const databasePath = join(home, "project.db");
-  seedDemoBoard(databasePath, PROJECT);
+  seedBoard(databasePath, PROJECT);
   const store = new LocalProjectDatabase(databasePath);
   try {
     const feed = createLocalFeedApplication(store.db);

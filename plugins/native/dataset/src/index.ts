@@ -1,17 +1,8 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-dataset",
-  packagePath: "plugins/native/dataset",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["dataset.ui-contribution.v1", "dataset.http-routes.v1"],
-} as const;
-
 export { DATASET_UI_CONTRIBUTION_ID, datasetUiContribution, datasetUiDescriptor, renderDatasetWorkbench } from "./ui.js";
 export type { DatasetUiModel, DatasetUiPrimitives, DatasetUiSurface } from "./ui.js";
 export { DATASET_STYLES } from "./styles.js";
 export { DATASET_EN } from "./en.js";
+export { DATASET_MESSAGES } from "./messages.js";
 export { DATASET_INSTRUCTIONS } from "./prompts.js";
 export { DATASET_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createDatasetPlugin } from "./plugin.js";
@@ -20,9 +11,8 @@ export type { DatasetLineHeadPort, DatasetPublishArtifactPort, DatasetReadArtifa
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "./manifest.js";
 export { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS, createDatasetActionHandlers, createDatasetContentHandlers } from "./actions.js";
 export type { DatasetActionPorts } from "./actions.js";
-export { openDatasetStore, ownDatasetStores, DatasetStore, DATASET_DATABASE, DATASET_HOME_STORE, parseCsv, toCsv } from "./store.js";
+export { ownDatasetStores, DatasetStore, DATASET_DATABASE, DATASET_HOME_STORE, parseCsv, toCsv } from "./store.js";
 export type { DatasetSql, DatasetSqlValue, DatasetStores } from "./store.js";
-export { purgeDatasetProject, datasetProjectData } from "./project-data.js";
 export { mergeDatasetDraftRows } from "./row-merge.js";
 export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";
 export { datasetErrors } from "./error.js";

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -18,6 +18,59 @@ const namesItself = (title: string, version?: number) => `(() => {
 })()`;
 // The workbench's fallback runs 250 ms after it opens an item and then reads the surfaces: give it time to (not) land.
 const pastFallback = () => new Promise(resolve => setTimeout(resolve, 1200));
+
+test("PAGESCTX-05: real unsaved long drafts keep their context through the child observer and parent, then save and switch cleanly", { timeout: 90000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){
+    target[key]=host=>{if(key==='pages'&&!host.side){const editor=window.MolisWorkPagesEditor;
+      window.MolisWorkPagesEditor={...editor,mount(...args){return window.contextBudgetEditor=editor.mount(...args);}};}return factory(host);};return true;
+  }});`);
+  const pages = await pluginFrameBrowser(t, browser, "pages");
+  const documentOf = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+  const store = openPagesStore(homeDirectory);
+  const a = store.create({ project_id: projectId!, title: '长稿"上下文', body: documentOf("已保存原稿") });
+  const b = store.create({ project_id: projectId!, title: "另一个文档", body: documentOf("另一篇正文") });store.close();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
+  await pages.waitFor("window.contextBudgetEditor?.view && document.querySelector('[data-pages-title]')?.value === " + JSON.stringify(a.title));
+  const parent = `JSON.parse(document.querySelector('[data-work-surface="pages"]')?.getAttribute('data-assistant-context')||'null')`;
+  const child = "JSON.parse(document.querySelector('[data-pages=workbench]').getAttribute('data-assistant-context')||'null')";
+  await waitFor(`(${parent})?.object?.id===${JSON.stringify(a.id)}`);
+  await evaluate(`(() => {
+    const original=window.fetch.bind(window),path='/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${a.id}';let hold=true;const pending=[];
+    window.fetch=(input,init)=>new URL(input instanceof Request?input.url:String(input),location.href).pathname===path&&(init?.method||input.method)==='POST'&&hold
+      ?new Promise((resolve,reject)=>pending.push(()=>original(input,init).then(resolve,reject))):original(input,init);
+    window.releaseBudgetSaves=async()=>{hold=false;await Promise.all(pending.splice(0).map(run=>run()));};
+    window.restoreBudgetFetch=async()=>{window.fetch=original;await window.releaseBudgetSaves();};
+  })()`);
+  const edit = (text: string) => pages.evaluate(`(() => {const view=window.contextBudgetEditor.view;view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,view.state.schema.nodes.paragraph.create(null,view.state.schema.text(${JSON.stringify(text)}))));})()`);
+  try {
+    const long = '"'.repeat(44000);await edit(long);
+    await waitFor(`(${parent})?.unsaved===true && (${parent})?.object?.id===${JSON.stringify(a.id)}`);
+    const context = await evaluate<{ plugin_id: string; surface_title: string; object: { kind: string; id: string; version: number; title: string }; unsaved: boolean; draft_text: string }>(parent);
+    const raw = await pages.evaluate<string>("document.querySelector('[data-pages=workbench]').getAttribute('data-assistant-context')");
+    assert.ok(raw.length < 32000);assert.ok(context.draft_text.length < 20000);assert.ok(long.startsWith(context.draft_text));
+    assert.deepEqual({ ...context, draft_text: undefined }, { plugin_id: "io.molis.work.pages", surface_title: "Pages", object: { kind: "pages_document", id: a.id, title: a.title, version: a.version }, unsaved: true, draft_text: undefined });
+    assert.deepEqual(await pages.evaluate(child), context, "the actual child publication survives the unchanged parent path");
+    assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent.length"), 44000, "only the excerpt shrinks, never the editor document");
+    const oldSize = JSON.stringify({ ...context, draft_text: long.slice(0, 20000) }).length;
+    assert.ok(oldSize >= 32000, "the former raw slice exceeded this same real parent's gate");
+    const short = '短稿"\\😀';await edit(short);
+    await waitFor(`(${parent})?.draft_text===${JSON.stringify(short)}`);
+    assert.equal(await pages.evaluate(`(${child}).draft_text`), short);
+    await evaluate("window.releaseBudgetSaves()");
+    await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent==='已保存'");
+    await waitFor(`(${parent})?.object?.id===${JSON.stringify(a.id)} && !(${parent}).unsaved && !('draft_text' in (${parent}))`);
+    const savedVersion = await evaluate<number>(`(${parent}).object.version`);assert.ok(savedVersion > a.version);
+    await pages.evaluate(`document.querySelector('button[data-page-id="${b.id}"]').click()`);
+    await waitFor(`(${parent})?.object?.id===${JSON.stringify(b.id)} && !(${parent}).unsaved && !('draft_text' in (${parent}))`);
+    assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), "另一篇正文");
+    await pages.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
+    await waitFor(`(${parent})?.object?.id===${JSON.stringify(a.id)} && (${parent}).object.version===${savedVersion} && !('draft_text' in (${parent}))`);
+    assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), short);
+    t.diagnostic(JSON.stringify({ originalDraftLength: long.length, oldSerializedLength: oldSize, retainedSerializedLength: raw.length, retainedExcerptLength: context.draft_text.length, originalVersion: a.version, savedVersion, parentId: a.id, homeDirectory }));
+  } finally { await evaluate("window.restoreBudgetFetch()"); }
+});
 
 for (const width of [1440, 390]) {
   test(`Pages ${width}px: real create/edit, model candidate, restart and conflicting save`, { timeout: 90_000 }, async t => {

@@ -1,4 +1,4 @@
-import { renderDirectoryPanel, renderDirectoryRow, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderDirectoryPanel, renderDirectoryRow, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
@@ -6,7 +6,7 @@ import { groupedGlobalSettingsSections } from "./settings-sections.js";
 export interface SettingsDirectoryPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   htmlLang(): string;
   withDesktopQuery?(path: string): string;
 }
@@ -17,23 +17,11 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "guidance", label: "项目说明", icon: "book" },
   { id: "memory", label: "记忆", icon: "bookmark" },
   { id: "knowledge", label: "项目资料", icon: "file" },
-] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
+  { id: "plugins", label: "插件", icon: "package" },
+] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 
 function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`;
-}
-
-export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimitives): string {
-  const { L, icon } = primitives;
-  // The ways to extend the workbench. Which plugins stay in the Dock is chosen on the switcher's own entries, not here.
-  return `<footer class="personal-sidebar-footer">
-    <details class="account-global-menu" data-global-menu>
-      <summary class="account-global-trigger" aria-label="${L("Dock 与插件")}" title="${L("Dock 与插件")}">${icon("package")}</summary>
-      <div class="account-global-popover">
-        <!-- account-global-items -->
-      </div>
-    </details>
-  </footer>`;
 }
 
 /** Personal entries under the project button: the future sign-in entry, then capabilities and settings. */
@@ -52,7 +40,7 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
 
 function renderSettingsNav(
   primitives: SettingsDirectoryPrimitives,
-  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: MolisWorkIcon }[] }[],
+  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: PluginIconName }[] }[],
   preset: string,
   label: string,
   pluginId: string,
@@ -76,22 +64,23 @@ function renderSettingsNav(
   });
 }
 
-export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, enabled?: readonly string[], hidden?: readonly string[]): string {
+export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, shown?: readonly string[]): string {
   const { L, icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(enabled, hidden), "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown), "appearance", "系统设置", "settings")}
     </div>
   </section>`;
 }
 
-export function renderProjectSettingsDirectorySection(primitives: SettingsDirectoryPrimitives): string {
+/** `goals` is false for a project without Goals: the project description page is Goals', so it is not listed (RAC-400). */
+export function renderProjectSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, goals = true): string {
   const { L, icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="project-settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("项目设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS }], "general", "项目设置", "project-settings")}
+      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.filter(section => goals || section.id !== "guidance") }], "general", "项目设置", "project-settings")}
     </div>
   </section>`;
 }

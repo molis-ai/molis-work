@@ -1,8 +1,13 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { JELLY_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/jelly";
+import { JELLY_PLUGIN_ID } from "./contract.js";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
+import { JELLY_DATABASE } from "./database.js";
+import { JELLY_MODEL_CONFIGURATION } from "./model-configuration.js";
+import { JELLY_MESSAGES } from "./messages.js";
+import { JELLY_EN } from "./en.js";
 export const jellyManifest: PluginManifest = {
+  summary: "日历与笔记，按天安排。",
   schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -12,6 +17,9 @@ export const jellyManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   actions: [...JELLY_ACTIONS],
+  runtime: { scope: "home" },
+  databases: { home: JELLY_DATABASE },
+  model_configuration: JELLY_MODEL_CONFIGURATION,
   routes: [
     { route_id: "jelly.workspace", method: "GET", path: "/" },
     { route_id: "jelly.calendar", method: "GET", path: "/calendar" },
@@ -24,5 +32,5 @@ export const jellyManifest: PluginManifest = {
     { route_id: "jelly.ai", method: "POST", path: "/ai", max_body_bytes: 36_000_000, stream: "ndjson" },
     { route_id: "jelly.model.save", method: "POST", path: "/model-settings", max_body_bytes: 36_000_000 },
   ],
-  ui: { contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", order: 35 }] },
+  ui: { messages: JELLY_MESSAGES, translations: JELLY_EN, contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", hue: "mint", order: 35, group: "personal" }] },
 };

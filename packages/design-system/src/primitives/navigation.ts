@@ -1,4 +1,4 @@
-import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
+import { cx, escapeHtml, renderAttrs, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export function renderTabs(options: {
   label: string;

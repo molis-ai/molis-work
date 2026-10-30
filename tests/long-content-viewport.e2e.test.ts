@@ -3,28 +3,27 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, openProjectVersionStores, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { installProducers } from "./fixtures/installed-producers.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps actions and reading usable at ${width}×${height}`,{timeout:90_000},async t=>{
   const b=await openGoalBrowser(t,true); if(!b)return;
   const {command,sessionId,evaluate,click,waitFor,navigate,origin,projectId}=b;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  for(const plugin_id of ["feed","sessions","artifacts"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
+  for(const plugin_id of ["feed","artifacts"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
   catalog.close();
   const app=openProjectVersionStores(b.store);
+  installProducers(b.store.db,{plugin_id:"io.example.writer",artifact_types:["io.example.report"]});
   app.artifacts.commands.registerVersion({...pinnedArtifact("工作台阅读体验检查与修复记录"),project_id:DEMO_PROJECT_ID,actor_id:"content-test",artifact_id:"reading-report",version:1,artifact_type_id:"io.example.report",schema_version:1,producer:{plugin_id:"io.example.writer",plugin_version:"1.0.0",binding_signature:"fixture"},content:{kind:"inline",payload:{title:"工作台阅读体验检查与修复记录",findings:Array.from({length:60},(_,i)=>({title:`第 ${i+1} 项检查`,detail:"保留阅读位置与动作入口，让长内容在所属组件内滚动。"}))}},metadata:{review:"组件内阅读"}});
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:"web_query",query:"交互检查"}).source;
   const item=createLocalFeedApplication(b.store.db).ingestItem({source,externalId:"long-reading",title:"请确认工作台在矮窗口和上下分屏中的阅读体验：标题、处理动作与上下文应当保持清晰可达",summary:"核对真实长内容。",body:"需要保留原消息。",occurredAt:new Date().toISOString(),attention:false}).item;
-  const registry=await openWorkSessionRegistry({homeDirectory:b.homeDirectory});
-  const session=registry.createSession({runtime_id:"opencode",project_id:projectId!,current_goal_id:"CORE",title:"检查长执行记录中的搜索、上下文和后续操作",user_confirmed:true,actor_id:"content-test"});
-  for(let i=0;i<35;i++)registry.appendEvent({session_id:session.session_id,source:"molis_work_tui",kind:"terminal_output",source_id:`line-${i}`,source_order:i,occurred_at:new Date(1777622400000+i*60000).toISOString(),content:`检查记录 ${i+1}\n已核对组件滚动边界，保留原始执行事实。\n需要查看时可以继续读取相关上下文。`});
-  registry.close();
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
   await command("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
-  const added=await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`,{method:"POST",headers:{origin,"content-type":"application/json","x-molis-work-control-token":"goals-risk-test-control-token-0123456789","x-molis-work-idempotency-key":"reading-inbox"},body:JSON.stringify({expected_revision:item.revision})});
+  const added=await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`,{method:"POST",headers:{origin,"content-type":"application/json","x-molis-work-control-token":"goals-risk-test-control-token-0123456789","x-molis-work-idempotency-key":"reading-inbox"},body:JSON.stringify({expected_revision:item.revision})});
   assert.equal(added.status,200);
   await b.reloadPage();
   const openPlugin=async(id:string)=>{
@@ -55,7 +54,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   // Completing is handled in place (status request, then the Inbox stage refreshes); the page does not navigate.
   await click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]');
   await waitFor("document.querySelector(" + JSON.stringify('[data-inbox-stage-group="history"] [data-inbox-entry-id="' + entryId + '"]') + ")");
-  const history=await (await fetch(`${origin}/projects/${projectId}/api/inbox?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
+  const history=await (await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.inbox/entries?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
   assert.equal(history.entries.find(e=>e.entry_id===entryId)?.status,"done");
   assert.equal(createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,item.item_id).body,"需要保留原消息。","completing the attention reference retains its Feed item");
   await openPlugin("artifacts");
@@ -81,64 +80,8 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   const exported=await (await fetch(exportUrl)).json() as {version:number;payload:{findings:unknown[]}};
   assert.equal(exported.version,1);assert.equal(exported.payload.findings.length,60);
   await capture("artifact-reading");await darkCapture("artifact-reading");
-  const sessionDetail = "[data-operation-detail]:not([hidden])";
-  await openPlugin("sessions");
-  await click('[data-operation-select="' + session.session_id + '"]');
-  await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true' && document.querySelector('" + sessionDetail + "')");
-  const loadButton = sessionDetail + " [data-session-content-load]";
-  if(await evaluate("Boolean(document.querySelector(" + JSON.stringify(loadButton) + "))")) await click(loadButton);
-  await waitFor("document.querySelector('" + sessionDetail + " .session-content-body')?.textContent.includes('检查记录')");
-  await capture("session");await darkCapture("session");
-  const sessionHeader=await visible(sessionDetail + " .session-stage-bar");
-  const searchHeader=await visible(sessionDetail + " .session-execution-toolbar");
-  assert.equal(await evaluate("document.querySelector('" + sessionDetail + " .session-execution-toolbar').clientWidth>=document.querySelector('" + sessionDetail + " .session-execution').clientWidth-1"),true,"search toolbar spans the reading region");
-  const content=await probe(sessionDetail + " .session-content-body");
-  assert.ok(content.ch>=90 && content.sh>content.ch*2,"reading retains useful height with real execution history");
-  await wheel(sessionDetail + " .session-content-body",700);
-  await waitFor("document.querySelector('" + sessionDetail + " .session-content-body').scrollTop>200");
-  assert.deepEqual(await visible(sessionDetail + " .session-stage-bar"),sessionHeader);
-  assert.deepEqual(await visible(sessionDetail + " .session-execution-toolbar"),searchHeader);
-  await click(sessionDetail + " [data-session-content-search]");
-  await command("Input.insertText",{text:"检查记录 35"},sessionId);
-  await waitFor("document.querySelectorAll('.session-timeline-event:not([hidden])').length===1");
-  assert.match(await evaluate<string>("document.querySelector('.session-timeline-event:not([hidden])').textContent"),/检查记录 35/);
-  if(await evaluate("getComputedStyle(document.querySelector('[data-session-rail-open]')).display!=='none'")) await click('[data-session-rail-open]');
-  await click('.session-rail [data-open-session-relations]');
-  await waitFor("document.querySelector('[data-session-relations-dialog]').open");
-  await click('[data-session-relations-dialog] footer [data-dialog-close]');
-  await waitFor("!document.querySelector('[data-session-relations-dialog]').open");
-  const saved=await openWorkSessionRegistry({homeDirectory:b.homeDirectory});
-  assert.equal(saved.get(session.session_id).current_goal_id,"CORE");assert.equal(saved.eventCount(session.session_id),35);saved.close();
   assert.equal(await evaluate("document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollTop===0"),true);
-  if(width===1024){
-    await command("Emulation.setDeviceMetricsOverride",{width:1280,height:900,deviceScaleFactor:1,mobile:false},sessionId);
-    await click('[data-titlebar-tabs] [data-tab-split]');await click('[data-layout-split="bottom"]');
-    const splitDocs="[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument).filter(d=>d?.body?.dataset.desktopSurface==='sessions')";
-    await waitFor("document.querySelectorAll('[data-tab-pane]').length===2");
-    const visibleBody="[data-operation-detail]:not([hidden]) .session-content-body";
-    try {
-      await waitFor(splitDocs+".length>=2", 15_000);
-    } catch {
-      const splitDebug=await evaluate("(()=>{const frames=[...document.querySelectorAll('iframe.tab-content-frame')];return{panes:document.querySelectorAll('[data-tab-pane]').length,frames:frames.map(f=>({hidden:f.hidden,src:(f.getAttribute('src')||'').slice(-180),ready:f.contentDocument?.readyState||null,surface:f.contentDocument?.body?.dataset.desktopSurface||null,expanded:f.contentDocument?.querySelector('[data-session-stage-shell]')?.dataset.expanded||null,body:(f.contentDocument?.querySelector('[data-operation-detail]:not([hidden]) .session-content-body')?.textContent||'').slice(0,80)}))};})()");
-      assert.fail("split panes did not load Session surface: "+JSON.stringify(splitDebug));
-    }
-    await capture("session-split");
-    await evaluate(splitDocs+".forEach(d=>{d.querySelector('[data-operation-select=\"" + session.session_id + "\"]')?.click();d.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();})");
-    try {
-      await waitFor(splitDocs+".every(d=>d.querySelector("+JSON.stringify(visibleBody)+")?.textContent.includes('检查记录'))", 15_000);
-    } catch {
-      const splitDebug=await evaluate("(()=>{const frames=[...document.querySelectorAll('iframe.tab-content-frame')];return frames.map(f=>({surface:f.contentDocument?.body?.dataset.desktopSurface||null,expanded:f.contentDocument?.querySelector('[data-session-stage-shell]')?.dataset.expanded||null,load:Boolean(f.contentDocument?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')),body:(f.contentDocument?.querySelector('[data-operation-detail]:not([hidden]) .session-content-body')?.textContent||'').slice(0,120)}));})()");
-      assert.fail("split Session panes did not load execution content: "+JSON.stringify(splitDebug));
-    }
-    const paneReady=await evaluate<boolean[]>(splitDocs+".map(d=>{const main=d.querySelector('[data-operation-detail]:not([hidden]) .session-stage-main');return Boolean(main)&&main.clientWidth>=200})");
-    assert.ok(paneReady.every(Boolean),"each split Session pane keeps a usable main column");
-    const panes=await evaluate<{height:number;scroll:boolean}[]>(splitDocs+".map(d=>({height:d.querySelector("+JSON.stringify(visibleBody)+").clientHeight,scroll:d.scrollingElement.scrollHeight<=d.defaultView.innerHeight+1}))");
-    assert.ok(panes.length>=2, JSON.stringify(panes));for(const pane of panes){assert.ok(pane.height>=90, JSON.stringify(panes));assert.equal(pane.scroll,true, JSON.stringify(panes));}
-    await capture("session-split");
-  }
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
-  // Opened in a single pane: the split panes made above would leave the version a 122px frame at this height.
-  await evaluate(`localStorage.removeItem(${JSON.stringify("molis-work-tab-workspace:"+projectId)})`);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/artifacts/reading-report/versions/1`},sessionId));
   // A direct address opens the workbench on that version, not a page of its own.
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-detail] [data-artifact-id=\"reading-report\"][data-artifact-version=\"1\"]'))", 15_000);

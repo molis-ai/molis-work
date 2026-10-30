@@ -3,9 +3,10 @@ import test from "node:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 // About 16 s on a development Mac; past 60 s on the loaded Linux CI runner. The budget only stops a hang.
 for (const width of [1440, 390]) test(`Planning ${width}px copies a template, recovers failed saves and adopts an independent project version`, { timeout: 180_000 }, async t => {
@@ -133,7 +134,7 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   await reloadPage();
   await waitFor(dom("[data-work-surface=project-settings] .planning-inactive-section"), 15_000);
   assert.ok(await evaluate(dom(".planning-inactive-section") + "?.textContent.includes(" + JSON.stringify(values.name) + ")"));
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);

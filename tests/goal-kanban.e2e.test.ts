@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goal kanban sits beside the canvas, opens Frame, and remembers the board view", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -13,7 +14,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-container-tabs]')?.hidden && document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal]')");
+  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goals' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-container-tabs]')?.hidden && document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal]')");
   const goalId = await evaluate<string>("document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal]').dataset.selectGoal");
   assert.equal(await evaluate("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView"), "list");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=goals] .tree-node')"), null);
@@ -45,7 +46,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   await evaluate("document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal=\"" + goalId + "\"]').click()");
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && !document.querySelector('[data-goal-node-workspace]').hidden && getComputedStyle(document.querySelector('[data-goal-stage-list]')).display === 'block'");
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=item][aria-current]')"), null);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goal");
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goals");
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden !== false"), true);
   const split = await evaluate<{ list: number; workspace: number; shell: number }>("(() => { const shell = document.querySelector('[data-goal-canvas-shell]').getBoundingClientRect(); const list = document.querySelector('[data-goal-stage-list]').getBoundingClientRect(); const workspace = document.querySelector('[data-goal-node-workspace]').getBoundingClientRect(); return { list: Math.round(list.width), workspace: Math.round(workspace.width), shell: Math.round(shell.width) }; })()");
   // The rail takes the shared sidebar width token (240px in the Linear density), not a width of its own.
@@ -87,13 +88,13 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(goalId));
   await tap('[data-container-tab-close="' + goalId + '"]');
   await waitFor("document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions'");
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'home' || document.body.dataset.desktopSurface === 'goal'");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "goal") {
+  await waitFor("document.body.dataset.desktopSurface === 'home' || document.body.dataset.desktopSurface === 'goals'");
+  if (await evaluate("document.body.dataset.desktopSurface") !== "goals") {
     await click('[data-plugin-strip] [data-plugin-id="goals"]');
   }
   await waitFor("document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
@@ -104,7 +105,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   assert.equal(stacked.groups, 6);
   assert.equal(stacked.outcome, "none");
   assert.ok(stacked.overflowX === "hidden" || stacked.overflowX === "clip", "narrow kanban stacks groups instead of scrolling sideways " + JSON.stringify(stacked));
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
 });
 
 test("narrow stacked kanban only appears on the kanban view", { timeout: 90_000 }, async (t) => {

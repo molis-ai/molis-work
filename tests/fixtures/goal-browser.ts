@@ -8,17 +8,16 @@ import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { boardSnapshot } from "./goal-application.js";
 
 /** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
 const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
-  runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
   webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
@@ -83,14 +82,14 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       await rm(databasePath, { force: true });
       await rm(`${databasePath}-wal`, { force: true });
       await rm(`${databasePath}-shm`, { force: true });
-      seed(databasePath, projectId);
+      await seed(databasePath, projectId);
     }
   } else {
     await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-    seed(databasePath);
+    await seed(databasePath);
   }
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor, pluginFixtures,
+  localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...webOptions });
@@ -112,11 +111,18 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(projectId ?? DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  async function setViewport(width: number, height: number, mobile = false): Promise<void> {
+    // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
+    // Size this window for the current scenario before applying its layout and mobile emulation.
+    const { windowId } = await command<{ windowId: number }>("Browser.getWindowForTarget", { targetId });
+    await command("Browser.setWindowBounds", { windowId, bounds: { width, height } });
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+  }
   // The product shows tool names by default; these journeys measure content at a given width, so they
   // start from the icon rail unless a test chooses otherwise.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "try { if (localStorage.getItem('molis-work-navigation-labels') === null) localStorage.setItem('molis-work-navigation-labels', 'false'); } catch {}" }, sessionId);
@@ -191,7 +197,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         if (!element || element.contains(hit)) return null;
         const style = getComputedStyle(element), rect = element.getBoundingClientRect();
         return (hit?.outerHTML.slice(0, 400) ?? 'nothing') + ' (target: pointer-events ' + style.pointerEvents + ', visibility ' + style.visibility
-          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight + ')'; })()`);
+          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight
+          // Where the target sits in its scroll boxes: a click that scrolled nothing says which ancestor could not.
+          + ', ancestors ' + (() => { const boxes = []; for (let box = element.parentElement; box && boxes.length < 12; box = box.parentElement) {
+              const box_style = getComputedStyle(box); boxes.push(String(box.className || box.tagName).split(' ')[0] + '[overflow-y ' + box_style.overflowY + ', client ' + box.clientHeight + ', scroll ' + box.scrollHeight + ', top ' + Math.round(box.scrollTop) + ']'); }
+            return boxes.join(' > '); })() + ')'; })()`);
       if (hit !== null) throw new Error("Click target " + selector + " is covered by " + hit);
     }
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
@@ -251,5 +261,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

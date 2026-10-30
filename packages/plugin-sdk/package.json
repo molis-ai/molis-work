@@ -25,6 +25,22 @@
     "./diff-view": {
       "types": "./dist/diff-view.d.ts",
       "import": "./dist/diff-view.js"
+    },
+    "./oauth": {
+      "types": "./dist/oauth.d.ts",
+      "import": "./dist/oauth.js"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./page-globals": {
+      "types": "./dist/page-globals.d.ts",
+      "import": "./dist/page-globals.js"
     }
   },
   "files": [
@@ -55,17 +71,5 @@
     "@types/sanitize-html": "^2.16.1",
     "marked": "^18.0.11",
     "sanitize-html": "^2.17.7"
-  },
-  "molis-work": {
-    "path": "packages/plugin-sdk",
-    "kind": "foundation",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-fd3",
-      "goal-reorg-dv3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

@@ -1,5 +1,5 @@
 import {createPrologueTypeSafeProvider} from './typesafe-prologue.js';
-import {FUNCTIONS_DEFAULT_MODEL,type FunctionRecord} from '@molis-ai/molis-work-contracts/modules/functions';
+import {FUNCTIONS_DEFAULT_MODEL,type JudgmentRuleRecord} from '@molis-ai/molis-work-contracts/modules/functions';
 import {typeSafeCredential,typeSafeConfiguration} from './typesafe-connection.js';
 import type {AgentBuilderPorts} from '@molis-ai/molis-work-plugin-builder';
 /** The question the studio's designer asks Jev: pick one legal part for a function. */
@@ -12,7 +12,7 @@ export function selectionPorts(homeDirectory?:string){
   const credential=key();if(!credential)throw new Error('请在 Functions 设置中配置 TypeSafe Key');
   const provider=createPrologueTypeSafeProvider(homeDirectory,{resolveCredential:key,configuration:()=>process.env.TYPESAFE_API_KEY?.trim()?'env':homeDirectory?typeSafeConfiguration(homeDirectory):null});const started=performance.now(),now=new Date().toISOString();
   // A transient choice question: never listed, published or stored as a user function.
-  const record:FunctionRecord={id:question.key,name:'插件创作零件选择',status:'draft',version:null,instructions:question.instructions,scene_id:null,subject_kinds:[],scene_map:{},config_hash:'',last_preview:null,samples:[],published_at:null,created_at:now,updated_at:now,function_key:question.key,primitive:'choice',model:FUNCTIONS_DEFAULT_MODEL,criteria:question.candidates.map(c=>({key:c.key,description:c.description}))};
+  const record:JudgmentRuleRecord={id:question.key,name:'插件创作零件选择',status:'draft',version:null,instructions:question.instructions,scene_id:null,subject_kinds:[],scene_map:{},config_hash:'',last_preview:null,samples:[],published_at:null,created_at:now,updated_at:now,function_key:question.key,primitive:'choice',model:FUNCTIONS_DEFAULT_MODEL,criteria:question.candidates.map(c=>({key:c.key,description:c.description}))};
   const result=await provider.evaluate(credential,record,question.state);
   return {choice:result.choice,model:result.model,elapsedMs:Math.round(performance.now()-started),confidence:result.confidence};
  }};

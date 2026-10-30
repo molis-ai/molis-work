@@ -9,7 +9,7 @@ import { buildTestIndex } from "../scripts/affected-tests/index.mjs";
 import { discoverPackages, listFiles, namedChanges, readChanges, resolveBase } from "../scripts/affected-tests/repository.mjs";
 import { FULL_REGRESSION, I18N_TEST, UI } from "../scripts/affected-tests/rules.mjs";
 import { busyProcesses, parseProcessList, staleBuilds } from "../scripts/affected-tests/run.mjs";
-import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected } from "../scripts/affected-tests/select.mjs";
+import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected, selectorTokens } from "../scripts/affected-tests/select.mjs";
 import { holdsSchema, literalsOf, schemaChanged, schemaOf } from "../scripts/affected-tests/storage.mjs";
 
 // specs/repository-anti-corruption §4.7 (roadmap W2-17): scripts/affected-tests.mjs turns the 2026-10-03 validation-frequency
@@ -288,6 +288,41 @@ test("a package imported by more tests than the limit is narrowed to the readers
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 3, wide: true })).filter((file) => file.startsWith("tests/beta-user")).length, 3);
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 4 })).filter((file) => file.startsWith("tests/beta-user")).length, 0, "5 tests import it or are named for it");
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 5 })).filter((file) => file.startsWith("tests/beta-user")).length, 3, "the limit is inclusive");
+});
+
+// ---- stylesheets and contract fields ---------------------------------------------------------------------------------------------
+test("a changed stylesheet selects the tests that assert its selectors, custom properties and attributes by writing them", () => {
+  put("plugins/native/alpha/src/styles/alpha-skin.ts", `export const ALPHA_SKIN = ${BT}.alpha-skin-card { gap: var(--alpha-skin-gap); }\n[data-alpha-skin-row] { color: var(--alpha-skin-line); }${BT};\n`);
+  put("tests/stylesheet-card.test.ts", `test("x", () => { assert.match(css, /\\.alpha-skin-card\\s*\\{/); });\n`);
+  put("tests/stylesheet-gap.test.ts", `test("x", () => { assert.match(css, /--alpha-skin-gap/); });\n`);
+  put("tests/stylesheet-row.test.ts", `test("x", () => { assert.match(css, /data-alpha-skin-row/); });\n`);
+  const result = select(["plugins/native/alpha/src/styles/alpha-skin.ts"]);
+  assert.ok(reasonsOf(result, "tests/stylesheet-card.test.ts").includes("reads-selector"), "a class the stylesheet names");
+  assert.ok(reasonsOf(result, "tests/stylesheet-gap.test.ts").includes("reads-selector"), "a custom property it names");
+  assert.ok(reasonsOf(result, "tests/stylesheet-row.test.ts").includes("reads-selector"), "an attribute it names");
+  assert.equal(picked(result).includes("tests/unrelated.test.ts"), false);
+  const tokens = selectorTokens(".alpha-skin-card, .x { --alpha-skin-gap: 1px; }");
+  assert.ok(tokens.includes(".alpha-skin-card") && tokens.includes("--alpha-skin-gap"), tokens.join(" "));
+  assert.equal(tokens.some((token) => token === ".x"), false, "a one-character name is too short");
+});
+
+test("a selector written into more tests than the symbol limit is too common to tell its readers apart, and --wide selects it", () => {
+  put("plugins/native/alpha/src/styles/alpha-skin.ts", `export const ALPHA_SKIN = ${BT}.alpha-common-chip { gap: 1px; }${BT};\n`);
+  for (const suffix of ["a", "b", "c"]) put(`tests/stylesheet-common-${suffix}.test.ts`, `test("${suffix}", () => { assert.match(css, /\\.alpha-common-chip/); });\n`);
+  const narrow = select(["plugins/native/alpha/src/styles/alpha-skin.ts"], { symbolLimit: 2 });
+  assert.equal(picked(narrow).some((file) => file.startsWith("tests/stylesheet-common-")), false);
+  assert.ok(narrow.notes.some((text) => text.includes("too common") && text.includes(".alpha-common-chip (3)")), narrow.notes.join("\n"));
+  const wide = select(["plugins/native/alpha/src/styles/alpha-skin.ts"], { symbolLimit: 2, wide: true });
+  assert.equal(picked(wide).filter((file) => file.startsWith("tests/stylesheet-common-")).length, 3);
+});
+
+test("a changed contract field selects the tests that name it, and a common word does not", () => {
+  put("packages/contracts/src/platform/plugin.ts", "export interface AlphaTurn {\n  steer?: string;\n  revision_key?: string;\n  options?: string;\n}\n");
+  put("tests/turn-reader.test.ts", `test("x", () => { const turn = { steer: "s", revision_key: "k" }; return turn; });\n`);
+  put("tests/options-reader.test.ts", `test("x", () => { const options = 1; return options; });\n`);
+  const result = select(["packages/contracts/src/platform/plugin.ts"]);
+  assert.ok(reasonsOf(result, "tests/turn-reader.test.ts").includes("uses-field"), "it names revision_key and steer");
+  assert.equal(picked(result).includes("tests/options-reader.test.ts"), false, "options is a word of many files");
 });
 
 // ---- the README --------------------------------------------------------------------------------------------------------------------
@@ -1162,7 +1197,7 @@ const ASSEMBLY = [
   "apps/local-host/src/home-plugins.ts", "apps/workbench/src/home-plugin-page.ts",
   "apps/local-host/src/project-host.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/local-host.ts", "apps/local-host/src/project-capabilities.ts",
   "apps/local-host/src/web-server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/mcp-server.ts",
-  "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/home-side.ts", "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/workbench-renderer.ts",
+  "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/home-side.ts", "apps/local-host/src/workbench-renderer.ts",
   "apps/workbench/src/builtin-plugins.ts", "apps/workbench/src/browser-assets.ts", "apps/workbench/src/document-shell.ts", "apps/workbench/src/shell-page-renderer.ts",
   "apps/workbench/src/immersive-shell.ts", "apps/workbench/src/page-assets.ts", "apps/workbench/src/plugin-catalog.ts", "apps/workbench/src/plugin-workbench.ts",
   "apps/workbench/src/renderer.ts", "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/initialization.ts",
@@ -1220,7 +1255,7 @@ test("every file a README table of local-host or workbench calls 装配 or 组�
 // client program scripts/client/plugin-workbench.ts was once credited to the workbench README, which names src/plugin-workbench.ts).
 /** The files a README names by file name, with the text of that README that names it (a link in a table, a code span in the prose, a link to the other package). */
 const NAMED_BY_README: { file: string; readme: string; text: string }[] = [
-  ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "home-side", "goal-project-application"]
+  ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "home-side"]
     .map((name) => ({ file: `apps/local-host/src/${name}.ts`, readme: "apps/local-host", text: `[src/${name}.ts](src/${name}.ts)` })),
   ...["ui-composition", "shell-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `[src/${name}.ts](src/${name}.ts)` })),
@@ -1262,7 +1297,7 @@ test("the assembly list is the README-named files, the hub-table files and the o
   assert.match(readFileSync(path.join(realRoot, "AGENTS.md"), "utf8"), /apps\/local-host\/src\/project-plugins\.ts/);
   // The account in section 6.1 and open point 1 of section 12 use these numbers.
   const named = NAMED_BY_README.length, hub = NOT_NAMED.hub.length, hosts = ASSEMBLY.filter((file) => file.startsWith("apps/local-host")).length;
-  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [18, 7, 1, 26, 13]);
+  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [17, 7, 1, 25, 12]);
   assert.ok(guide.includes(`共 ${ASSEMBLY.length} 个文件`), "section 6.1 gives the size of the list");
   assert.ok(guide.includes(`两个包 README 按文件名点到的 ${named} 个`), "section 6.1 gives the README-named count");
   assert.ok(guide.includes(`第 2 节枢纽表里把东西接在一起的 ${hub} 个`), "section 6.1 gives the hub-table count");

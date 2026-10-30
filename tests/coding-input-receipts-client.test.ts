@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { createUiRequest } from "@molis-ai/molis-work-ui-host";
 import { pageText } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7 (stage 1d): what the Coding page shows for a supplement it sends to a round
@@ -20,12 +21,11 @@ class Node {
 }
 
 type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" | "queued" } };
-function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { q?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
+function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { find?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
-    document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
-    L: pageText("zh"), // the main script's translator, which the inlined factory uses
+    document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` },
   }) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
     act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
@@ -33,17 +33,43 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
   const paths: string[] = [];
   let refreshed = 0;
   const api = (path: string, _method: string, body: Record<string, unknown>) => { paths.push(path); sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => { refreshed++; }, q: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
+  return { ui: factory({ api, translate: pageText("zh"), refresh: () => { refreshed++; }, q: () => null, find: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
 }
+/** A lost answer, as the page's request client reports it: the request may or may not have arrived. */
+const lostAnswer = () => Object.assign(new Error("ui_host"), { code: "ui_host.outcome_unknown" });
 /** The round's record before it shows the supplement. */
 const nothing = { turns: [] };
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
+
+test("the shared request helper keeps a failed supplement's original identity until the person retries it", async () => {
+  for (const failure of ["network", "malformed"] as const) {
+    let attempts = 0;
+    const request = createUiRequest({ origin: "http://127.0.0.1", token: () => "fixture", newKey: () => "request-key", translate: pageText("zh"),
+      fetch: async () => {
+        if (++attempts === 1) {
+          if (failure === "network") throw new TypeError("Failed to fetch");
+          return new Response("not JSON", { status: 200 });
+        }
+        return Response.json(await taken("run", true));
+      } });
+    const { ui, sent } = receipts(body => request<Reply>("/sessions/s/control", { method: "POST", body }));
+    await assert.rejects(ui.steer("s", "r", "保留原输入", "interrupt"), /没确认送到/u);
+    assert.equal(ui.bubble("s", nothing)!.dataset.lost, "1");
+    assert.equal(attempts, 1, "an unknown write is not replayed automatically");
+    assert.equal(await ui.steer("s", "r", "保留原输入", "interrupt"), "之前已送到，没有重复发送。");
+    assert.deepEqual(sent[1], sent[0], "the explicit retry keeps the entire original request");
+    assert.equal(ui.bubble("s", nothing), null);
+  }
+});
 
 test("RC-10: a supplement goes with its send mode and a key, and the page says what each mode does, in the runtime's words", async () => {
   const { ui, sent } = receipts(() => taken());
   assert.equal(await ui.steer("s", "r", "别改 fixture", "next-boundary"), "已送达，当前回复或这批工具结束后交给 AI。");
   assert.match(await ui.steer("s", "r", "改用新接口", "interrupt"), /正在写的回复已丢掉.*已执行的操作不撤销/u, "interrupting says what it costs");
   assert.deepEqual(sent.map(body => [body.kind, body.run_id, body.mode, body.key]), [["steer", "r", "next-boundary", "send.u1"], ["steer", "r", "interrupt", "send.u2"]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.map(body => body.original_input))), [
+    { input_id: "u1", text: "别改 fixture", use: "supplement" }, { input_id: "u2", text: "改用新接口", use: "supplement" },
+  ], "each protected request carries the complete words under the same input identity as its retry key");
   const queued = receipts(() => taken("queued"));
   assert.equal(await queued.ui.steer("s", "r", "顺便改文档", "after-run"), "已存好，下一轮开始时带上。");
   assert.equal(await queued.ui.steer("s", "r", "还要这个", "next-boundary"), "这一轮刚结束，已存好，下一轮开始时带上。", "a supplement that missed its round never reads as taken by it");
@@ -54,7 +80,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   let attempt = 0, release!: () => void;
   const { ui, sent } = receipts(() => {
     attempt++;
-    if (attempt === 1) return Promise.reject(new TypeError("Failed to fetch"));
+    if (attempt === 1) return Promise.reject(lostAnswer());
     return new Promise<Reply>(resolve => { release = () => resolve({ receipt: { input_id: "steer-1", replayed: true, delivered: "run" } }); });
   });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"), /没确认送到：连接断了，或回复读不出。/u);
@@ -68,12 +94,13 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.notEqual(sending, lost);
   assert.match(sending.text, /发送中…/u);
   assert.equal(sent[1]!.key, sent[0]!.key, "the same words in the same mode are the same supplement");
+  assert.deepEqual(sent[1]!.original_input, sent[0]!.original_input, "a lost answer cannot mint a second original");
   release();
   assert.equal(await again, "之前已送到，没有重复发送。");
   assert.equal(ui.bubble("s", nothing), null, "once the Host has it, the round's own record shows it");
   // Changed words, or another mode, are a new supplement; so is anything sent after a refusal.
   let calls = 0;
-  const changed = receipts(() => ++calls === 1 ? Promise.reject(new TypeError("offline")) : taken());
+  const changed = receipts(() => ++calls === 1 ? Promise.reject(lostAnswer()) : taken());
   await assert.rejects(changed.ui.steer("s", "r", "看日志", "next-boundary"));
   await changed.ui.steer("s", "r", "看日志", "interrupt");
   assert.notEqual(changed.sent[1]!.key, changed.sent[0]!.key);
@@ -86,7 +113,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
 
 test("RC-17: after a lost answer, once the run's record shows that key, the bubble goes and the page says once that it arrived", async () => {
   const landed: string[] = [];
-  const { ui, sent } = receipts(() => Promise.reject(new TypeError("Failed to fetch")), { landed: (one, said) => landed.push(one.text + "｜" + said) });
+  const { ui, sent } = receipts(() => Promise.reject(lostAnswer()), { landed: (one, said) => landed.push(one.text + "｜" + said) });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"));
   const key = sent[0]!.key;
   assert.ok(ui.bubble("s", { turns: [{ kind: "user", steer: { id: "steer-2", state: "received", key: "send.other" } }] }), "another supplement is not this one");
@@ -112,7 +139,7 @@ test("RC-18, D38: what waits for the next round is in the shared tray; Coding ha
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {
   const marked = async (mode: string, delivered: "run" | "queued" = "run", replayed = false) => {
     const node = new Node();
-    await receipts(() => taken(delivered, replayed), { q: selector => selector === ".coding-turn.is-writing" ? node : null }).ui.steer("s", "r", "改用新接口", mode);
+    await receipts(() => taken(delivered, replayed), { find: selector => selector === ".coding-turn.is-writing" ? node : null }).ui.steer("s", "r", "改用新接口", mode);
     return node.classes.has("is-dropped") && /这段回复已丢掉（你打断了它）/u.test(node.text);
   };
   assert.equal(await marked("interrupt"), true);
@@ -128,7 +155,7 @@ test("RCPT-326: from a receipt, the page takes a supplement back and sends a cor
     async () => ({ accepted: true, withdrawn: { input_id: "steer-1", from: "queued" } }),
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "run" } }),
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "queued" } }),
-    async () => { throw new TypeError("Failed to fetch"); },
+    async () => { throw lostAnswer(); },
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: true, delivered: "run" } }),
   ];
   const { ui, sent, paths, refreshed } = receipts(() => replies.shift()!() as Promise<Reply>);
@@ -140,8 +167,9 @@ test("RCPT-326: from a receipt, the page takes a supplement back and sends a cor
   await assert.rejects(act.correct("steer-1", "只测失败路径", "k1"), /没确认送到：再按一次，同一条不会重复。/u);
   assert.equal(await act.correct("steer-1", "只测失败路径", "k1"), "之前已送到，没有重复发送。");
   assert.deepEqual(JSON.parse(JSON.stringify(sent.slice(0, 3))), [{ kind: "withdraw", run_id: "run-1", input_id: "steer-1" }, { kind: "withdraw", run_id: "run-1", input_id: "steer-1" },
-    { kind: "steer", run_id: "run-1", text: "只测失败路径", about: "steer-1", key: "send.k1" }], "RCPT-326 the person's words, the input they correct, and the receipt's key");
+    { kind: "steer", run_id: "run-1", text: "只测失败路径", about: "steer-1", key: "send.k1", original_input: { input_id: "k1", text: "只测失败路径", use: "supplement" } }], "RCPT-326 the person's words, the input they correct, and the receipt's key");
   assert.ok(sent.slice(2).every(body => body.key === "send.k1"), "RCPT-326 sent again, the same key");
+  for (const body of sent.slice(3)) assert.deepEqual(body.original_input, sent[2]!.original_input, "correction retries preserve the original, too");
   assert.ok(paths.every(path => path === "/sessions/s%201/control"));
   assert.equal(refreshed(), 6, "the page reads the round again after each");
 });

@@ -17,24 +17,6 @@ import {
   type ArtifactsServiceOptions,
 } from "./service.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-artifacts",
-  packagePath: "modules/artifacts",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/artifacts",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ar1","goal-reorg-ar3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "artifacts.identity.v1",
-    "artifacts.version-repository.v1",
-    "artifacts.opaque-content.v1",
-    "artifacts.compatibility.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;
   /**
@@ -75,6 +57,53 @@ export class ProcessItemsModule implements ProcessItemsApplicationApi {
   }
 }
 
+/** The 成果库 and the process items of one project library. */
+export interface ProjectVersionStores {
+  readonly artifacts: ArtifactsModule;
+  readonly processItems: ProcessItemsModule;
+}
+
+const openStores = new WeakMap<object, { stores: ProjectVersionStores; ports: ArtifactsModuleOptions }>();
+
+/**
+ * The one pair of stores a project library has: the same library gives the same pair however many callers ask (the project runtime,
+ * the installed-plugin host, Feed), so no two copies keep their own event hooks or checks. The first caller's ports stay; a later
+ * caller only fills in a port the earlier ones left out (the clock, the declared-type check).
+ */
+export function projectVersionStores(options: ArtifactsModuleOptions): ProjectVersionStores {
+  const open = openStores.get(options.db);
+  if (open) {
+    Object.assign(open.ports, Object.fromEntries(Object.entries(options).filter(([key, value]) => value !== undefined && Reflect.get(open.ports, key) === undefined)));
+    return open.stores;
+  }
+  const ports = { ...options };
+  const late: Omit<ArtifactsModuleOptions, "db" | "homeOwner"> = {
+    now: () => (ports.now ?? (() => new Date().toISOString()))(),
+    appendEvent: event => ports.appendEvent(event),
+    eventCursor: projectId => ports.eventCursor(projectId),
+    declared: (producer, type, kind) => ports.declared?.(producer, type, kind) ?? null,
+  };
+  const stores = {
+    artifacts: new ArtifactsModule({ db: options.db, ...(options.homeOwner === undefined ? {} : { homeOwner: options.homeOwner }), ...late }),
+    processItems: new ProcessItemsModule({ db: options.db, ...late }),
+  };
+  openStores.set(options.db, { stores, ports });
+  return stores;
+}
+
+/**
+ * A pair of stores of their own on a library, never the shared pair above: the Host opens it for a restore from a bundle, whose
+ * `declared` check is the only one that takes a version from a producer the project has not installed (S-81).
+ */
+export function restoreVersionStores(options: ArtifactsModuleOptions): ProjectVersionStores {
+  const { homeOwner: _homeOwner, ...rest } = options;
+  return { artifacts: new ArtifactsModule(options), processItems: new ProcessItemsModule(rest) };
+}
+
+export { createPluginArtifactClient } from "./plugin-client.js";
+export { createPluginArtifactOperations, type PluginArtifactOperationsInput } from "./plugin-operations.js";
+export { pluginArtifactErrors } from "./plugin-errors.js";
+
 export {
   artifactContentDigest,
   artifactContentSize,
@@ -104,3 +133,19 @@ export {
   type ArtifactsServiceOptions,
   type VersionStoreKind,
 } from "./service.js";
+
+export { ARTIFACTS_HOST_PRODUCER } from "./artifact-host-producer.js";
+export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_PRODUCER } from "./artifact-provider.js";
+export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./artifact-actions.js";
+export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./artifact-actions.js";
+export { artifactsErrors } from "./artifact-errors.js";
+export { openArtifactProjectReference } from "./artifact-project-reference.js";
+export type { ArtifactProjectReferencePorts } from "./artifact-project-reference.js";
+export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, requireArtifactAnalysisRecord, artifactAnalysisContext } from "./artifact-browser.js";
+export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./artifact-browser.js";
+export { importArtifactDocument, documentErrors, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./artifact-document-import.js";
+export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifactDocument, ExternalDocumentSource, ModelRequired, OfferedOriginal } from "./artifact-document-import.js";
+export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, artifactsProjectData, openArtifactOriginal, storeArtifactOriginal } from "./artifact-original-store.js";
+export type { StoredArtifactOriginal } from "./artifact-original-store.js";
+export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";
+export { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./artifact-link-kinds.js";

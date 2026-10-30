@@ -1,5 +1,5 @@
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "./contract.js";
 import { pptErrors } from "./error.js";
 import type { PptStores } from "./store.js";
 
@@ -45,12 +45,12 @@ export function slidesFromMarkdown(markdown: string, fallbackTitle: string): { t
     const bullet = clean(line.replace(/^([-*+]|\d+[.)])\s+/u, "").replace(/^\[[ xX]\]\s+/u, ""));
     if (!bullet) continue;
     if (current.bullets.length >= 6 && !/^#{1,3}\s/u.test(raw)) { current = { title: "", bullets: [], notes: [] }; slides.push(current); }
-    current.bullets.push(bullet.slice(0, 200));
+    current.bullets.push([...bullet].slice(0, 200).join(""));
   }
   const chosen = slides.filter(slide => slide.title || slide.bullets.length || slide.notes.length).slice(0, 40);
   if (!chosen.length) throw pptErrors.invalid("收到的内容里没有可以做成幻灯片的文字");
-  return { title: (title || fallbackTitle || "未命名演示稿").slice(0, 80),
-    slides: chosen.map(slide => ({ title: slide.title.slice(0, 80), bullets: slide.bullets.slice(0, 12), notes: slide.notes.join("\n").slice(0, 2000) })) };
+  return { title: [...(title || fallbackTitle || "未命名演示稿")].slice(0, 80).join(""),
+    slides: chosen.map(slide => ({ title: [...slide.title].slice(0, 80).join(""), bullets: slide.bullets.slice(0, 12), notes: [...slide.notes.join("\n")].slice(0, 2000).join("") })) };
 }
 
 export function createPptContentHandlers(stores: PptStores): ActionHandlerBinding[] {

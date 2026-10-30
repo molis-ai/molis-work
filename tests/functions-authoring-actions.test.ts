@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FunctionRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
@@ -137,15 +137,14 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     const http = async (path: string, body?: unknown, status = 200) => {
       const response = await fetch(origin + path, { method: body === undefined ? "GET" : "POST", body: body === undefined ? undefined : JSON.stringify(body),
         headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": crypto.randomUUID() } });
-      const payload = await response.json(); assert.equal(response.status, status, JSON.stringify(payload)); return payload as { function: FunctionRecord; code?: string };
+      const payload = await response.json(); assert.equal(response.status, status, JSON.stringify(payload)); return payload as { function: JudgmentRuleRecord; code?: string };
     };
     const client = host.homeActionClient(), actions = bindActionClient(client, () => owner);
     await assert.rejects(client.invoke({ ...owner, permissions: ["functions:invoke"] }, authoring.create, {}), { code: "actions.forbidden" });
     await assert.rejects(client.invoke(owner, authoring.create, { primitive: "bogus" }), { code: "actions.input_invalid" });
-    const published: FunctionRecord[] = [];
+    const published: JudgmentRuleRecord[] = [];
     for (const primitive of ["choice", "noul", "score"] as const) {
-      // The legacy URL is only a thin spelling alias, including mutation paths.
-      const draft = (await http("/api/plugins/functions", { primitive, function_key: `auth_${primitive}`, name: `Rule ${primitive}` })).function;
+      const draft = (await http("/api/functions", { primitive, function_key: `auth_${primitive}`, name: `Rule ${primitive}` })).function;
       assert.equal((await actions.invoke(authoring.get, { id: draft.id })).function.function_key, draft.function_key);
       const criteria = primitive === "choice" ? [{ key: "yes", description: "yes" }, { key: "no", description: "no" }]
         : primitive === "score" ? ["low", "high"] : { true_description: "yes", false_description: "no" };
@@ -176,8 +175,8 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     second = await serveTestHost(null, { home, host });
     const reopened = bindActionClient(host.homeActionClient(), () => owner);
     for (const live of published) assert.deepEqual((await reopened.invoke(authoring.get, { id: live.id })).function, live);
-    const store = openFunctionsStore(home);
-    try { assert.equal(store.listJudgments().filter(row => row.function_key.startsWith("auth_")).length, 3); } finally { store.close(); }
+    const library = createFunctionsService({ home, credential: () => null });
+    try { assert.equal(library.listJudgments().filter(row => row.function_key.startsWith("auth_")).length, 3); } finally { library.close(); }
     await second.grant("runtime:codex", null, [functionsActions.invoke]);
     for (const projectId of ["client-project-a", "client-project-b"]) {
       const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", {
@@ -188,7 +187,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
         assert.equal(result.data.choice, "yes");
       } finally { await mcp.close(); }
     }
-    const history = openFunctionsStore(home);
+    const history = createFunctionsService({ home, credential: () => null });
     try {
       assert.deepEqual(history.listJudgments().filter(row => row.subject.project_id).map(row => row.subject.project_id).sort(), ["client-project-a", "client-project-b"]);
     } finally { history.close(); }

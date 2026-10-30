@@ -22,6 +22,7 @@ import {
   renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkWorkbenchWithPluginStylesheets,
 } from "./workbench-renderer-fixture.js";
 
 // Soft Workbench (specs/archive/soft-workbench-rollout): every layer takes its base tokens from one helper.
@@ -53,10 +54,11 @@ test("visual foundation enhances visible selects onto mw-menu", () => {
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /className = "mw-menu mw-select-picker__menu"/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /dataset\.mwSelectSkip === "true"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-select-picker__menu/);
-  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(workbench, /\.mw-select-picker \{/);
   assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
-  assert.match(workbench, /\[data-work-surface="feed"\]/);
+  // RAC-705 (PG-075): every work surface gets the one neutral tint; no selector is written for a plugin.
+  assert.match(workbench, /\[data-work-surface\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
   assert.match(workbench, /@keyframes craft-rise \{/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /--seg-tint/);
 });
@@ -274,7 +276,7 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   // The Goal-era Inbox/decision page has no producer any more; its skin rules are gone with it.
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.inbox-workspace|\.inbox-item\b|\.decision-(?:empty|summary|groups|owner|stack)\b|\.feed-decision-work\b/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.desktop-titlebar-drag \{ -webkit-app-region: drag; user-select: none; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\[data-desktop-surface\]:not\(\[data-desktop-surface="goal"\]\)[\s\S]*\.tui-pane \{ display: none !important; \}/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\[data-desktop-surface\]:not\(\[data-desktop-surface="goals"\]\) :is\(\.tui-resizer, \.tui-pane\) \{ display: none !important; \}/);
   // The Goal document left the old skin; the trash page keeps its desktop workspace height in its own sheet.
   assert.match(renderMolisWorkWorkbenchStylesheet(), /\.trash-goal-document \.trash-goal-workspace \{ min-height: max\(420px, calc\(100dvh - 340px\)\); \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-kicker \.goal-status \{[\s\S]*min-height: 26px;[\s\S]*padding: 4px 8px;[\s\S]*gap: 8px;[\s\S]*border-radius: 8px;/); // padding and glyph gap on the 4/8 scale
@@ -448,6 +450,8 @@ test("plugin list titles yield at the squeeze edge", () => {
   // A kind is not a state, so kind labels are neutral (spec → 第三轮 · 颜色: status colours only for status).
   assert.match(workbench, /\.plugin-stage-kind\[data-kind\] \{ --status-tone: var\(--ink-soft\); \}/);
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);
+  // RAC-700: the stage's kind chip has no row per plugin (they all resolved to --ink-soft); one neutral rule covers every kind.
+  assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
   assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
   assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
   assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);

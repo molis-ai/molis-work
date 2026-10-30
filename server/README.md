@@ -1,6 +1,5 @@
 # Molis Work Server
 
-Status: `partial`. Contract: `@molis-ai/molis-work-contracts/platform/app-host`.
 Workspace registration: `goal-reorg-f2`.
 
 公共身份、设备、项目访问、接续回执与事件传输。`server` 是可嵌入的核心包，`apps/server` 是本地可部署启动器；共享同一份实现。聊天领域由 `src/im` 提供。服务不启动模型运行时，所有业务读写调用现有 Action Host。
@@ -40,7 +39,7 @@ node apps/server/dist/main.js authorize --state /absolute/server-state --member 
 
 ## 接续与冲突
 
-桌面本机仍是事实来源：Goal 事实由 Goals 保存（`modules/goals` 持有，Goals 插件提供动作），页面只是投影。页面逐字段投影显式选中的目标，不返回完整合约、私人历史或 Home。手机仅可记录进展、下一步和下一位接手人，不会提交用户决定、启动 Agent 或自动完成 Goal。
+桌面本机仍是事实来源：Goal 事实由 Goals 保存（`plugins/native/goals` 包里的 Goal 模块持有，Goals 插件提供动作），页面只是投影。页面逐字段投影显式选中的目标，不返回完整合约、私人历史或 Home。手机仅可记录进展、下一步和下一位接手人，不会提交用户决定、启动 Agent 或自动完成 Goal。
 
 命令先保存原输入和稳定 command id，再调用原 Goal 进展动作。收到成功才显示已保存。结果未知时先查询原 actor 的进展回执；没有回执时才按原键、原内容、原 cursor 重试。Goal 原业务事务负责最终幂等。版本冲突保留草稿，用户查看最新状态后用新命令提交。该保证只适用于这项有业务回执的动作，不适用于任意 Action。
 
@@ -90,7 +89,7 @@ QA 工具只写系统临时目录中的专用子目录；启动前核对真实�
 - 不负责：Goal 或 Artifact 事实、模型执行、独立的 App 启动器。
 - 错误由 `im` 归属：设备身份、接续与传输分别使用 `im.identity.*`、`im.continuity.*`、`im.server.*`，群聊保留 `im.*`。来自 Goals 或 Host 的拒绝保留原提供方的错误码；历史持久码按防腐维护八一次性处理，不在读取时改写。
 - 公开入口：`@molis-ai/molis-work-server`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：Module 只依赖合同与平台包，不依赖 Horizontal Service、App 或 Plugin（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（共同错误的 HTTP 出口）。方向：Module 只依赖合同与平台包，不依赖 Horizontal Service、App 或 Plugin（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 项目访问在每次读取、操作前和返回前重查；已经发生的事实不会因撤权被伪装成未发生。
   - 控制令牌不发到手机，也不把本机 Host 暴露到公网；令牌文件权限 0600，不写日志。
@@ -98,7 +97,7 @@ QA 工具只写系统临时目录中的专用子目录；启动前核对真实�
   - 手机只能记录进展、下一步和接手人，不提交用户决定、不启动 Agent、不自动完成 Goal；最终幂等归 Goal 业务事务。
   - 私人版本不原地改成共享；邀请前被选中的 Artifact 必须已是 `team_project` 版本。
   - `mw_*`、`im_*` 表只由本包读写：宿主的 IM 挂载（`apps/local-host/src/im-server.ts`）与 `apps/server` 启动器用 `Identity`、`ContinuityService` 的方法（`roleOf`、`hasMember`、`memberAccess`、`projectOwner`、`closeProjectsExcept`），不写 SQL（`scripts/gates/table-owners.mjs`）。
-  - Home 里的库 `{home}/server/server.sqlite`（本机「讨论」页签用它）是用户内容，登记在 [`docs/system/HOME-DATA.md`](../docs/system/HOME-DATA.md)：必备份，库里有明文的房间邀请令牌（`im_rooms.invite_token`），副本按密钥对待；`uninstall --purge-user-data` 经 `PERSONAL_HOME_SQLITE_STORES` 的 `server` 清除，普通卸载保留。改库的路径、文件名或版本，同一个 PR 改那一行、那份名单和 `docs/releases/CHECKLIST.md` 的版本表。
+  - Home 讨论库 `{home}/server/server.sqlite` 是当前基线 v2，属于用户内容，由 `homeStores()` 登记（[HOME-DATA](../docs/system/HOME-DATA.md)）。普通卸载保留，明确 purge 才清；路径、版本与清除规则改变时同步登记和发布 CHECKLIST。邀请仅存 SHA-256，回执不含 token/path/url；安全 GET 不生成或更换。显式生成/更换与重放都先检查当前 owner，较旧回执不会重新激活旧令牌。v1 仅经离线维护重建，不在读取时转换；存在 `.invite-maintenance.json` 时带码拒绝打开。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-server run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-http.test.ts tests/cross-device-launcher.test.ts tests/cross-device-gateway.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts tests/server-database-baseline.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-http.test.ts tests/cross-device-launcher.test.ts tests/cross-device-gateway.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts tests/server-database-baseline.test.ts tests/security-invariants-im-invites.test.ts tests/im-invite-maintenance.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

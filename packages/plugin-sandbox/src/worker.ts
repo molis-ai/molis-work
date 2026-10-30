@@ -1,12 +1,17 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxHostMessage, SandboxJson, SandboxOperations, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
+/** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
+const ORIGINAL_FILE_BYTES = 32 * 1024 * 1024;
+const ORIGINAL_PART_BYTES = 256 * 1024;
 const send = (value: unknown) => write(JSON.stringify(value) + '\n');
 const pending = new Map<string, { resolve: (value: SandboxJson) => void; reject: (error: Error) => void }>();
 let sequence = 0;
 /** What crosses the channel is JSON; the Host checks its shape before drawing it. */
 const json = (value: unknown) => value as SandboxJson;
+/** What the Host answered, as the type the SDK promises; the Host checked its shape before it crossed. */
+const answer = <T>(call: Promise<SandboxJson>) => call as Promise<T>;
 let active: string | undefined;
 let buffer = '';
 const bundleUrl = process.argv[2]!;
@@ -36,6 +41,57 @@ function sdk(callId: string): SandboxSdk {
       get: (sql, parameters) => invoke('projectDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,
       all: (sql, parameters) => invoke('projectDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
       transaction: statements => invoke('projectDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
+    },
+    homeDatabase: {
+      get: (sql, parameters) => invoke('homeDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,
+      all: (sql, parameters) => invoke('homeDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
+      transaction: statements => invoke('homeDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
+    },
+    connections: {
+      request: (slot, request) => answer<SandboxConnectionResponse>(invoke('connections.request', [slot, json(request)])),
+      describe: (slot, record) => answer<SandboxConnectionDescription>(invoke('connections.describe', [slot, record ?? null])),
+      release: async (slot, record) => { await invoke('connections.release', [slot, record]); },
+    },
+    materials: {
+      imageTextAvailable: () => answer<boolean>(invoke('materials.imageTextAvailable', [])),
+      readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),
+      extract: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['extract']>>>(invoke('materials.extract', [json(file), json(request ?? {})])),
+      readSource: url => answer<Awaited<ReturnType<SandboxSdk['materials']['readSource']>>>(invoke('materials.readSource', [url])),
+      readLocalPage: url => answer<Awaited<ReturnType<SandboxSdk['materials']['readLocalPage']>>>(invoke('materials.readLocalPage', [url])),
+      claimOriginal: async recordKey => { await invoke('materials.claimOriginal', [recordKey]); },
+      releaseOriginal: async recordKey => { await invoke('materials.releaseOriginal', [recordKey]); },
+      // The whole file in parts of at most 256 KiB, each one a call the Host answers on its own; the revision of the first part is passed back with
+      // every later one, so a file that changes in between is refused by the Host, not read as a mixture of two files.
+      readOriginal: async (recordKey, request) => {
+        const limit = request?.maxBytes ?? ORIGINAL_FILE_BYTES;
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > ORIGINAL_FILE_BYTES) throw Object.assign(new Error('maxBytes is 1 byte to 32 MiB'), { code: 'sandbox.invalid_request' });
+        const parts: Buffer[] = [];
+        let offset = 0, revision: string | null = null;
+        for (;;) {
+          const part: SandboxOriginalPart = await answer<SandboxOriginalPart>(invoke('materials.readOriginalRange', [recordKey, offset, ORIGINAL_PART_BYTES, revision]));
+          if (part.size > limit) throw Object.assign(new Error('The original file is larger than the limit'), { code: 'material.original.too_large' });
+          revision = part.revision;
+          if (part.byte_length) parts.push(Buffer.from(part.data_base64, 'base64'));
+          offset += part.byte_length;
+          if (!part.byte_length || offset >= part.size) return { bytes: Buffer.concat(parts) };
+        }
+      },
+    },
+    projects: { exist: ids => answer<Readonly<Record<string, boolean>>>(invoke('projects.exist', [json(ids)])) },
+    ownerFiles: {
+      stat: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['stat']>>>(invoke('ownerFiles.stat', [path])),
+      list: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['list']>>>(invoke('ownerFiles.list', [path])),
+      read: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['read']>>>(invoke('ownerFiles.read', [path])),
+      write: async changes => { await invoke('ownerFiles.write', [json(changes)]); },
+    },
+    model: {
+      choices: () => answer<SandboxModelChoice[]>(invoke('model.choices', [])),
+      availability: selection => answer<SandboxModelAvailability>(invoke('model.availability', [selection === undefined ? null : json(selection)])),
+      complete: request => answer<SandboxModelResult>(invoke('model.complete', [json(request)])),
+    },
+    background: {
+      start: (operation, input) => invoke('background.start', [operation, json(input)]) as Promise<string>,
+      cancel: id => invoke('background.cancel', [id]) as Promise<boolean>,
     },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,

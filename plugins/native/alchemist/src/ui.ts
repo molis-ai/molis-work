@@ -1,11 +1,11 @@
-import type { UiContribution, UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import type { UiContribution, UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 export const ALCHEMIST_UI_CONTRIBUTION_ID = "io.molis.work.native.alchemist.ui.v1";
 export type AlchemistUiSurface = "directory" | "workbench";
 export interface AlchemistUiPrimitives { escape(value: unknown): string; text(value: string, values?: Record<string,string|number>): string }
 export interface AlchemistUiModel { readonly primitives: AlchemistUiPrimitives }
-export const alchemistUiDescriptor: UiContributionDescriptor = {
-  contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.alchemist", kind: "primary-page", navigation_id: "alchemist", label: "炼金术士",
+export const alchemistUiDescriptor: UiContributionDeclaration = {
+  contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, kind: "primary-page", navigation_id: "alchemist", label: "炼金术士",
   surfaces: [{surface_id:"directory",target_slot_id:"workbench.directory",format:"declarative-html"},{surface_id:"workbench",target_slot_id:"workbench.main",format:"declarative-html"}], slots: [],
 };
 export const alchemistUiContribution: UiContribution<AlchemistUiModel> = { descriptor: alchemistUiDescriptor, render(request) { return request.surface === "directory" ? "" : renderAlchemistWorkbench(request.model); } };

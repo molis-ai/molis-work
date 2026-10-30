@@ -2,9 +2,9 @@
 
 ## 白话说明
 
-DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 通过宿主构造的管理动作端口；命令行（`molis-work v1`）不再经 Host Client 的 typed 能力，由 Host 造一个管理调用者（`apps/local-host/src/goals-actions.ts` 的 `bindGoalsManagementActions`：本机这个人、出处 management、一次一个 Goals 动作），每条命令调 Goals 的一个动作（W3-07 PR-3，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。初始化、快照、恢复事实、回收站等行为归官方 Goals Plugin 的动作实现；公共输入输出合同归 contracts，由 owner 使用。Host 注册动作提供方，不再登记这些 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
+DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 通过宿主构造的管理动作端口；命令行（`molis-work v1`）不再经 Host Client 的 typed 能力，由 Host 造一个管理调用者（`apps/local-host/src/goal-callers.ts` 的 `bindGoalsManagementActions`：本机这个人、出处 management、一次一个 Goals 动作），每条命令调 Goals 的一个动作（W3-07 PR-3，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。初始化、快照、恢复事实、回收站等行为归官方 Goals Plugin 的动作实现；公共输入输出合同归 contracts，由 owner 使用。Host 注册动作提供方，不再登记这些 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
 
-Goals 的项目初始化、Goal 创建、说明、结构提案与事件决定统一消费 Goals owner 的动作；Coding 的目录、约定、状态、进展与回执使用 contracts 的共享 `goalPluginActions`，原四个 typed 依赖已删除；四项受限读写要求宿主当前运行且声明消费的内置实例，生成插件仍被拒绝。网页与管理 CLI/MCP 从真实调用上下文取得各自权限，不另留管理 typed 桥。管理决定的操作者固定为本机这个人，输入里的身份与出处不授予权力；出处由受保护 Host 调用者构造。插件开发改走隔离 Host 的 `developInPrivateHost`，不登记 typed 开发能力。剩余 typed 家族仍在统一 Host registry 注册，其消费者与退场按防腐线 W3-07-PR-9 核对。
+Goals 的项目初始化、Goal 创建、说明、结构提案与事件决定统一消费 Goals owner 的动作；Coding 的目录、约定、状态、进展与回执按动作 id 和版本调用 Goals 的五个插件动作（Goals 的合同在 `plugins/native/goals/src/contract/`，Coding 就地声明用到的字段，PG-111），原四个 typed 依赖已删除；四项受限读写要求宿主当前运行且声明消费的内置实例，生成插件仍被拒绝。网页与管理 CLI/MCP 从真实调用上下文取得各自权限，不另留管理 typed 桥。管理决定的操作者固定为本机这个人，输入里的身份与出处不授予权力；出处由受保护 Host 调用者构造。插件开发改走隔离 Host 的 `developInPrivateHost`，不登记 typed 开发能力。剩余 typed 家族仍在统一 Host registry 注册，其消费者与退场按防腐线 W3-07-PR-9 核对。
 
 Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自打开数据库、创建 Store 和 Coordinator；同一个 Project 可能同时出现多份业务运行对象。AP2 把这件事收回到一个地方：入口只描述要连接哪个 Project，再通过 Host Client 调用能力。
 
@@ -25,14 +25,13 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 `MolisWorkLocalHost.withProject` 是宿主装配的私有资源端口，复用同一 Runtime；它不授予业务调用权。`LocalHostProjectClient.invoke` 保留给 Agent、调度与工作区等宿主内服务，不能恢复已退役的 Goals 协议。`tests/typed-registry-inventory.test.ts` 对照完整装配和无工作区装配核对现存 typed 注册；健康门禁继续禁止新增 typed 定义与注册。
 
-完整 Goal Contract、项目说明和 active-goal 使用 Goals 的动作，由 Host 注册其提供方并调用原 owner。树决定只在受保护的入口执行：Workbench 的审批表单（`POST /api/goal-tree-proposals/:id/decision`，Web 请求通过来源与控制令牌检查后，由 Host 注入 web 出处，`bindGoalsWebActions`），以及管理入口（CLI `goal-tree-decide`，经管理调用者调 `goals.tree.decide` 动作；与 MCP `molis_work_v1_goal_tree_decide`，来源为 management，`managementTreeAuthority`）。两条路径的决定者都固定为本机用户，请求参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。事件决定（`goals.decisions.record`，管理 MCP `event_decide` 的出口）是同一扇管理入口的另一道决定门，做法一样：`authority` 只收对话出处，决定者由宿主造出（`managementEventDecisionAuthority`），带身份被拒绝（`goals.event_decision_authority_invalid`）。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
+完整 Goal Contract、项目说明和 active-goal 使用 Goals 的动作，由 Host 注册其提供方并调用原 owner。树决定只在受保护的入口执行：Workbench 的审批表单（`POST /api/plugins/io.molis.work.goals/goal-tree-proposals/:id/decision`，Web 请求通过来源与控制令牌检查后，入口给 web 出处（消息与确认标记取请求头；项目实例的入口是 `apps/local-host/src/project-plugin-http.ts` 的 `projectRouteControl`，`bindGoalsWebActions` 仍服务页面渲染与项目说明），以及管理入口（CLI `goal-tree-decide`，经管理调用者调 `goals.tree.decide` 动作；与 MCP `molis_work_v1_goal_tree_decide`，来源为 management，`bindGoalsManagementActions`）。两条路径的决定者都固定为本机用户，请求参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。事件决定（`goals.decisions.record`，管理 MCP `event_decide` 的出口）是同一扇管理入口的另一道决定门，做法一样：`authority` 只收对话出处，决定者由宿主造出（`apps/local-host/src/goal-callers.ts` 的 `goalsManagementContext`，出处由其中的 `managementUserAction` 造出），带身份被拒绝（`goals.event_decision_authority_invalid`）。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
 
 ### 现存宿主内服务与生产消费者
 
 | 家族 | 现行生产调用或声明 | 边界 |
 | --- | --- | --- |
-| Agent `agent.*` | Coding 的 `routes.ts`、`delegation-dispatch.ts`、`background-state.ts`；Coding、创作台、Schedule 的 Manifest 声明；Characters 的宿主提供方 `characters-host.ts`（Characters 不是插件，`listRuntimes`、`listActions` 在那里调） | 注册集中在 `horizontal/agent-host/src/capability-registration.ts` 与 Host 的 `agent-host-composition.ts`。助理直接消费其 Agent 服务端口，不因此算 typed 客户端。 |
-| `schedule.register/cancel/setEnabled/list` | 当前无生产消费者；Host 登记服务端口，Schedule 业务直接调自己的 service | 为插件提供的现存服务要求原调用实例身份；跨入口 T4 通过真实 executor 的服务夹具核拒绝与读取，不能称已有业务链。 |
+| Agent `agent.*` | Coding 的 `routes.ts`、`delegation-dispatch.ts`、`background-state.ts`；Coding、创作台、Schedule 的 Manifest 声明；Characters 的宿主提供方 `characters-host.ts`（Characters 不是插件，运行时列表与动作经组合根给的 `charactersCatalog` 端口读，不经动作） | 注册集中在 `horizontal/agent-host/src/capability-registration.ts` 与 Host 的 `agent-host-composition.ts`。全部是只给插件、不要权限的动作（PG-035、R8 第 1～4 批），身份只从调用上下文来，Coding 经 `services.actions` 调；没有 typed 条目了。助理直接消费其 Agent 服务端口，不因此算 typed 客户端。 |
 | 项目工作区与设置读取 | Coding、Files、Git 的 Manifest 与路由/动作；创作台 Manifest；`web-project-platform-routes.ts` 的设置消费（项目工作区） | 只有配置工作区端口才登记。这组五项（两项工作区、三项设置）全部有动作元数据，读取和写入都不属于剩余 typed；经旧客户端调用时也是 typed 入口转动作。 |
 | Git 审阅准备与结果 | Git Manifest 与 `actions.ts` | 四项现存读/准备服务由 Host 装配，实际 Git 写入仍经审阅。 |
 | Writer 目录与集成 | Coding Manifest 与 `routes.ts` | 目录、准备与集成由 Host 给当前项目的原工作区，不接受另选项目的身份。 |
@@ -75,8 +74,8 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 | `local-host.ts`、`project-host.ts`、`project-*`、`managed-project-*`、`catalog-*` | Runtime、项目生命周期、项目库与目录 |
 | `action-*`、`mcp-*`、`scene-configuration-actions.ts`、`local-owner-permissions.ts` | 统一动作服务的宿主侧：系统动作、授权、调用记录、MCP 网关与目录 |
 | `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` | 冻结的旧装配：构建期组合的内置插件（名单冻结、只许减少，以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）在这里注入存储位置、模型、Artifact 发布等端口，路由只转发到动作。**不再新增**：新的内置插件经 Plugin Runtime 装配（`project-plugins.ts` 的监督器条目），HTTP 由 Manifest 声明、挂在 `/api/plugins/<plugin_id>/`，宿主里不再为它写 `<插件>-native-plugin-http.ts` 和 `<插件>-actions.ts`（下一行的舞台渲染和端口文件今天仍要写）。业务规则留在插件包里。迁移计划见 [RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) |
-| `coding-surface.ts` | Plugin Runtime 插件在宿主里的工作面渲染和端口（监督器条目在 `project-plugins.ts`，属 `project-*`）。今天仍按插件写，目标是由声明产生，见 [EXTENSION-POINTS.md](../system/EXTENSION-POINTS.md) |
-| `characters-host.ts`、`characters-http.ts` | Characters 不是插件（CHR-1，2026-10-22，[RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) 5.4），宿主自己提供它：`characters-host.ts` 为每个项目注册 Characters 的动作提供方（`charactersActionProvider`），并留着 Coding 用的 `codingCharacterPorts`；`characters-http.ts` 的 `handleCharactersHttp` 是页面的 14 个地址（`/api/plugins/io.molis.work.characters/…`）的门，由 `web-request.ts` 转来，每个地址按本人身份调用一个 Characters 动作 |
+| `project-plugin-stages.ts` | 项目页上运行中的插件的舞台：按 Manifest 声明从运行中的实例画（W5-06），Manifest 的 `ui.embedded_plugins` 里的插件按槽（`descriptor.slots`）填进父页（PG-036 C9：Coding 的目录与阅读器里的 Files、Git）；不认识任何插件。`coding-surface.ts` 已删 |
+| `characters-host.ts`、`characters-http.ts` | Characters 不是插件（CHR-1，2026-10-22，[RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) 5.4），宿主自己提供它：`characters-host.ts` 为每个项目注册 Characters 的动作提供方（`charactersActionProvider`），开一轮时冻结某个版本的 `freezeProjectCharacter` 也在这里；`characters-http.ts` 的 `handleCharactersHttp` 是页面的 14 个地址（`/api/plugins/io.molis.work.characters/…`）的门，由 `web-request.ts` 转来，每个地址按本人身份调用一个 Characters 动作 |
 | `connector-*`、`<服务>-oauth.ts`、`<服务>-connector.ts` | 服务连接、凭据、OAuth 与连接器驱动 |
 | `agent-*`、`system-agent-service.ts`、`prologue-inference-host.ts`、`host-complete-text.ts`、`configured-models.ts` | Agent Host 装配、Home 推理绑定、模型选择 |
 | `web-*` | Web 入口：请求路由、页面视图投影、设置页 |

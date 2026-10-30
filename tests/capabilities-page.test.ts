@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { INBOX_ACTION_PERMISSIONS, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
-import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
+import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -14,9 +14,13 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
   const home = await mkdtemp(join(tmpdir(), "capability-page-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "能力范围", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "inbox", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
+  // The project's plugins (Inbox among them) come from the Catalog, so the Host reads it the way the desktop does.
+  const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} }, actionAvailability: policy, sceneAvailability: policy });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "capabilities-ui-test-control-token" });
   let enabled = true, calls = 0;
   const definition: ActionDefinition = { capability_id: "unknown.fixture.judge", version: 7, operation: "command", action: {
@@ -31,15 +35,17 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
   });
   const caller = { actor_id: "web-user", project_id: reference.project_id, audience: "user" as const, permissions: [...INBOX_ACTION_PERMISSIONS] };
   try {
+    // Inbox is a plugin of the project: its scene is there once the plugin has started, which an action of its own waits for.
+    await host.actionClient(reference).invoke(caller, inboxActions.readJudgment, {});
     await host.sceneClient(reference).bind(caller, { binding_id: inboxSceneBindingId(project.project_id), scene_id: inboxNextScene.scene_id,
       scene_version: inboxNextScene.version, project_id: project.project_id, function: definition, enabled: true, title: "实际入箱绑定" });
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
       for (const [key, board] of [["global-record", undefined], ["selected-record", project.project_id], ["other-record", "other-project"]] as const) {
-        store.recordJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { project_id: board } : {}) },
+        functions.recordSceneJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { project_id: board } : {}) },
           scene_id: null, outcome: "ok", suggested_behavior_ids: [], error_code: null });
       }
-    } finally { store.close(); }
+    } finally { functions.close(); }
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const base = `http://127.0.0.1:${address.port}`;

@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
-import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesGenerationRecord } from "./contract.js";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PagesStores } from "./store.js";
@@ -39,7 +39,8 @@ export async function generatePagesFromMaterials(stores: PagesStores, caller: Pi
     result = await complete(prompt);
     signal?.throwIfAborted();
     const output = result.text.trim();
-    if (!output || output.length > 100_000) throw pagesErrors.invalid("模型返回的文稿为空或过长");
+    // A document of 100000 characters takes at most 200000 units: over that it is too long without being spread, and only the rest is counted once.
+    if (!output || output.length > 200_000 || [...output].length > 100_000) throw pagesErrors.invalid("模型返回的文稿为空或过长");
     const appendix = request.inputs.map((item, index) => {
       const link = item.url && /^https?:\/\//.test(item.url) ? `\n[打开研究包](${item.url.replaceAll("(", "%28").replaceAll(")", "%29")})` : "";
       const page = item.provenance.find(ref => ref.kind === "pages_document" && typeof ref.id === "string" && item.entry_id === `pages:${ref.id}`);

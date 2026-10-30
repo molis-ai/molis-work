@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -58,7 +59,7 @@ test("Notion search poll uses the official versioned API", async () => {
       }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
-  const synced = await provider.sync({ cursor: {} });
+  const synced = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(synced.ok, true);
   if (!synced.ok) throw new Error("expected live sync");
   assert.equal(synced.items[0]?.title, "产品规格");
@@ -122,7 +123,7 @@ test("Jira issue poll uses search/jql after the legacy search sunset", async () 
       }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
-  const synced = await provider.sync({ cursor: {} });
+  const synced = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(synced.ok, true);
   if (!synced.ok) throw new Error("expected live sync");
   assert.equal(synced.items[0]?.title, "ENG-1 登录失败");
@@ -151,7 +152,7 @@ test("Asana task poll supplies workspace because assignee=me alone is rejected",
       });
     },
   });
-  const synced = await provider.sync({ cursor: {} });
+  const synced = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(synced.ok, true);
   if (!synced.ok) throw new Error("expected live sync");
   assert.equal(synced.items[0]?.title, "写规格");
@@ -214,7 +215,7 @@ test("Google Drive file list encodes the orderBy space", async () => {
       });
     },
   });
-  const synced = await provider.sync({ cursor: {} });
+  const synced = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(synced.ok, true);
   if (!synced.ok) throw new Error("expected live sync");
   assert.equal(synced.items[0]?.title, "规格.docx");
@@ -247,7 +248,7 @@ test("enterprise WeChat exchanges corpid:secret then lists departments", async (
       }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
-  const synced = await provider.sync({ cursor: {} });
+  const synced = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(synced.ok, true);
   if (!synced.ok) throw new Error("expected live sync");
   assert.equal(synced.items[0]?.title, "产品");

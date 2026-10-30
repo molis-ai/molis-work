@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
-import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
-import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
+import { openJellyStore } from "./fixtures/plugin-home-stores.js";
+import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -377,7 +378,7 @@ test("VUX-31: Todo's organize results keep the decision made when an earlier rea
 test("VUX-31: Todo's reminders keep the one just acknowledged when an earlier read answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
-  const everything = { projectId: browser.projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const everything = { projectId: browser.projectId, projectIds: [], actor: "user" as const, actorId: "test" };
   const store = openTodoStore(browser.homeDirectory);
   try { for (const title of ["交报销单", "给妈妈打电话"]) store.create({ title, remind_at: new Date(Date.now() - 5 * 60_000).toISOString() }, everything); } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "todo");

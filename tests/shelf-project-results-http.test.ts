@@ -5,10 +5,12 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, GoalProjectApplication, openHostShelfStore, openProjectVersionStores, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
@@ -32,7 +34,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
     producer:{plugin_id:'io.molis.work.coding',plugin_version:'1.20.0',binding_signature:'official-coding-binding'},
     content:{kind:'inline' as const,payload:{title:'已固定的原报告',run_id:'run-original',source:{session_id:'session-original'},body_markdown:'## 完整原文\r\n含 ``` 与 <script>，不重新请求模型。\n最后一行🌲'}}};
   const original=library.artifacts.commands.registerVersion(input).artifact;
-  const shelf=openHostShelfStore(home,{disabled:true});
+  const shelf=openTestShelfStore(home,{disabled:true});
   const base='/api/plugins/io.molis.work.shelf',path=base+'/project-result';
   const read=()=>request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=1');
   const catalog=await request(base+'/project-results'); assert.equal(catalog.status,200,JSON.stringify(catalog.body)); assert.equal(catalog.body.results.length,1);
@@ -59,7 +61,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const published=await request(materialPath,{expected_fingerprint:material.body.fingerprint}); assert.equal(published.status,200,JSON.stringify(published.body));
   const saved=library.artifacts.query.getArtifactVersion(projectId,published.body.reference)!;
   assert.equal(saved.artifact_type_id,'io.molis.work.document'); assert.ok(JSON.stringify(saved.payload).includes('只改 Shelf 副本，来源保持。'));
-  const restarted=openHostShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);
+  const restarted=openTestShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);
   await shelf.hide(item.item_id); assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal((await shelf.snapshot()).materials.find(i=>i.item_id===item.item_id)?.hidden,false);
   await new Promise<void>(resolve=>server.close(()=>resolve()));
   server=createMolisWorkWebServer({ homeDirectory: home, controlToken: token });

@@ -1,17 +1,17 @@
 import { createHash } from "node:crypto";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT } from "./contract.js";
 import type {
   LingguangConversation,
   LingguangMessage,
   LingguangMessageRole,
   LingguangSpark,
   LingguangStatus,
-} from "@molis-ai/molis-work-contracts/modules/lingguang";
+} from "./contract.js";
 import { lingguangErrors } from "./error.js";
+import { LINGGUANG_DATABASE } from "./database.js";
+export { LINGGUANG_DATABASE };
 
 interface SparkRow {
   id: string;
@@ -268,57 +268,6 @@ export class LingguangStore {
   }
 }
 
-/**
- * The 灵光 store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version.
- */
-export const LINGGUANG_DATABASE: PluginDatabaseDeclaration = { store_name: "lingguang", version: 1, read_permission: "lingguang:read", write_permission: "lingguang:write", schema: `
-  CREATE TABLE sparks (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    source_kind TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE conversations (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    spark_key TEXT NOT NULL,
-    spark_ids_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE (project_id, spark_key)
-  );
-  CREATE TABLE spark_requests (
-    project_id TEXT NOT NULL,
-    request_id TEXT NOT NULL,
-    spark_id TEXT NOT NULL,
-    PRIMARY KEY (project_id, request_id)
-  );
-  CREATE TABLE messages (
-    id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    body TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-` };
-
-export function openLingguangStore(homeDirectory: string): LingguangStore {
-  const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_DATABASE);
-  const sql: LingguangSql = { get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters), run: (text, parameters = []) => db.prepare(text).run(...parameters) };
-  return new LingguangStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 function insertConversation(
   db: LingguangSql,
@@ -390,21 +339,21 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string, body: string): string {
   const title = value.trim();
-  if (title.length > 80) throw lingguangErrors.invalid("标题须为 1 到 80 个字");
+  if ([...title].length > 80) throw lingguangErrors.invalid("标题须为 1 到 80 个字");
   if (title) return title;
   const fallback = body.trim().split(/\r?\n/u)[0]?.trim() ?? "";
-  return fallback.slice(0, 80);
+  return [...fallback].slice(0, 80).join("");
 }
 
 function normalizeBody(value: string): string {
-  if (value.length > LINGGUANG_BODY_LIMIT) throw lingguangErrors.invalid(`正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
+  if ([...value].length > LINGGUANG_BODY_LIMIT) throw lingguangErrors.invalid(`正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
   return value;
 }
 
 function normalizeChat(value: string): string {
   const text = value.trim();
   if (!text) throw lingguangErrors.invalid("先写下要接着说的话");
-  if (text.length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
+  if ([...text].length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
   return text;
 }
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
@@ -41,7 +41,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   // PTG-07 the plugin tab is the place; no location chip ahead of the tabs.
   assert.equal(await evaluate("document.querySelector('.tab-view-chip:not(.is-exclusive)')"), null);
   await click(`${plugin("goals")} .tab-item-trigger`);
-  await waitFor(`document.body.dataset.desktopSurface === 'goal' && document.querySelector('${plugin("goals")}[aria-current]')`);
+  await waitFor(`document.body.dataset.desktopSurface === 'goals' && document.querySelector('${plugin("goals")}[aria-current]')`);
 
   // PTG-06 a ⌘-click on a Goal in the list opens it in the Goals group and the pane stays on the list.
   // D24 the Goals tree does not pick several, so the ⌘-click is still the tab group's (the other side of the D24 case below).

@@ -106,7 +106,7 @@ export class ManagedProjectDeletion {
     for (const step of this.projects.lifecycle.deletionSteps(record.deletion_id)) {
       if (step.state !== "pending") continue;
       try {
-        if (!await this.owners.clear(step.owner_id, record.project_id)) {
+        if (!await this.owners.clear(step.owner_id, record.project_id, { deletion_id: record.deletion_id, project_id: record.project_id })) {
           problems.push(`${step.owner_id}：${step.error ?? "这一步要由有这项数据的 Molis Work 入口完成"}`);
           continue;
         }

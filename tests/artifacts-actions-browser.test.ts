@@ -6,8 +6,9 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { goalsQueryOf } from "./fixtures/goal-application.js";
 
-test("actual Artifact import, fixed version, Goal embed and disabled reader survive the shared action path", { timeout: 90_000 }, async t => {
+test("actual Artifact import, fixed version and Goal embed retain the platform reader when its project shell is removed", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, store, projectId } = b;
   const prefix = `/projects/${projectId}`;
@@ -48,7 +49,7 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
-  const board = store.goalsQuery.listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
+  const board = goalsQueryOf(store).listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
   const ledger = createContextLedger(store.db, { authorize: () => true });
   ledger.commands.put({ actor_id: "browser-owner", scope }, { key: "artifact-action-input", type: "goal.input", cause: "Explicit browser fixture",
     source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: exact!.artifact_id, version: exact!.version, scope } });
@@ -57,14 +58,28 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
   await visit("/goals/V1");
   assert.equal(await evaluate(fixedInput), true);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
+  const artifactEntry = '.plugin-rail-items button.plugin-rail-item[data-plugin-id="artifacts"][data-work-surface-open]';
   try {
+    assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true, "the enabled shell has a real navigation entry");
     catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
+    assert.equal(catalog.listProjectPlugins(projectId!).includes("artifacts"), false);
     await visit("/goals/V1");
-    assert.match(await evaluate<string>("document.querySelector('[data-artifact-unavailable]').textContent"), /未启用/);
-    const denied = await fetch(b.origin + prefix + "/artifacts");
-    assert.equal(denied.status, 403); await denied.text();
+    assert.equal(await evaluate(fixedInput), true);
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-artifact-unavailable]'))"), false);
+    assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), false, "removing the shell removes its navigation entry");
+    const exactPath = `/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/${exact!.version}`;
+    const readable = await fetch(b.origin + prefix + exactPath, { headers: { "x-molis-work-fragment": "artifact-workbench" } });
+    assert.equal(readable.status, 200);
+    const html = await readable.text();
+    assert.match(html, /浏览器原始文档/);
+    assert.match(html, /通过同一能力保存与读取/);
+    const exported = await fetch(b.origin + prefix + `/api${exactPath}/export`);
+    assert.equal(exported.status, 200);
+    const exportedVersion = await exported.json();
+    assert.deepEqual({ content: exportedVersion.payload.content, version: exportedVersion.version }, { content, version: exact!.version });
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
     await visit("/goals/V1");
     assert.equal(await evaluate(fixedInput), true);
+    assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true);
   } finally { catalog.close(); }
 });

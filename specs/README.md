@@ -4,20 +4,31 @@
 
 ## 在做的
 
+- [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
+
+- [team-collaboration](team-collaboration/spec.md)：团队协作按项目明确共享，首版需要多人实时共同编辑，整体参考 Codex Projects；2026-10-28 已定成员只访问获准项目内容，个人空间、其他项目与个人外部 AI 会话不自动公开；工作记录、简报与 AI 输出遵守相同边界。首版查看／编辑／管理三档、后续插件／资产粒度，以及成员发布／管理员管理团队记忆已定；团队记忆已另立需求，本需求保留身份与访问衔接；实时编辑、人与 AI 共同工作及恢复已纳入目标，协作协议、覆盖清单与细粒度规则待细化，尚未实现或验收。需求维护 Codex，实现待分配；阶段 1 与个人同步共同设计，阶段 2 验关键并发与恢复，阶段 3 收拢方案、阶段 4 完整实施。
+
+- [sessions-rebuild](sessions-rebuild/spec.md)：Sessions 按平台能力重做，覆盖国内外主流 AI 开发工具的冷启动导入、持续了解进展，以及恢复／消息／交接；2026-10-28 三类场景、厂商范围、获准后自动发现及明确关联自动归入项目已定；不明确时 AI 建议、用户确认，不自动建项目；运行中交接由用户选择停止原任务或保留并行，其他交互与技术方案待细化，尚未实现或验收。需求维护 Codex，实现待分配。
+
+- [product-flow-governance](product-flow-governance/spec.md)：全平台产品与架构系统性审查和优化——覆盖全部功能、入口、设置、交互与公共机制，核功能完整性、流程依赖、AI 效果和检查审查；Onboarding 与服务连接为已暴露案例，全平台覆盖与优化验证后才算专项完成。2026-10-27 首轮静态盘点已完成，具体发现与五批优化顺序见[核查记录](product-flow-governance/audit-2026-10-27.md)；真实路径实操与整改未完成。需求维护/本轮核查 Codex，后续整改统筹待分配。
+
+- [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
+
 - [diff-frame-performance](diff-frame-performance/spec.md)：大型代码变更逐帧高亮性能；负责人 Codex，Work #996 合入后独立修复全量性能失败，执行中。
 
 - [empty-goal-create](empty-goal-create/spec.md)：进入 Goals 且当前列表为空时，自动打开已有的新建弹窗；2026-10-22 实现，待验收。
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
-- [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
-- [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
-- [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
+- [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作，尚未实现。
+- [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
+- [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理，尚未实现。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
+- [work-brief](work-brief/spec.md)：项目综合首页与工作简报；10-27 已定可选安装、未安装时的基础首页、共用公开来源／呈现、承接生成页面及 Feed 归属。保留 Home 级范围、周期报告、living page、风险总览接续与版本能力；需求已整理，尚未实现。需求维护 Codex，实施沿原 E 轨并与 C/D/A 协作。
 - [long-turn-performance](long-turn-performance/spec.md)：长对话单节点样式测量修复；本地及与 #1010 的组合验证完成，待合入 #1017。负责人：Codex。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
 - [attention-aggregate-performance](attention-aggregate-performance/spec.md)：attention/Home 聚合及同类项目状态查询性能修复；本地实现和隔离对比通过，PR #1073 的 CI 与评审跟进中。负责人：Codex。
 - [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；50 项验收与 20 组设计机制。实现中（九十八片，前七十五片已全部合入或正在合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
-- [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）。
+- [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）；2026-10-27 补服务连接页面的默认直接连接、技术配置收起及连接后可用要求（ASC-45～50，需求阶段）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [status-ring-system](status-ring-system/spec.md)：统一轻量环刻状态组件、规格板与适用业务场景；本分支已实现，待合入。
@@ -29,24 +40,29 @@
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。
-- [repository-cleanup](repository-cleanup/spec.md)：Work 与 Prologue 存量代码一次性清理，负责人 Codex；本地清理完成，Prologue 已由用户合入，Work #996 跟进 CI、评审与合并。覆盖全部包/模块；基线失败、环境跳过和具体保留依据见同目录 inventory。
+- [repository-cleanup](repository-cleanup/spec.md)：Work 与 Prologue 存量代码一次性清理，负责人 Codex；本地清理完成，Prologue 已由用户合入，Work #996 已合入 main（已实现）。覆盖全部包/模块；基线失败、环境跳过和具体保留依据见同目录 inventory。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。2026-10-18 补充多代理 PR 评审、置信分、安全评审、真人批准门、有界迭代与对抗验证。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
 - [plugin-tab-groups](plugin-tab-groups/spec.md)：插件标签与按插件着色的标签组，取代「插件默认页不占标签」；实现中。
 - [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件 AI 交互；I0 预览已在工作台框架里按实物重做并走查，待用户看实物；共享组件与产品接入未开始。
 - [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（等真机验收，BL-325）。能力切片已合入，门禁与全量由 CI 证明；二十步、带截图的 Shelf、五类拒绝和同进程 sheet 等真机验收。
 - [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；2026-10-18 新立，尚未实现。
-- [agent-approval](agent-approval/spec.md)：Agent 产出的变更与外部效果的真人批准门；N 个有写权限的真人、`/approve <sha>` 绑定 head、push 后过期、Agent/bot 不计；2026-10-18 新立，尚未实现。
+- [agent-approval](agent-approval/spec.md)：Agent 变更的授权复用与显式人审；有效委托内持续执行，明确启用的人审按人员与版本校验，Coding 可选 AI 代批不计真人票数；2026-10-28 对齐，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。
 - [plugin-project-database](plugin-project-database/spec.md)：项目库里的插件表——插件在 Manifest 里声明，平台第一次打开时建表、记账本、核对发布者与版本，项目身份改成 `project_root`（PG-020、PG-021）；L1a 已做（声明、检查与打开函数），宿主还不按它建表。S8 让 Goals 的 31 张表（含 `boards`）也改由 Goals 自己声明（待审，与 L1b 同批）。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
-- [onboarding-coverage](onboarding-coverage/spec.md)：首次使用与新建项目的引导——模型在流程内可配、读取前讲清数据边界、采用后给下一步、更新页说明变化；2026-10-19 新立，需求已整理，尚未实现。
+- [onboarding-coverage](onboarding-coverage/spec.md)：先接通真实文件选择、模型整理、失败恢复与材料进入项目/Coding；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与 AI 交互首页；2026-10-27 需求整合，整项尚未实现，本轮只改文档，F 轨统筹。
+- [onboarding-intake-progress](onboarding-intake-progress/spec.md)：引导来源页去掉已废止的 200 份 / 50 MB / 20 MB 文案；大文件夹先按条目显示清点进度，再保存清单。2026-10-25，待验收。
+- [onboarding-model-link](onboarding-model-link/spec.md)：引导里选文件和连接文字模型是前后两步；第二步用模型设置的保存和读取，版式仍是引导的左右栏，不进入设置。2026-10-25，待验收。
+- [onboarding-folder-places](onboarding-folder-places/spec.md)：桌面引导里下载、文稿、桌面和其他文件夹改成一列，并且可以同时选。2026-10-25，待验收。
+- [plugin-frame-desktop-load](plugin-frame-desktop-load/spec.md)：桌面 WebKit 里沙箱插件框要能加载脚本；页面策略写上本次请求自己的回环 origin。2026-10-26，待验收。
 - [dual-instance-plugins](dual-instance-plugins/spec.md)：同一个插件同时有 Home 实例和项目实例（Shelf 迁 Plugin Runtime 的前提）；用户已定授权与范围（U1、U2），S0-2a（本机页面调用按各库记录授权）进行中，S0-2b-1、S0-2b-2、S0-2c 随后；2026-10-20 新立。
 - [plugin-project-partition](plugin-project-partition/spec.md)：Home 级插件的库按调用所在的项目分开（S0a，Alchemist 的前提）；平台按项目打开、闲置关闭、删项目时关库删目录，插件 API 不变；用户 2026-10-20 定，执行中。
 - [prologue-skill-strategy](prologue-skill-strategy/spec.md)：Prologue Skill 的选择、唤起、组合与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按依赖分五段、按文件分七条轨道；2026-10-28 前移公共资料／工作台整合、Sessions 历史接续、团队共同设计与创作台首条交付，明确采集到评测及报告的顺序、显式人审范围和长期观察并行；原轨道归属保留，防腐线收尾后执行。
 - [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
 ## 现行规范
@@ -75,11 +91,12 @@
 > 归档（YYYY-MM-DD）：判定为**已实现 / 部分实现 / 未实现 / 已被取代 / 已作废**。<依据>。剩余事项已移到统一待办清单：BL-xxx。
 ```
 
+- 模板照抄：开头的 `>` 引用块和「剩余事项已移到统一待办清单：BL-xxx」那句保留（没有剩余事项就省掉后一句）；判定只用上面五个词，补充说明写在判定后面的依据里，不扩写判定词。
 - 判定以 main 上的代码和真实行为为准，不只看原状态句。
 - 已被取代的，写明被哪份 spec 或哪个决定取代。
 - 部分实现或未实现的，先把剩下的事逐条抽进 [BACKLOG.md](BACKLOG.md)，再归档；只差用户验收的，列进清单的「待你验收」。
 - 判断不了的不归档，在 BACKLOG 的「待你决定」里写明缺什么证据。
-- 归档时同步改仓库里所有指向它的链接（代码注释、README、`docs/`、`skills/`、测试），再跑断链检查和 `pnpm boundary:check`。
+- 归档时同步改仓库里所有指向它的链接（代码注释、README、`docs/`、`skills/`、测试），再跑 `pnpm health:check`（断链、文档引用）和 `pnpm boundary:check`。
 
 **验收编号。** spec 的验收标准逐条带一个编号，测试引用它；改需求时一查编号，就知道哪些测试要跟着改。
 

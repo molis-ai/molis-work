@@ -26,53 +26,13 @@
       "types": "./dist/modules/context-ledger.d.ts",
       "import": "./dist/modules/context-ledger.js"
     },
-    "./modules/dataset": {
-      "types": "./dist/modules/dataset.d.ts",
-      "import": "./dist/modules/dataset.js"
-    },
-    "./modules/feed": {
-      "types": "./dist/modules/feed.d.ts",
-      "import": "./dist/modules/feed.js"
-    },
-    "./modules/form": {
-      "types": "./dist/modules/form.d.ts",
-      "import": "./dist/modules/form.js"
-    },
     "./modules/functions": {
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
     },
-    "./modules/pages": {
-      "types": "./dist/modules/pages.d.ts",
-      "import": "./dist/modules/pages.js"
-    },
-    "./modules/ppt": {
-      "types": "./dist/modules/ppt.d.ts",
-      "import": "./dist/modules/ppt.js"
-    },
-    "./modules/goals": {
-      "types": "./dist/modules/goals.d.ts",
-      "import": "./dist/modules/goals.js"
-    },
-    "./modules/lingguang": {
-      "types": "./dist/modules/lingguang.d.ts",
-      "import": "./dist/modules/lingguang.js"
-    },
-    "./modules/todo": {
-      "types": "./dist/modules/todo.d.ts",
-      "import": "./dist/modules/todo.js"
-    },
     "./modules/alchemist": {
       "types": "./dist/modules/alchemist.d.ts",
       "import": "./dist/modules/alchemist.js"
-    },
-    "./modules/governance-collaboration": {
-      "types": "./dist/modules/governance-collaboration.d.ts",
-      "import": "./dist/modules/governance-collaboration.js"
-    },
-    "./modules/coding": {
-      "types": "./dist/modules/coding.d.ts",
-      "import": "./dist/modules/coding.js"
     },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
@@ -85,18 +45,6 @@
     "./modules/projects": {
       "types": "./dist/modules/projects.d.ts",
       "import": "./dist/modules/projects.js"
-    },
-    "./modules/shelf": {
-      "types": "./dist/modules/shelf.d.ts",
-      "import": "./dist/modules/shelf.js"
-    },
-    "./modules/signals": {
-      "types": "./dist/modules/signals.d.ts",
-      "import": "./dist/modules/signals.js"
-    },
-    "./modules/sources": {
-      "types": "./dist/modules/sources.d.ts",
-      "import": "./dist/modules/sources.js"
     },
     "./modules/workspace-artifacts": {
       "types": "./dist/modules/workspace-artifacts.d.ts",
@@ -145,6 +93,18 @@
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
+    },
+    "./platform/plugin-judgments": {
+      "types": "./dist/platform/plugin-judgments.d.ts",
+      "import": "./dist/platform/plugin-judgments.js"
+    },
+    "./platform/plugin-scenes": {
+      "types": "./dist/platform/plugin-scenes.d.ts",
+      "import": "./dist/platform/plugin-scenes.js"
+    },
+    "./platform/plugin-trust": {
+      "types": "./dist/platform/plugin-trust.d.ts",
+      "import": "./dist/platform/plugin-trust.js"
     },
     "./platform/plugin-wiring": {
       "types": "./dist/platform/plugin-wiring.d.ts",
@@ -214,10 +174,6 @@
       "types": "./dist/services/im.d.ts",
       "import": "./dist/services/im.js"
     },
-    "./services/listener-host": {
-      "types": "./dist/services/listener-host.d.ts",
-      "import": "./dist/services/listener-host.js"
-    },
     "./services/runtime-host": {
       "types": "./dist/services/runtime-host.d.ts",
       "import": "./dist/services/runtime-host.js"
@@ -246,14 +202,6 @@
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"
     },
-    "./modules/images": {
-      "types": "./dist/modules/images.d.ts",
-      "import": "./dist/modules/images.js"
-    },
-    "./modules/jelly": {
-      "types": "./dist/modules/jelly.d.ts",
-      "import": "./dist/modules/jelly.js"
-    },
     "./platform/actions": {
       "types": "./dist/platform/actions.d.ts",
       "import": "./dist/platform/actions.js"
@@ -270,17 +218,25 @@
       "types": "./dist/services/materials.d.ts",
       "import": "./dist/services/materials.js"
     },
-    "./modules/goal-actions": {
-      "types": "./dist/modules/goal-actions.d.ts",
-      "import": "./dist/modules/goal-actions.js"
-    },
     "./platform/plugin-directory": {
       "types": "./dist/platform/plugin-directory.d.ts",
       "import": "./dist/platform/plugin-directory.js"
     },
+    "./platform/plugin-source-pull": {
+      "types": "./dist/platform/plugin-source-pull.d.ts",
+      "import": "./dist/platform/plugin-source-pull.js"
+    },
     "./platform/plugin-connections": {
       "types": "./dist/platform/plugin-connections.d.ts",
       "import": "./dist/platform/plugin-connections.js"
+    },
+    "./platform/plugin-integrations": {
+      "types": "./dist/platform/plugin-integrations.d.ts",
+      "import": "./dist/platform/plugin-integrations.js"
+    },
+    "./platform/plugin-attention": {
+      "types": "./dist/platform/plugin-attention.d.ts",
+      "import": "./dist/platform/plugin-attention.js"
     }
   },
   "files": [
@@ -291,16 +247,5 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"
-  },
-  "molis-work": {
-    "path": "packages/contracts",
-    "kind": "foundation",
-    "maturity": "contract-only",
-    "contract": "@molis-ai/molis-work-contracts/platform/package",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-f3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

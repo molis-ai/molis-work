@@ -4,11 +4,13 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from '@molis-ai/molis-work-contracts/services/memory';
 import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
-import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
+import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
 import { deferred } from './fixtures/home-runtime.js';
 import { openTestHome } from './fixtures/test-home.js';
+import { initializeBoard } from "./fixtures/goals-board.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 const schema = { type: 'object', properties: {}, additionalProperties: false };
 /** What a generated plugin declared to the Host; these bare-kernel cases only need it to name the plugin. */
@@ -58,7 +60,7 @@ test('memory is closed to generated plugins: the board offers none of it and lis
   const { actions } = project();
   const definitions = Object.values(memoryActions) as ActionDefinition[];
   actions.registry.registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: '记忆', kind: 'system' }, definitions,
-    handlers: definitions.map(definition => ({ capability_id: definition.capability_id, version: 1, handle: () => ({}) })) });
+    handlers: definitions.map(definition => ({ capability_id: definition.capability_id, version: definition.version, handle: () => ({}) })) });
   const catalog = await capabilityCatalog(actions, 'web-user');
   const memory = catalog.filter(entry => entry.provider_id === MEMORY_PROVIDER_ID);
   assert.deepEqual(memory.map(entry => entry.id).sort(), ['memory.list', 'memory.recall', 'memory.write'], 'only what agents can use appears, and only as closed');
@@ -335,10 +337,11 @@ test('PG006-02 PG006-04 S-15 behind the board, the gateway itself refuses a Goal
   const { actions, service, context, project, approved, host } = await hostProject(t, ['callers.sandbox.peek']);
   const { peek, seen, holdNext } = heldPeek(actions);
   const goal_id = 'GATEWAY-GOAL';
+  await initializeBoard(host, project.reference);
   await host.withProject(project.reference, runtime => {
-    runtime.coordinator.goalEvents.createIntent({ project_id: project.project_id, goal_id, title: '网关自己再核一次', actor_id: 'person', actor_kind: 'user', idempotency_key: 'create' });
+    goalApplicationOf(runtime).goalEvents.createIntent({ project_id: project.project_id, goal_id, title: '网关自己再核一次', actor_id: 'person', actor_kind: 'user', idempotency_key: 'create' });
   });
-  const cursor = () => host.withProject(project.reference, runtime => runtime.coordinator.goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
+  const cursor = () => host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
   const write = (key: string, based_on_cursor: number) => ({ goal_id, based_on_cursor, summary: 'progress ' + key, idempotency_key: key });
   const missing = (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && /没有声明或没有获得/u.test(error.message);
   /** The Goal write presented to the gateway with the caller the Host issued for a sandbox call held open, claiming the write's permissions. */

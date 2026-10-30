@@ -3,14 +3,15 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { feedLedgerPort } from "./fixtures/feed-ledger.js";
+import { installProducers } from "./fixtures/installed-producers.js";
+import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("losing the Ledger does not delete Goal, Artifact or Feed content or recreate links from old columns", async () => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-owner-isolation-"));
@@ -18,10 +19,11 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
   let store = new LocalProjectDatabase(databasePath);
   const compose = () => {
     const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
+    installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
     const ledger = createContextLedger(store.db, { authorize: () => true });
     let feed: FeedModule;
     const attention = new AttentionModule(store.db, { exists: (projectId, _type, id) => feed.query.exists(projectId, id) });
-    feed = new FeedModule(store.db, attention, { ledger });
+    feed = new FeedModule(fromBetterSqlite(store.db), attention, { ledger: feedLedgerPort(ledger) });
     return { coordinator, library, ledger, feed, attention };
   };
   try {
@@ -58,24 +60,3 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("losing private Ledger links preserves the Session identity and encrypted event content after reopening", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "molis-work-work-owner-isolation-"));
-  let registry = await openWorkSessionRegistry({ homeDirectory: directory });
-  try {
-    const session = registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: true,
-      project_id: "project", current_goal_id: "goal" });
-    registry.appendEvent({ session_id: session.session_id, source: "molis_work_tui", kind: "terminal_output",
-      source_id: "original-output", source_order: 1, occurred_at: "2026-09-05T00:00:00Z",
-      content: "Original private output", metadata: { partial_terminal_history: true } });
-    const events = registry.events(session.session_id);
-    const path = registry.databasePath;
-    registry.close();
-    const db = new Database(path);
-    try { db.exec("DELETE FROM context_edges"); } finally { db.close(); }
-    registry = await openWorkSessionRegistry({ homeDirectory: directory });
-    assert.deepEqual(registry.get(session.session_id), { ...session, project_id: null, current_goal_id: null });
-    assert.deepEqual(registry.events(session.session_id), events);
-    assert.ok(events.some((event) => event.content === "Original private output"));
-    assert.deepEqual(registry.goalHistory(session.session_id), []);
-  } finally { registry.close(); await rm(directory, { recursive: true, force: true }); }
-});

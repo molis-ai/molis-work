@@ -3,9 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
 const TOKEN = "goals-risk-test-control-token-0123456789";
@@ -33,7 +34,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     "content-type": "application/json",
     "x-molis-work-control-token": TOKEN,
   };
-  const inbox = await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`, {
+  const inbox = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`, {
     method: "POST",
     headers: { ...headers, "x-molis-work-idempotency-key": "ui-audit-inbox" },
     body: JSON.stringify({ expected_revision: item.revision }),
@@ -73,7 +74,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const stylesheet = await (await fetch(`${origin}/assets/molis-work-workbench.css`)).text();
   assert.match(stylesheet, /\[data-inbox-workbench\]\s*\.inbox-reference-detail\s*>\s*\.feed-detail-header h1\s*\{\s*width:\s*100%;\s*max-width:\s*none;?\s*\}/);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click("[data-tab-split]");
   await click('[data-layout-split="right"]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
@@ -87,17 +88,17 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
       embedded: frame.contentDocument?.body?.dataset.paneEmbedded || ''
     })))`);
     const panes = JSON.parse(paneState) as { surface: string }[];
-    if (panes.length === 2 && panes.every((pane) => pane.surface === "goal")) break;
+    if (panes.length === 2 && panes.every((pane) => pane.surface === "goals")) break;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  assert.match(paneState, /"surface":"goal".*"surface":"goal"/, paneState);
+  assert.match(paneState, /"surface":"goals".*"surface":"goals"/, paneState);
   const panes = await evaluate<{ plugin: string | null; surface: string | undefined; homeHidden: boolean | undefined }[]>(`[...document.querySelectorAll('iframe.tab-content-frame')].map(frame => ({
     plugin: new URL(frame.src).searchParams.get('panePlugin'),
     surface: frame.contentDocument?.body?.dataset.desktopSurface,
     homeHidden: frame.contentDocument?.querySelector('[data-work-surface=home]')?.hidden,
   }))`);
   assert.deepEqual(panes.map((pane) => pane.plugin), ["goals", "goals"]);
-  assert.deepEqual(panes.map((pane) => pane.surface), ["goal", "goal"]);
+  assert.deepEqual(panes.map((pane) => pane.surface), ["goals", "goals"]);
   assert.ok(panes.every((pane) => pane.homeHidden !== false));
   await shot("01-goals-split-1280x800.png");
   await click("[data-tab-split]");
@@ -107,8 +108,8 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     surface: document.body.dataset.desktopSurface,
     frameSurfaces: [...document.querySelectorAll('iframe.tab-content-frame')].filter(frame => !frame.hidden).map(frame => frame.contentDocument?.body?.dataset.desktopSurface || '')
   })`);
-  assert.equal(afterClose.surface, "goal");
-  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goal"), JSON.stringify(afterClose));
+  assert.equal(afterClose.surface, "goals");
+  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goals"), JSON.stringify(afterClose));
 
   const splitPlugin = async (plugin: string, surface: string, file: string) => {
     await click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);

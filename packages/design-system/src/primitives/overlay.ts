@@ -1,6 +1,4 @@
-import { icon } from "../icons.js";
-import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
-import { renderButton } from "./button.js";
+import { cx, escapeHtml, icon, renderAttrs, renderButton, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export function renderDialog(options: {
   labelledBy: string;

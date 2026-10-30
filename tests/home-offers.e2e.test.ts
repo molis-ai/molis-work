@@ -1,7 +1,8 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -9,9 +10,10 @@ import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 const captures = reviewEvidenceUrl("home-offer-actions/");
 
-test("Home renders and executes unknown plugin offers and Inbox status through the common service", { timeout: 120_000 }, async t => {
+test("RAC-214: Home renders and executes unknown plugin offers and Inbox status without restoring the retired Talk entry", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
   assert.ok(localHost); assert.ok(projectId);
@@ -49,8 +51,8 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
       const result = store.db.prepare("UPDATE fixture_home_tags SET tag = ?, revision = revision + 1 WHERE id = ? AND revision = ?").run(input.tag, input.id, input.revision);
       assert.equal(result.changes, 1); writes++; return read();
     } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   await runtime.start(installed.install_id);
   // Feed offers its own item actions beside the unknown plugin's; the checks name the plugin's offer instead of taking the first button.
   const TAG = "[...document.querySelectorAll('[data-home-offer]')].find(button => button.textContent === '标记待核查')";
@@ -88,11 +90,11 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
     await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('正在查找')");
-    const talkTop = await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top");
+    assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "The retired Talk entry stays absent while offers load");
     releaseOffers();
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略", "标记待核查"]);
-    assert.ok(Math.abs(await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top") - talkTop) < 1, "async offers keep the Talk button under the pointer");
+    assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "Loaded offers must not restore the retired Talk entry");
     await capture("desktop-unknown-action");
     await clickTag();
     try { await waitFor(`!!document.querySelector('.home-offers-result') && !${TAG}`); }
@@ -118,7 +120,7 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     assert.equal(feed.getInboxEntry(projectId, entry.entry_id).revision, entry.revision + 1);
     const requests = await evaluate<string[]>("window.__homeRequests");
     assert.ok(requests.some(path => path.endsWith('/api/home/actions/execute')));
-    assert.ok(!requests.some(path => path.includes('/api/inbox/entries/') && path.endsWith('/status')));
+    assert.ok(!requests.some(path => path.includes('/api/plugins/io.molis.work.inbox/entries/') && path.endsWith('/status')));
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     await capture("mobile-inbox-complete");
     // The owner makes this material actionable again. Lose the next response after the real write.

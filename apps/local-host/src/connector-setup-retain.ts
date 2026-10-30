@@ -9,7 +9,7 @@ export async function retainConnectorSetupsForSession(home: string, sessionId: s
   for (const { id } of pendingConnectorAuthorizationsForSession(home, sessionId, actorId)) {
     const request = connectorAuthorizationStatus(home, id)!;
     if (request.commit_held && request.intent_revision) releaseConnectorAuthorizationIntent(home, id, request.intent_revision);
-    const retained = commitRetainedConnectorAuthorization(home, id);
+    const retained = await commitRetainedConnectorAuthorization(home, id);
     if (retained?.status === "connected") connected.push(retained.connection_id);
   }
   for (const id of connected) await verifyEnabledConnection(home, id, remember);

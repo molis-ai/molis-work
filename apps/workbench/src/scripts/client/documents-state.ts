@@ -5,7 +5,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     let reloadGoalEventDocument = async (_goalId, _restore) => false;
     let pendingEventRestore = null;
     const goalEventDocumentApi = (${GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT})({
-      documentPane, route, translate: L, isAbortError,
+      documentPane, route, translate: LFor("io.molis.work.goals"), isAbortError,
       showError: (message) => showToast(message, true),
       showStatus: (message) => showToast(message, false),
       reloadDocument: (goalId, restore) => reloadGoalEventDocument(goalId, restore),
@@ -120,9 +120,9 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       collapsed: getCollapsedTreeGoals(),
       disclosures: [...document.querySelectorAll("[data-persist-open][open]")].map((item) => item.dataset.persistOpen),
       treeTop: treeScroll?.scrollTop || 0,
-      documentTop: activeDesktopSurface === "goal" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goal || 0),
+      documentTop: activeDesktopSurface === "goals" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goals || 0),
       workSurface: activeDesktopSurface,
-      surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
+      surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goals" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
       treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || (treePane.getBoundingClientRect().width > 44 ? treePane.getBoundingClientRect().width : 240),
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
@@ -130,7 +130,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       statuses: getSelectedStatuses(),
       mobileView: workspace.dataset.mobileView || "tree",
       navigatorView,
-      workspaceMode: activeDesktopSurface === "goal" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
+      workspaceMode: activeDesktopSurface === "goals" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
       ...readMomentumState(),
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
@@ -154,12 +154,12 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
 
     const applyUiState = (ui) => {
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
-      if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
+      if (ui?.documentTop != null && desktopSurfaceScroll.goals == null) desktopSurfaceScroll.goals = Number(ui.documentTop || 0);
       goalWorkspaceMode = ui?.workspaceMode || "graph";
-      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || "goal");
+      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || "goals");
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
-        : "goal";
+        : "goals";
       if (ui?.treeWidth) setTreeWidth(ui.treeWidth, false);
       if (ui?.tuiWidth) setTuiWidth(ui.tuiWidth, false);
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
@@ -233,9 +233,9 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       const hashTargetId = decodeURIComponent(location.hash.slice(1));
       const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
       if (treeScroll) treeScroll.scrollTop = Number(ui?.treeTop || 0);
-      documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goal"
+      documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goals"
         ? 0
-        : activeDesktopSurface === "goal" && ui?.selected === selected
+        : activeDesktopSurface === "goals" && ui?.selected === selected
           ? Number(ui?.documentTop || 0)
           : Number(desktopSurfaceScroll[activeDesktopSurface] || 0);
       const restoredMobileView = ui?.mobileView === "tui" || ui?.mobileView === "document" || ui?.mobileView === "tree"

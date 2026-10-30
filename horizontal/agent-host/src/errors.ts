@@ -14,6 +14,7 @@ export const agentErrors = defineErrorCodes("agent", {
   input_not_queued: "conflict",
   input_not_origin: "invalid",
   model_not_configured: "invalid",
+  memory_promotion_record_pending: "conflict",
   offer_mismatch: "forbidden",
   offer_unknown: "not_found",
   pending_not_open: "invalid",
@@ -29,7 +30,12 @@ export const agentErrors = defineErrorCodes("agent", {
   run_unknown: "invalid",
   runtime_duplicate: "invalid",
   runtime_unknown: "invalid",
-  session_busy: "invalid",
+  session_busy: "conflict",
   session_unknown: "invalid",
+  storage_busy: "conflict",
+  storage_root_invalid: "invalid",
+  wait_limit_reached: "rate_limited",
   write_checker_invalid: "invalid",
+  /** A stored write-checker record has another shape than this build reads: a Host-side record, not the caller's input. */
+  write_checker_unreadable: "internal",
 });

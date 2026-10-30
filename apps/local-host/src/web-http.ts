@@ -1,8 +1,8 @@
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { timingSafeEqual } from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { isLoopbackHostname, isLoopbackHttpOrigin, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
@@ -72,17 +72,44 @@ function refuse(response: ServerResponse): false {
   return false;
 }
 
-function isEventCommandReplayPath(pathname: string): boolean {
-  return /(?:^|\/)api\/goals\/[^/]+\/event-(?:configure|report|progress|concern|decision-request|decision|agree|close|resume|continue|note)$/.test(pathname)
-    || /(?:^|\/)api\/goals\/[^/]+\/relations$/.test(pathname)
-    || /(?:^|\/)api\/relations\/[^/]+\/deactivate$/.test(pathname)
-    || /(?:^|\/)api\/goals$/.test(pathname)
-    || /(?:^|\/)api\/goal-tree-proposals\/[^/]+\/decision$/.test(pathname);
-}
-
 /** The `host:port` the request was addressed to when that is this machine, else null (DNS rebinding; security invariant S-02). */
 export function requestHost(request: IncomingMessage): string | null {
   return loopbackHost(request.headers.host);
+}
+
+/**
+ * A sandboxed plugin frame (srcdoc, no allow-same-origin) inherits this page policy. In that opaque frame WebKit does not
+ * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface stays on "无法加载界面".
+ * Naming the same loopback origin explicitly does not widen what the parent page can load. Chrome already treats 'self' as
+ * the parent origin there, which is why the same page opens in Chrome.
+ */
+export function opaquePluginFramePolicy(policy: string, origin: string): string {
+  const parsed = URL.canParse(origin) ? new URL(origin) : null;
+  if (!parsed || !isLoopbackHttpOrigin(parsed) || parsed.origin !== origin || policy.includes(origin) || !policy.includes("script-src 'self'")) return policy;
+  let next = policy;
+  for (const name of ["img-src", "style-src", "script-src"]) next = next.replace(`${name} 'self'`, `${name} 'self' ${origin}`);
+  if (!next.includes("font-src ")) next += `; font-src 'self' ${origin}`;
+  return next;
+}
+
+function headerMap(value: unknown): OutgoingHttpHeaders | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as OutgoingHttpHeaders;
+}
+
+function allowOpaquePluginFrame(response: ServerResponse, origin: string): void {
+  const writeHead = response.writeHead;
+  const patched = function (this: ServerResponse, ...args: unknown[]) {
+    const headers = headerMap(args.length >= 3 ? args[2] : args[1]);
+    const key = headers ? Object.keys(headers).find(name => name.toLowerCase() === "content-security-policy") : undefined;
+    if (headers && key && typeof headers[key] === "string") headers[key] = opaquePluginFramePolicy(headers[key], origin);
+    else {
+      const current = this.getHeader("content-security-policy");
+      if (typeof current === "string") this.setHeader("content-security-policy", opaquePluginFramePolicy(current, origin));
+    }
+    return Reflect.apply(writeHead, this, args) as ServerResponse;
+  };
+  response.writeHead = patched as ServerResponse["writeHead"];
 }
 
 /**
@@ -92,8 +119,12 @@ export function requestHost(request: IncomingMessage): string | null {
  */
 export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
   response.setHeader("x-frame-options", "SAMEORIGIN");
+  const host = requestHost(request);
   const opaqueFrame = requestHeader(request, "sec-fetch-dest") === "iframe" && requestHeader(request, "sec-fetch-site") === "cross-site";
-  if (requestHost(request) && !opaqueFrame) return false;
+  if (host && !opaqueFrame) {
+    allowOpaquePluginFrame(response, `http://${host}`);
+    return false;
+  }
   refuse(response);
   return true;
 }
@@ -153,7 +184,7 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 409, { error: L("这次操作正在提交"), code: "request.in_flight" });
     return false;
   }
-  if (prior === "complete" && !isEventCommandReplayPath(url.pathname)) {
+  if (prior === "complete") {
     sendLocalWebJson(response, 409, { error: L("这次操作已经提交，不会重复执行") });
     return false;
   }

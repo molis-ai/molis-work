@@ -1,10 +1,10 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PptRecord, PptSlide, PptSlideInput } from "./contract.js";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { pptErrors } from "./error.js";
+import { PPT_DATABASE } from "./database.js";
+export { PPT_DATABASE };
 
 interface PptRow {
   id: string;
@@ -221,48 +221,6 @@ export class PptStore {
   }
 }
 
-/**
- * The presentation store's one current schema (repository-anti-corruption §4.1): new stores are created from it,
- * existing ones must already be at its version. Columns keep the order existing stores have them in.
- */
-const PPT_SCHEMA = `
-  CREATE TABLE presentations (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    color_primary TEXT NOT NULL,
-    color_background TEXT NOT NULL,
-    color_text TEXT NOT NULL,
-    slides_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
-    artifact_id TEXT NOT NULL DEFAULT '',
-    artifact_version INTEGER NOT NULL DEFAULT 0,
-    publication_pending_json TEXT
-  );
-  CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
-`;
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PPT_DATABASE: PluginDatabaseDeclaration = { store_name: "ppt", version: 1,
-  read_permission: "ppt:read", write_permission: "ppt:write", schema: PPT_SCHEMA };
-
-export function openPptStore(homeDirectory: string): PptStore {
-  const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_DATABASE);
-  const sql: PptSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new PptStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 function fromRow(row: PptRow): PptRecord {
   return {
@@ -296,12 +254,12 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名演示稿";
-  if (title.length > 80) throw pptErrors.invalid("标题须为 1 到 80 个字");
+  if ([...title].length > 80) throw pptErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw pptErrors.invalid("说明须为 0 到 2000 个字");
+  if ([...value].length > 2000) throw pptErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 
@@ -318,9 +276,9 @@ function normalizeSlides(value: readonly PptSlideInput[]): PptSlide[] {
   if (new Set(identities).size !== identities.length) throw pptErrors.invalid("幻灯片标识不能重复");
   return value.map((slide, index) => ({
     id: slide.id || crypto.randomUUID(),
-    title: String(slide.title ?? "").trim().slice(0, 80),
+    title: [...String(slide.title ?? "").trim()].slice(0, 80).join(""),
     bullets: normalizeBullets(slide.bullets),
-    notes: String(slide.notes ?? "").slice(0, 2000),
+    notes: [...String(slide.notes ?? "")].slice(0, 2000).join(""),
     order: index + 1,
   }));
 }
@@ -329,7 +287,7 @@ function normalizeBullets(value: unknown): string[] {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) throw pptErrors.invalid("要点须是列表");
   if (value.length > 12) throw pptErrors.invalid("每页最多 12 条要点");
-  return value.map((item) => String(item ?? "").trim().slice(0, 200)).filter((item) => item.length > 0);
+  return value.map((item) => [...String(item ?? "").trim()].slice(0, 200).join("")).filter((item) => item.length > 0);
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `ppt/ppt.db` at its one baseline. */

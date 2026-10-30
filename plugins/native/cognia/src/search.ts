@@ -30,7 +30,7 @@ export function createCogniaSearchHandlers(withStore: <T>(run: (store: CogniaSto
         throw error;
       }
       return subjectContext({ subject: { kind: "cognia_material", id: material.id }, revision: revisionOf(material), title: titleOf(material),
-        content: material.role === "attachment" ? "" : material.body, goal_ids: [], session_id: null, open: { surface: "cognia", id: material.id } }, input as { offset?: number });
+        content: material.role === "attachment" ? "" : material.body, open: { surface: "cognia", id: material.id } }, input as { offset?: number });
     }) },
   ];
 }

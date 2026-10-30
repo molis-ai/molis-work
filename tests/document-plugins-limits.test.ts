@@ -5,15 +5,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginArtifactClient, type PluginDatabase, type PluginModelClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { datasetActions, createDatasetActionHandlers, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
-import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, ownLingguangStores, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, ownFormStores } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { datasetActions, createDatasetActionHandlers, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, ownLingguangStores } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { pptActions, PPT_ACTION_PERMISSIONS, PPT_DATABASE, PPT_PLUGIN_ID, createPptActionHandlers, createPptPlugin, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions, PPT_ACTION_PERMISSIONS, PPT_DATABASE, PPT_PLUGIN_ID, createPptActionHandlers, createPptPlugin, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // The Host grants the content hand-offs these permissions (Feed, Pages, 灵光 and Inbox content actions).
 const contentPermissions = [...feedManifest.actions!, ...Object.values(pagesContentActions), ...Object.values(lingguangContentActions), ...Object.values(inboxContentActions)]
@@ -23,7 +28,7 @@ async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "document-plugins-limits-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions };
   const client = host.actionClient(ref);
   const as = (audience: ActionAudience) => bindActionClient(client, () => ({ ...caller, audience }));

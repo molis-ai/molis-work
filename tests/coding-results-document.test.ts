@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { codingManifest, codingOutputReferences, codingOutputs } from "@molis-ai/molis-work-plugin-coding";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {

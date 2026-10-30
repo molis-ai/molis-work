@@ -1,4 +1,5 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { installationBindingsWhere, installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere } from "./plugin-binding-scopes.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -22,6 +23,13 @@ export interface ConnectorConnectionSecrets {
   put(reference: string, plaintext: string): void;
   delete(reference: string): void;
   has?(reference: string): boolean;
+}
+
+/** The exact owner key of one binding, not the account it happens to name. */
+export interface ConnectorBindingKey {
+  readonly scope_id: string;
+  readonly plugin_id: string;
+  readonly slot_id: string;
 }
 
 
@@ -67,7 +75,12 @@ function nextChange(db: DatabaseSync, id: string, now: Date): string {
   return new Date(Math.max(now.getTime(), row ? Date.parse(row.updated_at) + 1 : 0)).toISOString();
 }
 
-/** The connection tables, for the Home connectors store's baseline to include (repository-anti-corruption §4.1). */
+/**
+ * The connection tables, for the Home connectors store's baseline to include (repository-anti-corruption §4.1).
+ * `connector_bindings.scope_id` is an opaque scope key: `home`, a built-in consumer's, or a plugin installation's. A plugin's is
+ * `plugin-installation:<install>` for an installation slot and `plugin-installation:<install>/project:<project>/record:<key>` for a
+ * `per_record` slot, built and read only in plugin-binding-scopes.ts (S-57 extension X2, the hub's 2026-10-24 decision ①).
+ */
 export const CONNECTOR_CONNECTIONS_SCHEMA = `
   CREATE TABLE connector_connections (
     connection_id TEXT PRIMARY KEY,
@@ -108,7 +121,8 @@ export const CONNECTOR_CONNECTIONS_SCHEMA = `
 /** Home-scoped metadata over the connectors store's baseline tables. Secret values only live in the existing SecretStore. */
 export class ConnectorConnectionStore {
   constructor(private readonly db: DatabaseSync, private readonly secrets: ConnectorConnectionSecrets,
-    private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void) {}
+    private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void,
+    private readonly onBindingChange?: (binding: ConnectorBindingKey) => void) {}
 
   list(serviceId?: string): ConnectorConnectionRecord[] {
     const sql = serviceId
@@ -161,8 +175,8 @@ export class ConnectorConnectionStore {
     return row?.origin ?? null;
   }
 
-  /** Prevent an API or MCP key from silently being sent to a different host. */
-  assertTarget(connectionId: string, serviceId: "model-api" | "image-api" | "mcp-bearer", address: string): string {
+  /** Prevent an API or MCP key, or a tenant's service account (BL-595), from silently being sent to a different host. */
+  assertTarget(connectionId: string, serviceId: "model-api" | "image-api" | "mcp-bearer" | "salesforce" | "jira" | "confluence", address: string): string {
     this.require(connectionId, serviceId);
     let endpoint: URL;
     try { endpoint = new URL(address); } catch { throw connectorErrors["connector.connection.invalid"]("服务地址无效"); }
@@ -335,12 +349,16 @@ export class ConnectorConnectionStore {
   bind(input: { scopeId: string; pluginId: string; slotId: string; serviceId: string; connectionId: string }): void {
     const connection = this.require(input.connectionId, input.serviceId);
     if (this.state(connection) !== "connected") throw connectorErrors["connector.connection.disconnected"]("连接不可用，请先重新授权");
-    const scope = requiredText(input.scopeId, "作用域", 160);
+    // A plugin's scope is written only by `pluginBindingScope` (plugin-binding-scopes.ts, where the encoding is described):
+    // `plugin-installation:<install>`, or `…/project:<project>/record:<key>` for a `per_record` slot. One that does not read back is refused.
+    const scope = requiredText(input.scopeId, "作用域", 512);
+    if (isPluginBindingScope(scope) && !parsePluginBindingScope(scope)) throw pluginBindingErrors.scope_invalid("插件连接槽的作用域无效");
     const plugin = requiredText(input.pluginId, "插件", 160);
     const slot = requiredText(input.slotId, "用途", 160);
     this.db.prepare(`INSERT INTO connector_bindings (scope_id,plugin_id,slot_id,connection_id,updated_at)
       VALUES (?,?,?,?,?) ON CONFLICT(scope_id,plugin_id,slot_id) DO UPDATE SET connection_id=excluded.connection_id,updated_at=excluded.updated_at`)
       .run(scope, plugin, slot, connection.connection_id, this.now().toISOString());
+    this.onBindingChange?.({ scope_id: scope, plugin_id: plugin, slot_id: slot });
   }
 
   binding(scopeId: string, pluginId: string, slotId: string): ConnectorConnectionRecord | null {
@@ -349,8 +367,50 @@ export class ConnectorConnectionStore {
     return row ? connectionFromRow(row) : null;
   }
 
-  unbind(scopeId: string, pluginId: string, slotId: string): void {
-    this.db.prepare("DELETE FROM connector_bindings WHERE scope_id = ? AND plugin_id = ? AND slot_id = ?")
-      .run(scopeId, pluginId, slotId);
+  /** A deleted project's `per_record` bindings, of every plugin (S-57 extension X4); the accounts themselves stay. */
+  forgetProjectBindings(projectId: string): number {
+    const match = projectBindingsWhere(projectId);
+    return forgetBindings(this.db, match, this.onBindingChange);
   }
+
+  /**
+   * One installation's `per_record` bindings in one project, when it is uninstalled there (S-57 extension X4). Its installation slot's
+   * binding is shared by every project the same installation id is in, and stays until the person unbinds it.
+   */
+  forgetInstallationProjectBindings(installId: string, projectId: string): number {
+    const match = installationProjectBindingsWhere(installId, projectId);
+    return forgetBindings(this.db, match, this.onBindingChange);
+  }
+
+  /**
+   * Every binding of one installation, in every project: its installation slot's and all its `per_record` ones. Taken when the last
+   * installation of that `install_id` is uninstalled (BL-596); the accounts themselves stay.
+   */
+  forgetInstallationBindings(installId: string): number {
+    const match = installationBindingsWhere(installId);
+    return forgetBindings(this.db, match, this.onBindingChange);
+  }
+
+  /** The installations that have a binding of any kind, so a caller can ask which of them are still installed (BL-596). */
+  bindingInstallationIds(): string[] {
+    const rows = this.db.prepare("SELECT DISTINCT scope_id FROM connector_bindings").all() as Array<{ scope_id: string }>;
+    return [...new Set(rows.flatMap(row => isPluginBindingScope(row.scope_id) ? parsePluginBindingScope(row.scope_id)?.install_id ?? [] : []))];
+  }
+
+  unbind(scopeId: string, pluginId: string, slotId: string): void {
+    const result = this.db.prepare("DELETE FROM connector_bindings WHERE scope_id = ? AND plugin_id = ? AND slot_id = ?")
+      .run(scopeId, pluginId, slotId);
+    if (result.changes) this.onBindingChange?.({ scope_id: scopeId, plugin_id: pluginId, slot_id: slotId });
+  }
+}
+
+/** Deletes the bindings `match` selects and tells `onBindingChange` about each one that went. */
+function forgetBindings(db: DatabaseSync, match: { readonly where: string; readonly parameters: readonly (string | number)[] } | null,
+  onBindingChange?: (binding: ConnectorBindingKey) => void): number {
+  if (!match) return 0;
+  const bindings = db.prepare(`SELECT scope_id,plugin_id,slot_id FROM connector_bindings WHERE ${match.where}`).all(...match.parameters)
+    .map(row => ({ scope_id: String(row.scope_id), plugin_id: String(row.plugin_id), slot_id: String(row.slot_id) }));
+  const result = db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters);
+  for (const binding of bindings) onBindingChange?.(binding);
+  return Number(result.changes);
 }

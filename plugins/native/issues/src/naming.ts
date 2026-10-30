@@ -25,7 +25,7 @@ const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hang
 /** The language the title is written in, decided here from the person's words (never left for the model to guess): English for words with Latin letters and no CJK, Chinese otherwise. */
 export const titleLanguage = (description: string): "zh" | "en" => !CJK.test(description) && /[A-Za-z]/.test(description) ? "en" : "zh";
 
-const line = (value: unknown, max: number): value is string => typeof value === "string" && value.trim().length > 0 && value.trim().length <= max && !/[\r\n]/.test(value.trim());
+const line = (value: unknown, max: number): value is string => typeof value === "string" && value.trim().length > 0 && [...value.trim()].length <= max && !/[\r\n]/.test(value.trim());
 
 /** The model's answer as Issue accepts it; anything else is refused, never repaired into a record. */
 export function issueNaming(value: unknown): IssueNaming {

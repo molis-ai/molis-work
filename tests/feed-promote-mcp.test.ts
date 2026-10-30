@@ -7,14 +7,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import {
-  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference,
-} from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PROMOTE = "molis_work_v1_action_feed.items.promote__v1";
 const CLIENT = "runtime:codex";
@@ -30,6 +30,8 @@ async function fixture() {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const host = createMolisWorkLocalHost({ homeDirectory });
   const project = await catalog.createProject({ display_name: "升格", actor_id: "user" });
+  // Feed and its companion Inbox are plugins of the project's Runtime (FI-7): the promotion is offered only where the project has them.
+  for (const plugin_id of ["feed", "inbox"]) if (!catalog.listProjectPlugins(project.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const seed = new LocalProjectDatabase(project.database_path);
   const source = createLocalFeedSourceService(seed.db, project.project_id).register({ kind: "web_query", query: "Review external input" }).source;
@@ -43,10 +45,10 @@ async function fixture() {
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
   const written = async () => ({
-    goals: (await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {})).goals.length,
+    goals: (await managementGoals(host.actionClient(reference), project.project_id).invoke(goalsActions.snapshot, {})).goals.length,
     ...(await host.withProject(reference, runtime => {
       const row = createLocalFeedApplication(runtime.store.db).getItem(project.project_id, item.item_id);
-      return { receipts: runtime.coordinator.goalInputs.list(project.project_id).length, item: { linked_goal_id: row.linked_goal_id, revision: row.revision, disposition: row.disposition } };
+      return { receipts: goalApplicationOf(runtime).goalInputs.list(project.project_id).length, item: { linked_goal_id: row.linked_goal_id, revision: row.revision, disposition: row.disposition } };
     })),
   });
   return { item, reference, host, server, written,
@@ -72,7 +74,7 @@ test("with a stable Session the promotion runs and the Goal and its input are th
     assert.equal(promoted.created, true);
     const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id: promoted.goal_id })) as { intent: { source_kind: string } };
     assert.equal(state.intent.source_kind, "runtime");
-    const receipts = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(runtime.project_id).filter(receipt => receipt.goal_id === promoted.goal_id));
+    const receipts = await f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(runtime.project_id).filter(receipt => receipt.goal_id === promoted.goal_id));
     assert.deepEqual(receipts.map(receipt => [receipt.created_by, receipt.state]), [[`${CLIENT}:native-session`, "proposed"]], "an MCP client proposes the input; the person accepts it in Goals");
     assert.equal((await f.written()).item.linked_goal_id, promoted.goal_id);
   } finally { await mcp.close(); await f.done(); }
@@ -105,7 +107,7 @@ test("with a stable Session the Home's offer promotes under that Session", async
   try {
     const { subject, chosen } = await offeredPromotion(mcp, f.item.item_id);
     const executed = JSON.parse(await mcp.callTool(EXECUTE, { subject, request_id: "execute", offer: chosen })) as { result: { goal_id: string } };
-    const receipts = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(runtime.project_id).filter(receipt => receipt.goal_id === executed.result.goal_id));
+    const receipts = await f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(runtime.project_id).filter(receipt => receipt.goal_id === executed.result.goal_id));
     assert.deepEqual(receipts.map(receipt => [receipt.created_by, receipt.state]), [[`${CLIENT}:native-session`, "proposed"]], "an MCP client proposes the input; the person accepts it in Goals");
     assert.equal((await f.written()).item.linked_goal_id, executed.result.goal_id);
   } finally { await mcp.close(); await f.done(); }

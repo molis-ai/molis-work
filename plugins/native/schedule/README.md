@@ -23,13 +23,15 @@ Host 把任务和 job 记录交给隔离页中的 UI contribution；Plugin Runti
 | [src/operation-management.ts](src/operation-management.ts)、[src/operation-ui.ts](src/operation-ui.ts) | 原输入与执行历史、当前安装复查、未知结果的明确重试或跳过 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
 | [src/route-handlers.ts](src/route-handlers.ts) | 创建、打开、暂停用例 |
-| [src/client.ts](src/client.ts) | 工作台选择、创建与暂停 |
+| [src/browser/](src/browser) | 页面的客户端（TypeScript，`tsconfig.browser.json` 检查，esbuild 从 `factory.ts` 打成 `dist/schedule-client.js`）：任务表单、操作审阅与恢复、请求只经 `molisWorkRequest` |
+| [src/client.ts](src/client.ts) | 读这个包，交给工作台的工厂 `SCHEDULE_CLIENT_FACTORY_SCRIPT` |
+| [src/messages.ts](src/messages.ts) | 页面文字的稳定键（中英文），`tests/schedule-client-bundle.test.ts`（RAC-162、RAC-163）钉住 |
 
 可对照现有调用方 [apps/workbench/src/schedule-projection-ui.ts](../../../apps/workbench/src/schedule-projection-ui.ts) 与 [src/plugin.ts](src/plugin.ts)。
 
 ## 接入与边界
 
-不导入 Feed / Goals 实现，也不接收数据库连接、安装仓库或专用宿主端口。工厂只使用 `services.project_database`、`scheduler`、`installations`、`notifications`、`agents`、`background` 与公开动作目录。业务记录与闹钟、通知通过同一个项目库事务提交；安装身份取网关和公共安装目录。宿主进程停止期间不执行闹钟。
+不导入 Feed / Goals 实现，也不接收数据库连接、安装仓库或专用宿主端口。工厂只使用 `services.project_database`、`scheduler`、`installations`、`notifications`、`agents`、`background` 与公开动作目录。业务记录与闹钟、通知（平台的通知队列行）通过同一个项目库事务提交；安装身份取网关和公共安装目录。宿主进程停止期间不执行闹钟。
 
 任务、提醒与定时操作均由 Schedule 的 Manifest 注册，采用同一启停规则。新项目通过普通插件 membership 默认启用；关闭 Schedule 会一起暂停页面和后台，重开同一安装沿原身份恢复，重装不能接管旧任务。现有项目不会在读取时自动补启用。
 
@@ -55,13 +57,14 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - 负责：对话式定时任务、安装级通用提醒和定时操作、单次执行状态、其他插件登记的闹钟列表、收据与暂停。
 - 不负责：Feed 与 Goal 事实、cron 表达式、闹钟主人的执行实现。
 - 公开入口：`@molis-ai/molis-work-plugin-schedule`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：本包通过合同使用 Runtime 服务，不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（页面客户端用它的类型认出 `molisWorkRequest`）。方向：本包通过合同使用 Runtime 服务，不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 失败都是 `ActionError`：码是 `schedule.<原因>`（`scheduleErrors`）；状态只由 kind 推出，本插件没有错误类和状态表。Scheduler 服务的 `schedulerErrors` 在本插件的动作边界（`scheduleFailure`）换成 `schedule.job_not_found` 或 `schedule.job_invalid`，不带着 Scheduler 的码出去；`actions.ts` 的 `bind`、`reminder-actions.ts`、`operation-actions.ts` 的五处包装各由 `tests/feed-inbox-schedule-error-model.test.ts` 用服务公开的错误声明和真实的 Scheduler 驱动，去掉任何一处都会失败。`runtime-installations.ts` 经公共安装目录检查提醒所属的安装和世代；安装不存在、停用或属于其他插件时拒绝，真实 Runtime 用例见 `tests/schedule-reminder-recovery.test.ts`。
   - 其他插件自有业务闹钟由 Scheduler 叫醒它们自己的能力；通用提醒由本插件拥有，使用 `reminders.add/cancel`，同一插件重装不能接管旧安装的提醒。
   - 提醒同时绑定安装 ID 与 Runtime 安装世代；重装复用存储 ID 也不能取消或投递旧世代提醒，投递失败并记下原因，提醒保留。
   - 重装前设下的提醒在详情核对内容、当前安装版本与发布方后，经公开 `schedule.reminders.recover` 明确恢复。预期安装 ID/世代只防止过期确认，实际目标由公共安装目录重新读取；普通启用不补权。恢复沿用原 job、时间、收据和固定间隔，过期补提醒一次，不运行插件代码；重复确认不能重新开启后来暂停的任务。
   - 提醒的 daily/weekly 是固定 24 小时/7 天间隔；创建、取消与 Scheduler job 同库事务，Inbox 投递与一次性消费也在同一事务内复查 lease。
+  - 提醒送达时通知标题是「插件名：文字」；超过通知服务的 200 个单元时按整字截到 199 个单元以内、以「…」结尾，不劈开代理对，摘要和正文仍是整段文字（`tests/agent-built-plugins-reminders.test.ts` 的 RAC-1670、RAC-1671）。
   - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。
   - `schedules.add/cancel` 由 Schedule 的 Runtime 实例拥有，实际 operation 仍由当前安装执行。首次派出前持久化 pending/running；只有尚未派出的 pending 能自动等待新唤醒，已派出结果未知时暂停，不能自动重放。
   - 执行入口注册不补跑任务。每次派出使用本次 Scheduler lease 和当前安装世代；结果、Inbox 与单次执行终态同事务提交。失败/未知不能报告成功；撤销后的迟到结果不能写业务状态或 Inbox。
@@ -78,10 +81,8 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - [对话态定时任务需求](../../../specs/archive/schedule-conversation-tasks/spec.md)
 - [闹钟层需求](../../../specs/archive/schedule-plugin/spec.md)
 
-- Status: `partial`
 - SSOT: `docs/SSOT-MATRIX.md`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
-- Migration Goals: `goal-reorg-f2`
 
 对话任务的 runner 消费 Scheduler 执行控制，授权从本次唤醒的当前 lease 来，不能沿用创建动作的临时回调。等待前后复查任务版本和启停，暂停、归档或变更后的迟到结果不追加助手回复或失败说明；Host 把同一检查传入 Prologue 派出前门禁并取消原运行。
 

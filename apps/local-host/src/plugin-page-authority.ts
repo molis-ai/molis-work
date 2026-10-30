@@ -1,4 +1,4 @@
-import { PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
+import { matchPluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -131,18 +131,20 @@ export class PluginPageAuthority {
     if (operation !== null && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) throw refused();
     const embeddedRevision = page.activation.manifest.ui.embedded_plugins?.some(id => pathname === `/api/plugins/${id}/view-revision`);
     const revision = Boolean(page.activation.install_id) && (operation === "view-revision" || embeddedRevision) && request.method === "GET";
-    const route = page.match(request.method ?? "GET", pathname);
+    // A toolbar callback never uses a route (the gate below lets it only its own owner choices), so its path is not matched. For any other
+    // request, bad percent-encoding is answered by `matchPluginRoute`: 400 for this plugin's declared shape, otherwise no route and the gate refuses it.
+    const route = contextual === undefined ? matchPluginRoute(page.match, page.activation.manifest.plugin_id, request.method ?? "GET", pathname) : null;
     const directory = Boolean(page.activation.install_id) && request.method === "POST" && pathname === "/api/host/directory-grants";
     const action = Boolean(page.activation.invoke) && request.method === "POST" && pathname === "/api/host/plugin-page-actions";
     const files = request.method === "POST" && pathname === "/api/host/plugin-page-files" && page.activation.resolveFiles;
     const checkOnly = request.method === "POST" && pathname === "/api/host/plugin-page-check";
-    const objectRead = Boolean(page.activation.install_id) && (request.method === "POST" && pathname === "/api/placement/describe"
-      || request.method === "GET" && pathname === "/api/assistant/related");
+    // An isolated page's related Assistant works are the action `assistant.works.related` now (PG-057), through the page's action gateway.
+    const objectRead = Boolean(page.activation.install_id) && request.method === "POST" && pathname === "/api/placement/describe";
     const registered = page.activation.requestAllowed?.(request.method ?? "GET", pathname);
     // Only the trusted toolbar adds this header to a bound callback. The child fetch bridge drops it, and a page's
     // ordinary header never opens these owner actions. Both paths retain the page's cancellation and activation.
     const contextChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
-      && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert", "/api/plugins/io.molis.work.todo/items"].includes(pathname);
+      && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert"].includes(pathname);
     const workspaceChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)

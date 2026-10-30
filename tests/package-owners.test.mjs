@@ -9,6 +9,9 @@ import {
   CODING_REVIEWER,
   GATE_PATHS,
   LEAD,
+  MATURITY_COLUMN,
+  MATURITY_WORDS,
+  maturityErrors,
   NO_OWNER,
   OWNER_COLUMN,
   ownerErrors,
@@ -106,6 +109,27 @@ test("the owner check rejects a SSOT whose 归属 column drifted from the rules"
   const absent = rowFor(text, "plugins/native/actions");
   assert.ok(absent.endsWith(`| ${NO_OWNER} |`), absent);
   assert.match(errorsFor({ ssot: text.replace(absent, absent.replace(`| ${NO_OWNER} |`, `| 内置插件：${LEAD} |`)) }), /归属 of `plugins\/native\/actions`/);
+});
+
+test("W5-15: the 包成熟度 column carries the registry's words from the four-word vocabulary", () => {
+  const text = ssot();
+  const errors = (mutated) => maturityErrors({ ssot: mutated, packages: WORKSPACE_PACKAGES }).join("\n");
+  assert.equal(errors(text), "");
+  assert.deepEqual(MATURITY_WORDS, ["production", "experimental", "slice", "absent"]);
+  const shelf = rowFor(text, "modules/shelf");
+  assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "`production`"))), /包成熟度 of modules\/shelf is "production", the registry says "slice"/);
+  // The retired migration words are not accepted, even when they name no live package.
+  assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "`partial`"))), /包成熟度 of modules\/shelf is "partial"/);
+  // Every target path without a package yet says absent, and nothing else.
+  const absent = rowFor(text, "packages/exchange");
+  assert.match(errors(text.replace(absent, absent.replace("`absent`", "`slice`"))), /包成熟度 of packages\/exchange is "slice", the registry says "absent"/);
+  // A cell without a word in backticks is a hand edit, not a value.
+  assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "slice"))), /names no word in backticks, expected "slice"/);
+  // A target row inside a package follows that package: apps/workbench/src/functions carries apps/workbench's word.
+  const functions = rowFor(text, "apps/workbench/src/functions");
+  assert.match(errors(text.replace(functions, functions.replace("`production`", "`slice`"))), /包成熟度 of apps\/workbench\/src\/functions is "slice", the registry says "production"/);
+  // The column itself must stay in every package table.
+  assert.match(errors(text.replace(`| ${MATURITY_COLUMN} | 迁移 / 实现 Goal |`, "| 迁移 / 实现 Goal |")), /has no "包成熟度" column/);
 });
 
 test("a package added to the workspace needs a SSOT row, and a row inside a package takes its owner", () => {

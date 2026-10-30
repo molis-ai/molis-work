@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -18,8 +19,6 @@ import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-co
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 
 const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const ids = (response: SearchQueryResponse) => response.hits.map(hit => `${hit.plugin_id}:${hit.subject.kind}`).sort();
@@ -37,7 +36,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   let runtime: PluginRuntime | undefined;
   try {
-    const owner = (reference: typeof refA) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const owner = (reference: typeof refA) => host.localPersonContext(reference);
     const call = async <I, O>(reference: typeof refA, definition: ActionDefinition<I, O>, input: I) =>
       await host.actionClient(reference).invoke(await owner(reference), definition, input) as O;
     const search = (reference: typeof refA, query: string, extra: Record<string, unknown> = {}) => call(reference, searchActions.query, { query, ...extra });
@@ -65,7 +64,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     assert.equal((await search(refB, "预算")).hits[0]!.title, "乙项目的预算");
 
     // Personal (Home) content: one Cognia material, found from either project and from outside any project, never as project content.
-    const personalCaller = await localWebActionContext(host, undefined, LOCAL_OWNER_PERMISSIONS);
+    const personalCaller = await host.localPersonContext();
     await host.homeActionClient().invoke(personalCaller, cogniaActions.createMaterial, { title: "个人知识：鲸落", body: "鲸落是深海生态的重要养分来源" });
     for (const reference of [refA, refB]) assert.deepEqual(ids(await search(reference, "鲸落")), ["io.molis.work.cognia:cognia_material"]);
     assert.deepEqual(ids(await search(refA, "鲸落", { scope: "project" })), []);
@@ -125,11 +124,11 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
       async start() { return { kind: "app", actions: [
         { ...entries, ...bindSearchEntriesHandler(entries, () => [{ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", summary: "",
           updated_at: null, content: "context", open: { surface: "newcomer", id: "n1" } }]) },
-        { ...reader, handle: () => subjectContext({ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", content: "插件自己的正文里有鲸鱼", goal_ids: [], session_id: null }) },
+        { ...reader, handle: () => subjectContext({ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", content: "插件自己的正文里有鲸鱼", goal_ids: [] }) },
       ] }; } });
     const repository = await host.withProject(refA, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(refA), project_id: refA.project_id } });
-    const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(refA), project_id: refA.project_id } });
+    const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     const newcomer = await search(refA, "鲸鱼");
     assert.deepEqual(newcomer.hits.map(item => item.title), ["新来的笔记"]);

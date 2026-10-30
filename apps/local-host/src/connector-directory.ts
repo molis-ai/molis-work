@@ -1,98 +1,53 @@
-import type {
-  ConnectorCapability,
-  ConnectorDirectoryEntry,
-} from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
-import { CATALOG_CONNECTORS, setupLinksFor } from "@molis-ai/molis-work-integration-catalog";
 import { gmailOAuthConfigured } from "./gmail-oauth.js";
 import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
 import { notionOAuthConfigured } from "./notion-oauth.js";
-import { connectorMethodsFor } from "./host-connector-methods.js";
+import { connectorMethodsOf } from "./host-connector-methods.js";
+import { builtinIntegrationDeclarations, type IntegrationDeclarationsView } from "./builtin-integrations.js";
+import { PLATFORM_OWNER } from "./integration-declarations.js";
 
-function capabilities(
-  inbound: string,
-  outbound: string,
-  live: { inbound?: boolean; outbound?: boolean } = {},
-): readonly ConnectorCapability[] {
-  return [
-    { label: inbound, fulfillment: live.inbound ? "live" : "unfulfilled" },
-    { label: outbound, fulfillment: live.outbound ? "live" : "unfulfilled" },
-  ];
+/**
+ * The card for one declared service. A plugin's service says whether Feed can read it (an integration of kind `source` is declared
+ * for it); a service the platform declares for its own use does not say.
+ */
+function directoryEntry(declaration: PluginConnectionServiceDeclaration, feedAvailable: boolean | undefined): ConnectorDirectoryEntry {
+  const token = declaration.auth.methods.find(method => method.kind === "token");
+  return {
+    connector_id: declaration.service_id,
+    title: declaration.title,
+    availability: "live",
+    auth_kind: declaration.auth_kind,
+    group_id: declaration.group_id,
+    summary: declaration.summary,
+    ...(token ? {
+      token_label: token.label,
+      ...(token.placeholder === undefined ? {} : { token_placeholder: token.placeholder }),
+    } : {}),
+    ...(declaration.auth_help === undefined ? {} : { auth_help: declaration.auth_help }),
+    ...(declaration.setup_links === undefined ? {} : { setup_links: declaration.setup_links }),
+    ...(feedAvailable === undefined ? {} : { feed_available: feedAvailable }),
+    capabilities: declaration.capabilities,
+    ...(declaration.outbound_note === undefined ? {} : { outbound_note: declaration.outbound_note }),
+  };
 }
 
-const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
-  {
-    connector_id: "model-api", title: "模型 API", availability: "live", auth_kind: "token", group_id: "work",
-    summary: "为模型供应商保存多个 API Key，并在模型设置与 Jelly 中选择。",
-    token_label: "模型 API Key", token_placeholder: "sk-…",
-    capabilities: capabilities("模型推理", "Jelly 摘要与拆解", { inbound: true, outbound: true }),
-  },
-  {
-    connector_id: "typesafe", title: "TypeSafe", availability: "live", auth_kind: "token", group_id: "work",
-    summary: "Functions 使用这里保存的账号连接。",
-    token_label: "TypeSafe API Key", capabilities: capabilities("Functions 调用", "Functions 账号选择", { inbound: true, outbound: true }),
-  },
-  {
-    connector_id: "image-api", title: "图像模型 API", availability: "live", auth_kind: "token", group_id: "design",
-    summary: "图像生成服务的 API Key；Images 中选择要使用的连接。",
-    token_label: "图像 API Key", capabilities: capabilities("Images 生成", "图像任务", { inbound: true, outbound: true }),
-  },
-  {
-    connector_id: "mcp-bearer", title: "远程 MCP", availability: "live", auth_kind: "token", group_id: "code",
-    summary: "远程 MCP 服务的 Bearer 凭据；在 Coding 的 MCP 配置中选择。",
-    token_label: "Bearer Token", capabilities: capabilities("MCP 工具与资源", "Coding Agent", { inbound: true, outbound: true }),
-  },
-  {
-    connector_id: "github", feed_available: true,
-    title: "GitHub",
-    availability: "live",
-    auth_kind: "github",
-    group_id: "code",
-    summary: "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
-    capabilities: capabilities(
-      "Feed 拉未读通知",
-      "在连接设置中检查当前账号",
-      { inbound: true, outbound: true },
-    ),
-    outbound_note: "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
-    setup_links: setupLinksFor("github"),
-  },
-  {
-    connector_id: "gmail", feed_available: true,
-    title: "Gmail",
-    availability: "live",
-    auth_kind: "gmail",
-    group_id: "mail",
-    summary: "本机账号。Feed 只读收信。",
-    capabilities: capabilities("Feed 只读收信", "发送邮件", { inbound: true }),
-    outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
-    setup_links: setupLinksFor("gmail"),
-  },
-  ...CATALOG_CONNECTORS.map((spec) => ({
-    connector_id: spec.id,
-    title: spec.id === "wechat" ? "企业微信" : spec.title,
-    availability: "live" as const,
-    auth_kind: (spec.id === "loom" ? "none" : spec.id === "notion" ? "notion" : spec.id === "feishu" ? "feishu" : "token") as "none" | "notion" | "feishu" | "token",
-    group_id: spec.group_id,
-    summary: spec.summary,
-    token_label: spec.token_label,
-    token_placeholder: spec.token_placeholder,
-    auth_help: spec.auth_help,
-    setup_links: spec.setup_links,
-    feed_available: spec.feed_available !== false,
-    capabilities: capabilities(spec.inbound, "在连接设置中检查当前账号", { inbound: spec.feed_available !== false, outbound: true }),
-    outbound_note: "连接设置可检查当前账号。Agent 可用能力以能力库为准。",
-  })),
-];
+/** The directory of services, in the order they were declared: built only from declarations, never from a list of names. */
+export function connectorDirectory(declarations: IntegrationDeclarationsView): readonly ConnectorDirectoryEntry[] {
+  return declarations.connectionServices().map(({ declaration, owner }) => {
+    const entry = directoryEntry(declaration, owner === PLATFORM_OWNER ? undefined : declarations.hasSource(declaration.service_id));
+    const method_options = connectorMethodsOf(declaration);
+    return {
+      ...entry,
+      method_options,
+      setup_links: entry.setup_links?.length ? entry.setup_links : method_options.flatMap((method) => method.links),
+    };
+  });
+}
 
-export const HOST_CONNECTOR_DIRECTORY: readonly ConnectorDirectoryEntry[] = CONNECTOR_DIRECTORY_BASE.map((entry) => {
-  const method_options = connectorMethodsFor(entry.connector_id);
-  return {
-    ...entry,
-    method_options,
-    setup_links: entry.setup_links?.length ? entry.setup_links : method_options.flatMap((method) => method.links),
-  };
-});
+export const HOST_CONNECTOR_DIRECTORY: readonly ConnectorDirectoryEntry[] = connectorDirectory(builtinIntegrationDeclarations());
+const HOST_DECLARED = new Map(builtinIntegrationDeclarations().connectionServices().map(({ declaration }) => [declaration.service_id, declaration]));
 
 function githubClientIdConfigured(): boolean {
   try {
@@ -107,7 +62,8 @@ export function listConnectorSettingsCards() {
     ? { ...entry, github_client_id_configured: false, gmail_oauth_configured: false }
     : {
       ...entry,
-      method_options: connectorMethodsFor(entry.connector_id),
+      // Read again on each listing: whether the product's client is configured may have changed.
+      method_options: HOST_DECLARED.has(entry.connector_id) ? connectorMethodsOf(HOST_DECLARED.get(entry.connector_id)!) : entry.method_options,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
       gmail_oauth_configured: entry.auth_kind === "gmail" ? gmailOAuthConfigured() : false,
       notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,

@@ -4,13 +4,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
 } from "@molis-ai/molis-work-design-system";
 import {
+  BUILTIN_PLUGIN_CATALOG,
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
   renderMolisWorkPrimitiveCatalog,
@@ -51,7 +52,7 @@ test("K1-01 document metadata keeps hostile markup inside its text and attribute
 });
 
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
-  const contribution: UiContribution<{ title: string }> = {
+  const contribution: OwnedUiContribution<{ title: string }> = {
     descriptor: {
       contribution_id: "io.molis.work.test.ui.v1",
       plugin_id: "io.molis.work.test",
@@ -114,7 +115,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
 });
 
 test("W5-06 UI Host mounts a surface in the slot its contribution declares, and only in a slot this host offers", () => {
-  const contribution: UiContribution<UiSurfaceCallModel<{ tag: string }>> = {
+  const contribution: OwnedUiContribution<UiSurfaceCallModel<{ tag: string }>> = {
     descriptor: {
       contribution_id: "io.molis.work.test.declared.v1",
       plugin_id: "io.molis.work.test",
@@ -158,13 +159,45 @@ test("W5-06 UI Host mounts a surface in the slot its contribution declares, and 
   assert.equal(render("y"), '<b data-surface="panel">panel:y</b>');
 });
 
-test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers", () => {
+/**
+ * Where a surface may mount: a slot the Workbench host offers, or a slot another contribution opens (`descriptor.slots`) when the plugin
+ * that contribution belongs to lists the surface's plugin in its Manifest `ui.embedded_plugins`. Anything else is a problem.
+ */
+function surfaceSlotProblems(
+  descriptors: readonly { contribution_id: string; plugin_id: string; surfaces?: readonly { surface_id: string; target_slot_id: string }[]; slots: readonly { slot_id: string }[] }[],
+  embeddedBy: ReadonlyMap<string, readonly string[]>,
+): string[] {
   const offered = new Set(Object.values(WORKBENCH_UI_SLOTS).map((slot) => slot.slot_id));
-  for (const descriptor of createWorkbenchUiHost().list()) {
+  const problems: string[] = [];
+  for (const descriptor of descriptors) {
     for (const surface of descriptor.surfaces ?? []) {
-      assert.ok(offered.has(surface.target_slot_id), `${descriptor.contribution_id} ${surface.surface_id} declares ${surface.target_slot_id}, which the Workbench host does not offer`);
+      if (offered.has(surface.target_slot_id)) continue;
+      const openers = descriptors.filter((other) => other.slots.some((slot) => slot.slot_id === surface.target_slot_id));
+      if (openers.length === 0) {
+        problems.push(`${descriptor.contribution_id} ${surface.surface_id} declares ${surface.target_slot_id}, which neither the Workbench host offers nor a contribution opens`);
+      } else if (!openers.some((opener) => embeddedBy.get(opener.plugin_id)?.includes(descriptor.plugin_id))) {
+        problems.push(`${descriptor.contribution_id} ${surface.surface_id} declares ${surface.target_slot_id}, opened by ${openers.map((opener) => opener.plugin_id).join(", ")}, whose Manifest ui.embedded_plugins does not list ${descriptor.plugin_id}`);
+      }
     }
   }
+  return problems;
+}
+
+test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers, or one a plugin that embeds it opens", () => {
+  const embeddedBy = new Map(BUILTIN_PLUGIN_CATALOG.map((entry) => [entry.manifest.plugin_id, entry.manifest.ui.embedded_plugins ?? []]));
+  const descriptors = createWorkbenchUiHost().list();
+  assert.deepEqual(surfaceSlotProblems(descriptors, embeddedBy), []);
+  // The Coding page's slots are filled by the browsers it embeds, so the check above is not vacuous for them.
+  assert.ok(descriptors.some((descriptor) => descriptor.surfaces?.some((surface) => surface.target_slot_id === "coding.companion-directory")));
+
+  const opens = { contribution_id: "x.opener.ui.v1", plugin_id: "x.opener", slots: [{ slot_id: "x.opener.inner" }] };
+  const embedded = { contribution_id: "x.embedded.ui.v1", plugin_id: "x.embedded", slots: [], surfaces: [{ surface_id: "s", target_slot_id: "x.opener.inner" }] };
+  assert.deepEqual(surfaceSlotProblems([opens, embedded], new Map([["x.opener", ["x.embedded"]]])), []);
+  // A slot nobody opens stays refused.
+  assert.equal(surfaceSlotProblems([opens, { ...embedded, surfaces: [{ surface_id: "s", target_slot_id: "x.opener.nowhere" }] }], new Map([["x.opener", ["x.embedded"]]])).length, 1);
+  // A slot a plugin opens is not open to a plugin its Manifest does not list.
+  assert.equal(surfaceSlotProblems([opens, embedded], new Map([["x.opener", ["x.other"]]])).length, 1);
+  assert.equal(surfaceSlotProblems([opens, embedded], new Map()).length, 1);
 });
 
 test("Workbench registers Native Plugin surfaces against stable slots", () => {

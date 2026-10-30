@@ -34,7 +34,8 @@ export function pagePresentation(scope: FrameScope, frame: HTMLIFrameElement, ro
     const gesture = scope.visible && document.activeElement === frame && navigator.userActivation.isActive;
     if (message.name === "assistant-message") {
       if (!["background", "change", "suggest", "delegate"].includes(String(detail.purpose))) return;
-      detail.source = { surface: pack.id, title: root.dataset.workSurfaceLabel ?? pack.id };
+      // The plugin is the frame's, never what the page says (PG-057: a comment thread's reply is started for it).
+      detail.source = { surface: pack.id, title: root.dataset.workSurfaceLabel ?? pack.id, plugin_id: pack.plugin_id };
       if (!gesture) { delete detail.card; if (detail.purpose === "delegate") detail.purpose = "suggest"; }
       window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail }));
     } else if (message.name === "assistant-open" && gesture) {

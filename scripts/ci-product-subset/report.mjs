@@ -49,7 +49,8 @@ export function summaryMarkdown({ results, meta }) {
   const REASON = ["first failure", reason];
   const OWNER = ["owner", (entry) => cell((entry.quarantine ?? entry.expiredQuarantine).owner)];
   return [
-    "## Product subset: user-flow test files on Linux",
+    `## Product subset: user-flow test files on Linux${meta.shard ? ` (shard ${meta.shard.index}/${meta.shard.total})` : ""}`,
+    ...(meta.shard ? ["", "This report covers only this shard. Every shard must pass to verify the complete selected list."] : []),
     "",
     "The files of `tests/ci-product-subset.txt`, one at a time, each with its own Home; the browser smokes first. A file that fails is run once more; a pass on the second try is `flaky`. A file whose tests all skip counts as failed: it verified nothing.",
     incomplete,

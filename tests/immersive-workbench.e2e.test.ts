@@ -3,6 +3,8 @@ import test from "node:test";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { installProducers } from "./fixtures/installed-producers.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -25,11 +27,11 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
     }
     return out;
   })()`);
-  assert.ok(homeRail.goals && homeRail.feed && homeRail.sessions && homeRail.inbox && homeRail.market, "demo rail has work plugins and market: " + JSON.stringify(homeRail));
+  assert.ok(homeRail.goals && homeRail.feed && homeRail.inbox && homeRail.market, "demo rail has work plugins and market: " + JSON.stringify(homeRail));
   // Colour says selection, not identity: the current entry reads darker, every idle glyph shares one neutral.
   assert.notEqual(homeRail.goals, homeRail.home, "the current entry reads darker than the rest");
   assert.equal(homeRail.goals, homeRail.feed, "idle glyphs stay neutral; position and name say which tool it is");
-  assert.equal(homeRail.sessions, homeRail.inbox);
+  assert.equal(homeRail.feed, homeRail.inbox);
   assert.equal(homeRail.goals, homeRail.market);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
@@ -54,12 +56,10 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.workMode"), "terminal");
   await evaluate("window.__terminalInstance=document.querySelector('[data-tui-terminal]')");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-work-surface=sessions]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-session-stage-list]') != null"), true);
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
@@ -69,8 +69,8 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
   await click('[data-goal-collapse]');
   assert.equal(await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')"), camera);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).runs, before.runs);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
@@ -87,6 +87,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = openProjectVersionStores(store);
+  installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
     project_id: projectId!, actor_id: "fixture", artifact_id: "review-note", version,
     artifact_type_id: "example.note", schema_version: 1,
@@ -165,7 +166,8 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  // RAC-1934: Goals opens on the surface named by its id, as every plugin does (T-114).
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await evaluate("document.querySelector('[data-goal-collapse]')?.click(); document.querySelector('[data-board-view-tab=canvas]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector('[data-goal-node-workspace]')?.hidden !== false");
@@ -182,7 +184,7 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   })()`);
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   const linkedGoal = goalId === "CORE" ? "WEB" : "CORE";
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(linkedGoal) }, sessionId));
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(linkedGoal) + " && document.querySelector('[data-goal-frame-surface]')?.hidden === false");
@@ -192,4 +194,81 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   assert.equal(await evaluate("location.pathname"), "/goals/" + linkedGoal);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
+});
+
+test("RAC-1313 RAC-1314 a market change to another project says what came or went with it, and what did not come", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "user");
+  if (!browser) return;
+  const { projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  const status = () => evaluate<string>("document.querySelector('[data-market-status]').textContent || ''");
+  const selectProject = (id: string) => evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(id)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const other = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
+  await click('[data-work-surface-open="market"]');
+  await waitFor("!document.querySelector('[data-market-project]').disabled");
+  await selectProject(other);
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').disabled", 10_000);
+  // RAC-1313: adding Feed to another project says Inbox came with it.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.match(await status(), /^已添加到 另一个项目；同时添加了：Inbox$/);
+  // RAC-1313: removing Inbox from it takes Feed with it.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  assert.match(await status(), /^已移除自 另一个项目；同时移除了：Feed$/);
+  // RAC-1314: adding Inbox to that project (no Feed now) says Feed does not come with it.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.match(await status(), /^已添加到 另一个项目；依赖它的插件不会一并添加：Feed$/);
+  // RAC-1314: once Feed is in it too, the Inbox card is a removal and says nothing about a plugin not coming with it.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title') || ''"), /依赖它的插件不会一并添加/);
+  // RAC-1313: in this project the same two things are done in place, and the line stays the one sentence: the toast says
+  // what came along, once. The current project starts with Feed and Inbox; taking Inbox out takes Feed with it.
+  await selectProject(projectId!);
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]'))", 10_000);
+  const here = await evaluate<string>("document.querySelector('[data-market-project-label]').textContent");
+  const membership = () => evaluate<string[]>(`fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects.find(p=>p.project_id===${JSON.stringify(projectId)})?.plugins || [])`);
+  if ((await evaluate("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership")) === "added") {
+    await click('[data-market-plugin="inbox"] [data-market-add]');
+    await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  }
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)), [], "neither is in this project now");
+  // Every write of the status line from here on, wherever the market's own surface is redrawn: the writer the page keeps holds
+  // the element it was made with, so a line written after a redraw would be invisible — record the writes themselves.
+  await evaluate(`(() => {
+    window.__marketStatusWrites = [];
+    const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, "textContent");
+    Object.defineProperty(Node.prototype, "textContent", {
+      configurable: true,
+      get() { return descriptor.get.call(this); },
+      set(value) {
+        if (this instanceof Element && this.hasAttribute("data-market-status")) window.__marketStatusWrites.push(String(value));
+        descriptor.set.call(this, value);
+      },
+    });
+    return true;
+  })()`);
+  // Adding Feed in this project brings Inbox with it: the membership shows both, the toast says so once, the line does not.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  await waitFor("(() => { const t = document.querySelector('[data-toast]'); return t && /同时添加了：Inbox/.test(t.textContent || ''); })()", 10_000);
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)).sort(), ["feed", "inbox"], "Inbox came along");
+  const addedWrites: string[] = await evaluate("window.__marketStatusWrites");
+  assert.ok(addedWrites.includes("已添加到 " + here), "the one existing sentence was written: " + JSON.stringify(addedWrites));
+  assert.deepEqual(addedWrites.filter(line => /同时添加了|同时移除了|依赖它的插件不会一并添加/.test(line)), [],
+    "the line never repeats what the toast says: " + JSON.stringify(addedWrites));
+  // Removing Inbox takes Feed with it: same rule, the other way.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  await waitFor("(() => { const t = document.querySelector('[data-toast]'); return t && /同时移除了：Feed/.test(t.textContent || ''); })()", 10_000);
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)), [], "Feed went with Inbox");
+  const removedWrites: string[] = await evaluate("window.__marketStatusWrites");
+  assert.ok(removedWrites.includes("已移除自 " + here), "the one existing sentence was written: " + JSON.stringify(removedWrites));
+  assert.deepEqual(removedWrites.filter(line => /同时添加了|同时移除了|依赖它的插件不会一并添加/.test(line)), [],
+    "the line never repeats what the toast says: " + JSON.stringify(removedWrites));
 });

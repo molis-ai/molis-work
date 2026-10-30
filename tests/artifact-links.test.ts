@@ -3,15 +3,17 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactsActions, artifactsManifest, artifactBrowserUiContribution, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
+import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
+import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the Goals that use a version, by how. An Agent's proposal to use a version
 // as a Goal's input is a Goal edge like any other; it is listed with its Goal, not counted as an anonymous other link.
 const projectId = "links-project";
-const person: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: projectId, permissions: ["artifacts:read"] };
+const person: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: projectId, permissions: ["artifacts:read", "goals:read"] };
 
 test("a Goal's proposed input, deliverable and confirmed ones are each listed with their Goal, and nothing else is counted as other", async t => {
   const db = new Database(":memory:");
@@ -35,9 +37,9 @@ test("a Goal's proposed input, deliverable and confirmed ones are each listed wi
 
   const actions = new ActionService();
   actions.registerProvider({
-    provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
-    definitions: artifactsManifest.actions!,
-    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, goalTitle: id => `Goal ${id}`, importSources: () => ({}),
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
+    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds(), goalTitle: id => `Goal ${id}`, importSources: () => ({}),
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });
   const links = (artifactId: string) => actions.invoke(person, artifactsActions.links, { reference: { artifact_id: artifactId, version: 1 } });
@@ -52,4 +54,28 @@ test("a Goal's proposed input, deliverable and confirmed ones are each listed wi
   const html = artifactBrowserUiContribution.render({ surface: "detail", model: { view: { versions: [selected], selected, requested: null, compatibility: null }, routePrefix: "",
     links: await links("input-proposed"), primitives: { escape: (value: string) => value, text: (value: string) => value, formatDate: (value: string) => value } } } as never);
   assert.match(String(html), /Goal G1<\/a><span>提议的输入<\/span>/);
+});
+
+test("RAC-420: with no Plugin declaring link kinds (Goals absent) the links and the Goal embeds are empty, not an error", async t => {
+  const db = new Database(":memory:");
+  t.after(() => db.close());
+  db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
+  createArtifactsSchema(db);
+  createContextLedgerSchema(db);
+  const artifacts = new ArtifactsModule({ db, appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
+  const ledger = createContextLedger(db, { authorize: () => true });
+  const at = { actor_id: "web-user", scope: { kind: "personal" as const, id: projectId } };
+  artifacts.commands.registerVersion({ project_id: projectId, actor_id: "web-user", artifact_id: "a", version: 1, artifact_type_id: "io.example.report", schema_version: 1,
+    producer: { plugin_id: "io.example", plugin_version: "1", binding_signature: "s" }, content: { kind: "inline", payload: { title: "a" } }, ...pinnedArtifact("a") });
+  ledger.commands.put(at, { key: "goal.input:G1:a@1", type: "goal.input", cause: "reason", source: { module: "goals", id: "G1", version: null, scope: at.scope },
+    target: { module: "artifacts", id: "a", version: 1, scope: at.scope } });
+  const actions = new ActionService();
+  actions.registerProvider({
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
+    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds([]), importSources: () => ({}),
+      importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
+  });
+  assert.deepEqual(await actions.invoke(person, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }), { goals: [], other: 1 });
+  assert.deepEqual(await actions.invoke(person, artifactsActions.goalEmbeds, { goal_id: "G1" }), { embeds: [] });
 });

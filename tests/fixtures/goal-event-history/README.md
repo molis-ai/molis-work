@@ -14,3 +14,7 @@
 `approved` 与 `approved-completed` 里存的授权完成决定（`goal_event_applied_decisions` 与幂等回执里的 `commitment`），按「点头只对整份约定有效」（`specs/archive/goal-closure-identity`）改成了当前形状：承诺里记结果说明和决定时 Goal 的每一条要求（`MIXED-C1`、`imported-policy:MIXED-OWNER`），与现行代码写下同样决定时逐字相同（用同一份约定记一条新决定对照过）。原先只记结果说明、不含任何要求。旧形状的承诺比不上现在的约定，项目规则「完成前必须你点头」打开时不再放行；读取不兜底旧形状，所以夹具存成当前形状，不改断言。真实 Home 里没有这样的决定要整理（演练拷贝里全部项目库的授权完成与接受要求的决定为零条）。
 
 版本 9（SYS-15-S6）在临时副本执行同一份维护九脚本（`tests/fixtures/project-maintenance-v9.sql`），新增空的动作闹钟安装绑定表，旧闹钟暂停且清空租约，未填造授权。四份夹具的其余业务行逐表核对不变，再用同样的 `sqlite3 .dump` 导出。
+
+版本 10（ac-trust T1 与 #1245 合成同一版，batch-36）：安装记录表 `plugin_runtime_installs` 多了一列 `publisher_trust`，夹具里这张表没有行，只改了建表语句；Attention 两表多了 owner 字段与按 owner 区分的部分唯一索引，不从历史 ID 推断 owner，现有记录保持未归属 null。四份夹具的历史业务 INSERT 原样保留，行与 rowid 逐表核对不变，外键和完整性检查通过（对照用 `tests/fixtures/project-maintenance-v10.sql` 在副本上跑一遍再导出，结构相同）。它们是历史业务数据的现行 schema 夹具，不是生产读取时的迁移路径。
+
+版本 11（FI-5、FI-6，批 C）在临时副本执行维护十一（`tests/fixtures/project-maintenance-v11.sql`）后导出：插件表账本里 Feed 那一行升到 2，表名单换成 Feed 的 Manifest 现在声明的全部表（原基线里的 Feed 表改由 Feed 声明，表本身与行不动）；新增空的平台通知队列 `plugin_notifications` 与它的部分索引。四份夹具没有 Inbox 记录、也没有 Feed 的上下文边，维护里给 owner 与改边名的两步没有行可改。其余各表行数逐表核对不变，外键与完整性检查通过，同一份导出载入再导出逐字不变。

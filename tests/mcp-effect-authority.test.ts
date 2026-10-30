@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition, type RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
 import { recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const peer: ActionDefinition = { capability_id: "fixture.form.peer", version: 1, operation: "query", action: {
@@ -23,6 +24,35 @@ function facts(home: string, projectId: string, formId: string) {
   try { return { form: store.get(formId, projectId), forms: store.list(projectId), submissions: store.listSubmissions(formId, projectId) }; }
   finally { store.close(); }
 }
+
+for (const additional of [false, true]) test(`ACA005-03/07 accepted MCP background ${additional ? "permission source" : "action"} keeps its original grant generation`,
+  { timeout: 30_000 }, async t => {
+    const home = await openTestHome(t), project = await home.createProject("Retained MCP grant");
+    const accept: ActionDefinition = { ...wrapper, capability_id: "fixture.form.retain", action: {
+      ...wrapper.action, permissions: ["form:read"], output_schema: { type: "null" },
+    } };
+    let retained: RetainedActionAuthority | undefined;
+    const dispose = home.host.actionRegistry(project.reference).registerProvider({
+      provider: { provider_id: "fixture.retained-grant", title: "Retained authority", kind: "system" }, definitions: [accept, peer],
+      handlers: [{ ...accept, handle: caller => { retained = caller.retainBackgroundAuthority!(additional ? ["model:invoke"] : []); return null; } },
+        { ...peer, handle: () => true }],
+    });
+    t.after(dispose);
+    const clientId = "runtime:retained-generation";
+    await home.grant(clientId, project.project_id, [accept, peer]);
+    const mcp = await home.mcp(clientId, project.project_id);
+    await mcp.client.invoke(mcp.caller, accept, {});
+    assert.ok(retained); const original = retained;
+    await original(); original.assertCurrent();
+    const target = additional ? peer : accept;
+    await home.revoke(clientId, project.project_id, [target]); await home.grant(clientId, project.project_id, [target]);
+    const code = additional ? "mcp.permission_revoked" : "mcp.action_revoked";
+    assert.throws(() => original.assertCurrent(), { code }); await assert.rejects(original(), { code });
+    await mcp.client.invoke(mcp.caller, accept, {});
+    assert.ok(retained); assert.notEqual(retained, original);
+    await retained(); retained.assertCurrent();
+    assert.throws(() => original.assertCurrent(), { code }, "a fresh accepted task never revives the old one");
+  });
 
 for (const nested of [false, true]) test(nested
   ? "W3-09-AUTH-03 real MCP bind/control and retained origin cannot borrow the nested Form action's grant"

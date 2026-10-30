@@ -167,9 +167,10 @@ export interface JudgmentStateExtras {
 }
 
 const LIMITS = { target: 2000, around: 300, heading: 120, memory: 160, recent: 40, state: 40 } as const;
+/** Whitespace folded, cut to `max` UTF-16 units; a cut between the two halves of a character drops the lone half before the ellipsis. */
 function clip(value: string, max: number): { text: string; cut: boolean } {
   const text = value.replace(/\s+/g, " ").trim();
-  return text.length <= max ? { text, cut: false } : { text: text.slice(0, max) + "…", cut: true };
+  return text.length <= max ? { text, cut: false } : { text: text.slice(0, max).replace(/[\uD800-\uDBFF]$/u, "") + "…", cut: true };
 }
 
 const POSITION_WORDS: Readonly<Record<SurfaceLandingPosition, string>> = { cursor: "光标处", selection: "选中的文字", end: "文末", object: "整个对象" };

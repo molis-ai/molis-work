@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-plugin-goals/contract";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("event document writes planning, report, concern, decision and closure through the production UI", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, click, navigate } = browser;
+  const { store, origin, projectId, sessionId, command, evaluate, click, navigate } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const app = new GoalProjectApplication(store);
   const created = app.goalEvents.createIntent({
     project_id: DEMO_PROJECT_ID,
@@ -77,7 +80,7 @@ test("event document writes planning, report, concern, decision and closure thro
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   // The board's real 4-second refresh: since #150 it is a polled timeout (the UI lifecycle's poll), not an interval.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `(()=>{const original=window.setTimeout;window.setTimeout=function(fn,ms,...args){if(ms===4000&&typeof fn==='function')window.__refreshTick=fn;return original.call(this,fn,ms,...args);};})()` }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + encodeURIComponent(goalId) }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   await waitDom(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   const headerBeforeHistory = await evaluate("document.querySelector('[data-current-summary]')?.textContent");
@@ -268,8 +271,10 @@ test("event document writes planning, report, concern, decision and closure thro
 });
 
 for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDENCE-01 ${action} sends subsequent evidence and retains refused input`, { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t); if (!browser) return;
-  const { store, origin, command, sessionId, evaluate, click, navigate, waitFor } = browser, app = new GoalProjectApplication(store);
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { store, origin, projectId, command, sessionId, evaluate, click, navigate, waitFor } = browser, app = new GoalProjectApplication(store);
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const goal = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "证据处理", outcome: "真实后续事实", requirements: [{ requirement_id: "delivered", statement: "真实结果" }], actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-goal" }).goal;
   app.goalEvents.configure({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", expected_version: 0, idempotency_key: "concern-config",
     types: [{ type_id: "delivery", version: 1, name: "交付", purpose: "真实结果", fields: [{ field_id: "body", name: "内容", purpose: "证据", format: "text", required: true }] }],
@@ -292,7 +297,7 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
   };
   // The Goal details sit beside the work at the desktop width the other journeys here use; below 840px they fold away.
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goal.goal_id }, sessionId));
   await browser.openGoalWork();
   await open("concern");
   await evaluate(`(() => { const form = document.querySelector(${JSON.stringify(formSelector)});
@@ -336,11 +341,13 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
 });
 
 test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled before retry, while a new explicit intent pins a new version", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t); if (!browser) return;
-  const { origin, store, controlToken, command, sessionId, navigate, evaluate, waitFor, click, reloadPage } = browser, app = new GoalProjectApplication(store);
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { origin, store, controlToken, projectId, command, sessionId, navigate, evaluate, waitFor, click, reloadPage } = browser, app = new GoalProjectApplication(store);
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const goal = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "固定回包恢复", outcome: "重复收尾不重复固定", requirements: [{ requirement_id: "pending", statement: "仍待验收" }],
     actor_id: "web-user", actor_kind: "user", idempotency_key: "pin-retry-goal" }).goal;
-  const created = await fetch(origin + "/api/plugins/io.molis.work.pages/pages", { method: "POST", headers: { "content-type": "application/json", origin,
+  const created = await fetch(origin + prefix + "/api/plugins/io.molis.work.pages/pages", { method: "POST", headers: { "content-type": "application/json", origin,
     "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": "pin-retry-create-page" }, body: JSON.stringify({ title: "真实交付稿", markdown: "保留这个固定版本" }) });
   assert.equal(created.status, 200, await created.clone().text());
   const document = (await created.json() as { document: { id: string } }).document, subject = { kind: "pages_document", id: document.id }, artifactId = "pages-" + document.id;
@@ -355,12 +362,12 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   const submit = '[data-event-form=closure] button[type=submit]';
   // The Goal details sit beside the work at the desktop width the other journeys here use; below 840px they fold away.
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goal.goal_id }, sessionId));
   await browser.openGoalWork();
   await openClosure();
   await evaluate(`(() => { const original=window.fetch; window.__pinPosts=0; window.__pinLost=true; window.__rejectDeliverableRead=false;
     window.fetch=async(url, options)=>{
-      const endpoint=String(url).endsWith(${JSON.stringify("/api/goals/" + goal.goal_id + "/deliverables")});
+      const endpoint=String(url).endsWith(${JSON.stringify("/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/deliverables")});
       if(endpoint && options?.method === 'POST' && JSON.parse(options.body).subject){
         window.__pinPosts++; const response=await original(url,options);
         if(window.__pinLost && response.ok){window.__pinLost=false; await response.text(); throw new TypeError('reply lost after commit');} return response;
@@ -373,7 +380,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   await click(submit);
   await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('尚未核对') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   const versions = () => openProjectVersionStores(store).artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(row => row.version);
-  const linked = async () => (await (await fetch(origin + "/api/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
+  const linked = async () => (await (await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
   assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
   await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   assert.equal(await evaluate("window.__pinPosts"), 1);
@@ -394,9 +401,11 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
 });
 
 test("a Goal without event work stays readable without writing an owner or offering a retired transfer form", { timeout: 60_000 }, async (t) => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, click, navigate, waitFor, reloadPage } = browser;
+  const { store, origin, projectId, sessionId, command, evaluate, click, navigate, waitFor, reloadPage } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const app = new GoalProjectApplication(store);
   const goalId = "legacy-readonly-history";
   const originalTitle = "未转交历史草稿";
@@ -417,12 +426,12 @@ test("a Goal without event work stays readable without writing an owner or offer
     promised_outputs: ["原输出：可读的最终说明文档"],
     acceptance_criteria: [],
   }, { actor_id: "history-fixture", idempotency_key: "legacy-readonly-create", reason: "隔离验收无 owner 历史阅读" });
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   const beforeGoal = before.goals.find((item) => item.goal_id === goalId)!;
   assert.equal(app.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, goalId), false);
   assert.equal(beforeGoal.outcome, originalOutcome);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + encodeURIComponent(goalId) }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   const page = await evaluate("document.querySelector('[data-goal-event-document]:not([hidden])')?.outerHTML || ''") as string;
@@ -447,7 +456,7 @@ test("a Goal without event work stays readable without writing an owner or offer
   assert.match(body, /隔离验收无 owner 历史阅读/);
   await reloadPage();
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   const afterGoal = after.goals.find((item) => item.goal_id === goalId)!;
   assert.equal(app.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, goalId), false);
   assert.equal(afterGoal.title, beforeGoal.title);
@@ -457,24 +466,26 @@ test("a Goal without event work stays readable without writing an owner or offer
 });
 
 test("timeline pagination retries in place and preserves dates, type markers and readable historical results", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const app = new GoalProjectApplication(store);
   const { goal } = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "验证跨日时间线", outcome: "更早的结果仍然可以阅读", actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-goal" });
   for (let index = 0; index < 42; index += 1) {
     app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-note-" + index, body: "最近的工作记录 " + index });
   }
-  store.appendEvent({ eventId: "paged-historical-result", projectId: DEMO_PROJECT_ID, actorId: "web-user", type: "goal.updated", objectType: "goal",
+  store.appendEvent({ eventId: "paged-historical-result", projectId: DEMO_PROJECT_ID, actorId: "web-user", type: "io.molis.work.goals:goal.updated", objectType: "io.molis.work.goals:goal",
     objectId: goal.goal_id, reason: "更早的说明修订", payload: {}, at: "2026-09-01T16:40:00.000Z" });
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goal.goal_id) }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + encodeURIComponent(goal.goal_id) }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   if (await evaluate("document.querySelector('[data-document-pane]').hidden")) await click("[data-goal-details-toggle]");
   await waitFor("document.querySelector('[data-load-more-timeline]') && !document.querySelector('[data-load-more-timeline]').hidden");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/" + goal.goal_id + "/event-timeline*"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/event-timeline*"] }, sessionId);
   await click("[data-load-more-timeline]");
   await waitFor("!document.querySelector('[data-load-more-timeline]').disabled && document.querySelector('[data-toast]').textContent.length > 0");
   assert.equal(await evaluate("document.querySelectorAll('[data-timeline-item]').length"), 40);
@@ -491,5 +502,5 @@ test("timeline pagination retries in place and preserves dates, type markers and
   assert.equal(await evaluate("document.querySelector('[data-event-sheet]').previousElementSibling.dataset.originalId"), "paged-historical-result");
   const ids = await evaluate<string[]>("[...document.querySelectorAll('[data-timeline-item]')].map(node=>node.dataset.timelineItem)");
   assert.equal(ids.length, new Set(ids).size);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before, "reading and retrying history must not write facts");
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), before, "reading and retrying history must not write facts");
 });

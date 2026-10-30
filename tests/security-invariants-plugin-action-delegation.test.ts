@@ -174,16 +174,36 @@ test("W5-01-DELEGATE-02 S-43 a provider id the platform makes for an external MC
   assert.deepEqual(s.ran, [command.capability_id, query.capability_id]);
 });
 
-test("W5-01-DELEGATE-03 S-43 a call the plugin made with its own grants (plugin audience) is not widened to the workflow audience", async t => {
-  const delegator = delegateProbe("widened"), caller = delegateProbe("widener", { consumes: ["widened.run"] });
-  const s = await setup(t, [delegator, caller]);
+test("W5-01-DELEGATE-03 S-43 a plugin's own call (plugin audience) stays its own call: a target outside the actions its Manifest consumes is refused and never runs", async t => {
+  const delegator = delegateProbe("widened", { permissions: ["delegate:read"] }), caller = delegateProbe("widener", { consumes: ["widened.run"], permissions: ["delegate:read"] });
+  const s = await setup(t, [delegator, caller], [...GRANTED, "delegate:read"]);
+  await s.regrant(caller, [...GRANTED, "delegate:read"]);
   s.offer([OPEN]);
   caller.behavior.handle = (context, execution) => context.services!.actions!.invoke(delegator.action, { op: "invoke", reference: ref(OPEN) }, execution);
-  await assert.rejects(s.run({ op: "invoke", reference: ref(OPEN) }, s.caller, caller), { code: "actions.forbidden" });
+  // Both plugins hold what the target needs and the target is open to agents (so to plugins): what refuses it is that the calling plugin does not consume it.
+  await assert.rejects(s.run({ op: "invoke", reference: ref(OPEN) }, s.caller, caller), { code: "actions.dependency_missing" });
   assert.equal(delegator.seen.at(-1)!.audience, "plugin");
   assert.deepEqual(s.ran, []); assert.equal(delegator.delivered(), null);
-  // The same action, called by the person, may delegate: the refusal is the audience, nothing else.
+  // The same action, called by the person, may delegate: the refusal is the calling plugin's reach, nothing else.
   assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, s.caller, delegator), "done");
+});
+
+test("W5-01-DELEGATE-03 S-43 a plugin's own call is not amplified by the plugin that delegates: a permission only the delegating plugin holds does not reach the target", async t => {
+  const delegator = delegateProbe("amplified", { permissions: ["delegate:read"] }), caller = delegateProbe("amplifier", { consumes: ["amplified.run", OPEN.capability_id], permissions: ["delegate:read"] });
+  const s = await setup(t, [delegator, caller], [...GRANTED, "delegate:read"]);
+  s.offer([OPEN]);
+  // The calling plugin consumes the target but was not granted `delegate:read`, which the delegating plugin holds.
+  caller.behavior.handle = (context, execution) => context.services!.actions!.invoke(delegator.action, { op: "invoke", reference: ref(OPEN) }, execution);
+  assert.equal(delegator.contexts.at(-1)!.grants.includes("delegate:read"), true); assert.equal(caller.contexts.at(-1)!.grants.includes("delegate:read"), false);
+  await assert.rejects(s.run({ op: "invoke", reference: ref(OPEN) }, s.caller, caller), { code: "actions.dependency_missing" });
+  assert.deepEqual(s.ran, []); assert.equal(delegator.delivered(), null);
+  // With the grant the calling plugin reaches it, as itself: its audience, installation and grants, with the delegating plugin named beside it.
+  await s.regrant(caller, [...GRANTED, "delegate:read"]);
+  assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, s.caller, caller), "done");
+  const nested = s.targetsSeen.at(-1)!, installed = s.host.homePlugins!.installation(caller.id)!;
+  assert.equal(nested.audience, "plugin"); assert.equal(nested.delegated_by, delegator.id); assert.equal(nested.delegated_audience, "plugin");
+  assert.equal(nested.plugin_install_id, installed.install_id); assert.deepEqual([...nested.permissions].sort(), [...caller.contexts.at(-1)!.grants].sort());
+  assert.deepEqual(s.ran, [OPEN.capability_id]);
 });
 
 for (const audience of ["user", "agent", "mcp", "workflow"] as const) {
@@ -285,7 +305,7 @@ test("W5-01-DELEGATE-05 S-43 a caller shaped like an MCP client whose grant on t
 });
 
 test("W5-01-DELEGATE-03 S-43 a plugin calling its own action through services.actions.invoke delegates only as far as that caller reaches: not to another plugin's target, which never runs", async t => {
-  // `plugin-actions-client.ts` `actionCaller` makes this caller: the user audience (so `originOf` lets it through), the plugin's own grants, `allowed_actions` of
+  // `plugin-actions-client.ts` `actionCaller` makes this caller: the outer call's audience (the person's here, so `originOf` lets it through; S-73), the plugin's own grants, `allowed_actions` of
   // its own actions and `required_actions` only, and an authority check that knows only the actions the plugin declares. The delegated call inherits all of it.
   const selfcall = delegateProbe("selfcall", { permissions: ["delegate:read"] });
   const s = await setup(t, [selfcall], [...GRANTED, "delegate:read"]);
@@ -349,6 +369,8 @@ test("W5-01-DELEGATE-07 S-43 the call log row names the plugin beside the origin
 
 /** What `LOCAL_OWNER_PERMISSIONS` gives the person over the Host's own project settings; no probe here declares it. */
 const PERSON_HOLDS = "projects:settings";
+/** A Host provider the person holds `projects:settings` over (`localOwnerPermissionsOver`). */
+const PERSON_HOLDS_PROVIDER = "system.project-workspaces";
 
 /**
  * A project plugin whose page route runs its action as the person on the page, the production path: `web-request.ts` gives the route the
@@ -395,7 +417,9 @@ test("W5-01-DELEGATE-08 S-43 from the page, a project plugin's route reaches a t
   const lacked = target("delegate.person_lacks", ["user", "workflow"], ["delegate:admin"]);
   const closed = target("delegate.person_holds_not_workflow", ["user"], [PERSON_HOLDS]);
   const ran: string[] = [];
-  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "delegation-targets", title: "Delegation targets", kind: "system" },
+  // What the person holds is held over a provider (PG-007 stage 4): the targets sit under the Host provider the person holds
+  // `projects:settings` over, so "held" means held there; a Host provider the person holds nothing over would reach nothing at all.
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: PERSON_HOLDS_PROVIDER, title: "Delegation targets", kind: "system" },
     definitions: [held, lacked, closed], handlers: [held, lacked, closed].map(definition => ({ ...definition, handle: async () => { ran.push(definition.capability_id); return "done"; } })) }));
   const run = (definition: ActionDefinition) => fromPage(s, project.project_id, probe.id, { op: "invoke", reference: ref(definition) });
   for (const refused of [lacked, closed]) {
@@ -419,7 +443,7 @@ test("W5-01-DELEGATE-08 S-43 from the page, a plugin holding actions:delegate st
   const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
   const project = await s.createProject("Route query delegation", []);
   const ran: string[] = [];
-  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "delegation-targets", title: "Delegation targets", kind: "system" },
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: PERSON_HOLDS_PROVIDER, title: "Delegation targets", kind: "system" },
     definitions: [query], handlers: [{ ...query, handle: async () => { ran.push(query.capability_id); return "done"; } }] }));
   // The route's person caller no longer narrows what a nested call adds for this plugin; the query delegation still narrows its own children.
   const refused = await fromPage(s, project.project_id, probe.id, { op: "query", reference: ref(query) });

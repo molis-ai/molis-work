@@ -1,34 +1,38 @@
+import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import {
   TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
+  TODO_MESSAGES,
   TODO_EN,
   TODO_PROJECT_PLUGIN_ID,
+  createTodoPlugin,
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
-test("Todo is a personal plugin on the rail after Sessions, listed in the market, with a purgeable Home store", () => {
+test("Todo is a personal plugin on the rail after Goals, listed in the market, with a purgeable Home store", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), false);
-  assert.deepEqual(railEntries(["goals", "sessions", "todo", "inbox"]).map(entry => [entry.id, entry.label, entry.glyph]),
-    [["goals", "Goals", "target"], ["sessions", "Sessions", "terminal"], ["todo", "待办", "list"], ["inbox", "Inbox", "inbox"]]);
-  const card = pluginMarketCards().find(entry => entry.id === "todo");
+  assert.deepEqual(railEntries(["goals", "todo", "inbox"]).map(entry => [entry.id, entry.label, entry.glyph]),
+    [["goals", "Goals", "target"], ["todo", "待办", "list"], ["inbox", "Inbox", "inbox"]]);
+  const card = pluginMarketCards({}, builtinMarketDirectory()).find(entry => entry.id === "todo");
   assert.equal(card?.personal, true);
   assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
 });
 
-test("a project's page mounts the Todo stage once, from the Home runtime, and the client script still parses with the quick-entry reader embedded", { timeout: 60_000 }, async t => {
+test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime, and the client bundle still parses with the quick-entry reader in it", { timeout: 60_000 }, async t => {
   const { request, project } = await serveHomeRuntime(t);
   const here = await project("待办页面");
   const page = await request(`/projects/${encodeURIComponent(here.project_id)}/`);
@@ -46,20 +50,68 @@ test("a project's page mounts the Todo stage once, from the Home runtime, and th
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));
   assert.match(client, /data-todo=workbench/);
-  assert.match(TODO_CLIENT_FACTORY_SCRIPT, /const parseQuick = \(function parseTodoQuickText/);
+  assert.match(TODO_CLIENT_FACTORY_SCRIPT, /大后天/, "the quick-entry reader is in the bundle");
   assert.doesNotMatch(TODO_CLIENT_FACTORY_SCRIPT, /window\.confirm|window\.alert|window\.prompt/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /data-assistant-context/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /molis:assistant-effect/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /isComposing/, "输入法确认候选词时按回车不提交");
 });
 
-test("every Chinese string the Todo page shows has an English entry", () => {
-  const sources = ["ui.ts", "client.ts"].map(file => readFileSync(join("plugins/native/todo/src", file), "utf8")).join("\n");
-  const keys = new Set<string>();
-  for (const match of sources.matchAll(/(?:\bL|p\.text)\("((?:[^"\\]|\\.)*)"/gu)) if (/[一-鿿]/u.test(match[1]!)) keys.add(match[1]!);
-  for (const match of sources.matchAll(/\["[a-z_]+", "([^"]+)"\]/gu)) if (/[\u4e00-\u9fff]/u.test(match[1]!)) keys.add(match[1]!);
-  const missing = [...keys].filter(key => !(key in TODO_EN));
+test("RAC-130 every word the Todo page says has a stable key with both languages, and none is a Chinese key", () => {
+  const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
+  const calls = scan.calls.filter(call => call.file === "plugins/native/todo/src/ui.ts" || call.file.startsWith("plugins/native/todo/src/browser/"));
+  assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "the gate sees no Chinese translator keys, including aliases and embedded programs");
+  const used = new Set<string>(calls.map(call => call.key));
+  const missing = [...used].filter(key => !(key in TODO_MESSAGES));
   assert.deepEqual(missing, []);
+  for (const [key, text] of Object.entries(TODO_MESSAGES)) {
+    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
+    const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
+    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
+  }
+  assert.ok(used.size > 200, "the page's keys were found");
+  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "database.ts"].map(file => "plugins/native/todo/src/" + file));
+  for (const key of Object.keys(TODO_EN)) {
+    assert.ok(scan.calls.some(call => call.key === key && call.file.startsWith("plugins/native/todo/"))
+      || scan.files.some(file => dynamicOwners.has(file.file) && file.mentions.has(key)), `${key} must have a Todo translator or an existing dynamic declaration owner`);
+  }
+  const removed = ["取消选择", "周日", "周一", "周二", "周三", "周四", "周五", "周六", "昨天", "：", "查看", "明天", "提醒", "在等", "你", "稍后", "、", "，", "；"];
+  assert.deepEqual(removed.filter(key => key in TODO_EN), [], "foreign and unused keys cannot return to Todo's dynamic dictionary");
+  assert.deepEqual([...scan.missing.keys()], [], "moving shared words cannot leave another owner's live call untranslated");
+});
+
+test("RAC-134 stable Todo words keep the formerly displayed English after the global dictionary overrides", () => {
+  // Migration reference: the served EN on f8d1e5ba, including its final Object.assign(...GAP_EN).
+  // These differed from TODO_EN's own values; copying that dictionary alone changed what people saw.
+  const displayed = {
+    "todo.status.open": "To process",
+    "todo.status.doing": "Active",
+    "todo.status.done": "Completed",
+    "todo.field.status": "State",
+    "todo.field.notes": "Description",
+    "todo.action.complete": "Completed",
+    "todo.review.kind-suggestion": "Recommendation",
+    "todo.review.collapse": "Collapse all",
+    "todo.save.unsaved": "Unsaved",
+    "todo.history.created": "Create",
+    "todo.view.unscheduled": "Not scheduled",
+    "todo.view.review": "Waiting for your decision",
+    "todo.detail.more-actions": "More",
+    "todo.link.relation": "Relationships"
+  };
+  runWithLocale("en", () => {
+    for (const [key, expected] of Object.entries(displayed)) assert.equal(L(key), expected, key);
+  });
+});
+
+test("RAC-132 the Todo page asks the Host only through the shared request helper, and its browser code is typed", () => {
+  for (const file of readdirSync("plugins/native/todo/src/browser")) {
+    const source = readFileSync(join("plugins/native/todo/src/browser", file), "utf8");
+    assert.doesNotMatch(source, /\bfetch\(/u, `${file} calls fetch directly`);
+    assert.doesNotMatch(source, /:\s*any\b|as any\b|as unknown as|catch\s*(\([^)]*\))?\s*\{\s*\}/u, `${file} has an untyped escape or an empty catch`);
+  }
+  assert.match(readFileSync("plugins/native/todo/src/browser/request.ts", "utf8"), /molisWorkRequest/);
+  assert.match(readFileSync("plugins/native/todo/package.json", "utf8"), /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
 });
 
 test("HTTP routes map to the same actions; fixed paths are not read as ids; a project's page sees its project's todos", { timeout: 60_000 }, async t => {
@@ -97,11 +149,13 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
   assert.equal(gone.status, 200, JSON.stringify(gone.body));
 });
 
-test("待办整理师 and both organizing methods are registered with the Host, so they show in “Prompt 与 Character” and can be edited", async () => {
-  const { builtinRegistrations } = await import("../apps/local-host/dist/agent-definitions/builtin-agents.js");
-  const todo = (builtinRegistrations() as Array<{ owner_id?: string; roles?: Array<{ name: string; workspace?: string; execution?: string }>; prompts?: Array<{ prompt_id: string }>;
-    methods?: Array<{ skill_id: string; version: number; tools: string[]; body: string }> }>)
-    .filter(entry => entry.owner_id === "io.molis.work.todo");
+test("待办整理师 and both organizing methods are registered with the Host while Todo runs, so they show in “Prompt 与 Character” and can be edited", async t => {
+  // Todo's definition carries them (PG-051); the Host registers what a running definition carries.
+  const { registerPluginAgentDefinitions } = await import("../apps/local-host/dist/plugin-instructions.js");
+  const home = mkdtempSync(join(tmpdir(), "todo-agent-definitions-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  registerPluginAgentDefinitions({ directory: home, completeText: () => undefined, stores: homeStores() }, createTodoPlugin(), "todo-install");
+  const todo = homeAgentDefinitions(home).registrations().filter(entry => entry.owner_id === "io.molis.work.todo");
   assert.equal(todo.length, 1);
   assert.deepEqual(todo[0]!.roles!.map(role => [role.name, role.workspace, role.execution]), [["待办整理师", "business", "operate"]]);
   assert.deepEqual(todo[0]!.prompts!.map(prompt => prompt.prompt_id).sort(), ["todo-organizer", "todo.organize.basic", "todo.organize.organizer"]);

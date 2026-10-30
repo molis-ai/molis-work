@@ -39,18 +39,22 @@ const REASON = "Several packages append to this log inside their own transaction
 const EVENTS_ENTRY = { owner: "packages/storage", users: ["modules/alpha"], reason: REASON };
 const SAME_REASON = "Two tables in two databases that share a name; neither package reads the other's.";
 const WORKSPACES_ENTRY = { packages: ["modules/beta", "plugins/native/gamma"], reason: SAME_REASON };
-const allowance = (shared: Record<string, unknown>, sameName: Record<string, unknown> = { workspaces: WORKSPACES_ENTRY }) =>
-  JSON.stringify({ note: "fixture", shared, same_name: sameName }, null, 2) + "\n";
+const AREA = "plugins/native/delta/src/store";
+const AREA_REASON = "The store owns the tables it creates; the rest of the plugin goes through the store's functions.";
+const AREAS = { [AREA]: { reason: AREA_REASON } };
+const allowance = (shared: Record<string, unknown>, sameName: Record<string, unknown> = { workspaces: WORKSPACES_ENTRY }, areas: Record<string, unknown> = AREAS) =>
+  JSON.stringify({ note: "fixture", shared, same_name: sameName, areas }, null, 2) + "\n";
 
 // The fixture: storage creates the shared journal; alpha owns alpha_items and reads the journal (it is the one listed user);
 // beta and gamma each create `workspaces` (two databases, one name, listed under same_name); the host owns its own table and
-// touches nothing else.
+// touches nothing else. Delta is a plugin whose `src/store/` is an area (BL-802, the shape of Feed): the store creates and uses
+// delta_items and delta_events, even from a nested folder, and the rest of the plugin owns delta_rules, which it creates itself.
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-table-owner-gates-"));
   git("init", "-q", "-b", "main");
   put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("tooling/gates/table-owners.json", allowance({ events: EVENTS_ENTRY }));
-  for (const dir of ["packages/storage", "modules/alpha", "modules/beta", "plugins/native/gamma", "apps/local-host"]) put(`${dir}/package.json`, manifest(`@fx/${path.basename(dir)}`));
+  for (const dir of ["packages/storage", "modules/alpha", "modules/beta", "plugins/native/gamma", "plugins/native/delta", "apps/local-host"]) put(`${dir}/package.json`, manifest(`@fx/${path.basename(dir)}`));
   put("packages/storage/src/journal.ts", lines(
     "export const JOURNAL_SQL = `CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, project_id TEXT NOT NULL);`;",
     'export const append = (db: Db, project: string) => db.prepare("INSERT INTO events (project_id) VALUES (?)").run(project);',
@@ -69,6 +73,14 @@ before(() => {
   put("plugins/native/gamma/src/store.ts", lines(
     "export const GAMMA_SQL = `CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, title TEXT); CREATE TABLE IF NOT EXISTS gamma_notes (id TEXT PRIMARY KEY);`;",
     'export const titles = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare("SELECT title FROM workspaces").all();'));
+  put("plugins/native/delta/src/store/items.ts", lines(
+    "export const ITEMS_SQL = `CREATE TABLE IF NOT EXISTS delta_items (id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS delta_events (seq INTEGER PRIMARY KEY);`;",
+    'export const items = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare("SELECT id FROM delta_items").all();'));
+  put("plugins/native/delta/src/store/rows/read.ts", 'export const rows = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare("SELECT seq FROM delta_events JOIN delta_items ON 1 = 1").all();\n');
+  put("plugins/native/delta/src/out-rules.ts", lines(
+    "export const RULES_SQL = `CREATE TABLE IF NOT EXISTS delta_rules (id TEXT PRIMARY KEY)`;",
+    'export const rules = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare("SELECT id FROM delta_rules").all();'));
+  put("plugins/native/delta/src/view.ts", 'import { items } from "./store/items.js";\nexport const view = items;\n');
   put("apps/local-host/src/host.ts", lines(
     "export const HOST_SQL = `CREATE TABLE IF NOT EXISTS host_settings (key TEXT PRIMARY KEY, value TEXT);`;",
     "type Db = { prepare(sql: string): { all(...a: unknown[]): unknown[]; get(...a: unknown[]): unknown } };",
@@ -234,6 +246,75 @@ expectFailure("a same_name section that is not an object", () => put("tooling/ga
 expectFailure("a section the gate does not know", () => put("tooling/gates/table-owners.json", JSON.stringify({ shared: { events: EVENTS_ENTRY }, same_name: { workspaces: WORKSPACES_ENTRY }, samename: {} })),
   [/table-owners\.json: unknown section "samename"/]);
 
+// ---- the areas: a directory inside a package that owns its tables (BL-802) ---------------------------------------------------
+const deltaReads = (file: string, sql: string) => put(`plugins/native/delta/src/${file}`, `export const q = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare(${JSON.stringify(sql)}).all();\n`);
+expectFailure("RAC-1701 a table the store creates later is the store's, with no list to update: the rest of the plugin reading it fails", () => {
+  append("plugins/native/delta/src/store/items.ts", "export const LATER_SQL = `CREATE TABLE IF NOT EXISTS delta_later (id TEXT PRIMARY KEY)`;\n");
+  deltaReads("later.ts", "SELECT id FROM delta_later");
+}, [/plugins\/native\/delta\/src\/later\.ts:1 reads table "delta_later", which plugins\/native\/delta\/src\/store creates; go through that package's own API/]);
+// Every way of naming a table that BL-802 found the old Feed rule missing, each in its own file outside the store, all red at once.
+const FORMS: Record<string, string> = {
+  join: "SELECT r.id FROM delta_rules r JOIN delta_items i ON i.id = r.id",
+  "double-quoted": 'SELECT id FROM "delta_items"',
+  backticked: "SELECT id FROM `delta_items`",
+  bracketed: "SELECT id FROM [delta_items]",
+  "main-schema": "SELECT id FROM main.delta_items",
+  "temp-schema": "SELECT id FROM temp.delta_items",
+  "quoted-schema": 'SELECT id FROM "main"."delta_items"',
+  "upper-schema": "SELECT id FROM MAIN.delta_items",
+  alter: "ALTER TABLE delta_items ADD COLUMN note TEXT",
+  drop: "DROP TABLE delta_items",
+  "drop-if-exists": "DROP TABLE IF EXISTS delta_events",
+  replace: "REPLACE INTO delta_items (id) VALUES ('x')",
+  "insert-or-replace": "INSERT OR REPLACE INTO delta_items (id) VALUES ('x')",
+  "update-or-ignore": "UPDATE OR IGNORE delta_items SET id = 'x'",
+};
+expectFailure("RAC-1702 outside the store, every form of naming the store's table fails: JOIN, quotes, the main and temp schema, ALTER, DROP, REPLACE and the OR forms", () => {
+  for (const [name, sql] of Object.entries(FORMS)) deltaReads(`forms/${name}.ts`, sql);
+}, Object.entries(FORMS).map(([name, sql]) => new RegExp(String.raw`plugins/native/delta/src/forms/${name}\.ts:1 ${/^(SELECT)/.test(sql) ? "reads" : "writes"} table "delta_(?:items|events)", which plugins/native/delta/src/store creates`)));
+expectPass("RAC-1703 not a finding: the store's own SQL, the plugin's own table outside the store, comments, JSDoc and lower-case English", () => {
+  append("plugins/native/delta/src/store/rows/read.ts", 'export const more = "DELETE FROM delta_items WHERE id = ?";\n');
+  append("plugins/native/delta/src/out-rules.ts", 'export const clear = "DELETE FROM delta_rules";\n');
+  put("plugins/native/delta/src/notes.ts", lines(
+    "// read from delta_items rows through the store: SELECT id FROM delta_items",
+    "/** Never `UPDATE delta_items` here; the store does it. */",
+    'export const label = "updates from delta_items";'));
+});
+expectFailure("RAC-1704 outside the store, a second CREATE of the store's table is a second creator", () => {
+  put("plugins/native/delta/src/copy.ts", "export const COPY_SQL = `CREATE TABLE delta_items (id TEXT PRIMARY KEY)`;\n");
+}, [/table "delta_items" is created by plugins\/native\/delta and plugins\/native\/delta\/src\/store: one table, one creating package/]);
+expectFailure("RAC-1705 between packages, a table named with its schema is still that table: main., temp. and the quoted schema", () => {
+  reads("SELECT id FROM main.alpha_items");
+  put("modules/beta/src/temp.ts", 'export const q = "UPDATE temp.alpha_items SET body = 1";\n');
+  put("modules/beta/src/quoted.ts", 'export const q = "SELECT id FROM \\"main\\".\\"alpha_items\\"";\n');
+}, [/apps\/local-host\/src\/host\.ts:\d+ reads table "alpha_items", which modules\/alpha creates/, /modules\/beta\/src\/temp\.ts:1 writes table "alpha_items"/,
+  /modules\/beta\/src\/quoted\.ts:1 reads table "alpha_items"/]);
+expectFailure("RAC-1705 a CREATE with the schema creates the table, so a second package creating it is a second creator", () => {
+  put("modules/beta/src/own-alpha.ts", "export const SQL = `CREATE TABLE IF NOT EXISTS main.alpha_items (id TEXT)`;\n");
+}, [/table "alpha_items" is created by modules\/alpha and modules\/beta: one table, one creating package/]);
+const areas = (entries: Record<string, unknown>) => put("tooling/gates/table-owners.json", allowance({ events: EVENTS_ENTRY }, { workspaces: WORKSPACES_ENTRY }, entries));
+expectFailure("RAC-1706 an area that does not exist", () => areas({ ...AREAS, "plugins/native/delta/src/gone": { reason: AREA_REASON } }),
+  [/table-owners\.json: areas: plugins\/native\/delta\/src\/gone: no such directory; delete the entry/]);
+expectFailure("RAC-1706 an area that no longer creates a table: its directory has files and no CREATE", () => {
+  put("plugins/native/delta/src/ui/panel.ts", "export const panel = 1;\n");
+  areas({ ...AREAS, "plugins/native/delta/src/ui": { reason: AREA_REASON } });
+}, [/table-owners\.json: areas: plugins\/native\/delta\/src\/ui: no table is created in this directory any more; delete the entry/]);
+expectFailure("RAC-1706 an area with a reason that says nothing", () => areas({ [AREA]: { reason: " the store " } }),
+  [/table-owners\.json: areas: plugins\/native\/delta\/src\/store: "reason" needs at least 20 characters that say why this directory owns its tables/]);
+expectFailure("RAC-1706 an area that is a package already, or sits inside another area", () => areas({ ...AREAS, "plugins/native/delta": { reason: AREA_REASON },
+  "plugins/native/delta/src/store/rows": { reason: AREA_REASON } }),
+[/areas: plugins\/native\/delta: the directory holds a package\.json, so it owns its tables already/, /areas: plugins\/native\/delta\/src\/store\/rows: inside the area plugins\/native\/delta\/src\/store; one area per owner/]);
+expectFailure("RAC-1706 an area key that is not a plain directory, and a field the gate does not know", () => areas({
+  "./plugins/native/delta/src/store": { reason: AREA_REASON }, "plugins/native/delta/src/store/": { reason: AREA_REASON }, [AREA]: { reason: AREA_REASON, until: "2027" } }),
+[/areas: \.\/plugins\/native\/delta\/src\/store: the key must be a directory relative to the repository root/, /areas: plugins\/native\/delta\/src\/store\/: the key must be a directory/,
+  /areas: plugins\/native\/delta\/src\/store: unknown field "until"/]);
+expectFailure("RAC-1706 an areas section that is not an object", () => put("tooling/gates/table-owners.json", JSON.stringify({ shared: { events: EVENTS_ENTRY }, same_name: { workspaces: WORKSPACES_ENTRY }, areas: [] })),
+  [/table-owners\.json needs an "areas" object keyed by directory/]);
+expectPass("RAC-1706 without the area the store and the rest of the plugin are one owner again, so the same SQL passes: the area is what draws the line", () => {
+  areas({});
+  deltaReads("later.ts", "SELECT id FROM delta_items");
+});
+
 // ---- definitions on in-memory snapshots -------------------------------------------------------------------------------------
 const isSource = (file: string) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts")
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
@@ -260,6 +341,17 @@ test("definition: SQL keywords are read in upper case only, because lower case i
   const { accesses } = scanTables(world({ "apps/h/src/x.ts": '// UPDATE\nexport const q = "select * from a_items; delete from a_items";' }), isSource);
   assert.deepEqual(accesses, []);
 });
+test("definition: a file in an area belongs to the area, the nearest of an area and a package.json wins, and with no areas the package owns all", () => {
+  const files = { "plugins/p/package.json": "{}", "plugins/p/src/store/s.ts": "export const SQL = `CREATE TABLE p_items (x)`;",
+    "plugins/p/src/view.ts": "export const q = 'SELECT * FROM p_items';", "plugins/p/src/store/tool/package.json": "{}",
+    "plugins/p/src/store/tool/t.ts": "export const q = 'SELECT * FROM p_items';" };
+  const isAny = (file: string) => file.endsWith(".ts");
+  const { owners, accesses } = scanTables(snapshot(files), isAny, ["plugins/p/src/store"]);
+  assert.deepEqual([...owners.get("p_items")], ["plugins/p/src/store"]);
+  assert.deepEqual(accesses.map((access: { file: string; package: string }) => [access.file, access.package]),
+    [["plugins/p/src/view.ts", "plugins/p"], ["plugins/p/src/store/tool/t.ts", "plugins/p/src/store/tool"]]);
+  assert.deepEqual(scanTables(snapshot(files), isAny).accesses.map((access: { file: string }) => access.file), ["plugins/p/src/store/tool/t.ts"]);
+});
 test("definition: a file with no package.json above it belongs to the repository root, which owns what it creates", () => {
   const files = { "tooling/x.ts": "export const SQL = `CREATE TABLE t (x)`; export const q = 'SELECT * FROM t';" };
   assert.deepEqual(tableOwnerProblems(snapshot(files), { isSource }), []);
@@ -275,22 +367,21 @@ test("definition: a second creator is reported unless the table is listed under 
   assert.match(tableOwnerProblems(snapshot({ ...worldFiles(files), ...allow({ a_items: { ...listed.a_items, packages: ["modules/a", "apps/h"] } }) }), { isSource }).join("\n"),
     /a_items: apps\/h does not create this table[^]*a_items: modules\/b also creates this table and is not in "packages"/);
 });
-test("the real repository's allowance names exactly the two journal tables that storage creates, Goals' declared tables until S9, and the two names that are two databases", () => {
+test("the real repository's allowance names no journal table (PG-094 S9-1), no Goals table (S9-3), and the two names that are two databases", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
   const file = JSON.parse(readFileSync(path.join(root, "tooling/gates/table-owners.json"), "utf8")) as {
-    shared: Record<string, { owner: string; users: string[]; reason: string }>; same_name: Record<string, { packages: string[]; reason: string }> };
+    shared: Record<string, { owner: string; users: string[]; reason: string }>; same_name: Record<string, { packages: string[]; reason: string }>;
+    areas: Record<string, { reason: string }> };
   const ownedBy = (owner: string) => Object.entries(file.shared).filter(([, entry]) => entry.owner === owner);
-  assert.deepEqual(ownedBy("packages/storage").map(([table]) => table).sort(), ["events", "idempotency_records"]);
-  // Goals declares its tables in its Manifest (S8) and the plugin creates them; its two Modules keep the SQL that reads and writes them
-  // until S9 moves the storage into the plugin, and then these entries are deleted. Nothing else may be shared on that footing.
-  const goalsTables = ownedBy("plugins/native/goals");
-  assert.equal(goalsTables.length, 31);
-  assert.equal(goalsTables.length + 2, Object.keys(file.shared).length);
-  for (const [table, entry] of goalsTables) {
-    assert.ok(entry.users.length > 0 && entry.users.every(user => user === "modules/goals" || user === "modules/governance-collaboration"), table);
-    assert.match(entry.reason, /Manifest/, table);
-    assert.match(entry.reason, /S9/, table);
-  }
+  // The two journal tables are storage's and nobody else's statements name them: Goals and Governance reach them through the journal port.
+  assert.deepEqual(ownedBy("packages/storage").map(([table]) => table).sort(), []);
+  // Goals declares its tables in its Manifest (S8) and the plugin creates them. The SQL that reads and writes them lived in its two
+  // Modules until S9-3 moved both into the plugin's package, so no Goals table is shared any more and nothing else may be shared on
+  // that footing.
+  assert.deepEqual(ownedBy("plugins/native/goals"), []);
+  assert.deepEqual(Object.keys(file.shared), []);
   assert.deepEqual(Object.fromEntries(Object.entries(file.same_name).map(([table, entry]) => [table, [...entry.packages].sort()])),
     { jobs: ["plugins/native/alchemist", "plugins/native/images"], workspaces: ["modules/projects", "plugins/native/alchemist"] });
+  // BL-802: Feed's store owns the Feed store's tables; the rest of the Feed package goes through its functions. One area today.
+  assert.deepEqual(Object.keys(file.areas), ["plugins/native/feed/src/store"]);
 });

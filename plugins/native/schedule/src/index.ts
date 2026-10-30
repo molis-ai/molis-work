@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-schedule",
-  packagePath: "plugins/native/schedule",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["schedule.ui-contribution.v1", "schedule.http-routes.v1", "schedule.conversation-tasks.v1", "schedule.actions.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export * from "./reminders.js";
 export * from "./reminder-actions.js";
 export * from "./reminder-management.js";
@@ -35,6 +22,7 @@ export {
 } from "./actions.js";
 export { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SCHEDULE_EN } from "./en.js";
+export { SCHEDULE_MESSAGES } from "./messages.js";
 export { SCHEDULE_STYLES } from "./styles.js";
 export {
   SCHEDULE_PLUGIN_ID,

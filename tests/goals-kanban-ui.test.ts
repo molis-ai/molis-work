@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsMomentumRenderer, createWorkbenchLocale, createWorkbenchUiHost, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import { icon } from "@molis-ai/molis-work-design-system";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { GOAL_CANVAS_STYLES } from "../apps/workbench/dist/styles/goal-canvas.js";
 
 const localeStore = new AsyncLocalStorage<WebLocale>();

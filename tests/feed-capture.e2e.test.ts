@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -5,11 +6,12 @@ import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
@@ -30,8 +32,8 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     kind: "app", publisher: { publisher_id: "example", signature: "capture-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, args) => { inputs.push((args as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install;
   await runtime.start(install.install_id);
   const section = `[data-feed-out-rules="${source.source_id}"]`;
   const fill = (selector: string, value: string) => evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('input', { bubbles: true })); node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
@@ -58,7 +60,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await click(section + ' [data-feed-out-rule-create]');
     await waitFor(`Array.from(document.querySelectorAll('${section} [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.querySelector('${section} [data-feed-rule-status]')?.dataset.error === 'true'`);
     assert.notEqual(await evaluate(`document.querySelector('${section} [data-feed-rule-status]')?.dataset.error`), 'true', await evaluate(`document.querySelector('${section}')?.innerText`));
-    const saved = feed.listOutRules(projectId).find(rule => rule.name === "需要跟进的消息")!;
+    const saved = feed.outRules.list(projectId).find(rule => rule.name === "需要跟进的消息")!;
     assert.equal(saved.judgment?.capability_id, definition.capability_id); assert.ok(saved.judgment?.provider_id);
     await evaluate(`document.querySelector('${section} [data-feed-out-rules-evaluate]').closest('details').open = true`);
     // A natural-height disclosure clips its children while opening; wait until it contains the control before scrolling.
@@ -73,7 +75,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await runtime.stop(install.install_id);
     await click(section + ' [data-feed-rule-mode="existing"]');
     await waitFor(`document.querySelector('${section} [data-feed-rule-binding-status]')?.textContent !== '已启用'`);
-    assert.ok(feed.listOutRules(projectId).find(rule => rule.rule_id === saved.rule_id)!.judgment, "stopping the provider preserves the exact saved reference");
+    assert.ok(feed.outRules.list(projectId).find(rule => rule.rule_id === saved.rule_id)!.judgment, "stopping the provider preserves the exact saved reference");
     const usages = await localHost.sceneClient(reference).usages({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["feed:read", "feed:write", "model:invoke"] });
     const usage = usages.find(usage => usage.binding_id === "feed.capture:" + saved.rule_id)!;
     assert.ok(usage.href);
@@ -87,7 +89,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await writeFile(reviewEvidenceUrl("feed-capture/unavailable-narrow.png"), Buffer.from(screenshot.data, "base64"));
   } catch (error) {
     t.diagnostic(await evaluate(`JSON.stringify({ section: document.querySelector('${section}')?.innerText, busy: document.querySelector('${section} [data-feed-rule-composer]')?.getAttribute('aria-busy') })`));
-    t.diagnostic(JSON.stringify(feed.listOutRules(projectId).filter(rule => rule.match.source_id === source.source_id)));
+    t.diagnostic(JSON.stringify(feed.outRules.list(projectId).filter(rule => rule.match.source_id === source.source_id)));
     throw error;
   } finally { await runtime.stop(install.install_id); }
 });

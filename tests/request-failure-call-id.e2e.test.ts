@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // W3-10-1b in the Workbench, in a real browser with the real clipboard: a request that fails shows the diagnostic ID only when the
 // Host kept a record of the call to look it up by (spec §1, 2026-10-10 「只在查得到时显示」), and says plainly when the answer never came
@@ -35,7 +37,67 @@ const answersFor = async (evaluate: <T>(expression: string) => Promise<T>, part:
   evaluate<Answer[]>(`window.__answers.filter(answer => answer.url.includes(${JSON.stringify(part)}))`);
 
 type Evaluate = <T>(expression: string) => Promise<T>;
+// This is the other window's own current read, not the stale page silently rebasing its pending decision.
+const removeCurrentMemory = (evaluate: Evaluate, memoryId: string) => evaluate(`(async () => {
+  const {items} = await molisWorkRequest('/api/memory/overview?scope=personal');
+  const current = items.find(item => item.memory_id === ${JSON.stringify(memoryId)});
+  return molisWorkRequest('/api/memory/change', {body: {memory_id: current.memory_id, expected_version: current.version, action: 'remove'}});
+})()`);
 type Command = (method: string, params?: Record<string, unknown>, sessionId?: string) => Promise<unknown>;
+
+// VUX-TOAST-01: measure actual pointer/keyboard states, not a style inferred from an idle button.
+test("toast diagnostic links keep readable ink through pointer and keyboard states", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null);
+  assert.ok(browser, "Chrome is required for the diagnostic-link states");
+  const { origin, projectId, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
+  await command("DOM.enable", {}, sessionId); await command("CSS.enable", {}, sessionId);
+  const toast = "[data-toast].is-visible.is-error", button = `${toast} [data-molis-call-id]`;
+  const evidence = reviewEvidenceUrl("toast-call-id-states/"); await mkdir(evidence, { recursive: true });
+  const open = () => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?settingsPath=%2Fsettings%2Fmemory` }, sessionId));
+  for (const scheme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    const phone = width === 390;
+    await phoneOf(command, sessionId, phone);
+    await command("Emulation.setDeviceMetricsOverride", { width, height: phone ? 844 : 960, deviceScaleFactor: 1, mobile: phone }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
+    await open(); await waitFor("document.querySelector('[data-memory-add]') && typeof molisWorkRequest === 'function'", 20_000);
+    const saved = await evaluate<{ memory: { memory_id: string } }>(`molisWorkRequest('/api/memory/items', { body: { scope: 'personal', text: '诊断链接状态 ${scheme} ${phone}', kind: 'preference' } })`);
+    await open();
+    const row = `[data-memory-settings] [data-memory-id="${saved.memory.memory_id}"]`;
+    await waitFor(`!!document.querySelector(${JSON.stringify(row)})`, 20_000);
+    await removeCurrentMemory(evaluate, saved.memory.memory_id);
+    await click(`${row} button[aria-label^="停用"]`);
+    await waitFor(`!!document.querySelector(${JSON.stringify(button)}) && document.querySelector(${JSON.stringify(toast)}).getAnimations().every(a => a.playState === 'finished')`);
+    const point = await evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector(${JSON.stringify(button)}).getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
+    const mouse = (type: string, pressed = false, away = false) => command("Input.dispatchMouseEvent", { type, ...(away ? { x: 1, y: 1 } : point), button: pressed || type === "mouseReleased" ? "left" : "none", buttons: pressed ? 1 : 0, clickCount: type === "mouseMoved" ? 0 : 1 }, sessionId);
+    const inspect = async (state: string) => {
+      const color = await toastLinesOf(evaluate, toast);
+      const live = await evaluate<{ hover: boolean; active: boolean; focus: boolean; toastInk: string; scheme: boolean }>(`(() => { const b = document.querySelector(${JSON.stringify(button)}); return { hover: b.matches(':hover'), active: b.matches(':active'), focus: b.matches(':focus-visible'), toastInk: getComputedStyle(b.parentElement).color, scheme: matchMedia('(prefers-color-scheme: ${scheme})').matches }; })()`);
+      const { root } = await command("DOM.getDocument", {}, sessionId) as { root: { nodeId: number } };
+      const { nodeId } = await command("DOM.querySelector", { nodeId: root.nodeId, selector: button }, sessionId) as { nodeId: number };
+      const matched = await command("CSS.getMatchedStylesForNode", { nodeId }, sessionId) as { matchedCSSRules: { matchingSelectors: number[]; rule: { selectorList: { selectors: { text: string }[] }; style: { cssProperties: { name: string; value: string }[] } } }[] };
+      const rules = matched.matchedCSSRules.flatMap(({ matchingSelectors, rule }) => rule.style.cssProperties.filter(p => p.name === "color").map(p => ({ selectors: matchingSelectors.map(i => rule.selectorList.selectors[i].text), color: p.value })));
+      const name = `${scheme}-${width}-${state}`;
+      await writeFile(new URL(`${name}.json`, evidence), JSON.stringify({ state, ...live, ...color, rules }, null, 2));
+      const shot = await command("Page.captureScreenshot", { format: "png" }, sessionId) as { data: string };
+      await writeFile(new URL(`${name}.png`, evidence), Buffer.from(shot.data, "base64"));
+      assert.equal(live.scheme, true, name);
+      assert.equal(live.hover, state === "hover" || state === "active", `${name}: actual pointer state`);
+      assert.equal(live.active, state === "active", `${name}: actual pressed state`);
+      if (state === "focus") assert.equal(live.focus, true, `${name}: actual keyboard focus`);
+      assert.ok(color.contrast >= 4.5, `${name}: ${color.contrast}:1 (${color.ink} on ${color.ground})`);
+      assert.equal(color.ink, live.toastInk, `${name}: the diagnostic link keeps the toast's ink`);
+    };
+    await mouse("mouseMoved", false, true); await inspect("normal");
+    await mouse("mouseMoved"); await inspect("hover");
+    await mouse("mousePressed", true);
+    try { await inspect("active"); } finally { await mouse("mouseReleased"); }
+    await mouse("mouseMoved", false, true);
+    for (const modifiers of [8, 0]) for (const type of ["keyDown", "keyUp"])
+      await command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, modifiers }, sessionId);
+    await inspect("focus");
+  }
+});
 
 /** The toast's box, and where its glyph sits (the glyph hangs on the toast's left edge at a fixed offset from the top). */
 const toastBox = (evaluate: Evaluate, selector: string) => evaluate<{ x: number; right: number; h: number; glyphHeight: number; glyphTop: number }>(`(() => { const el = document.querySelector(${JSON.stringify(selector)});
@@ -89,7 +151,7 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
   const row = `[data-memory-settings] [data-memory-id="${memoryId}"]`;
   await waitFor(`!!document.querySelector(${JSON.stringify(row)})`, 20_000);
   // Deleted somewhere else (a second window, the assistant) while this page still shows it.
-  await evaluate(`molisWorkRequest('/api/memory/change', { body: { memory_id: ${JSON.stringify(memoryId)}, action: 'remove' } })`);
+  await removeCurrentMemory(evaluate, memoryId);
   await evaluate(RECORD_ANSWERS);
   await click(`${row} button[aria-label^="停用"]`);
   const errorButton = "[data-memory-settings] [data-memory-error] [data-molis-call-id]";
@@ -162,7 +224,7 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
     await open("/settings/memory");
     const staleRow = `[data-memory-settings] [data-memory-id="${stale}"]`;
     await waitFor(`!!document.querySelector(${JSON.stringify(staleRow)})`, 20_000);
-    await evaluate(`molisWorkRequest('/api/memory/change', { body: { memory_id: ${JSON.stringify(stale)}, action: 'remove' } })`);
+    await removeCurrentMemory(evaluate, stale);
     await click(`${staleRow} button[aria-label^="停用"]`);
     await waitFor("!!document.querySelector('[data-toast].is-visible.is-error [data-molis-call-id]') && !!document.querySelector('[data-memory-settings] [data-memory-error] [data-molis-call-id]')", 15_000);
     const shown = await toastBox(evaluate, "[data-toast].is-visible.is-error");

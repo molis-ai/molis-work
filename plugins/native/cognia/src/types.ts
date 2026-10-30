@@ -32,4 +32,4 @@ export const cogniaErrors = defineErrorCodes("cognia", {
   directory_unavailable: "unavailable",
 });
 export function requireCognia(condition: unknown, message: string, raise: (message: string) => ActionError = cogniaErrors.invalid): asserts condition { if (!condition) throw raise(message); }
-export function stringField(value: unknown, label: string, max = 500): string { requireCognia(typeof value === "string" && value.trim().length > 0 && value.length <= max, label); return value.trim(); }
+export function stringField(value: unknown, label: string, max = 500): string { requireCognia(typeof value === "string" && value.trim().length > 0 && [...value].length <= max, label); return value.trim(); }

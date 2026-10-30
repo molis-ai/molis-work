@@ -3,7 +3,7 @@ import { transaction, type ServerDatabase } from "../database.js";
 import { Identity, type Member, type Role, type Session } from "../identity.js";
 import { ServerEvents } from "../events.js";
 import { ContinuityActions } from "./actions.js";
-import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
+import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalProgressFacts, GoalStateFacts, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
 
 function count(value: unknown): number {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("im.continuity.invalid_version", "缺少有效的目标版本");
@@ -76,7 +76,7 @@ export class ContinuityService {
     } finally { clearTimeout(timeout);this.active.delete(active); }
   }
   private async goal(bound: BoundActions, goalId: string): Promise<GoalProjection> {
-    const state = await this.actions.invoke<GoalEventStateView>(bound,"goals.state.read",{goal_id:goalId});
+    const state = await this.actions.invoke<GoalStateFacts>(bound,"goals.state.read",{goal_id:goalId});
     return {goal_id:goalId,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,
       can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
   }
@@ -136,11 +136,11 @@ export class ContinuityService {
       });
       if (old?.result_json) {validate();return {...JSON.parse(old.result_json),replayed:true};}
       try {
-        let result = await this.actions.invoke<GoalEventProgressResult|null>(bound,"goals.progress.receipt",{goal_id:input.goal_id,idempotency_key:input.command_id});
+        let result = await this.actions.invoke<GoalProgressFacts|null>(bound,"goals.progress.receipt",{goal_id:input.goal_id,idempotency_key:input.command_id});
         const replayed = !!result;
         if (!result) {
           validate();
-          result = await this.actions.invoke<GoalEventProgressResult>(bound,"goals.progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
+          result = await this.actions.invoke<GoalProgressFacts>(bound,"goals.progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
             based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
         }
         validate(); const receipt = {saved:true as const,event_id:result.event_id,replayed:replayed || result.replayed};

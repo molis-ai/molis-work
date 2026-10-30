@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { charactersActions as c } from "@molis-ai/molis-work-module-characters";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
-import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { actionUsageActions, type ActionUsagesResult } from "../apps/local-host/dist/action-usage-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
@@ -17,13 +17,15 @@ test("where a capability is used comes from each owner of saved references: work
   const home = await mkdtemp(join(tmpdir(), "action-usages-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "使用位置", actor_id: "web-user" });
+  // The workflow's first station is Feed's: Feed and the Inbox are Runtime plugins (FI-6), so their actions are there only in a project that uses them.
+  for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
   catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   // The Home is served so that the client's grant is saved the way a person saves it; this file keeps its own host (it needs `src` imports of the usage action).
   const served = await serveTestHost(t, { home, host });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user",
-    permissions: [...new Set(["artifact:read", "artifact:write", ...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS])] };
+    permissions: [...new Set(["artifact:read", "artifact:write", ...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS])] };
   const client = host.actionClient(ref), actions = bindActionClient(client, () => owner);
   try {
     const status = (await client.discover(owner)).find(row => row.capability_id === inboxActions.setStatus.capability_id)!;

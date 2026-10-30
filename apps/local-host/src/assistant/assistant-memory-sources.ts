@@ -2,8 +2,9 @@ import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentRuntimeAdapter, AgentRunView, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLearningRequest } from "../memory/memory-learning.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
-import { typedMemorySources, type AssistantMemorySourceRef } from "./assistant-inputs.js";
+import { ASSISTANT_STORE_NAME, AssistantStore, assistantWorkForSession } from "./assistant-store.js";
+import { typedMemorySources, memorySourceIdentity, type AssistantMemorySourceRef } from "./assistant-inputs.js";
+import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
 
 /** Only references cross the durable learning queue. Their bodies stay with the original owners. */
 export interface AssistantMemoryLearningRequest {
@@ -17,7 +18,17 @@ export interface AssistantMemoryLearningRequest {
 type LearningTask = Pick<AgentScheduledTask, "key" | "session_id" | "payload">;
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const nonempty = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-const identity = (source: AssistantMemorySourceRef): string => JSON.stringify([source.run_id, source.input_id, source.version]);
+const identity = memorySourceIdentity;
+
+/** Current work owner of a canonical Session; no display round or recent-work scan can stand in for it. */
+export function assistantMemorySourceWork(home: string, actorId: string, sessionId: string, explicit = false): { project_id: string | null } | undefined {
+  const db = openReadOnlyHomeSqlite(home, ASSISTANT_STORE_NAME);
+  try {
+    const work = assistantWorkForSession(db, actorId, sessionId);
+    return work && !work.archived && !work.delegated_by && (!work.continuation_hold || explicit && work.continuation_hold === "input")
+      ? { project_id: work.project_ref?.project_id ?? null } : undefined;
+  } finally { db.close(); }
+}
 
 /** Re-read one work's originals, including current withdrawal receipts; absence never authorizes learning. */
 async function readSources(home: string, adapter: AgentRuntimeAdapter, task: LearningTask): Promise<{ source: AssistantMemoryLearningRequest; request: MemoryLearningRequest } | null> {
@@ -29,7 +40,7 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
   const db = openReadOnlyHomeSqlite(home, ASSISTANT_STORE_NAME);
   try {
     const store = new AssistantStore(db), work = store.get(actor, workId), rounds = store.rounds(workId);
-    if (work.archived || work.delegated_by || work.continuation_hold === "stopped" || work.session_id !== task.session_id) return null;
+    if (work.archived || work.delegated_by || work.continuation_hold || work.session_id !== task.session_id) return null;
     const trigger = rounds.find(round => task.key === `memory-learn:${workId}:${round.run_id}`);
     if (!trigger || (body.run_id !== undefined && body.run_id !== trigger.run_id)
       || (body.session_id !== undefined && body.session_id !== task.session_id)) return null;
@@ -42,8 +53,8 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
     const readRun = async (id: string): Promise<AgentRunView | null> => {
       if (views.has(id)) return views.get(id)!;
       const stored = rounds.find(round => round.run_id === id);
-      // Coding owns its own session. An Assistant session reference cannot stand in for it.
-      if (!stored || stored.executor === "coding") return null;
+      // The executor plugin owns its own session. An Assistant session reference cannot stand in for it.
+      if (!stored || stored.executor === "plugin") return null;
       const run = await adapter.read({ session_id: task.session_id, run_id: id });
       if (run.ref.session_id !== task.session_id || run.ref.run_id !== id || run.phase !== "completed") return null;
       views.set(id, run); return run;
@@ -55,16 +66,19 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       refs = [];
       for (const raw of body.sources) {
         const ref = object(raw);
-        if (!ref || Object.keys(ref).some(key => !["run_id", "input_id", "version"].includes(key)) || !nonempty(ref.run_id)
+        if (!ref || Object.keys(ref).some(key => !["run_id", "input_id", "version", "original"].includes(key)) || !nonempty(ref.run_id)
           || (ref.input_id !== null && !nonempty(ref.input_id)) || ref.version !== "1") return null;
-        refs.push({ run_id: ref.run_id, input_id: ref.input_id, version: "1" });
+        const original = ref.original === undefined ? null : object(ref.original);
+        if (ref.input_id === null ? !original || Object.keys(original).some(key => !["session_id", "input_id", "version"].includes(key))
+          || original.session_id !== task.session_id || !nonempty(original.input_id) || original.version !== 1 : ref.original !== undefined) return null;
+        refs.push({ run_id: ref.run_id, input_id: ref.input_id, version: "1", ...(original ? { original: { session_id: original.session_id as string, input_id: original.input_id as string, version: 1 as const } } : {}) });
       }
       if (new Set(refs.map(identity)).size !== refs.length) return null;
     } else {
       // An old queued snapshot is usable only when the original owners still prove every complete message.
       if (!Array.isArray(body.said) || !body.said.length || body.said.length > 6 || !body.said.every(nonempty)) return null;
       for (const round of rounds.slice(-30)) await readRun(round.run_id);
-      const available = typedMemorySources(rounds.filter(round => views.has(round.run_id)), [...views.values()].map(run => ({ run_id: run.ref.run_id, turns: run.turns })));
+      const available = typedMemorySources([...views.values()]);
       refs = [];
       for (const text of body.said) {
         const index = available.findIndex(source => source.text.trim() === text);
@@ -73,19 +87,23 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
         const { text: _text, ...ref } = source!; refs.push(ref);
       }
     }
-    const said: string[] = [];
+    const said: string[] = [], snapshots = [];
     for (const ref of refs) {
       const run = await readRun(ref.run_id);
       if (!run) return null;
-      const source = typedMemorySources([rounds.find(round => round.run_id === ref.run_id)!], [{ run_id: ref.run_id, turns: run.turns }]).find(one => identity(one) === identity(ref));
+      const source = typedMemorySources([run]).find(one => identity(one) === identity(ref));
       if (!source || !source.text.trim()) return null;
-      said.push(source.text);
+      const event = memoryInputSource({ actor_id: actor, session_id: task.session_id, kind: ref.original ? "original" : "supplement", input_id: ref.original?.input_id ?? ref.input_id! });
+      const snapshot = memoryInputSnapshots(actor, [run]).find(item => item.event_id === event.event_id);
+      if (!snapshot) return null;
+      said.push(source.text); snapshots.push(snapshot);
     }
     const current = store.get(actor, workId);
-    if (current.archived || current.delegated_by || current.continuation_hold === "stopped" || current.session_id !== task.session_id
+    if (current.archived || current.delegated_by || current.continuation_hold || current.session_id !== task.session_id
       || (current.project_ref?.project_id ?? null) !== projectId) return null;
     return { source: { actor_id: actor, work_id: workId, session_id: task.session_id, run_id: trigger.run_id, sources: refs },
-      request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", work: { work_id: workId, title: current.title } }, said } };
+      request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,
+        work: { work_id: workId, title: current.title } }, said, sources: snapshots } };
   } finally { db.close(); }
 }
 
@@ -99,6 +117,7 @@ export async function assistantMemorySources(home: string, adapter: AgentRuntime
   return { ...first, current: async () => {
     const now = await readSources(home, adapter, fixed).catch(() => null);
     return now !== null && now.request.caller.project_id === first.request.caller.project_id
-      && now.request.said.length === first.request.said.length && now.request.said.every((text, index) => text === first.request.said[index]);
+      && now.request.said.length === first.request.said.length && now.request.said.every((text, index) => text === first.request.said[index])
+      && JSON.stringify(now.request.sources) === JSON.stringify(first.request.sources);
   } };
 }

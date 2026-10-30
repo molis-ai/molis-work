@@ -1,5 +1,4 @@
 import type { DesktopPanelApi, DesktopPanelRecord } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { decodeLocalWebPathPart, respondLocalWebRefusal } from "./web-http.js";
 
 interface PanelSpawnSpec {
@@ -15,7 +14,8 @@ interface PanelHost {
   spawn(panel: DesktopPanelRecord): PanelSpawnSpec;
 }
 
-type PanelGoal = Pick<GoalRecord, "title" | "decomposition_state"> & { event_work?: boolean; event_facts?: string };
+/** The two facts of a Goal the panel routes read: its title, and whether it only holds steps (`closed_compound`). */
+type PanelGoal = { title: string; decomposition_state: string; event_work?: boolean; event_facts?: string };
 
 export interface PanelHttpContext {
   method: string | undefined;
@@ -29,7 +29,7 @@ export interface PanelHttpContext {
   readLinkedFeedContext(goalId: string, itemId?: string): Promise<{ source_context: string } | null> | { source_context: string } | null;
   projectGuidance(): string | Promise<string>;
   isRuntimeKind(kind: string): boolean;
-  launchSpec(input: { runtime_kind: string; command?: string; args?: string[]; resume_session_id?: string | null }): {
+  launchSpec(input: { runtime_kind: string; command?: string; args?: unknown; resume_session_id?: string | null }): {
     runtime_kind: string; command: string; args: string[]; title: string;
   };
   advancePrompt(input: { goal_id: string; title: string; source_context?: string; project_guidance_prefix?: string; onboarding?: boolean; current_facts?: string }): string;
@@ -110,7 +110,7 @@ async function openGoalPanel(context: PanelHttpContext, host: PanelHost, goalId:
   const launch = context.launchSpec({
     runtime_kind: runtimeKind,
     command: typeof body.command === "string" ? body.command : undefined,
-    args: Array.isArray(body.args) ? body.args.map((item) => String(item)) : undefined,
+    args: body.args,
     resume_session_id: resume,
   });
   const cwd = typeof body.cwd === "string" && body.cwd.trim()

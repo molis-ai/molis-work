@@ -3,7 +3,7 @@ import test from "node:test";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Registered pages"), other = await f.project("Other registered pages");
@@ -321,4 +321,69 @@ test("SYS-15-L4 S-47 a second close cancels cleanup already waiting before it ca
   assert.equal((await f.request("/api/host/plugin-pages/"+page_id, {method:"DELETE"})).status, 200);
   release.resolve(); assert.equal((await closing).status, 403);
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
+});
+
+/** A Home probe with one more declared route, `GET /items/:id`, which records the id it was given: a shape that can hold a bad percent-encoding. */
+async function serveItemPage(t: Parameters<typeof serveHomeRuntime>[0], name: string) {
+  const probe = homeProbe(name), answered: string[] = [];
+  probe.definition.manifest.routes!.push({ route_id: "item", method: "GET", path: "/items/:id", permission: `${name}:read` });
+  const start = probe.definition.start;
+  probe.definition.start = async context => {
+    const contribution = await start(context);
+    if (contribution.kind !== "app") throw new Error("Expected app");
+    return { ...contribution, routes: [...(contribution.routes ?? []), { route_id: "item", handle: request => { answered.push(request.params.id as string); return { status: 200, body: { id: request.params.id } }; } }] };
+  };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await grantHomeProbe(f.host, probe);
+  const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  return { f, id: probe.id, page: ((await opened.json()) as { page_id: string }).page_id, answered };
+}
+
+test("SYS-15 S-47 RAC-1809 a page's request to a declared route's shape with bad percent-encoding is the caller's invalid path, never an unhandled failure", { timeout: 30_000 }, async t => {
+  // The page guard asked the Runtime matcher for the route, which decodes every segment and throws a URIError on a bad one; nothing took it and the
+  // Host answered 500 (plugin-page-authority.ts:134). `matchPluginRoute` now answers the plugin's own declared shape with 400 before any handler runs.
+  const { f, id, page, answered } = await serveItemPage(t, "pagebad");
+  const headers = { "x-molis-plugin-page": page }, route = `/api/plugins/${id}/items/`;
+  const plain = await f.request(route + "abc", { headers });
+  assert.equal(plain.status, 200, await plain.clone().text());
+  assert.equal((await plain.json()).id, "abc", "a well-formed path still reaches the route");
+  assert.equal((await (await f.request(route + "%E2%9C%93", { headers })).json()).id, "✓", "a valid percent-encoding is still decoded for the route");
+  for (const bad of ["%E0%A4%A", "%zz", "50%"]) {
+    const refused = await f.request(route + bad, { headers });
+    assert.equal(refused.status, 400, `${bad}: ${await refused.clone().text()}`);
+    assert.equal((await refused.json()).code, "host.request_path_invalid", bad);
+  }
+  assert.deepEqual(answered, ["abc", "✓"], "the route's handler did not run for a malformed path");
+});
+
+test("SYS-15 S-47 RAC-1810 a page's request with bad percent-encoding outside its declared routes is refused like any undeclared path, and a toolbar callback never reaches the matcher", { timeout: 30_000 }, async t => {
+  // An undeclared shape is not the plugin's route: the guard refuses it with 403, as it refuses a well-formed undeclared path (it used to be 500). A toolbar
+  // callback (`x-molis-context-page`) is let through only for its own owner choices and never uses a route, so even a declared shape with a bad encoding is 403.
+  const { f, id, page } = await serveItemPage(t, "pageundeclared");
+  for (const path of [`/api/plugins/${id}/not-declared/%E0%A4%A`, `/api/plugins/%E0%A4%A/state`, `/api/plugins/${id}/items/%zz/more`, `/api/plugins/${id}/state%`]) {
+    const refused = await f.request(path, { headers: { "x-molis-plugin-page": page } });
+    assert.equal(refused.status, 403, `${path}: ${await refused.clone().text()}`);
+    assert.equal((await refused.json()).code, "actions.forbidden", path);
+  }
+  const declared = `/api/plugins/${id}/items/%E0%A4%A`;
+  for (const headers of [{ "x-molis-context-page": page }, { "x-molis-context-page": page, "x-molis-plugin-page": page }]) {
+    const callback = await f.request(declared, { headers });
+    assert.equal(callback.status, 403, `${Object.keys(headers).join("+")}: ${await callback.clone().text()}`);
+  }
+});
+
+test("SYS-15 S-47 RAC-1811 a plain Home request with bad percent-encoding is 400 for a declared route's shape and the plugin's own 404 for any other path", { timeout: 30_000 }, async t => {
+  // No page header: the guard lets the request by and `dispatchRuntimePluginRoute` decides (T-043, #1391). This already holds on main; it pins the Home
+  // prefix and the function the dispatch now shares with the page guard.
+  const { f, id, answered } = await serveItemPage(t, "plainbad");
+  const declared = await f.request(`/api/plugins/${id}/items/%E0%A4%A`);
+  assert.equal(declared.status, 400, await declared.clone().text());
+  assert.equal((await declared.json()).code, "host.request_path_invalid");
+  const other = await f.request(`/api/plugins/${id}/not-declared/%E0%A4%A`);
+  assert.equal(other.status, 404, await other.clone().text());
+  assert.equal((await other.json()).error, "插件没有这个入口");
+  assert.deepEqual(answered, [], "the route's handler did not run for a malformed path");
+  assert.equal((await f.request(`/api/plugins/${id}/items/abc`)).status, 200, "a well-formed path still reaches the route");
+  assert.deepEqual(answered, ["abc"]);
 });

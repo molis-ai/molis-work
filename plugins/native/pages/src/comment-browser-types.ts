@@ -4,16 +4,13 @@ export interface CommentSideHost {
   messages: UiPageMessages;
   translate(value: string): string;
   projectId: string | (() => string);
-  route(path: string): string;
-  /** Where this plugin's documents live: `/api/plugins/<plugin id>/pages`. */
-  api: string;
-  controlHeaders(): Record<string, string>;
+  /** A path under this plugin's own routes in the current project. */
+  pluginRoute(path: string): string;
 }
 export interface CommentDraft {
   body: string; ai: boolean; reply_to: string | null; request_id: string; message_id?: string;
   includeDraft?: boolean; anchor?: { kind: "document" | "text"; mark_id?: string }; excerpt?: string;
 }
-export interface CommentStatus { work_id: string; revision: number; state: string; error?: string; truncated: boolean }
 export interface CommentOpening { open_id: string; page_id: string; mark_id: string | null; excerpt?: string }
 export interface CommentCommandResult {
   text?: string; version: number; notes: Array<{ index: number; text: string; note: string }>;
@@ -25,7 +22,7 @@ export interface PendingCommentCommand {
 }
 export interface CommentElements {
   draft: HTMLTextAreaElement; "include-draft": HTMLInputElement; form: HTMLFormElement;
-  ai: HTMLButtonElement; send: HTMLButtonElement; stop: HTMLButtonElement; retry: HTMLButtonElement;
+  ai: HTMLButtonElement; send: HTMLButtonElement;
   reload: HTMLButtonElement; new: HTMLButtonElement; reply: HTMLButtonElement; locate: HTMLButtonElement;
   error: HTMLElement; title: HTMLElement; threads: HTMLElement; quote: HTMLElement; messages: HTMLElement;
   run: HTMLElement; notes: HTMLElement; discussion: HTMLElement; scope: HTMLElement; unsaved: HTMLElement;

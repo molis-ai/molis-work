@@ -4,10 +4,6 @@ import test from "node:test";
 import Database from "better-sqlite3";
 
 import {
-  PluginWakeupIndex,
-  createScheduleService,
-} from "@molis-ai/molis-work-service-scheduler";
-import {
   SCHEDULE_PLUGIN_ID,
   SCHEDULE_PROJECT_DATABASE,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
@@ -28,6 +24,7 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
+import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
 /** A bare library with Schedule's declared tables, as the platform makes them when a project opens with Schedule. */
 function scheduleDatabase() {
@@ -39,10 +36,10 @@ function scheduleDatabase() {
 for (const failure of [false, true]) test(`paused conversation ignores the late runner ${failure ? "error" : "result"} without writing failure`, async () => {
   const db = scheduleDatabase(), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
-  const wakeupIndex = new PluginWakeupIndex();
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now });
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
     async run() { entered.resolve(); await gate.promise; if (failure) throw new Error("late failure"); return { text: "late result", important: true }; },
   }, () => clock.now, control));
   const task = ports.createTask({ title: "slow", instructions: "wait", hour: 9, minute: 0, notify_important: true });
@@ -62,10 +59,10 @@ for (const failure of [false, true]) test(`paused conversation ignores the late 
 test("LOGIC-04 a failed round still leaves 这一轮没跑成 when the task text changed while it ran", async () => {
   const db = scheduleDatabase(), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
-  const wakeupIndex = new PluginWakeupIndex();
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now });
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
     async run() { entered.resolve(); await gate.promise; throw new Error("模型没接上"); },
   }, () => clock.now, control));
   const task = ports.createTask({ title: "slow", instructions: "wait", hour: 9, minute: 0, notify_important: false });
@@ -110,9 +107,9 @@ test("LOGIC-04 the lease that guards the failure sentence is asked inside its wr
 test("a concurrent calendar tick does not replace the lease of a running one-shot conversation", async () => {
   const db = scheduleDatabase(), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
-  const wakeupIndex = new PluginWakeupIndex();
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  const schedule = installation.scheduler(db, { now: () => clock.now });
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
     async run() { entered.resolve(); await gate.promise; return { text: "one result", important: false }; },
   }, () => clock.now, control));
   const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now });
@@ -124,7 +121,7 @@ test("a concurrent calendar tick does not replace the lease of a running one-sho
     const held = () => db.prepare("SELECT lease_token FROM schedule_jobs WHERE job_id = ?").get(task.job_id) as { lease_token: string | null };
     const token = held().lease_token;
     assert.ok(token);
-    const other = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+    const other = installation.scheduler(db, { now: () => clock.now });
     await other.tick();
     await rescheduleEnabledConversationTasks(db, other, () => clock.now);
     assert.equal(held().lease_token, token);
@@ -214,15 +211,15 @@ test("创建任务会留下说明回合，到点 runner 写入助手回复并标
 test("拨钟过点后只跑一轮，失败会留下系统说明，再排到明天", async () => {
   const db = scheduleDatabase();
   const clock = { now: new Date(2026, 8, 20, 8, 50, 0) };
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input) => {
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input) => {
     return handleScheduleTaskWakeup(db, input.object_ref, {
       async run() {
         throw new Error("还没有可用的 Agent Runtime");
       },
     }, () => clock.now);
   });
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   const task = createScheduleConversationTask(db, {
     title: "失败也会再响",
     instructions: "看一眼 Inbox",
@@ -251,8 +248,8 @@ test("暂停后不再叫醒，恢复后重新挂下一拍", async () => {
   const db = scheduleDatabase();
   const clock = { now: new Date(2026, 8, 20, 8, 50, 0) };
   let runs = 0;
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input) => {
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input) => {
     runs += 1;
     return handleScheduleTaskWakeup(db, input.object_ref, {
       async run() {
@@ -260,7 +257,7 @@ test("暂停后不再叫醒，恢复后重新挂下一拍", async () => {
       },
     }, () => clock.now);
   });
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   const task = createScheduleConversationTask(db, {
     title: "可暂停",
     instructions: "看一眼",
@@ -280,10 +277,9 @@ test("暂停后不再叫醒，恢复后重新挂下一拍", async () => {
 
 test("HTTP 能创建对话任务并返回 tasks", async () => {
   const db = scheduleDatabase();
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
-  const schedule = createScheduleService(db, {
-    wakeupIndex,
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const schedule = installation.scheduler(db, {
     now: () => new Date("2026-09-20T00:50:00.000Z"),
   });
   const ports = createScheduleActionPorts({
@@ -330,10 +326,10 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
 
 test("对话任务编辑会重新排期；归档后不在列表且不会再唤醒", async () => {
   const db = scheduleDatabase();
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
   const now = () => new Date("2026-09-20T00:50:00.000Z");
-  const schedule = createScheduleService(db, { wakeupIndex, now });
+  const schedule = installation.scheduler(db, { now });
   const ports = createScheduleActionPorts({ db, schedule, now });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: directScheduleActions(ports), changed() {} }));
   const call = (pathname: string, body: Record<string, unknown>) => routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body });
@@ -355,4 +351,46 @@ test("对话任务编辑会重新排期；归档后不在列表且不会再唤�
   assert.deepEqual(await handleScheduleTaskWakeup(db, id, { run: async () => { runs++; return { text: "不应运行", important: false }; } }, now), { detail: "任务已停" });
   assert.equal(runs, 0);
   db.close();
+});
+test("RAC-1660 a conversation task's title is counted in Unicode characters up to 80: 80 🟢 become the task's and its alarm's title; 81 are refused on create and update", () => {
+  // fields.title in src/actions.ts promises 1 to 80 characters; one 🟢 is one character but two UTF-16 units.
+  const db = scheduleDatabase();
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const now = () => new Date("2026-09-20T00:50:00.000Z");
+  const schedule = installation.scheduler(db, { now });
+  const ports = createScheduleActionPorts({ db, schedule, now });
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const task = ports.createTask({ title: wide(80), instructions: "读说明", hour: 9, minute: 0, notify_important: true });
+    assert.equal(task.title, wide(80), "create keeps an 80-character title");
+    assert.ok(task.job_id);
+    assert.equal(schedule.get(task.job_id)?.title, wide(80), "the task's alarm carries the same title");
+    assert.throws(() => ports.createTask({ title: wide(81), instructions: "读说明", hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 1 到 80 字的标题" }, "81 characters is still past the limit");
+    assert.throws(() => ports.updateTask(task.task_id, { title: wide(81), instructions: "读说明", hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 1 到 80 字的标题" }, "update is held to the same limit");
+    assert.deepEqual(ports.listTasks().map(row => row.title), [wide(80)], "neither refusal wrote anything");
+  } finally { db.close(); }
+});
+
+test("RAC-1661 a conversation task's instructions are counted in Unicode characters up to 8000: 8000 🟢 become the instructions and the first turn; 8001 are refused on create and update", () => {
+  // fields.instructions in src/actions.ts promises at most 8000 characters.
+  const db = scheduleDatabase();
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN_ID);
+  installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const now = () => new Date("2026-09-20T00:50:00.000Z");
+  const schedule = installation.scheduler(db, { now });
+  const ports = createScheduleActionPorts({ db, schedule, now });
+  const wide = (count: number) => "🟢".repeat(count);
+  try {
+    const task = ports.createTask({ title: "长说明", instructions: wide(8_000), hour: 9, minute: 0, notify_important: true });
+    assert.equal(task.instructions, wide(8_000), "create keeps 8000 characters of instructions");
+    assert.deepEqual(getScheduleConversationTask(db, task.task_id)?.turns.map(turn => [turn.kind, turn.text]), [["user", wide(8_000)]], "the instructions open the conversation");
+    assert.throws(() => ports.createTask({ title: "说明太长", instructions: wide(8_001), hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 Agent 到点要做的说明" }, "8001 characters is still past the limit");
+    assert.throws(() => ports.updateTask(task.task_id, { title: "长说明", instructions: wide(8_001), hour: 9, minute: 0, notify_important: true }),
+      { code: "schedule.task_invalid", message: "请填写 Agent 到点要做的说明" }, "update is held to the same limit");
+    assert.equal(getScheduleConversationTask(db, task.task_id)?.instructions, wide(8_000), "the refused update changed nothing");
+  } finally { db.close(); }
 });

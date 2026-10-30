@@ -14,10 +14,10 @@ import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
 import { prepareAttach, runAttach, type ConfirmReferences } from "./contextual-attach.js";
-import { chosenCandidate } from "./contextual-choice.js";
+import { chosenCandidate, intakeKey } from "./contextual-choice.js";
 import { createChosen, undoCreated } from "./contextual-create.js";
 import { draftRequest } from "./contextual-draft.js";
-import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
+import { contextualErrors, cutHead, invalid, readJudgeRequest, readString } from "./contextual-request.js";
 import { fragmentOffersInput, prepareSubjectOffer, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 
@@ -73,13 +73,13 @@ const memoryAction = (views: readonly ActionView[], capabilityId: "memory.recall
 export async function recallForJudgment(focus: SurfaceFocus, caller: Caller): Promise<{ state: "ok" | "off"; items: readonly { kind: string; text: string }[] }> {
   const view = memoryAction(await directory(caller), "memory.recall");
   if (!view) return { state: "ok", items: [] };
-  const query = [focus.surroundings?.heading_path.at(-1), ...focus.targets.map(target => target.text)].filter(Boolean).join(" ").slice(0, 300);
+  const query = cutHead([focus.surroundings?.heading_path.at(-1), ...focus.targets.map(target => target.text)].filter(Boolean).join(" "), 300);
   const out = await caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
     query, situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind, ...(focus.goal ? { goal_id: focus.goal.id } : {}) },
     limit: 6, budget_chars: 800, used_for: "给选中的内容排动作" }) as { state?: string; items?: readonly { kind?: unknown; text?: unknown }[] };
   if (out.state === "off") return { state: "off", items: [] };
   return { state: "ok", items: (out.items ?? []).filter(item => typeof item.text === "string" && item.text)
-    .map(item => ({ kind: typeof item.kind === "string" ? item.kind : "memory", text: String(item.text).slice(0, 300) })) };
+    .map(item => ({ kind: typeof item.kind === "string" ? item.kind : "memory", text: cutHead(String(item.text), 300) })) };
 }
 
 const SIGNALS: ReadonlySet<string> = new Set(["accepted", "ignored", "rewritten", "undone"]);
@@ -98,9 +98,9 @@ async function reportSignal(focus: SurfaceFocus, landing: SurfaceLanding | undef
   const surface = views.find(item => (item.provider.plugin_id ?? item.provider.provider_id) === focus.plugin_id)?.provider.title;
   const where = focus.activity === "completed" ? "刚完成的一步" : focus.activity === "editing" ? "正在写的段落" : WHERE[focus.granularity] ?? "选中的内容";
   return caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
-    event_id: eventId, signal, subject: { capability_id: candidate.action.capability_id, label: candidate.title.slice(0, 40) },
-    situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind, label: `${surface ? surface + " 里" : ""}${where}`.slice(0, 40) },
-    occurrence: focus.context_id.slice(0, 120) });
+    event_id: eventId, signal, subject: { capability_id: candidate.action.capability_id, label: cutHead(candidate.title, 40) },
+    situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind, label: cutHead(`${surface ? surface + " 里" : ""}${where}`, 40) },
+    occurrence: cutHead(focus.context_id, 120) });
 }
 
 /**
@@ -186,8 +186,13 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     // A creation entry chosen on the bar: created at once when its owner declared how it is undone, else drafted for a card.
     if (route === "create") {
       const actions = ports.actions(), { focus, landing } = readJudgeRequest(body);
-      sendJson(response, 200, await whileWaited(response, async signal => createChosen({ project: ports.scope, actor: ports.actor_id }, await actions.discover(), focus, landing,
-        readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      // A page that names the entry by the id its owner declared (`intake_id`) instead of a key it never saw listed.
+      sendJson(response, 200, await whileWaited(response, async signal => {
+        const views = await actions.discover();
+        const key = body.intake_id === undefined ? readString(body.key, "key", 80) : intakeKey(views, focus, landing, readString(body.intake_id, "intake_id", 80));
+        return createChosen({ project: ports.scope, actor: ports.actor_id }, views, focus, landing, key, readString(body.request_id, "request_id", 120),
+          { actions, ports: draftPorts(ports.homeDirectory), signal });
+      }));
       return true;
     }
     // The page only hands back the token: a body that names anything else (an undo, its input) is refused (S-40).

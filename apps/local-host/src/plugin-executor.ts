@@ -1,9 +1,14 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
+import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
+import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
+import { directoryForHome } from "./plugin-directory-service.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -13,25 +18,36 @@ export interface PluginHostExecutorOptions {
   processItems: ProcessItemsApplicationApi;
   actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
+    /** The kernel's scene client for this project: what `services.scenes` of a plugin that declares `scenes:use` is made from (PG-032 P1). */
+    scenes?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneClient;
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**
-   * The library in the Home the Host's start list declared for a definition (`PluginPlatformEntry.database`), looked up by the
-   * definition object the Host listed. None for any other definition (a developed plugin that carries a built-in plugin's id,
-   * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
+   * The library in the Home that a definition's Manifest declares (`databases.home`), given only to a definition object the Host's
+   * start list holds. None for any other definition (a developed plugin that carries a built-in plugin's id, a generated one): a
+   * Manifest that declares a library for one of those is refused (`homeLibraryFor`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /** The Host's checked start list identifies a dual project half; absent Home services are not redeemed for that half. */
+  dualInstance?(definition: PluginDefinition): boolean;
   /**
    * The project's library, where a plugin whose Manifest declares `databases.project` gets its own tables
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
    */
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
-  installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
+  installations?: Pick<import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient, "list" | "get">;
+  /** Stands in for the Home's project catalog behind `services.projects` (S-96); absent: the catalog of `home` is read. */
+  projects?: import("@molis-ai/molis-work-plugin-runtime").PluginProjectsPort;
+  /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
+  sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+  /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
+  sourcePullGit?: import("./research-repository-read.js").ResearchGit;
+  /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
+  sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
-  filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
@@ -49,6 +65,8 @@ export interface PluginHostExecutorOptions {
    */
   invalidateView?(pluginId: string): void;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The private KV owner's synchronous deletion port; required to reinstall a non-retaining uninstalled record. */
+  deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /**
@@ -63,7 +81,8 @@ export interface PluginHostExecutorOptions {
   /** What the Host itself tells one installation (X-6). Never handed to a Plugin: only `stop` reaches it. */
   hostEvents?: PluginHostEvents;
   wiring?: PluginInputGraph;
-  capabilities?: PluginCapabilityPort;
+  /** Whether an action a plugin consumes is registered and ready in this project: what `services.actions.availability` asks. */
+  dependencyCheck?: PluginDependencyCheck;
   /**
    * Opaque scope key stamped on this Plugin's outputs, so the Host can tell two
    * inputs belong to the same scope without reading business fields.
@@ -89,6 +108,29 @@ export class PluginHostExecutor implements PluginExecutor {
     return this.options.restorePrivateData?.(installId, snapshot);
   }
 
+  uninstalled(record: PluginInstanceRecord): void {
+    forgetPluginAgentDefinitions(this.options.home, record.install_id);
+    // The local directories the person granted it in this project go with it (PG-049); kept data does not keep them.
+    if (this.options.home) directoryForHome(this.options.home.directory).forgetInstallation(record.install_id, this.options.project_id);
+    // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
+    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+    // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+  }
+
+  prepareReinstall(record: PluginInstanceRecord): void {
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    this.prepareNewInstall(record.install_id);
+  }
+
+  prepareNewInstall(installId: string): void {
+    if (this.options.home) forgetLeftoverInstallationBindings(this.options.home.directory, installId, { kind: "project", project_id: this.options.project_id });
+  }
+
+  keptDataDiscarded(record: PluginInstanceRecord): void {
+    discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
+  }
+
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */
   stoppedServiceCalls(instance: PluginInstance): number {
     return this.stoppedCalls.count(instance);
@@ -103,7 +145,7 @@ export class PluginHostExecutor implements PluginExecutor {
     events?: PluginEventBus;
     hostEvents?: PluginHostEvents;
     wiring?: PluginInputGraph;
-    capabilities?: PluginCapabilityPort;
+    dependencyCheck?: PluginDependencyCheck;
     scopeKey?: string | null;
   }): void {
     this.options = { ...this.options, ...services };

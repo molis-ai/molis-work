@@ -10,8 +10,6 @@ export interface CallDescription extends ActionReference {
   readonly operation: string;
   readonly title: string;
   readonly provider_title: string;
-  /** Called through the Host's typed port, with no action behind it. */
-  readonly path?: "typed";
 }
 /** How a call ended. `refused`: it was turned away before its handler ran, so nothing was done. */
 export type CallOutcome = { readonly ok: true } | { readonly ok: false; readonly code?: string; readonly message: string; readonly refused?: true };
@@ -66,6 +64,9 @@ export function isActiveNestedAction(context: ActionCallContext): boolean {
     && context.beforeEffect === origin.execution.beforeEffect;
 }
 
+/** The execution context of the handler whose asynchronous work this is, finished or not; none outside every handler. */
+export function runningHandlerContext(): ActionExecutionContext | undefined { return handlers.getStore()?.execution; }
+
 export function runActionHandler<R>(call: object, execution: ActionExecutionContext, active: () => boolean, enter: () => R): R {
   return startHandler(call, () => handlers.run({ execution, active }, enter));
 }
@@ -89,9 +90,11 @@ export function describeCall(source: { descriptor(reference: ActionReference, pr
   return { ...reference, provider_id: provider.provider_id, operation: found.operation, title: found.action.title, provider_title: provider.title };
 }
 
+/** How a call failed. The message is recorded to 200 UTF-16 units; a cut between the two halves of a character drops the lone half. */
 function failure(error: unknown, call: object): CallOutcome {
   const code = (error as { code?: unknown } | null | undefined)?.code;
-  return { ok: false, ...(code === undefined ? {} : { code: String(code) }), message: (error instanceof Error ? error.message : String(error)).slice(0, 200),
+  const said = error instanceof Error ? error.message : String(error);
+  return { ok: false, ...(code === undefined ? {} : { code: String(code) }), message: said.length <= 200 ? said : said.slice(0, 200).replace(/[\uD800-\uDBFF]$/u, ""),
     ...(started.has(call) ? {} : { refused: true as const }) };
 }
 

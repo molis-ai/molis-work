@@ -1,6 +1,6 @@
 # 扩展点清单：怎么加、现在要改几处、目标几处
 
-状态：2026-10-08 按 origin/main `31c357df` 核实（数字都在这个提交上重量过）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
+状态：2026-10-08 按 origin/main `31c357df` 核实（数字都在这个提交上重量过）。全文没有重新核对：之后各次提交只改了当时点名的几处，名字、文件和数字要用先到代码核对。已知过时的两处：「现在：5 个代码文件 + 42 份词典」一段把 `plugins/native/goals/src/safety-ui-model.ts` 算作写了 `"zh" | "en"` 字面量的文件，该文件现在已不含这一字面量，不再算；「生成插件的沙箱」一行的 `UNSUPPORTED_PLATFORM` 现在是 `sandbox.unsupported_platform`（`packages/plugin-sandbox/src/runner.ts`）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
 
 用户决定见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-07 与 2026-10-08 各行；其中 2026-10-08 的第五批（宿主设置写入、界面翻译、调用编号上界面、右栏「讨论」页签与 IM、第三方插件信任、Characters 并进宿主、Runtime 插件的 methods 等）在 PR #312，合入前不在 main 上。
 
@@ -28,24 +28,24 @@ git grep -l -E '@molis-ai/molis-work-plugin-text-stats|plugins/native/text-stats
 git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json ':!*.md'
 ```
 
-第一条得到 7 个文件（包依赖与装配）。第二条得到 5 个，其中 `coding-surface.ts` 与第一条重复，另有 4 个按名字登记的位置（见 3.1），合计 11（W4-03 删掉默认连线表之前是 12）。
+第一条得到 7 个文件（包依赖与装配）。第二条得到 4 个按名字登记的位置（见 3.1），合计 11 个里去掉 `coding-surface.ts`（PG-036 C9 已删，伙伴页由各插件自己的舞台声明画）后是 10（W4-03 删掉默认连线表之前是 12）。
 
 ## 2. 总表
 
 | # | 方向 | 现在 | 目标 | 靠什么到目标 |
 | --- | --- | --- | --- | --- |
-| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（另有 2 处按需；外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
+| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
 | 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
 | 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 12 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
 | 5 | 动作与消费场景 | 0 | 0 | 已达到 |
 | 6 | 设置分区 | 插件自带 0；宿主自有 9（含项目页 11） | 0 / 2 | 无切片，建议并入 W5-02 |
-| 7 | 底栏、侧栏、标题栏入口 | 底栏 0（落在「更多」）+ 分组或常驻 1；侧栏 0；标题栏新增一种状态项 4–6 | 0 / 0 / 0 / 2 | 分组与常驻靠 W5-02；标题栏无切片 |
-| 8 | 搜索来源 | 0–1 | 0 | W5-02 |
+| 7 | 底栏、侧栏、标题栏入口 | 底栏 0（落在「更多」）+ 分组或常驻 1；侧栏 0；标题栏新增一种状态项 4–7 | 0 / 0 / 0 / 2 | 分组与常驻靠 W5-02；标题栏无切片 |
+| 8 | 搜索来源 | 0 | 0 | 已达到（W5-02、W5-06 余项） |
 | 9 | 记忆作用域 | 10 | 3 | 无切片，建议并入 W4-08 的边界规则 |
 | 10 | 新 Module | 6（有项目库表 7） | 4 | X-1（包登记生成）；表登记靠 W4-11、X-5 |
 | 11 | 新横向服务 | 6 | 4 | 同上 |
-| 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 6，接入加角色导入 11–15 | 3 / 2 | 无切片，建议新增 |
+| 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 5，接入加角色导入 12–15 | 3 / 2 | 无切片，建议新增 |
 | 13 | 界面插槽 | 5 | 2 | 无切片 |
 | 14 | 界面语言 | 6 个代码文件 + 42 份词典 | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
 | 15 | 操作系统平台 | 20 个 macOS 专用文件 | 4 个适配器 | 属 W1-21（C 端计划），本阶段不实现 |
@@ -56,31 +56,27 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 **怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤在 `skills/molis-plugin-dev/host.md`「内置插件：经 Plugin Runtime 装配」：包 `plugins/native/<id>`（Manifest、动作、界面贡献、客户端、`en.ts`）、监督器条目、包自己的 `src/registration.ts`（目录条目，`builtin-plugins.ts` 由 `node scripts/generate-plugin-registry.mjs` 生成）。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
 
-**现在要改**（包外 11 处，另 2 处按需，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `coding-surface.ts`、`demo-plugin-seed.ts` 两项换成舞台渲染的两处和英文词典，数字是 12。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
+**现在要改**（包外 11 处，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
-| 登记 | `scripts/workspace-packages.mjs` | 一条 `entry(...)`；`apps/workbench`、`apps/local-host` 两处 `extraWorkspaceDependencies`（`pnpm workspace:check` 逐项比对） |
-| 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析） |
-| 登记 | `apps/local-host/src/project-plugins.ts` | import 和 `PluginSupervisorEntry`（`bundled: true` 加 `nativePluginReleaseArtifact`）；要宿主端口时在同一文件构造 |
+| 登记 | `scripts/workspace-packages.mjs` | W5-02 PR-C（PG-069）后不改：登记表读各插件 `package.json` 的 `molis-work` 块，两个应用的插件依赖由登记推导（`registeredPluginDependencies`） |
+| 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析）。PR-C 后由 `node scripts/generate-plugin-registry.mjs` 写，`--check` 核对，与生成文件 import 的包一致时门禁不计 |
+| 登记 | `apps/local-host/src/project-plugins.ts` | import 和 `PluginSupervisorEntry`（`trust: HOST_BUILD_TRUST` 加 `nativePluginReleaseArtifact`）；要宿主端口时在同一文件构造 |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
 | 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数；宿主自己画的（Coding 一族、Text Stats、Characters）仍走 `plugin_stages` |
 | 名单 | `apps/workbench/src/i18n/en.ts` | `import` 并 `...X_EN`；没有它，英文界面仍是中文 key |
-| 名单 | `packages/design-system/src/palette.ts` | `MW_PLUGINS` 的色调；没有则用 `var(--muted)`（`tab-workspace.ts` 的 `PLUGIN_COLOR[tab.plugin] \|\| "var(--muted)"`） |
-| 名单 | `packages/design-system/src/icons.ts`、`packages/design-system/src/primitives/catalog.ts` | `PLUGIN_ICON`、`PLUGIN_NAMES`，只进 `/__ui/catalog` 的图标清单 |
 | 外加 | `tests/builtin-plugin-assembly-gate.test.ts` | `RUNTIME_ASSEMBLED` 加一行 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
-| 按需 | `apps/workbench/src/immersive-shell.ts` | `RAIL_TOOL_GROUPS` 分组；不改则落在插件切换器的「更多」（底栏右侧只有侧栏按钮，侧栏的格见 `apps/workbench/src/side-panel.ts`） |
-| 按需 | `apps/workbench/src/scripts/client/global-search.ts` | `SEARCH_ITEM_TAB_SURFACES`，命中结果按标签打开某个对象时才需要 |
 
-Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
+Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（`palette.ts`、`icons.ts`、`catalog.ts` 三处按插件手写的名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）已随 PG-075 删除，现在是 2026-10-25 起的 9 个：插件的图标是视图的 `icon`，tab 组的颜色是视图的 `hue`，两者都写在 Manifest 里，设计系统不再保留插件名单。）（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
-**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-actions.ts`（只剩演示数据的种子在用；它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的，`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
+**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
 - W3-06：模型服务、Home 库服务、Home 级 Runtime 实例（2026-10-07 已定：个人插件装在一个 Home 级实例，按项目启用照旧，数据留在 `{home}/<id>/<id>.db`）。Home 级实例已经有了：Issue 插件（#396）在目录条目（现在是它自己的 `registration`）上声明 `runtime: { scope: "home" }`，宿主的 `home-plugins.ts` 装配它；W3-06-F 复用这个实例（spec §1 2026-10-12），登记位置按用户 2026-10-14 的决定写进 `AGENTS.md`。
-- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
+- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts`（PG-036 C9 已删）和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
 - W5-02：目录、监督器列表、设计系统名单、搜索标签面、分组与常驻提示都由各包的声明生成。
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
 - **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。
@@ -101,9 +97,9 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 | 形状 | 例子 | 现在 | 文件 |
 | --- | --- | --- | --- |
-| token 型目录连接器 | Linear、Slack、Jira 等 | 1（另可选 1 个图标） | `plugins/official-integrations/catalog/src/catalog.ts` 加一条 `spec(...)`；服务连接目录从 `CATALOG_CONNECTORS` 派生（`apps/local-host/src/connector-directory.ts`）；图标在 `apps/workbench/src/connector-icons.ts`，缺图标时 `connectorIconSvg` 返回 `undefined`，界面不报错 |
-| 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/feed-source-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
-| 自带 OAuth 或专属协议型 | GitHub、Gmail | 12 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 5（`official-integrations.ts` 的 `definitionFor`/`defaultProviderFor`、`connector-directory.ts`、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
+| token 型目录连接器 | Linear、Slack、Jira 等 | 1（另可选 1 个图标） | `plugins/official-integrations/catalog/src/catalog.ts` 加一条 `spec(...)`；每个连接器的 Manifest 带自己的 `connection_services` 与 `integrations`，服务连接目录由已装插件的声明汇成（`apps/local-host/src/connector-directory.ts`、`integration-registry.ts`）；图标在 `apps/workbench/src/connector-icons.ts`，缺图标时 `connectorIconSvg` 返回 `undefined`，界面不报错 |
+| 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
+| 自带 OAuth 或专属协议型 | GitHub、Gmail | 12 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 5（`builtin-integrations.ts` 的内置清单、`integration-providers.ts` 的 `defaultIntegrationProvider`、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
 
 **目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入各自的官方接入包）。「宿主设置写入」那一项用户 2026-10-08 已定（决定 #7，`specs/repository-anti-corruption/spec.md` §1「宿主设置里的写入只走 HTTP」，PR #312）：宿主设置里的写入留作管理接口并登记例外，其中连接器路由以后搬进各自的官方接入插件。所以 OAuth 型的目标就是 1，不再有「登记为宿主例外、目标是 5」的一支；上表的 5 个宿主分支里，`web-connectors-settings.ts` 就是这类要搬走的连接器路由；目标 1 还要求其余 4 个分支也由集成包的声明取代，这属于 W5-11 的范围，由那一片的设计确认。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
 
@@ -116,8 +112,8 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 已有插件里再加一个 AI 动作 | 0 | 包内 `actions.ts`、`prompts.ts`；指令追加到包导出的 `X_INSTRUCTIONS`，目录条目已引用它 |
 | 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`（只要列表和能不能用的声明只读的 `model:read`），在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期适配随各自迁移删掉（W5-11） |
 | 宿主自己的模型调用（不属于任何插件） | 2 | `apps/local-host/src/agent-definitions/system-prompts.ts`（定义）、`builtin-instructions.ts`（`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES` 登记）；调用方是功能本身，不计 |
-| 内置 Agent 的角色提示词与方法 | 0 | 插件 `registration` 的 `agent`、`methods`（`BUILTIN_PLUGIN_AGENTS` 派生）；系统内联角色在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
-| Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
+| 内置 Agent 的角色提示词与方法 | 0 | 插件定义的 `agent_prompts`、`agent_skills`、`methods`，插件运行时登记（PG-051）；平台自己的内联角色（插件创作台）在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
+| Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。停用后声明按「未运行」留在设置里、方法不给别的 Agent，卸载才删（PG-051 Q1 b，`agent-declarations` 库）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
 | 用户自定义角色 | 0 | 运行时数据（Characters），不改代码 |
 
 模型服务负责真实调用；消费者独立模型选择与设置由 `model-configuration.ts` 按可信声明提供，Images 的有限生图端口由 `plugin-image-generation-service.ts` 对接 Connector 和 agent-host。剩余构建期调用随各自迁移收回。
@@ -126,7 +122,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 ### 3.5 动作与消费场景
 
-**怎么加**：Manifest 声明 `actions`，在 `start()` 返回处理器（Runtime 插件）；构建期插件的处理器由包里的 `create<X>ActionHandlers` 生成，宿主文件只注入端口（如 `apps/local-host/src/form-actions.ts`，`definitions: formManifest.actions!`）。合同：`specs/action-architecture/spec.md` §3；写法：`skills/molis-plugin-dev/capabilities.md`；消费场景：`skills/molis-plugin-dev/host.md`「接到统一判断场景」。
+**怎么加**：Manifest 声明 `actions`，在 `start()` 返回处理器（Runtime 插件）；构建期插件的处理器由包里的 `create<X>ActionHandlers` 生成，宿主文件只注入端口（如 `apps/local-host/src/artifact-actions.ts`，`definitions: ARTIFACT_ACTIONS`）。合同：`specs/action-architecture/spec.md` §3；写法：`skills/molis-plugin-dev/capabilities.md`；消费场景：`skills/molis-plugin-dev/host.md`「接到统一判断场景」。
 
 **现在：0。** 权限集合由动作自己推出（例如 `TODO_ACTION_PERMISSIONS` 是 `TODO_ACTIONS.flatMap(...)`），页面、工作流、Agent、外部 MCP 从同一个目录发现（MCP 工具名 `molis_work_v1_action_<动作>__v<版本>`，`apps/mcp/src/action-tools.ts`），场景不再改宿主白名单。**目标：0，已达到。** 这个方向是其他方向的参照。
 
@@ -136,7 +132,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 | 场景 | 现在 | 文件 |
 | --- | --- | --- |
-| 插件自己的设置页 | 0 | Manifest；图标取视图的 `icon`，缺省为 `settings`（`plugin-settings-catalog.ts` 的 `PLUGIN_SETTINGS_ICONS` 可选） |
+| 插件自己的设置页 | 0 | Manifest；图标取 `settings` 视图的 `icon`，没写或宿主不认识这个图标名时为 `settings`（W5-06 第 2b 片，宿主不再有图标表） |
 | 宿主自有的全局分区（以「记忆」为例） | 9 | `settings-sections.ts`（`HOST_SECTIONS`）、`settings-renderer.ts`、`settings-directory.ts`、`settings-navigation.ts`、`plugin-settings-catalog.ts`（`isHostGlobalSettingsSection`）、`scripts/client/settings-directory.ts`、`page-assets.ts`、`scripts/settings.ts`、`apps/local-host/src/web-goals-read.ts`（路由到分区） |
 | 同时有项目版 | +2 = 11 | `project-settings-pages.ts`、`project-settings-folds.ts` |
 
@@ -151,11 +147,13 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 入口 | 现在 | 说明 |
 | --- | --- | --- |
 | 底栏插件切换器 | 0 | `navigator` 视图加目录条目的 `summary`（`pluginMarketCards()` 只收有 `summary` 且有 `navigator`/`island` 视图的条目）；没有分组的插件落在「更多」（`immersive-shell.ts` 注释：adding a Plugin never edits the shell） |
-| 分组、默认固定 | 1 | `apps/workbench/src/immersive-shell.ts` 的 `RAIL_TOOL_GROUPS`；`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
+| 分组、默认固定 | 0 / 1 | 分组：`navigator`/`island` 视图的 `group`（`advance`、`make`、`personal`、`research`、`code`，W5-06 第 2b 片），宿主只管组名与顺序；骨干与扩展入口：`navigator` 视图的 `rail`（`core` 列在第一个标题下、按视图 `order` 排；`extend` 是 Dock 菜单与切换器头部的入口，不进工具列表）；默认固定：同一个视图的 `pinned_default: true`，工作台经 `dockDefaultPins()`、`extendPluginIds()`（`plugin-catalog.ts`）读，只采信项目选择的内置插件（W5-02 PR-D，PG-074） |
+| 设置页的数据 | 0（以前 `web-catalog.ts` 里 Shelf、Coding 各有一条分支） | `settings` 视图的 `settings_data: { action }`：本 Manifest 自己的、只读、面向用户（audience `user`）、只有一个版本的查询（SDK 检查）。宿主只有一条路：调这个动作，加上固定的平台上下文（`SettingsPageContext`：项目、打开设置的那个项目），一起交给贡献的 `render`（`SettingsPageModel`）；Agent 运行时列表另用 `settings_runtimes: true` 明确请求，不声明则不查询并给空集合，查询失败仍报错。目前只对内置设置贡献兑现，已安装 Runtime 插件的动态接线仍待补（W5-02 PR-D，PG-072） |
+| 新建入口、项目首页起点 | 0（W5-06 余项第 1 片以前是 3：`goal-inputs-html.ts`、`scripts/client/placement.ts`、`scripts/client/project-home.ts` 里各有一张手写的表，已删；服务端按 `creatableKinds`、`homeStarts` 把声明写进页面，客户端只读页面上的值） | 同一个视图的 `creates`（指向本 Manifest 里能新建的工作流内容站，默认标题为「未命名」加 `title`）与 `start`（`title`、`hint`，可选 `icon`），工作台经 `creatableKinds`、`homeStarts`（`plugin-catalog.ts`）读 |
 | 侧栏标签 | 0 | `side` 视图，贡献的目标槽是 `workbench.side`；插件启用才出现 |
 
 **打开插件时落在哪里由声明决定**（W2'-2）：`?openPlugin=`、搜索命中的 `open.surface`、助理通知与放置卡片的 `open`、页面里各处的「打开某插件」都只说是哪个插件（和可选的条目 id），不说位置。工作台在一处（`apps/workbench/src/plugin-catalog.ts` 的 `sideOpenedPlugins`，页面一侧 `apps/workbench/src/scripts/client/plugin-place.ts`）按声明决定：界面有工作区界面（`workbench.main` 或 `workbench.directory`）的在工作区打开，和以前一样，即使它也有 `side` 视图；只有 `side` 视图的打开它的侧栏格，条目 id 原样交给那个视图（`molis-work:select-item`），工作台不解释。所以加一个只住在侧栏的插件不用改任何打开它的地方，存着的链接与 `open` 也不用迁移。
-| 标题栏 | 插件没有入口 | 标题栏的状态项（后台任务、插件通知铃铛）是宿主的。插件通过 `background_job` 声明（后台任务）或到期提醒、插件事件间接出现，不是自己的槽。新增一种宿主状态项要改 4–6 个文件：`immersive-shell.ts`、一个客户端脚本（如 `scripts/client/background-tasks.ts`）、`scripts/client/initialization.ts`、`styles/immersive-navigation.ts`；进入流程页也要显示时再加 `arrival/chooser.ts`、`styles/arrival.ts` |
+| 标题栏 | 插件没有入口 | 标题栏的状态项（后台任务、插件通知铃铛）是宿主的。插件通过 `background_job` 声明（后台任务）或到期提醒、插件事件间接出现，不是自己的槽。新增一种宿主状态项要改 4–7 个文件：`immersive-shell.ts`、一个客户端脚本（如 `scripts/client/attention.ts`）、`scripts/client/initialization.ts`、`styles/immersive-navigation.ts`；进入流程页也要显示时再加 `arrival/shell.ts`、`arrival/chooser.ts`、`styles/arrival.ts` |
 
 **目标：0 / 0 / 0 / 2。** 分组、常驻、默认固定作为 Manifest 或目录的放置提示（W5-02 已把「shell placement hints」列入范围）；标题栏状态项做成声明加一个渲染入口。标题栏这一项无切片。
 
@@ -163,7 +161,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：每种对象一个读取器（`defineSubjectContextAction`），再声明一个搜索来源（`defineSearchEntriesAction`）；宿主从动作目录读 `search_source`，插件不写索引（`skills/molis-plugin-dev/search.md`，`docs/platform/PLUGIN-DEVELOPMENT.md`「系统搜索」）。
 
-**现在：0–1。** 索引和发现都是声明驱动；命中后怎么打开：目录条目的 `workbench.searchRow`（条目本来就要写，不另计），或把插件的 surface 加进 `apps/workbench/src/scripts/client/global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`（现有 10 项）。**目标：0**，由来源声明的 `open: { surface, id }` 推出（W5-02）。另有一个已知缺口 BL-040：生成插件不能声明搜索来源。
+**现在：0。** 索引和发现都是声明驱动；命中后怎么打开也是：目录条目的 `workbench.searchRow`（条目本来就要写，不另计），或在打开舞台的 Manifest 视图上声明 `accepts_objects: true`（按标签打开对象；W5-06 余项以前要把插件加进 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`，现在那里只保留平台自己的成果，Sessions 入口已由 SC-4 移除；名单由宿主写进页面的插件目录（`<script type="application/json" data-plugin-directory>`，取自 Runtime 里运行中安装的 Manifest）下发，客户端启动时读一次，内置与运行时装的插件同一份；W5-06 余项第 2 片）。另有一个已知缺口 BL-040：生成插件不能声明搜索来源。
 
 ### 3.9 记忆作用域
 
@@ -192,7 +190,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 6；接入加角色导入 11–15 | 以 `pi-agent` 为例（6）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`plugins/native/work/src/ui/render.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（11 个文件），`opencode` 再加 Shelf 和设置页（15 个文件，分布在 8 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
 
 外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 
@@ -242,7 +240,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | F3 | 新的外部服务（自带 OAuth） | 12 | 1 | 1 | W5-11 |
 | F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
 | F5 | 自动化规则（事件触发动作） | 约 21（推演），外加 2 | 6，外加 2 | 6，外加 2 | X-1、X-6 加 4 项已有切片 |
-| F6 | 调用诊断（按调用编号追查、导出诊断包） | 约 12（推演） | 3 | 3 | W3-01、W3-02、W5-13 |
+| F6 | 调用诊断（按调用编号追查、导出诊断包） | 约 13（推演） | 3 | 3 | W3-01、W3-02（W5-13 在宿主里已铺好） |
 
 ### 4.2 逐个推演
 
@@ -283,8 +281,8 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
 
-- 现在（推演，约 12）：内核给每次调用编号（`packages/kernel/src/action-service.ts`、`packages/contracts/src/platform/actions.ts`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-request.ts`）、MCP（`apps/mcp/src/action-tools.ts`）、助理（`apps/local-host/src/assistant/assistant-service.ts`）、Agent 工具（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）、CLI（`apps/cli/src/command-dispatch.ts`）、调度（`apps/local-host/src/schedule-task-runner.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-agent-diagnostics.ts` 3。宿主里还有 60 处 `console.*` 在 10 个文件，没有统一日志器。
-- 补什么：W3-01（编号贯通）、W3-02（一个错误模型）、W5-13（结构化日志）。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。
+- 现在（推演，约 13）：内核给每次调用编号（`packages/kernel/src/action-settlement.ts` 的 `bindCall`、`packages/contracts/src/platform/actions.ts` 的 `call_id`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-server.ts`）、MCP（`apps/local-host/src/mcp-request-lifetime.ts`）、助理（`apps/local-host/src/assistant/assistant-authority.ts`）、Agent 工具（`apps/local-host/src/agent-host-composition.ts`）、CLI（`apps/local-host/src/cli-project.ts`）、调度（`apps/local-host/src/web-project-schedulers.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面：调用记录 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`，「设置 › 诊断」按编号查找 `apps/local-host/src/web-call-diagnostics.ts`、`apps/workbench/src/settings-call-diagnostics.ts` 4。`apps/local-host/src` 里已经没有 `console.*` 调用，日志统一走 `hostLog`（`apps/local-host/src/host-log.ts`，W5-13）。
+- 补什么：W3-01（编号贯通）、W3-02（一个错误模型）；W5-13（结构化日志）在宿主里已铺好，见上一条。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。
 
 ### 4.3 补充的扩展点（不在 §10 的 87 片内，待用户并入路线时定）
 
@@ -310,11 +308,11 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 本切片不改 `skills/`（W1-12 的回放工具验证每次 Skill 修改）。核对当前代码后，下列是真实存在的偏差，留给 W6-03 或单独一次 Skill 改动：
 
-1. `skills/molis-plugin-dev/host.md`「必改」第 1–11 步缺少：根 `package.json`、设计系统的三处名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）。（W5-02 PR-1a 已改：第 4 步改为在包里写 `registration` 再生成 `builtin-plugins.ts`，`AGENTS.md` 对应一句同改，原来「两句并存」的偏差不在了。）
+1. `skills/molis-plugin-dev/host.md`「必改」第 1–11 步缺少：根 `package.json`、设计系统的三处名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`；PG-075 已删，不再是必改项）。（W5-02 PR-1a 已改：第 4 步改为在包里写 `registration` 再生成 `builtin-plugins.ts`，`AGENTS.md` 对应一句同改，原来「两句并存」的偏差不在了。）
 2. `host.md`「数据落哪」写本机数据放 `{home}/<id>/<id>.db`，当前库由可信 Host 条目的 `database` 声明、插件经 `services.database` 访问；Home/项目都复用同一服务，作者不能从 Manifest/参数选库（见 3.1）。
 3. `skills/molis-plugin-dev/SKILL.md`「选 kind 和家族」：Shelf 的 Manifest 是 `native` 但 `start()` 返回 `app` 贡献，Coding 一族是 `app`（Characters 原来也是，CHR-1 后不再是插件）；新内置插件写哪个 kind 没有明说，而授权有两层，要分开写清：
-   - **调用者的权限**：Plugin Runtime 登记的提供方（带 `plugin_install_id`），不论内置与否、`kind` 是什么，都只按运行中安装的 `grants`（`local-web-actions.ts` 的 `localWebActionContext` 要求它覆盖动作的全部权限；插件路由声明的权限只对照路由背后那份安装的授权，派发时现读，`plugin-route-operations.ts`）。`apps/local-host/src/local-owner-permissions.ts` 的本机所有者内置权限只对宿主自己登记、背后没有安装的提供方起作用，取自目录里 `manifest.kind === "native"`、不带 `runtime` 的条目的动作权限，另加宿主自有服务的名单 `HOST_OWNER_PERMISSIONS`（同一文件：首页、Shelf 个人库、Work、内容、搜索、放置、记忆、连接等）。2026-10-18 改：这份按目录拼的名单等宿主自有的插件迁完后删掉，所有者的权限逐个插件按安装授权给（`specs/repository-anti-corruption/privileges.md` PG-007 阶段 4）。
-   - **动作可不可用**与 kind 无关：每个经 Plugin Runtime 安装的提供方，都要求安装的 `grants` 覆盖该动作的全部 `permissions`，否则报 `actions.plugin_permission`（`packages/plugin-runtime/src/action-provider.ts`；内核在发现和每次调用时检查，`packages/kernel/src/index.ts` 的 `requireCapability`）。授予什么按插件是不是随宿主发布的分。不是 `bundled` 的条目：监督器安装时只授予 Manifest 里 `required: true` 的权限，除非条目传 `grants`（`packages/plugin-runtime/src/supervisor.ts` 的 `#activate`、`install-rules.ts` 的 `defaultGrants`），所以这类插件的动作用到的权限要标 `required: true`，或由安装的人确认授权。`bundled` 的条目（监督器条目标 `bundled: true` 的内置插件）：全新安装时拿到 Manifest 声明的全部权限，可选的默认打开，条目自己的 `grants` 不起作用；之后与其他插件同一规则，可选的按人留下的给，人关掉的启动和跟随新构建都不打开（用户 2026-10-18 的决定，改 2026-10-10 W3-06 B；`install-rules.ts` 的 `bundledGrants`、`recordToFollow`、`followBundledBuild`；[POLICY.md](../releases/POLICY.md) 第 7.8 节；[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 4.2 第 5 点）。所以内置插件不必为让动作可用而把权限标成 `required: true`；标不标只看 `required` 自己的意思：缺它插件就不能运行，撤销它整个提供方就不可用（`action-provider.ts` 的 `availability`，`actions.plugin_permission`）。Shelf 能用，是因为它是 `bundled`、全新安装时拿到清单声明的全部权限（今天它的三项权限恰好都是必需的，`plugins/native/shelf/src/manifest.ts`、`runtime-actions.ts`），不是因为它是 `native`。
+   - **调用者的权限**：Plugin Runtime 登记的提供方（带 `plugin_install_id`），不论内置与否、`kind` 是什么，都只按运行中安装的 `grants`（`local-web-actions.ts` 的 `localWebActionContext` 要求它覆盖动作的全部权限；插件路由声明的权限只对照路由背后那份安装的授权，派发时现读，`plugin-route-operations.ts`）。`apps/local-host/src/local-owner-permissions.ts` 的本机所有者内置权限只对宿主自己登记、背后没有安装的提供方起作用，按提供方给（`localOwnerPermissionsOver`，PG-007 阶段 4，#1241）：目录里 `manifest.kind === "native"`、不带 `runtime` 的条目持有 Manifest 里动作声明的权限；首页、连接器、插件同意与安装、信息助手、判断规则、项目工作区、Characters、助理规则、搜索、项目资料、放置、记忆、成果库各持有自己的权限常量或动作声明的；宿主提供方 `platform` 持有每个动作自己要的；外部 MCP 的提供方只持有 `mcp:external`；没写进 `ownerProviders` 的宿主提供方一项都不持有。2026-10-18 改：宿主自有的 native 插件迁到 Plugin Runtime 后，按目录拼的这一部分也删掉，所有者的权限逐个插件按安装授权给（`specs/repository-anti-corruption/privileges.md` PG-007）。
+   - **动作可不可用**与 kind 无关：每个经 Plugin Runtime 安装的提供方，都要求安装的 `grants` 覆盖该动作的全部 `permissions`，否则报 `actions.plugin_permission`（`packages/plugin-runtime/src/action-provider.ts`；内核在发现和每次调用时检查，`packages/kernel/src/index.ts` 的 `requireCapability`）。授予什么按插件是不是随宿主发布的分。不是 `host` 信任的条目：监督器安装时只授予 Manifest 里 `required: true` 的权限，除非条目传 `grants`（`packages/plugin-runtime/src/supervisor.ts` 的 `#activate`、`install-rules.ts` 的 `defaultGrants`），所以这类插件的动作用到的权限要标 `required: true`，或由安装的人确认授权。`host` 信任的条目（监督器条目给 `trust: HOST_BUILD_TRUST` 的内置插件）：全新安装时拿到 Manifest 声明的全部权限，可选的默认打开，条目自己的 `grants` 不起作用；之后与其他插件同一规则，可选的按人留下的给，人关掉的启动和跟随新构建都不打开（用户 2026-10-18 的决定，改 2026-10-10 W3-06 B；`install-rules.ts` 的 `hostBuildGrants`、`recordToFollow`、`followHostBuild`；[POLICY.md](../releases/POLICY.md) 第 7.8 节；[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 4.2 第 5 点）。所以内置插件不必为让动作可用而把权限标成 `required: true`；标不标只看 `required` 自己的意思：缺它插件就不能运行，撤销它整个提供方就不可用（`action-provider.ts` 的 `availability`，`actions.plugin_permission`）。Shelf 能用，是因为它是 `host` 信任、全新安装时拿到清单声明的全部权限（今天它的三项权限恰好都是必需的，`plugins/native/shelf/src/manifest.ts`、`runtime-actions.ts`），不是因为它是 `native`。
    需要在选 kind 一节和 host.md 的监督器条目里写清。
 4. `tests/builtin-plugin-assembly-gate.test.ts` 开头注释把 `builtin-plugins.ts` 目录条目算作构建期路径的一部分，但 Runtime 装配的 7 个插件同样有目录条目（同一个测试第二项断言要求它们有）。这是测试里的注释，随 W1-05 改。（W5-02 PR-1a 评审已改：注释写明目录条目由各包的 `registration` 生成，不再算手接的一环。）
 5. Characters 并进宿主（2026-10-08 已定）合入后，`skills/` 里把 Characters 当 Runtime 插件的说法要同步改：`SKILL.md` 第 51、84、119 行，`host.md` 第 97、101 行，`elements.md` 第 137 行，`examples.md` 第 5 行，`search.md` 第 62 行；`elements.md` 第 52 行把它当作「页面只放在设置里的插件」的例子，也要换。（CHR-1 已改完，2026-10-22：这些行里 Characters 的说法已按现行代码改掉，上面的行号是改之前的。）

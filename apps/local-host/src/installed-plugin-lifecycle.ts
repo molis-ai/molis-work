@@ -4,11 +4,17 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
-import type { PluginDefinition, PluginInstanceRecord, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { AgentBuilderPorts, AgentRelease } from './installed-plugin-host.js';
-import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import type { AgentBuilderPorts } from './installed-plugin-host.js';
+import type { InstalledRelease } from './installed-release.js';
+import { assertUpgradeOf } from './package-upgrade.js';
+import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
+
+/** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
+export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
 
@@ -18,20 +24,22 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
   Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
 
 export interface InstalledLifecycleContext {
-  platform: PluginPlatform;
+  platform: InstalledPluginPlatform;
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
   secrets: PluginSecrets;
   recoveryErrors: Map<string, string>;
   closed(): boolean;
+  /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
+  trusted(record: PluginInstanceRecord): boolean;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
-  releaseFor(pluginId: string): AgentRelease | undefined;
+  releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
-  definition(release: AgentRelease, approved: SandboxEffects): PluginDefinition;
-  expose(release: AgentRelease, onFailure?: 'caller'): Promise<void>;
+  definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
+  expose(release: InstalledRelease, onFailure?: 'caller'): Promise<void>;
   withdraw(pluginId: string): void;
-  registerPrompts(release: AgentRelease, state: 'enabled' | 'disabled'): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
   /** Reminders and scheduled operations of one installation stop with it. */
   /** What the Host remembers of an uninstalled installation: its prompts and its code. */
   forget(pluginId: string, installId: string): void;
@@ -41,7 +49,7 @@ type Secret = { name: string; header: string; value: string };
 type Grants = { consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown };
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
-function secretsOf(value: unknown, release: AgentRelease): Secret[] {
+function secretsOf(value: unknown, release: InstalledRelease): Secret[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error('密钥的格式不对');
   return value.map((item): Secret => {
@@ -61,7 +69,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    * it meanwhile), the prompts, secrets, scheduled work and data under this plugin belong to that install or to that
    * choice and none of it is touched (false). A failed take-back still cleans up what the Host holds, then reports itself.
    */
-  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean, attempt?: { earlier?: PluginInstanceRecord }): Promise<boolean> => {
+  const uninstall = async (release: InstalledRelease, record: PluginInstanceRecord, keepData: boolean, attempt?: { earlier?: PluginInstanceRecord }): Promise<boolean> => {
     let undone: unknown;
     if (attempt) {
       try { await platform.runtime.abandonInstall(record, attempt.earlier); } catch (failure) {
@@ -88,9 +96,9 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    * uninstalled meanwhile, has nothing of its own left to undo: the cleanup stops at once and the newer install keeps its
    * data, secrets, approval and running code, and the person's choice about the data stands.
    */
-  const install = async (release: AgentRelease, grants: Grants) => {
+  const install = async (release: InstalledRelease, grants: Grants) => {
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
-    const entry = { definition: c.definition(release, release.permissions), grants: ['storage:private'] };
+    const entry = { definition: c.definition(release, release.permissions), grants: ['storage:private'], trust: release.packaged?.trust ?? UNSIGNED_TRUST };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
@@ -113,6 +121,23 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
     }
   };
+  /**
+   * A signed package is replaced by a newer package of the same plugin and publisher, and by nothing else (BL-623). The person's confirmation approves exactly
+   * the permissions the new package asks for. A switched-off installation is not registered with the Supervisor after a restart; the version moves under the new
+   * definition all the same and never starts it, as for any switched-off plugin.
+   */
+  const upgradePackage = async (release: InstalledRelease, record: PluginInstanceRecord, grants: Grants) => {
+    const pluginId = release.pluginId;
+    if (record.publisher_trust !== 'pinned' || !release.packaged) throw pluginErrors.definition_conflict('已装的插件和这个包不是同一种来源，不能互相替换：先卸载，再装');
+    if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能升级；数据还在，可以卸载');
+    if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能升级：请先卸载并保留数据，再重新安装');
+    const installed = c.releaseFor(pluginId), approved = c.approvedFor(pluginId);
+    if (!installed?.packaged) throw new Error(c.recoveryErrors.get(pluginId) ?? '找不到已安装版本的包，不能升级');
+    if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
+    const next = release.packaged.manifest;
+    assertUpgradeOf(next, record.version);
+    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release));
+  };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
     const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId);
@@ -124,18 +149,35 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!record) throw new Error('这个插件还没有安装');
     if (action === 'upgrade' || action === 'rollback') {
       const verb = action === 'upgrade' ? '升级' : '回滚';
+      if (record.publisher_trust === 'pinned' && action === 'rollback') throw pluginErrors.state_invalid('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      if (record.publisher_trust === 'pinned' || (release as InstalledRelease).packaged) return upgradePackage(release, record, grants);
       if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能' + verb + '：请先卸载并保留数据，再重新安装');
       const approved = c.approvedFor(pluginId) ?? {};
       if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');
       const nextApproval = covered(release.permissions, approved) ? approved : release.permissions;
       return changeInstalledVersion(c, action, release, record, nextApproval, secretsOf(grants.secrets, release));
     }
-    if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
+    // A 常开 agreement that stands keeps the installation on: asked before anything is withdrawn, revoked or stopped.
+    const refusal = action === 'disable' || action === 'uninstall' ? leaveRefusal(platform.consents ?? undefined, record, action === 'disable' ? '停用' : '卸载') : undefined;
+    if (refusal) throw refusal;
+    if (action === 'disable') {
+      c.withdraw(pluginId); platform.supervisor.revoke(pluginId);
+      // The Runtime records the switch-off of a crashed or never-started installation as disabled; it refuses a quarantined one, which stays quarantined and is off all the same.
+      await platform.runtime.stop(record.install_id).catch((error: unknown) => {
+        if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
+      });
+      c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return;
+    }
     if (action === 'enable') {
-      const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release;
+      if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
+      const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;
       if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
-      // A switched-off plugin is unknown to the Supervisor after a restart: it is registered now, started below.
-      if (!platform.supervisor.manifest(pluginId)) await platform.start([{ definition: c.definition(installed, approved), grants: record.grants }]);
+      // A stopped package may have had its optional grants changed. Register its verified definition with the Runtime's current grants,
+      // without starting it, before enable: the supervisor's earlier entry is not another owner of those grants.
+      if (record.state !== 'running' || !platform.supervisor.manifest(pluginId)) {
+        const definition = c.definition(installed, approved); platform.runtime.register(definition);
+        await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }]);
+      }
       const state = await platform.supervisor.enable(pluginId);
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;

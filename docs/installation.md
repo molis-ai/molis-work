@@ -30,7 +30,9 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 从仓库本地安装请使用 `pnpm install:local`；这个唯一入口会先重新构建，再安装当前内容。直接对带 `src/` 的仓库执行 `molis-work install --source ...` 时，安装器会核对构建指纹，源码与 `dist` 不一致就停止，不会悄悄复制旧构建。release 同时记录内容摘要：版本相同但程序或 Skill 内容变化时会原子刷新，内容完全相同才返回“已经是最新状态”；刷新失败会恢复上一份 release，项目数据不参与替换。
 
-项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、DB 位置、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；不复制 Goal 事实，也不依赖 Git。目录不保存默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
+项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；项目库位置从 Home 与 project_id 推导（catalog v23），不复制 Goal 事实，也不依赖 Git。当前已实现的 MCP 项目连接不保存目录默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
+
+2026-10-28 的 [Sessions 需求](../specs/sessions-rebuild/spec.md)另已确定发现会话的归属目标：已明确且唯一的目录／仓库关系自动归入项目，不明确或多候选由 AI 建议、用户确认，不自动新建项目。该能力尚未实现，本页安装及 MCP 接入步骤仍描述当前行为；自动归属不替代实际访问与执行的有效授权。
 
 ### npm 路径上的飞书/Lark 连接器：两件已知并接受的事
 
@@ -45,11 +47,11 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ### 离线备份与恢复边界
 
-当前没有通用在线备份命令。备份前退出 App，并按服务的所有权检查停止 Molis Work 服务及其他写入进程；仅退出窗口不保证后台停止。将整个 Molis Work Home 复制到受保护的位置，不要只复制项目 `.db`：Catalog、Session Registry、加密正文 Blob 和对应密钥必须保持同一份快照。外部工作区文件仍需单独备份。
+W5-16 正在实施离线 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]`，使用与 Host/Agent 相同的存储所有权和 SQLite backup API。当前 SDK 零源写密文认证与完整 restore 尚未闭合，不能把这一实现当作可交付恢复工具；用法、原 key/路径限制和失败清理见 [CLI 与开发](cli-and-development.md#home-离线快照)。
 
-恢复时同样先停止所有写入，保留故障目录供回退，将完整备份恢复到一个 Home 目录，再启动并核对项目、Goal 正文/历史、Artifact 版本和 Session 内容。Catalog 自 v23 起不保存项目数据库路径，由 Home 和项目 ID 推出，所以备份可以恢复到别的 Home 路径；v22 的 Catalog 先做维护（`docs/releases/CHECKLIST.md` 4.5）。此流程仍不是跨机器迁移：工作区目录等机器上的路径要自己核对。Keychain 或环境变量提供的密钥不随 Home 文件复制，必须另行确认其仍可用；不要用新密钥替换丢失的旧密钥。缺密钥时加密内容应保持不可读，而不是生成空数据冒充恢复成功。
+操作任何离线副本前，退出 App，并按服务的所有权检查停止 Molis Work 服务及其他写入进程；仅退出窗口不保证后台停止。Catalog、全部项目/插件库、加密正文和原密钥依赖必须保持同一时点。外部工作区文件需单独备份。Keychain 或环境变量提供的原 key 不随 Home 文件复制，不能用新 key 替换丢失的旧 key；缺 key 必须明确拒绝，不能生成空数据冒充恢复。
 
-离线完整恢复、恢复后续写及缺密钥拒绝的生产路径测试见 [恢复测试](../tests/home-backup-recovery.test.ts)。这不代表在线一致性备份、跨机器 Keychain 恢复或外部工作区内容已验证。
+恢复只限原 Home 绝对路径和原 key，保留故障原件供回退。旧 [恢复测试](../tests/home-backup-recovery.test.ts) 只证明覆盖的 Catalog、项目、会话和成果路径；快照逐 owner 读回也不等于完整恢复发布、回滚或重启续写已完成，且不证明跨机器 Keychain 恢复与真实 Home/本人验收。
 
 已经从仓库安装过时，先拉取新内容，再走同一个安装入口。即使版本号没有变化，安装器也会比较实际内容并刷新程序和 Skill；用户项目、Runtime 配置和 demo 都不会被自动改写：
 

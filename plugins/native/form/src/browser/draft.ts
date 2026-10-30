@@ -1,4 +1,4 @@
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "../contract.js";
 import type { FormClientHost, FormRequest, Translate } from "./types.js";
 
 /** What the model answered: either it needs a few things first, or the form with its new questions. */
@@ -47,7 +47,7 @@ export function formDraft({ host, request, L, ask, prompt, button, form, done, n
     close();
     const template = document.createElement("template"); template.innerHTML = interaction.html || "";
     const card = template.content.firstElementChild;
-    if (!card || !host.interaction) { note(L("这里画不出补充问题，请把要求写得更具体后重试"), true); return; }
+    if (!(card instanceof HTMLElement)) { note(L("form.ai.cannot-draw"), true); return; }
     ask.append(card); ask.hidden = false; note("", false);
     const client = host.interaction(card, { onSubmit: () => send({ interaction: { interaction_id: interaction.interaction_id, values: client.read() } }) });
     bound = client;

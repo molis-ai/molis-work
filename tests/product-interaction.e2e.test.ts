@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -14,7 +16,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height>0"), true);
-  const core = b.store.snapshot(DEMO_PROJECT_ID).goals.find(goal => goal.goal_id === "CORE")!;
+  const core = boardSnapshot(b.store, DEMO_PROJECT_ID).goals.find(goal => goal.goal_id === "CORE")!;
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-title]').textContent"), core.title);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-outcome]').textContent"), core.outcome);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-status]').textContent"), "已完成");
@@ -66,7 +68,7 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-interval]').value`), "360");
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-enabled]').checked`), true);
-  const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_PROJECT_ID, sourceId);
+  const saved = createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId);
   assert.equal(saved.name, "设计观察");
   assert.equal(saved.schedule.mode, "interval");
   if (saved.schedule.mode === "interval") {
@@ -80,13 +82,13 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
     document.querySelector('${section} [data-feed-out-rule-name]').value='发布相关';
     document.querySelector('${section} [data-feed-out-rule-contains]').value='launch';
   }`);
-  const beforePreview = createLocalFeedApplication(b.store.db).listOutRules(DEMO_PROJECT_ID);
+  const beforePreview = createLocalFeedApplication(b.store.db).outRules.list(DEMO_PROJECT_ID);
   await click(section + ' [data-feed-rule-preview-run]');
   await waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('Launch preview')`);
-  assert.deepEqual(createLocalFeedApplication(b.store.db).listOutRules(DEMO_PROJECT_ID), beforePreview, "preview has no rule write");
+  assert.deepEqual(createLocalFeedApplication(b.store.db).outRules.list(DEMO_PROJECT_ID), beforePreview, "preview has no rule write");
   await click(section + ' [data-feed-out-rule-create]');
   await waitFor(`document.querySelector('${section}')?.textContent.includes('发布相关')`);
-  const rules = createLocalFeedApplication(b.store.db).listOutRules(DEMO_PROJECT_ID)
+  const rules = createLocalFeedApplication(b.store.db).outRules.list(DEMO_PROJECT_ID)
     .filter((rule) => rule.match.source_id === sourceId);
   assert.equal(rules.length, 1);
   assert.equal(rules[0]?.name, "发布相关");
@@ -112,7 +114,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
     const original = window.fetch;
     let fail = true; window.sourceCreationRequests = 0;
     window.fetch = (url, options) => {
-      if (options?.method === 'POST' && String(url).endsWith('/api/feed/sources')) window.sourceCreationRequests++;
+      if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) window.sourceCreationRequests++;
       if (fail && options?.method === 'PUT' && String(url).endsWith('/schedule')) { fail = false; return Promise.resolve(new Response(JSON.stringify({error:'计划暂时无法保存'}), {status:503,headers:{'content-type':'application/json'}})); }
       return original(url, options);
     };
@@ -120,7 +122,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await click('[data-feed-source-register]');
   await waitFor("document.querySelector('[data-feed-add-form]').dataset.createdSourceId && document.querySelector('[data-feed-add-error]').textContent.includes('任务已创建')");
   const sourceId = await evaluate<string>("document.querySelector('[data-feed-add-form]').dataset.createdSourceId");
-  assert.equal(createLocalFeedApplication(b.store.db).getSource(DEMO_PROJECT_ID, sourceId).schedule.mode, "manual");
+  assert.equal(createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId).schedule.mode, "manual");
   await click('[data-feed-sources-dialog] header [data-feed-sources-close]');
   await click('[data-feed-add-toggle]');
   assert.equal(await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').value"), "https://example.com/retry.xml");
@@ -129,7 +131,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
   await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${sourceId}"][aria-current=page]')`);
   assert.equal(await evaluate("window.sourceCreationRequests"), 1);
-  const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_PROJECT_ID, sourceId);
+  const saved = createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId);
   assert.equal(saved.schedule.mode, "interval");
   if (saved.schedule.mode === "interval") assert.equal(saved.schedule.interval_minutes, 60);
 });
@@ -137,7 +139,6 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
 test("Feed configuration cancels drafts and saves its schedule independently", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
-  const { createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计资料"}).source;
   const feed = createLocalFeedApplication(b.store.db);
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
@@ -151,7 +152,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await openSettings();
   await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value='丢弃的名称'`);
   await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name, source.name);
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name, source.name);
   await openSettings();
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),source.name);
   await click(`${panel} [data-feed-plan-region] > summary`);
@@ -162,8 +163,8 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await evaluate(`{document.querySelector('${panel} [data-source-config-field=name]').value='保留中的名称';const field=document.querySelector('${panel} [data-source-schedule-mode]');field.value='interval';field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('${panel} [data-source-schedule-interval]').value='360';}`);
   await click(`${panel} [data-source-schedule-save]`);
   await waitFor(`!document.querySelector('${panel} [data-source-schedule-save]').disabled`);
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).schedule.mode,"interval");
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,source.name);
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule.mode,"interval");
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,source.name);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
   await click(`${panel} [data-source-schedule-enabled]`);
   await click(`${panel} [data-source-schedule-save]`);
@@ -187,7 +188,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   }; }`);
   await click('[data-feed-config-submit]');
   await waitFor('window.configResponseReady === true');
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
   // ASC-40: disabled cancel and submit controls receive real negative interaction attempts.
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog] footer [data-feed-sources-close]').disabled"), true);
   await click('[data-feed-sources-dialog] footer [data-feed-sources-close]', { allowDisabled: true });
@@ -203,15 +204,14 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await waitFor("!document.querySelector('[data-feed-sources-dialog]').hasAttribute('aria-busy')");
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${source.source_id}"]')?.textContent.includes('保留中的名称')`);
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
-  const plan=feed.getSource(DEMO_PROJECT_ID,source.source_id).schedule;
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
+  const plan=feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule;
   assert.equal(plan.mode,"interval"); if(plan.mode==='interval') assert.equal(plan.interval_minutes,360);
 });
 
 test("Feed reader keeps one title, tracks read state, collapses and retries a failed detail", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {evaluate,waitFor,click,command,sessionId,navigate,origin,projectId,homeDirectory}=b;
-  const {createLocalFeedSourceService}=await import("@molis-ai/molis-work-app-local-host");
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'web_query',query:'阅读测试'}).source;
   const feed=createLocalFeedApplication(b.store.db);
   const item=feed.ingestItem({source,externalId:'reader-test',title:'一次清楚的阅读',summary:'列表摘要',body:'## 核心内容\n\n阅读正文与完整来源。\n\n'+Array.from({length:30},(_,i)=>`### 检查项 ${i+1}\n\n保持标题和操作在视野内，让阅读区独立滚动。`).join('\n\n'),priority:'normal',occurredAt:'2026-09-16T00:00:00.000Z',attention:false}).item;
@@ -222,11 +222,11 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
-  // The detail fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
+  // The detail (the shell's reader, `/api/stage/feed/items/<id>` since FI-7) fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
   // refreshes the board, which opens the selected item again and hides the retry while it does. The page also records
   // whether the first detail request after the press was made by the press itself (the window's capture listener runs
   // before the page's click handler, its bubble listener after), so a later refresh cannot stand in for the retry.
-  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/detail?')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
+  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/api/stage/feed/items/')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
   const retry='[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]';
   await click(row);await waitFor(`document.querySelector('[data-feed-stage-shell][data-expanded=true] ${retry}')?.checkVisibility()`);
   // One retry, in the placeholder under the reader bar.

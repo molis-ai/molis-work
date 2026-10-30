@@ -25,16 +25,69 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Did the merge queue already verify this commit? (T-129, scripts/ci-queue-verified.mjs) Only on a push to main: a pull request
+  # reaches main through the merge queue, which runs this workflow on the merge group's commit and, when `Verify` passes, moves main to
+  # that very commit. So the push is the same commit, tree and ci.yml, and the blocking jobs would repeat the queue's run. When the
+  # GitHub API shows a successful `merge_group` run of this workflow on this SHA with a successful `Verify` that compared with this
+  # push's `before` (the step `Merge queue base <sha>` of `verify`: the health gates and the secret scan compare with a base, and a
+  # group built on another one has another base), `verified` is true. Only then, and only when this job succeeded, the blocking jobs
+  # are skipped and `verify` passes with a link to that run. Anything else (a direct push, a queue run that failed, another base, an
+  # API that cannot be read, this job failing whatever it wrote) runs everything as before. The two jobs that do not block
+  # (`security-invariants`, `product-subset`) run on every push either way (decision #14). To roll back: `if: false` here is enough,
+  # since a skipped job is not a success; removing the job means removing it from every `needs`, the conditions and `verify` too.
+  queue-check:
+    name: Verified in the merge queue
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      verified: ${{ steps.check.outputs.verified }}
+      run_url: ${{ steps.check.outputs.run_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+
+      # Node built-ins only, no install.
+      - name: Find this commit's merge queue run
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: node scripts/ci-queue-verified.mjs
+
   # The blocking checks are jobs that run side by side and all feed `verify`, each about five minutes: `gates` and
   # `health-gate-rules` need no build (the contracts package alone, for one gate test), `architecture-boundaries` and
   # `action-contracts` each build the workspace and run what needs the build. Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each
   # file with its own MOLIS_WORK_HOME (scripts/run-tests/pool.mjs, docs/system/PARALLEL-DEVELOPMENT.md §5); MOLIS_WORK_TEST_JOBS
   # sets how many on these 4-core runners. The runner starts the files that took longest last time first, from the durations it
   # keeps in node_modules/.cache/molis-work-tests; the "Test durations" step carries that file from run to run (a job of main's
-  # runs seeds a pull request's), so a four-minute file does not start last.
+  # runs seeds a pull request's: the nightly run, and a push that did not come through the merge queue), so a four-minute file does
+  # not start last.
+  # A push to main that came through the merge queue does not run them again (`queue-check`, T-129): the queue ran them on that very
+  # commit, and `Verify` passed there.
+  # `gates`, `health-gate-rules`, `architecture-boundaries`, `action-contracts` and `security-invariants` have a time limit (T-128);
+  # without one a job that hangs holds a runner for the six-hour default, and that is all the limit has to stop, so it is not tight:
+  # a blocking job gets at least 30 minutes, and no job gets less than 1.8 times its longest successful run. Measured on the 344
+  # completed runs from 2026-10-28 13:06Z (when the install steps got their limit) to 2026-10-29: `gates` 6.8 min, `health-gate-rules`
+  # 5.2, `architecture-boundaries` 5.8, `action-contracts` 15.4 (a slow runner in the merge queue, run 40851936879, still a success),
+  # all 30 here; `security-invariants` 21.9 (40, 1.8 times), the longest job, which `product-subset` (35) is next to. A job that
+  # reaches its limit ends without success, so `Verify` fails. The `Install pnpm` steps have 3 minutes (the longest of 2547 took 66
+  # seconds), the other install steps 5 (tests/ci-install.test.ts). tests/ci-timeouts.test.ts holds the table; raise a limit there
+  # and here together, with the new measurement.
   gates:
     name: Gates
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       MOLIS_WORK_TEST_JOBS: 4
     steps:
@@ -45,16 +98,33 @@ jobs:
           # shallow clone lacks it, scripts/ci-health-base.mjs fetches it (and deepens only as far as needed).
           fetch-depth: 2
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # Numbers that may only go down (giant units, tests reaching into package internals, vendored SDK packages, in-place schema
       # patches, compatibility markers, empty catch blocks, `as unknown as` casts, old names, conflicting translations, the
@@ -105,10 +175,12 @@ jobs:
       # inventory; translations; release versions; the document and repository-shape rules; vendored package records; the numeric
       # health gates are in `health-gate-rules`); a planted key is caught by the secret scan (the secret-scan job has no
       # dependencies installed, so its rules are tested here); the Linux probe and the product subset runners keep their rules
-      # (they only report, or do not block yet: their own jobs below), and so does the parallel test runner every step here uses
+      # (they only report, or do not block yet: their own jobs below), and so does the choice of their files on a pull request
+      # (scripts/ci-test-selection.mjs, the `test-selection` job), and so does the skipping of a push the merge queue verified
+      # (scripts/ci-queue-verified.mjs, `queue-check`), and so does the parallel test runner every step here uses
       # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
       - name: Gate rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
 
   # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
   # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
@@ -117,7 +189,12 @@ jobs:
   # takes every second file of the same list (`--shard`), which gives every file to exactly one leg.
   health-gate-rules:
     name: Health gate rules (${{ matrix.shard }}/2)
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -127,15 +204,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # tests/health-gates-errors.test.ts reads the error codes of the built contracts package; nothing else here needs a build.
       - name: Build the contracts package
@@ -153,7 +247,12 @@ jobs:
 
   architecture-boundaries:
     name: Package boundaries
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       MOLIS_WORK_TEST_JOBS: 4
     steps:
@@ -162,15 +261,32 @@ jobs:
           # The page asset budgets and the studio replay compare with the merge-base, as the health gates do (see `gates`).
           fetch-depth: 2
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       - name: Test durations
         uses: actions/cache@v4
@@ -199,11 +315,30 @@ jobs:
           base="$(node scripts/ci-health-base.mjs)"
           node scripts/gates/page-assets.mjs --base "$base"
 
+      # Plugin style budget (PG-070, RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts,
+      # per plugin, the rule blocks still there although an on-demand sheet could carry them (the first slice's splitter, read
+      # from the build; Goals' document styles, which page-assets imports straight into the shared sheets). Every number only
+      # falls, and a plugin whose page runs in a frame must not appear at all. It is measured from the build the verify step
+      # just made, so it comes after it. tooling/gates/plugin-styles.json is compared with the merge-base's copy, so a PR
+      # cannot raise a number or add a plugin to the budget by editing that file, only by changing the gate, which is reviewed.
+      - name: Plugin style budgets (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/gates/plugin-styles.mjs --base "$base"
+
       - name: Typecheck product launchers
         run: pnpm exec tsc --noEmit -p tsconfig.json
 
+      # The last test is the frozen list of the Host's holders of Goals' coordinator and tables (PG094-06): it needs no build, only the
+      # tracked sources, and it counts per file, so it runs on every pull request, not only in the full suite.
       - name: Verify Goal boundaries
-        run: node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+        run: |
+          node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+          node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
       # Rules that read the build, each mutation-verified or asserted on the built host: the page asset budget rules (a grown
       # asset, a new asset, a raised budget, a slack left unlowered, a missing build and the laundering moves each fail; a route
@@ -213,7 +348,7 @@ jobs:
       # workbench shell (no standalone pages); 成果 types have owner previews, writes match Manifests, process items stay out of
       # user lists.
       - name: Build rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/plugin-styles-gate.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
@@ -244,7 +379,12 @@ jobs:
   # each: every second file of the list (`--shard`), each file in exactly one leg. The full product suite still runs locally.
   action-contracts:
     name: Action and plugin contracts (${{ matrix.shard }}/2)
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -254,15 +394,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       - name: Test durations
         uses: actions/cache@v4
@@ -280,6 +437,10 @@ jobs:
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
     name: Secret scan
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
     steps:
       # The scan reads every commit the change adds since its merge base with the target branch, so it needs the history
@@ -288,9 +449,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
       # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
@@ -313,15 +484,29 @@ jobs:
   # red build. Moving the pin is a deliberate change (clean the new warnings in the same PR).
   native-checks:
     name: Rust and Swift checks
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: macos-latest
     env:
       RUSTUP_TOOLCHAIN: 1.96.0
     steps:
       - uses: actions/checkout@v6
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
@@ -356,13 +541,27 @@ jobs:
 
   shell-checks:
     name: Shell and Python checks
+    needs: [queue-check]
+    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
+    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # shellcheck ships on the GitHub ubuntu runners. Warnings and errors fail; style notes do not.
       - name: shellcheck on every tracked shell script
@@ -377,12 +576,20 @@ jobs:
 
   verify:
     name: Verify
-    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks]
+    # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
+    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, queue-check]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
     # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
     runs-on: ubuntu-latest
     steps:
+      # The base this run's health gates and secret scan compared with, in the step's name so the GitHub API returns it (T-129): in
+      # the merge queue the group's base. `queue-check` on the push that follows reuses this run only when it is the push's `before`.
+      - name: Merge queue base ${{ github.event.merge_group.base_sha || 'none' }}
+        env:
+          BASE: ${{ github.event.merge_group.base_sha }}
+        run: echo "Compared with ${BASE:-no merge queue base (not a merge group)}."
+
       - name: Required package gate passed
         env:
           GATES_RESULT: ${{ needs.gates.result }}
@@ -392,7 +599,16 @@ jobs:
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
+          QUEUE_CHECK_RESULT: ${{ needs.queue-check.result }}
+          QUEUE_VERIFIED: ${{ needs.queue-check.outputs.verified }}
+          QUEUE_RUN_URL: ${{ needs.queue-check.outputs.run_url }}
+        # The same three conditions as the blocking jobs' `if`, so a job is skipped exactly when it may be. A failed `queue-check` is
+        # not judged here: it only means the seven ran, and their results decide.
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$QUEUE_CHECK_RESULT" = "success" ] && [ "$QUEUE_VERIFIED" = "true" ]; then
+            echo "This commit passed Verify in the merge queue ($QUEUE_RUN_URL); the blocking jobs were not run again."
+            exit 0
+          fi
           test "$GATES_RESULT" = "success"
           test "$HEALTH_GATE_RULES_RESULT" = "success"
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
@@ -401,6 +617,43 @@ jobs:
           test "$NATIVE_CHECKS_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success"
           echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
+
+  # Which files of the two jobs below a pull request runs (T-130, scripts/ci-test-selection.mjs): the files of each job's own list
+  # that scripts/affected-tests.mjs says the change touches (`--wide`), against HEAD^1, the base branch as GitHub merged it. A job runs
+  # whole when affected-tests recommends the full suite, when a changed source file is read by no test, when a file the job runs with
+  # changed (its list, its runner and what the runners and the selection import, this workflow, package.json, the lockfile, skills/,
+  # vendor/; the security table and the security-invariants-* tests; the product list and quarantine), and when the selection fails;
+  # it is skipped when none of its files is touched. Only on a pull request: on a push to main, the nightly run and a manual run this
+  # job is skipped and both jobs run whole as before; the merge queue runs neither. The two jobs read its outputs only when it
+  # succeeded (`needs.test-selection.result`), in the `if`, the matrix and the file list alike: skipped, failed or cancelled, whatever
+  # it may have written, means the whole list on two legs. Not in `verify`'s needs: it decides nothing a merge waits for.
+  test-selection:
+    name: PR test selection
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      security_mode: ${{ steps.select.outputs.security_mode }}
+      security_shards: ${{ steps.select.outputs.security_shards }}
+      security_files: ${{ steps.select.outputs.security_files }}
+      product_mode: ${{ steps.select.outputs.product_mode }}
+      product_shards: ${{ steps.select.outputs.product_shards }}
+      product_only: ${{ steps.select.outputs.product_only }}
+    steps:
+      # The merge commit GitHub builds and its two parents: HEAD^1 is the base branch as merged, so the change is exactly the pull request's.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+
+      # Node built-ins only, no install. It exits 0 with `whole` when anything goes wrong; if it still fails, the two jobs do not read
+      # what it wrote and run the whole list, so a broken selection runs more, never less.
+      - name: Select the files this change touches
+        id: select
+        run: node scripts/ci-test-selection.mjs --base HEAD^1
 
   # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/repository-anti-corruption §4.18): each one has a test that asserts the
   # refusal itself: a foreign Host, Origin, token or key; a socket without the token; an
@@ -415,16 +668,22 @@ jobs:
   # Two legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
   # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
   # its 30 s limit (half the runs on main failed). Every second file of the list (`--shard`), each file in exactly one leg.
+  # On a pull request it runs what `test-selection` chose: the whole list on two legs, the touched files on one leg (two when they are
+  # more than half the list), or nothing (skipped). A push to main and the nightly run run the whole list, so what a pull request did not
+  # run is run on main after the merge.
   security-invariants:
-    name: Security invariants (not required yet) (${{ matrix.shard }}/2)
-    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
-    if: ${{ github.event_name != 'merge_group' }}
+    name: Security invariants (not required yet) (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [test-selection]
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` lets it run when
+    # `test-selection` was skipped (not a pull request) or failed; only its success is read, and anything else means the whole list.
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.security_mode != 'none') }}
     runs-on: ubuntu-latest
     continue-on-error: true
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.security_shards || '[1, 2]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 2
     steps:
@@ -432,13 +691,20 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       - name: Test durations
         uses: actions/cache@v4
@@ -451,8 +717,17 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The files `test-selection` chose, or (empty: whole, not a pull request, or the selection did not succeed) every file of `test:security`.
       - name: Security invariants
-        run: pnpm test:security --shard ${{ matrix.shard }}/2
+        env:
+          SELECTED: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.security_files || '' }}
+        run: |
+          if [ -n "$SELECTED" ]; then
+            read -r -a files <<< "$SELECTED"
+            node scripts/run-tests.mjs --shard ${{ matrix.shard }}/${{ strategy.job-total }} "${files[@]}"
+          else
+            pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }}
+          fi
 
   # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
   # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
@@ -465,15 +740,23 @@ jobs:
   # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
   # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
   # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
-  # The probe stays an information job (about 50 minutes for every non-browser file is too long to wait for). What its first run
-  # showed became tests/ci-product-subset.txt (W2-16), run by the `product-subset` job below, which is the one that joins Verify.
+  # The probe stays an information job. What its first run showed became tests/ci-product-subset.txt (W2-16), run by the
+  # `product-subset` job below, which is the one that joins Verify.
+  # One job no longer reaches every file (R-58, user 2026-10-26): the manual run 40219623393 spent its 85 minutes before the last 44
+  # files started, so the list is spread over six jobs (`--shard k/6`, every sixth runnable file of the sorted list; the six
+  # `linux-probe-k` artifacts together hold each file once). Each job installs uv, which the managed Python installer test
+  # (connector-managed-install, ASC-06/17) runs for real, at the version and action pin full-suite.yml uses.
   # It runs nightly on main and when started by hand (workflow_dispatch), not on every push (user 2026-10-14): an hour of runner
   # on each push decided nothing, and on main the next merge usually cancelled it.
   linux-probe:
-    name: Linux probe (not required)
+    name: Linux probe ${{ matrix.shard }}/6 (not required)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
     # cancels the job like a newer push does, and the probe writes its partial report on that signal.
     timeout-minutes: 120
@@ -482,28 +765,41 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
+
+      # ASC-06/17: the managed Python MCP test runs real uv against a local package registry (the same pin as full-suite.yml).
+      - name: uv for the managed Python installer tests
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.12.19"
+          enable-cache: false
 
       # The tests import the built workspace packages and dist/; a full build, as `pnpm test` does before the suite.
       - name: Build
         run: pnpm build
 
       # `exec` makes the probe the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
-      - name: Run the non-browser test files and record which pass
-        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85
+      - name: Run this shard's non-browser test files and record which pass
+        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85 --shard ${{ matrix.shard }}/6
 
       - name: Keep the report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: linux-probe
+          name: linux-probe-${{ matrix.shard }}
           path: ${{ runner.temp }}/linux-probe
           retention-days: 30
           if-no-files-found: warn
@@ -525,10 +821,21 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
+  # Two disjoint shards cover the same full list once; each keeps the phase/attempt limits above.
+  # fail-fast is off so one failed shard does not hide the other shard's results.
+  # On a pull request it runs what `test-selection` chose (`--only` the touched files of the list, on one shard when they fit in one,
+  # quarantined ones included and still not counted), the whole list, or nothing (skipped); a push to main and the nightly run run the
+  # whole list, as `security-invariants` does.
   product-subset:
-    name: Product subset (not required yet)
-    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
-    if: ${{ github.event_name != 'merge_group' }}
+    name: Product subset (not required yet, ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [test-selection]
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` and a `test-selection`
+    # that did not succeed mean the whole list on two shards, as for `security-invariants`.
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.product_mode != 'none') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 35
@@ -537,14 +844,21 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # The tests import the built workspace packages and dist/; the same full build the probe makes.
       - name: Build
@@ -563,14 +877,21 @@ jobs:
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
+      # ONLY is the files `test-selection` chose as one anchored regular expression; empty (whole, not a pull request, or the selection
+      # did not succeed) runs the list.
       - name: Run the product subset
-        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+        env:
+          ONLY: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.product_only || '' }}
+        run: |
+          set --
+          if [ -n "$ONLY" ]; then set -- --only "$ONLY"; fi
+          exec node scripts/ci-product-subset.mjs --expect-platform linux "$@" --shard ${{ matrix.shard }}/${{ strategy.job-total }} --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
 
       - name: Keep the report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: product-subset
+          name: product-subset-${{ matrix.shard }}
           path: ${{ runner.temp }}/product-subset
           retention-days: 30
           if-no-files-found: warn

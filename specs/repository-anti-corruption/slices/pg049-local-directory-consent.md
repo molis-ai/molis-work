@@ -1,0 +1,157 @@
+# PG-049：本机目录读取的同意流程
+
+状态：用户 2026-10-25 已拍板（第 6 节），已实现，待评审与合入（2026-10-25）。负责人：ac-kernel。安全不变量 S-83（batch-39 定号）。
+
+## 1. 要解决什么
+
+裁定 11（`privileges.md` §4 e）：插件读用户指定的本机目录，要经过一项带同意流程的平台服务，任何插件都走同一个入口。
+
+main 上已经有这项服务的底子（PRR-03，用户 2026-10-20 选 B，`specs/pr-review-remediation/spec.md`）：
+
+- **入口**：`POST /api/host/directory-grants`（`apps/local-host/src/plugin-directory-http.ts`）。页面只能说是哪个插件在请求，目录由系统选择器选；插件页面不能替别的插件或项目请求。
+- **读取**：插件只拿到 `PluginDirectoryService.read`（合同 `platform/plugin-directory`），按 `grant_id` 加相对路径读。宿主每次都核对安装的 `directory:read`、调用身份和授权是否仍有效；逐段 realpath/lstat，拒绝符号链接，只读，目录、文本、字节各有上限（`plugin-directory-read.ts`）。
+- **Cognia**：已经不用 `node:fs`，只经这项服务读（`plugins/native/cognia/src/directory.ts`）。
+
+PRR-03 的授权只有 30 分钟、只在内存里，换一次激活就没了；看不到、撤不了；安全不变量表里也没有它的行。本片按用户的四项决定补上这些。
+
+## 2. 设计（按第 6 节的决定）
+
+在现有服务上补，不另起第二套。
+
+### 2.1 授权一直有效，直到本人撤回
+
+- 系统选择器确认就是授权，没有「记住」勾选这一步；选择器的提示写明「只读；一直有效，可在设置『本机目录』里撤回」。
+- 授权写进 Home 库 `plugin-directories`（宿主自己的库，表的主人是 `apps/local-host`，`docs/system/HOME-DATA.md` 有行）。一行记：插件 id 与名字、安装 id、项目（Home 级激活为空串）、人、目录的真实路径、设备号与 inode、授权时间、上次读取时间、读取次数。
+- 同一安装、同一个人、同一项目再选同一个目录，沿用原来那条授权。
+- 每次读都重新核真实路径与设备号、inode：目录被移走、被换掉或成了符号链接，就返回 `changed`，这条授权作废，要人重新选。
+- 插件读取时只用不透明的 `grant_id`；选择后宿主把目录的绝对路径交给发起请求的页面（PRR-03 起就这样，Cognia 用它显示来源）。
+
+### 2.2 后台也能读，每次读都有记录和通知
+
+- 调用来源由宿主从可信的调用上下文取，不从输入读：插件的常驻作业，以及宿主标了本安装的 `plugin` 受众调用（插件自己的定时唤醒、作业里调自己的动作），记为「后台任务或定时」；其余按调用的 `audience` 记为本人、Agent、工作流或 MCP。
+- 只放行用户列的这几种来源（统筹 2026-10-25 收紧，不放宽）。别的插件直接调本插件的动作（`plugin` 受众、宿主标的是别的安装、又不在作业里）拒；工作流步骤按它的工作流或作业放行。
+- 另外三条限制：项目必须与授权的相同；必须是这个插件的这个安装（升级换代不算换安装）；另一个人不行（`audience` 为 `user` 且 actor 不同）。
+- 交出的每一次读，先写进这条授权的读取记录（时间、来源、调用者、结果；不记文件名和内容；每条授权留最近 200 条，次数与最后一次另记），再按调用发一条助理通知（`directory-read`），写明哪个插件、哪个目录、谁发起的。记录写不下就不交出结果。一次调用里读很多次（比如扫描一个目录树），只发一条通知，每次读都进记录。插件的常驻作业（`services.background.keep`）从头到尾是同一次调用，它的读按「作业 + 授权 + 小时」去重：每个读过的小时发一条，人能看到后台作业还在读（统筹 2026-10-25 评审 6400577240）。
+- 被取消、撤权、撤回的调用不交出结果，也不留读取记录。
+
+### 2.3 升级换代后保留
+
+授权绑定的是安装，不是某一次激活：重启、升级都照用。停用期间插件的动作调不到，所以读不了；重新启用后授权还在。卸载时按安装删掉授权（项目里的安装只删这个项目的；保留数据的卸载也删）。删项目时按项目删掉。
+
+### 2.4 查看与撤回
+
+- 平台设置单独一页「本机目录」（`/settings/directories`，在「本机」一组）。页面按插件列出每条授权：目录、项目、授权时间、读取次数、最近一次，以及最近的读取记录。每条可以撤回，也可以「撤回这个插件的全部」。
+- 撤回立即生效：下一次读拒绝；进行中的读在下一次核对时失败，不交出结果。
+- 插件自己的设置里可以放一个跳转：`/settings/directories?plugin=<plugin_id>`，页面会滚到这个插件。
+- 列出（`GET /api/host/directory-grants`）与撤回（`DELETE /api/host/directory-grants/grant/<id>`、`/plugin/<id>`）只在 Home 自己的地址上；项目页地址和插件页面的请求都拒绝。
+
+### 2.5 任何插件同一个入口
+
+- 入口仍是一个宿主路由加一个系统选择器，插件不能自绘。
+- Manifest 声明 `directory:read` 权限，安装确认里照常列出。
+- 官方、个人与第三方插件待遇一样（10-18）；签名只决定安装信任，不决定能不能读目录。
+- 插件 SDK 不新增 API。合同 `PluginDirectoryGrant` 的 `expires_at` 换成 `granted_at`（不留兼容期，`docs/system/CONTRACT-CHANGES.md`）；`AssistantNoticeKind` 加 `directory-read`。
+
+### 2.6 不在本稿
+
+- 写入本机目录：另一项服务，另一次决定。
+- 监听目录变化后自动重扫：另外再定。
+- 项目工作区目录：已由 S-41 一类的规则覆盖，不并进来。
+
+## 3. 风险
+
+- 不是 `user` 的调用者（Agent、工作流、MCP、后台作业）不核对 actor：本机 Home 只有一个人，可以这样做。以后一个 Home 里有多个人时，另一个人的 Agent 或 MCP 客户端也能用这份授权读，到时要一个可信的「代谁做事」字段再收紧（统筹 2026-10-25 定，现状保留）。
+
+## 4. 安全边界
+
+新开 S-83（batch-39 定号，`docs/system/SECURITY-INVARIANTS.md`），PRR-03 现有的拒绝测试一并登记进这一行。拒绝测试在 `tests/security-invariants-directory.test.ts`。
+
+## 5. 改动面
+
+- `apps/local-host`：
+  - `plugin-directory-store.ts`（新）：授权与读取记录。
+  - `plugin-directory-service.ts`：持久授权、来源与人的核对、目录同一性、记录与通知、撤回与卸载。
+  - `plugin-directory-notices.ts`（新）：助理通知。
+  - `plugin-directory-http.ts`：列出与撤回。
+  - 两个执行器的 `uninstalled`、`home-stores.ts` 的登记、设置页路由。
+- `apps/workbench`：设置分类「本机目录」（`settings-local-directories.ts` 的页面、客户端脚本与英文词典）；助理通知里这种通知不显示「打开」按钮。
+- `packages/contracts`：`platform/plugin-directory`、`services/assistant`。
+- 文档：`docs/system/SECURITY-INVARIANTS.md` S-83、`docs/system/HOME-DATA.md`、`privileges.md` PG-049 行。
+
+## 6. 用户的决定（2026-10-25，统筹弹窗）
+
+| # | 问题 | 决定 |
+| --- | --- | --- |
+| 1 | 授权能维持多久 | **一直有效，直到本人撤回**。不只是本次 30 分钟，也没有「记住」勾选：选了就一直有效。 |
+| 2 | 授权可以给什么调用用 | **后台也能读**（原推荐 A，用户选 B）：Agent 自主、定时、工作流、MCP 都可以用这份授权读，但每一次读都进可见记录，并通知本人。 |
+| 3 | 插件升级换代后 | **保留，不再问**。 |
+| 4 | 查看与撤回放在哪 | **平台设置单独一页「本机目录」**，按插件列，可撤回；插件自己的设置里可以放跳转。 |
+
+## 7. 验收
+
+| 编号 | 标准 |
+| --- | --- |
+| RAC-662 | 撤回立即生效：设置页撤一条、撤一个插件的全部之后，下一次读拒绝；读到一半时撤回、撤权或取消，结果不交出、不留读取记录；列出与撤回只在 Home 自己的地址上，项目页地址和 Home 级插件页面的请求都拒绝、授权还在；再选同一个目录沿用原授权。 |
+| RAC-663 | 后台调用者（MCP）可以读；每次交出的读都进记录（来源、调用者、结果），每次调用一条通知；别的插件拿同一个授权 id、别的插件直接调本插件的动作、另一个人、目录之外的路径都拒，被拒的调用者不留读取记录；记录和通知里没有文件名和内容。 |
+| RAC-666 | 常驻作业用授权读：每次读都进记录；同一小时里的读一条通知，跨过一小时再读又一条；作业里调本安装自己的 `plugin` 受众动作（定时唤醒走的同一条路）可以读，记为后台。 |
+| RAC-664 | 同一安装的新激活照用授权；停用期间读不到、授权还在；卸载（保留数据也算）删掉授权；授权只在所选项目里有效，删项目后失效。 |
+| RAC-665 | 目录被移走后再建同名目录，读到 `changed`，授权作废。 |
+
+## 8. 通知结果与当前语言（已接受有限 WO，2026-10-25，I1）
+
+Root 将 FIRST 6400577240 的非阻塞第 1、3 项（增量 6400884033 确认仍存在）交 I1，准确基于 `1bd32e50e23414631ed1f0f4cdf94c0d9375901a` 独立实现；目标是本叶工程验证、真实持久化通知的中英文展示及独立双核，不代表 PG049 或原 PR 完整验收。开写前原 kernel 的通知文件 blob 仍与基点相同，三个通知相关文件无未暂存改动；不写原作者树、主检出或旧 85 树。
+
+现状是 `tellDirectoryRead` 丢掉实际读取结果并将完整中文写入 `AssistantStore`。本叶在真实调用点传入 `result.outcome`：directory/text/bytes 使用已读取模板，denied 使用尝试读取被拒绝模板，missing/unsupported/too-large 使用尝试读取未完成模板；changed 的既有提前返回、不记账路径不变。所有身份、记录、去重与通知次数均沿用原服务。
+
+复用现有 `L(key, vars)` / `fillMessage`：中文模板继续作为已有宿主词典的稳定键，参数分开持久化。仅给 `AssistantNotice` 增加 `text_params?: { plugin: string; folder: string; origin: string }`；该字段为现行 directory-read 必需，其他种类不使用，正文 `text` 是模板键。来源参数是宿主选出的翻译键，插件名与目录名只作文本参数。Store 的 JSON body 与 API 已原样透传，无需改表或迁移。渲染该种通知时用当前 L 翻译模板及来源，并将同一结果用于正文、打开与知道了的 aria；签名包含最终显示文本。缺少参数视为无效通知，显示明确的数据不完整文案，不反解旧中文、不作历史读取兼容、不操作真实 Home。所有参数通过现有单次填充与 textContent，不能注入 HTML 或再次解释占位符。
+
+范围是通知生产方及真实调用点、上述合同与精确 API 快照、通知现行渲染、已注册宿主 `assistant-en.ts` 的精确键、必要测试和本节。不改翻译注册/PG071机制、通知受众和入口/频率、目录授权/来源/数据 owner、零副作用路径、job+grant+小时去重、SI/S72、其他需求线、门禁或共享资源预算。沿用 directory-read 当前非 urgent 分组，展示测试通过现有通知按钮 handler 打开内容，不冒作入口可达性改进。
+
+| 编号 | 验收及证据 |
+| --- | --- |
+| PG049-N01 | 真实 Host 的成功读取与合法调用的目录越界拒绝，仍各记一次并产生一条通知；成功模板与被拒模板准确、插件/目录/来源完整。受影响 RAC-663 和新浏览器生产路径覆盖。 |
+| PG049-N02 | 同一批已保存 notice_id 经 Store→API→真实 UI，刷新及中文→英文后正文与知道了/打开 aria 按现行语言重绘；名称含 HTML、占位符及替换符也仅作文本；不重新读目录或产生通知。 |
+| PG049-N03 | 缺少现行必需参数的 directory-read 明确显示数据不完整，其他种类正文保持原处理；不解析历史中文。 |
+| PG049-N04 | 原 job 窗口三条通知、四次读取及相关取消/撤权零记账，复用已有证据，仅核对受影响 RAC-663、RAC-666 和必要零副作用用例，不重安全全套。 |
+
+实现后必要 FIFO 整体 `pnpm build`，刷新精确 services/assistant API 快照，运行上述有限用例、相对基点/主线适用健康检查与推送前 fresh-fetch+secrets；浏览器使用专用 molis-test-browser、临时 Home/profile 和公共 FIFO，finally 清理。资源只报告真实增量交 carrier，不在本叶改共享预算或新建 CI。普通 feature push 后交同头 REVIEW、TEST、PIPE/Root；不开新 PR、不改原 PR、不合 main。
+
+Root 最终裁定：通知的纯文本格式化放入现有 `assistant-text-html.ts` 助理文本投影模块，沿已有函数序列化方式供客户端调用；island 只装配格式化投影，不扩通知框架。不登记巨大单元例外，不改迁移表、门禁、limits 或 baseline；只合并本次新增的冗余合同说明，保留 directory-read 必带 text_params 的清楚合同。新生产输入须整体构建并以该最终指纹验证受影响浏览器；不因步骤切换重跑已证的未变 Runtime/i18n 范围。
+
+## 9. #1308 FIRST §7.1：设置页提前显示失效（I1，2026-10-25）
+
+状态：Root 已接受的局部修复工单；负责人 I1。固定候选基点 `50823b548c47c3f64766e3b23d02ef68238a3fa3`（main 基线 `b3bac731b`），只承接 [原评第 7 节第 1 项](https://github.com/molis-ai/molis-work/pull/1308#issuecomment-6403273796)。目标是设置页在首次插件读取之前如实显示目录当前状态；授权持续到撤回、普通快照保留授权和读取历史、实际 read 的 changed 拒绝及撤销继续采用现有规则。
+
+当前 GET 直接列出持久授权，直到插件 read 才调用同一 owner 的 `sameDirectory`。本单让 `DirectoryGrantService.list` 异步复用这一判断，按真实 path/dev/ino/symlink 派生 `directory_status: current | changed`；HTTP 等待列表并保留现有 Home/插件页面隔离与敏感字段剥离。状态只属于本次读取结果，不入库、不自动撤回/授权/重绑定、不新增设备登记、后台监听或恢复策略。设置页明确显示目录有效或已失效；后者提示回到插件重新选择，原撤回入口照用。读取历史注明含恢复前的记录，查看不冒充插件读取，也不增次数或通知。状态是查看时的观察，实际读取仍执行自己的即时检查。
+
+允许修改 service、HTTP、settings-local-directories（含现有词典）、本节与必要既有测试及类型消费。service 的现有 list 消费跟随 Promise；不改 store schema、contracts/SDK、home-stores/快照政策、R55/F1/F2、共享 BACKLOG 或门禁/预算机制。取舍：目录检查只在设置列表读取时发生，准确性采用现有身份规则；无需第二份安全判断或持久状态。
+
+| 局部编号 | 验收与验证 |
+| --- | --- |
+| PG049-STATUS-01 | 真实 Host/HTTP + 临时目录：同一真实目录为 current；反复查看不修改授权行、读取历史/次数/最近一次或通知，敏感身份字段仍不下发。 |
+| PG049-STATUS-02 | 目录不存在、真实替换、设备/inode 差异及符号链接时，在首次插件 read 前 GET 已显示 changed；原授权和旧历史保留，不自动绑定新目录。身份差异通过实际持久记录故障与真实文件系统比对验证。 |
+| PG049-STATUS-03 | 实际 read 继续返回 changed 并撤销原授权；设置撤回失效项立即生效；明确重新选择目录后，新授权可读，同目录重选仍沿用原有效授权。 |
+| PG049-STATUS-04 | 专用 Chrome 在真实设置页显示有效/失效及重新选择提示、恢复前历史说明；真实点击撤回后该项消失，服务确认已撤回。页面没有替代授权按钮或伪造读取。 |
+
+工程交付：必要一次 FIFO 整体构建后，相关目录 security/HTTP、UI helper、客户端拼接和 i18n 回归通过；固定 base 与当前 origin 的 health、实际 served 资源按现行政策报告，fresh-fetch + secrets 后普通 feature push。准确 head 交既有 REVIEW/TEST 收窄核验，I1 核原件后交 PIPE/Root；不另起 full 或写原 PR/carrier。
+
+验证命令以 `node scripts/run-tests.mjs` 点名现有目录安全用例、设置请求/helper、客户端拼接与 i18n；浏览器仅点名新增 PG049-STATUS 用例，串行走现有机器 browser 槽与独立 Chrome profile。原失败和未验证边界保留，不以工程定向通过宣称快照全链、跨设备实机或本人验收完成。
+
+作者定向执行：必要一次 FIFO 整体构建自然退出 0，官方源码指纹与现行构建匹配；目录安全/HTTP 18 项及设置 helper、请求客户端、i18n、served-script 的 6 个文件通过。客户端拼接检查仅有固定 508 已存在的 LF=3/LFor=9 失败，本机最小对照与[原 CI](https://github.com/molis-ai/molis-work/actions/runs/40232850905/job/121288074433) 同形，原件保留，不在本单改其全局名单或吸收其它分支。health 对固定 508 与当前 main b3、boundary 均通过。实际 served workbench.js 为 1,129,694 B，较 508 的 1,129,466 B 增 228 B；同资源删行首缩进的试验经生产压缩后仍为同一字节数，已复用现有构造/helper/样式，不加资源，真实预算红留评审与唯一 carrier 按现行政策结算。本单浏览器和独立收据按同一候选源码交接，最终运行与未验边界以其原始结果为准。
+
+
+## 9. 目录窄屏完整路径换行（I1，2026-10-25）
+
+状态：Root 唯一初派的独立窄工单，负责人 I1；准确基点 `99c6561a9e945a098ee367e6646f0ae2b142872e`，原候选和分支保持冻结。本单接续 §8 评审中窄屏长连续路径被父容器裁切的 P2，只修可读与可选取，不追溯升级原单的阻塞等级。
+
+现有 `code.local-directory-root` 仍按通用 code 排版；document 没有横向滚动不能证明文字没有被上层 overflow 裁切。本单仅给 `.local-directory-settings .local-directory-root` 加局部自然换行与空白保留（`overflow-wrap: anywhere; white-space: break-spaces`）。小样式由现有本页模块持有，通过 `page-assets.ts` 接入既有 workbench/settings 两份 CSS；不扩大通用 SETTINGS_STYLES 巨大串，不改其它 code 或设置布局，不新建资源。
+
+| 编号 | 验收与证据 |
+| --- | --- |
+| PG049-WRAP-01 | 原目录浏览器单例使用真实长连续段、空格/中文目录与普通路径，在 390 和桌面宽度、亮暗主题下测实际 Text Range 行框，确保文字在路径行、viewport 和有裁切能力的祖先边界内，原文完整且可选取；保留状态、历史和真实撤回。临时移除本单两个样式声明后，同一布局断言须抓住 99 原样式的真实裁切，恢复后通过，保留度量及截图。 |
+
+允许改本页微型样式及其现有 CSS 装配、原 `tests/ui-request-client.e2e.test.ts` 目录单例和本节；无需改授权服务/合同、恢复政策、store/schema、全局 code/settings 规则、样式巨大单元、门禁/预算机制或共享 BACKLOG。只运行原单例的增量浏览器验证与必要静态检查，不重跑原 18 项、五文件或全量。源码变化仅做必要一次公共 FIFO 整体构建，浏览器用同一 canonical FIFO、专用 wrapper 和临时 Home，收尾清理；本单不更改 TMPDIR。
+
+按现行政策实测受影响 served CSS 和相对准确 99 的叶差，继承 workbench.js +228 B / 相对 main 总 +1965 B、原 client LF/LFor 继承红单列；资源增长留 REVIEW 认可及唯一 carrier 最终组合结算，不自行改机制或掩红。普通 feature push 前 fresh-fetch/secrets；固定 head 后交既有 REVIEW/TEST 只做增量，I1 亲读正式回执/raw 后交 PIPE/Root，不等 carrier 合入占位。Memory/#734 保持暂停。
+
+作者定向证据：唯一必要公共 FIFO 整体构建自然 0，样式作用域检查 3/3、fixed99/current main health 与 boundary 通过。首轮专用 Chrome 单例 1/1 自然 0；原样式反例实测水平越界 782.609375px 且空格选取不等于原文，恢复规则后六档长路径 3/8 行、横纵越界均 0，226 字符原文选取完全相同，26 字符短路径均单行；真实撤回仍通过，度量/原样式与新样式截图保留。最终测试继续保留原 document/status 断言，由固定 head 的独立单例收验。两份既有 CSS 各叶增 105 B，生产缩进压缩试验省 0，无新资源/JS 叶增；预算真实红与继承项交 REVIEW/唯一 carrier 按现行政策处理，不写机制。

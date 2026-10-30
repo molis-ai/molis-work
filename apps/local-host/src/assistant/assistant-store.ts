@@ -9,6 +9,7 @@ import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { eachListener } from "../host-log.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -21,10 +22,15 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
  *
  * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
- * It stays in version 2 so every Home has the same schema, and a work's rows in it still go with the work. Dropping
- * it is version 3 with a maintenance step on existing Homes, which is not done here.
+ * It stays so every Home has the same schema, and a work's rows in it still go with the work. Dropping it is a later
+ * version with a maintenance step on existing Homes, which is not done here.
+ *
+ * Version 3: the work body's executor is `{ kind: "plugin", plugin_id, … }` and a round's `executor` is `"plugin"`, where
+ * version 2 wrote the old Coding-only kind (PG-036, C8-3). The tables are the same; a version 2 store is refused until a maintenance step
+ * rewrites those two fields and the work in each finished Send's stored result (`assistant_requests.result`), because a read does not
+ * translate them.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -75,7 +81,7 @@ ${CONTEXT_LEDGER_SCHEMA}` };
 export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
   actor_id: string;
   thread_round?: AssistantThreadRound;
-  /** What the next Coding round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
+  /** What the next plugin round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
   handover_brief?: string;
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
@@ -89,7 +95,7 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
   /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */
-  continuation_hold?: "paused" | "stopped";
+  continuation_hold?: "input" | "paused" | "stopped";
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -106,8 +112,8 @@ interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "s
 
 export interface StoredRound {
   run_id: string;
-  /** Set for a round run in the work's Coding session; the others ran in the Assistant's own session. */
-  executor?: "coding";
+  /** Set for a round run in the work's plugin session; the others ran in the Assistant's own session. */
+  executor?: "plugin";
   /** The Character that carried it, as frozen at its start. */
   character?: AssistantCharacter;
   /** Who wrote `text` when it was not the person: the Host (a timed round: its wrapper and the standing request), the Assistant (a sub-task's brief, a follow-up to it) or a page (what the bottom bar composes itself, or a plugin's page sends for them). Absent: the person typed it. Only what they typed is their words (memory's “you said”, what learning draws on). */
@@ -180,7 +186,7 @@ export class AssistantStore {
   }
 
   #changed(workId: string): void {
-    for (const listener of this.#changes) { try { listener(workId); } catch { /* a listener never fails a write */ } }
+    eachListener("assistant", "work_changes", this.#changes, listener => listener(workId)); // A listener never fails a write.
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
@@ -426,3 +432,10 @@ export class AssistantStore {
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
+
+/** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */
+export function assistantWorkForSession(db: DatabaseSync, actorId: string, sessionId: string): StoredWork | undefined {
+  const store = new AssistantStore(db);
+  const rows = db.prepare("SELECT work_id FROM assistant_works WHERE actor_id=? AND json_extract(body,'$.session_id')=? LIMIT 2").all(actorId, sessionId);
+  return rows.length === 1 ? store.get(actorId, String(rows[0]!.work_id)) : undefined;
+}

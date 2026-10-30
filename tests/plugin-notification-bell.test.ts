@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { EN } from "@molis-ai/molis-work-app-local-host";
 import { renderImmersiveHeader } from "../apps/workbench/dist/immersive-shell.js";
 import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
@@ -33,4 +33,9 @@ test("waiting plugin notifications reach the dock bell, which opens the market o
   assert.equal(EN["插件通知：{count} 条待核对"], "Plugin notifications: {count} to review");
   assert.equal(EN["去核对"], "Check it");
   assert.equal(EN["插件通知"], undefined, "the title bar's label left with it");
+});
+
+test("RAC-1824 the bell opens the market through its entry in the Dock menu, the one place that entry is", () => {
+  assert.ok(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT.includes(`document.querySelector('[data-global-menu] [data-plugin-id="market"]')?.click();`), "the entry has one place to be clicked");
+  assert.doesNotMatch(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /data-plugin-strip/, "the rail is not looked at");
 });

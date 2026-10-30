@@ -1,9 +1,9 @@
-import { functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, functionContextActions, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_PROVIDER_ID, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, functionContextActions, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
 import { sceneConfigurationActions, retainActionAuthority, ActionError, type ActionRegistryPort, type ActionCallContext, type ActionClient, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
-import { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
+import { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 
 type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };
 
@@ -46,14 +46,14 @@ export class SystemFunctionsActions {
         if (matches.length > 1) throw new ActionError("actions.scene_ambiguous", "此用途有多个版本，请选择具体场景版本和提供方");
         const matched = matches[0];
         if (!matched) throw new ActionError("actions.scene_missing", "原消费场景版本或提供方不存在或不可访问，草稿已保留");
-        const purpose = liveHostFunctionAuthoringCatalog(directory, matches).destinations.find(row => row.destination_id === record.scene_id
+        const purpose = liveHostJudgmentRuleAuthoringCatalog(directory, matches).destinations.find(row => row.destination_id === record.scene_id
           && row.scene_version === matched.definition.version && row.provider_id === matched.provider.provider_id);
         if (!purpose) throw new ActionError("actions.scene_missing", "原消费场景不存在或当前调用者无权使用，草稿已保留");
         if (purpose.availability?.available === false) throw new ActionError(purpose.availability.code, purpose.availability.reason);
         const intent = { scene_id: matched.definition.scene_id, version: matched.definition.version, provider_id: matched.provider.provider_id };
         const definition = publishedFunctionAction({ ...record, scene_version: intent.version, scene_provider_id: intent.provider_id, status: "published", version: 1 });
         const reason = actionSceneCompatibilityReason(matched.definition,
-          { ...definition, provider: { provider_id: "system.functions", kind: "system", title: "判断规则" }, availability: { available: true } }, undefined, directory, matched.provider);
+          { ...definition, provider: { provider_id: FUNCTIONS_PROVIDER_ID, kind: "system", title: "判断规则" }, availability: { available: true } }, undefined, directory, matched.provider);
         if (reason) throw new ActionError("actions.scene_incompatible", reason);
         return intent;
       },
@@ -72,14 +72,14 @@ export class SystemFunctionsActions {
           const record = this.ports.read(service => service.get((input as { id: string }).id));
           if (record.status !== "published") return { targets: [] };
           const { actions, scenes } = context(caller);
-          const nested = retainActionAuthority(caller, { ...functionContextActions.targets, provider_id: "system.functions" });
+          const nested = retainActionAuthority(caller, { ...functionContextActions.targets, provider_id: FUNCTIONS_PROVIDER_ID });
           const [directory, consumers] = await Promise.all([actions.discover(nested), scenes.discoverScenes(nested)]);
           const targets = await Promise.all(consumers.filter(scene => scene.definition.configuration_permissions).map(async scene => {
             const query = sceneConfigurationActions(scene.definition).targets;
             const view = directory.find(view => view.capability_id === query.capability_id && view.version === query.version && view.provider.provider_id === scene.provider.provider_id);
             if (!view?.availability.available) return [];
             const result = await actions.invoke(nested, { ...query, provider_id: scene.provider.provider_id },
-              { judgment: { capability_id: publishedFunctionAction(record).capability_id, version: record.version!, provider_id: "system.functions" } }) as { targets: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneTarget[] };
+              { judgment: { capability_id: publishedFunctionAction(record).capability_id, version: record.version!, provider_id: FUNCTIONS_PROVIDER_ID } }) as { targets: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneTarget[] };
             return result.targets;
           }));
           return { targets: targets.flat() };
@@ -89,25 +89,25 @@ export class SystemFunctionsActions {
           const record = this.ports.read(service => service.get(args.id));
           if (record.status !== "published") throw new ActionError("actions.binding_invalid", "请先发布判断规则");
           const { actions, scenes } = context(caller);
-          const nested = retainActionAuthority(caller, { ...functionContextActions.configure, provider_id: "system.functions" });
+          const nested = retainActionAuthority(caller, { ...functionContextActions.configure, provider_id: FUNCTIONS_PROVIDER_ID });
           const scene = (await scenes.discoverScenes(nested)).find(scene => scene.definition.scene_id === args.scene_id && scene.definition.version === args.scene_version
             && scene.provider.provider_id === args.provider_id && scene.definition.configuration_permissions);
           if (!scene) throw new ActionError("actions.binding_missing", "原配置位置已不存在或不可访问");
           const configuration = sceneConfigurationActions(scene.definition);
           await actions.invoke(nested, { ...(args.enabled ? configuration.enable : configuration.disable), provider_id: args.provider_id },
-            { binding_id: args.binding_id, expected_revision: args.expected_revision, judgment: { capability_id: publishedFunctionAction(record).capability_id, version: record.version!, provider_id: "system.functions" } });
+            { binding_id: args.binding_id, expected_revision: args.expected_revision, judgment: { capability_id: publishedFunctionAction(record).capability_id, version: record.version!, provider_id: FUNCTIONS_PROVIDER_ID } });
           return { ok: true };
         } },
         { ...functionContextActions.catalog, handle: async caller => {
           const { actions, scenes } = context(caller);
           const [directory, consumers] = await Promise.all([actions.discover(caller), scenes.discoverScenes(caller)]);
-          return { catalog: liveHostFunctionAuthoringCatalog(directory, consumers) };
+          return { catalog: liveHostJudgmentRuleAuthoringCatalog(directory, consumers) };
         } },
         { ...functionContextActions.usages, handle: async (caller, input) => {
           const record = this.ports.read(service => service.get((input as { id: string }).id));
           if (record.status !== "published") return { usages: [] };
           const { scenes } = context(caller);
-          return { usages: await scenes.usages(caller, { ...publishedFunctionAction(record), provider_id: "system.functions" }) };
+          return { usages: await scenes.usages(caller, { ...publishedFunctionAction(record), provider_id: FUNCTIONS_PROVIDER_ID }) };
         } },
       ],
     });

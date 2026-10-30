@@ -16,13 +16,17 @@ AttentionModule 通过 subject resolver 检查对象；commands 创建或更新�
 | --- | --- |
 | [src/index.ts](src/index.ts) | AttentionModule、状态转换与 subject 校验 |
 
-可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/demo-feed-library.ts](../../apps/local-host/src/demo-feed-library.ts) 阅读装配方式。
 
 ## 接入与边界
 
 注意事项不是 OS 通知、调度任务或自动执行指令。本包不启动 Runtime，也不拥有 Feed 条目、Session 或 Goal 内容。
 
 创建、状态变化和按对象删除都由 Owner 的同库事务覆盖 Inbox 引用、Attention 事件及同步 journal 写入。独立 Feed 加入和 Goals reconcile 也具有这条原子性；调用方已有外层事务时沿用嵌套事务，不单独提交。
+
+对象归属由 entry 与 event 的 `owner_plugin_id` 明确保存；null 表示未指定，不按 kind 或 ID 猜。去重、按对象查询及删除以 owner、kind、裸对象 ID 为边界，同 owner 的同对象与原因仍幂等，未指定 owner 的直接调用以 null 为边界。`entry_id` 保持全局身份，状态操作照旧按它定位。
+
+插件服务只展示已明确归属的记录，读取授权允许跨插件读；写入 owner 取自当前安装的 Manifest，异主 create/delete 带码拒绝。旧 Feed/Inbox 的共用读入口暂只接 null，避免按 kind 和裸 ID 误读其他 owner 的内容。项目 schema 为本分支 v10，旧版本仍严格拒绝，真实库维护留统一窗口；这里没有自动迁移或旧 owner 推断。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -61,8 +65,5 @@ node scripts/run-tests.mjs tests/feed-module-repositories.test.ts
 - [职责与接入说明](../../docs/modules/attention-resumption.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/attention-resumption`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

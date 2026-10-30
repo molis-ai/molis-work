@@ -1,10 +1,11 @@
+import { ISOLATED_HOST_IDS } from "./isolated-host.js";
 import assert from "node:assert/strict";
 import { PluginHostExecutor, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionRegistryPort, type SyncActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionRegistryPort, type SyncActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller, LocalHostProjectClient, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { PluginRuntime, SqlitePluginRuntimeRepository, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 /*
@@ -51,7 +52,8 @@ export type CallerProbe = ReturnType<typeof registerProbe>;
  * A plugin fixture that consumes the probe and `consumes`. `permissions` maps each permission its Manifest declares to whether it is
  * required; a fixture is granted only what it requires. It always requires its private storage and reading the probe.
  */
-export function callerPlugin(name: string, scope: CallerScope, permissions: Readonly<Record<string, boolean>> = {}, consumes: readonly string[] = []) {
+export function callerPlugin(name: string, scope: CallerScope, permissions: Readonly<Record<string, boolean>> = {}, consumes: readonly string[] = [],
+  agent?: Pick<PluginDefinition, "agent_prompts" | "agent_skills"> & { block: NonNullable<PluginDefinition["manifest"]["agent"]> }) {
   const { peek, note } = probeActions(scope);
   const contexts: PluginStartContext[] = [];
   const declared = { "storage:private": true, [CALLERS_READ]: true, ...permissions };
@@ -59,7 +61,8 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
     publisher: { publisher_id: "example", signature: `callers-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: Object.entries(declared).map(([permission, required]) => ({ permission, required, reason: "动作网关探针" })),
     capabilities: { provides: [], consumes: [peek.capability_id, note.capability_id, ...consumes] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [] }, routes: [] },
+    ui: { contributions: [] }, routes: [], ...(agent ? { agent: agent.block } : {}) },
+    ...(agent?.agent_prompts ? { agent_prompts: agent.agent_prompts } : {}), ...(agent?.agent_skills ? { agent_skills: agent.agent_skills } : {}),
   async start(context) { contexts.push(context); return { kind: "app" }; } };
   const context = (projectId?: string) => {
     const found = contexts.filter(item => (item.project_id ?? undefined) === projectId).at(-1);
@@ -71,6 +74,13 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
 
 export type CallerPlugin = ReturnType<typeof callerPlugin>;
 
+/** `plugin`, declaring one read-only `reader` role: a plugin a test starts rounds as, since starting one is a plugin's own action. */
+export function withReaderRole(plugin: CallerPlugin): CallerPlugin {
+  plugin.definition.manifest.agent = { roles: [{ role_id: "reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] };
+  plugin.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
+  return plugin;
+}
+
 /** A project's plugins start when its actions are first looked at, as the workbench does when the person opens the project. */
 export async function startProjectPlugins(host: { inspectActions(caller: ActionCallContext, reference: LocalHostProjectReference): Promise<unknown> }, reference: LocalHostProjectReference) {
   await host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: reference.project_id, permissions: [] }, reference);
@@ -79,20 +89,21 @@ export async function startProjectPlugins(host: { inspectActions(caller: ActionC
 /**
  * Starts `plugin` in a project through the Host's public plugin executor, acting for `actorId`, its installation recorded in the
  * project's own library: for a Host that starts no plugins of its own (a bare LocalHost), or a plugin that acts as itself
- * (`plugin:<id>`, as a generated plugin does). It is granted what its Manifest requires, plus `grants`. With `capabilities` (the
- * Host's typed client) it also gets the typed client a plugin that consumes something has.
+ * (`plugin:<id>`, as a generated plugin does). It is granted what its Manifest requires, plus `grants`. With `dependencies` (the
+ * Host's project client) its `services.actions.availability` asks the Host, as the running Host's does.
  */
 export async function startPlugin(host: { actionRegistry(reference: LocalHostProjectReference): ActionRegistryPort; actionClient(reference: LocalHostProjectReference): ActionClient;
   syncActionClient(reference: LocalHostProjectReference): SyncActionClient }, reference: LocalHostProjectReference, store: Pick<LocalProjectDatabase, "db" | "appendEvent" | "eventCursor">,
-  plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[]; capabilities?: PluginCapabilityPort } = {}) {
+  plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[]; dependencies?: Pick<LocalHostProjectClient, "availability"> } = {}) {
   const executor = new PluginHostExecutor({ project_id: reference.project_id, actor_id: options.actorId ?? LOCAL_PERSON_ACTOR_ID, ui: new UiHost(),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), ...(options.capabilities ? { capabilities: options.capabilities } : {}) });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor);
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+    ...(options.dependencies ? { dependencyCheck: (dependency: ActionReference) => options.dependencies!.availability(dependency, { consumer: "plugin" }) } : {}) });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor, { hostIds: ISOLATED_HOST_IDS });
   const required = plugin.definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
-  const { install } = runtime.install({ definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
   await runtime.start(install.install_id);
   return { runtime, install_id: install.install_id };
 }

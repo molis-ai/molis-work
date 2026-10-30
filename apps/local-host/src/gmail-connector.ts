@@ -27,18 +27,19 @@ export function createGmailConnector(opts?: {
     ...opts,
     allowFixture: opts?.allowFixture ?? connectorFixtureAllowed(),
     authRef: oauthId ? undefined : opts?.authRef,
-    ...(oauthId ? { fetchImpl: async (url: string, init?: RequestInit) => {
+    ...(oauthId ? { fetchForCall: control => async (url: string, init?: RequestInit) => {
       const response = await request(url, init);
       if (response.status !== 401) return response;
-      const token = await resolveApiOAuthToken(home, oauthId, true);
-      return request(url, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } });
+      const token = await resolveApiOAuthToken(home, oauthId, control, true);
+      await control.beforeEffect(); control.current();
+      return request(url, { ...init, signal: AbortSignal.any([control.signal, ...(init?.signal ? [init.signal] : [])]), headers: { ...init?.headers, Authorization: `Bearer ${token}` } });
     } } : {}),
     resolveAuthRef(authRef) {
       return createFileSecretStore().get(authRef);
     },
-    resolveUsableToken: oauthId ? async () => {
-      try { return { ok: true, accessToken: await resolveApiOAuthToken(home, oauthId) }; }
-      catch { return { ok: false, status: "needs_auth", message: "请重新授权所选 Gmail 连接", action: "在 Connectors 中重新授权" }; }
+    resolveUsableToken: oauthId ? async ({ control }) => {
+      try { return { ok: true, accessToken: await resolveApiOAuthToken(home, oauthId, control) }; }
+      catch { await control.beforeEffect(); control.current(); return { ok: false, status: "needs_auth", message: "请重新授权所选 Gmail 连接", action: "在 Connectors 中重新授权" }; }
     } : async ({ tokenRefs, ...input }) => tokenRefs ? resolveUsableGmailAccessToken({ ...input, tokenRefs }) : { ok: false, status: "none" },
   });
 }

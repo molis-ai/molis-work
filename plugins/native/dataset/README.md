@@ -16,7 +16,10 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 
 开发合同见 [Plugin 开发](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。对应验证为 `tests/dataset-actions.test.ts`、`tests/dataset-mcp.test.ts` 和 `tests/dataset-actions.e2e.test.ts`。这项迁移不代表全系统工作流、客户端授权或其他插件已完成迁移。
 
-- Status: `partial`
+页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/dataset-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂），`src/client.ts` 只读这份包；请求经共同的 `molisWorkRequest`，路径来自 `host.pluginRoute`，浏览器代码里不写插件 id。
+
+页面上的字是稳定键（`dataset.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `DATASET_EN` 只留 15 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-460）。
+
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
@@ -24,14 +27,14 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 
 - 负责：表格目录、编辑、CSV 与版本。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管表格。
-- 公开入口：`@molis-ai/molis-work-plugin-dataset`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `dataset.<原因>`，状态由错误种类决定，Dataset 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 公开入口：`@molis-ai/molis-work-plugin-dataset`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-dataset/contract`（`src/contract.ts`）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `dataset.<原因>`，状态由错误种类决定，Dataset 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 数据按 Host 注入的 canonical `project_id` 分区。
   - 冲突保留本地输入，并阻止发布或切表。
   - 发布中断后可恢复原内容与版本并保留之后的编辑；未恢复的发布不能删除，表与快照在同一事务删除。
-  - 发布的每个副作用（intent、成果、完成记录）先等这次调用的授权，库与成果服务在写入的同一回合里再问原调用方（S-18），插件不手写这一步：被取消或撤权的调用只留已经提交的阶段，不再多写成果（`tests/dataset-promote-authority.test.ts`）。
-  - 项目被删除时宿主按目录条目上的 `project_data`（`datasetProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeDatasetProject`）调用清掉数据表与保存的版本，连同创建回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+  - 发布的每个副作用（intent、成果、完成记录）先等这次调用的授权，库与成果服务在写入的同一回合里再问原调用方（S-18），插件不手写这一步：被取消或撤权的调用只留已经提交的阶段，不再多写成果（`tests/dataset-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
+  - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉数据表与保存的版本，连同创建回执；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/dataset-promote-authority.test.ts`
 - Owner 列名与跨 Form 转表改动加跑：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/work-placement-plugins.e2e.test.ts`（后一份需要本机 Chrome）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/dataset-actions.e2e.test.ts tests/dataset-file-import.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。

@@ -11,7 +11,7 @@
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
-| `table-owners.json` | `shared`：几个包有意共用的表（今天是 `events`、`idempotency_records`）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
+| `table-owners.json` | `shared`：几个包有意共用的表（今天没有；`events`、`idempotency_records` 原先在里面，PG-094 S9-1 后已删）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；`areas`：包里自己当 owner 的目录（今天是 Feed 的 `src/store`，BL-802）与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
 
 ## 按文件计数、只许减少的项
@@ -85,13 +85,37 @@
 
 **第一天的数字**（在 A 片 `feat/action-error-model` 之后；A 合入 `origin/main` 之前，与 `origin/main` 的合并基点上的数字是 110 / 543 / 226 / 1538，因为 A 的 Todo 转换和平台表还没进去）：`errorSubclasses` 108、`errorCodeShape` 543（82 个文件）、`errorStatusDecisions` 222（56 个文件）、`errorCodeOwner` 1162（181 个文件）。改名 PR（W3-02 R1–R6、J1–J7）每改一处就让后两项变小。**这两项归零不等于码都改好了**：它们只数上面读得到的写法，写成 `code:` 属性的那约 300 处和选项对象构造函数、历史工厂里不带点的 49 处（Alchemist 复用码在 J5C 迁为现行点码；官方集成目录 `catalog_integration` 的文档导入此前已收口）、类字段 `code = "…"` 的 4 处，归零与否它们都不知道。所以 W3-02 的收尾要另外清点这三类（在源码里找 `code: "`、工厂调用里不带点的第一个参数、`code = "`，分清错误码和键盘码等别的 `code`），或者先加一项数它们的新数字再说做完；把这两项换成没有基线的规则，要等那之后，由评审决定。
 
+## 界面翻译（`scripts/gates/translations.mjs`）
+
+翻译门禁在 `pnpm health:check` 里，CI 的 Health gates 步骤带 `--base` 跑它；它扫源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试与构建产物），认翻译调用里的中文字面量。规则细节、稳定键方案与迁移步骤见 `apps/workbench/README.md` 的「界面文字」一节，这里只记这个门禁的边界。
+
+| 项 | 结果 |
+| --- | --- |
+| 缺英文（翻译调用里的中文字面量，在所有词典里都没有） | 失败；头上必须为零 |
+| 词典没接上（某本 `*_EN` 没被 `src/i18n/en.ts` 的 `EN` 引用） | 失败；头上必须为零 |
+| 冲突（同一句中文有两条译文不同的条目） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`，只许减少 |
+| 无用键（词典里的键，源码里没有字面量出现） | 只报告，不挡 |
+
+**看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
+
+## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
+
+共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有注册样式表，数的是 `apps/workbench/src/page-assets.ts` 直接拼进共用表的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES`。现在冻结五个插件：Coding 9、Feed 234、Form 6、Goals 321、插件创作台 5 —— Coding/Form 是注册里声明共用的属性/类规则，创作台是宿主预览页画的 `as-preview-page`/`pb-surface`，Feed/Goals 没有框架、由外壳画。
+
+- 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> }, prefixes: { "<project_plugin_id>": [<prefix>] } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
+- 前缀：预算里的每个插件前缀集合须与构建的 `stylesheetPrefixes` 相等，新增声明不能漏记，记过的前缀只许增加。第一次拆分只用当前声明，与生产 `splitOf` 相同；只在共享余量计数时用每个插件的「reference 记的 ∪ 当前预算记的 ∪ 构建声明的」，头部数组不能覆盖历史数组。余量不增长时，`--update` 允许新增并记录前缀，即使插件仍有正计数；删除声明和预算前缀会被拒绝，回到共享表的规则也仍可计数。
+- 防止就地改预算：check 和 `--update` 对完整候选使用相同约束；有 `--base` 时 reference 是真实 merge-base 的预算，无 `--base` 时是 HEAD 已提交的预算；reference 没有文件时允许首冻结。调大数字、添加 reference 未预算的正计数插件、丢弃历史前缀均失败；check 还要求当前文件逐项等于实测，删条目只在构建里真的不再计数后允许。被拒绝的 `--update` 不写文件，原字节不变。
+- 位置：CI 的 `architecture-boundaries` 任务，在 `pnpm workspace:verify`（构建）与 Page asset budgets 之后；本机 `pnpm plugin-styles:check`。退出码 2 表示构建缺失或 git 读不了，不是通过。
+- 看不到的（已知限制，不是决定）：只认注册的 `stylesheet`；宿主模块里手抄的插件规则、以及没声明 `stylesheetPrefixes` 的插件（今天 Text Stats 的 `stats-`）都按 0。Goals 只枚举 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES`，不会自动发现 page-assets 新导入的第四个常量；新增时须同步 `measureFromBuild` 的 `goalsStyles` 与真实构建验证。计数沿用 splitter 的全部选择器归属规则：`.feed-card,.other{color:red}` 留共享且不计数；只在 `:is(.feed-card){color:red}`、`:where(.feed-card){color:red}` 里出现的插件名会被剥去，也留共享且不计数。本轮不改变 splitter 或 CSS。插件规则只点名宿主元素的部分不计入；字节不在这里。
+- 测试：`tests/plugin-styles-gate.test.ts` 保留增长、就地抬预算、`--update` 拒绝、新插件、删条目、缺构建、首冻结前后重复、缩小、声明共用不能藏规则。前缀场景通过最小合成 dist 数据调用生产量测和公开构建的实际 splitter/on-demand 选择，验证集合相等、合法新增、真实提交推进 main 后两步删除拒绝、历史并集，以及有/无 base 的无增长删除不写文件；最后一条跑真实仓库构建并断言实测与文件逐项相等。
+
 ## 公开 API 快照
 
 `api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。
 
 - 内容：用编译器对包自己的源码做声明输出（不需要先构建，`paths` 把包名指到 `src/`，旧的 `dist/` 不会被读到），**去掉注释**。每个导出名一段，按名字排序：函数签名、接口的每个字段、常量的类型或字面值都在里面。改注释或函数体不改变快照。
 - 一个名字有几条声明就写几段，一条不漏：函数的每个重载（按源码里的先后写，因为重载的顺序决定调用落到哪一个）、同名的类型和常量（`export const X = [...] as const; export type X = …`）、同一个声明以两个名字导出（别名那一段末尾注明 `exported from this entry as`）。重载的实现签名不是 API，不记。
-- 辅助声明：导出的声明提到、但没有任何 subpath 导出的名字，列在导出后面（`// Declarations the exports above refer to, which no entry exports itself:`），并顺着它们再提到的名字一直找下去。找的范围是声明所在文件能看见的：本文件的声明（导出的和没导出的）、本文件按名字 `import` 的别的文件的声明、编译器写出的 `import("./x.js").Name`。例：`GoalWorkEventBase` 在没有任何 subpath 导出的文件里，被三个导出的记录类型 `extends`，它加一个必填字段就是合同变了，所以列在 `contracts/modules/goals.txt` 里。某个 subpath 已经导出的名字不重复，它在那个 subpath 的快照里。
+- 辅助声明：导出的声明提到、但没有任何 subpath 导出的名字，列在导出后面（`// Declarations the exports above refer to, which no entry exports itself:`），并顺着它们再提到的名字一直找下去。找的范围是声明所在文件能看见的：本文件的声明（导出的和没导出的）、本文件按名字 `import` 的别的文件的声明、编译器写出的 `import("./x.js").Name`。例（PG-111 把 Goals 的合同搬进插件之前）：`GoalWorkEventBase` 在没有任何 subpath 导出的文件里，被三个导出的记录类型 `extends`，它加一个必填字段就是合同变了，所以列在 `contracts/modules/goals.txt` 里。某个 subpath 已经导出的名字不重复，它在那个 subpath 的快照里。
 - 不记哪个文件声明了它，所以把代码在包内搬来搬去（W5-09 的纯搬动）不会改快照，辅助声明在文件里加不加 `export` 也不改；编译器写出的 `import("./actions.js").X` 记成 subpath 名。一个例外（误报，不是漏报）：被编译器这样引用、却不是任何 subpath 的源文件时，快照只能写相对包 `src/` 的路径，搬动那个文件会让快照变，跑一次 `pnpm api:update` 就清掉（diff 里只有路径）。现在入库的 33 处 `import(...)` 引用全部指向 subpath 名，没有这种情况。
 - 插件 SDK 从 contracts 再导出的名字只写一行，指向承载声明的 contracts subpath（`export type { X } from "…/platform/plugin";`），所以合同变一次只在一处出现。
 - 没覆盖：通过命名空间导入（`import * as ns`）到达的名字，以及这两个包以外的声明（zod、node 类型）。`tests/health-gates-api-snapshot.test.ts` 里有一条独立的核对：快照里出现的、包源码顶层声明过的大写名字，必须在某个快照里有声明。

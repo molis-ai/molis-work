@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueView } from "./fixtures/issue-browser.js";
@@ -57,22 +57,60 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   assert.equal(await v.ask("$('[data-issue-flag] a[href=\"/settings/models\"]')?.textContent"), "Models");
   assert.doesNotMatch(await v.ask<string>("$('[data-issue-flag]').textContent"), /[\u3400-\u9fff]/u);
+  // HOME-SET-02: the standalone consumer cannot turn an invalid settings request into navigation or I/O.
+  assert.deepEqual(await b.evaluate(`(() => {
+    const fetch = window.fetch, before = location.href; let requests = 0;
+    window.fetch = (...args) => { requests++; return fetch.apply(window, args); };
+    try {
+      for (const href of ['https://example.invalid/settings/models', '/projects', 'http://[', {}]) {
+        document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href } }));
+      }
+      return { requests, open: document.querySelector('[data-home-model-settings]').open, samePage: location.href === before };
+    } finally { window.fetch = fetch; }
+  })()`), { requests: 0, open: false, samePage: true });
+  assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
+  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=issues]'))})";
+  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'issue-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=issues]'); return ${ownerState}; })()`);
+  await v.ask("globalThis.__settingsDraftMarker = 'original-issue-frame'");
+  // W2-18-HOME-LOCALE-01 / S-47: the standalone Home host receives the opaque page's settings request in place.
   // Only fail delivery of this settings document; the retry uses the real Host and its empty model catalog.
   await b.evaluate(`(() => { const fetch = window.fetch; let failed = false;
+    window.__modelSettingsLoads = [];
     window.fetch = function(url, init) {
-      if (!failed && new URL(url, location.href).pathname === '/settings/models') {
-        failed = true; return Promise.reject(new TypeError('settings delivery interrupted'));
+      if (new URL(url, location.href).pathname === '/settings/models') {
+        if (!failed) {
+          failed = true; window.__modelSettingsLoads.push('interrupted');
+          return Promise.reject(new TypeError('settings delivery interrupted'));
+        }
+        return fetch.call(this, url, init).then(response => { window.__modelSettingsLoads.push(response.status); return response; });
       }
       return fetch.call(this, url, init);
     }; return true; })()`);
   await v.press('[data-issue-flag] a[href="/settings/models"]');
   await b.waitFor("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-home-model-retry]').hidden");
-  assert.deepEqual(await b.evaluate("({ title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
+  assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
     // A dropped connection is said by the shared request helper, in English here (W3-10).
-    { title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
+    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
+  assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted"]);
   await b.click("[data-home-model-retry]");
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);
+  assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted", 200], "Retry fetches the real Host document after the failed request");
+  assert.deepEqual(await b.evaluate(ownerState), owner, "the settings link keeps the owner document and the original plugin frame");
+  // The management link is offered only when a connection exists; create one through the real local API.
+  await b.web.post("/api/settings/connectors/connections", {
+    service_id: "model-api", display_name: "Home settings fixture", token: "home-settings-test-only-connection",
+  });
+  await b.click("[data-home-model-content] [data-model-add-provider]");
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-model-name]') && !document.querySelector('[data-model-settings]').hasAttribute('aria-busy')");
+  await b.evaluate(`(() => { const input = document.querySelector('[data-home-model-content] [data-model-name]');
+    input.value = 'Unsaved provider'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await b.click('[data-home-model-content] a[href="/settings/connectors?connector=model-api"]');
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-connectors-settings]') && document.querySelector('[data-home-model-status]').hidden");
+  await b.click("[data-home-model-back]");
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden");
+  assert.equal(await b.evaluate("document.querySelector('[data-home-model-content] [data-model-name]').value"), "Unsaved provider");
   await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
+  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-issue-frame", "the Issue execution context was not reloaded");
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   assert.equal((await v.list()).items.length, 0, "opening settings does not save the Issue");
   await v.press(`${editor} [name=title]`); await v.type("删除");
@@ -84,8 +122,8 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
 });
 
 test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", path => {
-    seedDemoBoard(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
+  const b = await openGoalBrowser(t, "empty", async path => {
+    await seedDemoGoals(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
     const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();
   }, null);
   if (!b) return;
@@ -98,4 +136,16 @@ test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language
   await v.go("/locale?lang=zh&next=%2Fplugins%2Fissues");
   assert.equal(await b.evaluate("document.documentElement.lang"), "zh-CN");
   assert.equal(await b.evaluate("document.querySelector('[data-home-lifecycle=retry]').textContent"), "重试启动");
+});
+
+test("RAC-138 English Home translates the server refusal for a missing Issue", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const v = await issueView(t, b, "issue-home-locale");
+  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
+  await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await b.evaluate("document.querySelector('[data-work-surface=issues]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'missing-issue-locale' } }))");
+  await v.until("$('[data-issue-gone]')?.textContent === 'This issue does not exist or was deleted'", 20_000);
+  assert.equal(await v.ask("d.documentElement.lang"), "en");
+  assert.equal(await v.ask("$('[data-issue-gone]').checkVisibility()"), true);
+  assert.equal((await v.list()).items.length, 0, "a missing-item read does not write a record");
 });

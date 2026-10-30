@@ -6,8 +6,11 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
+import { EXECUTOR_MODES, roleDefinitions, roleOfCapability } from "./fixtures/work-executor-fake.js";
+
+const PLUGIN = "io.molis.work.fixture-agent", PREFIX = "fixture.agent";
 
 function reply(): Response {
   const events: string[] = [];
@@ -50,7 +53,7 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
       authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), ...(stage === "runtime" ? { beforeStart: barrier } : {}) }),
       projectTitle: async () => { if (stage === "materials") await barrier(); return "Project"; }, timeZone: "UTC" }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
-    await service.attachSchedule();
+    await service.notices.attachSchedule();
     const sent = await service.send({ text: "Begin this work", request_id: "followup-start-0001" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
     assert.equal(requests, 1);
@@ -99,62 +102,52 @@ test("W2-18-FOLLOWUP-DELETE-02 the store refuses a stale callback after deletion
   } finally { db.close(); }
 });
 
-for (const stage of ["state", "sessions.update", "runs.start"] as const) {
-  test(`W2-18-FOLLOWUP-DELETE-03 after Assistant hands work to Coding, deletion during ${stage} prevents the next round`, { timeout: 60_000 }, async t => {
-    const directory = await mkdtemp(join(tmpdir(), "molis-followup-coding-"));
+for (const stage of ["session.read", "run.start"] as const) {
+  test(`W2-18-FOLLOWUP-DELETE-03 after Assistant hands work to an executor plugin, deletion during ${stage} prevents the next round`, { timeout: 60_000 }, async t => {
+    const directory = await mkdtemp(join(tmpdir(), "molis-followup-executor-"));
     const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-    const project = { project_id: "project", storage_key: "memory:followup-coding" };
-    const db = new DatabaseSync(":memory:"), coding = new DatabaseSync(":memory:");
-    coding.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY, configuration TEXT); CREATE TABLE runs (task TEXT)");
+    const project = { project_id: "project", storage_key: "memory:followup-executor" };
+    const db = new DatabaseSync(":memory:"), executor = new DatabaseSync(":memory:");
+    executor.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY); CREATE TABLE runs (task TEXT)");
     const reviews = new AgentReviewQueue(), host = new AgentHost({ reviews });
     t.mock.method(globalThis, "fetch", async () => reply());
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.followup-coding-test", appVersion: "1.0.0" },
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.followup-executor-test", appVersion: "1.0.0" },
       storageRoot: join(directory, "sdk"), reviewQueue: reviews,
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
       resolveCredential: () => "fixture-only" });
     host.register(adapter);
     const schedule = adapter.schedule!, entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let key = "", held = false;
-    const names = ["state", "sessions.create", "sessions.read", "sessions.update", "runs.start", "runs.control"];
-    const definitions: ActionDefinition[] = names.map(name => { const query = name === "state" || name === "sessions.read";
-      return { capability_id: `coding.${name}`, version: 1, operation: query ? "query" : "command", action: { title: name,
-        description: name, kind: query ? "query" : "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
-        input_schema: { type: "object", additionalProperties: true } } }; });
-    local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.coding", kind: "plugin", title: "Coding fixture" }, definitions,
+    const definitions = roleDefinitions(PREFIX, "fixture_session");
+    local.actionRegistry(project).registerProvider({ provider: { provider_id: PREFIX, kind: "plugin", title: "Agent fixture", plugin_id: PLUGIN }, definitions,
       handlers: definitions.map(definition => ({ ...definition, async handle(context, raw) {
-        const name = definition.capability_id.slice("coding.".length), input = raw as Record<string, unknown>;
+        const name = roleOfCapability(PREFIX, definition.capability_id), input = raw as Record<string, unknown>;
         if (!held && key && name === stage && schedule.find(key)?.state === "running") { held = true; entered.resolve(); await release.promise; }
         if (definition.operation === "command") await context.beforeEffect();
-        if (name === "state") return { models: [{ provider_id: "fixture", model_id: "fixture" }], workspace: { workspace_id: "workspace" } };
-        if (name === "sessions.create") { coding.prepare("INSERT INTO sessions VALUES (?,NULL)").run("coding-session"); return { session: { session_id: "coding-session" } }; }
-        if (name === "sessions.read") {
-          const row = coding.prepare("SELECT configuration FROM sessions WHERE id=?").get(String(input.session_id));
-          return { session: { session_id: String(input.session_id), runtime_session_id: null }, runs: [],
-            configuration: row?.configuration ? JSON.parse(String(row.configuration)) : null };
-        }
-        if (name === "sessions.update") coding.prepare("UPDATE sessions SET configuration=? WHERE id=?").run(JSON.stringify(input.configuration), String(input.session_id));
-        if (name === "runs.start") coding.prepare("INSERT INTO runs VALUES (?)").run(String(input.task));
-        return {};
+        if (name === "state") return { modes: EXECUTOR_MODES, default_mode: "execute", images: false };
+        if (name === "session.open") { executor.prepare("INSERT INTO sessions VALUES (?)").run("executor-session"); return { session_id: "executor-session" }; }
+        if (name === "session.read") return { session_id: String(input.session_id), title: "会话", mode: null, runs: [], runtime_session_id: null, recovery: null };
+        if (name === "run.start") { executor.prepare("INSERT INTO runs VALUES (?)").run(String(input.task)); return { run_id: "run-1" }; }
+        return { accepted: true };
       } })) });
     const client = local.actionClient(project), store = new AssistantStore(db);
     const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, projectTitle: async () => "Project", timeZone: "UTC",
       // The person's client bound as the Host binds it: the follow-up's control joins its checks at each call (bindActionClient).
       authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => bindActionClient(client,
         () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] })) }, "web-user");
-    t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); coding.close(); await rm(directory, { recursive: true, force: true }); });
-    await service.attachSchedule();
-    const sent = await service.send({ text: "Start as Assistant", request_id: "coding-followup-0001" }, { project_ref: project });
+    t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); executor.close(); await rm(directory, { recursive: true, force: true }); });
+    await service.notices.attachSchedule();
+    const sent = await service.send({ text: "Start as Assistant", request_id: "executor-followup-0001" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
-    await service.handover(sent.work.work_id, { to: "coding" });
+    await service.dispatcher.handover(sent.work.work_id, { to: { kind: "plugin", plugin_id: PLUGIN } });
     assert.ok(store.get("web-user", sent.work.work_id).session_id, "the original Assistant session survives the handover");
-    coding.prepare("UPDATE sessions SET configuration=NULL").run();
-    const standing = await service.followUps.save({ work_id: sent.work.work_id, text: "Timed Coding round", at: new Date(Date.now() + 1200).toISOString(),
-      repeat: "daily", label: "Coding daily", time_zone: "UTC" });
+    const standing = await service.followUps.save({ work_id: sent.work.work_id, text: "Timed executor round", at: new Date(Date.now() + 1200).toISOString(),
+      repeat: "daily", label: "Executor daily", time_zone: "UTC" });
     key = `fu-${standing.followup_id}-${Date.parse(standing.next_at!)}`;
     await entered.promise;
     await service.followUps.remove(standing.followup_id); release.resolve();
     await until(() => schedule.find(key)?.state !== "running");
-    assert.equal(coding.prepare("SELECT COUNT(*) AS count FROM runs").get()!.count, 0, "the Coding owner started no new round");
+    assert.equal(executor.prepare("SELECT COUNT(*) AS count FROM runs").get()!.count, 0, "the executor plugin started no new round");
     assert.deepEqual(service.followUps.list(sent.work.work_id), []);
     assert.equal(store.rounds(sent.work.work_id).length, 1, "the already completed Assistant round remains");
   });

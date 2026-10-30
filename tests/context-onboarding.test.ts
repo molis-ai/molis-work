@@ -11,8 +11,10 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { asOAuthAnswer, oauthNetwork } from "./fixtures/oauth-network.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
@@ -37,7 +39,7 @@ function pagesPorts(dir: string) {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     let host = hosts.get(dir); if (!host) { host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host); }
-    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
+    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
   } };
 }
 /** One chosen file, uploaded into the journey's staging the way the page does it; the selection names it by digest. */
@@ -188,7 +190,7 @@ test('local scope → grounded summary → one real project and editable source 
   assert.equal(a.phase,'complete');assert.equal(a.project_id,b.project_id);
   // The chooser introduces the new project in the words the person accepted: the summary's first paragraph, without its headings or [S1] marks.
   const introduced=readProjectArrival(dir).projects[a.project_id]?.description;assert.match(introduced??'',/10 月 8 日/);assert.doesNotMatch(introduced??'',/\[S\d+\]|^#/);
-  await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.listHiddenPlugins(a.project_id).includes('pages'));});
+  await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.projectPluginMembership(a.project_id).hidden.includes('pages'));});
   const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.document_id!,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
   const reopened=openPagesStore(dir);try{assert.equal(reopened.get(a.document_id!).title,'手动修改后');assert.equal(reopened.list(a.project_id).length,2);}finally{reopened.close();}
@@ -211,13 +213,80 @@ test('long source and project titles fit Pages while full titles, original bodie
   startContextJourney(dir,id,ports);const ready=await waitContextJourney(dir,id);assert.equal(ready.summary!.references[0]!.title,sourceTitle);
   const saved=await adoptContextJourney(dir,id,{title:projectTitle,body:ready.summary!.body},ports);assert.equal(saved.phase,'complete',saved.error??'');
   const pages=openPagesStore(dir);try{
-    const docs=pages.list(saved.project_id);assert.equal(docs.length,2);assert.ok(docs.every(d=>d.title.length<=80&&d.title.isWellFormed()));
-    const source=docs.find(d=>d.id!==saved.document_id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'…');
+    const docs=pages.list(saved.project_id);assert.equal(docs.length,2);assert.ok(docs.every(d=>[...d.title].length<=80&&d.title.isWellFormed()));
+    const source=docs.find(d=>d.id!==saved.document_id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'🙂…');
     const sourceBody=JSON.stringify(pages.get(source.id).body);assert.ok(sourceBody.includes(sourceTitle));assert.match(sourceBody,/Original mail body/);
     assert.ok(JSON.stringify(pages.get(saved.document_id!).body).includes(projectTitle));
     await adoptContextJourney(dir,id,{title:'Ignored retry'},ports);assert.equal(pages.list(saved.project_id).length,2);
   }finally{pages.close();}
   await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,projectTitle);});
+});
+
+/**
+ * A round over files that read as "# heading" and one line of body, adopted as `project`: the titles of the Pages documents it made (the source
+ * documents in label order, [S1], [S2]…; the summary), and the summary's body as JSON, where "项目：" marks the project's name leading it.
+ */
+async function adoptedTitles(t: Parameters<Parameters<typeof test>[1]>[0], headings: string[], project: string) {
+  const dir = await home(t), id = randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir, s => s.create(id));
+  const files: { path: string; staged: string }[] = [];
+  for (const [index, heading] of headings.entries()) files.push(await staged(dir, id, `m-${index + 1}.md`, `# ${heading}\n\nOriginal mail body.`));
+  selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files }] });
+  const ports = { ...pagesPorts(dir), model: async () => ({ completeText: async () => "# Work\nOriginal mail body. [S1]" }) };
+  startContextJourney(dir, id, ports);
+  const ready = await waitContextJourney(dir, id);
+  assert.equal(ready.phase, "review", ready.error ?? "");
+  const saved = await adoptContextJourney(dir, id, { title: project, body: ready.summary!.body }, ports);
+  assert.equal(saved.phase, "complete", saved.error ?? "");
+  const pages = openPagesStore(dir);
+  try {
+    const documents = pages.list(saved.project_id), summary = documents.find(document => document.id === saved.document_id)!;
+    return { sources: headings.map((_, index) => documents.find(document => document.title.startsWith(`[S${index + 1}] `))?.title),
+      summary: summary.title, body: JSON.stringify(pages.get(summary.id).body) };
+  } finally { pages.close(); }
+}
+
+// A source document's title in Pages is "[S<n>] " and the material's title, cut to the 80 whole characters Pages holds (a 🙂 is one, though two UTF-16 units).
+const SOURCE_TITLES = [
+  { name: "a 🙂 is the 79th character: kept, then …", heading: "A".repeat(73) + "🙂" + "B".repeat(40), rest: "A".repeat(73) + "🙂…" },
+  { name: "75 🙂 and the label are exactly 80 characters: kept whole", heading: "🙂".repeat(75), rest: "🙂".repeat(75) },
+  { name: "76 🙂 are one too many: cut to 74, then …", heading: "🙂".repeat(76), rest: "🙂".repeat(74) + "…" },
+  { name: "75 one-unit characters and the label are exactly 80: kept whole", heading: "题".repeat(75), rest: "题".repeat(75) },
+  { name: "76 one-unit characters are one too many: cut to 74, then …", heading: "题".repeat(76), rest: "题".repeat(74) + "…" },
+];
+
+test("RAC-2107 a source document's title in Pages is counted and cut in whole characters, 80 at most with its label", async t => {
+  const { sources } = await adoptedTitles(t, SOURCE_TITLES.map(c => c.heading), "Titles");
+  for (const [index, c] of SOURCE_TITLES.entries()) await t.test(c.name, () => assert.equal(sources[index], `[S${index + 1}] ${c.rest}`));
+});
+
+// The summary document is titled "<project> · 工作摘要" (the suffix is 7 characters). A project name is at most 120 UTF-16 units, so at most 60 🙂.
+const SUMMARY_FITS = [
+  { name: "60 🙂 and the suffix are 67 characters, 127 units: kept whole", project: "🙂".repeat(60) },
+  { name: "26 A, 47 🙂 and the suffix are exactly 80 characters: kept whole", project: "A".repeat(26) + "🙂".repeat(47) },
+  { name: "73 one-unit characters and the suffix are exactly 80: kept whole", project: "A".repeat(73) },
+];
+const SUMMARY_CUTS = [
+  { name: "74 characters of one and two units and the suffix are 81: cut to 79, then …", project: "A".repeat(50) + "🙂".repeat(24), title: "A".repeat(50) + "🙂".repeat(24) + " · 工作…" },
+  { name: "the 79th character is a 🙂: kept, then …", project: "A".repeat(78) + "🙂", title: "A".repeat(78) + "🙂…" },
+  { name: "74 one-unit characters and the suffix are 81: cut to 79, then …", project: "A".repeat(74), title: "A".repeat(74) + " · 工作…" },
+];
+
+test("RAC-2108 a summary title of 80 whole characters or fewer is the Pages title whole, and the body does not repeat the project's name", { timeout: 120_000 }, async t => {
+  for (const c of SUMMARY_FITS) await t.test(c.name, async st => {
+    const { summary, body } = await adoptedTitles(st, ["Brief"], c.project);
+    assert.equal(summary, `${c.project} · 工作摘要`);
+    assert.ok(!body.includes("项目："), "the title is whole, so the project's name does not lead the body");
+  });
+});
+
+test("RAC-2109 a summary title over 80 whole characters is cut to 79, then …, and the body opens with the project's name instead", { timeout: 120_000 }, async t => {
+  for (const c of SUMMARY_CUTS) await t.test(c.name, async st => {
+    const { summary, body } = await adoptedTitles(st, ["Brief"], c.project);
+    assert.equal(summary, c.title);
+    assert.ok(body.includes("项目：" + c.project), "the project's name leads the body");
+  });
 });
 
 test('missing model preserves imported bodies, restart/retry does not re-read, invalid citations cannot be adopted',async t=>{
@@ -301,6 +370,8 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
       return Response.json({ payload: { mimeType: "text/plain", body: { data: Buffer.from("Selected account mail").toString("base64url") } } });
     };
     t.mock.method(globalThis, "fetch", transport);
+    // The generic flow's authorization and renewal leave by `sendPublicHttps` (W5-11 slice 4); the Gmail reads use `transport`.
+    oauthNetwork(t, asOAuthAnswer(transport));
     const authorize = async (account: string) => {
       const begun = await served.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start",
         { service_id: "gmail", display_name: account, client_id: `fixture-app-${account}`, client_secret: "fixture-only" });
@@ -386,6 +457,32 @@ test('creation failure after project registration resumes exactly that project, 
   const second=await adoptContextJourney(dir,id,{title:'retry ignored',materials_only:true},{...pagesPorts(dir)});assert.equal(second.phase,'complete');assert.equal(second.error,null);
   await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'Without AI');});
   const pages=openPagesStore(dir);try{assert.equal(pages.list(second.project_id).length,2);assert.match(JSON.stringify(pages.list(second.project_id)),/Fixture preserved body/);}finally{pages.close();}
+});
+
+// RAC-661 (PG-031): the Host saves materials into the Pages that ships with it, found in the directory, never into a same-named
+// capability of another plugin; without it nothing is written and adoption says why.
+test('RAC-661 adoption writes no document when the shipped Pages is not in the directory, even if another provider has its actions', async t => {
+  const dir = await home(t), id = randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir, store => store.create(id));
+  selectContextSources(dir, id, { sources: [{ kind: 'browser', selected: true, text: 'A body for no Pages' }] });
+  const base = pagesPorts(dir);
+  const ports = { ...base, model: async () => ({ completeText: async () => '# No Pages\nA body for no Pages [S1]' }) };
+  startContextJourney(dir, id, ports);
+  const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review');
+  const invoked: string[] = [];
+  const adopted = await adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, { ...ports,
+    actions: async (home, projectId, original_file): Promise<BoundActionClient> => {
+      const client = await base.actions(home, projectId, original_file);
+      // The directory shows Pages' actions only under another provider's id.
+      return { discover: async () => (await client.discover()).map(view => view.capability_id.startsWith('pages.') ? { ...view, provider: { ...view.provider, provider_id: 'com.example.pages' } } : view),
+        invoke: async (definition, input, control) => { invoked.push(definition.capability_id); return client.invoke(definition, input, control); } };
+    },
+  });
+  assert.equal(adopted.phase, 'failed'); assert.match(adopted.error!, /pages\.documents\.body_from_markdown@1 未在当前项目登记或未获授权/);
+  assert.ok(!invoked.some(capability => capability.startsWith('pages.')), invoked.join(', '));
+  const store = openPagesStore(dir);
+  try { assert.equal(store.list(adopted.project_id).length, 0); } finally { store.close(); }
 });
 
 test('ordinary entry can discover unfinished work without empty or completed attempts hiding it',async t=>{
@@ -476,6 +573,8 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
   await assert.rejects(stat(join(dir,'context-onboarding','journeys',id)),{code:'ENOENT'});
 });
 
+// RAC-660 (PG-031): Pages makes each part's body and saves it (its body_from_markdown and documents.import, found in the directory);
+// the Host builds no Pages body.
 test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole: its original in the 成果库\'s store, its whole text in Pages parts',{timeout:240_000},async t=>{
   const dir=await home(t),id=randomUUID();
   await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
@@ -497,6 +596,101 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});const payload=stored.selected!.payload as {original_file:{data_base64?:string;sha256?:string;size_bytes?:number}};
   assert.equal(payload.original_file.data_base64,undefined,'over 6 MB, the original is kept by reference');
   assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
+});
+
+test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by onboarding and all source text is saved in order',{timeout:240_000},async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({homeDirectory:dir,completeText:null}).close();
+  withContextJourneys(dir,s=>s.create(id));
+  // Below the unchanged 400,000-character first part and 1,000,000-character action input bounds, but the many headings expand
+  // past Pages' real 1,500,000-character body bound. Distinct facts reveal any lost, repeated or reordered passage after halving.
+  const facts=Array.from({length:25_000},(_,i)=>'fact-'+String(i).padStart(5,'0'));
+  const markdown=facts.map(fact=>'# '+fact).join('\n\n')+'\n';
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'dense.md',markdown)]}]});
+  const base=pagesPorts(dir),conversions:{markdown:string;result:'ok'|'too_large'}[]=[];
+  const ports={...base,model:async()=>({}),actions:async(h:string,p:string,o?:{path:string;install_id:string}):Promise<BoundActionClient>=>{
+    const client=await base.actions(h,p,o);
+    return {discover:()=>client.discover(),invoke:async(definition,input)=>{
+      if(definition.capability_id!==pagesActions.bodyFromMarkdown.capability_id)return client.invoke(definition,input);
+      const markdown=(input as {markdown:string}).markdown;
+      try{
+        const result=await client.invoke(definition,input);
+        conversions.push({markdown,result:'ok'});return result;
+      }catch(error){
+        assert.equal((error as {code?:string}).code,'pages.body_too_large');
+        conversions.push({markdown,result:'too_large'});throw error;
+      }
+    }};
+  }};
+  startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);
+  const ref=read.sources[0]!.references![0]!;
+  const source=await contextReferenceText(dir,id,ref.text.sha256);
+  assert.equal(source,markdown.trim(),'the complete Markdown reached staging');
+  const whole=`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${source}`;
+  assert.ok(whole.length<400_000,'one original part reaches the real converter');
+  const adopted=await adoptContextJourney(dir,id,{title:'Real conversion recovery',materials_only:true},ports);
+  assert.equal(adopted.phase,'complete',adopted.error??'');
+  const half=Math.ceil(whole.length/2);
+  assert.deepEqual(conversions.slice(0,3),[
+    {markdown:whole,result:'too_large'},
+    {markdown:whole.slice(0,half),result:'ok'},
+    {markdown:whole.slice(half),result:'ok'},
+  ],'the real rejected input is retried as its two original halves');
+  assert.equal(conversions.filter(call=>call.result==='too_large').length,1);
+  const textOf=(value:unknown):string=>{
+    const node=value as {text?:string;content?:unknown[]};
+    return node.text??(node.content??[]).map(textOf).join('');
+  };
+  const pages=openPagesStore(dir);try{
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    assert.equal(parts.length,2);
+    assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 2 部分`)),parts.map(d=>d.title).join(', '));
+    const restored=parts.map(part=>{
+      const body=pages.get(part.id,adopted.project_id).body;
+      assert.ok(JSON.stringify(body).length<=1_400_000,'the persisted part fits onboarding and Pages');
+      return textOf(body);
+    }).join('');
+    const metadata=`原标题：${ref.title}来源：${ref.path} · 版本 ${ref.version}`;
+    assert.ok(restored.startsWith(metadata));
+    assert.deepEqual(restored.slice(metadata.length).match(/fact-\d{5}/gu),facts,'all source facts survive in their original order');
+    const expected=metadata+facts.join('');
+    assert.equal(restored.replace(/[#\s]/gu,''),expected.replace(/\s/gu,''),'the entire visible text survives, including source metadata');
+  }finally{pages.close();}
+});
+
+// W5-06 remainder slice 4 (PG-088, RAC-617): Pages converts the text through its public action; a part it refuses as too large is halved.
+test('RAC-617 PG-088 a part Pages refuses with pages.body_too_large is halved until each part fits; when a part of one character is refused the error is thrown',{timeout:240_000},async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
+  const text='# Long record\n\n'+Array.from({length:7_000},(_,i)=>'Line '+i+' of the record, with ordinary work context.').join('\n')+'\nEND OF RECORD\n';
+  assert.ok(text.length>300_000&&text.length<400_000);
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'long.md',text)]}]});
+  const base=pagesPorts(dir),limit={chars:100_000};
+  const refusing={...base,model:async()=>({}),actions:async(h:string,p:string,o?:{path:string;install_id:string}):Promise<BoundActionClient>=>{
+    const client=await base.actions(h,p,o);
+    return {discover:()=>client.discover(),invoke:async(definition,input)=>{
+      if(definition.capability_id==='pages.documents.body_from_markdown'&&(input as {markdown:string}).markdown.length>limit.chars)
+        throw Object.assign(new Error('too large'),{code:'pages.body_too_large'});
+      return client.invoke(definition,input);
+    }};
+  }};
+  startContextJourney(dir,id,refusing);await waitContextJourney(dir,id);
+  const adopted=await adoptContextJourney(dir,id,{title:'Halved',materials_only:true},refusing);assert.equal(adopted.phase,'complete',adopted.error??'');
+  const pages=openPagesStore(dir);try{
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    assert.equal(parts.length,4,'a 330,000-character text refused above 100,000 halves to four parts');
+    assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 4 部分`)),parts.map(d=>d.title).join(', '));
+    const joined=parts.map(d=>JSON.stringify(pages.get(d.id).body)).join('');
+    assert.match(joined,/原标题：Long record/);assert.match(joined,/Line 6999 of the record/);assert.match(joined,/END OF RECORD/);
+  }finally{pages.close();}
+  // Refused whatever its size, a part is halved down to one character and then the error comes out (no endless halving).
+  const id2=randomUUID();withContextJourneys(dir,s=>s.create(id2));
+  selectContextSources(dir,id2,{sources:[{kind:'files',selected:true,files:[await staged(dir,id2,'short.md','A short note, refused all the same.\n')]}]});
+  limit.chars=0;
+  startContextJourney(dir,id2,refusing);await waitContextJourney(dir,id2);
+  const failed=await adoptContextJourney(dir,id2,{title:'Refused',materials_only:true},refusing);
+  assert.equal(failed.phase,'failed');assert.match(failed.error!,/too large/);
 });
 
 // A full disk is the machine's failure, not a file's (review 2026-10-22): the round stops at that file with a plain reason instead of
@@ -540,4 +734,42 @@ test('ONB-LIM-09 staging of a round left for 30 days or already finished is remo
   const reopened = readContextJourney(dir, idle);
   assert.equal(reopened.requires_reselection, true); assert.match(reopened.error!, /30 天/);
   assert.ok((await stat(stranger)).isDirectory(), 'a directory that is no round is not this cleanup\'s');
+});
+
+// What a failed round keeps of the error is the first 600 whole characters of its message (a 🙂 is one character, though two UTF-16 units).
+const ROUND_CUTS = [
+  { name: "the 600th character is a 🙂: kept whole", message: "x".repeat(599) + "🙂" + "tail", kept: "x".repeat(599) + "🙂" },
+  { name: "the first slice ends inside a 🙂: x and 700 🙂 are cut to x and 599 🙂", message: "x" + "🙂".repeat(700), kept: "x" + "🙂".repeat(599) },
+  { name: "700 🙂 are cut to 600", message: "🙂".repeat(700), kept: "🙂".repeat(600) },
+  { name: "601 one-unit characters are cut to 600", message: "x".repeat(601), kept: "x".repeat(600) },
+];
+// An error of 600 characters or fewer is kept whole, whatever its length in UTF-16 units.
+const ROUND_FITS = [
+  { name: "599 one-unit characters and a 🙂 (600 characters, 601 units)", message: "x".repeat(599) + "🙂" },
+  { name: "600 🙂 (600 characters, 1,200 units)", message: "🙂".repeat(600) },
+  { name: "600 one-unit characters", message: "x".repeat(600) },
+  { name: "a short message", message: "模型暂时不可用，请稍后重试" },
+];
+
+/** A round whose overview fails where the model is asked, with `thrown`: the journey as the Host kept it. */
+async function failedRound(t: Parameters<Parameters<typeof test>[1]>[0], thrown: unknown) {
+  const dir = await home(t), id = randomUUID();
+  withContextJourneys(dir, store => store.create(id));
+  selectContextSources(dir, id, { sources: [{ kind: "browser", selected: true, text: "Original mail body." }] });
+  startContextJourney(dir, id, { ...pagesPorts(dir), model: async () => ({ completeText: async () => { throw thrown; } }) });
+  const failed = await waitContextJourney(dir, id);
+  assert.equal(failed.phase, "failed");
+  return failed;
+}
+
+for (const c of ROUND_CUTS) test(`RAC-2120 a failed round keeps the first 600 whole characters of the error: ${c.name}`, async t => {
+  assert.equal((await failedRound(t, new Error(c.message))).error, c.kept);
+});
+
+for (const c of ROUND_FITS) test(`RAC-2121 a failed round keeps an error of 600 characters or fewer whole: ${c.name}`, async t => {
+  assert.equal((await failedRound(t, new Error(c.message))).error, c.message);
+});
+
+test("RAC-2124 a failed round whose error is not an Error keeps the plain text of its own, not a cut of the value", async t => {
+  assert.equal((await failedRound(t, "x".repeat(700))).error, "整理失败，材料已保留");
 });

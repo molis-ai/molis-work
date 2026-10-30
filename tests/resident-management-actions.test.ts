@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalMcpServer, createMolisWorkLocalHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, createMolisWorkLocalHost, runV1Cli, type MolisWorkLocalHostOptions } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
@@ -13,6 +13,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { grantMcpAction, revokeMcpAction, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { FORGED_CALL, residentManagement } from "./fixtures/resident-management.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 function oneRecord(host: Awaited<ReturnType<typeof residentManagement>>["host"], project: string, id: unknown, capability: string) {
   assert.equal(typeof id, "string"); assert.notEqual(id, FORGED_CALL);
@@ -22,11 +23,16 @@ function oneRecord(host: Awaited<ReturnType<typeof residentManagement>>["host"],
 }
 
 test("W3-07-7-03 CLI and management MCP reuse the resident project and its actual operation number, including a database alias", async t => {
-  const operations: string[] = [];
-  const env = await residentManagement(t, { actionAvailability: (_caller, action) => {
-    if (action.capability_id === "goals.snapshot.read") operations.push(currentCallId()!);
+  const operations: Array<string | undefined> = [], discoveries: Array<string | undefined> = [];
+  const actionAvailability: NonNullable<MolisWorkLocalHostOptions["actionAvailability"]> = (_caller, action) => {
+    if (action.capability_id === "goals.snapshot.read") operations.push(currentCallId());
     return { available: true };
-  } });
+  };
+  actionAvailability.snapshotForDiscovery = () => (_caller, action) => {
+    if (action.capability_id === "goals.snapshot.read") discoveries.push(currentCallId());
+    return { available: true };
+  };
+  const env = await residentManagement(t, { actionAvailability });
   const alias = join(env.home, "same-project.db"); await symlink(env.project.database_path, alias);
   const fallbackOpened: string[] = [];
   const fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => fallbackOpened.push(ref.storage_key) });
@@ -35,8 +41,16 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   const cli = await promisify(execFile)(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url)),
     "v1", "snapshot", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, call_id: FORGED_CALL })],
     { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: env.origin }, timeout: 10_000 });
-  assert.deepEqual(JSON.parse(cli.stdout), await env.host.withProject(env.reference, runtime => runtime.store.snapshot(env.project.project_id)));
-  assert.ok(operations.length > 0); const cliId = operations.at(-1)!;
+  assert.deepEqual(JSON.parse(cli.stdout), await env.host.withProject(env.reference, runtime => boardSnapshot(runtime.store, env.project.project_id)));
+  // A directory refresh is allowed after the CLI completes and has no operation of its own.
+  const beforeRefresh = operations.slice(), discoveryCount = discoveries.length;
+  await env.host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user",
+    project_id: env.project.project_id, permissions: ["goals:read"] }, env.reference);
+  assert.ok(discoveries.length > discoveryCount); assert.equal(discoveries.at(-1), undefined);
+  assert.deepEqual(operations, beforeRefresh, "directory sampling cannot replace the actual CLI operation number");
+  const uniqueOperations = [...new Set(operations)];
+  assert.equal(uniqueOperations.length, 1, "only this CLI invokes the snapshot action");
+  const cliId = uniqueOperations[0]; assert.ok(typeof cliId === "string");
   assert.notEqual(cliId, FORGED_CALL); assert.match(cliId, /^[0-9a-f]{8}-[0-9a-f-]{27}$/);
   assert.deepEqual(env.host.callLog!.find(cliId), [], "a successful snapshot read has no durable invocation row");
   const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] } };
@@ -62,15 +76,19 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
 test("W3-07-7-01 a stopped resident and a standalone database retain the original in-process management path", async t => {
   const env = await residentManagement(t); await env.stop();
   const fallbackOpened: string[] = [];
-  const fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => fallbackOpened.push(ref.storage_key) });
-  t.after(() => fallbackHost.close()); t.mock.method(console, "log", () => undefined);
-  await runV1Cli(["snapshot", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id })],
-    { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost });
-  assert.deepEqual(fallbackOpened, [env.reference.storage_key]);
-  const standalone = join(env.home, "standalone.db");
-  await runV1Cli(["init", "--db", standalone, "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
-    { homeDirectory: env.home, actionServiceUrl: "invalid-address", localHost: fallbackHost });
-  assert.deepEqual(fallbackOpened, [env.reference.storage_key, standalone]);
+  // The in-process Host of the command line is the Home's: Goals runs in it over the project's library like in the resident.
+  const fallbackHost = createMolisWorkLocalHost({ homeDirectory: env.home, completeText: null, onRuntimeOpen: ref => fallbackOpened.push(ref.storage_key) });
+  t.mock.method(console, "log", () => undefined);
+  // Closed before the fixture removes the Home it runs in (the Home's plugins write their stop records there).
+  try {
+    await runV1Cli(["snapshot", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id })],
+      { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost });
+    assert.deepEqual(fallbackOpened, [env.reference.storage_key]);
+    const standalone = join(env.home, "standalone.db");
+    await runV1Cli(["init", "--db", standalone, "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
+      { homeDirectory: env.home, actionServiceUrl: "invalid-address", localHost: fallbackHost });
+    assert.deepEqual(fallbackOpened, [env.reference.storage_key, standalone]);
+  } finally { await fallbackHost.close(); }
 });
 
 test("W3-07-7-01 an online refusal preserves its code and details and never opens a fallback project", async t => {

@@ -12,8 +12,9 @@ export * from "./due-reminders.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
-import type { HostCapabilityDefinition } from "./app-host.js";
+import type { HostCapabilityDescriptor } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
+import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
 import type { SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
@@ -62,12 +63,42 @@ export interface HostOfferedOriginalFile {
   readonly install_id: string;
 }
 
+/** A protected HTTP entry's original text, limited to its installation and exact first own Action. Grants nothing. */
+export interface HostOfferedOriginalInput {
+  /** Supplement-only provenance; absent retains the existing initial-input contract. */
+  readonly use?: "supplement";
+  readonly input_id: string;
+  readonly text: string;
+  readonly written_by: "person" | "host";
+  readonly occurred_at: string;
+  readonly install_id: string;
+  readonly action: ActionReference;
+}
+
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
 export type ActionLocale = "zh" | "en";
+
+/**
+ * Which protected entry a person's operation came through, and where to find it: audit locators that grant nothing on their own (PG-029).
+ * Only the entry gives it (a page route: `web`; a management command: `management`). A call made inside a running handler carries the one
+ * that handler was given, or none: the dispatcher refuses a nested call that brings its own. Never copied from tool or business input.
+ */
+export interface ActionUserAction {
+  readonly source: string;
+  readonly conversation_ref: string;
+  readonly message_ref: string;
+  /** Protected UI confirmation provenance; optional for operations without a whole-subject decision. */
+  readonly whole_confirmation_prompted?: boolean;
+  readonly prompted_subject_id?: string;
+}
 
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Memory read intent fixed by a protected Host entry; never copied from business/model input. Absent means task. */
+  readonly memory_read_mode?: "explicit" | "task";
+  /** Validated Memory HTTP command identity, separate from this request's call_id. Grants nothing; never a model argument. */
+  readonly memory_operation_id?: string;
   /** Host-authenticated delivery of a completed discussion run; never accepted from business input. */
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
@@ -86,6 +117,13 @@ export interface ActionCallContext extends ActionCallOrigin {
    * nothing and narrows nothing. Never business input.
    */
   readonly delegated_by?: string;
+  /**
+   * The audience of the call the delegating plugin's running action was itself made under, before the Host ran this one as a workflow
+   * (`delegated_by` says which plugin): a person's direct call, or a workflow handing in through another plugin. Set only together with
+   * `delegated_by`. Attribution reads it (who handed this in: a person, an agent, an MCP client or a workflow); the audience that decides
+   * what the call may reach stays `audience`, so it grants nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_audience?: ActionAudience;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /**
@@ -96,21 +134,26 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly runtime_session_missing?: true;
   /** Trusted audit classification; null when the trusted caller does not know it (not inferred). Never business input. */
   readonly actor_kind?: "user" | "runtime" | null;
-  /** Authenticated user-operation provenance supplied only by a protected Host adapter.
-   * These audit locators grant no authority on their own; never copy them from tool/business input. */
-  readonly user_action?: {
-    readonly source: string;
-    readonly conversation_ref: string;
-    readonly message_ref: string;
-    /** Protected UI confirmation provenance; optional for operations without a whole-subject decision. */
-    readonly whole_confirmation_prompted?: boolean;
-    readonly prompted_subject_id?: string;
-  };
+  /** Authenticated user-operation provenance supplied only by a protected Host entry (PG-029); see `ActionUserAction`. */
+  readonly user_action?: ActionUserAction;
   readonly project_id: string | null;
   readonly audience: ActionAudience;
+  /**
+   * The projects whose records of a Home-level plugin the person may read and change through this call (PG-014): set by the Host, fresh on
+   * every call, only on an action that declares `project_reach` for an installation holding `projects:reach`, and only for the person.
+   * It is not where the call is made (`project_id`). The plugin's handler never sees one a caller carried in; absent means "only the
+   * project the call is made in". Never business input.
+   */
+  readonly readable_project_ids?: readonly string[];
+  /**
+   * The plugin whose installation made this call, as the Host issued its caller (S-15): set on every call of the plugin audience a plugin's own
+   * handler answers, fresh on each call, and never one a caller carried in. A plugin's handler never sees the issued caller itself
+   * (`host_plugin`), so this is how a handler of one plugin's Home half knows the call came from that plugin's project instance. Never business input.
+   */
+  readonly calling_plugin_id?: string;
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
-  /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
+  /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
   /**
    * The one original file the person handed the Host in this request (an import through the Host's own entry), set only on the control
@@ -118,6 +161,8 @@ export interface ActionCallContext extends ActionCallOrigin {
    * plugin may do with it is the `materials:original` service's, which asks for the declaration and the grant. Never business input.
    */
   readonly original_file?: HostOfferedOriginalFile;
+  /** Protected HTTP provenance only; never copied from Action/model arguments or carried into background work. */
+  readonly original_input?: HostOfferedOriginalInput;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
   /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
@@ -159,6 +204,8 @@ export interface RetainedActionAuthority {
 
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
+  /** The action this handler runs, with the provider the dispatcher resolved: a plugin finds "its own action" here rather than naming itself (PG-030). */
+  readonly current_action?: ExactActionReference;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
    * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
    * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */
@@ -215,6 +262,18 @@ export interface ActionMetadata {
    * is off or not granted it is not called.
    */
   readonly home_aggregate?: true;
+  /**
+   * The Host gives this action, of a Home-level plugin, the projects the person may reach through it (`ActionCallContext.readable_project_ids`,
+   * PG-014): the plugin keeps the records of every project in one Home library and reads the list instead of judging the caller itself.
+   * Only a Home-scope action may declare it, and the Manifest must declare the `projects:reach` permission as well; the list is given only
+   * while the installation holds that grant, and only to the person (audience `user`).
+   */
+  readonly project_reach?: "person";
+  /**
+   * The part this action plays in a relation placement keeps for the person (PG-032): it lists what an object is attached to, attaches,
+   * releases, lists what can be attached to, or makes a target from content. Placement finds the relation's actions by this, never by name.
+   */
+  readonly placement_relation?: PlacementRelationDeclaration;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
@@ -262,8 +321,13 @@ export interface ActionMetadata {
   };
 }
 
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
-  /** An action is a query or a command; a wait (following a live round) only observes and is never offered as one. */
+/**
+ * Stable, transport-neutral action identity with its metadata. The optional type member is compile-time only; JSON transports
+ * use the public descriptor fields.
+ */
+export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+  readonly __types__?: { input: Input; output: Output };
+  /** An action is a query or a command; following a live round is a query declared `scheduling: "concurrent"`. */
   readonly operation: "query" | "command";
   readonly provider_id?: string;
   readonly action: ActionMetadata;
@@ -282,6 +346,11 @@ export interface ActionProvider {
    * under its installation id, so `provider_id` alone does not say which installation a registration belongs to.
    */
   readonly plugin_install_id?: string;
+  /**
+   * Set only by the Host's own registration of a platform provider that has a plugin's shell still: the plugin whose `ui.translations`
+   * hold the English of this provider's action text. A provider with a `plugin_id` already says so; a plugin never sets this.
+   */
+  readonly words_of?: string;
 }
 
 export type ActionAvailability = { readonly available: true } | {
@@ -332,6 +401,21 @@ export interface ActionHandlerBinding {
   availability?(context: ActionCallContext): ActionAvailability;
 }
 
+/**
+ * The rule a scene's owner ships for the judgment its scene consumes. The Host writes it once into the Home's rules when the scene
+ * is registered (built in or installed alike); a rule that is already there under the same `function_key` keeps what it has.
+ */
+export interface ActionSceneDefaultRule {
+  /** The rule's stable key; the first declaration of a key wins, a later one never replaces it. */
+  readonly function_key: string;
+  readonly name: string;
+  readonly instructions: string;
+  /** The finite set the rule chooses from, each with the description the model reads; keys are symbolic (a recommendation or an offer id). */
+  readonly options: readonly { readonly key: string; readonly description: string }[];
+  /** The object kinds the rule judges; the scene's own `subject_kinds` can be empty when the rule's kinds come from its choice. */
+  readonly subject_kinds: readonly string[];
+}
+
 /** A real consumer of a judgment, not just a label for a dropdown. */
 export interface ActionSceneDefinition {
   readonly scene_id: string;
@@ -354,6 +438,8 @@ export interface ActionSceneDefinition {
   readonly configuration_permissions?: readonly string[];
   /** Trigger payload is separate from the context passed to the judgment. Required with prepare. */
   readonly event_schema?: ActionSchema;
+  /** The rule the Host seeds for this scene when it is registered; the owner declares it, nothing else names it. */
+  readonly default_rule?: ActionSceneDefaultRule;
 }
 
 export interface ActionSceneView {
@@ -536,12 +622,13 @@ function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionD
 }
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.
- * This does not grant permissions; the dispatcher still checks each target's current registration and policy. */
-export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & { provider_id: string }, beforeEffect?: () => Promise<void>): Context {
+ * This does not grant permissions; the dispatcher still checks each target's current registration and policy.
+ * An origin without a provider is the running action itself: its provider is the one the dispatcher resolved (PG-030). */
+export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context {
   const validate = context.validate_authority;
   const assertCurrent = context.assert_authority_current;
+  const pinned = pinnedOrigin(context, origin);
   if (!validate && !beforeEffect && !assertCurrent) return context;
-  const pinned = { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
   return { ...context, validate_authority: async (reference: ActionReference) => {
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
@@ -553,6 +640,15 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
       requireSynchronous(assertCurrent?.(reference, requiredPermissions), "最终授权检查必须同步完成");
     }
   } };
+}
+
+function pinnedOrigin(context: ActionCallContext, origin: ActionReference): ExactActionReference {
+  if (origin.provider_id) return { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
+  const running = (context as Partial<ActionExecutionContext>).current_action;
+  if (running?.capability_id !== origin.capability_id || running.version !== origin.version) {
+    throw new ActionError("actions.reference_invalid", "只有正在执行的动作可以省略提供方");
+  }
+  return { capability_id: running.capability_id, version: running.version, provider_id: running.provider_id };
 }
 
 /** A Manifest declares every permission its actions use; these stay optional because the Host grants them per call. */

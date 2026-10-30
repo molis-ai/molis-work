@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -51,10 +51,10 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await click('[data-ppt-add-slide]');await idle();await saved();assert.equal(read()[0]!.slides.length,3);
   await click('[data-ppt-slide-list] .ppt-slide-row:last-child [data-slide-remove]');await idle();await saved();assert.equal(read()[0]!.slides.length,2);
   // A delayed real save response cannot erase edits made while it is in flight.
-  await evaluate(`(()=>{const original=window.fetch;window.pptSaveRequests=0;window.fetch=async(url,init)=>{
+  await evaluate(`(()=>{const original=window.molisWorkRequest;window.pptSaveRequests=0;window.molisWorkRequest=Object.assign(async(url,init)=>{
     const response=await original(url,init);if(init?.method==='POST'&&new URL(url,${JSON.stringify(origin)}).pathname.endsWith('/api/plugins/io.molis.work.ppt/ppt/${id}')){
       window.pptSaveRequests++;if(window.pptSaveRequests===1)await new Promise(resolve=>window.releasePptSave=resolve);
-    }return response;};window.restorePptFetch=()=>window.fetch=original;})()`);
+    }return response;},original);window.restorePptFetch=()=>{window.molisWorkRequest=original;};})()`);
   await input('[data-ppt-title]','第一次编辑');await waitFor("typeof window.releasePptSave === 'function'");
   await input('[data-ppt-title]','季度回顾');await input('[data-ppt-slide-notes]','新的备注\n第二行');
   await evaluate('window.releasePptSave()');await saved();assert.equal(read()[0]!.title,'季度回顾');assert.equal(read()[0]!.slides[0]!.notes,'新的备注\n第二行');

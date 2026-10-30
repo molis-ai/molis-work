@@ -3,7 +3,6 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextObjectRead, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readLinkedFeedContext } from "@molis-ai/molis-work-plugin-feed";
 
 const scope = { kind: "personal" as const, id: "project-a" };
 const access = { actor_id: "test-reader", scope };
@@ -76,34 +75,5 @@ test("Rebuild rejects unauthorized roots before content access and retries fresh
       ref: { ...ref, scope: { kind: "personal", id: "project-other" } }, value: "private other project",
     }));
     assert.deepEqual(wrongScope.nodes, [{ requested: goal, state: "stale" }]);
-  } finally { db.close(); }
-});
-
-test("Runtime Feed context uses live Ledger links, deterministic selection and owner data on every rebuild", () => {
-  const db = new Database(":memory:");
-  try {
-    const ledger = createContextLedger(db, { authorize: () => true });
-    const items = new Map([
-      ["item-a", { item_id: "item-a", revision: 2, updated_at: "2026-09-05T10:00:00Z", body: "older" }],
-      ["item-b", { item_id: "item-b", revision: 1, updated_at: "2026-09-05T11:00:00Z", body: "newer" }],
-    ]);
-    for (const id of ["item-a", "item-b", "missing"]) ledger.commands.put(access, {
-      key: `feed.goal:${id}`, type: "feed.goal", source: { ...feed, id }, target: goal, cause: "feed.link_goal",
-    });
-    const input = { project_id: "project-a", goal_id: "goal-a", materializer: createContextMaterializer(ledger),
-      readGoal: () => ({ goal_id: "goal-a", project_id: "project-a" }),
-      readItem: (id: string) => items.get(id) ?? null,
-      renderItem: (item: { body: string }) => item.body,
-    };
-    assert.deepEqual(readLinkedFeedContext(input), { source_context: "newer" });
-    assert.deepEqual(readLinkedFeedContext({ ...input, item_id: "item-a" }), { source_context: "older" });
-    assert.equal(readLinkedFeedContext({ ...input, item_id: "not-linked" }), null);
-    items.get("item-a")!.body = "updated content";
-    ledger.commands.put(access, { key: "feed.goal:item-b", type: "feed.goal", source: { ...feed, id: "item-b" },
-      target: { ...goal, id: "goal-other" }, cause: "feed.relink" });
-    assert.deepEqual(readLinkedFeedContext(input), { source_context: "updated content" });
-    assert.equal(readLinkedFeedContext({ ...input, item_id: "item-b" }), null);
-    ledger.commands.remove(access, "feed.goal:item-a", "feed.item_deleted");
-    assert.equal(readLinkedFeedContext(input), null);
   } finally { db.close(); }
 });

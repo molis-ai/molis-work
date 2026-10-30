@@ -1,8 +1,9 @@
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import type { ImagesService } from "./service.js";
 import { createImagesSearchHandlers, imagesSearchActions } from "./search.js";
+import { IMAGES_FILES_WRITE } from "./owner-files.js";
 const text = {type:"string"}, id = {...text,minLength:1,pattern:"\\S"};
 const object = (properties:Record<string,unknown>,required=Object.keys(properties)):ActionSchema=>({type:"object",properties,required,additionalProperties:false});
 const array = (items:unknown)=>({type:"array",items});
@@ -15,7 +16,7 @@ const job=object({id,project_id:id,request_id:id,connection_id:id,connection_nam
   status:{enum:["running","succeeded","failed","cancelled","interrupted"]},images:array(image),error:text,created_at:text,finished_at:{type:["string","null"]}});
 const changed=object({job});
 function define<I,O>(name:string,title:string,description:string,operation:"query"|"command",scope:"home"|"project",input:ActionSchema,output:ActionSchema,permissions:readonly string[],execution?:ActionDefinition["action"]["execution"]):ActionDefinition<I,O>{
-  return {capability_id:`images.${name}`,version:name === "jobs.start" ? 2 : 1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
+  return {capability_id:`images.${name}`,version:name === "jobs.start" ? 3 : name === "jobs.delete" ? 2 : 1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
     status:{capability_id:"images.jobs.get",version:1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
 }
 export const imagesActions={
@@ -25,9 +26,9 @@ export const imagesActions={
   deleteConnection:define<{id:string},{deleted:true}>("connections.delete","删除生图服务","删除生图配置及其绑定，保留生成历史和图片","command","home",object({id}),object({deleted:{const:true}}),["images:connections:write"]),
   list:define<Record<string,never>,{jobs:ImageJob[]}>("jobs.list","生成记录","读取当前项目的生成状态、提示和图片记录","query","project",object({}),object({jobs:array(job)}),["images:read"]),
   get:define<{id:string},{job:ImageJob}>("jobs.get","读取生图任务","按任务 ID 读取当前状态，不重新调用厂商","query","project",object({id}),changed,["images:read"]),
-  start:define<ImageGenerateInput,{job:ImageJob}>("jobs.start","生成图片","启动持久任务并返回 running；request_id 去重同次提交，后续查询任务。HTTP 断开不自动取消","command","project",object({request_id:{...id,maxLength:128},connection_id:id,prompt:{...id,maxLength:32000},size:text,aspect_ratio:text},["request_id","connection_id","prompt"]),changed,["images:generate","model:invoke"],{cost:"metered"}),
+  start:define<ImageGenerateInput,{job:ImageJob}>("jobs.start","生成图片","启动持久任务并返回 running；request_id 去重同次提交，后续查询任务。HTTP 断开不自动取消","command","project",object({request_id:{...id,maxLength:128},connection_id:id,prompt:{...id,maxLength:32000},size:text,aspect_ratio:text},["request_id","connection_id","prompt"]),changed,["images:generate","model:invoke",IMAGES_FILES_WRITE],{cost:"metered"}),
   cancel:define<{id:string},{job:ImageJob}>("jobs.cancel","停止本机等待","停止当前项目任务等待；厂商可能仍在生成或计费，不会自动重新生成","command","project",object({id}),changed,["images:generate"]),
-  delete:define<{id:string},{deleted:true}>("jobs.delete","删除生成记录","删除终态任务及本机图片文件；运行中需先取消","command","project",object({id}),object({deleted:{const:true}}),["images:delete"]),
+  delete:define<{id:string},{deleted:true}>("jobs.delete","删除生成记录","删除终态任务及本机图片文件；运行中需先取消","command","project",object({id}),object({deleted:{const:true}}),["images:delete",IMAGES_FILES_WRITE]),
   image:define<{id:string;image_id:string},{base64:string;mime_type:string;filename:string}>("images.read","读取生成图片","返回任务中实际图片字节的 Base64、MIME 和文件名；不是厂商 URL","query","project",object({id,image_id:id}),object({base64:text,mime_type:mime,filename:text}),["images:read"]),
   searchEntries:imagesSearchActions.entries,
   subject:imagesSearchActions.subject,

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 import { HomePluginHost, LocalMcpServer, MolisWorkLocalHost, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
@@ -114,24 +114,31 @@ for (const revoke of [false, true]) {
 
 test("S-18 RAC-53 background model work retains its caller and ends progress/control when its own result settles", async t => {
   const probe = backgroundProbe(), entered = deferred(), release = deferred();
-  let dispatch!: HostTextRequestOptions, seenActor = "", nested: unknown;
+  let dispatch!: HostTextRequestOptions, seenActor = "", nested: unknown, backgroundOriginal: unknown = "not entered";
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] }, completeText: async (_prompt, options = {}) => {
     dispatch = options; await options.beforeDispatch?.(); entered.resolve(); await release.promise; return "model result";
   } });
   probe.behavior.work = async context => {
     seenActor = currentPluginAction()!.caller.actor_id;
+    backgroundOriginal = currentPluginAction()!.caller.original_input;
     try { await context.services!.background!.start(async () => "nested"); } catch (error) { nested = error; }
     return (await context.services!.model!.complete(instructed(probe.instruction, "body"), { onText: () => {} })).text;
   };
-  const caller = { ...person(probe.permissions), actor_id: "original-user" };
+  const { install } = await grantHomeProbe(f.host, probe);
+  const original: HostOfferedOriginalInput = { input_id: "one-operation", text: "Only this operation's words", written_by: "person",
+    occurred_at: "2026-10-24T00:00:00.000Z", install_id: install.install_id,
+    action: { capability_id: probe.start.capability_id, version: probe.start.version, provider_id: install.install_id } };
+  const caller = { ...person(probe.permissions), actor_id: "original-user", original_input: original };
   try {
     await f.host.homeActionClient().invoke(caller, probe.start, { id: "model" }); await entered.promise;
+    assert.deepEqual(probe.callers[0]!.original_input, original, "the original action receives the Host's proof for this operation");
+    assert.equal(backgroundOriginal, undefined, "accepted background work keeps its caller identity, never the original operation's personal-input proof");
     assert.equal(seenActor, "original-user"); assert.ok(nested instanceof Error && "code" in nested && nested.code === "plugin.background_action_required");
     await dispatch.beforeDispatch?.(); release.resolve(); assert.equal(await probe.handles[0]!.result, "model result");
     assert.equal(probe.stored("result.model"), "model result");
     assert.throws(() => dispatch.onProgress?.({ type: "text-delta", text: "late" }));
     await assert.rejects(probe.controls[0]!.beforeEffect());
-  } finally { release.resolve(); }
+  } finally { release.resolve(); await probe.handles[0]?.result; }
 });
 
 test("S-18 RAC-50 a timer inherited from an expired action cannot accept a second background execution", async t => {
@@ -204,12 +211,13 @@ for (const revoked of [false, true]) {
 for (const cancelled of [false, true]) {
   test(`S-18 RAC-51 RAC-52 accepted file work ${cancelled ? "cannot persist after explicit cancellation" : "persists with its bounded control after HTTP ends"}`, async t => {
     const name = "backgroundfiles", probe = backgroundProbe(name), entered = deferred(), release = deferred(), finished = deferred();
-    const files = { store_name: name, directory: "assets", max_file_bytes: 128, read_permission: `${name}:read`, write_permission: `${name}:write` };
-    const fixture = { definition: probe.definition, files };
+    probe.definition.manifest = { ...probe.definition.manifest, owner_files: { store_name: name, entries: [{ name: "assets", kind: "directory" }],
+      read_permission: `${name}:read`, write_permission: `${name}:write` } };
+    const fixture = { definition: probe.definition };
     const f = await serveHomeRuntime(t, { pluginFixtures: { home: [fixture] } });
     probe.behavior.work = async (context, control) => {
       entered.resolve(); await release.promise;
-      try { await context.services!.files!.create(control, "result.bin", Buffer.from("durable bytes")); return "durable result"; }
+      try { await context.services!.ownerFiles!.write(writer => writer.writeFile("assets/result.bin", Buffer.from("durable bytes"), "create")); return "durable result"; }
       finally { finished.resolve(); }
     };
     try {
@@ -225,7 +233,7 @@ for (const cancelled of [false, true]) {
       const reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null, pluginFixtures: { home: [fixture] } });
       try {
         await reopened.homePlugins!.ready();
-        const stored = probe.contexts.at(-1)!.services!.files!.read("result.bin");
+        const stored = probe.contexts.at(-1)!.services!.ownerFiles!.read("assets/result.bin");
         assert.equal(stored === null ? null : Buffer.from(stored).toString("utf8"), cancelled ? null : "durable bytes");
         assert.equal(probe.stored("result.file"), cancelled ? null : "durable result");
         assert.equal(probe.stored("failure.file"), null);

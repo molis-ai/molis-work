@@ -1,11 +1,14 @@
-import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS } from "./actions.js";
+import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_READABLE_EXTENSIONS } from "./actions.js";
 import { pagesContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "./contract.js";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
-import { pagesMethods } from "./methods.js";
+import { pagesSkills } from "./skills.js";
+import { PAGES_DATABASE } from "./database.js";
 
+import { PAGES_MESSAGES } from "./messages.js";
+import { PAGES_EN } from "./en.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
 const PAGES_BODY_BYTES = 1_000_000;
@@ -18,12 +21,14 @@ export const pagesManifest: PluginManifest = {
   plugin_id: PAGES_PLUGIN_ID,
   version: "0.3.0",
   name: "Pages",
-  // Offered to other Agents for business work; bodies in ./methods.ts.
-  methods: pagesMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
+  summary: "写文档，可导出 Markdown / PDF。",
+  // Offered to other Agents for business work; bodies in ./skills.ts.
+  methods: pagesSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   // Declaration order is match order: the fixed paths come before the ones that take a document id.
+  databases: { home: PAGES_DATABASE },
   routes: [
     { route_id: "pages.comments.list", method: "GET", path: "/pages/:id/comments" },
     { route_id: "pages.comments.append", method: "POST", path: "/pages/:id/comments", max_body_bytes: PAGES_BODY_BYTES },
@@ -57,13 +62,17 @@ export const pagesManifest: PluginManifest = {
       preview: { capability_id: "pages.artifacts.preview", version: 1 }, pin: { capability_id: "pages.artifacts.pin", version: 1 },
       compare: { capability_id: "pages.artifacts.compare", version: 1 }, continue: { capability_id: "pages.artifacts.continue", version: 1 } }],
     // Pages also continues from imported files it can read (artifact-positioning A3, A4b).
-    consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1, continue: { capability_id: "pages.artifacts.continue", version: 1 } }],
+    consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1, continue: { capability_id: "pages.artifacts.continue", version: 1 },
+      file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } }],
   },
   ui: {
+    messages: PAGES_MESSAGES,
+    translations: PAGES_EN,
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
-      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56 },
+      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", hue: "cyan", order: 56, group: "make", accepts_objects: true,
+        creates: { station: "pages", title: "文档" }, start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file" } },
     ],
   },
 };

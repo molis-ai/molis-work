@@ -5,9 +5,11 @@ import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } fro
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailure } from "./web-project-deletion.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
+import { hostLog } from "./host-log.js";
+import { projectPluginMembershipForPage } from "./web-home-plugin-recovery.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
@@ -17,8 +19,9 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
 
+  /** `demoSamples` puts the demo's samples in Home plugins back through their own actions once the demo is made or rebuilt. */
   async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionPorts,
-    pluginsChanged?: (projectId: string) => Promise<void>): Promise<boolean> {
+    pluginsChanged?: (projectId: string) => Promise<void>, demoSamples?: () => Promise<void>): Promise<boolean> {
     if (await handlePluginSettings(withMolisWorkProjectCatalog, request, response, url, homeDirectory, pluginsChanged)) return true;
     if (request.method === "GET" && url.pathname === "/api/settings/projects") {
       sendJson(response, 200, { projects: await settingsProjects(homeDirectory) });
@@ -64,22 +67,19 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         return true;
       }
       try {
-        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          if (action === "create") {
-            const result = await catalog.ensureDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
-            sendJson(response, 200, {
-              ...result,
-              project: settingsProject(result.project),
-              message: result.status === "existing" ? L("示例项目已经存在") : L("示例项目已创建"),
-            });
-            return;
-          }
-          const result = await catalog.resetDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
-          sendJson(response, 200, {
-            ...result,
-            project: settingsProject(result.project),
-            message: L("示例项目已重建；用户项目未修改"),
-          });
+        const result = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => action === "create"
+          ? catalog.ensureDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true })
+          : catalog.resetDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true }));
+        let warning: string | undefined;
+        try { await demoSamples?.(); }
+        catch (error) {
+          hostLog.warn("projects", "demo_sample_failed", error, { action, project_id: result.project.project_id });
+          warning = L("Shelf 示例未能恢复，请在 Shelf 中查看后重试。");
+        }
+        sendJson(response, 200, {
+          ...result, project: settingsProject(result.project), ...(warning ? { warning } : {}),
+          message: action === "reset" ? L("示例项目已重建；用户项目未修改")
+            : result.status === "existing" ? L("示例项目已经存在") : L("示例项目已创建"),
         });
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
@@ -118,10 +118,11 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
       const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
         project_id: project.project_id, display_name: project.display_name,
-        plugins: catalog.listProjectPlugins(project.project_id),
-        hidden: catalog.listHiddenPlugins(project.project_id),
+        ...projectPluginMembershipForPage(catalog, project.project_id),
       })));
-      sendJson(response, 200, { projects });
+      const unavailable = projects.find(project => "unavailable" in project)?.unavailable;
+      const failure = unavailable ? actionErrorResponse(new ActionError("actions.execution_failed", unavailable, { kind: "unavailable" })) : null;
+      sendJson(response, failure?.status ?? 200, { projects, ...failure?.body });
       return true;
     }
     const pluginMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/plugins$/);
@@ -140,7 +141,8 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
           const plugins = await catalog.commit(() => catalog.addProjectPlugin({
             project_id: projectId, plugin_id: pluginId, actor_id: LOCAL_PERSON_ACTOR_ID,
           }));
-          return { plugins, hidden: catalog.listHiddenPlugins(projectId) };
+          const current = catalog.projectPluginMembership(projectId);
+          return { plugins, hidden: current.hidden };
         });
         await pluginsChanged?.(projectId);
         sendJson(response, 200, { project_id: projectId, ...membership });

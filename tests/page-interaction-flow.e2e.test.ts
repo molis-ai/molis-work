@@ -13,14 +13,16 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
-  const exclusive = "document.querySelector('[data-tab-workspace]').dataset.exclusive || ''";
+  const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
   // A Dock entry pressed twice returns to where the pane was.
   await click('[data-dock-pin="goals"]');
   await waitFor(shows("goals"));
+  // PIF-ESC-01: wait for the real board's open groups before leaving; its retained state must not consume Escape.
+  await waitFor("!!document.querySelector('[data-goal-kanban] details[open][data-layer-open]')");
   await click('[data-dock-pin="inbox"]');
-  await waitFor(shows("inbox"));
+  await waitFor(`${shows("inbox")} && document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current') === 'page'`);
   assert.equal(await evaluate("document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current')"), "page");
   await click('[data-dock-pin="inbox"]');
   await waitFor(shows("goals"));
@@ -37,6 +39,9 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   assert.equal(await evaluate("document.title.startsWith('设置')"), true);
   assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current]').length"), 0);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false);
+  await waitFor("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))");
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))"), true,
+    "PIF-ESC-01: the real board retains its open groups in a hidden or inert surface");
   // 1. Esc.
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
@@ -61,8 +66,8 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b).
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 12)"),
-    ["appearance", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 13)"),
+    ["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-settings-page=characters]').closest('[data-work-surface=settings]')");
   await waitFor("!!document.querySelector('[data-character-builtin-list] a.characters-row')");
@@ -92,6 +97,28 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   }
 });
 
+test("PIF-ESC-02 visible menus and dialogs take Escape before the settings cover", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await click('[data-directory-open="settings"]');
+  const settingsOpen = "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'";
+  await waitFor(settingsOpen);
+  for (const [trigger, opened, closed] of [
+    ["[data-plugin-picker-toggle]", "!document.querySelector('[data-plugin-picker-popover]').hidden", "document.querySelector('[data-plugin-picker-popover]').hidden"],
+    ["[data-global-search-open]", "document.querySelector('[data-global-search-dialog]').open", "!document.querySelector('[data-global-search-dialog]').open"],
+  ]) {
+    await click(trigger);
+    await waitFor(`${opened} && ${settingsOpen}`);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    await waitFor(`${closed} && ${settingsOpen}`);
+  }
+});
+
 test("a plugin's page keeps what was open in it across switches and a reload", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
@@ -102,7 +129,8 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
-  await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
+  // The child DOM is visible before its client mounts; the trusted owner releases input only after readiness.
+  await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'ready' && !document.querySelector('[data-work-surface=lingguang]').hidden && !document.querySelector('[data-work-surface=lingguang]').inert");
   await lingguang.evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
   const noteId = await lingguang.evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");
@@ -115,7 +143,7 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
   await click('[data-dock-pin="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
   await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
   assert.equal(await lingguang.evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");

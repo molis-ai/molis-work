@@ -4,10 +4,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { fakeKnowledgeReader, pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeKnowledgeReader, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createRequire } from "node:module";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -33,33 +33,34 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     frozen: { role_id: "builder", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: root, realpath_verified: true } },
     turns: [{ turn_id: "u", kind: "user", text: "补测试", at }, { turn_id: "a", kind: "assistant", text: "三个测试已补，全部通过。", at }],
     activity: [], usage: { tokens: { input: 10, output: 5 } }, awaiting_input: [], command_outputs: [] });
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeKnowledgeReader(pluginActions(store, DEMO_PROJECT_ID), subject => ({ title: `报告 ${subject.id}`, text: "三个测试已补，全部通过。", revision: "1" })), actorId: "web-user",
+  const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    const input = args as any[];
+    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
+    if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+    if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
+    if (definition.capability_id === agent.createSession.capability_id) { made.push(`sdk-${made.length}`); return { runtime_id: "prologue", session_id: made.at(-1) } as Output; }
+    if (definition.capability_id === agent.startRun.capability_id) { const ref = { session_id: input[1].session.session_id, run_id: `r${runs.size + 1}` }; runs.set(ref.run_id, { ref }); return { ref, frozen: view(ref).frozen } as Output; }
+    if (definition.capability_id === agent.readSession.capability_id) return { runs: [...runs.values()].filter(run => run.ref.session_id === input[0].session_id).map(run => run.ref) } as Output;
+    if (definition.capability_id === agent.readMessages.capability_id) return [...box.list({ from: session(input[1]) }), ...box.list({ to: session(input[1]) })].sort((a: any, b: any) => a.sentAtMs - b.sentAtMs).map(message) as Output;
+    if (definition.capability_id === agent.sendPeopleMessage.capability_id) {
+      const sent = input[1];
+      return message(box.send({ from: session(sent.from_session), to: session(sent.to_session), kind: sent.kind, body: sent.body, audience: "people", by: "web-user", idempotencyKey: crypto.randomUUID(),
+        attachments: sent.attachments ?? [], ...(sent.in_reply_to ? { inReplyTo: letter(sent.in_reply_to) } : {}), ...(sent.ttl_ms ? { ttlMs: sent.ttl_ms } : {}), ...(sent.hops !== undefined ? { hops: sent.hops } : {}) }, Date.now())) as Output;
+    }
+    if (definition.capability_id === agent.actOnPeopleMessage.capability_id) {
+      const [, id, action, detail = {}] = input, how = { by: "web-user", ...detail }, now = Date.now();
+      return message(action === "deliver" ? box.markDelivered(letter(id), now, how) : action === "accept" ? box.respond(letter(id), true, now, how) : action === "reject" ? box.respond(letter(id), false, now, how)
+        : action === "complete" ? box.complete(letter(id), now, how) : action === "cancel" ? box.cancel(letter(id), how, now) : box.record(letter(id), { ...how, event: detail.event ?? "note" }, now)) as Output;
+    }
+    if (definition.capability_id === agent.readBackground.capability_id) return [] as Output;
+    if (definition.capability_id === agent.readRun.capability_id) return view(input[1]) as Output;
+    if (definition.capability_id === agent.listSubagents.capability_id) return [] as Output;
+    throw new Error(`Unexpected capability ${definition.capability_id}`);
+  } };
+  const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeKnowledgeReader(pluginActions(store, DEMO_PROJECT_ID), subject => ({ title: `报告 ${subject.id}`, text: "三个测试已补，全部通过。", revision: "1" })), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      const input = args as any[];
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
-      if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
-      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
-      if (definition.capability_id === agent.createSession.capability_id) { made.push(`sdk-${made.length}`); return { runtime_id: "prologue", session_id: made.at(-1) } as Output; }
-      if (definition.capability_id === agent.startRun.capability_id) { const ref = { session_id: input[1].session.session_id, run_id: `r${runs.size + 1}` }; runs.set(ref.run_id, { ref }); return { ref, frozen: view(ref).frozen } as Output; }
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [...runs.values()].filter(run => run.ref.session_id === input[0].session_id).map(run => run.ref) } as Output;
-      if (definition.capability_id === agent.readMessages.capability_id) return [...box.list({ from: session(input[1]) }), ...box.list({ to: session(input[1]) })].sort((a: any, b: any) => a.sentAtMs - b.sentAtMs).map(message) as Output;
-      if (definition.capability_id === agent.sendPeopleMessage.capability_id) {
-        const sent = input[1];
-        return message(box.send({ from: session(sent.from_session), to: session(sent.to_session), kind: sent.kind, body: sent.body, audience: "people", by: "web-user", idempotencyKey: crypto.randomUUID(),
-          attachments: sent.attachments ?? [], ...(sent.in_reply_to ? { inReplyTo: letter(sent.in_reply_to) } : {}), ...(sent.ttl_ms ? { ttlMs: sent.ttl_ms } : {}), ...(sent.hops !== undefined ? { hops: sent.hops } : {}) }, Date.now())) as Output;
-      }
-      if (definition.capability_id === agent.actOnPeopleMessage.capability_id) {
-        const [, id, action, detail = {}] = input, how = { by: "web-user", ...detail }, now = Date.now();
-        return message(action === "deliver" ? box.markDelivered(letter(id), now, how) : action === "accept" ? box.respond(letter(id), true, now, how) : action === "reject" ? box.respond(letter(id), false, now, how)
-          : action === "complete" ? box.complete(letter(id), now, how) : action === "cancel" ? box.cancel(letter(id), how, now) : box.record(letter(id), { ...how, event: detail.event ?? "note" }, now)) as Output;
-      }
-      if (definition.capability_id === agent.readBackground.capability_id) return [] as Output;
-      if (definition.capability_id === agent.readRun.capability_id) return view(input[1]) as Output;
-      if (definition.capability_id === agent.listSubagents.capability_id) return [] as Output;
-      throw new Error(`Unexpected capability ${definition.capability_id}`);
-    } } });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+    agentHost });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, method = "GET", body?: unknown) => {

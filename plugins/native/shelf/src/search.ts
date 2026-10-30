@@ -1,5 +1,5 @@
 import { bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, FILE_CONTENT_MAX_BYTES, searchRevisionOf, searchText, subjectContext, type ActionDefinition, type ActionHandlerBinding, type ActionSubjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
 /**
@@ -24,7 +24,7 @@ function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubject
   if (!item) throw shelfErrors.not_found("这份材料已不在 Shelf 中");
   const content = [item.preview_text, item.failure_reason].filter(Boolean).join("\n");
   return subjectContext({ subject: { kind: "shelf_item", id }, revision: searchRevisionOf([item.status, item.name, content]), title: item.name, content,
-    goal_ids: [], session_id: null, open: { surface: "shelf", id } });
+    open: { surface: "shelf", id } });
 }
 
 function shelfSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {

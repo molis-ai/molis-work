@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
+import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { createProjectsSchema, ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { run } from "./fixtures/catalog-path-maintenance.mjs";
@@ -22,19 +25,7 @@ function v22Home(rows: Stored[], options: { owner?: string; version?: number; ex
   mkdirSync(projects, { recursive: true });
   const db = new Database(join(projects, "catalog.db"));
   db.pragma("foreign_keys = OFF");
-  createProjectsSchema(db);   // every table of the catalog the projects module owns, in the current shape; `projects` is then put back to the old one
-  db.exec("DROP TABLE projects");
-  db.exec(`CREATE TABLE projects (
-      project_id TEXT PRIMARY KEY,
-      display_name TEXT NOT NULL,
-      database_path TEXT NOT NULL UNIQUE,
-      source TEXT NOT NULL CHECK (source IN ('created')),
-      data_class TEXT NOT NULL CHECK (data_class IN ('user', 'regenerable_demo')),
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX projects_display_name_idx ON projects(display_name COLLATE NOCASE, project_id);
-    CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+  db.exec(readFileSync(new URL("./fixtures/catalog-before-w517.sql", import.meta.url), "utf8"));
   db.prepare("INSERT INTO catalog_meta VALUES ('owner', ?), ('schema_version', ?)").run(options.owner ?? CATALOG_OWNER, String(options.version ?? 22));
   for (const row of rows) {
     db.prepare("INSERT INTO projects VALUES (?, ?, ?, 'created', 'user', '2026-01-01', '2026-01-02')").run(row.id, `项目 ${row.id}`, row.path(home));
@@ -62,7 +53,7 @@ const blocking: Stored[] = [
 const states = (report: { projects: Array<{ project_id: string; state: string }> }) => Object.fromEntries(report.projects.map(project => [project.project_id, project.state]));
 const normalize = (sql: string | undefined) => (sql ?? "").replace(/"projects"/g, "projects").replace(/\s+/g, " ").trim();
 
-test("RAC-244 list names where the catalog says each project database is and where it will be looked for, writes nothing, and exits 3 while one project is for the person to decide", () => {
+test("RAC-2304 list names where the catalog says each project database is and where it will be looked for, writes nothing, and exits 3 while one project is for the person to decide", () => {
   const { home, catalog, cleanup } = v22Home(blocking);
   try {
     mkdirSync(join(home, "projects", "left-over")); writeFileSync(join(home, "projects", "left-over", "molis-work.db"), "");
@@ -79,7 +70,7 @@ test("RAC-244 list names where the catalog says each project database is and whe
   } finally { cleanup(); }
 });
 
-test("RAC-245 rewrite writes nothing while a project is outside the Home, has no database, or has an id that is not a directory name", () => {
+test("RAC-2305 rewrite writes nothing while a project is outside the Home, has no database, or has an id that is not a directory name", () => {
   const { home, catalog, cleanup } = v22Home(blocking);
   try {
     const before = readFileSync(catalog);
@@ -91,7 +82,7 @@ test("RAC-245 rewrite writes nothing while a project is outside the Home, has no
   } finally { cleanup(); }
 });
 
-test("RAC-246 rewrite turns a version 22 catalog into the version 23 one: no path column, the same rows, nothing cascaded away, the product's own table", () => {
+test("RAC-2306 rewrite turns a version 22 catalog into the version 23 one: no path column, the same rows, nothing cascaded away, the product's own table", async () => {
   const { home, catalog, cleanup } = v22Home(clean);
   try {
     const { code, report } = run(["rewrite", "--home", home]);
@@ -117,6 +108,12 @@ test("RAC-246 rewrite turns a version 22 catalog into the version 23 one: no pat
       }
       assert.deepEqual(db.prepare("PRAGMA table_xinfo(projects)").all(), fresh.prepare("PRAGMA table_xinfo(projects)").all());
       fresh.close();
+      const referenceHome = join(home, "reference");
+      const referenceCatalog = await openMolisWorkProjectCatalog({ homeDirectory: referenceHome });
+      referenceCatalog.close();
+      const referenceDb = new Database(join(referenceHome, "projects", "catalog.db"), { readonly: true });
+      try { assert.deepEqual(describeSqliteSchema(db), describeSqliteSchema(referenceDb), "all tables, ordered columns, CHECKs, foreign keys and indexes match the actual new catalog"); }
+      finally { referenceDb.close(); }
       // And the product reads it: the paths are derived in the Home the catalog now sits in.
       const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), plugins });
       assert.deepEqual(projects.query.listProjects().map(project => project.database_path).sort(), [derived("p-copy")(home), derived("p-in")(home)]);
@@ -124,7 +121,7 @@ test("RAC-246 rewrite turns a version 22 catalog into the version 23 one: no pat
   } finally { cleanup(); }
 });
 
-test("RAC-247 rewrite on a version 23 catalog changes nothing, and neither does list", () => {
+test("RAC-2307 rewrite on a version 23 catalog changes nothing, and neither does list", () => {
   const { home, catalog, cleanup } = v22Home(clean);
   try {
     assert.equal(run(["rewrite", "--home", home]).code, 0);
@@ -138,19 +135,39 @@ test("RAC-247 rewrite on a version 23 catalog changes nothing, and neither does 
   } finally { cleanup(); }
 });
 
-test("RAC-248 a rewrite that fails in the middle leaves the version 22 catalog as it was", () => {
-  // A table of that name is left over from an earlier attempt: the rebuild cannot create its new table.
-  const { home, catalog, cleanup } = v22Home(clean, { extra: "CREATE TABLE projects_next (x INTEGER);" });
+test("RAC-2308 a rewrite that fails after dropping the old table rolls back the entire catalog", () => {
+  const { home, catalog, cleanup } = v22Home(clean);
+  const original = DatabaseSync.prototype.exec;
   try {
     const before = readFileSync(catalog);
+    let reached = false;
+    DatabaseSync.prototype.exec = function (sql) {
+      if (sql === "ALTER TABLE projects_next RENAME TO projects") { reached = true; throw new Error("injected table-swap failure"); }
+      return original.call(this, sql);
+    };
     const { code, error } = run(["rewrite", "--home", home]);
+    assert.equal(reached, true, "the injection is reached after the business table was dropped");
     assert.equal(code, 1);
-    assert.match(error, /nothing was written/);
+    assert.match(error, /nothing was written: injected table-swap failure/);
     assert.deepEqual(readFileSync(catalog), before);
-  } finally { cleanup(); }
+  } finally { DatabaseSync.prototype.exec = original; cleanup(); }
 });
 
-test("RAC-249 the real Home is refused without the window flag, a catalog that is not Molis Work's or at another version is not touched, and nothing may hold the catalog", async t => {
+// RAC-2309: a correct number cannot authorize an unexpected structure, including objects outside Projects' own tables.
+test("RAC-2309 wrong old catalog columns, indexes, views and triggers are refused without a persisted change", () => {
+  for (const extra of ["ALTER TABLE projects ADD COLUMN unexpected TEXT", "CREATE INDEX unexpected_idx ON projects (source)",
+    "CREATE VIEW unexpected_view AS SELECT project_id FROM projects", "CREATE TRIGGER unexpected_trigger AFTER INSERT ON project_events BEGIN SELECT 1; END"]) {
+    const { home, catalog, cleanup } = v22Home(clean, { extra });
+    try {
+      const before = readFileSync(catalog), result = run(["rewrite", "--home", home]);
+      assert.equal(result.code, 1, extra);
+      assert.match(result.error, /schema mismatch/);
+      assert.deepEqual(readFileSync(catalog), before);
+    } finally { cleanup(); }
+  }
+});
+
+test("RAC-2309 the real Home is refused without the window flag, a catalog that is not Molis Work's or at another version is not touched, and nothing may hold the catalog", async t => {
   const real = v22Home(clean);
   const previous = process.env.MOLIS_WORK_HOME;
   try {

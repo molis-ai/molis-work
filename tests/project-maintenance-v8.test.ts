@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,6 +16,8 @@ import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plug
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule";
 import { inspectPluginProjectSchema, openPluginProjectDatabase, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
+import { managementGoals } from "./goal-management-caller.js";
+import { NAMESPACE } from "../scripts/maintenance/goals-journal-names.mjs";
 
 /**
  * Maintenance eight, the project library part (PLIB-05; specs/plugin-project-database/spec.md §3 L1b; the maintenance list of
@@ -28,11 +31,18 @@ import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, li
  */
 const MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v8.sql", import.meta.url), "utf8");
 const NEXT_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
+const FINAL_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
+/** Version 11 (FI-5): Feed's declaration makes the Feed, Sources, Signals and Listener Host tables, so two records change. */
+const LAST_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v11.sql", import.meta.url), "utf8");
+/** The version 9 schema (where tests/project-maintenance-v10.test.ts starts): the shape the Attention tables had before version 10. */
+const VERSION_9_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v9.sql", import.meta.url), "utf8");
 /** The version 7 schema, as that build's baseline made it (the fixture of tests/project-database-baseline.test.ts at 7ca40f1c3). */
 const VERSION_7_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v7.sql", import.meta.url), "utf8");
 /** The tables whose foreign key version 8 points at the root instead of the board. */
 const MOVED = ["coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources",
   "idempotency_records", "inbox_entries", "library_artifacts", "process_items"];
+/** Inbox declares a table since FI-6; version 7 had none of it, so the maintenance records no row for it and the library makes it when it opens. */
+const INBOX_PLUGIN_ID = "io.molis.work.inbox";
 const PLUGINS = [
   { plugin_id: CODING_PLUGIN_ID, publisher_signature: "official-coding-binding", declaration: CODING_PROJECT_DATABASE },
   { plugin_id: FEED_PLUGIN_ID, publisher_signature: "official-feed-binding", declaration: FEED_PROJECT_DATABASE },
@@ -82,6 +92,26 @@ function pointAtBoard(db: DatabaseSync, table: string): void {
   for (const index of indexes) db.exec(index);
 }
 
+/**
+ * Take a current library back to version 9: version 10 gave the installation records their publisher's trust (ac-trust T1) and the
+ * Attention records an owner (#1245). The two Attention tables are made again as version 9 had them, every row with its row id.
+ * Version 11 (FI-5) made Feed's ledger row name its twelve tables; back at version 10 it named the out rules alone (version 1).
+ */
+function toVersion9(db: DatabaseSync): void {
+  db.exec(`UPDATE plugin_project_databases SET version = 1, tables_json = '["feed_out_rules","feed_out_rules_project_enabled_idx"]' WHERE plugin_id = '${FEED_PLUGIN_ID}'`);
+  db.exec("ALTER TABLE plugin_runtime_installs DROP COLUMN publisher_trust");
+  const statements = VERSION_9_SCHEMA.split(/;\s*\n/).map(statement => statement.replace(/^(?:\s*--[^\n]*\n)+/, "").trim());
+  for (const table of ["inbox_entries", "attention_events"]) {
+    const own = statements.filter(statement => new RegExp(`^CREATE (?:UNIQUE )?(?:TABLE|INDEX \\w+\\s+ON) ${table}\\b`).test(statement));
+    assert.ok(own.length >= 2, `version 9 has ${table} and its indexes`);
+    const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL").all(table) as Array<{ name: string }>;
+    for (const { name } of indexes) db.exec(`DROP INDEX ${name}`);
+    db.exec(`ALTER TABLE ${table} RENAME TO current_${table}; ${own.join("; ")};`);
+    const columns = ["rowid", ...(db.prepare("SELECT name FROM pragma_table_info(?)").all(table) as Array<{ name: string }>).map(column => column.name)].join(", ");
+    db.exec(`INSERT INTO ${table} (${columns}) SELECT ${columns} FROM current_${table}; DROP TABLE current_${table};`);
+  }
+}
+
 /** The row id the version 7 board is given in the rehearsal: not the 1 a new table would start at, so a rebuild that renumbers shows. */
 const BOARD_ROWID = 7;
 const BOARD_TITLE = "留下的项目";
@@ -116,7 +146,7 @@ async function oldHome(directory: string): Promise<OldHome> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: true }) });
   try {
     const caller: ActionCallContext = { actor_id: "runtime:maintenance", project_id: projectId, audience: "agent", permissions: ["goals:read", "goals:write"] };
-    const bound = bindActionClient(host.actionClient(reference, false), () => caller);
+    const bound = bindActionClient(host.actionClient(reference), () => caller);
     await bound.invoke(goalsActions.create, { title: "维护前的目标", goal_id: "KEPT-GOAL", outcome: "维护后还在", idempotency_key: "create-kept", source_kind: "runtime" as const });
     await bound.invoke(goalsActions.note, { goal_id: "KEPT-GOAL", body: "维护前的便笺", idempotency_key: "note-kept" });
   } finally { await host.close(); }
@@ -128,6 +158,13 @@ async function oldHome(directory: string): Promise<OldHome> {
     db.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, 'entry-kept', 'feed_item', 'item-1', 'manual', 'open', ?, ?)").run(projectId, at, at);
     db.prepare("INSERT INTO process_items (artifact_id, project_id, owner_actor_id, producer_plugin_id, producer_binding_signature, created_at) VALUES ('process-kept', ?, 'test-user', 'io.molis.work.feed', 'official-feed-binding', ?)").run(projectId, at);
     db.exec("UPDATE sqlite_sequence SET seq = seq + 100 WHERE name = 'events'");
+    // The source build predates Runtime-owned journal names. Undo only Goals' own namespace in this historical fixture.
+    db.prepare("UPDATE events SET type = substr(type, ?), object_type = substr(object_type, ?) WHERE substr(object_type, 1, ?) = ?")
+      .run(NAMESPACE.length + 1, NAMESPACE.length + 1, NAMESPACE.length, NAMESPACE);
+    db.prepare("UPDATE idempotency_records SET operation = substr(operation, ?) WHERE substr(operation, 1, ?) = ?")
+      .run(NAMESPACE.length + 1, NAMESPACE.length, NAMESPACE);
+    db.prepare("UPDATE context_edges SET edge_key = substr(edge_key, ?) WHERE substr(edge_key, 1, ?) = ?")
+      .run(NAMESPACE.length + 1, NAMESPACE.length, NAMESPACE);
     // Version 7 hashed the board's name into the receipt of the board's making; this build hashes the request without it.
     const made = JSON.stringify(db.prepare("SELECT * FROM idempotency_records WHERE operation = 'initialize_board'").get());
     db.prepare("UPDATE idempotency_records SET request_hash = ? WHERE operation = 'initialize_board'")
@@ -135,35 +172,42 @@ async function oldHome(directory: string): Promise<OldHome> {
 
     db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE");
     const sequence = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'events'").get() as { seq: number };
+    toVersion9(db);
     for (const table of MOVED) pointAtBoard(db, table);
     nameTheBoard(db);
     db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'events'").run(sequence.seq);
-    db.exec("DROP TABLE schedule_action_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON");
+    db.exec(`DROP TABLE schedule_action_bindings; DROP TABLE plugin_notifications; DROP TABLE inbox_scene_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON`);
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return made;
   });
   return { home, projectId, databasePath: project.database_path, receipt };
 }
 
-/** The intermediate v8 library, before the separately rehearsed v9 action bindings are installed. */
-function freshDatabase(directory: string): string {
-  const path = join(directory, "fresh.db");
+/**
+ * The intermediate v8 library, before the separately rehearsed v9 action bindings are installed. `atEight` also takes back what later
+ * versions added to a new library: the notification queue (version 11) and the table and ledger row Inbox has declared since FI-6.
+ */
+function freshDatabase(directory: string, atEight = false): string {
+  const path = join(directory, atEight ? "fresh-v8.db" : "fresh.db");
   new LocalProjectDatabase(path).close();
-  withDatabase(path, db => db.exec("DROP TABLE schedule_action_bindings; PRAGMA user_version = 8"));
+  withDatabase(path, db => {
+    toVersion9(db); db.exec("DROP TABLE schedule_action_bindings; PRAGMA user_version = 8");
+    if (atEight) db.exec(`DROP TABLE plugin_notifications; DROP TABLE inbox_scene_bindings; DELETE FROM plugin_project_databases WHERE plugin_id = '${INBOX_PLUGIN_ID}'`);
+  });
   return path;
 }
 
 const runMaintenance = (path: string) => withDatabase(path, db => { db.exec(MAINTENANCE); });
 
-test("PLIB-05: this build's project library is version 9, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 9, "the offline maintenance chain reaches the current version");
+test("PLIB-05: this build's project library is version 11, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 11, "the offline maintenance chain reaches the current version");
   const { databasePath } = await oldHome(await scratch(t));
   const before = snapshot(databasePath);
   assert.equal(before.version, 7);
   assert.deepEqual(before.shape, shapeOfSql(VERSION_7_SCHEMA), "the rehearsal library is what the version 7 build made, table for table");
   for (const table of ["coding_sessions", "events", "feed_out_rules", "feed_sources", "inbox_entries", "process_items"]) assert.ok((before.rows[table]?.length ?? 0) > 0, `${table} holds a row`);
 
-  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 9);
+  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 11);
   assert.throws(() => new LocalProjectDatabase(databasePath, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema" });
   assert.deepEqual(snapshot(databasePath), before, "a refused library keeps its version, its tables and its rows: opening never upgrades in place");
 });
@@ -171,16 +215,16 @@ test("PLIB-05: this build's project library is version 9, and a version 7 one, e
 test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new Home gets, the root its board without a name and the ledger its plugins', every row kept", async t => {
   const directory = await scratch(t);
   const { projectId, databasePath, receipt } = await oldHome(directory);
-  const fresh = snapshot(freshDatabase(directory));
+  const fresh = snapshot(freshDatabase(directory)), atEight = snapshot(freshDatabase(directory, true));
   const before = snapshot(databasePath);
-  assert.equal(Object.keys(before.rows).length + 2, Object.keys(fresh.rows).length, "version 8 has two more tables, the root and the ledger");
+  assert.equal(Object.keys(before.rows).length + 2, Object.keys(atEight.rows).length, "version 8 has two more tables, the root and the ledger");
 
   runMaintenance(databasePath);
 
   const after = snapshot(databasePath);
   assert.equal(after.version, 8);
-  assert.deepEqual(after.shape, fresh.shape, "table by table, column by column, index by index, key by key the same as a new library");
-  assert.deepEqual(after.master, fresh.master, "and the same objects, SQLite's own indexes included");
+  assert.deepEqual(after.shape, atEight.shape, "table by table, column by column, index by index, key by key the same as a new library");
+  assert.deepEqual(after.master, atEight.master, "and the same objects, SQLite's own indexes included");
   // The new library is the one with all four declarations opened, Goals' among them: the comparison above has Goals' tables in it.
   const goals = inspectPluginProjectSchema(GOALS_PROJECT_DATABASE, inspector);
   assert.equal(goals.tables.length, 31, "Goals declares the board, the Goal tree, input receipts, event work and governance's four");
@@ -190,8 +234,8 @@ test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new 
   }
   for (const object of goals.objects) assert.ok(after.master.some(entry => entry.endsWith(`:${object}`)), `${object} is in the maintained library`);
   const ledgerIds = (rows: string[]) => rows.map(row => (JSON.parse(row) as { plugin_id: string }).plugin_id).sort();
-  assert.deepEqual(ledgerIds(fresh.rows.plugin_project_databases!), [CODING_PLUGIN_ID, FEED_PLUGIN_ID, GOALS_PLUGIN_ID, SCHEDULE_PLUGIN_ID].sort(), "a new library records four plugins");
-  assert.deepEqual(ledgerIds(after.rows.plugin_project_databases!), ledgerIds(fresh.rows.plugin_project_databases!), "and so does the maintained one");
+  assert.deepEqual(ledgerIds(fresh.rows.plugin_project_databases!), [CODING_PLUGIN_ID, FEED_PLUGIN_ID, GOALS_PLUGIN_ID, "io.molis.work.inbox", SCHEDULE_PLUGIN_ID].sort(), "a new library records five plugins, Inbox's among them since FI-6");
+  assert.deepEqual(ledgerIds(after.rows.plugin_project_databases!), ledgerIds(atEight.rows.plugin_project_databases!), "and so does the maintained one, the four plugins that had tables in version 7: Inbox's is made when the library opens with it");
   // Outside the board, the one row the maintenance rewrites is the receipt of the board's making: it gets the hash this build writes.
   const madeBoard = (row: string) => (JSON.parse(row) as { operation: string }).operation === "initialize_board";
   assert.equal(before.rows.idempotency_records!.filter(madeBoard).length, 1);
@@ -212,7 +256,7 @@ test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new 
   });
   assert.deepEqual(after.rows.project_root, [JSON.stringify({ project_id: projectId, created_at: board.created_at })], "the root is the board's id and creation time");
   const ledger = (rows: string[]) => rows.map(row => { const { created_at, ...rest } = JSON.parse(row) as Record<string, unknown>; assert.match(String(created_at), /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/); return JSON.stringify(rest); });
-  assert.deepEqual(ledger(after.rows.plugin_project_databases!), ledger(fresh.rows.plugin_project_databases!), "the ledger records the plugins as a new library's first open does");
+  assert.deepEqual(ledger(after.rows.plugin_project_databases!), ledger(atEight.rows.plugin_project_databases!), "the ledger records the plugins as a new library's first open does");
   withDatabase(databasePath, db => {
     assert.deepEqual(db.prepare("PRAGMA integrity_check").all().map(row => row.integrity_check), ["ok"]);
     assert.equal(db.prepare("PRAGMA foreign_key_check").all().length, 0);
@@ -230,10 +274,10 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   const directory = await scratch(t);
   const { home, projectId, databasePath } = await oldHome(directory);
   const freshPath = freshDatabase(directory);
-  withDatabase(freshPath, db => db.exec(NEXT_MAINTENANCE));
+  withDatabase(freshPath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
   const fresh = snapshot(freshPath);
   runMaintenance(databasePath);
-  withDatabase(databasePath, db => db.exec(NEXT_MAINTENANCE));
+  withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
   const after = snapshot(databasePath);
 
   withDatabase(databasePath, db => {
@@ -244,20 +288,24 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   });
   new LocalProjectDatabase(databasePath).close();
   new LocalProjectDatabase(databasePath, { existingOnly: true }).close();
-  const making = withDatabase(databasePath, db => db.prepare("SELECT actor_id, idempotency_key FROM idempotency_records WHERE operation = 'initialize_board'").get() as { actor_id: string; idempotency_key: string });
+  execFileSync(process.execPath, [new URL("../scripts/maintenance/goals-journal-names.mjs", import.meta.url).pathname, "rename", "--home", home], { encoding: "utf8" });
+  const making = withDatabase(databasePath, db => db.prepare("SELECT actor_id, idempotency_key FROM idempotency_records WHERE operation = ?")
+    .get(`${NAMESPACE}initialize_board`) as { actor_id: string; idempotency_key: string });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const reference = molisWorkHostProjectReference({ projectId, databasePath });
-    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(projectId, "KEPT-GOAL"));
+    const actions = managementGoals(host.actionClient(reference), projectId);
+    const events = await actions.invoke(goalsActions.events, { goal_id: "KEPT-GOAL" });
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1, "the note written before the maintenance");
-    const retried = await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: projectId, ...making }));
+    const retried = await actions.invoke(goalsActions.initialize, { idempotency_key: making.idempotency_key });
     assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);
   assert.deepEqual(opened.shape, fresh.shape, "opening it as the Host does adds nothing");
-  assert.deepEqual(opened.rows.plugin_project_databases, after.rows.plugin_project_databases, "and records nothing new: the four rows the maintenance wrote, Goals' among them, are all there is");
-  assert.equal(opened.rows.plugin_project_databases!.length, 4);
-  assert.equal(opened.version, 9);
+  const notInbox = (row: string) => (JSON.parse(row) as { plugin_id: string }).plugin_id !== INBOX_PLUGIN_ID;
+  assert.deepEqual(opened.rows.plugin_project_databases!.filter(notInbox), after.rows.plugin_project_databases, "and records nothing new but Inbox's own row: the four rows the maintenance wrote, Goals' among them, stay as they were");
+  assert.equal(opened.rows.plugin_project_databases!.length, 5);
+  assert.equal(opened.version, 11);
 });
 
 test("PLIB-05: the maintenance stops and changes nothing unless the library is exactly a version 7 one with one board", async t => {

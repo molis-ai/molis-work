@@ -1,8 +1,8 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { logPreviewFailure } from "./host-log.js";
-import { ARTIFACTS_PLUGIN_ID, artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { artifactLinkKinds, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
@@ -10,16 +10,29 @@ import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin
 import { runningProjectPlatform } from "./project-plugins.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
 
+/** Goals' read of one Goal's headline, asked as the caller: a Goal the caller cannot read, or a project without Goals, has no title here. */
+const GOAL_DIRECTORY_READ = { capability_id: "goals.directory.read", version: 1 } as const;
+
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
-  const provider: ActionProviderRegistration["provider"] = { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: runtime.project_id };
+  // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
+  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id,
+    // The English of its action text is still in the 成果 plugin's words, until that shell goes (PG-077 step 2).
+    words_of: ARTIFACTS_PLUGIN_ID };
   return {
     provider,
-    definitions: artifactsManifest.actions!,
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({
       projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
-      goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId)?.title ?? null,
+      linkKinds: artifactLinkKinds(),
+      goalTitle: async (goalId, caller) => {
+        if (!client) return null;
+        try {
+          const item = await client.invoke(caller, GOAL_DIRECTORY_READ, { goal_id: goalId }) as { title?: unknown };
+          return typeof item.title === "string" ? item.title : null;
+        } catch { return null; }
+      },
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
       previewText: async (artifact, caller) => {

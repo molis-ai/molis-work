@@ -11,7 +11,6 @@ import { serveTestHost } from "./fixtures/test-home.js";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 
 import {
@@ -22,17 +21,15 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
-test("Local Host discovers one runtime and serializes typed capabilities", async () => {
-  const increment = {
-    capability_id: "test.counter.increment",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<{ amount: number }, number>;
-  const missing = {
-    capability_id: "test.counter.missing",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<void, number>;
+/** A Host action of these tests: offered to the person in a project, taking anything. */
+function hostAction<Input, Output>(capability_id: string, operation: "query" | "command", scheduling?: "concurrent"): ActionDefinition<Input, Output> {
+  return { capability_id, version: 1, operation, action: { title: capability_id, description: "fixture", kind: operation === "query" ? "query" : "operation", scope: "project",
+    audiences: ["user"], permissions: [], subject_kinds: [], input_schema: {}, ...(scheduling ? { scheduling } : {}) } };
+}
+
+test("Local Host discovers one runtime and serializes the actions called through its project clients", async () => {
+  const increment = hostAction<{ amount: number }, number>("test.counter.increment", "command");
+  const missing = hostAction<void, number>("test.counter.missing", "query");
   let openCount = 0;
   let closeCount = 0;
   const host = new LocalHost<{ value: number }>({
@@ -45,7 +42,7 @@ test("Local Host discovers one runtime and serializes typed capabilities", async
       close: () => { closeCount += 1; },
     },
   });
-  host.register(increment, async (runtime, input) => {
+  host.registerAction(increment, async (runtime, input) => {
     await Promise.resolve();
     runtime.value += input.amount;
     return runtime.value;
@@ -62,8 +59,7 @@ test("Local Host discovers one runtime and serializes typed capabilities", async
   assert.equal(host.status().projects.length, 1);
   await assert.rejects(
     () => first.invoke(missing, undefined),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && (error.cause instanceof ActionError && ["kernel.capability_invalid","kernel.capability_duplicate","kernel.capability_missing"].includes(error.cause.code))
-      && error.message === error.cause.message,
+    (error: unknown) => error instanceof ActionError && error.code === "actions.missing",
   );
   assert.throws(
     () => host.client({ ...reference, project_id: "project-2" }),
@@ -85,35 +81,27 @@ async function captureCli(operation: () => Promise<number>): Promise<Record<stri
   return JSON.parse(lines.at(-1) ?? "{}") as Record<string, unknown>;
 }
 
-test("a held wait runs beside the project's queue: a later read or command is not delayed, and a wait cannot be claimed for a command", async () => {
-  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
-  const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
-  const bump = { capability_id: "test.bump", version: 1, operation: "command" } as HostCapabilityDefinition<void, number>;
+test("RAC-186 no capability is a wait: the registry refuses one, and a caller cannot claim a wait for a command", async () => {
+  // Following a live round is a query declared concurrent (R8 batch 4), which runs beside the queue as the next tests show.
+  const bump = hostAction<void, number>("test.bump", "command");
   const host = new LocalHost<{ value: number }>({ instanceId: "wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  host.register(wait, async () => { await held; return "changed"; });
-  host.register(read, runtime => runtime.value);
-  host.register(bump, runtime => ++runtime.value);
+  // Object.assign keeps the declared type while the value claims an operation the type no longer has.
+  const follow = Object.assign(hostAction<void, string>("test.follow", "query"), { operation: "wait" });
+  assert.throws(() => host.registerAction(follow, () => "never"), /operation 与 kind 不一致|operation 必须是 query 或 command/);
+  host.registerAction(bump, runtime => ++runtime.value);
   const client = host.client({ project_id: "p", storage_key: "memory:p" });
-  const following = client.invoke(wait, undefined);
-  await new Promise(resolve => setTimeout(resolve, 10));
-  assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a wait is held runs at once");
-  assert.equal(await client.invoke(read, undefined), 1);
-  release();
-  assert.equal(await following, "changed");
-  await assert.rejects(client.invoke({ ...bump, operation: "wait" } as HostCapabilityDefinition<void, number>, undefined),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && (error.cause instanceof ActionError && ["kernel.capability_invalid","kernel.capability_duplicate","kernel.capability_missing"].includes(error.cause.code))
-      && error.message === error.cause.message);
+  // The registered operation decides: what the caller's copy says is not read, so the claim changes nothing.
+  assert.equal(await client.invoke(Object.assign({ ...bump }, { operation: "wait" }), undefined), 1);
+  assert.equal(await client.invoke(bump, undefined), 2);
   await host.close();
 });
 
-test("closing the Host ends its waits: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
-  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+test("closing the Host ends its concurrent reads: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
+  const wait = hostAction<void, string>("test.follow", "query", "concurrent");
   let closed = 0;
   const host = new LocalHost<{ value: number }>({ instanceId: "wait-close-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => { closed += 1; } } });
   const reasons: unknown[] = [];
-  host.register(wait, (_runtime, _input, invocation) => new Promise<string>(resolve => {
+  host.registerAction(wait, (_runtime, _input, invocation) => new Promise<string>(resolve => {
     const timer = setTimeout(() => resolve("timed out"), 25_000);
     invocation.signal?.addEventListener("abort", () => { reasons.push(invocation.signal!.reason); clearTimeout(timer); resolve("ended"); }, { once: true });
   }));
@@ -134,40 +122,32 @@ test("closing the Host ends its waits: close does not wait out a long poll, and 
   assert.equal(closed, 1);
 });
 
-test("a transport never reaches a Host wait: its action clients run declared actions only, and no action can be declared as a wait", async () => {
-  // Why closing needs to end only the waits Host code calls through invoke(): a page, MCP, the assistant or a Home plugin route
-  // reaches a capability through actionClient or homeActionClient, and those refuse anything that is not a declared action.
-  const wait = { capability_id: "test.transport.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+test("no action can be declared as a wait", async () => {
   const host = new LocalHost<{ value: number }>({ instanceId: "transport-wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
-  let entered = 0;
-  host.register(wait, () => { entered += 1; return "answered"; });
-  const declared: ActionDefinition<Record<string, never>, string> = { capability_id: "test.transport.declared", version: 1, operation: "wait",
+  const declared = Object.assign({ capability_id: "test.transport.declared", version: 1, operation: "query",
     action: { title: "跟随", description: "等下一轮", kind: "operation", scope: "project", audiences: ["user", "mcp"], permissions: [], subject_kinds: [],
-      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
-  assert.throws(() => host.registerAction(declared, () => "never"), /operation 与 kind 不一致/, "an action is a query or a command, never a wait");
-  const caller = (project_id: string | null): ActionCallContext => ({ actor_id: "alice", project_id, audience: "mcp", permissions: [] });
-  await assert.rejects(host.actionClient({ project_id: "p", storage_key: "memory:p" }).invoke(caller("p"), wait, undefined), { code: "actions.missing" });
-  await assert.rejects(host.homeActionClient().invoke(caller(null), wait, undefined), { code: "actions.missing" }, "nor does the Home line ever hold one");
-  assert.equal(entered, 0, "a wait is reached only through invoke(), where closing its project ends it");
-  assert.equal(await host.client({ project_id: "p", storage_key: "memory:p" }).invoke(wait, undefined), "answered");
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } } as ActionDefinition<Record<string, never>, string>, { operation: "wait" });
+  assert.throws(() => host.registerAction(declared, () => "never"), /operation 与 kind 不一致|operation 必须是 query 或 command/, "an action is a query or a command, never a wait");
+  const caller: ActionCallContext = { actor_id: "alice", project_id: "p", audience: "mcp", permissions: [] };
+  await assert.rejects(host.actionClient({ project_id: "p", storage_key: "memory:p" }).invoke(caller, declared, {}), { code: "actions.missing" }, "nothing was registered");
   await host.close();
 });
 
-test("a capability registered as concurrent (a model draft) runs beside the queue; a caller cannot claim it for a queued command", async () => {
-  const draft = { capability_id: "test.draft", version: 1, operation: "command", scheduling: "concurrent" } as HostCapabilityDefinition<void, string>;
-  const slow = { capability_id: "test.slow", version: 1, operation: "command" } as HostCapabilityDefinition<void, string>;
-  const bump = { capability_id: "test.bump", version: 1, operation: "command" } as HostCapabilityDefinition<void, number>;
+test("an action registered as concurrent (a model draft) runs beside the queue; a caller cannot claim it for a queued command", async () => {
+  const draft = hostAction<void, string>("test.draft", "command", "concurrent");
+  const slow = hostAction<void, string>("test.slow", "command");
+  const bump = hostAction<void, number>("test.bump", "command");
   const host = new LocalHost<{ value: number }>({ instanceId: "draft-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
-  host.register(draft, async () => { await held; return "draft"; });
-  host.register(slow, async () => { await held; return "slow"; });
-  host.register(bump, runtime => ++runtime.value);
+  host.registerAction(draft, async () => { await held; return "draft"; });
+  host.registerAction(slow, async () => { await held; return "slow"; });
+  host.registerAction(bump, runtime => ++runtime.value);
   const client = host.client({ project_id: "p", storage_key: "memory:p" });
   const drafting = client.invoke(draft, undefined);
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a draft is being written runs at once");
-  const slowing = client.invoke({ ...slow, scheduling: "concurrent" } as HostCapabilityDefinition<void, string>, undefined);
+  const slowing = client.invoke({ ...slow, action: { ...slow.action, scheduling: "concurrent" } }, undefined);
   await new Promise(resolve => setTimeout(resolve, 10));
   let bumped = false;
   const after = client.invoke(bump, undefined).then(value => { bumped = true; return value; });
@@ -182,9 +162,9 @@ test("a capability registered as concurrent (a model draft) runs beside the queu
 
 test("AAP-01 a capability call copies only its descriptor and a full status keeps the caller's own copies", async t => {
   const host = new LocalHost<{ value: number }>({ instanceId: "lookup-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
-  for (let index = 0; index < 200; index++) host.register({ capability_id: `test.other.${index}`, version: 1, operation: "query" } as HostCapabilityDefinition<void, number>, () => index);
-  const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
-  const dispose = host.register(read, runtime => runtime.value);
+  for (let index = 0; index < 200; index++) host.registerAction(hostAction<void, number>(`test.other.${index}`, "query"), () => index);
+  const read = hostAction<void, number>("test.read", "query");
+  const dispose = host.registerAction(read, runtime => runtime.value);
   const client = host.client({ project_id: "p", storage_key: "memory:p" });
   assert.equal(await client.invoke(read, undefined), 0);
   const clone = t.mock.method(globalThis, "structuredClone");
@@ -232,7 +212,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
   const { database_path: databasePath, project_id: projectId } = project;
   let openCount = 0;
   const host = createMolisWorkLocalHost({
-    instanceId: "shared-entry-host",
+    instanceId: "shared-entry-host", homeDirectory: directory,
     onRuntimeOpen: () => { openCount += 1; },
   });
   const intent = {
@@ -266,7 +246,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");
     assert.equal(mcpReplay.replayed, true);
     assert.deepEqual(mcpReplay.goal, mcpCreated.goal, "the runtime action replays its own Goal");
-    const workbenchCreated = await managementGoals(host.actionClient(reference, false), projectId).invoke(goalsActions.create, { goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
+    const workbenchCreated = await managementGoals(host.actionClient(reference), projectId).invoke(goalsActions.create, { goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
       outcome: "管理入口记本机这个人", idempotency_key: "workbench-goal-command",
     });
     assert.equal(workbenchCreated.replayed, false);
@@ -280,9 +260,9 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
 
     await host.close();
-    const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host" });
+    const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host", homeDirectory: directory });
     try {
-      const restored = await managementGoals(restarted.actionClient(reference, false), projectId).invoke(goalsActions.snapshot, {});
+      const restored = await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {});
       assert.deepEqual(restored.goals.map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
     } finally {
       await restarted.close();
@@ -309,7 +289,7 @@ test("legacy entrypoints no longer construct independent business stores", async
   assert.match(mcpEntrypoint, /MolisWorkServer.*from "@molis-ai\/molis-work-app-desktop"/u);
   const composition = await readFile(new URL("../apps/local-host/src/project-host.ts", import.meta.url), "utf8");
   assert.match(composition, /new LocalProjectDatabase\(/u);
-  assert.match(composition, /new GoalProjectApplication\(/u);
+  assert.doesNotMatch(composition, /GoalProjectApplication/u, "Goals is a plugin of the project: the Host holds no Goals application");
 });
 
 test("a page asked of a database that does not exist names the database the CLI must be given to create it", async t => {

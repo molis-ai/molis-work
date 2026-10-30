@@ -1,4 +1,4 @@
-import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody } from "./contract.js";
 import { EMPTY_PAGES_BODY } from "./document.js";
 
 interface JsonNode {
@@ -51,8 +51,8 @@ function taskCardsFrom(nodes: readonly JsonNode[]): JsonNode[] {
   const cards: JsonNode[] = [];
   walk(nodes, (node) => {
     if (node.type !== "task_item") return;
-    // A card keeps only the first 80 characters, so a task is compared by those on both sides: a longer item is the same task next time.
-    const title = textOf(node).trim().slice(0, 80);
+    // A card keeps only the first 80 whole characters, so a task is compared by those on both sides: a longer item is the same task next time.
+    const title = [...textOf(node).trim()].slice(0, 80).join("");
     if (!title || existing.has(title)) return;
     existing.add(title);
     cards.push({
@@ -77,7 +77,7 @@ function knowledgePagesFrom(sourceTitle: string, nodes: readonly JsonNode[]): Ex
     const text = current.blocks.map((block) => textOf(block).trim()).join("\n").trim();
     if (text.length >= 8) {
       pages.push({
-        title: `${clip(sourceTitle, 32)} · ${clip(current.heading, 32)}`.slice(0, 80),
+        title: [...`${clip(sourceTitle, 32)} · ${clip(current.heading, 32)}`].slice(0, 80).join(""),
         body: {
           type: "doc",
           content: [
@@ -117,5 +117,6 @@ function textOf(node: JsonNode): string {
 
 function clip(value: string, max: number): string {
   const text = value.trim() || "未命名文档";
-  return text.length <= max ? text : text.slice(0, max - 1) + "…";
+  const characters = [...text];
+  return characters.length <= max ? text : characters.slice(0, max - 1).join("") + "…";
 }

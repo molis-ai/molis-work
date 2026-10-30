@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { bindActionClient, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
+import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 

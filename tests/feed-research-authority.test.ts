@@ -9,9 +9,10 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const exec = promisify(execFile), hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -58,7 +59,7 @@ const fs = require('node:fs'), cp = require('node:child_process');
     const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
     const host = new MolisWorkLocalHost({ homeDirectory: home }), controller = new AbortController();
     let allowed = true;
-    const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["feed:read", "feed:write"], validate_authority: () => {
+    const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS], validate_authority: () => {
       if (!allowed) throw new ActionError("actions.revoked", "Revoked");
     } };
     const reference = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });

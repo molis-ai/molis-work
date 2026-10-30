@@ -345,19 +345,17 @@
   "GET <project>/sessions (page)": {
     "status": 302,
     "type": "",
-    "location": "/projects/<project>/#sessions"
+    "location": "/projects/<project>/?missing=%2Fsessions"
   },
   "GET <project>/workspaces (page)": {
     "status": 302,
     "type": "",
-    "location": "/projects/<project>/#sessions"
+    "location": "/projects/<project>/?missing=%2Fworkspaces"
   },
   "GET <project>/api/sessions": {
-    "status": 200,
+    "status": 404,
     "type": "application/json",
-    "keys": [
-      "sessions"
-    ]
+    "error": "页面或接口不存在"
   },
   "GET <project>/settings/general (page)": {
     "status": 200,
@@ -436,11 +434,11 @@
       "developer_mode",
       "events",
       "feed",
-      "feed_connector_auth",
       "feed_source_catalog",
       "goals",
       "inbox_judgment",
       "input_bindings",
+      "plugin_directory",
       "plugin_stages",
       "policy_bindings",
       "project",
@@ -449,8 +447,10 @@
       "schedule_jobs",
       "schedule_operations",
       "schedule_tasks",
+      "shown_plugins",
       "snapshot",
-      "trashed_goals"
+      "trashed_goals",
+      "unavailable_plugin_stages"
     ]
   },
   "GET <project>/api/search/status": {
@@ -739,12 +739,17 @@
     "code": "workflows.not_found",
     "error": "找不到这条流程"
   },
-  "GET <project>/api/inbox": {
+  "GET <project>/api/plugins/io.molis.work.inbox/entries": {
     "status": 200,
     "type": "application/json",
     "keys": [
       "entries"
     ]
+  },
+  "GET <project>/api/stage/inbox": {
+    "status": 200,
+    "type": "text/html",
+    "title": ""
   },
   "GET <project>/api/home/dock-judgment": {
     "status": 200,
@@ -771,17 +776,21 @@
     ]
   },
   "GET <project>/api/feed": {
-    "status": 200,
+    "status": 404,
     "type": "application/json",
-    "keys": [
-      "connector_auth",
-      "feed_items",
-      "inbox_entries",
-      "out_rules",
-      "runs",
-      "source_catalog",
-      "sources"
-    ]
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.feed/snapshot": {
+    "status": 403,
+    "type": "application/json",
+    "code": "actions.plugin_disabled",
+    "error": "此项目未启用该插件"
+  },
+  "GET <project>/api/stage/feed": {
+    "status": 403,
+    "type": "application/json",
+    "code": "actions.plugin_disabled",
+    "error": "此项目未启用该插件"
   },
   "GET <project>/api/capsule": {
     "status": 200,
@@ -816,12 +825,12 @@
     "code": "artifacts.workspace_unconfirmed",
     "error": "项目没有可确认的工作区"
   },
-  "GET <project>/api/goals": {
+  "GET <project>/api/plugins/io.molis.work.goals/goals": {
     "status": 404,
     "type": "application/json",
-    "error": "页面或接口不存在"
+    "error": "插件没有这个入口"
   },
-  "POST <project>/api/goals": {
+  "POST <project>/api/plugins/io.molis.work.goals/goals": {
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",
@@ -885,11 +894,11 @@
       "developer_mode",
       "events",
       "feed",
-      "feed_connector_auth",
       "feed_source_catalog",
       "goals",
       "inbox_judgment",
       "input_bindings",
+      "plugin_directory",
       "plugin_stages",
       "policy_bindings",
       "project",
@@ -898,8 +907,10 @@
       "schedule_jobs",
       "schedule_operations",
       "schedule_tasks",
+      "shown_plugins",
       "snapshot",
-      "trashed_goals"
+      "trashed_goals",
+      "unavailable_plugin_stages"
     ]
   },
   "GET <missing>/api/board": {

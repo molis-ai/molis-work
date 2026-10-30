@@ -1,9 +1,4 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-jelly", packagePath: "plugins/native/jelly", kind: "native-plugin", maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin", migrationGoals: ["goal-reorg-f2"], ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["jelly.ui-contribution.v1", "jelly.workspace.v1"],
-} as const;
-export * from "@molis-ai/molis-work-contracts/modules/jelly";
+export * from "./contract.js";
 export * from "./manifest.js";
 export * from "./ui.js";
 export * from "./client.js";
@@ -18,6 +13,7 @@ export * from "./markdown.js";
 export * from "./import.js";
 export * from "./error.js";
 export * from "./plugin.js";
+export { JELLY_MODEL_CONFIGURATION } from "./model-configuration.js";
 export * from "./ai.js";
 export * from "./actions.js";
 export * from "./command-actions.js";

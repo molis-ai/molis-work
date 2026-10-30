@@ -1,11 +1,9 @@
 import { bindCharactersActions, CHARACTERS_ACTIONS, createCharactersActionHandlers, openCharacters, type CharacterCallGuard, type CharactersActionPorts, type CharactersActionRuntime, type CharactersAgentCatalog, type CharactersService } from "@molis-ai/molis-work-module-characters";
-import { hostLog } from "./host-log.js";
+import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { agentHostCapabilities, type AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { CodingCharacterChoice, CodingCharacterPorts } from "@molis-ai/molis-work-plugin-coding";
 import { resolveConfiguredHome } from "./product-home.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { homedir } from "node:os";
@@ -20,13 +18,15 @@ export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSp
 
 /**
  * Characters in one project, registered by the Host as its own provider: the person's drafts in the Home, publications in the
- * project's 成果库, and local Agent imports and launches. `capabilities` is read at each call: the built-in Agent's engines and
- * the actions it may be given.
+ * project's 成果库, and local Agent imports and launches. `agent` is read at each call: the built-in Agent's engines and
+ * the actions it may be given, as the Agent composition answers them (none before it is composed).
  */
-export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, capabilities: () => Pick<LocalHostProjectClient, "invoke">): ActionProviderRegistration {
+export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, agent: () => Omit<CharactersAgentCatalog, "pickedRuntime"> | undefined): ActionProviderRegistration {
+  const catalog = () => agent() ?? (() => { throw new Error("内置 Agent 能力目录尚未接通"); })();
   return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query), {
-    listRuntimes: () => capabilities().invoke(agentHostCapabilities.listRuntimes, []),
-    listActions: () => capabilities().invoke(agentHostCapabilities.listActions, ["prologue", CHARACTER_PLUGIN_ID]),
+    listRuntimes: () => catalog().listRuntimes(),
+    pickedRuntime: () => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id),
+    listActions: runtimeId => catalog().listActions(runtimeId),
   });
 }
 
@@ -122,22 +122,4 @@ export function freezeProjectCharacter(homeDirectory: string | undefined, actorI
   return { ...content, reference: { artifact_id: record.artifact_id, version: record.version }, project_id: projectId,
     content_digest: record.content_digest, published_at: record.created_at,
     producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version, binding_signature: record.producer_binding_signature } };
-}
-
-export function codingCharacterPorts(homeDirectory: string | undefined, actorId: string, projectId: string, artifacts: ArtifactsQueryApi): CodingCharacterPorts {
-  return { resolve: reference => freezeProjectCharacter(homeDirectory, actorId, projectId, artifacts, reference),
-    list: () => artifacts.listArtifacts(projectId, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }).flatMap<CodingCharacterChoice>(record => {
-      if (record.owner_actor_id !== actorId || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE) return [];
-      const reference = { artifact_id: record.artifact_id, version: record.version };
-      let content;
-      // A record that does not parse is not offered; it is written by its id, so a character does not vanish without a word.
-      try { content = parseCharacterContent(record.payload); } catch (error) { hostLog.warn("characters", "record_unreadable", error, { artifact_id: record.artifact_id }); return []; }
-      if (content.source.owner_actor_id !== actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) return [];
-      const summary = { reference, title: content.title, instructions: content.instructions, host_tools: content.host_tools,
-        ...(content.action_tools === undefined ? {} : { action_tools: content.action_tools }),
-        ...(content.import_snapshot ? { imported_skills: content.import_snapshot.skills.map(({id,name,compatibility,reason})=>({id,name,compatibility,reason})) } : {}) };
-      try { freezeProjectCharacter(homeDirectory, actorId, projectId, artifacts, reference); return [{ ...summary, available: true }]; }
-      catch (error) { return [{ ...summary, available: false, reason: error instanceof Error ? error.message : "角色版本不可用" }]; }
-    }),
-  };
 }

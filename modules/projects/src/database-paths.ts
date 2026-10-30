@@ -1,4 +1,4 @@
-import type { ProjectsSqliteDatabase } from "./repository.js";
+import type { ProjectsSqliteDatabase } from "./sqlite.js";
 import { projectDatabasePath } from "./project-paths.js";
 
 /** Inspect where the catalog's projects keep their databases without opening or migrating the full catalog. */

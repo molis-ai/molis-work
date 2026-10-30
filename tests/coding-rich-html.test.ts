@@ -7,10 +7,10 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { CODING_CLIENT_FACTORY_SCRIPT, HISTORY_DIGEST_MARKER, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, HISTORY_DIGEST_MARKER, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -48,7 +48,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
     { subagent_id: "quiet", role_id: "writer", role_name: "子任务", state: "running", task: "等着", result: null, workspace_path: home }];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const values = args as ReadonlyArray<{ session_id?: string; run_id?: string }>;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: runs.map(entry => entry.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(runs.find(entry => entry.ref.run_id === values[1]?.run_id)) as Output;
@@ -59,7 +59,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
   });
   const server = createServer((request, response) => {
     const locale = request.headers["x-page-locale"] === "en" ? "en" : "zh";
-    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host())).catch(error => {
+    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()))).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -67,7 +67,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const read = async <Body>(suffix: string, locale = "zh"): Promise<Body> => {
     const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app${suffix}`, { headers: { "x-page-locale": locale } });
-    assert.equal(response.status, 200, suffix);
+    assert.equal(response.status, 200, `${suffix}: ${response.status === 200 ? "ok" : await response.clone().text()}`);
     return await response.json() as Body;
   };
   try {
@@ -120,10 +120,8 @@ test("PG062-07: the Markdown parser and sanitizer stay on Coding's server side, 
   const parsers = /markedjs|disallowedTagsMode/u;
   assert.match(readFileSync(coding.resolve("marked"), "utf8"), /markedjs/u);
   assert.match(readFileSync(coding.resolve("sanitize-html"), "utf8"), /disallowedTagsMode/u);
-  for (const bundle of ["workbench-bundle.js", "draft-bundle.js"]) {
-    assert.doesNotMatch(readFileSync(join(root, "plugins/native/coding/dist", bundle), "utf8"), parsers, bundle);
-  }
-  assert.doesNotMatch(CODING_CLIENT_FACTORY_SCRIPT, parsers);
+  assert.doesNotMatch(readFileSync(join(root, "plugins/native/coding/dist/workbench-bundle.js"), "utf8"), parsers, "workbench-bundle.js");
+  assert.doesNotMatch(CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, parsers);
   const hostManifest = JSON.parse(readFileSync(join(root, "apps/local-host/package.json"), "utf8")) as { dependencies?: Record<string, string> };
   for (const name of ["marked", "sanitize-html"]) assert.equal(hostManifest.dependencies?.[name], undefined, `the Host declares no ${name}`);
   const hostSources = join(root, "apps/local-host/src");

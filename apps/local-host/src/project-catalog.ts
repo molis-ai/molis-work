@@ -4,7 +4,9 @@ import { ModelProviderStore } from "./model-provider-store.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
-import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
+import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
@@ -24,7 +26,6 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
 import {
   type DesktopPanelCatalogApi,
   type DesktopPanelContextPort,
@@ -37,6 +38,7 @@ import type {
   AddProjectPluginInput,
   ProjectPluginId,
   ProjectPluginMembership,
+  ProjectPluginRegistry,
   RemoveProjectPluginInput,
   AddWorkspaceProjectInput,
   ChangeWorkspaceProjectInput,
@@ -60,7 +62,7 @@ import type {
 import {
   createRuntimeContextModule, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "./demo-seed.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
@@ -149,7 +151,7 @@ export interface LocalCatalogPlatform {
 
 /** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
-  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   prepareMemoryHome(homeDirectory);
   const projectsDirectory = path.join(homeDirectory, "projects");
   await fs.mkdir(projectsDirectory, { recursive: true });
@@ -160,6 +162,16 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
+/**
+ * The registry a Home's projects validate against. Which Plugins a project may enable comes from what this build ships, not from a list
+ * compiled into Projects; which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked. The
+ * Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
+ */
+function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
+  return { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory),
+    isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+}
+
 export class MolisWorkProjectCatalog {
   readonly homeDirectory: string;
   readonly projectsDirectory: string;
@@ -170,7 +182,6 @@ export class MolisWorkProjectCatalog {
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   readonly desktopPanels: DesktopPanelCatalogApi;
-  readonly personalPlanningMethods: PersonalPlanningMethods;
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
@@ -183,7 +194,6 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
-    this.personalPlanningMethods = new PersonalPlanningMethods(db);
     this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
     } });
@@ -192,9 +202,7 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
       db, projects_directory: this.projectsDirectory,
-      // Which Plugins a project may enable comes from what this build ships, not
-      // from a list compiled into Projects.
-      plugins: BUILTIN_PLUGIN_REGISTRY,
+      plugins: homeProjectPlugins(homeDirectory),
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,
@@ -206,9 +214,8 @@ export class MolisWorkProjectCatalog {
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
-      this.homeDirectory,
       this.projectsDirectory,
-      { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
+      { projectId: DEMO_PROJECT_ID, seed: seedDemoGoals },
       this.projectDeletion,
       contextBindingValidation,
       this.commit, projectDeletedHooksFor(homeDirectory),
@@ -234,7 +241,7 @@ export class MolisWorkProjectCatalog {
           });
         },
         appendProjectEvent: (projectId, type, actorId, payload) => {
-          this.appendEvent(projectId, type, actorId, payload);
+          this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
         },
       },
     });
@@ -289,12 +296,12 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  listProjectPlugins(projectId: string): ProjectPluginId[] {
-    return this.projects.query.listProjectPlugins(projectId);
+  projectPluginMembership(projectId: string): ProjectPluginMembership {
+    return this.projects.query.projectPluginMembership(projectId);
   }
 
-  listHiddenPlugins(projectId: string): ProjectPluginId[] {
-    return this.projects.query.listHiddenPlugins(projectId);
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
+    return this.projects.query.listProjectPlugins(projectId);
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
@@ -316,16 +323,16 @@ export class MolisWorkProjectCatalog {
   ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.runtimeContexts.commands.rejectRuntimeContextSuggestion(input); }
   bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.runtimeContexts.commands.bindRuntimeContext(input); }
   unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.runtimeContexts.commands.unbindRuntimeContext(input); }
-  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
+  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput, beforeEffect: () => void = () => undefined): Promise<MolisWorkRuntimeContextResolution> {
     return this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
-      registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
-      provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit),
+      registerProject: (record, eventType, actorId) => { beforeEffect(); this.projects.lifecycle.register(record, eventType, actorId); },
+      provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit, beforeEffect),
     });
   }
   listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.commands.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.commands.listRuntimeContextBindings(); }
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
+  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
 
   openDesktopPanel(input: OpenMolisWorkDesktopPanelInput): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.open(input);
@@ -425,12 +432,9 @@ export class MolisWorkProjectCatalog {
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
 
-  private insertProjectInTransaction(record: MolisWorkProjectRecord, eventType: string, actorId: string): void {
-    this.projects.lifecycle.register(record, eventType, actorId);
-  }
-
-  private appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void {
-    this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
+  /** Persisted page projection; callers must keep using listProjectPlugins for availability and command guards. */
+  storedProjectPluginMembership(projectId: string) {
+    return this.projects.query.storedProjectPluginMembership(projectId);
   }
 }
 

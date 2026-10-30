@@ -8,6 +8,7 @@ import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegration
 import { ADAPTERS, adapterFor } from "./runtime-config-adapters.js";
 import { applyRuntimeIntegration, serializeRuntimeConfirmation } from "./runtime-integration-apply.js";
 import { RuntimeIntegrationPlanner } from "./runtime-integration-planner.js";
+import { captureRuntimeConfigBackup, runtimeConfigBackupPath } from "./runtime-config-backups.js";
 import { digest } from "./runtime-config-text.js";
 import { inspectSkillLink, writeAtomic, readTextOrNull, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
 import { resolveConfiguredHome } from "../product-home.js";
@@ -24,10 +25,10 @@ export class RuntimeIntegrationService {
   private readonly preparedPlans = new Map<string, PreparedPlan>();
 
   constructor(options: RuntimeIntegrationServiceOptions = {}) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+    this.homeDirectory = resolveConfiguredHome(options.homeDirectory);
     this.userHomeDirectory = path.resolve(options.userHomeDirectory ?? os.homedir());
     this.options = options;
-    this.planner = new RuntimeIntegrationPlanner({ homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory, receiptPath: id => this.receiptPath(id), backupPath: (id, plan) => this.backupPath(id, plan) });
+    this.planner = new RuntimeIntegrationPlanner({ homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory, receiptPath: id => this.receiptPath(id), backupPath: (id, plan) => runtimeConfigBackupPath(this.homeDirectory, id, plan) });
   }
 
   clientDescriptors(): readonly { id: string; title: string }[] {
@@ -130,6 +131,7 @@ export class RuntimeIntegrationService {
     return applyRuntimeIntegration(prepared, {
       homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory,
       receiptPath: this.receiptPath(plan.runtime_id), validate: () => this.validateAppliedPlan(prepared),
+      writeBackup: (contents, mode) => captureRuntimeConfigBackup(this.homeDirectory, plan.runtime_id, plan.plan_id, contents, mode),
       writeReceipt: receipt => this.writeReceipt(receipt),
       writeAttempt: (attemptPlan, status, message) => this.writeAttempt(attemptPlan, status, message),
     });
@@ -249,10 +251,6 @@ export class RuntimeIntegrationService {
 
   private receiptPath(runtimeId: SupportedRuntimeId): string {
     return path.join(this.homeDirectory, "runtime-integrations", `${runtimeId}.json`);
-  }
-
-  private backupPath(runtimeId: SupportedRuntimeId, planId: string): string {
-    return path.join(this.homeDirectory, "runtime-config-backups", runtimeId, `${planId}.bak`);
   }
 
   private async readReceipt(runtimeId: SupportedRuntimeId): Promise<IntegrationReceipt | null> {

@@ -6,16 +6,17 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
-import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
+import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
+import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
@@ -79,7 +80,7 @@ test("Images uses the chosen Connector credential for each generation and surviv
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const registry = new ActionService();
   const imageHost = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry, client: registry, entries: [{ scope: "home", manifest: imagesManifest, create: createImagesPlugin,
-    database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION, project_data: { owner_id: "images", declaration: imagesProjectData }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
+    project_data: { owner_id: "images" }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const seen: string[] = [];
   const unbind = bindPrologueInference(home, {
     completeText: async () => { throw new Error("Unexpected text inference"); },
@@ -152,7 +153,7 @@ test("Feed switching account creates a separate source and keeps the old history
         store.createToken({ serviceId: "github", displayName: "账号 B", token: "github-token-account-b" }),
       ]);
       const feed = createLocalFeedApplication(board.db);
-      const source = feed.upsertSource({
+      const source = feed.sources.upsert({
         project_id: DEMO_PROJECT_ID, source_id: "github-source-original", kind: "github", definition_id: "github",
         sync_kind: "github", name: "GitHub A", description: "通知", status: "active", enabled: true,
         item_count: 0, origin: "molis_work", config: { connection_id: first!.connection_id },
@@ -165,7 +166,7 @@ test("Feed switching account creates a separate source and keeps the old history
         source, externalId: "account-a-message", title: "Old account message", summary: "Saved history",
         occurredAt: "2026-09-24T09:30:00.000Z", attention: false,
       }).item;
-      const rule = feed.createOutRule(DEMO_PROJECT_ID, {
+      const rule = feed.outRules.create(DEMO_PROJECT_ID, {
         name: "需要回应", match: { source_id: source.source_id, contains: "review" },
         enabled: true, admission: "suggest",
       });
@@ -176,26 +177,26 @@ test("Feed switching account creates a separate source and keeps the old history
       assert.deepEqual(switched.cursor, {});
       assert.equal(switched.schedule.mode, "interval");
       assert.equal(switched.item_count, 0);
-      const old = feed.getSource(DEMO_PROJECT_ID, source.source_id);
+      const old = feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(old.status, "paused");
       assert.deepEqual(old.cursor, { after: "old-checkpoint" });
       assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.find((item) => item.item_id === historical.item_id)?.source_id, old.source_id);
-      assert.equal(feed.listOutRules(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
-      assert.equal(feed.listOutRules(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
+      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
+      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
       assert.equal(service.update(switched.source_id, { connection_id: second!.connection_id }).source_id, switched.source_id);
       withConnectorConnections(home, store => store.disconnect(second!.connection_id));
       refreshFeedConnectionState(home, second!.connection_id);
       // J3C-01: disconnection changes the error fact; reconnect clears it.
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, source.source_id).status, "paused");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).status, "paused");
       withConnectorConnections(home, store => store.replaceToken(second!.connection_id, "github-token-account-b-rotated"));
       assert.equal(withConnectorConnections(home, store => store.state(store.require(second!.connection_id))), "connected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).enabled, true);
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).enabled, true);
       refreshFeedConnectionState(home, second!.connection_id);
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "active");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
-      assert.deepEqual(feed.getSource(DEMO_PROJECT_ID, switched.source_id).cursor, {});
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "active");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
+      assert.deepEqual(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).cursor, {});
     } finally { board.close(); }
   } finally {
     resetSecretStoreCache();

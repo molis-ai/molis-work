@@ -7,15 +7,16 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, artifactsActions as a, type ArtifactImportResult } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID, artifactsActions as a, type ArtifactImportResult } from "@molis-ai/molis-work-module-artifacts";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { withConnectorConnections, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, projectActionAvailability, LOCAL_OWNER_PERMISSIONS, artifactActionProvider } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { artifactActionProvider } from "../apps/local-host/dist/artifact-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "artifacts-actions-"));
@@ -34,12 +35,17 @@ test("Artifacts share real records through Host and production MCP, preserving f
   const connect = async (identity: string) => {
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, served.origin], stderr: "pipe" }));
     return sdk;
   };
   try {
-    const directory = (await client.discover(caller)).filter(row => row.provider.plugin_id === "io.molis.work.artifacts");
+    // RAC-1040 (PG-077): the 成果库 is the platform's provider (`system`, no plugin id); the id is the one it was called by as a plugin.
+    const directory = (await client.discover(caller)).filter(row => row.provider.provider_id === ARTIFACTS_PROVIDER_ID);
     assert.deepEqual(directory.map(row => row.capability_id).sort(), ARTIFACT_ACTIONS.map(row => row.capability_id).sort());
+    for (const row of directory) {
+      assert.equal(row.provider.kind, "system"); assert.equal(row.provider.plugin_id, undefined); assert.equal(row.provider.plugin_install_id, undefined);
+      assert.equal(row.provider.project_id, project.project_id); assert.equal(row.provider.words_of, "io.molis.work.artifacts");
+    }
     const input = { source: "file" as const, filename: "结果.md", content: "# 固定原文\n跨入口保存" };
     const first = await bound.invoke(a.importFile, input);
     const record = (await bound.invoke(a.read, { reference: { artifact_id: first.artifact_id, version: first.version } })).selected!;
@@ -85,11 +91,21 @@ test("Artifacts share real records through Host and production MCP, preserving f
     await served.revoke("runtime:writer", project.project_id, [view(a.importFile)]);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(a.importFile), arguments: { ...input, content: "撤权后不能保存" } })).isError, true);
     assert.equal((await bound.invoke(a.browser, {})).versions.length, 2);
+    // RAC-1044 (PG-077, D1): the project's plugin list gates the plugins' actions and no longer the 成果库's, which the platform provides.
+    // The witness is a personal plugin the project hides: since FI-6 Feed and Inbox run only in projects that enable them, so a project
+    // without them has no Feed or Inbox action to refuse, while a hidden personal plugin keeps running and is refused here.
+    const isPages = (row: { provider: { plugin_id?: string } }) => row.provider.plugin_id === "io.molis.work.pages";
+    const shown = (await client.discover({ ...caller, permissions: LOCAL_OWNER_PERMISSIONS })).filter(row => isPages(row) && row.availability.available).map(row => row.capability_id);
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
-    assert.equal((await client.discover(caller)).find(row => row.capability_id === a.read.capability_id)!.availability.available, false);
-    await assert.rejects(bound.invoke(a.read, { reference: exact }), { code: "actions.plugin_disabled" });
-    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
+    catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
+    const without = await client.discover({ ...caller, permissions: LOCAL_OWNER_PERMISSIONS });
+    assert.ok(without.filter(row => row.provider.provider_id === ARTIFACTS_PROVIDER_ID).every(row => row.availability.available), "every 成果库 action is still available");
     assert.deepEqual((await bound.invoke(a.read, { reference: exact })).selected, mcpRecord);
+    const hidden = without.filter(row => isPages(row) && shown.includes(row.capability_id));
+    assert.ok(shown.length > 0 && hidden.length === shown.length && hidden.every(row => !row.availability.available && row.availability.code === "actions.plugin_disabled"),
+      "a plugin's own action in the same project is still refused: the plugin list gates plugins");
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
   } finally {
     await Promise.all(clients.map(value => value.close())); await served.close(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }
@@ -110,7 +126,7 @@ test("external Artifact import checks live authority and plugin state after fetc
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), originalFetch = globalThis.fetch;
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
     for (const mode of ["revoked", "disabled", "cancelled", "success"] as const) {
       let enter!: () => void, release!: () => void, allowed = true;
       const entered = new Promise<void>(resolve => { enter = resolve; });
@@ -150,7 +166,7 @@ for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay 
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   try {
     await host.withProject(ref, async runtime => {
-      runtime.coordinator.initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" });
+      goalApplicationOf(runtime).initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" });
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
       const service = new ActionService(undefined, { beforeEffect: async caller => {
         if (caller.actor_id === "slow") { entered.resolve(); await release.promise; }

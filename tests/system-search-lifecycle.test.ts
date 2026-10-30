@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,13 +10,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { assistantAuthority, actionKey } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import type { StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
@@ -30,13 +27,14 @@ test("a plugin disabled in the project leaves the results and comes back when en
   { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-lifecycle-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "生命周期", actor_id: "owner" }));
-  await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
+  // Goals is a 常开 plugin (ac-trust T3) that no project removes; Schedule is an ordinary project plugin, so it is the one switched off and on here.
+  await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const open = () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: projectActionAvailability(withCatalog, home) });
   let host = open();
   try {
     const call = async <I, O>(definition: ActionDefinition<I, O>, input: I) =>
-      await host.actionClient(reference).invoke(await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS), definition, input) as O;
+      await host.actionClient(reference).invoke(await host.localPersonContext(reference), definition, input) as O;
     // A query waits a short budget for its sources to catch up, then answers what is indexed with `indexing` (on a loaded Linux
     // runner the first listing takes longer): ask again until the sources have caught up.
     const search = async (query: string) => {
@@ -47,35 +45,36 @@ test("a plugin disabled in the project leaves the results and comes back when en
         await new Promise(resolve => setTimeout(resolve, 200));
       }
     };
-    await call(goalsActions.create, { title: "季度复盘会议", outcome: "复盘结论写进文档", idempotency_key: randomUUID() });
+    const createTask = (title: string, instructions: string) => call(scheduleActions.createTask, { title, instructions, time: "09:00" });
+    await createTask("季度复盘会议", "把复盘结论写进文档");
     const first = await search("复盘");
     assert.deepEqual(titles(first), ["季度复盘会议"]);
-    const indexedAt = first.sources.find(source => source.plugin_id === "io.molis.work.goals")!.indexed_at;
+    const indexedAt = first.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at;
     assert.ok(indexedAt);
 
-    await withCatalog({ homeDirectory: home }, catalog => { catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
+    await withCatalog({ homeDirectory: home }, catalog => { catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
     const disabled = await search("复盘");
     assert.deepEqual(titles(disabled), []);
-    assert.equal(disabled.sources.find(source => source.plugin_id === "io.molis.work.goals")?.state, "disabled");
+    assert.equal(disabled.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)?.state, "disabled");
 
-    await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
+    await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
     const enabled = await search("复盘");
     assert.deepEqual(titles(enabled), ["季度复盘会议"], "re-enabled, the plugin is indexed again from its own data");
-    const reindexedAt = enabled.sources.find(source => source.plugin_id === "io.molis.work.goals")!.indexed_at;
+    const reindexedAt = enabled.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at;
 
     // Restart: the index is where it was; an unchanged collection is not rebuilt.
     await host.close();
     host = open();
     const afterRestart = await search("复盘");
     assert.deepEqual(titles(afterRestart), ["季度复盘会议"]);
-    assert.equal(afterRestart.sources.find(source => source.plugin_id === "io.molis.work.goals")!.indexed_at, reindexedAt);
+    assert.equal(afterRestart.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at, reindexedAt);
 
     // The index file is lost while the Host is closed: the next Host rebuilds it from the owners.
     await host.close();
     for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
     host = open();
     assert.deepEqual(titles(await search("复盘")), ["季度复盘会议"]);
-    await call(goalsActions.create, { title: "复盘之后的行动", outcome: "按复盘结论排期", idempotency_key: randomUUID() });
+    await createTask("复盘之后的行动", "按复盘结论排期");
     assert.deepEqual(titles(await search("复盘")), ["复盘之后的行动", "季度复盘会议"]);
   } finally {
     await host.close();
@@ -92,7 +91,7 @@ test("an external MCP client searches through the same action with only what it 
   const served = await serveTestHost(t, { home, host });
   let sdk: Client | undefined;
   try {
-    const owner = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const owner = await host.localPersonContext(reference);
     const form = (await host.actionClient(reference).invoke(owner, formActions.create, { title: "采购审批问卷" }) as { form: { id: string; version: number } }).form;
     await host.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "预算审批流程" });
     const origin = served.origin;
@@ -142,7 +141,7 @@ test("the Assistant finds content through search.query and reads the hit through
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
-    const owner = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const owner = await host.localPersonContext(reference);
     const form = (await host.actionClient(reference).invoke(owner, formActions.create, { title: "新员工入职问卷" }) as { form: { id: string; version: number } }).form;
     await host.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "入职第一周的设备与账号准备" });
     const work = { work_id: "work-search", actor_id: "web-user", project_ref: reference, session_id: null } as unknown as StoredWork;

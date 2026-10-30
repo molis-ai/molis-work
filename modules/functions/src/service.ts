@@ -4,26 +4,31 @@ import {
   filterSuggestedBehaviorIds,
   functionOutputKeys,
   mapJudgmentChoice,
-  type FunctionDescribe,
-  type FunctionDraftPatch,
-  type FunctionInvokeResult,
-  type FunctionRecord,
-  type FunctionSummary,
-  type FunctionsOutcome,
-  type FunctionsPreviewRecord,
-  type FunctionsPrimitive,
-  type FunctionsSettingsStatus,
+  type JudgmentRuleDescribe,
+  type JudgmentRuleDraftPatch,
+  type JudgmentRuleInvokeResult,
+  type JudgmentRuleRecord,
+  type JudgmentRuleSceneMap,
+  type JudgmentRuleSummary,
+  type JudgmentRuleOutcome,
+  type JudgmentRulePreviewRecord,
+  type JudgmentRulePrimitive,
+  type JudgmentRuleSettingsStatus,
   type JudgmentRecord,
   type TypeSafeEvaluateResult,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { functionsErrors } from "./errors.js";
-import { FunctionsStore, assertReadyToEvaluate } from "./store.js";
+import type { DeclaredRuleSubject, DeclaredSceneRule } from "./declared-rules.js";
+import type { RecordJudgmentInput } from "./judgments.js";
+import { assertReadyToEvaluate } from "./record-rules.js";
+import { FunctionsStore, openFunctionsStore } from "./store.js";
 
 export type { TypeSafeProvider, TypeSafeEvaluateResult };
 
-interface FunctionsServiceOptions {
-  readonly store: FunctionsStore;
+export interface FunctionsServiceOptions {
+  /** The Home whose Functions library the service opens, and closes with `close()`. */
+  readonly home: string;
   /** The TypeSafe key of the connection the Home chose for Functions; null when there is none. */
   readonly credential: () => string | null;
   readonly env?: NodeJS.Dict<string>;
@@ -43,18 +48,36 @@ export class FunctionsService {
   private readonly provider: TypeSafeProvider;
 
   constructor(options: FunctionsServiceOptions) {
-    this.store = options.store;
+    this.store = openFunctionsStore(options.home);
     this.credential = options.credential;
     this.env = options.env ?? {};
     this.provider = options.provider ?? missingProvider;
   }
 
-  list(): FunctionRecord[] {
+  /** Releases the library. The service is not usable afterwards. */
+  close(): void {
+    this.store.close();
+  }
+
+  /**
+   * Writes the rules scenes declare for themselves, each once (the first declaration of a function key wins). `sceneMap` gives a rule's
+   * option targets that only the composition root can resolve, asked for a rule only when it is first written.
+   */
+  seedDeclaredRules(rules: readonly DeclaredSceneRule[], sceneMap?: (rule: DeclaredRuleSubject) => JudgmentRuleSceneMap): void {
+    this.store.seedDeclared(rules, sceneMap);
+  }
+
+  list(): JudgmentRuleRecord[] {
     return this.store.list();
   }
 
-  listPublished(): FunctionSummary[] {
-    return this.store.list()
+  /** The record under a function key, published or not; null when there is none. */
+  getByKey(functionKey: string): JudgmentRuleRecord | null {
+    return this.store.getByKey(functionKey);
+  }
+
+  listPublished(): JudgmentRuleSummary[] {
+    return this.list()
       .filter((record) => record.status === "published" && record.version != null)
       .map((record) => ({
         function_key: record.function_key,
@@ -65,11 +88,11 @@ export class FunctionsService {
       }));
   }
 
-  get(id: string): FunctionRecord {
+  get(id: string): JudgmentRuleRecord {
     return this.store.require(id);
   }
 
-  describePublished(functionKey: string): FunctionDescribe {
+  describePublished(functionKey: string): JudgmentRuleDescribe {
     const record = this.store.requirePublishedByKey(functionKey);
     return {
       function_key: record.function_key,
@@ -83,23 +106,23 @@ export class FunctionsService {
     };
   }
 
-  create(input?: { primitive?: FunctionsPrimitive; name?: string; function_key?: string }): FunctionRecord {
+  create(input?: { primitive?: JudgmentRulePrimitive; name?: string; function_key?: string }): JudgmentRuleRecord {
     return this.store.create(input);
   }
 
-  createChoice(input?: { name?: string; function_key?: string }): FunctionRecord {
+  createChoice(input?: { name?: string; function_key?: string }): JudgmentRuleRecord {
     return this.store.createChoice(input);
   }
 
-  updateDraft(id: string, patch: FunctionDraftPatch, expectedUpdatedAt?: string): FunctionRecord {
+  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt?: string): JudgmentRuleRecord {
     return this.store.updateDraft(id, patch, expectedUpdatedAt);
   }
 
-  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): FunctionRecord {
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): JudgmentRuleRecord {
     return this.store.addSample(id, input, expectedUpdatedAt);
   }
 
-  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): FunctionRecord {
+  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): JudgmentRuleRecord {
     return this.store.removeSample(id, sampleId, expectedUpdatedAt);
   }
 
@@ -107,16 +130,16 @@ export class FunctionsService {
     this.store.deleteDraft(id, expectedUpdatedAt);
   }
 
-  settingsStatus(): FunctionsSettingsStatus {
+  settingsStatus(): JudgmentRuleSettingsStatus {
     if (envKey(this.env)) return { has_credential: true, source: "env" };
     if (this.credential()?.trim()) return { has_credential: true, source: "ui" };
     return { has_credential: false, source: "none" };
   }
 
-  async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal, beforeSave?: () => Promise<void>): Promise<FunctionRecord> {
+  async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal, beforeSave?: () => Promise<void>): Promise<JudgmentRuleRecord> {
     const current = this.store.require(id);
     const result = await this.evaluate(current, input, signal);
-    const preview: FunctionsPreviewRecord = {
+    const preview: JudgmentRulePreviewRecord = {
       input: input.trim(),
       outcome: outcomeOf(result),
       primitive: result.primitive,
@@ -136,7 +159,7 @@ export class FunctionsService {
   }
 
   async invokePublished(functionKey: string, input: string, context: { version?: number; config_hash?: string; project_id?: string; signal?: AbortSignal; record_history?: boolean;
-    before_evaluate?: (record: FunctionRecord) => void | Promise<void>; before_result?: (record: FunctionRecord) => void | Promise<void> } = {}): Promise<FunctionInvokeResult> {
+    before_evaluate?: (record: JudgmentRuleRecord) => void | Promise<void>; before_result?: (record: JudgmentRuleRecord) => void | Promise<void> } = {}): Promise<JudgmentRuleInvokeResult> {
     const current = this.store.requirePublishedByKey(functionKey);
     if ((context.version !== undefined && context.version !== current.version)
       || (context.config_hash !== undefined && context.config_hash !== current.config_hash)) {
@@ -179,7 +202,7 @@ export class FunctionsService {
     };
   }
 
-  recordSceneJudgment(input: Parameters<FunctionsStore["recordJudgment"]>[0]): JudgmentRecord {
+  recordSceneJudgment(input: RecordJudgmentInput): JudgmentRecord {
     return this.store.recordJudgment(input);
   }
 
@@ -195,19 +218,20 @@ export class FunctionsService {
     return this.store.listJudgments();
   }
 
-  latestSceneJudgments(projectId: string, sceneId: string): JudgmentRecord[] {
-    return this.store.latestSceneJudgments(projectId, sceneId);
+  /** The judgments one recorder made for a scene: a plugin installation, or the Host itself (`null`). */
+  latestSceneJudgments(projectId: string, sceneId: string, installId: string | null): JudgmentRecord[] {
+    return this.store.latestSceneJudgments(projectId, sceneId, installId);
   }
 
   latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, projectId?: string, sceneId?: string | null): JudgmentRecord | null {
     return this.store.latestJudgment(kind, id, projectId, sceneId);
   }
 
-  publish(id: string, expectedUpdatedAt?: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): FunctionRecord {
+  publish(id: string, expectedUpdatedAt?: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): JudgmentRuleRecord {
     return this.store.publish(id, expectedUpdatedAt, scene);
   }
 
-  private async evaluate(record: FunctionRecord, input: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult> {
+  private async evaluate(record: JudgmentRuleRecord, input: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult> {
     signal?.throwIfAborted();
     const state = input.trim();
     if (!state || state.length > 8000) {
@@ -236,12 +260,12 @@ function envKey(env: NodeJS.Dict<string>): string {
   return env.TYPESAFE_API_KEY?.trim() ?? "";
 }
 
-function outcomeOf(result: TypeSafeEvaluateResult): FunctionsOutcome {
+function outcomeOf(result: TypeSafeEvaluateResult): JudgmentRuleOutcome {
   if (result.primitive === "choice" && !result.choice) return "needs_review";
   return "ok";
 }
 
-function invokeData(result: TypeSafeEvaluateResult): FunctionInvokeResult["data"] {
+function invokeData(result: TypeSafeEvaluateResult): JudgmentRuleInvokeResult["data"] {
   if (result.primitive === "noul") return { noul: result.noul ?? 0 };
   if (result.primitive === "score") return { score: result.score ?? 0, legend: result.legend ?? [] };
   return { choice: result.choice };

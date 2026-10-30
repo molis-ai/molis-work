@@ -72,14 +72,20 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager", the pin the other workflows use.
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
+        # that hangs fails in minutes, not in the six-hour default.
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
 
       # ASC-06: the managed Python MCP test runs real uv against a local package registry.
       - name: uv for the managed Python installer tests

@@ -19,7 +19,7 @@ createGithubIntegrationPlugin 通过 SDK 注册 Driver/Adapter，createGithubPro
 | [src/oauth.ts](src/oauth.ts) | 设备授权 |
 | [src/account-presentation.ts](src/account-presentation.ts) | 账户展示 |
 
-可对照现有调用方 [apps/local-host/src/official-integrations.ts](../../../apps/local-host/src/official-integrations.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/builtin-integrations.ts](../../../apps/local-host/src/builtin-integrations.ts) 阅读装配方式。
 
 ## 接入与边界
 
@@ -64,9 +64,6 @@ node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/feed-connector
 - [职责与接入说明](../../../docs/platform/PLUGIN-DEVELOPMENT.md)
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

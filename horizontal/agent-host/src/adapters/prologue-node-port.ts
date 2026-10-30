@@ -1,3 +1,4 @@
+import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -10,7 +11,7 @@ import { MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { workPaths } from "./prologue-project-work.js";
 import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
-import type { createPrologueRecovery } from "./prologue-recovery.js";
+import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents } from "./prologue-subagents.js";
@@ -20,6 +21,7 @@ import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js"
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
+import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
  * The runtime the Node composition makes, and the port it hands the adapter (W4-06 split these out of
@@ -30,10 +32,13 @@ import type { SessionIndexStore } from "./prologue-session-index.js";
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>) {
   return createRuntime({
     app: options.app,
     host,
+    memoryAuthority: memoryAccess.authority,
+    ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
+    ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
     // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10).
     collaborationHost: createCollaborationHost(dispatchChecks),
     // What a step may wait on outside the runtime: the Host's checkers, each look checked again against the round (prologue-checkers.ts).
@@ -43,13 +48,16 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       redactScreenshot: (bytes: Uint8Array) => { const bound = surfaceHost(); return bound ? bound.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")); } } } : {}),
     preset: "local-agent",
     onQueuedWork: runScheduled,
-    ...(options.documentParsers?.length ? { slots: { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } } : {}),
+    slots: {
+      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } : {}),
+      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: "1.0.0", impl: memoryAccess.extractor } } : {}),
+    },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
     // at a time; a step waits up to a week, like a request.
     // One intake batch holds the 50 originals one call may send (Prologue's default is 30; images from one folder are one batch).
-    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { maxDeadlineMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 32, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}),
+    config: { ...(options.memory ? { memory: options.memory.policy } : {}), delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { maxDeadlineMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 32, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}),
       ...(options.referenceKinds?.length && options.questionTypes?.includes("reference") ? { askUserReferenceKinds: options.referenceKinds } : {}) }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 }, intake: { maxItemsPerBatch: 50, maxItemBytes: 32 * 1024 * 1024, maxBatchBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
@@ -225,6 +233,18 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
       return session;
     }),
     restore: id => deps.recovery.restore(id),
+    originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
+    readOriginalInput: ref => readOriginalInput(deps.index, ref),
+    async locateInput(sessionId, inputId) {
+      const index = await deps.index.read(sessionId);
+      if (!index) return undefined;
+      const session = await deps.runtime.sessions.open(index.ref);
+      const found = await session?.locateInput(inputId);
+      if (!found) return undefined;
+      if (found.state === "queued") return { state: "queued", input: queuedInput(found.input) };
+      return found.state === "withdrawn" ? { state: "withdrawn" }
+        : { state: "run", run: { session_id: sessionId, run_id: found.run.id } };
+    },
     queued: id => deps.recovery.queued(id),
     async readStatus(id) {
       const saved = await deps.recovery.restore(id, true);
@@ -246,6 +266,19 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
+    unexecutedApprovalCall(run, waiting) {
+      if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
+      const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };
+      const effect = runtime.effects.get(effectRef), pending = effect?.pending, origin = effect?.proposal.origin;
+      if (!effect || !pending || !sameRef(effect.ref, effectRef) || pending.kind !== "effect-approval"
+        || pending.ref.id !== waiting.pending_id || pending.ref.revision !== waiting.pending_revision
+        || !pending.effectRef || !sameRef(pending.effectRef, effectRef) || pending.state === "settled"
+        || !["awaiting-approval", "cancelled", "denied"].includes(effect.state)
+        || origin?.session !== run.session_id || origin.run !== run.run_id
+        || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
+        || pending.origin?.toolCall !== origin.toolCall) return undefined;
+      return origin.toolCall;
+    },
     readStepBoard: run => stepBoards.read(run),
     messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),

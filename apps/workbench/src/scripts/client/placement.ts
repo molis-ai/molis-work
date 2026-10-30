@@ -4,13 +4,11 @@
  * plugin asks for when it made, imported, converted or exported something. Everything is read from the placement service;
  * a plugin only declares its current object (`data-assistant-context`) and leaves a `data-placement-slot`.
  */
-import { SEARCH_ITEM_TAB_SURFACES } from "./global-search.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 
 export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, route, headers, openItem, openPluginRecord } = host;
+  const { translate: L, route, headers, openItem, openPluginRecord, itemTabs: ITEM_TABS } = host;
   /* The same rule as search: some plugins open an object as a tab, others by its row in their own list. */
-  const ITEM_TABS = ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])};
   const RECORD_ROWS = ${JSON.stringify(pluginSearchRows().map(([plugin]) => plugin))};
   const here = () => document.body.dataset.projectId || null;
   const hereTitle = () => here() === "personal" ? L("个人空间") : (host.projectTitle ? L("项目「{name}」", { name: host.projectTitle }) : L("当前项目"));
@@ -371,7 +369,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
     let body = { subject: { kind: object.kind, id: object.id }, used: true };
     if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
-    await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:L("没有记下输入")});
+    await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/plugins/io.molis.work.goals/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:L("没有记下输入")});
   };
   // 「加输入…」 on a Goal: anything this project lists among its files, chosen here and taken one of the two ways.
   const addGoalInput = async (goalId) => {
@@ -529,9 +527,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     button.disabled = true;
     const station = button.dataset.placementCreate, goalId = button.dataset.goalId || null;
-    const names = { pages: L("文档"), ppt: L("演示稿"), form: L("问卷"), dataset: L("数据表") };
+    // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts), worded with that plugin's words.
+    const kind = (button.textContent || "").trim() || L(button.dataset.placementCreateTitle || "");
     try {
-      const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: L("未命名") + (names[station] || "") });
+      const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: L("未命名") + kind });
       invalidate();
       const section = button.closest("[data-placement-goal-materials]");
       if (section && result.goal_key) {
@@ -545,7 +544,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         if (!list) { list = node("div", undefined, "bound-list"); section.querySelector(".empty-row")?.replaceWith(list); }
         list.prepend(row); paintMaterials();
       }
-      card(L("已新建{kind}《{title}》", { kind: names[station] || "", title: result.title }), L("存到 {place}", { place: result.location.title }) + (goalId ? " · " + L("已关联到这个 Goal") : ""),
+      card(L("已新建{kind}《{title}》", { kind, title: result.title }), L("存到 {place}", { place: result.location.title }) + (goalId ? " · " + L("已关联到这个 Goal") : ""),
         result.open ? [{ label: L("打开"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
     } catch (error) { card(L("没能新建"), error, [], "error"); }
     finally { button.disabled = false; }

@@ -1,10 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalFeedApplication, createLocalFeedConnectorSync, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { accountSourceRecord } from "./feed-account-source.js";
+import { createLocalFeedApplication, createLocalFeedConnectorSync } from "./feed-library.js";
 
 /** An isolated Home; reopening keeps real Listener, Signals and Feed progress. */
 export async function withIntegrationHome(run: (home: {
@@ -38,5 +39,5 @@ export async function withIntegrationHome(run: (home: {
 function integrationChain(store: LocalProjectDatabase, port: IntegrationProviderPort, directory: string) {
   const feed = createLocalFeedApplication(store.db);
   const sync = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, () => port, feed, directory);
-  return { feed, sync, source(kind: "gmail" | "github") { return feed.upsertSource(accountSourceRecord(kind, { status: "active" })); } };
+  return { feed, sync, source(kind: "gmail" | "github") { return feed.sources.upsert(accountSourceRecord(kind, { status: "active" })); } };
 }

@@ -82,19 +82,30 @@ export function removeManagedConnectorTool(home: string, id: string): "in-use" |
   const directory = join(realpathSync(home), "runtime", "connectors", "installs", id);
   if (!existsSync(directory)) return "absent";
   if (lstatSync(directory).isSymbolicLink() || realpathSync(directory) !== directory) throw toolInstallErrors.invalid("受管理安装目录已改变，未移除任何文件");
-  const owner: unknown = JSON.parse(readFileSync(join(directory, "installation.json"), "utf8"));
+  const record = join(directory, "installation.json");
+  if (!existsSync(record)) throw toolInstallErrors.invalid("安装所有权记录缺失，未移除任何文件");
+  let owner: unknown;
+  try { owner = JSON.parse(readFileSync(record, "utf8")); }
+  catch { throw toolInstallErrors.invalid("安装所有权记录无法读取，未移除任何文件"); }
   if (!owner || typeof owner !== "object" || !("id" in owner) || owner.id !== id) throw toolInstallErrors.invalid("安装所有权记录不符，未移除任何文件");
   rmSync(directory, { recursive: true, force: true });
   return "removed";
 }
 
+const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+/** Only the ready record installManagedConnectorTool writes last is a completed installation; any other shape is refused before it is used. */
+const readyRecord = (value: unknown): value is ManagedToolInstallation & { ready: true } => object(value) && value.ready === true && typeof value.id === "string"
+  && typeof value.directory === "string" && typeof value.executable === "string" && Array.isArray(value.runtime_path) && object(value.source) && typeof value.source.kind === "string";
 /** A completed candidate can resume protocol verification after failure, without another package installation. */
 export function readManagedConnectorTool(home: string, id: string, source?: ManagedToolSource): ManagedToolInstallation {
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(id)) throw toolInstallErrors.invalid("受管理安装标识无效");
   const directory = join(realpathSync(home), "runtime", "connectors", "installs", id);
+  if (!existsSync(directory)) throw toolInstallErrors.invalid("受管理安装不存在，请重新准备接入");
   if (realpathSync(directory) !== directory) throw toolInstallErrors.invalid("受管理安装目录已改变");
-  const value = JSON.parse(readFileSync(join(directory, "installation.json"), "utf8")) as ManagedToolInstallation & { ready?: boolean };
-  if (value.id !== id || value.ready !== true || value.directory !== directory || source && JSON.stringify(value.source) !== JSON.stringify(source)
-    || value.source.kind !== "powershell" && !value.executable.startsWith(`${directory}/`) || realpathSync(value.executable) !== value.executable) throw toolInstallErrors.invalid("已有安装与本次方案不符，请重新准备接入");
+  let value: unknown;
+  try { value = JSON.parse(readFileSync(join(directory, "installation.json"), "utf8")); }
+  catch { throw toolInstallErrors.invalid("安装所有权记录无法读取，请重新准备接入"); }
+  if (!readyRecord(value) || value.id !== id || value.directory !== directory || source && JSON.stringify(value.source) !== JSON.stringify(source)
+    || value.source.kind !== "powershell" && !value.executable.startsWith(`${directory}/`) || !existsSync(value.executable) || realpathSync(value.executable) !== value.executable) throw toolInstallErrors.invalid("已有安装与本次方案不符，请重新准备接入");
   return { id, directory, source: value.source, executable: value.executable, runtime_path: value.runtime_path };
 }

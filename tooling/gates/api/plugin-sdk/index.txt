@@ -214,11 +214,16 @@ export type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services
 export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare const PLUGIN_MESSAGE_LIMITS: {
+    readonly entries: 5000;
+    readonly keyLength: 120;
+    readonly textLength: 2000;
+};
+
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     line_bytes: 65536;
@@ -240,8 +245,15 @@ export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platfo
 export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginIdempotencyPut } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginIdempotencyRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginInstallationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginInstallationProjects } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginJournalAppend } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginJournalEvent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginJournalReader } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginJournalWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginLocalPageRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginMaterialRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -251,11 +263,18 @@ export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalRangeContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalRangeRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginProjectDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginScheduleClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginScheduleJob } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginScheduleRegisterInput } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -301,7 +320,10 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageDialogs } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -315,7 +337,9 @@ export type { UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalCommand } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -382,6 +406,8 @@ export declare function comparePluginVersions(left: string, right: string): numb
 
 export declare function compareTexts(before: string, after: string): TextDiff;
 
+export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
+
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
 export declare function decodeMaterialUpload(upload: MaterialUpload): MaterialSource;
@@ -412,7 +438,8 @@ export declare function definePlugin(definition: PluginDefinition): PluginDefini
 
 export declare function definePollingIntegrationPlugin(input: {
     manifest: PluginManifest;
-    createProvider(context: PluginStartContext): IntegrationProviderPort;
+    createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
+    presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
     now?: () => Date;
 }): PluginDefinition;
 
@@ -451,23 +478,22 @@ export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, "plugin_id" | "ui">): string[];
+
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
-
-export declare const packageDescriptor: {
-    readonly packageName: "@molis-ai/molis-work-plugin-sdk";
-    readonly packagePath: "packages/plugin-sdk";
-    readonly kind: "foundation";
-    readonly maturity: "partial";
-    readonly contract: "@molis-ai/molis-work-contracts/platform/plugin";
-    readonly migrationGoals: readonly ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"];
-    readonly ssot: "docs/SSOT-MATRIX.md";
-    readonly capabilities: readonly ["plugin.define.v1", "integration.polling.v1"];
-};
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export declare function parsePorcelainStatus(input: PorcelainInput): GitStatus;
+
+export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
+    manifest: PluginManifest;
+    provider: IntegrationProviderPort;
+    presentAccount?(cursor: unknown, currentAccountLabel: string | null): IntegrationAccountPresentation | null;
+    now?: () => Date;
+}): ReturnType<PluginIntegrationContribution["bind"]>;
 
 export declare function questionAnswer(values: unknown): {
     answers: Array<{

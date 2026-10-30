@@ -25,27 +25,26 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host, sentences, git) => {' '--footer:js=return git}' --outfile=dist/git-client.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
   "molis-work": {
-    "path": "plugins/native/git",
-    "kind": "native-plugin",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-plugin-platform-v2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
+    "maturity": "production",
     "capabilities": [
       "git.artifact-types.v1",
       "git.ui-contribution.v1"
     ],
-    "registration": "./registration"
+    "registration": "./registration",
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {}
   }
 }

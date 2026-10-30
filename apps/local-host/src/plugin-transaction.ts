@@ -15,6 +15,9 @@ export function bindPluginTransaction(handle: PluginDatabaseTransaction, owner: 
   return {
     close() { active.delete(handle); },
     committed() { for (const effect of transaction.committed) effect(); },
+    /** Where the after-commit effects stand; `rewind` drops those a rolled-back savepoint registered. */
+    mark: () => transaction.committed.length,
+    rewind(mark: number) { transaction.committed.length = mark; },
   };
 }
 

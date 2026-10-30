@@ -34,7 +34,7 @@ test("the Assistant's directory: every action has its own title and a descriptio
   assert.deepEqual(duplicated, {}, "two actions with one title cannot be told apart in a search result");
   // The two readers of one kind of object are named by what they do.
   assert.equal(found.get("pages.search.entries@1")?.title, "列出可搜索的文档");
-  assert.equal(found.get("pages.subject.read@1")?.title, "读取文档的正文与关联");
-  assert.equal(found.get("alchemist.idea.subject.read@1")?.title, "读取 Idea 的正文与关联");
+  assert.equal(found.get("pages.subject.read@2")?.title, "读取文档的正文与关联");
+  assert.equal(found.get("alchemist.idea.subject.read@2")?.title, "读取 Idea 的正文与关联");
   assert.equal(found.get("feed.search.entries@1")?.title, "列出可搜索的 Feed 材料与来源");
 });

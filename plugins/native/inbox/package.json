@@ -32,18 +32,13 @@
     "@molis-ai/molis-work-contracts": "workspace:*"
   },
   "molis-work": {
-    "path": "plugins/native/inbox",
-    "kind": "native-plugin",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
+    "maturity": "slice",
     "capabilities": [
       "inbox.ui-contribution.v1",
       "inbox.http-routes.v1"
     ],
-    "registration": "./registration"
+    "registration": "./registration",
+    "extraWorkspaceDependencies": [],
+    "extraDependencies": {}
   }
 }

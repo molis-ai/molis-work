@@ -6,7 +6,7 @@ import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
-import { initializeProjectDatabase, validateManagedBoard } from "./managed-project-database.js";
+import { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
 
 /** Own recoverable file staging; formal Project records stay with Projects. */
 export class ManagedProjectFiles {
@@ -32,7 +32,9 @@ async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjec
 async provisionCreatedProject<T>(
     input: { displayName: string; actorId: string; projectId?: string },
     commit: (record: MolisWorkProjectRecord) => T,
+    beforeEffect: () => void = () => undefined,
   ): Promise<T> {
+    beforeEffect();
     const record = this.projects.lifecycle.prepareRecord({
       project_id: input.projectId,
       display_name: input.displayName,
@@ -44,28 +46,32 @@ async provisionCreatedProject<T>(
       if (error.code === "ENOENT") return false;
       throw error;
     })) {
-      validateManagedBoard(record.database_path, record.project_id);
-      return this.commit(() => commit(record));
+      beforeEffect();
+      validateManagedProject(record.database_path, record.project_id);
+      return this.commit(() => { beforeEffect(); return commit(record); });
     }
     let promoted = false;
     try {
+      beforeEffect();
       await fs.mkdir(stagingDirectory, { recursive: false });
+      beforeEffect();
       await initializeProjectDatabase(
         path.join(stagingDirectory, "molis-work.db"),
         record.project_id,
-        input.actorId,
       );
-      await validateManagedBoard(path.join(stagingDirectory, "molis-work.db"), record.project_id);
+      beforeEffect();
+      await validateManagedProject(path.join(stagingDirectory, "molis-work.db"), record.project_id);
+      beforeEffect();
       try {
         await fs.rename(stagingDirectory, projectDirectory);
         promoted = true;
       } catch (error) {
         if (!input.projectId || !["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
         // A competing stable request owns the promoted directory. Adopt only its validated database.
-        validateManagedBoard(record.database_path, record.project_id);
+        validateManagedProject(record.database_path, record.project_id);
         await fs.rm(stagingDirectory, { recursive: true, force: true });
       }
-      return await this.commit(() => commit(record));
+      return await this.commit(() => { beforeEffect(); return commit(record); });
     } catch (error) {
       await fs.rm(stagingDirectory, { recursive: true, force: true });
       // Fixed identities can be adopted by a concurrent/restarted request; retain their promoted database for recovery.

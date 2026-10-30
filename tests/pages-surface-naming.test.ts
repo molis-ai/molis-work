@@ -3,6 +3,8 @@ import test from "node:test";
 
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
+import { pagesHost } from "./fixtures/pages-host.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/context-actions.ts";
 
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes
@@ -77,6 +79,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   const dispatched: Array<{ type: string; detail?: unknown }> = [];
   const requested: string[] = [];
   const created: Array<Record<string, unknown>> = [];
+  let editorBody: unknown = DOC.body, editorChanged = () => {};
   const surface = new FakeElement();
   surface.setAttribute("data-work-surface", "pages");
   surface.setAttribute("data-pages", "workbench");
@@ -116,7 +119,9 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   }) as typeof fetch;
   const windowStub: Record<string, unknown> = {
     addEventListener() {}, dispatchEvent() { return true; },
-    MolisWorkPagesEditor: { bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), emptyDoc: () => ({ type: "doc", content: [] }), mount: () => ({}), setDoc() {}, getDoc: () => DOC.body },
+    MolisWorkPagesEditor: { bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), emptyDoc: () => ({ type: "doc", content: [] }), canShow: () => true,
+      mount: (_host: unknown, options: { doc: unknown; onChange(): void }) => { editorBody = options.doc; editorChanged = options.onChange; return {}; },
+      setDoc: (_editor: unknown, body: unknown) => { editorBody = body; }, getDoc: () => editorBody },
   };
   windowStub.parent = windowStub;
   Object.assign(globalThis, {
@@ -145,7 +150,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   Object.assign(globalThis, { location: new URL("http://workbench.test/"), molisWorkRequest: undefined, molisWorkControlHeaders: undefined });
   Function(UI_REQUEST_CLIENT_SCRIPT)();
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
-  pages({ translate: (text: string) => text, projectId: "project-a", view: {onClosing() {}} });
+  pages(pagesHost(fakeLifetime(), { projectId: () => "project-a", mountPluginClient: undefined }));
   const contextRow = Function(`return (${CONTEXT_ACTIONS_FACTORY_SCRIPT})`)() as (host: unknown) => unknown;
   contextRow({ translate: (text: string) => text, route: (path: string) => path, headers: () => ({}) });
   await flush();
@@ -161,6 +166,12 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     // The surface reports what the person has in hand (or, with null, that it is gone), as Pages and the DOM selection do.
     focus: (detail: unknown) => dispatch(surface, { type: "molis:surface-focus", detail }),
     context: () => JSON.parse(surface.getAttribute("data-assistant-context") ?? "null") as Record<string, unknown> | null,
+    serializedContext: () => surface.getAttribute("data-assistant-context"),
+    edit(text: string, title?: string) {
+      editorBody = { type: "doc", content: [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }] };
+      if (title !== undefined) (parts.get("[data-pages-title]") as { value: string }).value = title;
+      editorChanged();
+    },
     // The workbench opens an item on the surface (tab-workspace's selectItem / jumpToRecord).
     selectItem: (itemId: string | null) => dispatch(surface, { type: "molis-work:select-item", detail: { itemId } }),
     async advance(ms: number) {
@@ -177,6 +188,55 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
 }
 
 const ownNaming = { kind: "pages_document", id: DOC.id, version: DOC.version, title: DOC.title };
+const unsavedMetadata = { plugin_id: "io.molis.work.pages", surface_title: "Pages", object: ownNaming, unsaved: true };
+
+test("PAGESCTX-01: the production client keeps fitting short and ordinary long context output unchanged", async t => {
+  const page = await workbench(t);page.selectItem(DOC.id);await flush();
+  for (const text of ['短稿："引号"、反斜杠\\和😀', "普通正文".repeat(6000)]) {
+    page.edit(text);
+    assert.equal(page.serializedContext(), JSON.stringify({ ...unsavedMetadata, draft_text: text.slice(0, 20000) }));
+  }
+});
+
+test("PAGESCTX-02 PAGESCTX-04: the real client budgets the complete escaped context and preserves draft identity", async t => {
+  const page = await workbench(t);page.selectItem(DOC.id);await flush();
+  for (const text of ['"'.repeat(44000), "\\".repeat(22000), "\0\n\t\r\b\f".repeat(4000)]) {
+    page.edit(text);
+    const serialized = page.serializedContext()!;
+    assert.ok(serialized.length < 32000, `actual production JSON length ${serialized.length} must pass the unchanged parent string-length gate`);
+    const { draft_text: excerpt, ...metadata } = JSON.parse(serialized) as Record<string, unknown>;
+    assert.deepEqual(metadata, unsavedMetadata);
+    assert.equal(typeof excerpt, "string");assert.ok((excerpt as string).length <= 20000);
+    assert.ok(text.startsWith(excerpt as string));
+    assert.ok(JSON.stringify({ ...unsavedMetadata, draft_text: text.slice(0, 20000) }).length >= 32000, "this same business input exceeded the old raw-slice path");
+  }
+});
+
+test("PAGESCTX-03: exact serialized threshold, intact emoji, empty/saved context and oversized metadata keep their semantics", async t => {
+  const page = await workbench(t);
+  assert.equal(page.context(), null);
+  page.selectItem(DOC.id);await flush();
+  assert.deepEqual(page.context(), { plugin_id: "io.molis.work.pages", surface_title: "Pages", object: ownNaming });
+  const room = 31999 - JSON.stringify({ ...unsavedMetadata, draft_text: "" }).length;
+  const edge = '"'.repeat(Math.floor(room / 2)) + (room % 2 ? "x" : "");
+  page.edit(edge);assert.equal(page.serializedContext()!.length, 31999);assert.equal(page.context()!.draft_text, edge);
+  page.edit(edge + "x");assert.equal(page.serializedContext()!.length, 31999);assert.equal(page.context()!.draft_text, edge);
+  const beforeEmoji = '"'.repeat(Math.floor((room - 1) / 2)) + ((room - 1) % 2 ? "x" : "");
+  page.edit(beforeEmoji + "😀tail");assert.equal(page.context()!.draft_text, beforeEmoji, "a complete emoji cannot be cut to make the serialized budget fit");
+  page.edit("x".repeat(19999) + "😀tail");assert.equal(page.context()!.draft_text, "x".repeat(19999), "the original 20k excerpt cap also keeps surrogate pairs intact");
+  page.edit("");assert.deepEqual(page.context(), unsavedMetadata, "empty unsaved content has no invented draft text");
+  const bare = { ...unsavedMetadata, object: { ...ownNaming, title: "" } };
+  const nearTitle = "m".repeat(31999 - JSON.stringify(bare).length);
+  page.edit("正文", nearTitle);
+  assert.equal(page.serializedContext(), JSON.stringify({ ...bare, object: { ...ownNaming, title: nearTitle } }), "omit the optional empty excerpt when only metadata fits");
+  assert.equal(page.serializedContext()!.length, 31999);
+  page.edit("正文", nearTitle + "m");assert.equal(page.serializedContext()!.length, 32000, "metadata itself at the strict limit still remains refused");
+  assert.deepEqual(page.context()!.object, { ...ownNaming, title: nearTitle + "m" });assert.equal(page.context()!.unsaved, true);
+  const title = '"'.repeat(16000);page.edit("正文", title);
+  const context = page.context()!;
+  assert.deepEqual(context.object, { ...ownNaming, title });assert.equal(context.plugin_id, unsavedMetadata.plugin_id);assert.equal(context.unsaved, true);
+  assert.ok(page.serializedContext()!.length >= 32000, "oversized temporary metadata is still refused by the existing parent, never rewritten to manufacture a fit");
+});
 
 test("reloaded into an open document: Pages names it itself, even when it finishes while the workbench reads the surfaces", async (t) => {
   const page = await workbench(t);

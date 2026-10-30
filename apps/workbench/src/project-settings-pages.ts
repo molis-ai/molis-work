@@ -1,9 +1,10 @@
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
-import { renderHint, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "./page-view.js";
 import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
+import { createProjectGuidanceDocumentRenderer } from "./project-guidance-document.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
 import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
 import { PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
@@ -13,12 +14,13 @@ import { WRITE_CHECKERS_CLIENT_SCRIPT } from "./scripts/write-checkers-client.js
 import { renderWriteCheckersSection } from "./write-checkers-section.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 import { knowledgeClientTag, renderKnowledgeSettings } from "./settings-knowledge.js";
+import { PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPluginTrustSettings } from "./settings-plugins.js";
 
 export interface ProjectSettingsPagePorts {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   htmlLang(): string;
   listJoin(values: readonly string[]): string;
   controlTokenMeta(token: string): string;
@@ -32,6 +34,9 @@ export interface ProjectSettingsPagePorts {
   renderProjectPolicyDocument(view: MolisWorkWebView): string;
 }
 
+/** The settings pages whose content Goals owns: a project without Goals (`guidance` null in the hub) has none of them (RAC-400). */
+const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance", "rules", "planning"]);
+
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
   const { composePlanningMethodPacks, L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery, renderProjectPolicyDocument } = ports;
@@ -39,50 +44,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
   const folds = createProjectSettingsFolds({ L, escapeHtml, icon, withDesktopQuery });
-
-  function renderProjectGuidanceDocument(guidance: ProjectGuidanceView): string {
-    const kindMeta: Record<string, { label: string; description: string }> = {
-      context: { label: L("项目背景"), description: L("项目是什么，以及长期成立的事实") },
-      requirement: { label: L("共同要求"), description: L("这个项目里所有工作都要满足的产品或业务要求") },
-      constraint: { label: L("硬约束"), description: L("任何推进都不能越过的边界") },
-      convention: { label: L("协作约定"), description: L("命名、表达和协作方式") },
-      workflow: { label: L("工作方式"), description: L("项目稳定采用的推进顺序") },
-      quality_bar: { label: L("质量标准"), description: L("共同认可的完成质量") },
-    };
-    const orderedKinds = ["context", "requirement", "constraint", "convention", "workflow", "quality_bar"];
-    const sections = orderedKinds.map((kind) => {
-      const entries = guidance.entries.filter((entry) => entry.kind === kind);
-      const meta = kindMeta[kind]!;
-      return `<section class="guidance-section" aria-labelledby="guidance-${kind}"><header class="guidance-section-heading"><h2 id="guidance-${kind}">${meta.label}</h2><p>${meta.description}</p></header><button type="button" class="mw-btn mw-btn--link guidance-category-add" data-guidance-new data-guidance-kind="${kind}" aria-label="${meta.label} · ${L("新增说明")}">${icon("plus")}${L("添加")}</button><div class="guidance-entry-list">${entries.map((entry) => `<article class="guidance-entry" data-guidance-entry="${escapeHtml(entry.guidance_id)}"><p>${escapeHtml(entry.content)}</p><footer><span class="guidance-entry-meta">${L("第 {revision} 版 · 更新于 {time}", { revision: entry.revision, time: formatDate(entry.updated_at) })}</span><span class="guidance-entry-actions"><button class="mw-btn mw-btn--link" type="button" data-guidance-edit="${escapeHtml(entry.guidance_id)}">${L("修改")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-guidance-action="deactivate" data-guidance-id="${escapeHtml(entry.guidance_id)}">${L("停用")}</button></span></footer></article>`).join("")}</div></section>`;
-    }).join("");
-    const inactiveItems = guidance.inactive_entries.length > 0
-      ? `<ul class="guidance-inactive-list">${guidance.inactive_entries.map((entry) => `<li><p>${escapeHtml(entry.content)}</p><button class="mw-btn mw-btn--link" type="button" data-guidance-action="restore" data-guidance-id="${escapeHtml(entry.guidance_id)}">${L("恢复这条说明")}</button></li>`).join("")}</ul>`
-      : `<p>${L("当前没有停用的说明。")}</p>`;
-    const changeLabels: Record<string, string> = {
-      created: L("新增"),
-      edited: L("修改"),
-      deactivated: L("停用"),
-      restored: L("恢复"),
-    };
-    const historyRows = guidance.revisions.map((revision) => {
-      const content = revision.content.length > 220 ? `${revision.content.slice(0, 220)}…` : revision.content;
-      const stateLabel = revision.active ? L("生效版本") : L("停用版本");
-      return `<article class="guidance-history-row"><div><strong>${escapeHtml(changeLabels[revision.change_kind] ?? revision.change_kind)}</strong><div class="guidance-history-state${revision.active ? "" : " guidance-history-state--inactive"}">${L("第 {revision} 版", { revision: revision.revision })} · ${stateLabel}</div></div><div><strong>${escapeHtml(kindMeta[revision.kind]?.label ?? revision.kind)}</strong><p>${escapeHtml(content)}</p><details class="guidance-history-entry"><summary>${L("查看完整版本与变更原因")}</summary><dl class="guidance-history-full"><div><dt>${L("完整原文")}</dt><dd>${escapeHtml(revision.content)}</dd></div><div><dt>${L("变更原因")}</dt><dd>${escapeHtml(revision.reason)}</dd></div><div><dt>${L("操作者")}</dt><dd>${escapeHtml(revision.changed_by)}</dd></div><div><dt>${L("确认记录")}</dt><dd>${escapeHtml(revision.confirmation_summary)}</dd></div></dl></details></div><time datetime="${escapeHtml(revision.created_at)}">${formatDate(revision.created_at)}</time></article>`;
-    }).join("");
-    const guidanceData = JSON.stringify(guidance).replaceAll("<", "\\u003c");
-    return `<section class="guidance-document" aria-labelledby="guidance-title">
-      <header class="guidance-page-header"><div><div class="settings-heading-title"><h1 id="guidance-title">${L("项目说明")}</h1>${renderHint({ id: "settings-hint-guidance", label: L("Runtime 如何使用"), text: L("只发送当前生效版本，放在这一轮的任务和外部内容之前。修改或停用会在下一次 Prompt 中生效。") })}</div><p>${L("这是这个项目所有工作共享的长期说明：助理、各插件里的 Agent 和外部 Runtime 在这个项目里都会收到。这里只显示已经生效的内容；你可以直接维护它，并随时查看每次改动。")}</p></div><button class="mw-btn mw-btn--primary" type="button" data-guidance-new>${icon("plus")}${L("新增说明")}</button></header>
-      <div class="settings-body"><p class="project-rules-receipt" data-guidance-receipt role="status" aria-live="polite" hidden></p>
-      <section class="guidance-editor" data-guidance-editor data-cover-layer hidden aria-labelledby="guidance-editor-title"><header><div><h2 id="guidance-editor-title" data-guidance-editor-title></h2><p data-guidance-editor-description></p></div></header><form data-guidance-form><input type="hidden" name="action"><input type="hidden" name="guidance_id"><div class="guidance-editor-body"><div class="guidance-editor-fields" data-guidance-editor-fields><label>${L("分类")}<select name="kind"><option value="context">${L("项目背景")}</option><option value="requirement">${L("共同要求")}</option><option value="constraint">${L("硬约束")}</option><option value="convention">${L("协作约定")}</option><option value="workflow">${L("工作方式")}</option><option value="quality_bar">${L("质量标准")}</option></select></label><label>${L("说明原文")}<textarea name="content" maxlength="4000" rows="5" placeholder="${L("写成未来 Runtime 可以直接理解和遵守的完整说明")}"></textarea></label></div><p class="guidance-editor-preview" data-guidance-editor-preview hidden></p><label>${L("为什么要做这次变更")}<textarea name="reason" rows="3" required placeholder="${L("这条原因会进入版本记录，方便以后理解当时为什么修改")}"></textarea></label></div><div class="guidance-editor-actions"><p class="guidance-editor-error" data-guidance-editor-error role="alert" hidden></p><footer><button class="mw-btn mw-btn--secondary" type="button" data-guidance-editor-close>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit">${L("保存说明")}</button></footer></div></form></section>
-      <div class="guidance-settings-list">${sections}</div>
-      <div class="guidance-advanced-list">
-      <details class="settings-advanced guidance-history"><summary><span class="setting-copy"><strong>${L("版本记录")}</strong><span>${L("共 {count} 次变更", { count: guidance.revisions.length })}</span></span>${icon("chevron-down")}</summary><div class="guidance-history-list">${historyRows || `<p>${L("还没有版本记录。")}</p>`}</div></details>
-      <details class="settings-advanced guidance-inactive"><summary><span class="setting-copy"><strong>${L("已停用的说明")}</strong><span>${L("共 {count} 条", { count: guidance.inactive_entries.length })}</span></span>${icon("chevron-down")}</summary><div class="guidance-inactive-body">${inactiveItems}</div></details>
-      </div>
-      </div>
-      <script type="application/json" data-project-guidance-json>${guidanceData}</script>
-    </section>`;
-  }
+  const renderProjectGuidanceDocument = createProjectGuidanceDocumentRenderer({ L, escapeHtml, formatDate, icon });
 
   function planningPageRenderer(controlToken: string, desktopShell: boolean, navigation: string) {
     return createWorkbenchGoalsPlanningRenderer({
@@ -108,16 +70,17 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     };
   }
 
-  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
+  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return `<section class="project-settings-page" data-project-workspaces data-workspace-prefix="${escapeHtml(view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`)}">
       <header class="settings-page-heading"><h1>${L("工作目录")}</h1><p>${L("关联本机文件夹，并选择 Files 和 Git 浏览的目录。Coding 在每个会话中单独选择执行目录。")}</p></header>
       <section class="settings-section"><div class="settings-setting-row"><span class="setting-copy"><strong>${L("已关联目录")}</strong><span>${L("浏览选择对当前项目生效。")}</span></span><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-refresh>${L("刷新")}</button></div><div data-project-workspaces-list></div><p data-project-workspaces-status role="status" aria-live="polite"></p></section>
       <section class="settings-section"><h2>${L("关联新目录")}</h2><form data-project-workspaces-add><div class="settings-setting-row"><label class="setting-copy" for="project-workspace-path"><strong>${L("文件夹路径")}</strong><span>${L("选择本机文件夹或填写绝对路径。")}</span></label><div class="setting-value"><input id="project-workspace-path" name="path" required placeholder="/path/to/project"><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-pick>${L("选择目录")}</button></div></div><div class="settings-setting-row"><span class="setting-copy">${L("关联后可用于当前项目的浏览与 Coding 会话。")}</span><button class="mw-btn mw-btn--primary" type="submit">${L("关联目录")}</button></div><p data-project-workspaces-add-status role="status" aria-live="polite"></p></form></section>${renderWriteCheckersSection(L)}
     </section>`;
-    if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
-    if (section === "guidance") return renderProjectGuidanceDocument(guidance);
+    if (section === "general" || guidance === null && GOALS_SETTINGS_SECTIONS.has(section)) return folds.renderGeneralPage(hubProject(view), desktopShell);
+    if (section === "guidance") return renderProjectGuidanceDocument(guidance!);
     if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ L, projectId: escapeHtml(view.project!.project_id) });
+    if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
     if (section === "rules") return renderProjectPolicyDocument(view);
     const composition = composePlanningMethodPacks(methods.filter((method) => method.scope === "project" && method.enabled));
     return planningBodyRenderer().renderProject(view, methods, composition, desktopShell);
@@ -125,7 +88,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
 
   function renderMolisWorkProjectSettingsHub(
     view: MolisWorkWebView,
-    guidance: ProjectGuidanceView,
+    guidance: ProjectGuidanceView | null,
     methods: readonly PlanningMethodPack[],
     controlToken = "",
     desktopShell = false,
@@ -137,8 +100,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (embed) return renderHubSection(view, guidance, methods, embed, desktopShell);
     const routePrefix = view.route_prefix || `/projects/${encodeURIComponent(project.project_id)}`;
     const projectReturnHref = desktopShell ? withDesktopQuery(routePrefix || "/") : routePrefix || "/";
-    const page = renderHubSection(view, guidance, methods, open, desktopShell);
-    const navigation = renderProjectSettingsNavigation(open, project, desktopShell);
+    const page = renderHubSection(view, guidance, methods, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
     return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
@@ -151,7 +113,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
 </body></html>`;
   }
 

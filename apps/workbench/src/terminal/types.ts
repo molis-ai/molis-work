@@ -16,7 +16,6 @@ export type PanelRecord = {
     args: string[];
     cwd: string | null;
     env: Record<string, string>;
-    sessionId?: string | null;
   };
 };
 

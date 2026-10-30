@@ -1,9 +1,12 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { IntegrationProviderPort, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MemoryPluginEventsRepository,
   MemoryPluginRuntimeRepository,
+  NativePluginExecutor,
   PluginEventBus,
   PluginRuntime,
   PluginSupervisor,
@@ -16,6 +19,167 @@ import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-
  * leaves the old code with its own event contract, and a bundled upgrade can be started again by the next boot.
  */
 const ID = "io.molis.work.lifecycle-probe";
+
+test("RAC-196-U2 RAC-357-U1 uninstall cleanup retries stay revoked, serialized and replayable across a Runtime restart", async t => {
+  for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async () => {
+    const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor();
+    const contexts: PluginStartContext[] = [];
+    let starts = 0, stops = 0, cleanups = 0, active = 0, mostActive = 0;
+    const failure = new Error("Host cleanup unavailable");
+    const executor: PluginExecutor = {
+      async start(definition, context) { starts += 1; contexts.push(context); return native.start(definition, context); },
+      async stop(definition, context) { stops += 1; return native.stop(definition, context); },
+      async uninstalled(record) {
+        cleanups += 1; active += 1; mostActive = Math.max(mostActive, active);
+        try {
+          assert.equal(record.state, "uninstalled");
+          assert.deepEqual(repository.get(record.install_id), record);
+          await new Promise<void>(resolve => setImmediate(resolve));
+          if (cleanups === 1) throw failure;
+        } finally { active -= 1; }
+      },
+    };
+    const base = probe("1.0.0");
+    const definition = { ...base, manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] } };
+    const original = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
+    const id = original.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install.install_id;
+    await original.start(id);
+    contexts[0]!.requireGrant("storage:private");
+    await assert.rejects(original.uninstall(id, { retain_private_data: true }), error => error === failure);
+    const saved = original.get(id);
+    assert.equal(saved.state, "uninstalled");
+    assert.equal(original.contribution(id), null);
+    assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+    assert.doesNotThrow(() => original.register({ ...definition }), "failed Host cleanup has already released the earlier implementation");
+
+    const runtime = restart ? new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }) : original;
+    const receipts = await Promise.all([runtime.uninstall(id, { retain_private_data: false }), runtime.uninstall(id)]);
+    assert.equal(cleanups, 3, "both retries reach idempotent Host cleanup, including an already-completed replay");
+    assert.equal(mostActive, 1, "overlapping retries use the installation's lifecycle queue");
+    for (const receipt of receipts) { assert.equal(receipt.replayed, true); assert.deepEqual(receipt.install, saved); }
+    assert.deepEqual(repository.get(id), saved, "retries do not rewrite the uninstall or change the person's data choice");
+    assert.equal(starts, 1); assert.equal(stops, 1, "cleanup retries do not reactivate or stop code again");
+    assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+    assert.doesNotThrow(() => runtime.register({ ...definition }));
+  });
+});
+
+test("RAC-357-U1 reinstall requires a synchronous cleanup capability, also after restart; a Native executor without external cleanup stays usable", async t => {
+  for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async () => {
+    const stored = new MemoryPluginRuntimeRepository();
+    let writes = 0, cleanups = 0;
+    const repository = { get: (id: string) => stored.get(id), list: () => stored.list(), save(record: PluginInstanceRecord) { writes++; stored.save(record); } };
+    const executor = Object.assign(new NativePluginExecutor(), { async uninstalled() { cleanups++; } });
+    const before = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }), definition = probe("1.0.0");
+    const id = before.install({ trust: { level: "unsigned" }, definition, deployment: "local" }).install.install_id;
+    await before.start(id); await before.uninstall(id, { retain_private_data: false });
+    const saved = before.get(id), count = writes, runtime = restart ? new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }) : before;
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local" }), { code: "plugin.state_invalid" });
+    assert.equal(writes, count, "the missing synchronous capability does not create an installation or rewrite the old row");
+    assert.deepEqual(runtime.get(id), saved);
+    assert.equal(cleanups, 1, "a synchronous install must not start another asynchronous hook and leave it running");
+    assert.equal(runtime.contribution(id), null);
+    assert.doesNotThrow(() => runtime.register({ ...definition }), "a refused reinstall did not register its definition");
+  });
+  const native = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }), definition = probe("1.0.0");
+  const first = native.install({ trust: { level: "unsigned" }, definition, deployment: "local" }).install;
+  await native.start(first.install_id); await native.uninstall(first.install_id, { retain_private_data: false });
+  const again = native.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local" }).install;
+  assert.notEqual(again.installation_generation, first.installation_generation);
+  await native.start(again.install_id);
+  assert.equal(native.get(again.install_id).state, "running");
+  await native.stop(again.install_id);
+});
+
+test("RAC-357-U1 reinstall validates grants before cleaning, preserves ActionError and maps an ordinary Host cleanup failure", async t => {
+  for (const failure of [new ActionError("plugin.declaration_invalid", "unsafe owner-files path"), new Error("KV deletion unavailable")])
+  await t.test(failure.name + ": " + failure.message, async () => {
+    const stored = new MemoryPluginRuntimeRepository();
+    let writes = 0, cleanups = 0;
+    const repository = { get: (id: string) => stored.get(id), list: () => stored.list(), save(record: PluginInstanceRecord) { writes++; stored.save(record); } };
+    const executor = Object.assign(new NativePluginExecutor(), { uninstalled() {}, keptDataDiscarded(record: PluginInstanceRecord) {
+      cleanups++; assert.deepEqual(record, removed); throw failure;
+    } });
+    const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }), definition = probe("1.0.0");
+    const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" }).install.install_id;
+    await runtime.uninstall(id, { retain_private_data: false });
+    const removed = runtime.get(id), count = writes;
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["undeclared"] }), { code: "plugin.grant_denied" });
+    assert.equal(cleanups, 0, "bad grants cannot trigger deletion");
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local" }), (error: unknown) =>
+      failure instanceof ActionError ? error === failure : error instanceof ActionError && error.code === "plugin.executor_failed");
+    assert.equal(cleanups, 1);
+    assert.equal(writes, count);
+    assert.deepEqual(runtime.get(id), removed);
+    assert.equal(runtime.contribution(id), null);
+    assert.doesNotThrow(() => runtime.register({ ...definition }));
+  });
+});
+
+test("RAC-196-U3 a replay suspended in cleanup refuses reinstall, then immediately admits a new generation after it returns", { timeout: 10_000 }, async () => {
+  const repository = new MemoryPluginRuntimeRepository();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let suspended = false, replacementStarted = false;
+  const executor = Object.assign(new NativePluginExecutor(), {
+    async uninstalled() { if (suspended) { entered.resolve(); await release.promise; } },
+  });
+  const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }), definition = probe("1.0.0");
+  const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" }).install.install_id;
+  await runtime.start(id); await runtime.uninstall(id);
+  const removed = runtime.get(id);
+  const replacement: PluginDefinition = { ...definition, async start(context) { replacementStarted = true; return definition.start(context); } };
+  suspended = true;
+  const replay = runtime.uninstall(id);
+  try {
+    await entered.promise;
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: replacement, deployment: "local" }), { code: "plugin.state_invalid" });
+    assert.deepEqual(repository.get(id), removed, "refused reinstall has no new generation or other stored side effect");
+  } finally { release.resolve(); await replay; }
+  // No extra turn is allowed here: await uninstall means its own queue marker is already released.
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: replacement, deployment: "local" }).install;
+  assert.notEqual(installed.installation_generation, removed.installation_generation);
+  assert.equal(installed.version, removed.version);
+  await runtime.start(id);
+  assert.equal(runtime.get(id).state, "running");
+  assert.equal(runtime.get(id).installation_generation, installed.installation_generation);
+  assert.equal(replacementStarted, true, "the new definition, not the earlier one, can start");
+  await runtime.stop(id);
+});
+
+test("RAC-196-U4 failed cleanup lets its queued retry continue and cannot release the newer retry's queue marker", { timeout: 10_000 }, async () => {
+  const firstEntered = Promise.withResolvers<void>(), firstRelease = Promise.withResolvers<void>();
+  const nextEntered = Promise.withResolvers<void>(), nextRelease = Promise.withResolvers<void>();
+  const failure = new Error("cleanup temporarily unavailable"), events: string[] = [];
+  let calls = 0;
+  const executor = Object.assign(new NativePluginExecutor(), {
+    async uninstalled() {
+      calls += 1;
+      if (calls === 2) {
+        events.push("first enters"); firstEntered.resolve(); await firstRelease.promise;
+        events.push("first fails"); throw failure;
+      }
+      if (calls === 3) { events.push("next enters"); nextEntered.resolve(); await nextRelease.promise; }
+    },
+  });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), executor, { hostIds: ISOLATED_HOST_IDS }), definition = probe("1.0.0");
+  const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" }).install.install_id;
+  await runtime.start(id); await runtime.uninstall(id);
+  const removed = runtime.get(id), replacement = { ...definition };
+  const failed = assert.rejects(runtime.uninstall(id), error => error === failure);
+  await firstEntered.promise;
+  const next = runtime.uninstall(id);
+  try {
+    firstRelease.resolve(); await failed; await nextEntered.promise;
+    assert.deepEqual(events, ["first enters", "first fails", "next enters"], "the next cleanup starts only after the failed one ends");
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: replacement, deployment: "local" }), { code: "plugin.state_invalid" });
+    assert.deepEqual(runtime.get(id), removed, "the queued retry still owns the uninstall; reinstall did not change it");
+  } finally { firstRelease.resolve(); nextRelease.resolve(); await failed; await next; }
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: replacement, deployment: "local" }).install;
+  assert.notEqual(installed.installation_generation, removed.installation_generation);
+  await runtime.start(id);
+  assert.equal(runtime.get(id).state, "running");
+  await runtime.stop(id);
+});
 
 interface ProbeOptions {
   starts?: string[];
@@ -52,7 +216,7 @@ function probe(version: string, options: ProbeOptions = {}): PluginDefinition {
     async start() {
       options.starts?.push(version);
       if (options.failStart) throw new Error(version + " cannot start");
-      return { kind: "app", views: [{ descriptor: { contribution_id: ID + ".main", plugin_id: ID, kind: "primary-page", label: "m", slots: [] }, render: () => "<p></p>" }] };
+      return { kind: "app", views: [{ descriptor: { contribution_id: ID + ".main", kind: "primary-page", label: "m", slots: [] }, render: () => "<p></p>" }] };
     },
     async stop() {},
   } as PluginDefinition;
@@ -65,9 +229,9 @@ async function code(operation: Promise<unknown> | (() => unknown)): Promise<stri
 
 test("upgrading or rolling back a disabled install switches the code and leaves it disabled", async () => {
   const starts: string[] = [];
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
-  const id = runtime.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await runtime.start(id);
   await runtime.stop(id);
   assert.equal(runtime.get(id).state, "disabled");
@@ -91,9 +255,9 @@ test("upgrading or rolling back a disabled install switches the code and leaves 
 
 test("a failed upgrade of a disabled install does not start the old code either", async () => {
   const starts: string[] = [];
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"], failValidation: true });
-  const id = runtime.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await runtime.start(id);
   await runtime.stop(id);
   starts.length = 0;
@@ -106,9 +270,9 @@ test("a failed upgrade of a disabled install does not start the old code either"
 
 test("a running install that fails its upgrade is restored to running; a disabled one is not", async () => {
   const starts: string[] = [];
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { starts }), v2 = probe("2.0.0", { starts, compatible: ["1.0.0"], failStart: true });
-  const id = runtime.install({ definition: v1, deployment: "local" }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local" }).install.install_id;
   await runtime.start(id);
   assert.equal(await code(runtime.upgrade({ install_id: id, definition: v2 })), "plugin.executor_failed");
   assert.equal(runtime.get(id).state, "running", "the old version keeps serving");
@@ -120,13 +284,13 @@ test("upgrading or rolling back a disabled install still works after a restart, 
   const starts: string[] = [];
   const repository = new MemoryPluginRuntimeRepository();
   const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
-  const before = new PluginRuntime(repository);
-  const id = before.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const before = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const id = before.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await before.start(id);
   await before.stop(id);
   starts.length = 0;
 
-  const restarted = new PluginRuntime(repository);
+  const restarted = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
   assert.equal((await restarted.upgrade({ install_id: id, definition: v2 })).install.state, "disabled");
   assert.equal(restarted.get(id).version, "2.0.0");
   assert.equal((await restarted.rollback({ install_id: id, definition: v1 })).install.state, "disabled");
@@ -139,7 +303,7 @@ test("upgrading or rolling back a disabled install still works after a restart, 
 
 test("Supervisor switches the version of a plugin the Host switched off, keeps it off, and enable starts the new version", async () => {
   const starts: string[] = [];
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
   await supervisor.start([{ definition: v1, grants: [] }]);
@@ -183,13 +347,13 @@ test("Supervisor switches the version of a disabled install it has never been to
   const starts: string[] = [];
   const repository = new MemoryPluginRuntimeRepository();
   const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
-  const first = new PluginRuntime(repository);
-  const id = first.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const id = first.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await first.start(id);
   await first.stop(id);
   starts.length = 0;
 
-  const runtime = new PluginRuntime(repository), supervisor = new PluginSupervisor(runtime);
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
   assert.equal(supervisor.manifest(ID), undefined, "nothing was registered for it");
   const switched = await supervisor.upgrade(ID, v2);
   assert.equal(switched.code, "plugin.revoked");
@@ -209,13 +373,13 @@ test("Supervisor switches the version of a disabled install it has never been to
 test("Supervisor says it does not know an install it never started, and does not remember the question", async () => {
   const repository = new MemoryPluginRuntimeRepository();
   const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });
-  const first = new PluginRuntime(repository);
-  const id = first.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const id = first.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await first.start(id);
   await first.stop(id, { preserve_enabled: true });
   assert.equal(first.get(id).state, "installed");
 
-  const runtime = new PluginRuntime(repository), supervisor = new PluginSupervisor(runtime);
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
   const refused = await supervisor.upgrade(ID, v2);
   assert.equal(refused.code, "plugin_unknown");
   assert.equal(supervisor.state(ID), null, "a question about a plugin nobody registered leaves no state behind");
@@ -227,13 +391,13 @@ test("Supervisor says it does not know an install it never started, and does not
 
 test("after an uninstall a confirmed install at another version is a fresh installation of that version", async () => {
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository);
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });
-  const first = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install;
   await runtime.start(first.install_id);
   await runtime.uninstall(first.install_id, { retain_private_data: true });
 
-  const again = runtime.install({ definition: v2, deployment: "local", grants: [] }).install;
+  const again = runtime.install({ trust: { level: "unsigned" }, definition: v2, deployment: "local", grants: [] }).install;
   assert.equal(again.install_id, first.install_id, "the data identity is kept");
   assert.equal(again.version, "2.0.0");
   assert.equal(again.state, "installed");
@@ -248,42 +412,42 @@ test("after an uninstall a confirmed install at another version is a fresh insta
 });
 
 test("a reinstall at another version reuses kept data only when that version declares it can read it, else the person must agree to drop it", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0"), v2 = probe("2.0.0"), v3 = probe("3.0.0", { migratable: ["1.0.0"] });
-  const id = runtime.install({ definition: v1, deployment: "local" }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local" }).install.install_id;
 
   await runtime.uninstall(id, { retain_private_data: true });
-  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local" })), "plugin.kept_data_incompatible",
+  assert.equal(await code(() => runtime.install({ trust: { level: "unsigned" }, definition: v2, deployment: "local" })), "plugin.kept_data_incompatible",
     "kept data from 1.0.0 is not handed to code that never promised to read it");
-  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local" })), "plugin.kept_data_incompatible",
+  assert.equal(await code(() => runtime.install({ trust: { level: "unsigned" }, definition: v3, deployment: "local" })), "plugin.kept_data_incompatible",
     "reading it needs a migration check an install cannot run");
-  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local", discard_kept_data: false })), "plugin.kept_data_incompatible");
+  assert.equal(await code(() => runtime.install({ trust: { level: "unsigned" }, definition: v2, deployment: "local", discard_kept_data: false })), "plugin.kept_data_incompatible");
   assert.equal(runtime.get(id).state, "uninstalled", "a refused install changes nothing");
   assert.equal(runtime.get(id).version, "1.0.0");
-  assert.equal(runtime.install({ definition: v1, deployment: "local" }).install.version, "1.0.0", "the uninstalled version itself is always possible");
+  assert.equal(runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local" }).install.version, "1.0.0", "the uninstalled version itself is always possible");
 
   await runtime.uninstall(id, { retain_private_data: true });
   const earlier = runtime.get(id).installation_generation;
-  const agreed = runtime.install({ definition: v2, deployment: "local", discard_kept_data: true }).install;
+  const agreed = runtime.install({ trust: { level: "unsigned" }, definition: v2, deployment: "local", discard_kept_data: true }).install;
   assert.equal(agreed.version, "2.0.0", "with the person's explicit word the other version installs fresh (the Host drops the data)");
   assert.equal(agreed.state, "installed");
   assert.notEqual(agreed.installation_generation, earlier, "it is a new installation");
 
   await runtime.uninstall(id, { retain_private_data: false });
-  const fresh = runtime.install({ definition: v3, deployment: "local" }).install;
+  const fresh = runtime.install({ trust: { level: "unsigned" }, definition: v3, deployment: "local" }).install;
   assert.equal(fresh.version, "3.0.0", "with the data deleted there is nothing to protect");
   assert.equal(fresh.state, "installed");
 });
 
 test("an install that did not finish goes back to the uninstalled record it replaced, and only that install can be taken back", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { sandbox: true }), v3 = probe("3.0.0", { sandbox: true });
-  const id = runtime.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await runtime.start(id);
   await runtime.uninstall(id, { retain_private_data: true });
   const earlier = runtime.get(id);
 
-  const fresh = runtime.install({ definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
+  const fresh = runtime.install({ trust: { level: "unsigned" }, definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
   await runtime.start(id);
   assert.equal(runtime.get(id).state, "running");
   assert.equal(await code(() => runtime.abandonInstall(fresh, { ...earlier, state: "installed" })), "plugin.state_invalid", "only an uninstalled record can be gone back to");
@@ -291,20 +455,20 @@ test("an install that did not finish goes back to the uninstalled record it repl
   assert.deepEqual(runtime.get(id), earlier, "version, Manifest digest, installation generation and kept data are the earlier ones, whole");
   assert.equal(receipt.replayed, false);
   assert.equal(runtime.contribution(id), null, "the running code was stopped");
-  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local", grants: [] })), "plugin.kept_data_incompatible",
+  assert.equal(await code(() => runtime.install({ trust: { level: "unsigned" }, definition: v3, deployment: "local", grants: [] })), "plugin.kept_data_incompatible",
     "so a plain install of the version that failed is asked about the kept data again");
   assert.equal((await runtime.abandonInstall(fresh, earlier)).replayed, true, "taking it back twice changes nothing");
 
-  const another = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  const another = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install;
   assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin.install_replaced",
     "an install that started over since is not undone by the old attempt, and the refusal says why, apart from a wrong record being named");
   assert.deepEqual(runtime.get(id), another);
 });
 
 test("a first-ever install that did not finish is taken back only while it is still the row's install", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { sandbox: true });
-  const first = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install;
   await runtime.start(first.install_id);
   const receipt = await runtime.abandonInstall(first);
   assert.equal(receipt.replayed, false);
@@ -314,7 +478,7 @@ test("a first-ever install that did not finish is taken back only while it is st
   assert.equal(runtime.contribution(first.install_id), null, "the running code was stopped");
 
   // The person uninstalled it, or uninstalled it and installed again: the attempt is no longer the one the row holds.
-  const second = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  const second = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install;
   await runtime.start(second.install_id);
   assert.equal(await code(() => runtime.abandonInstall(first)), "plugin.install_replaced", "a newer install is not undone by the old attempt");
   assert.deepEqual(runtime.get(second.install_id).state, "running");
@@ -326,14 +490,14 @@ test("a first-ever install that did not finish is taken back only while it is st
 });
 
 test("an install over kept data that the person uninstalled meanwhile is not taken back over their choice", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { sandbox: true }), v3 = probe("3.0.0", { sandbox: true });
-  const id = runtime.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.install_id;
   await runtime.start(id);
   await runtime.uninstall(id, { retain_private_data: true });
   const earlier = runtime.get(id);
 
-  const fresh = runtime.install({ definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
+  const fresh = runtime.install({ trust: { level: "unsigned" }, definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
   await runtime.start(id);
   await runtime.uninstall(id, { retain_private_data: false });   // the person drops the data while the install is starting
   const chosen = runtime.get(id);
@@ -343,29 +507,29 @@ test("an install over kept data that the person uninstalled meanwhile is not tak
 });
 
 test("a reinstall of a generated plugin may use an older release; a Host that ships a version always installs it", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });
-  const id = runtime.install({ definition: v2, deployment: "local", grants: [] }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: v2, deployment: "local", grants: [] }).install.install_id;
   await runtime.uninstall(id, { retain_private_data: true });
-  assert.equal(runtime.install({ definition: v1, deployment: "local", grants: [] }).install.version, "1.0.0", "generated code rolls back without rolling its data back");
+  assert.equal(runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install.version, "1.0.0", "generated code rolls back without rolling its data back");
 
-  const host = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const host = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const h1 = probe("1.0.0"), h2 = probe("2.0.0");
-  const hostId = host.install({ definition: h1, deployment: "local" }).install.install_id;
+  const hostId = host.install({ trust: { level: "unsigned" }, definition: h1, deployment: "local" }).install.install_id;
   await host.uninstall(hostId, { retain_private_data: true });
-  assert.equal(host.install({ definition: h2, deployment: "local", bundled: true }).install.version, "2.0.0");
+  assert.equal(host.install({ definition: h2, deployment: "local", trust: { level: "host" } }).install.version, "2.0.0");
   await host.uninstall(hostId, { retain_private_data: true });
-  assert.equal(await code(() => host.install({ definition: h1, deployment: "local", bundled: true })), "plugin.kept_data_incompatible",
+  assert.equal(await code(() => host.install({ definition: h1, deployment: "local", trust: { level: "host" } })), "plugin.kept_data_incompatible",
     "the Host only moves its plugins up: an older bundled version does not get newer kept data");
 });
 
 test("a reinstall at the same version with a different manifest is still refused", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const original = probe("1.0.0");
-  const id = runtime.install({ definition: original, deployment: "local" }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: original, deployment: "local" }).install.install_id;
   await runtime.uninstall(id);
   const changed = probe("1.0.0", { publishes: ["extra"] });
-  assert.equal(await code(() => runtime.install({ definition: changed, deployment: "local" })), "plugin.definition_conflict");
+  assert.equal(await code(() => runtime.install({ trust: { level: "unsigned" }, definition: changed, deployment: "local" })), "plugin.definition_conflict");
 });
 
 test("a Host start can follow a bundled upgrade that made a required permission optional", async () => {
@@ -373,14 +537,14 @@ test("a Host start can follow a bundled upgrade that made a required permission 
     type: "x", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
   };
-  const original = createGithubIntegrationPlugin({ provider });
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const v1: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
   const v2: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "2.0.0",
     permissions: original.manifest.permissions.map((permission, index) => index === 0 ? { ...permission, required: false } : permission) } };
   const repository = new MemoryPluginRuntimeRepository();
   const boot = async (definition: PluginDefinition) => {
-    const runtime = new PluginRuntime(repository);
-    const report = await new PluginSupervisor(runtime).start([{ definition, bundled: true }]);
+    const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+    const report = await new PluginSupervisor(runtime).start([{ definition, trust: { level: "host" } }]);
     for (const record of runtime.list()) if (record.state === "running") await runtime.stop(record.install_id, { preserve_enabled: true });
     return { report, runtime };
   };
@@ -394,7 +558,7 @@ test("a Host start can follow a bundled upgrade that made a required permission 
 });
 
 test("a failed upgrade from a crashed install leaves the old code with its own event contract", async () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({ projectId: "p", lifecycle: supervisor, repository: new MemoryPluginEventsRepository() });
   const v1 = probe("1.0.0", { publishes: ["a"] }), v2 = probe("2.0.0", { publishes: ["b"], failStart: true, compatible: ["1.0.0"] });
@@ -415,4 +579,266 @@ test("a failed upgrade from a crashed install leaves the old code with its own e
   assert.equal(publish("a"), "accepted", "the old code publishes what it declared");
   assert.equal(publish("b"), "plugin.event_not_declared", "and nothing the failed candidate declared");
   await runtime.stop(id);
+});
+
+/** A Runtime over the Native executor that counts stop hooks; `failStop` makes the next ones throw. */
+function countingRuntime(repository = new MemoryPluginRuntimeRepository()) {
+  const native = new NativePluginExecutor(), seen = { stops: 0, failStop: false };
+  const executor: PluginExecutor = {
+    start: (definition, context) => native.start(definition, context),
+    async stop(definition, context) { seen.stops += 1; if (seen.failStop) throw new Error("stop hook failed"); return native.stop(definition, context); },
+  };
+  return { repository, executor, seen, runtime: new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }) };
+}
+
+// RAC-1193 T-034: stopping a crashed or never-started install is the person switching it off. Nothing runs, so no stop hook runs;
+// the record says disabled and keeps its crash code and recovery count, a new Runtime on the same repository reads it back, and
+// start runs it again.
+test("RAC-1193 stopping a crashed or never-started install records disabled, keeps its crash code and recovery count, and start runs it again", async t => {
+  for (const crashed of [true, false]) await t.test(crashed ? "crashed" : "never started", async () => {
+    const { repository, executor, seen, runtime } = countingRuntime(), definition = probe("1.0.0");
+    const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install.install_id;
+    // One recovery on the way, so the count the stop has to keep is 1, not the 0 every install starts from.
+    if (crashed) { await runtime.start(id); await runtime.reportCrash(id); await runtime.recover(id); await runtime.reportCrash(id); }
+    const before = runtime.get(id), stops = seen.stops;
+    assert.equal(before.state, crashed ? "crashed" : "installed");
+    assert.deepEqual([before.last_error_code, before.recovery_count], crashed ? ["plugin.process_crashed", 1] : [null, 0]);
+
+    const receipt = await runtime.stop(id);
+    assert.equal(receipt.replayed, false);
+    const kept = (record: PluginInstanceRecord) => [record.state, record.last_error_code, record.recovery_count];
+    assert.deepEqual(kept(runtime.get(id)), ["disabled", before.last_error_code, before.recovery_count], "only the state changes");
+    assert.deepEqual(kept(receipt.install), kept(runtime.get(id)));
+    assert.equal(seen.stops, stops, "nothing was running, so no stop hook runs");
+
+    const restarted = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
+    restarted.register(definition);
+    assert.deepEqual(kept(restarted.get(id)), ["disabled", before.last_error_code, before.recovery_count], "the switch-off outlives the Runtime");
+    assert.equal((await restarted.start(id)).install.state, "running");
+    // Current behaviour pinned here: start leaves the recovery count alone; only install, a version switch and a quarantine release reset it.
+    assert.equal(restarted.get(id).recovery_count, before.recovery_count);
+    await restarted.stop(id);
+  });
+});
+
+// RAC-1194 T-034: what a stop still refuses, leaving the record as it was. A quarantine is released only explicitly, and a disabled
+// install can be started, so a stop does not turn one into the other. Host shutdown's preserve_enabled neither erases a crash nor
+// turns a never-started install into the person's choice. An uninstalled install has nothing to stop. And a running install whose
+// stop hook fails is still recorded crashed.
+test("RAC-1194 a stop still refuses a quarantined or uninstalled install and a preserve_enabled stop of a crashed or never-started one; a failing stop hook still records crashed", async () => {
+  const { seen, runtime } = countingRuntime();
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: probe("1.0.0"), deployment: "local", grants: [] }).install.install_id;
+  const refused = async (options?: { preserve_enabled: true }) => {
+    const before = runtime.get(id), stops = seen.stops;
+    assert.equal(await code(runtime.stop(id, options)), "plugin.state_invalid", before.state);
+    assert.deepEqual(runtime.get(id), before, before.state + " stays as it was");
+    assert.equal(seen.stops, stops, "no stop hook runs");
+  };
+
+  await refused({ preserve_enabled: true });
+  assert.equal(runtime.get(id).state, "installed");
+  await runtime.start(id); await runtime.reportCrash(id);
+  await refused({ preserve_enabled: true });
+  assert.equal(runtime.get(id).state, "crashed");
+
+  for (let n = 0; n < 3; n++) { await runtime.recover(id); await runtime.reportCrash(id); }
+  assert.equal(await code(runtime.recover(id)), "plugin.quarantined");
+  await refused();
+  await refused({ preserve_enabled: true });
+  assert.equal(runtime.get(id).state, "quarantined");
+
+  await runtime.recover(id, { release_quarantine: true });
+  seen.failStop = true;
+  assert.equal(await code(runtime.stop(id)), "plugin.executor_failed");
+  assert.equal(runtime.get(id).state, "crashed");
+  assert.equal(runtime.get(id).last_error_code, "plugin.executor_failed");
+
+  await runtime.uninstall(id);
+  await refused();
+  assert.equal(runtime.get(id).state, "uninstalled");
+});
+
+/**
+ * T-042: a Runtime whose probe start obeys a mode. `run` starts; `fail` throws; `hold` (only the next start) says it has been
+ * reached, waits at a gate the test releases, then asks for its grant. `writes` lists the state of every record the repository
+ * saved, since a queued stop overwrites the last record and would hide a crash written on the way.
+ */
+function steered(options: { maxRecoveryAttempts?: number } = {}) {
+  const repository = new MemoryPluginRuntimeRepository(), writes: string[] = [], save = repository.save.bind(repository);
+  repository.save = record => { writes.push(record.state); save(record); };
+  const base = probe("1.0.0");
+  let mode: "run" | "fail" | "hold" = "run", held = { reached: () => {}, gate: Promise.resolve() };
+  const definition = {
+    ...base,
+    manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] },
+    async start(context: PluginStartContext) {
+      const now = mode;
+      if (now === "hold") mode = "run";
+      if (now === "fail") throw new Error("probe start failed");
+      if (now === "hold") { held.reached(); await held.gate; context.requireGrant("storage:private"); }
+      return base.start(context);
+    },
+  } as PluginDefinition;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...options });
+  return {
+    repository, runtime, definition, writes,
+    install: () => runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install.install_id,
+    fail() { mode = "fail"; },
+    hold() {
+      let reached!: () => void, release!: () => void;
+      const entered = new Promise<void>(resolve => { reached = resolve; });
+      held = { reached, gate: new Promise<void>(resolve => { release = resolve; }) };
+      mode = "hold";
+      return { entered, release };
+    },
+  };
+}
+
+// RAC-1465 T-042: a person's stop arrives while a start is still running. The stop revokes the activation at once and waits for the
+// lifecycle lock; the start then meets the revoked grant. That is a cancelled start, not a crash.
+test("RAC-1465 a start interrupted by a stop fails with plugin.state_invalid, never records crashed, and the queued stop records disabled", async () => {
+  const { repository, runtime, writes, install, hold } = steered();
+  const id = install();
+  const { entered, release } = hold();
+  const starting = code(runtime.start(id));
+  await entered;
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal(await starting, "plugin.state_invalid");
+  assert.equal(await stopping, undefined);
+  const record = repository.get(id)!;
+  assert.deepEqual([record.state, record.last_error_code, record.recovery_count], ["disabled", null, 0]);
+  assert.equal(writes.filter(state => state === "crashed").length, 0, "no crash was written on the way");
+});
+
+// RAC-1466 T-042: the same for a recovery. With a budget of one attempt, counting the interrupted one would quarantine the plugin.
+test("RAC-1466 a recovery interrupted by a stop fails with plugin.state_invalid, spends no recovery budget, and the queued stop records disabled", async () => {
+  const { repository, runtime, writes, install, hold } = steered({ maxRecoveryAttempts: 1 });
+  const id = install();
+  await runtime.start(id); await runtime.reportCrash(id);
+  const before = repository.get(id)!, from = writes.length;
+  const { entered, release } = hold();
+  const recovering = code(runtime.recover(id));
+  await entered;
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal(await recovering, "plugin.state_invalid");
+  assert.equal(await stopping, undefined);
+  const record = repository.get(id)!;
+  assert.deepEqual([record.state, record.last_error_code, record.recovery_count], ["disabled", before.last_error_code, before.recovery_count]);
+  assert.deepEqual(writes.slice(from).filter(state => state !== "disabled"), [], "nothing but the stop was written");
+});
+
+// RAC-1467 T-042: a quarantine release interrupted by a stop puts the quarantine back as it was, and the queued stop is still refused:
+// only an explicit release lifts a quarantine (T-034).
+test("RAC-1467 a quarantine release interrupted by a stop restores the quarantine with its count and code, and the queued stop is refused", async () => {
+  const { repository, runtime, install, fail, hold } = steered({ maxRecoveryAttempts: 1 });
+  const id = install();
+  await runtime.start(id); await runtime.reportCrash(id);
+  fail();
+  assert.equal(await code(runtime.recover(id)), "plugin.quarantined");
+  const before = repository.get(id)!;
+  assert.equal(before.state, "quarantined");
+  const { entered, release } = hold();
+  const releasing = code(runtime.recover(id, { release_quarantine: true }));
+  await entered;
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal(await releasing, "plugin.state_invalid");
+  assert.equal(await stopping, "plugin.state_invalid");
+  const record = repository.get(id)!;
+  assert.deepEqual([record.state, record.last_error_code, record.recovery_count], ["quarantined", before.last_error_code, before.recovery_count]);
+});
+
+// RAC-1468 T-042: with nobody stopping it, a failing start or recovery is still a crash, and the recovery budget still runs out.
+test("RAC-1468 a start or recovery that fails by itself still records crashed, counts the attempt and quarantines at the limit", async () => {
+  const first = steered();
+  const started = first.install();
+  first.fail();
+  assert.equal(await code(first.runtime.start(started)), "plugin.executor_failed");
+  const crashed = first.repository.get(started)!;
+  assert.equal(crashed.state, "crashed");
+  assert.notEqual(crashed.last_error_code, null);
+
+  const second = steered({ maxRecoveryAttempts: 1 });
+  const recovered = second.install();
+  await second.runtime.start(recovered); await second.runtime.reportCrash(recovered);
+  second.fail();
+  assert.equal(await code(second.runtime.recover(recovered)), "plugin.quarantined");
+  const record = second.repository.get(recovered)!;
+  assert.deepEqual([record.state, record.recovery_count], ["quarantined", 1]);
+});
+
+// RAC-1469 T-042: the project refresh's two steps (Supervisor revoke, then Runtime stop) land while the Supervisor is recovering a
+// crashed plugin. The Supervisor reports the revoke; the Runtime record says disabled and the recovery count did not move.
+test("RAC-1469 a project refresh that switches a plugin off during a Supervisor restart leaves the Runtime record disabled with its recovery count", async () => {
+  const { runtime, definition, hold } = steered();
+  const supervisor = new PluginSupervisor(runtime);
+  await supervisor.start([{ definition }]);
+  const id = supervisor.state(ID)!.install_id!;
+  assert.equal(runtime.get(id).state, "running");
+  await runtime.reportCrash(id);
+  const before = runtime.get(id);
+  const { entered, release } = hold();
+  const restarting = supervisor.restart(ID);
+  await entered;
+  supervisor.revoke(ID);
+  const stopping = code(runtime.stop(id));
+  release();
+  assert.equal((await restarting).code, "plugin.revoked");
+  assert.equal(await stopping, undefined);
+  const record = runtime.get(id);
+  assert.deepEqual([record.state, record.recovery_count], ["disabled", before.recovery_count]);
+});
+
+/**
+ * T-124: a Runtime whose repository can lose one installation's record, over an executor that notes, at each stop hook, whether the
+ * instance still offered its contribution then (it must already be withdrawn) and can make the hook throw.
+ */
+function forgetting() {
+  const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor(), get = repository.get.bind(repository);
+  const seen = { gone: "", failStop: false, hooks: [] as Array<{ offered: boolean }> };
+  repository.get = installId => installId === seen.gone ? null : get(installId);
+  const executor: PluginExecutor = {
+    start: (definition, context) => native.start(definition, context),
+    async stop(definition, context) {
+      seen.hooks.push({ offered: runtime.contribution(context.install_id) !== null });
+      if (seen.failStop) throw new Error("stop hook failed");
+      return native.stop(definition, context);
+    },
+  };
+  const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
+  return { seen, runtime };
+}
+
+// RAC-1920 T-124: the installation record of a running plugin is deleted under the Runtime. The stop cannot record anything, so it
+// reports the missing record as before, but it still lets go of what this process activated: the contribution is withdrawn first, then
+// the stop hook runs once with the context it started with. A second stop finds nothing live, so no hook runs again.
+test("RAC-1920 a stop that finds no installation record withdraws the live instance, runs its stop hook once and reports the missing record", async () => {
+  const { seen, runtime } = forgetting();
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: probe("1.0.0"), deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(id);
+  assert.ok(runtime.contribution(id), "the started instance offers its contribution");
+  seen.gone = id;
+
+  assert.equal(await code(runtime.stop(id, { preserve_enabled: true })), "plugin.definition_missing");
+  assert.deepEqual(seen.hooks, [{ offered: false }], "one stop hook, after the contribution was withdrawn");
+  assert.equal(runtime.contribution(id), null, "nothing of the instance is kept");
+
+  assert.equal(await code(runtime.stop(id)), "plugin.definition_missing");
+  assert.equal(seen.hooks.length, 1, "nothing live is left to stop");
+});
+
+// RAC-1921 T-124: with no record there is nothing to mark crashed, so a failing stop hook still leaves the stop reporting the missing
+// record, and the instance is let go all the same.
+test("RAC-1921 when the stop hook of an instance without a record throws, the stop still reports the missing record and keeps nothing", async () => {
+  const { seen, runtime } = forgetting();
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: probe("1.0.0"), deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(id);
+  seen.gone = id;
+  seen.failStop = true;
+
+  assert.equal(await code(runtime.stop(id)), "plugin.definition_missing");
+  assert.equal(seen.hooks.length, 1);
+  assert.equal(runtime.contribution(id), null);
 });

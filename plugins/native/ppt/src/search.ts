@@ -1,5 +1,5 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_PROJECT_PLUGIN_ID, PPT_SUBJECT_KIND, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_PROJECT_PLUGIN_ID, PPT_SUBJECT_KIND, type PptRecord } from "./contract.js";
 import type { PptStore } from "./store.js";
 import { pptErrors } from "./error.js";
 
@@ -33,7 +33,7 @@ export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) =>
         throw error;
       }
       return subjectContext({ subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, revision: String(presentation.version), title: presentation.title,
-        content: pptSearchContent(presentation), goal_ids: [], session_id: null, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } });
+        content: pptSearchContent(presentation), open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } });
     }) },
   ];
 }

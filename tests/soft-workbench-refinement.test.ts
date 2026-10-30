@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PLUGIN_COMPONENT_STYLES, PLUGIN_ICON, STATUS_ICON } from "@molis-ai/molis-work-design-system";
+import { PLUGIN_COMPONENT_STYLES, STATUS_ICON } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
   renderMolisWorkArrivalStylesheet,
@@ -18,12 +18,10 @@ const sheets = () => [
   ["arrival", renderMolisWorkArrivalStylesheet()],
 ] as const;
 
-test("each plugin has one glyph, the same one the Manifests declare, and no two plugins share it", () => {
-  const declared = pluginTabGlyphs();
-  for (const [id, glyph] of Object.entries(declared)) {
-    if (id in PLUGIN_ICON) assert.equal(PLUGIN_ICON[id as keyof typeof PLUGIN_ICON], glyph, `${id} draws ${glyph} in its Manifest`);
-  }
-  const glyphs = Object.values(PLUGIN_ICON);
+// RAC-707 (PG-075): the Manifests are the one source of a plugin's glyph; the design system keeps no table of its own to hold them to.
+test("each plugin has one glyph, the one its Manifest declares, and no two plugins share it", () => {
+  const glyphs = Object.values(pluginTabGlyphs());
+  assert.ok(glyphs.length > 20, "the glyphs are read from the Manifests of the built-in plugins");
   assert.equal(new Set(glyphs).size, glyphs.length, "plugin glyphs are unique");
   assert.ok(!glyphs.includes("sparkles" as never), "the AI mark is not a plugin identity");
 });

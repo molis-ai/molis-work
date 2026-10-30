@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
-import { openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime, person } from "./fixtures/home-runtime.js";
@@ -176,3 +177,40 @@ async function scanDirectory(t: TestContext, vault: string) {
   assert.ok(grant);
   return f.host.homeActionClient().invoke(caller, cogniaActions.scan, {grant_id: grant.grant_id, path: "."});
 }
+
+test("RAC-1665 names and titles are counted in Unicode characters like the action schema: 120 for a domain, 200 for a source, 500 for a material title, and one more is refused", fixture(store => {
+  // The action schemas (src/actions.ts, src/action-schema.ts) count characters; one 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const refused = (message: string) => ({ code: "cognia.invalid", message });
+  const domain = store.createDomain("旧领域");
+  assert.equal(store.renameDomain(domain.id, wide(120)).name, wide(120), "a 120-character domain name is taken on rename");
+  assert.equal(store.createDomain(wide(120)).id, domain.id, "and found again by the same name");
+  assert.throws(() => store.createDomain(wide(121)), refused("请输入领域名称"), "121 characters is still past the domain limit");
+  assert.throws(() => store.renameDomain(domain.id, wide(121)), refused("请输入领域名称"), "also on rename");
+  const pending = store.preview({ name: wide(200), kind: "markdown", locator: "local:/wide-name", files: [text("a.md", "# A")] });
+  assert.equal(pending.source.name, wide(200), "a new source takes a 200-character name");
+  assert.throws(() => store.preview({ name: wide(201), kind: "markdown", locator: "local:/wider-name", files: [text("a.md", "# A")] }),
+    refused("请输入来源名称"), "201 characters is still past the source limit");
+  const { source_id } = store.commit(pending.id);
+  assert.equal(store.renameSource(source_id, wide(200)).name, wide(200), "a source is renamed to 200 characters");
+  assert.throws(() => store.renameSource(source_id, wide(201)), refused("请输入来源名称"), "also on rename");
+  const material = store.createMaterial({ title: wide(500), body: "正文" });
+  assert.equal(material.title, wide(500), "a 500-character title is taken");
+  assert.equal(store.updateMaterial(material.id, { title: wide(500), body: "新正文" }).title, wide(500), "and kept on update");
+  assert.throws(() => store.createMaterial({ title: wide(501), body: "正文" }), refused("请输入标题"), "501 characters is still past the title limit");
+  assert.throws(() => store.updateMaterial(material.id, { title: wide(501), body: "新正文" }), refused("请输入标题"), "also on update");
+  assert.equal(store.read(material.id).revision, 2, "the refused update wrote nothing");
+  assert.deepEqual(store.domains().map(d => d.name), [wide(120)], "the refused domain was not created");
+}));
+
+test("RAC-1666 an import path is counted in Unicode characters up to 1000 and the search words up to 500, like the action schema", fixture(store => {
+  // The import file path (src/action-schema.ts) and the search words (src/actions.ts) count characters; one 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const path = wide(997) + ".md";
+  const p = preview(store, [text(path, "# 很长的路径")]);
+  assert.deepEqual(p.entries.map(entry => [entry.path, entry.status]), [[path, "new"]], "a 1000-character path is read");
+  assert.throws(() => preview(store, [text(wide(998) + ".md", "# 多一个字")]), { code: "cognia.invalid", message: "资料路径无效" }, "1001 characters is still past the path limit");
+  const material = store.createMaterial({ title: "很长的正文", body: wide(500) });
+  assert.deepEqual(store.materials(wide(500)).map(m => m.id), [material.id], "500 characters of search words find the material");
+  assert.throws(() => store.materials(wide(501)), { code: "cognia.invalid", message: "搜索词过长" }, "501 characters is still past the search limit");
+}));

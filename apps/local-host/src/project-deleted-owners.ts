@@ -1,19 +1,23 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
+import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
-import { sessionsProjectData } from "@molis-ai/molis-work-module-private-work-context";
-import { createSessionLedger } from "./session-registry.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
+import { clearProjectRows } from "./plugin-project-rows.js";
+import { partitionLabel } from "./plugin-project-cleanup.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
+import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
+import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
@@ -28,7 +32,7 @@ export const SEARCH_OWNER = { id: "search", label: null } as const;
  */
 export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
   const check = () => {
-    if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
+    if (hasStorageBusinessFiles(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
   };
   return {
     ...MEMORY_OWNER, check,
@@ -50,42 +54,43 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 }
 
 /**
- * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. Each
- * built-in plugin says on its catalog entry (`project_data`) what it keeps and how to clear it, and those come from the
- * catalog without the Host naming them: a plugin added to the catalog with a declaration is cleared by the next deletion.
- * The two modules that are no plugin, Functions and the Sessions registry, export the same declaration, and the Host names
- * them here. Sessions is marked `survivesRebuild` here because keeping it is the demo reset's rule, not the module's: the
- * reset keeps the panels and Runtime bindings that name those Sessions. They run in the order the declarations ask
- * (`order`, then catalog order), which is the order the confirmation dialog lists them in.
+ * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. A built-in plugin's
+ * library says which of its rows belong to a project (`databases.home.project_rows` in its Manifest) and the platform deletes those
+ * rows itself, with the files of its own (`owner_files`) the rows name, running no code of the plugin's (PG-024); a library
+ * partitioned by project goes whole. Both come from the catalog without the Host naming the plugin. The modules that are no plugin,
+ * Functions, Characters and the 成果库's originals, export a declaration of what they keep (`ProjectDataDeclaration`), and the Host
+ * names them here. They run in the order the declarations
+ * ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
+type DeclaredOwner = Pick<ProjectDeletedOwner, "id" | "label_values" | "words_of"> & { label: string; order?: number; clear: (projectId: string) => void | Promise<void> };
+
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true; partitioned?: string }> = [
-    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
-      ...entry.runtime?.database?.partition === "project" ? { partitioned: entry.runtime.database.store_name } : {} }] : []),
-    { id: "functions", data: functionsProjectData },
-    // The demo's reset keeps its panels and Runtime bindings, so the Sessions they name stay with them.
-    { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)), survivesRebuild: true },
+  const declared: DeclaredOwner[] = [
+    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap((entry): DeclaredOwner[] => {
+      const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
+      if (library?.project_rows) {
+        return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order, words_of: pluginId,
+          clear: (projectId: string) => clearProjectRows(home, library, pluginId, projectId, entry.manifest.owner_files) }];
+      }
+      if (!entry.runtime || library?.partition !== "project") return [];
+      const store = library.store_name;
+      return [{ id: entry.project_plugin_id, ...partitionLabel(entry.manifest.name), words_of: pluginId,
+        clear: (projectId: string) => rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }) }];
+    }),
+    // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
+    ownerOf(home, "characters", charactersProjectData),
+    // The 成果库's originals, kept by the module that writes them (the receipt's id is the one the plugin's entry gave it).
+    ownerOf(home, "artifacts", artifactsProjectData),
+    ownerOf(home, "functions", functionsProjectData),
   ];
   return declared.map((item, position) => ({ ...item, position }))
-    .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, data, survivesRebuild, partitioned }) => ({ id, label: data.label, ...(survivesRebuild ? { survivesRebuild } : {}),
-      clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) }));
+    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
+    .map(({ id, label, label_values, clear, words_of }) => ({ id, label, clear, ...(label_values ? { label_values } : {}), ...(words_of ? { words_of } : {}) }));
 }
 
-function purgeOf(home: string, id: string, data: ProjectDataDeclaration): (projectId: string) => void | Promise<void> {
-  if (!data.purge) throw new Error(`${id} 的项目数据没有清理办法（purge）`);
-  return projectId => data.purge!(home, projectId);
-}
-
-/**
- * A Home plugin whose library is partitioned by project, cleared without its instance running here: its own `purge`, if it has one,
- * then the project's library goes. The running instance's owner (`plugin-project-cleanup.ts`) replaces this one while it runs.
- */
-function removePartition(home: string, data: ProjectDataDeclaration, store: string): (projectId: string) => Promise<void> {
-  return async projectId => {
-    await data.purge?.(home, projectId);
-    await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true });
-  };
+/** A module of the Host's own: its label is in the Host's words. */
+function ownerOf(home: string, id: string, data: ProjectDataDeclaration) {
+  return { id, label: data.label, order: data.order, clear: (projectId: string) => data.purge(home, projectId) };
 }
 
 /**
@@ -107,6 +112,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
+    // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
+    { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); forgetOrphanedInstallationBindings(home); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

@@ -37,6 +37,12 @@ interface PluginSceneScope extends PluginInstance {
   readonly read_only: boolean;
   readonly caller: ActionCallContext;
   readonly begun: number;
+  /**
+   * Set only when the `beforeEffect` the callback was handed returned (`pluginSceneBeforeEffect`), never by a service's own check: a
+   * writable scene callback writes through a platform service only after the plugin waited for the kernel's recheck of the binding,
+   * the judgment and the caller (PG-032 P4, user decision 2026-10-26). Read-only callbacks have none.
+   */
+  readonly effect?: { passed: boolean };
 }
 
 /**
@@ -115,6 +121,19 @@ export function insideOpenPluginCall(): boolean {
   return (!!scope && !ended.has(scope)) || (!!route && !ended.has(route));
 }
 
+/**
+ * The `beforeEffect` a writable scene callback is given: the kernel's own, and once it returns the callback has passed the recheck
+ * its scene's writes need (`pluginSceneEffectPassed`).
+ */
+export function pluginSceneBeforeEffect(before: () => Promise<void>, effect: { passed: boolean }): () => Promise<void> {
+  return async () => { await before(); effect.passed = true; };
+}
+
+/** Whether the callback `scope` runs for is a scene callback whose `beforeEffect` already returned. */
+export function pluginSceneEffectPassed(scope: PluginInvocationScope): boolean {
+  return "scene" in scope && scope.effect?.passed === true;
+}
+
 /** Scene callbacks retain their real declaration and control, never an invented action. */
 export function runInPluginScene<T>(scope: Omit<PluginSceneScope, "begun">, handle: () => T): T {
   return runOpen(running, { ...scope, begun: place(undefined) }, handle);
@@ -139,6 +158,15 @@ export function pluginInvocationReadOnly(scope: PluginInvocationScope | undefine
  */
 export function runInPluginAction<T>(scope: Omit<PluginActionScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
   return runOpen(running, { ...scope, begun: place(scope.begun) }, handle);
+}
+
+/**
+ * Takes the place the call about to run gets in the order, before it waits for anything: a handler that is started after an `await`
+ * (`pluginActionProvider` reads the project list first) passes it to `runInPluginAction`, so the wait does not move the call past a moment
+ * a service refuses everything already under way at (`lastBegunPluginInvocation`).
+ */
+export function reservePluginInvocationPlace(): number {
+  return place(undefined);
 }
 
 /** Runs a job's work in its own scope: services ask the job's checks, never those of the call that kept it. */
@@ -178,13 +206,51 @@ export function assertPluginActionCurrent(instance: PluginInstance): void {
   markPluginActionChecked(scope);
 }
 
-/** A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. */
+/**
+ * A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. A model
+ * answer the call was handed is checked again here too (`holdPluginModelResult`): what the call writes or asks for next may rest on it.
+ */
 export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope | undefined, instance: PluginInstance): void {
   if (!scope) return;
   if (!inPluginInstance(scope, instance)) throw new ActionError("actions.forbidden", "这次写入属于另一个插件实例，不属于正在运行的动作");
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
   scope.caller.signal?.throwIfAborted();
+  assertHeldPluginModelResults(heldKey(scope));
+}
+
+/**
+ * Each model answer handed to a call, as the check that it may still be committed (`PluginModelResult.validateResult`). Kept under
+ * the call's `checked` record where it has one, which work that carries the call on shares, else under the scope itself.
+ */
+const heldModelResults = new WeakMap<object, Array<() => void>>();
+const heldKey = (scope: PluginInvocationScope): object => ("checked" in scope && scope.checked) || scope;
+
+/**
+ * Holds a model answer the model service handed to `scope` (PG-047): from then on every check the platform makes for the call
+ * (`assertCapturedPluginActionCurrent`, so every write through a platform service and every nested call) and the call's own
+ * `beforeEffect` returning (`pluginActionBeforeEffect`) run `validate` first, so an answer whose call or model binding is no
+ * longer current is committed through none of them, whether the plugin checked it or not.
+ */
+export function holdPluginModelResult(scope: PluginActionScope, validate: () => void): void {
+  const key = heldKey(scope), held = heldModelResults.get(key);
+  if (held) held.push(validate); else heldModelResults.set(key, [validate]);
+}
+
+function assertHeldPluginModelResults(key: object): void {
+  for (const validate of heldModelResults.get(key) ?? []) validate();
+}
+
+/**
+ * The `beforeEffect` a plugin's action handler is given: the call's own, and once it returns, every model answer the call holds
+ * checked again (`holdPluginModelResult`). Returning is one way the call passes its last authority check (`checked`).
+ */
+export function pluginActionBeforeEffect(before: () => Promise<void>, checked: { passed: boolean }): () => Promise<void> {
+  return async () => {
+    await before();
+    assertHeldPluginModelResults(checked);
+    checked.passed = true;
+  };
 }
 
 /**

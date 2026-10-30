@@ -25,7 +25,7 @@ runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，pack
 
 ## 接入与边界
 
-构建后再运行 bin。create 要求父目录已存在且目标不存在；pack 不覆盖输出，拒绝 symlink、越界路径、生命周期脚本及超过 64 MiB 的包。verify 依赖调用方提供的受信 Ed25519 公钥，签名不代表官方审核或 marketplace 上架。
+构建后再运行 bin。create 要求父目录已存在且目标不存在；pack 不覆盖输出，拒绝 symlink、越界路径及超过 64 MiB 的包；分发文件必须用 `package.json` 的 `files` 明确列出，不执行 glob 或生命周期脚本。verify 依赖调用方提供的受信 Ed25519 公钥，签名不代表官方审核或 marketplace 上架。
 
 工作区依赖：`@molis-ai/molis-work-plugin-runtime`、`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
@@ -61,7 +61,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 - 公开入口：`@molis-ai/molis-work-plugin-cli`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/tooling`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-runtime`、`@molis-ai/molis-work-plugin-sdk`（Manifest 解析）。方向：只依赖合同、plugin-sdk 与 plugin-runtime（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - `create` 要求父目录已存在且目标不存在；`pack` 不覆盖输出，拒绝 symlink、越界路径、生命周期脚本与超过 64 MiB 的包。
+  - `create` 要求父目录已存在且目标不存在；`pack` 不覆盖输出，拒绝 symlink、越界路径与超过 64 MiB 的包；分发文件必须用 `package.json` 的 `files` 明确列出，不执行 glob 或生命周期脚本。
   - `validate` 只读校验，不启动插件。
   - 生成的模板不给未知消费者伪造场景或业务触发。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-authoring.test.ts tests/plugin-package.test.ts tests/npm-package.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts`
@@ -73,8 +73,5 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/tooling`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-dv3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

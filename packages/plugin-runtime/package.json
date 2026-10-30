@@ -27,17 +27,5 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
-  },
-  "molis-work": {
-    "path": "packages/plugin-runtime",
-    "kind": "foundation",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-fd3",
-      "goal-reorg-dv3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

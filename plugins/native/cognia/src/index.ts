@@ -1,4 +1,3 @@
-export const packageDescriptor = { packageName: "@molis-ai/molis-work-plugin-cognia", packagePath: "plugins/native/cognia", kind: "native-plugin", maturity: "partial", contract: "@molis-ai/molis-work-contracts/platform/plugin", ssot: "docs/SSOT-MATRIX.md", capabilities: ["cognia.ui-contribution.v1", "cognia.knowledge.v1"] } as const;
 export * from "./types.js";
 export * from "./content.js";
 export * from "./store.js";
@@ -8,6 +7,7 @@ export { scanCogniaDirectory } from "./directory.js";
 export * from "./ui.js";
 export * from "./styles.js";
 export * from "./client.js";
+export * from "./messages.js";
 export * from "./manifest.js";
 export * from "./en.js";
 export { COGNIA_INSTRUCTIONS } from "./prompts.js";

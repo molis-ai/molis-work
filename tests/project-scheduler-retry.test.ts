@@ -33,8 +33,9 @@ test("LOGIC-01 a project that will not open is skipped: the ones after it open, 
     onError(error) { errors.push(error); },
   });
   t.after(() => schedulers.stop());
-  // The project that did open runs its schedules on this round.
-  schedulers.runtimes.set(paths[1]!, { scheduler: { tick: async () => { rounds += 1; return {}; } }, schedule: { tick: async () => ({}) } } as never);
+  // The project that did open runs its schedules on this round. Its Feed sources are not on this timer: the Runtime Feed pulls them as its
+  // own background job (FI-6), so the round is the project's tasks.
+  schedulers.runtimes.set(paths[1]!, { schedule: { tick: async () => { rounds += 1; return {}; } } } as never);
   await run!();
   assert.deepEqual(opened, ["a", "b"], "the broken first project does not stop the second from opening");
   assert.equal(rounds, 1, "the round runs although one project would not open");

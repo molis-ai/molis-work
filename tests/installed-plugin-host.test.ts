@@ -1,26 +1,32 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
-import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { scheduleServiceFor, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { FEED_PLUGIN_ID } from '@molis-ai/molis-work-plugin-feed';
+import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID } from '@molis-ai/molis-work-plugin-schedule';
+import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host';
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
@@ -47,8 +53,8 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])],
       ...(secretRefs.length ? { networkDomains: ['api.example.test'], secretRefs } : {}) }, publishedAt: new Date().toISOString() };
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
-  const { install } = runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
   if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
   store.close();
   return { databasePath, release, install, draft: waiting, ref: molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }) };
@@ -151,8 +157,27 @@ test('SYS-15-S1 Host alone restores installed actions and scheduled operations, 
     await host.inspectActions(caller, ref);
     assert.equal(await host.actionClient(ref).invoke(caller, action('read'), null), 'original data');
     await host.withProject(ref, async runtime => {
-      const clock = scheduleServiceFor(runtime.store.db), receipt = await clock.tick(new Date(at + 1000));
-      assert.deepEqual(receipt, { invoked: 1, failed: 0, skipped: 0 }, JSON.stringify(clock.list()));
+      const clock = scheduleServiceFor(runtime.store.db);
+      // Feed asks the clock for its own wakeup in the background (runtime-wake.ts:52-64); wait for it, for up to its own retry budget.
+      const feedJobs = () => clock.list(FEED_PLUGIN_ID).filter(job => job.capability_id === 'feed.sources.wake');
+      for (let waited = 0; !feedJobs().length && waited < 5_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
+      const own = clock.list(SCHEDULE_PLUGIN_ID).filter(job => job.capability_id === SCHEDULE_OPERATION_WAKEUP), feed = feedJobs();
+      assert.equal(own.length, 1, JSON.stringify(clock.list()));
+      assert.equal(feed.length, 1, JSON.stringify(clock.list()));
+      // The tick happens late enough for both due tasks: whichever of them was registered later is not this test's contract,
+      // so compare against the tick's own moment instead of the two due times against each other.
+      const tickAt = new Date(Math.max(at + 1000, Date.parse(feed[0]!.next_due_at) + 1));
+      // RAC-1170: the tick reaches this test's own one-shot task, which is due and enabled at that moment; its operation's side
+      // effect is the `read` answering 'scheduled' below, and the tick marks its last_wakeup done.
+      assert.equal(own[0]!.enabled, true, JSON.stringify(clock.list()));
+      assert.ok(Date.parse(own[0]!.next_due_at) <= tickAt.getTime(), JSON.stringify(clock.list()));
+      // RAC-1171: the receipt still counts every due task of the whole project clock — this one and Feed's wakeup.
+      const due = clock.list().filter(job => job.enabled && Date.parse(job.next_due_at) <= tickAt.getTime());
+      assert.deepEqual(due.map(job => job.job_id).sort(), [own[0]!.job_id, feed[0]!.job_id].sort(), JSON.stringify(clock.list()));
+      assert.deepEqual(await clock.tick(tickAt), { invoked: 2, failed: 0, skipped: 0 }, JSON.stringify(clock.list()));
+      assert.equal(clock.get(own[0]!.job_id)?.last_wakeup?.status, 'ok');
+      assert.equal(clock.get(feed[0]!.job_id)?.last_wakeup?.status, 'ok');
+      assert.deepEqual(clock.list().filter(job => job.enabled).map(job => [job.plugin_id, job.capability_id]), [[FEED_PLUGIN_ID, 'feed.sources.wake']]);
       const builder = new AgentBuilderStore(studioStorage(runtime.store.db, DEMO_PROJECT_ID));
       assert.deepEqual(builder.get(fixture.draft.id), fixture.draft, 'restoring or executing an install does not resume the authoring Workflow');
       assert.equal(new SqlitePluginRuntimeRepository(runtime.store.db).get(fixture.install.install_id)?.manifest_digest, fixture.install.manifest_digest, 'no same-version manifest rewrite');
@@ -307,9 +332,16 @@ test('a quarantined installation is refused a version switch with a reason, befo
   const rig = await hostWithProject(home, fixture);
   try {
     const installed = await rig.control(), next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    const snapshot = () => ({ supervisor: installed.platform.supervisor.state(fixture.release.pluginId), installation: installed.platform.runtime.get(fixture.install.install_id) });
+    const before = structuredClone(snapshot()), calls = { upgrade: 0, rollback: 0 };
+    const upgrade = installed.platform.upgrade.bind(installed.platform), rollback = installed.platform.rollback.bind(installed.platform);
+    installed.platform.upgrade = (...args) => { calls.upgrade++; return upgrade(...args); };
+    installed.platform.rollback = (...args) => { calls.rollback++; return rollback(...args); };
     await assert.rejects(installed.lifecycle('upgrade', next), /隔离/);
+    assert.deepEqual(snapshot(), before, 'a refused upgrade leaves the restored declaration and the installation unchanged');
     await assert.rejects(installed.lifecycle('rollback', fixture.release), /隔离/);
-    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId), null, 'no question about it was remembered');
+    assert.deepEqual(snapshot(), before, 'a refused rollback leaves the restored declaration and the installation unchanged');
+    assert.deepEqual(calls, { upgrade: 0, rollback: 0 }, 'neither refused version switch reaches the Supervisor');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
     await installed.lifecycle('install', next, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }], 'uninstalling and installing again is the way out');
@@ -554,27 +586,35 @@ test('an install that fails over kept data does not undo the person\'s choice to
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
+test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real installation and a newer published version can be installed again, with the kept data or without it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    const listed = () => runningPluginDirectory(installed.platform.supervisor).some(entry => entry.plugin_id === fixture.release.pluginId);
     await client.invoke(caller, action(fixture.release, 'save'), { value: 'kept across versions' });
+    assert.equal(listed(), true, 'the installed plugin is in the real Host directory before the uninstall');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'the next directory read after a retaining Host uninstall has no entry');
     assert.deepEqual(installed.installations(), []);
 
     const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
+    assert.equal(listed(), true, 'the new installation returns to the directory');
     assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'kept across versions', 'the data the uninstall kept is there for the new version');
     assert.equal(installed.platform.runtime.get(fixture.install.install_id).installation_generation !== fixture.install.installation_generation, true, 'it is a new installation');
 
     await installed.lifecycle('uninstall', v2, { keepData: false });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'dropping private data also leaves no entry on the next directory read');
     const v3 = { ...fixture.release, version: 3 }; installed.releases.release(v3);
     await installed.lifecycle('install', v3, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
+    assert.equal(listed(), true, 'installing after data deletion returns the fresh installation to the directory');
     assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'deleted data stays deleted');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -583,7 +623,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
   let store = new LocalProjectDatabase(databasePath);
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
     const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('io.molis.work.generated.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
     let first = '', second = '';
@@ -600,7 +640,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
         design: { id: 'one', catalog: 'actions/1', title: 'Fixture ' + buildId.slice(-3), description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
         nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
       builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-      runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
+      runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
       return pluginId;
     };
     const lacksGrant = await make(first, "export const operations={read:async()=>'empty'};", []);
@@ -688,3 +728,366 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
       }
     } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
   });
+
+test("S-71 RAC-865 the creator host's uninstall of the only installation the Home can see takes its slot and its record bindings, never those of an identity that begins like it", mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-connection-bindings-'));
+  const fixture = await publishedFixture(home, 'first'), copy = join(home, 'second.sqlite');
+  await copyFile(fixture.databasePath, copy);
+  // Two projects whose ids are a prefix pair, outside any catalog: the Home sees no other place that has the installation, so it goes
+  // with this uninstall. Whether the slot stays while another project installs it is S-71 RAC-861 (security-invariants-installation-bindings.test.ts).
+  const projects = [DEMO_PROJECT_ID, DEMO_PROJECT_ID + '0'], stores = [fixture.databasePath, copy].map(path => new LocalProjectDatabase(path));
+  const install_id = fixture.install.install_id, pluginId = fixture.release.pluginId;
+  const bearer = 'fixture-bearer-value-for-s72';
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'github', displayName: 'GitHub', token: bearer }));
+  const mine = [pluginBindingScope({ install_id }), ...projects.map(project_id => pluginBindingScope({ install_id, project_id, record_key: 'src-1' }))];
+  const neighbour = [pluginBindingScope({ install_id: install_id + '0' }), pluginBindingScope({ install_id: install_id + '0', project_id: projects[0]!, record_key: 'src-1' })];
+  for (const scope of [...mine, ...neighbour]) {
+    withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: 'feed', serviceId: 'github', connectionId: connection.connection_id }));
+  }
+  const left = () => [...mine, ...neighbour].filter(scope => withConnectorConnections(home, store => store.binding(scope, pluginId, 'feed')) !== null);
+  try {
+    const [one, two] = await Promise.all(stores.map((store, index) => ensureInstalledPlugins({ store, projectId: projects[index]!, homeDirectory: home })));
+    await one.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual(left(), neighbour, 'the installation went with its slot and both records; the identity that only begins like it stays');
+    await two.lifecycle('uninstall', fixture.release, { keepData: false });
+    assert.deepEqual(left(), neighbour);
+  } finally { for (const [index, store] of stores.entries()) { await releaseInstalledPlugins(store, projects[index]!); store.close(); } await rm(home, { recursive: true, force: true }); }
+});
+
+async function signedInstallFixture() {
+  const home = await mkdtemp(join(tmpdir(), 't2-first-install-'));
+  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: 'user' as const, project_id: DEMO_PROJECT_ID, permissions: PLUGIN_INSTALL_PERMISSIONS,
+    user_action: { source: 'management' as const, conversation_ref: 't2-first:install', message_ref: 't2-first:confirm' } };
+  const confirm = async (bundle: PluginPackageBundle) => {
+    const client = host.actionClient(reference);
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
+    return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
+  };
+  const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: DEMO_PROJECT_ID } }));
+  await control();
+  return { home, reference, ledger, packages, confirm, control,
+    get host() { return host; }, async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); return control(); },
+    async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
+}
+
+test('T2-FIX-02 a failed signed-package install keeps its pin and immutable package, but no installation can run, also after restart', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher();
+  const bundle = signedPackage(publisher, files => { files['plugin.mjs'] = "throw new Error('T2 package startup failed');"; });
+  const confirm = () => h.confirm(bundle);
+  try {
+    await assert.rejects(confirm(), /安装没有完成/);
+    const pins = h.ledger.publishers();
+    assert.equal(pins.length, 1); assert.equal(pins[0]!.key_id, publisher.identity);
+    const directories = await readdir(join(h.home, 'plugin-packages'));
+    assert.equal(directories.length, 1);
+    const saved = join(h.home, 'plugin-packages', directories[0]!, 'bundle.json'), bytes = await readFile(saved);
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    const absent = async () => {
+      const installed = await h.control();
+      assert.deepEqual(installed.records().filter(row => row.plugin_id === PACKAGE_PLUGIN_ID), []);
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID), undefined, 'a kept package alone is not an installed release');
+      await assert.rejects(installed.lifecycle('enable', release), /还没有安装/);
+      const actions = await h.host.actionClient(h.reference).discover(caller);
+      assert.ok(!actions.some(view => view.capability_id === exposedActionId(release, 'notes.list')), 'no action from the failed package is executable');
+    };
+    await absent();
+    await h.reopen(); await absent();
+    await assert.rejects(confirm(), /安装没有完成/);
+    assert.deepEqual(h.ledger.publishers(), pins, 'retry does not replace the person\'s pin');
+    assert.deepEqual(await readdir(join(h.home, 'plugin-packages')), directories, 'retry reuses the immutable package directory');
+    assert.deepEqual(await readFile(saved), bytes); await absent();
+  } finally { await h.close(); }
+});
+
+test('T2-FIX-05 BL623-02 a pinned rollback returns plugin.state_invalid, and an upgrade to the version already installed plugin.upgrade_required, without changing the installation, approval, pin or package', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const installed = await h.control(), release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    const records = () => installed.platform.runtime.list().filter(row => row.plugin_id === PACKAGE_PLUGIN_ID);
+    const before = records(), approvalKey = 'plugin-builder:agent-studio:approved:' + PACKAGE_PLUGIN_ID;
+    assert.equal(before[0]!.state, 'running', 'the package is genuinely installed and started before the refusals');
+    const approval = installed.storage.get(approvalKey), pins = h.ledger.publishers(), bytes = await readFile(release.bundlePath);
+    for (const action of ['upgrade', 'rollback'] as const) {
+      await assert.rejects(installed.lifecycle(action, release, { consent: true }), error => error instanceof ActionError && (action === 'upgrade'
+        ? error.code === 'plugin.upgrade_required' : error.code === 'plugin.state_invalid' && error.message === '从签名的包装进来的插件还不能回滚：先卸载，再装新的包'));
+      assert.deepEqual(records(), before); assert.equal(installed.storage.get(approvalKey), approval);
+      assert.deepEqual(h.ledger.publishers(), pins); assert.deepEqual(await readFile(release.bundlePath), bytes);
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID)?.packaged?.manifest.version, '1.0.0');
+    }
+  } finally { await h.close(); }
+});
+
+test('RAC-392 S-87 an installation of a publisher taken back is stopped when the project opens, cannot be enabled, is not read back from its package, and says why', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
+    const stopped = async () => {
+      const installed = await h.control();
+      assert.equal(installed.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'disabled', 'stopped, not left running');
+      await assert.rejects(installed.lifecycle('enable', release, {}), (error: unknown) => error instanceof ActionError && error.code === 'plugin.publisher_revoked');
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID), undefined, 'a package of a publisher taken back is not read back for a run');
+      assert.match(installed.recoveryErrors.get(PACKAGE_PLUGIN_ID) ?? '', /撤销/, 'the person is told why');
+      assert.equal(h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0').pluginId, PACKAGE_PLUGIN_ID, 'the kept package and its data are not removed');
+    };
+    await stopped();
+    await h.reopen(); await stopped();
+  } finally { await h.close(); }
+});
+
+test('RAC-392 S-87 a Host restarted right after a publisher was taken back, before any project looked, does not start what it signed, although the package verifies as pinned', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const running = await h.control();
+    assert.equal(running.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'it was running when the publisher was taken back');
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
+    // The restart is the first thing that looks: the installation's record still says it runs, and the package on disk still verifies against its pin.
+    const restarted = await h.reopen();
+    assert.notEqual(restarted.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'not started again');
+    assert.notEqual(restarted.platform.supervisor.state(PACKAGE_PLUGIN_ID)?.status, 'running', 'the Supervisor does not run it either');
+    await assert.rejects(restarted.lifecycle('enable', release, {}), (error: unknown) => error instanceof ActionError && error.code === 'plugin.publisher_revoked');
+    assert.match(restarted.recoveryErrors.get(PACKAGE_PLUGIN_ID) ?? '', /撤销/, 'the person is told why');
+  } finally { await h.close(); }
+});
+
+// RAC-1150 T-032: a crashed installation is still something the person can switch off: the disable withdraws its prompts and actions
+// and succeeds instead of refusing with plugin.state_invalid.
+// RAC-1195 T-034: the Runtime records that switch-off as disabled, with the crash code kept, and the Host's restart reads only that
+// record: after a clean close and reopen it is still off (prompts disabled, no actions offered), and only an explicit enable starts it.
+test('RAC-1150 RAC-1195 disabling a crashed installation withdraws it, records it disabled, and it stays disabled after a Host restart', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-crashed-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime;
+    await runtime.reportCrash(fixture.install.install_id);
+    assert.equal(runtime.get(fixture.install.install_id)?.state, 'crashed');
+    await installed.lifecycle('disable', fixture.release);
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const promptState = () => { const source = registry.prompt(key).source; return source.kind === 'plugin' ? source.state : undefined; };
+    assert.equal(promptState(), 'disabled');
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false);
+    assert.equal(await rig.generated(), 0);
+    const record = installed.platform.runtime.get(fixture.install.install_id);
+    assert.equal(record?.state, 'disabled', 'after the disable the record is what the person chose');
+    assert.equal(record?.last_error_code, 'plugin.process_crashed', 'the crash stays on the record');
+
+    await rig.host.close(); rig.reopen();
+    const restored = await rig.control();
+    assert.equal(restored.installations()[0]?.state, 'disabled', 'the restart does not try to start it again');
+    assert.equal(promptState(), 'disabled');
+    assert.equal(await rig.generated(), 0);
+    await restored.lifecycle('enable', fixture.release);
+    assert.equal(promptState(), 'enabled');
+    assert.equal(await rig.generated(), 3, 'enable starts it and offers its actions again');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1150 T-032: the same for an installation the Runtime already quarantined after repeated crashes.
+test('RAC-1150 disabling a quarantined installation withdraws it and keeps the quarantine on the record', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-quarantined-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime;
+    for (let attempt = 0; attempt < 3; attempt++) { await runtime.reportCrash(fixture.install.install_id); await runtime.recover(fixture.install.install_id); }
+    await runtime.reportCrash(fixture.install.install_id);
+    await assert.rejects(runtime.recover(fixture.install.install_id), { code: 'plugin.quarantined' });
+    assert.equal(runtime.get(fixture.install.install_id)?.state, 'quarantined');
+    await installed.lifecycle('disable', fixture.release);
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'disabled');
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false);
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id)?.state, 'quarantined');
+    await runtime.recover(fixture.install.install_id, { release_quarantine: true }); await installed.lifecycle('disable', fixture.release);
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1152 T-032: only plugin.state_invalid is let through by the disable; a stop that really failed (plugin.executor_failed here) is still
+// reported to the person and the prompts stay enabled.
+test('RAC-1152 disabling an installation whose stop fails reports the failure instead of swallowing it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-stop-failed-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, stop = runtime.stop.bind(runtime);
+    runtime.stop = async () => { throw new ActionError('plugin.executor_failed', '停止钩子失败'); };
+    await assert.rejects(installed.lifecycle('disable', fixture.release), (error: unknown) => error instanceof ActionError && error.code === 'plugin.executor_failed');
+    runtime.stop = stop;
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'enabled', 'a disable that did not stop it leaves the prompts on');
+    // The Host still owns a running instance, so switch it off for real before closing the Home.
+    await installed.lifecycle('disable', fixture.release);
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1151 T-032: an exposure that fails reports its own error even when the installation crashed while the exposure was reading the
+// catalog; the crash is not a second failure to report over the first. Since T-034 the cleanup's stop records that crashed installation
+// disabled instead of being refused.
+test('RAC-1151 an exposure failure keeps its own error when the installation crashes under the cleanup', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-exposure-refused-'));
+  const fixture = await publishedFixture(home, 'project'), store = new LocalProjectDatabase(fixture.databasePath), service = new ActionService();
+  let armed = false;
+  let runtime: { reportCrash(installId: string): Promise<unknown> } | undefined;
+  try {
+    const installed = await ensureInstalledPlugins({ store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID,
+      inspect: async actor => {
+        const snapshot = service.inspect(actor);
+        if (armed) { armed = false; void runtime?.reportCrash(fixture.install.install_id); throw new Error('controlled exposure failure'); }
+        return snapshot;
+      } } });
+    runtime = installed.platform.runtime;
+    await installed.lifecycle('disable', fixture.release);
+    armed = true;
+    await assert.rejects(installed.lifecycle('enable', fixture.release, {}), (error: unknown) => error instanceof Error && error.message === 'controlled exposure failure');
+    assert.match(installed.recoveryErrors.get(fixture.release.pluginId) ?? '', /controlled exposure failure/);
+    // The failed exposure left nothing of its own registered: the cleanup withdrew the plugin before it stopped the installation.
+    assert.deepEqual(
+      service.inspect(caller).filter(view => view.provider.plugin_id === fixture.release.pluginId),
+      [],
+      'the failed exposure withdraws the actions it had exposed',
+    );
+    // The cleanup's stop switched the crashed installation off instead of being refused.
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id)?.state, 'disabled');
+  } finally {
+    try { await releaseInstalledPlugins(store, DEMO_PROJECT_ID); } catch { /* the case already reported its failure */ }
+    try { store.close(); } catch { /* the case already reported its failure */ }
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+// RAC-1196 T-035: the Host must stop only the installations the Runtime still reports as running. A record crashed in the Runtime
+// while the Supervisor still shows running must not turn the whole close into a failure, and the crash stays the record's state.
+test('RAC-1196 closing the Host does not reject for a crashed installation and the prompts stay enabled after a restart', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-crashed-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id;
+    await runtime.reportCrash(id);
+    assert.equal(runtime.get(id)?.state, 'crashed');
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId)?.status, 'running');
+    await rig.host.close();
+    const record = new LocalProjectDatabase(fixture.databasePath);
+    try { assert.equal(new SqlitePluginRuntimeRepository(record.db).get(id)?.state, 'crashed', 'the close leaves the crashed record as it was'); }
+    finally { record.close(); }
+    rig.reopen();
+    const reopened = await rig.control();
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const prompt = registry.prompt(key).source;
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'enabled');
+    assert.notEqual(reopened.installations()[0]?.state, 'disabled');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1197 T-035: an installation that someone stopped with preserve_enabled is still running in the Supervisor's mirror; closing
+// the Host must not fail on it a second time, and a restart runs it again.
+test('RAC-1197 closing the Host does not reject for an installation stopped with preserve_enabled and a restart runs it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-installed-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id;
+    await runtime.stop(id, { preserve_enabled: true });
+    assert.equal(runtime.get(id)?.state, 'installed');
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId)?.status, 'running');
+    await rig.host.close();
+    rig.reopen();
+    const reopened = await rig.control();
+    assert.equal(reopened.installations()[0]?.state, 'running');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1696 T-161: an installation someone stopped with preserve_enabled is installed in the Runtime while the Supervisor's mirror still says
+// running (RAC-1197). The person's disable of it is a switch-off like a crashed one's (RAC-1150, RAC-1195): the Runtime records it disabled
+// with no error code, the prompts and actions are withdrawn, a restart leaves it off, and only an explicit enable runs it again.
+test('RAC-1696 disabling an installation stopped with preserve_enabled records it disabled, withdraws it, and it stays disabled after a Host restart', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-preserved-disable-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id;
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const promptState = () => { const source = registry.prompt(key).source; return source.kind === 'plugin' ? source.state : undefined; };
+    assert.equal(promptState(), 'enabled', 'it runs with its prompts enabled before anyone stops it');
+    await runtime.stop(id, { preserve_enabled: true });
+    assert.equal(runtime.get(id)?.state, 'installed', 'the stop keeps it startable');
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId)?.status, 'running', 'the Supervisor still counts it as running');
+    await installed.lifecycle('disable', fixture.release);
+    assert.equal(promptState(), 'disabled', 'the disable withdraws its prompts');
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false, 'and its actions from the catalog');
+    assert.equal(await rig.generated(), 0, 'nothing of it is offered');
+    const record = runtime.get(id);
+    assert.equal(record?.state, 'disabled', 'the record is what the person chose, not installed again');
+    assert.equal(record?.last_error_code, null, 'there was no crash to keep');
+
+    await rig.host.close(); rig.reopen();
+    const restored = await rig.control();
+    assert.equal(restored.installations()[0]?.state, 'disabled', 'the restart does not run it again');
+    assert.equal(promptState(), 'disabled', 'its prompts stay disabled');
+    assert.equal(await rig.generated(), 0, 'none of its actions is offered');
+    await restored.lifecycle('enable', fixture.release);
+    assert.equal(restored.installations()[0]?.state, 'running', 'only an explicit enable runs it');
+    assert.equal(promptState(), 'enabled', 'enable switches its prompts on again');
+    assert.equal(await rig.generated(), 3, 'enable offers its actions again');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1198 T-035: a running installation is still stopped by the close, exactly once, keeping the enabled bit; a restart runs it.
+test('RAC-1198 closing the Host stops a running installation exactly once with preserve_enabled and a restart runs it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-running-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id, stop = runtime.stop.bind(runtime);
+    const calls: Array<{ install_id: string; options: unknown }> = [];
+    runtime.stop = async (...args: Parameters<typeof stop>) => { calls.push({ install_id: args[0], options: args[1] }); return stop(...args); };
+    await rig.host.close();
+    assert.deepEqual(calls, [{ install_id: id, options: { preserve_enabled: true } }]);
+    await rig.host.close();
+    assert.deepEqual(calls, [{ install_id: id, options: { preserve_enabled: true } }], 'a second close stops nothing');
+    rig.reopen();
+    const reopened = await rig.control();
+    assert.equal(reopened.installations()[0]?.state, 'running');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-1199 T-035: when the Runtime record itself cannot be read, that failure joins the same 安装插件停止失败 rejection, the loop
+// still revokes every enabled installation, and nothing is stopped on a record the Host could not read.
+test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the installation and stops nothing', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-read-failure-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  let undo: (() => void) | undefined;
+  try {
+    const installed = await rig.control(), platform = installed.platform, runtime = platform.runtime, id = fixture.install.install_id;
+    // The close below cannot stop what it cannot read, so let go of the live process first: a Home that fails to close has no
+    // second chance to stop it. The record stays installed and the Supervisor still counts it as running, exactly like RAC-1197.
+    await runtime.stop(id, { preserve_enabled: true });
+    const injected = new Error('the Runtime record cannot be read');
+    const get = runtime.get.bind(runtime), stop = runtime.stop.bind(runtime), revoke = platform.supervisor.revoke.bind(platform.supervisor);
+    const revoked: string[] = [], stopped: string[] = [];
+    runtime.get = (installId: string) => { if (installId === id) throw injected; return get(installId); };
+    runtime.stop = async (...args: Parameters<typeof stop>) => { stopped.push(args[0]); return stop(...args); };
+    platform.supervisor.revoke = (pluginId: string) => { revoked.push(pluginId); revoke(pluginId); };
+    undo = () => { runtime.get = get; runtime.stop = stop; platform.supervisor.revoke = revoke; };
+    await assert.rejects(rig.host.close(), (error: unknown) => error instanceof AggregateError && error.message === '安装插件停止失败' && error.errors.includes(injected));
+    assert.deepEqual(stopped, [], 'nothing is stopped on a record the Host could not read');
+    assert.deepEqual(revoked, [fixture.release.pluginId], 'the loop still revokes the installation');
+  } finally {
+    undo?.();
+    await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
+    await rm(home, { recursive: true, force: true });
+  }
+});

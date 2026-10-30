@@ -11,6 +11,7 @@ import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/conte
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { planSteps, prepareGoalsFragmentOffers } from "../plugins/native/goals/dist/fragment-offers.js";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 /**
  * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals, through the real directory
@@ -48,7 +49,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user",
-    permissions: ["goals:read", "goals:write"] };
+    permissions: ["goals:read", "goals:write", "attention:write"] };
   const client = host.actionClient(ref);
   const bound = bindActionClient(client, () => caller);
   const invoke = <O>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => client.invoke(caller, reference, input) as Promise<O>;
@@ -70,7 +71,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     const offered = await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown"));
     const plan = offered.offers.find(offer => offer.offer_id === "breakdown")!;
     assert.match(plan.summary!, /新建 2 个步骤，放在「提升新用户留存」下/);
-    const before = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
+    const before = await host.withProject(ref, runtime => boardSnapshot(runtime.store, project.project_id));
     const submitted = await invoke<{ proposal: { proposal_id: string; items: unknown[]; root_goal_id: string | null }; replayed: boolean }>(plan.action, plan.input);
     assert.equal(submitted.proposal.root_goal_id, parent);
     assert.equal(submitted.proposal.items.length, 4, "two steps and their part_of relations");
@@ -80,7 +81,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     const other = (await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown-2"))).offers.find(offer => offer.offer_id === "breakdown")!;
     const second = await invoke<{ proposal: { proposal_id: string }; replayed: boolean }>(other.action, other.input);
     assert.notEqual(second.proposal.proposal_id, submitted.proposal.proposal_id);
-    const after = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
+    const after = await host.withProject(ref, runtime => boardSnapshot(runtime.store, project.project_id));
     assert.equal(after.goals.length, before.goals.length, "proposals create no Goal before approval");
 
     // 记录进展: only for a ticked task in something that belongs to a Goal; it lands on that Goal at its current cursor.
@@ -99,4 +100,33 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     await host.close();
     await rm(home, { recursive: true, force: true });
   }
+});
+
+// A step is cut at 80 characters (79 and an ellipsis), as the action schemas count characters (an emoji is one): never between the two halves of one.
+const STEPS = [
+  { name: "81 two-unit characters", text: "😀".repeat(81), step: "😀".repeat(79) + "…" },
+  { name: "exactly 80 two-unit characters", text: "😀".repeat(80), step: "😀".repeat(80) },
+  { name: "short", text: "整理本周的访谈结论", step: "整理本周的访谈结论" },
+];
+
+test("RAC-1890 a step is cut at 80 whole characters, and one that fits is kept as it is", async t => {
+  for (const c of STEPS) await t.test(c.name, () => {
+    assert.deepEqual(planSteps(fragment({ targets: [{ kind: "text_range", role: "paragraph", text: c.text }] }, "r")), [c.step]);
+  });
+});
+
+test("RAC-1891 the card line, the proposal's summary and the progress summary are cut at whole characters", async t => {
+  const offer = (over: Partial<FragmentOffersInput["fragment"]>, id: string) => prepareGoalsFragmentOffers(fragment(over, "r"), { cursor: () => 7 }).find(item => item.offer_id === id)!;
+  await t.test("the card names a step by its first 19 characters (the limit is 20)", () => {
+    const card = offer({ targets: [{ kind: "text_range", role: "paragraph", text: "😀".repeat(30) }] }, "breakdown");
+    assert.equal(card.summary, `在 Goals 里提交结构提案：新建 1 个步骤（“${"😀".repeat(19)}…”）。提交后要在 Goals 里确认才会生效。`);
+  });
+  await t.test("the proposal's summary is cut at 199 characters and an ellipsis (the limit is 200)", () => {
+    const proposal = offer({ object: { kind: "pages_document", id: "doc-1", version: 3, title: "😀".repeat(200) } }, "breakdown");
+    assert.equal((proposal.input as { summary: string }).summary, `把「${"😀".repeat(197)}…`);
+  });
+  await t.test("the progress summary is cut at 199 characters and an ellipsis (the limit is 200)", () => {
+    const progress = offer({ granularity: "block", goal: { id: "G-1", title: "提升留存" }, targets: [{ kind: "block", role: "task", text: "a" + "😀".repeat(200) }] }, "progress");
+    assert.equal((progress.input as { summary: string }).summary, `完成：a${"😀".repeat(195)}…`);
+  });
 });

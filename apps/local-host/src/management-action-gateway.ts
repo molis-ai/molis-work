@@ -4,7 +4,7 @@ import { withCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { MANAGEMENT_ACTION_PATH, catalogManagementProject } from "./management-action-client.js";
-import { bindGoalsManagementActions, managementActionDefinition } from "./goals-actions.js";
+import { bindGoalsManagementActions, managementActionDefinition } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { recordedCallIdField } from "./call-id-response.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
@@ -33,9 +33,9 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     const project = catalogManagementProject(home, body.database_path);
     if (!project || project.project_id !== body.project_id) throw new ActionError("actions.scope_mismatch", "管理调用的项目数据库不属于当前 Home");
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const actions = bindGoalsManagementActions(host.actionClient(reference, false), reference, { signal: controller.signal });
+    const actions = bindGoalsManagementActions(host.actionClient(reference), reference, { signal: controller.signal });
     await withCallId(body.call_id, async () => {
-      try { const result = await actions.invoke(definition, body.input, body.evidence); if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() }); }
+      try { const result = await actions.invoke(definition, body.input as object, body.evidence); if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() }); }
       catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, { ...refused.body, ...recordedCallIdField() }); }
     });
   } catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, refused.body); }

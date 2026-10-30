@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -12,7 +13,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const all = () => { const store = openTodoStore(homeDirectory); try { return store.list({ projectId, everything: true, actor: "user", actorId: "test" }); } finally { store.close(); } };
+  const all = () => { const store = openTodoStore(homeDirectory); try { return store.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { store.close(); } };
   const byTitle = (title: string) => all().find(item => item.title === title);
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
@@ -142,7 +143,7 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const everything = { projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const everything = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
   const store = openTodoStore(homeDirectory);
   const now = Date.now();
   let dueId = "", overdueId = "";
@@ -202,7 +203,7 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   const { command, sessionId, navigate, origin, projectId, homeDirectory, localHost } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const everything = { projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const everything = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
   const items = () => { const store = openTodoStore(homeDirectory); try { return store.list(everything); } finally { store.close(); } };
   // The Assistant's path: an agent asks Todo to organize; the result waits for the person.
   await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,

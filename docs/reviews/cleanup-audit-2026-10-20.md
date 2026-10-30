@@ -191,7 +191,7 @@
 | `canonicalize` | `modules/goals` 3 份 + `plugins/native/goals` 4 份（`modules/goals/src/command-support.ts:86`、`plugins/native/goals/src/goal-tree-check.ts:106` 等） | 299 字符 × 7 | 收进 Plugin SDK，作为共享的规范化 JSON 工具；两处变体（`canonicalizeValue`、`proposal-baselines.ts`）一起评估 |
 | 路由 `handle` | [`apps/local-host/src/functions-http/routes.ts:66`](../../apps/local-host/src/functions-http/routes.ts#L66)、[`plugins/native/feed/src/routes.ts:69`](../../plugins/native/feed/src/routes.ts#L69)、`inbox`、`pages`、`schedule`、`shelf` 各一份 | 435 字符 × 6 | 抽成 SDK 的通用路由表（`createRouteTable` 一类）；或先做宿主/插件内的共享 helper，避免改公开 API |
 | `ledgerDatabase` | [`apps/local-host/src/assistant/assistant-relations.ts:16`](../../apps/local-host/src/assistant/assistant-relations.ts#L16)、[`apps/local-host/src/placement-actions.ts:39`](../../apps/local-host/src/placement-actions.ts#L39) | 485 字符 × 2 | 抽到宿主内一个 `context-ledger-database.ts`；两处都有 `as unknown as`，顺手消掉 |
-| `writeResponse` | [`apps/local-host/src/inbox-native-plugin-http.ts:54`](../../apps/local-host/src/inbox-native-plugin-http.ts#L54)（Schedule 入口已随 SYS-15 迁到 Runtime） | 285 字符 × 2 | 合并进已有的 `native-plugin-http.ts`，作为“可返回 HTML 的 JSON 响应” |
+| `writeResponse` | `apps/local-host/src/inbox-native-plugin-http.ts:54`（已随 FI-7 删；Schedule 入口已随 SYS-15 迁到 Runtime） | 285 字符 × 2 | 合并进已有的 `native-plugin-http.ts`，作为“可返回 HTML 的 JSON 响应” |
 | `deletionRecord` | `modules/projects/src/repository.ts:452`、`modules/projects/src/project-service.ts:223` | 330 字符 × 2 | 一个 mapper 导出给另一个用 |
 | `reopenCompletion` | `modules/goals/src/event-state-agreement.ts:192`、`event-state-effects.ts:567` | 427 字符 × 2 | 同一 Module 内收成一份 |
 | `resolveSourceFaults` / `resolveRssSourceFaults` | `plugins/native/feed/src/connector-sync.ts:196`、`source-sync.ts:279` | 301 字符 × 2 | 同一插件内收成一份 |
@@ -490,10 +490,10 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `sameTypeDefinition` | [`modules/goals/src/event-facts-validation.ts`](../../modules/goals/src/event-facts-validation.ts) | 值 |
-| `resolveDecisionEffects` | [`modules/goals/src/event-state-authorization.ts`](../../modules/goals/src/event-state-authorization.ts) | 值 |
-| `decisionCoversScope` | [`modules/goals/src/event-state-authorization.ts`](../../modules/goals/src/event-state-authorization.ts) | 值 |
-| `contractInputFromGoal` | [`modules/goals/src/goal-contract-records.ts`](../../modules/goals/src/goal-contract-records.ts) | 值 |
+| `sameTypeDefinition` | [`modules/goals/src/event-facts-validation.ts`](../../plugins/native/goals/src/module/event-facts-validation.ts) | 值 |
+| `resolveDecisionEffects` | [`modules/goals/src/event-state-authorization.ts`](../../plugins/native/goals/src/module/event-state-authorization.ts) | 值 |
+| `decisionCoversScope` | [`modules/goals/src/event-state-authorization.ts`](../../plugins/native/goals/src/module/event-state-authorization.ts) | 值 |
+| `contractInputFromGoal` | [`modules/goals/src/goal-contract-records.ts`](../../plugins/native/goals/src/module/goal-contract-records.ts) | 值 |
 
 **apps/workbench**（3）
 
@@ -513,7 +513,7 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `GoalEventSystemOperation` | [`packages/contracts/src/modules/goal-event-state.ts`](../../packages/contracts/src/modules/goal-event-state.ts) | 类型 |
+| `GoalEventSystemOperation` | [`plugins/native/goals/src/contract/goal-event-state.ts`](../../plugins/native/goals/src/contract/goal-event-state.ts)（PG-111 起；原在 `packages/contracts/src/modules/`） | 类型 |
 
 **plugins/native/feed**（1）
 

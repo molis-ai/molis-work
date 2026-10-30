@@ -1,4 +1,4 @@
-import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord, GoalRelationRecord } from "./contract/goals.js";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 
 export interface GoalsTreeItem {
@@ -18,7 +18,6 @@ export type GoalVisibleStatus = GoalDisplayStatus | "archived" | "trashed";
 export interface GoalsTreeUiPrimitives {
   translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  currentLocale(): string;
   listJoin(values: string[]): string;
   icon(name: "link" | "chevron-down" | "chevron-right" | "target" | "list" | "workflow" | "search" | "filter" | "plus" | "tree" | "archive" | "trash" | "back"): string;
   renderStatus(status: GoalPresentationState): string;

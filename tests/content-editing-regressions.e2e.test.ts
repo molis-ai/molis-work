@@ -1,10 +1,10 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { openPagesStore, nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
-import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
-import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
+import type { PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // W5-10-PGC-03 / W5-10-PGV-02: exercise the bundled commands and node views through the real editor and host.
@@ -64,7 +64,8 @@ const clickCaret = async (b: Browser, paragraph: number, at: "start" | "end") =>
     const r=document.createRange();r.setStart(p,0);r.setEnd(s.anchorNode,s.anchorOffset);return r.toString().length===${at === "start" ? "0" : "p.textContent.length"}; })()`);
 };
 const holdTimers = (b: Browser) => b.frame.evaluate(`(() => { const original=window.setTimeout, held=[]; window.setTimeout=(fn,delay,...args)=>{const id=original(fn,delay===400?60000:delay,...args);if(delay===400)held.push(id);return id;}; window.restoreContentTimers=()=>{window.setTimeout=original;held.forEach(clearTimeout);}; })()`);
-const holdReply = (b: Browser, path: string) => b.frame.evaluate(`(() => { const original=window.fetch;let held=false; window.fetch=async (url,options)=>{const response=await original(url,options);if(!held&&options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith(${JSON.stringify(path)})){held=true;window.heldContentPayload=await response.clone().json();await new Promise(resolve=>window.releaseContentReply=resolve);}return response;};window.restoreContentFetch=()=>{window.fetch=original;}; })()`);
+// The page asks through the frame's molisWorkRequest (it captured fetch when the frame started), so the real Host's answer is held by wrapping that helper: it hands back the parsed payload.
+const holdReply = (b: Browser, path: string) => b.frame.evaluate(`(() => { const original=window.molisWorkRequest;let held=false; window.molisWorkRequest=Object.assign(async (url,options)=>{const payload=await original(url,options);if(!held&&options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith(${JSON.stringify(path)})){held=true;window.heldContentPayload=payload;await new Promise(resolve=>window.releaseContentReply=resolve);}return payload;},original);window.restoreContentFetch=()=>{window.molisWorkRequest=original;}; })()`);
 const chooseActions = async (b: Browser) => {
   await b.frame.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'),p=editor.querySelector('p');editor.focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`);
   await b.frame.waitFor("!getSelection().isCollapsed && getSelection().toString() === document.querySelector('[data-pages-editor] .ProseMirror p').textContent");
@@ -214,7 +215,7 @@ test("W2-18-PPT-02: closing a generating dialog protects later typing and a reop
   const store = openPptStore(b.homeDirectory);
   const deck = (() => { try { return store.create({ title: "Deck", project_id: b.projectId! }); } finally { store.close(); } })();
   await open(b, "ppt", deck.id); await b.frame.click("[data-ppt-outline-open]");
-  await b.frame.evaluate(`(() => { const original=window.fetch;window.pptCallEnded=false;window.fetch=async(url,options)=>{try{return await original(url,options);}finally{if(options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith('/outline-ai'))window.pptCallEnded=true;}};window.restorePptFetch=()=>window.fetch=original;})()`);
+  await b.frame.evaluate(`(() => { const original=window.molisWorkRequest;window.pptCallEnded=false;window.molisWorkRequest=Object.assign(async(url,options)=>{try{return await original(url,options);}finally{if(options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith('/outline-ai'))window.pptCallEnded=true;}},original);window.restorePptFetch=()=>{window.molisWorkRequest=original;};})()`);
   await input(b, "[data-ppt-outline-text]", "Original source"); await b.frame.click('[data-ppt-outline-mode="ai"]');
   await b.frame.click("[data-ppt-outline-submit]"); await started;
   await b.frame.click("[data-ppt-outline-close]"); await cancellation; await holdTimers(b);

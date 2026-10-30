@@ -1,4 +1,5 @@
-import { renderProjectMonogram, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
 import { globalSettingsSectionPath, groupedGlobalSettingsSections } from "./settings-sections.js";
 
 export interface WebProjectNavigation {
@@ -10,15 +11,15 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "rules" | "planning";
+type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -80,8 +81,7 @@ function renderSettingsNavigation(
   project: WebProjectNavigation | null,
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
-  enabledPlugins?: readonly string[],
-  hiddenPlugins?: readonly string[],
+  shownPlugins?: readonly string[],
 ): string {
   const href = (path: string) => settingsContextHref(path, project, desktopShell);
   const current = (section: SettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
@@ -89,7 +89,7 @@ function renderSettingsNavigation(
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${L("系统设置")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
-      ${groupedGlobalSettingsSections(enabledPlugins, hiddenPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
+      ${groupedGlobalSettingsSections(shownPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
       ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(L(section.label))}</a>`).join("")}`).join("")}
     </div>
   </nav>`;
@@ -100,6 +100,8 @@ function renderProjectSettingsNavigation(
   project: WebProjectNavigation,
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
+  /** Goals owns the project description page; a project without Goals does not list it (RAC-400). */
+  options: { goals: boolean } = { goals: true },
 ): string {
   const routePrefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
@@ -110,9 +112,10 @@ function renderProjectSettingsNavigation(
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${L("常规")}</a>
       <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${L("工作目录")}</a>
-      <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>
+      ${options.goals ? `<a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>` : ""}
       <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${L("项目记忆")}</a>
       <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${L("项目资料")}</a>
+      <a href="${href(`${routePrefix}/settings/plugins`)}"${current("plugins")}>${icon("package")}${L("插件")}</a>
     </div>
   </nav>`;
 }

@@ -1,29 +1,19 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-pages",
-  packagePath: "plugins/native/pages",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["pages.ui-contribution.v1", "pages.http-routes.v1"],
-} as const;
-
 export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, renderPagesWorkbench } from "./ui.js";
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
 import { PAGES_STYLES as PAGES_BASE_STYLES } from "./styles.js";
 import { PAGES_COMMENT_STYLES } from "./comment-side-view.js";
-import { PAGES_IMPORT_STYLES } from "./import-client.js";
+import { PAGES_IMPORT_STYLES } from "./import-styles.js";
 /** Pages' stylesheet: the workbench, and its own import dialog (restored 2026-10-03 at the user's request). */
 export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES + PAGES_COMMENT_STYLES;
 export { PAGES_EN } from "./en.js";
+export { PAGES_MESSAGES } from "./messages.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
-export { pagesMethods } from "./methods.js";
-export { openPagesStore, ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
+export { pagesSkills } from "./skills.js";
+export { ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
 export { createPagesPlugin } from "./plugin.js";
 export type { PagesSql, PagesSqlValue, PagesStores } from "./store.js";
-export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";
@@ -34,7 +24,7 @@ export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./te
 export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 export { columnDropAnchor, dragRows, nodesInSpan, nudgeSpan, placeCopySpan, previewCopySpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
 export { convertedBlocks, convertedNodes } from "./convert.js";
-export { placeFloating, scrollChildIntoView, scrollShouldFollow } from "./floating.js";
+export { scrollChildIntoView } from "./floating.js";
 export { linkClickOpens, safePagesHref } from "./link.js";
 export { blocksFromMarkdown, markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 export { nodesToMarkdown } from "./to-markdown.js";
@@ -164,7 +154,7 @@ export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, PAGES_READABLE_EXTENSIONS, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";
 
 export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";

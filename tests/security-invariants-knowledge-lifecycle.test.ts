@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { localWebActionContext } from "@molis-ai/molis-work-app-local-host";
 import { homeSqlitePath, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { knowledgeActions, type KnowledgeCardsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -16,7 +15,8 @@ async function heldModel(t: TestContext, home: string) {
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
   const sent: string[] = [];
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     assert.ok(isKnowledgeOrganize(body), "only the organizer sends a model request in this test");
     sent.push(JSON.parse(organizedCardFor(body)).title);
     if (sent.length === 1) {
@@ -46,7 +46,7 @@ for (const change of ["exclude", "delete"] as const) {
     const model = await heldModel(t, home.home);
     const cards = openKnowledgeCards({ homeDirectory: home.home });
     try {
-      const caller = await localWebActionContext(home.host, project.reference, ["knowledge:read", "artifacts:read"]);
+      const caller = await home.host.localPersonContext(project.reference);
       await home.host.actionClient(project.reference).invoke(caller, { ...knowledgeActions.read, provider_id: "system.knowledge" }, { subject: listed.cards[0]!.subject });
       assert.equal(cards.receipts(project.project_id, { limit: 10, offset: 0 }).total, 1, "deletion must clear an actual read receipt");
       await home.web.post(prefix + "/api/knowledge/organize", {});

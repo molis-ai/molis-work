@@ -43,7 +43,6 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
 
 test("Cognia discovery never decrypts or starts Prologue; actual packed SDK receives fixed evidence and no tools", { timeout: 30_000 }, async t => {
   const f = fixture(t); let reads = 0, requests = 0;
-  agentDefinitionsFor(f.home, builtinRegistrations).save("io.molis.work.cognia/cognia-evidence", "COGNIA_ROLE_OVERRIDE", null, "person");
   const get = f.secrets.get.bind(f.secrets); t.mock.method(f.secrets, "get", ref => { reads++; return get(ref); });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     requests++; const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
@@ -54,6 +53,8 @@ test("Cognia discovery never decrypts or starts Prologue; actual packed SDK rece
     return response("# SDK 知识草稿\n已读取固定证据 [S1]");
   });
   assert.equal((await f.bound.discover()).find(d => d.capability_id === actions.synthesize.capability_id)!.availability.available, true);
+  // Cognia's instructions are registered by its running definition (PG-051): the person edits them once it runs.
+  agentDefinitionsFor(f.home, builtinRegistrations).save("io.molis.work.cognia/cognia-evidence", "COGNIA_ROLE_OVERRIDE", null, "person");
   const workspace = await f.bound.invoke(actions.workspace, {}); assert.equal(workspace.ai_runtime, "Prologue · Cognia model · fixture-model");
   assert.equal(reads, 0); assert.equal(requests, 0); assert.equal(existsSync(join(f.home, "cognia", "runtime")), false);
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Selected", body: "ORIGINAL_FIXED_EVIDENCE" });

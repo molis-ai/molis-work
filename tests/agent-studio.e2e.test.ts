@@ -7,7 +7,7 @@ import test from 'node:test';
 import { createServer, type Server } from 'node:http';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
-import { createServer as createHttpsServer, globalAgent } from 'node:https';
+import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
 import dns from 'node:dns';
 import { syncBuiltinESMExports } from 'node:module';
@@ -426,11 +426,15 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   await new Promise<void>(resolve => tlsServer.listen(0, '127.0.0.1', resolve)); const tlsAddress = tlsServer.address(); assert.ok(tlsAddress && typeof tlsAddress === 'object');
   const originalLookup = dns.lookup, dnsMock = t.mock.method(dns, 'lookup', (hostname, options, callback) => hostname === 'api.weather.example'
     ? callback(null, [{ address: '93.184.216.34', family: 4 }]) : originalLookup(hostname, options, callback)); syncBuiltinESMExports();
-  const originalConnect = globalAgent.createConnection.bind(globalAgent), transport = t.mock.method(globalAgent, 'createConnection', (options, callback) => {
-    if (options.host !== 'api.weather.example' && options.hostname !== 'api.weather.example') return originalConnect(options, callback);
+  let fixtureConnections = 0, checkedResolutions = 0;
+  // Production uses agent:false so each request gets a new Agent; the global Agent is never consulted.
+  const originalConnect = Agent.prototype.createConnection, transport = t.mock.method(Agent.prototype, 'createConnection', function(this: Agent, options, callback) {
+    if (options.host !== 'api.weather.example' && options.hostname !== 'api.weather.example') return originalConnect.call(this, options, callback);
+    fixtureConnections++;
     const checkedLookup = options.lookup; assert.ok(checkedLookup);
     // Run the production lookup/address/authority checks; route only the resulting test TLS socket to the local server.
     return tlsConnect({ ...options, port: tlsAddress.port, ca: cert, servername: 'api.weather.example', lookup: (hostname, lookupOptions, done) => checkedLookup(hostname, lookupOptions, (error, _address, _family) => {
+      checkedResolutions++;
       if (error) done(error, [], 4); else done(null, lookupOptions?.all ? [{ address: '127.0.0.1', family: 4 }] : '127.0.0.1', 4);
     }) });
   });
@@ -468,5 +472,6 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText||''`), ''); assert.equal(installed.installations()[0]!.version, 2);
   const called = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'web-user', execution: { beforeEffect: async () => {} }, body: { operation: 'fetch', input: null } });
   assert.equal(called?.status, 200, JSON.stringify(called?.body)); assert.equal((called!.body as { value: string }).value, 'received'); assert.equal(await received.promise, secretValue);
+  assert.equal(fixtureConnections, 1); assert.equal(checkedResolutions, 1, 'the new connection still ran the production DNS/address/authority checks');
   assert.ok(!JSON.stringify(installed.secrets.list(pluginId)).includes(secretValue)); assert.ok(!String(installed.storage.get('plugin-builder:agent-studio:approved:' + pluginId)).includes(secretValue));
 });

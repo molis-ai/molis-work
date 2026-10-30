@@ -5,7 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "molis-work-workspace-actions-token-0123456789";
@@ -19,8 +18,6 @@ test("project workspace actions require confirmation, repair and unlink only the
   await mkdir(repairedPath, { recursive: true });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "工作目录动作", actor_id: "user" });
-  // The workspace rows are shown by the Sessions view; the folder actions themselves do not depend on it.
-  if (!catalog.listProjectPlugins(project.project_id).includes("sessions")) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "user" });
   catalog.close();
 
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
@@ -49,34 +46,6 @@ test("project workspace actions require confirmation, repair and unlink only the
     assert.equal(addedResponse.status, 201);
     const added = await addedResponse.json() as { workspace: { workspace_id: string; canonical_path: string } };
 
-    const registry = await openWorkSessionRegistry({ homeDirectory: home });
-    const existingSession = registry.createSession({
-      runtime_id: "claude-code",
-      actor_id: "user",
-      user_confirmed: true,
-      project_id: project.project_id,
-      workspace_id: added.workspace.workspace_id,
-      workspace_path: added.workspace.canonical_path,
-      title: "需要随路径修复的 Session",
-    });
-    const conflictingSession = registry.createSession({
-      runtime_id: "codex",
-      actor_id: "user",
-      user_confirmed: true,
-      project_id: project.project_id,
-      workspace_id: "workspace-historical-conflict",
-      workspace_path: added.workspace.canonical_path,
-      title: "历史目录身份冲突",
-    });
-    registry.close();
-
-    const conflictPage = await (await fetch(`${origin}${prefix}/`)).text();
-    assert.match(conflictPage, /关联冲突/);
-    const conflictLaunch = await mutate(`/api/workspaces/${encodeURIComponent(added.workspace.workspace_id)}/sessions`, "POST", {
-      runtime_id: "codex",
-      user_confirmed: true,
-    });
-    assert.equal(conflictLaunch.status, 409);
 
     const deniedRepair = await mutate(`/api/workspaces/${encodeURIComponent(added.workspace.workspace_id)}/path`, "PATCH", {
       workspace_path: repairedPath,
@@ -88,29 +57,15 @@ test("project workspace actions require confirmation, repair and unlink only the
     });
     assert.equal(repairResponse.status, 200);
     const repaired = await repairResponse.json() as { workspace: { workspace_id: string; canonical_path: string } };
-    // Sessions are retired (BL-177): repair (v2) changes the folder relation only, and reports no Session count.
+    // Repair changes the folder relation only, and reports no Session count.
     assert.equal(Object.hasOwn(repaired, "updated_session_count"), false);
-
-    const afterRepair = await openWorkSessionRegistry({ homeDirectory: home });
-    assert.deepEqual(afterRepair.get(existingSession.session_id), existingSession);
-    assert.deepEqual(afterRepair.get(conflictingSession.session_id), conflictingSession);
-    afterRepair.close();
     await access(previousPath);
     await access(repairedPath);
 
-    const deniedLaunch = await mutate(`/api/workspaces/${encodeURIComponent(repaired.workspace.workspace_id)}/sessions`, "POST", {
-      runtime_id: "claude-code",
-    });
-    assert.equal(deniedLaunch.status, 400);
-    const launchResponse = await mutate(`/api/workspaces/${encodeURIComponent(repaired.workspace.workspace_id)}/sessions`, "POST", {
-      runtime_id: "claude-code",
-      title: "从工作目录启动",
-      user_confirmed: true,
-    });
-    assert.equal(launchResponse.status, 201);
-    const launched = await launchResponse.json() as { session: { session_id: string; workspace_path: string; project_id: string } };
-    assert.equal(launched.session.workspace_path, repaired.workspace.canonical_path);
-    assert.equal(launched.session.project_id, project.project_id);
+    // RAC-215: a folder no longer starts a Session; the route that did is gone, confirmed or not.
+    for (const body of [{ runtime_id: "claude-code" }, { runtime_id: "claude-code", title: "从工作目录启动", user_confirmed: true }]) {
+      assert.equal((await mutate(`/api/workspaces/${encodeURIComponent(repaired.workspace.workspace_id)}/sessions`, "POST", body)).status, 404);
+    }
 
     const unlinkResponse = await mutate(`/api/workspaces/${encodeURIComponent(repaired.workspace.workspace_id)}/unlink`, "POST", {
       user_confirmed: true,
@@ -122,10 +77,6 @@ test("project workspace actions require confirmation, repair and unlink only the
     assert.equal(finalCatalog.listWorkspaceDirectory(project.project_id).length, 0);
     assert.equal(finalCatalog.listWorkspaceMemberships().some((membership) => membership.is_default), false);
     finalCatalog.close();
-    const finalRegistry = await openWorkSessionRegistry({ homeDirectory: home });
-    assert.deepEqual(finalRegistry.get(existingSession.session_id), existingSession);
-    assert.equal(finalRegistry.get(launched.session.session_id).workspace_path, repaired.workspace.canonical_path);
-    finalRegistry.close();
     await access(previousPath);
     await access(repairedPath);
   } finally {
@@ -133,16 +84,14 @@ test("project workspace actions require confirmation, repair and unlink only the
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 
-test("folder membership and the browsing choice are project settings: they work without the Sessions plugin and refuse folders of other projects", async () => {
+test("folder membership and the browsing choice are project settings: they refuse folders of other projects", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-settings-"));
   const home = path.join(directory, ".molis-work");
   const folder = path.join(directory, "repository");
   await mkdir(folder, { recursive: true });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const project = await catalog.createProject({ display_name: "没有会话插件", actor_id: "user" });
-  if (catalog.listProjectPlugins(project.project_id).includes("sessions")) catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "user" });
+  const project = await catalog.createProject({ display_name: "工作目录设置", actor_id: "user" });
   catalog.close();
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -167,9 +116,20 @@ test("folder membership and the browsing choice are project settings: they work 
     assert.equal((await (await call("/api/project-settings/workspaces", "GET")).json() as { selected: string | null }).selected, workspace.workspace_id);
     const unknown = await call("/api/workspaces/workspace-unknown/unlink", "POST", { user_confirmed: true });
     assert.equal(unknown.status, 404);
+    // BL-372: the project's Runtime pick is the same kind of setting. No pick is the Home default; a pick that is not offered is kept and
+    // reported with its name, so it can be changed or put back; only a Runtime id or null is a pick.
+    const picked = async (body?: Record<string, unknown>) => (await call("/api/project-settings/runtime", body ? "POST" : "GET", body)).json() as Promise<{ runtimes: Array<{ runtime_id: string }>; selected: string | null; problem: string | null }>;
+    const initial = await picked();
+    assert.deepEqual([initial.selected, initial.problem], [null, null]);
+    assert.ok(initial.runtimes.length >= 1, "the Runtimes that can host a session are listed");
+    const gone = await picked({ runtime_id: "gone-engine" });
+    assert.equal(gone.selected, "gone-engine");
+    assert.match(gone.problem ?? "", /gone-engine.*项目设置/);
+    assert.equal((await call("/api/project-settings/runtime", "POST", { runtime_id: 5 })).status, 400);
+    assert.deepEqual([(await picked({ runtime_id: null })).selected, (await picked()).problem], [null, null]);
     // The capability library lists them for the person who may run them, like any other action.
     const library = await (await fetch(`${origin}/capabilities/library?project=${encodeURIComponent(project.project_id)}`)).text();
-    for (const title of ["关联工作目录", "修复工作目录路径", "解除工作目录", "选择浏览工作区"]) assert.ok(library.includes(title), `${title} is in the library`);
+    for (const title of ["关联工作目录", "修复工作目录路径", "解除工作目录", "选择浏览工作区", "选择项目运行时"]) assert.ok(library.includes(title), `${title} is in the library`);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

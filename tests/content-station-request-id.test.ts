@@ -5,15 +5,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/search-sources";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { datasetContentActions } from "@molis-ai/molis-work-plugin-dataset";
-import { feedContentActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_ACTION_PERMISSIONS, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import { formContentActions } from "@molis-ai/molis-work-plugin-form";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { jellyContentActions } from "@molis-ai/molis-work-plugin-jelly";
 import { lingguangContentActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
 import { pptContentActions } from "@molis-ai/molis-work-plugin-ppt";
+import { initializeBoard } from "./fixtures/goals-board.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // W4-6a: the request id of a delivery is the entry point's, the same eight real stations (Dataset, Feed, Form, Inbox, Jelly, 灵光, Pages, PPT)
 // make one object per id, and who delivered is read from the call's audience. Nothing here is a stand-in for a station.
@@ -27,13 +29,15 @@ const STATIONS: ReadonlyArray<{ plugin: string; actions: WorkflowContentActions;
   { plugin: "pages", actions: pagesContentActions, payload: { title: "放进来的文档", body: "# 标题\n正文" } },
   { plugin: "ppt", actions: pptContentActions, payload: { title: "放进来的演示稿", body: "# 第一页\n- 要点" } },
 ];
-const PERMISSIONS = [...new Set(STATIONS.flatMap(station => Object.values(station.actions).flatMap(definition => definition.action.permissions)))];
+// The person holds what each station's actions ask, and Feed's ask for more once the Plugin Runtime registers them (the retained bodies the
+// capture rules read, the Inbox entry and the 成果 a capture opens), which Inbox's hand-in reaches as the same person.
+const PERMISSIONS = [...new Set([...STATIONS.flatMap(station => Object.values(station.actions).flatMap(definition => definition.action.permissions)), ...FEED_ACTION_PERMISSIONS])];
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "content-station-request-id-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PERMISSIONS };
   const client = host.actionClient(ref);
   const as = (audience: ActionAudience) => bindActionClient(client, () => ({ ...caller, audience }));

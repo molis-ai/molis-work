@@ -18,6 +18,8 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
+import { GIT_MESSAGES } from "./messages.js";
+import { GIT_EN } from "./en.js";
 export const GIT_PLUGIN_ID = "io.molis.work.git";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
@@ -47,6 +49,7 @@ export const gitManifest: PluginManifest = {
   plugin_id: GIT_PLUGIN_ID,
   version: "0.3.0",
   name: "Git",
+  summary: "查看工作区的版本与变更。",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -126,16 +129,10 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
   ui: {
+    messages: GIT_MESSAGES,
+    translations: GIT_EN,
     embedded_plugins: ["io.molis.work.diff"],
     contributions: [GIT_UI_CONTRIBUTION_ID],
-    commands: [
-      {
-        command_id: "git.open-change",
-        title: "查看这处改动",
-        input_kinds: ["object"],
-        opens_view_id: "changes",
-      },
-    ],
     views: [
       {
         view_id: "changes",
@@ -143,8 +140,8 @@ export const gitManifest: PluginManifest = {
         title: "Git",
         contribution_id: GIT_UI_CONTRIBUTION_ID,
         icon: "git-branch",
+        hue: "orange",
         order: 30,
-        accepts_objects: true,
       },
     ],
   },

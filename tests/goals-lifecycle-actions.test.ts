@@ -9,6 +9,10 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
+
+// The plugin runs over its own connection to the project's library and writes its events under its own names, so a trigger that makes
+// an append fail is an ordinary one (a TEMP trigger lives on the Host's connection alone) on the name the platform stores.
 
 async function recordDelivery(actions: BoundActionClient, goal_id: string) {
   await actions.invoke(goalsActions.configure, { goal_id, expected_version: 0, idempotency_key: `config-${goal_id}`,
@@ -31,7 +35,7 @@ for (const graph of [
   const caller: ActionCallContext = { actor_id: "runtime:restore", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
   const actions = bindActionClient(host.actionClient(ref), () => caller);
   for (const goal_id of ["A", "B", "C"]) await actions.invoke(goalsActions.create, { goal_id, title: goal_id, outcome: "Keep the graph valid", requirements: [], idempotency_key: "create-" + goal_id });
-  const add = (from_goal_id: string, to_goal_id: string, type: typeof graph.types[number], key: string) => host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.project_id,
+  const add = (from_goal_id: string, to_goal_id: string, type: typeof graph.types[number], key: string) => host.withProject(ref, r => goalApplicationOf(r).goals.commands.addRelation(project.project_id,
     { from_goal_id, to_goal_id, type, reason: "Observed graph" }, { actor_id: caller.actor_id, idempotency_key: key }));
   const ca = await add("C", "A", graph.types[0], "C-A"), ab = await add("A", "B", graph.types[1], "A-B");
   await actions.invoke(goalsActions.trash, { goal_id: "A", trashed: true, reason: "Confirmed removal", user_confirmed: true, idempotency_key: "trash-A" });
@@ -39,7 +43,7 @@ for (const graph of [
     ? await add("C", "B", graph.types[2], "C-B")
     : await add("B", "C", graph.types[2], "B-C");
   const state = () => host.withProject(ref, r => ({
-    graph: r.store.snapshot(project.project_id), cursor: r.store.eventCursor(project.project_id),
+    graph: boardSnapshot(r.store, project.project_id), cursor: r.store.eventCursor(project.project_id),
     trash: r.store.db.prepare("SELECT * FROM goal_trash_records WHERE project_id = ? ORDER BY trash_record_id").all(project.project_id),
     relations: r.store.db.prepare("SELECT * FROM goal_trash_relation_records ORDER BY relation_id, trash_record_id").all(),
     receipts: r.store.db.prepare("SELECT * FROM idempotency_records WHERE project_id = ? AND actor_id = ? ORDER BY operation, idempotency_key").all(project.project_id, caller.actor_id),
@@ -52,9 +56,9 @@ for (const graph of [
   assert.deepEqual(await state(), before, "reopening the real database retains the rejected transaction");
   await assert.rejects(actions.invoke(goalsActions.trash, restore), { code: graph.code });
   assert.deepEqual(await state(), before);
-  await host.withProject(ref, r => r.coordinator.goals.commands.deactivateRelation(project.project_id, { relation_id: currentEdge.relation_id, reason: "Remove the conflicting current edge" }, { actor_id: caller.actor_id, idempotency_key: "correct-B-C" }));
+  await host.withProject(ref, r => goalApplicationOf(r).goals.commands.deactivateRelation(project.project_id, { relation_id: currentEdge.relation_id, reason: "Remove the conflicting current edge" }, { actor_id: caller.actor_id, idempotency_key: "correct-B-C" }));
   const corrected = await state();
-  await host.withProject(ref, r => r.store.db.exec("CREATE TEMP TRIGGER reject_restore BEFORE INSERT ON events WHEN NEW.type = 'goal.restored_from_trash' BEGIN SELECT RAISE(ABORT, 'injected restore append failure'); END"));
+  await host.withProject(ref, r => r.store.db.exec("CREATE TRIGGER reject_restore BEFORE INSERT ON events WHEN NEW.type = 'io.molis.work.goals:goal.restored_from_trash' BEGIN SELECT RAISE(ABORT, 'injected restore append failure'); END"));
   await assert.rejects(actions.invoke(goalsActions.trash, restore), /injected restore append failure/);
   assert.deepEqual(await state(), corrected, "an owner event failure rolls back both restored edges and the Goal");
   await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_restore"));
@@ -77,16 +81,16 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Lifecycle disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:lifecycle", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
-  const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
+  const snapshot = () => host.withProject(ref, r => boardSnapshot(r.store, project.project_id));
   const active = { goal_id: "left", reason: "Continue this Goal", idempotency_key: "active-original" };
   const trash = { goal_id: "left", trashed: true, reason: "User confirmed trash", user_confirmed: true, idempotency_key: "trash-original" };
   try {
     for (const goal_id of ["left", "right", "done"]) await bound.invoke(goalsActions.create, { goal_id, title: goal_id, outcome: "Deliver the agreed work",
       requirements: goal_id === "done" ? [{ requirement_id: "delivered", statement: "The agreed result is available" }] : [], idempotency_key: `create-${goal_id}` });
-    const relation = await host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.project_id,
+    const relation = await host.withProject(ref, r => goalApplicationOf(r).goals.commands.addRelation(project.project_id,
       { from_goal_id: "left", to_goal_id: "right", type: "extends", reason: "Related work" }, { actor_id: caller.actor_id, idempotency_key: "relation" }));
     const note = await bound.invoke(goalsActions.note, { goal_id: "left", body: "Preserve this complete history", idempotency_key: "history" });
-    const oldActive = await host.withProject(ref, r => r.coordinator.setActiveGoal(project.project_id,
+    const oldActive = await host.withProject(ref, r => goalApplicationOf(r).setActiveGoal(project.project_id,
       { goal_id: active.goal_id, reason: active.reason }, { actor_id: caller.actor_id, idempotency_key: active.idempotency_key }));
     assert.deepEqual(await bound.invoke(goalsActions.active, active), { ...oldActive, replayed: true });
     const before = await snapshot();
@@ -99,14 +103,14 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.deepEqual(await snapshot(), before);
 
     // Fail after the owner has changed placement, relations and the current Goal pointer.
-    await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_trash BEFORE INSERT ON events
-      WHEN NEW.type = 'goal.trashed' BEGIN SELECT RAISE(ABORT, 'injected trash append failure'); END`));
+    await host.withProject(ref, r => r.store.db.exec(`CREATE TRIGGER reject_trash BEFORE INSERT ON events
+      WHEN NEW.type = 'io.molis.work.goals:goal.trashed' BEGIN SELECT RAISE(ABORT, 'injected trash append failure'); END`));
     await assert.rejects(bound.invoke(goalsActions.trash, trash), /injected trash append failure/);
     assert.deepEqual(await snapshot(), before);
     assert.equal(await host.withProject(ref, r => (r.store.db.prepare("SELECT COUNT(*) AS n FROM goal_trash_records WHERE goal_id = 'left'").get() as { n: number }).n), 0);
     await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_trash"));
     const { user_confirmed: _confirmed, idempotency_key, ...oldInput } = trash;
-    const oldTrash = await host.withProject(ref, r => r.coordinator.goals.lifecycle.setTrashed(project.project_id, oldInput, { actor_id: caller.actor_id, idempotency_key }));
+    const oldTrash = await host.withProject(ref, r => goalApplicationOf(r).goals.lifecycle.setTrashed(project.project_id, oldInput, { actor_id: caller.actor_id, idempotency_key }));
     assert.deepEqual(await bound.invoke(goalsActions.trash, trash), { ...oldTrash, replayed: true });
     assert.equal(oldTrash.active_goal_cleared, true);
     assert.deepEqual(oldTrash.deactivated_relation_ids, [relation.relation_id]);
@@ -149,9 +153,9 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), final);
+      assert.deepEqual(await restarted.withProject(ref, r => boardSnapshot(r.store, project.project_id)), final);
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.trash, trash), { ...oldTrash, replayed: true });
-      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), final, "replaying a historical receipt must not trash a restored Goal again");
+      assert.deepEqual(await restarted.withProject(ref, r => boardSnapshot(r.store, project.project_id)), final, "replaying a historical receipt must not trash a restored Goal again");
     } finally { await restarted.close(); }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -171,7 +175,7 @@ test("Web lifecycle routes obey live policy and the user's confirmation", async 
       requirements: [{ requirement_id: "delivered", statement: "The agreed result is available" }], idempotency_key: "create" });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`, base = `${origin}/projects/${project.project_id}/api/goals/web-goal`;
+    const origin = `http://127.0.0.1:${address.port}`, base = `${origin}/projects/${project.project_id}/api/plugins/io.molis.work.goals/goals/web-goal`;
     const request = (path: string, body: unknown, authorized = true) => fetch(base + path, { method: "POST",
       headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
     assert.equal((await request("/active", { reason: "Current" }, false)).status, 403);

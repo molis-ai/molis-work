@@ -1,3 +1,5 @@
+import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
+export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 import type { AssistantActivity } from "./assistant-activity.js";
@@ -6,7 +8,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
-import type { MemoryChange, MemoryScope } from "./memory.js";
+import type { MemoryChange } from "./memory.js";
 
 /**
  * The system Assistant: one personal assistant, many independent pieces of work.
@@ -102,8 +104,8 @@ export type AssistantMessagePurpose = "background" | "change" | "suggest" | "del
 export interface AssistantPluginMessage {
   message_id: string;
   purpose: AssistantMessagePurpose;
-  /** The surface speaking, as the person knows it. */
-  source: { surface: string; title?: string };
+  /** The surface speaking, as the person knows it; the shell writes it, with `plugin_id` from the frame, over a page's own. */
+  source: { surface: string; title?: string; plugin_id?: string };
   /** The object it concerns (for change, reply, and what a suggestion or delegation is about). */
   object?: { kind: string; id: string; title?: string; version?: number | string | null };
   /** For suggest/delegate: the request in the person's words. For background: what the page shows now. */
@@ -112,12 +114,12 @@ export interface AssistantPluginMessage {
   materials?: Array<{ title: string; text: string }>;
   /** For reply (and to continue a work on delegate): the work it belongs to. */
   work_id?: string;
-  /**
-   * For suggest, after a real user gesture on the page: an action the page already prepared exactly (the capability and
+  /** For suggest, after a real user gesture on the page: an action the page already prepared exactly (the capability and
    * its full input), to be shown as a card in a work. It is checked against what the Assistant may use there now and runs
-   * only when the person clicks it; no model round starts. Without a gesture it is an ordinary suggestion.
-   */
+   * only when the person clicks it; no model round starts. Without a gesture it is an ordinary suggestion. */
   card?: AssistantPreparedCard;
+  /** Suggest (PG-057): a comment thread under `object` to answer; only the person's press on 「让助理回复」 starts the reply. */
+  thread?: { thread_id: string; message_id: string; draft?: { text: string; revision: string } };
 }
 
 /**
@@ -234,14 +236,32 @@ export interface AssistantMaterial {
 }
 
 /**
- * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven
- * through the plugin's own actions, and its professional page shows the same session.
+ * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven through the
+ * six actions of the work-executor protocol it publishes, and its own page shows the same session. The plugin is kept by `plugin_id`
+ * and found again in the project's action directory at each call; if it is gone the call is refused, never moved to another.
  */
 export type AssistantExecutor =
   | { kind: "assistant" }
-  | { kind: "coding"; title: string; session_id: string | null;
-      /** The session's own next-round mode, shared with the Coding page: discuss, plan, edit, execute, review… */
+  | { kind: "plugin"; plugin_id: string; title: string; session_id: string | null;
+      /** The session's own next-round mode, shared with the plugin's page: one of the modes its `state` offers. */
       mode?: string };
+
+/** Who the person picks to carry a new work, or to take over an existing one. */
+export type AssistantExecutorChoice = { kind: "assistant" } | { kind: "plugin"; plugin_id: string };
+
+/** A plugin that can carry a work in this project (`GET /api/assistant/executors`): the whole work-executor protocol, open to the local person. */
+export interface AssistantExecutorOffer {
+  plugin_id: string;
+  title: string;
+  modes: Array<{ id: string; title: string }>;
+  default_mode: string;
+  /** The subject kind of the sessions it opens: a page showing such an object can offer to continue it. */
+  session_kind: string;
+  /** The role actions whose effect the plugin's page hears of after a mode is set or a round starts. */
+  capability_ids: { "session.update": string; "run.start": string };
+  /** Why it cannot be chosen now, from its own state read; absent when it can. */
+  problem?: string;
+}
 
 export interface AssistantWork {
   /** This work replies into an owner-held discussion; its scope cannot become global. */
@@ -285,8 +305,8 @@ export interface AssistantCharacterChoice { reference: AssistantCharacterRef; ti
 /** One round the person started, with the run's own facts. */
 export interface AssistantRound {
   run_id: string;
-  /** Who ran it: the Assistant, or the professional Agent the work was handed to. */
-  executor?: "assistant" | "coding";
+  /** Who ran it: the Assistant, or the plugin's Agent the work was handed to. */
+  executor?: "assistant" | "plugin";
   /** The Character that really carried this round, frozen at its start; absent when the Assistant itself did. */
   character?: AssistantCharacter;
   /** What the person sent this round. */
@@ -317,10 +337,9 @@ export interface AssistantRound {
   retry_wait?: AgentRetryWait;
   ended_at: string | null;
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
-  memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };
+  memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }>;
+    uncertain?: AssistantRoundMemory[]; unverified?: true; recording_error?: "memory.receipt_unrecorded" };
 }
-
-export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; text: string; origin: string }
 
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {
@@ -383,14 +402,14 @@ export interface AssistantWorkObject {
 export interface AssistantWorkSurroundings {
   environment: {
     scope: { kind: "personal" } | { kind: "project"; project_id: string; title: string | null };
-    /** For a work Coding carries: its session's directory, and that directory's repository as the project's workspace reads it. */
-    coding?: { workspace: { name: string; path: string } | null; git: AssistantWorkGit | null; problem?: string };
+    /** For a work a plugin carries: its session's directory, and that directory's repository as the project's workspace reads it. */
+    executor?: { workspace: { name: string; path: string } | null; git: AssistantWorkGit | null; problem?: string };
   };
   /** The person's connections, each as its own status says: set up, signed in, and whether its tools can be called. */
   connections: AssistantWorkConnection[];
   connections_problem?: string;
-  /** What this work's executor can call now: the Assistant's actions by provider, and the ones that cannot run with their owner's reason. Coding keeps its own tools. */
-  tools: { executor: "assistant" | "coding"; callable: Array<{ provider: string; count: number }>; unavailable: Array<{ title: string; provider: string; reason: string }>; problem?: string };
+  /** What this work's executor can call now: the Assistant's actions by provider, and the ones that cannot run with their owner's reason. A plugin that carries the work keeps its own tools. */
+  tools: { executor: "assistant" | "plugin"; callable: Array<{ provider: string; count: number }>; unavailable: Array<{ title: string; provider: string; reason: string }>; problem?: string };
   read_at: string;
 }
 /** A directory's repository: its branch (null on a detached HEAD), how far it is from its upstream, and what is not committed. */
@@ -454,7 +473,7 @@ export interface AssistantWorkView {
   problem?: { message: string; action?: string };
   /**
    * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), read only while none of its
-   * rounds is live. Absent: not read this time (a round is live, or Coding runs the work); `[]`: read, and nothing waits.
+   * rounds is live. Absent: not read this time (a round is live, or a plugin runs the work); `[]`: read, and nothing waits.
    */
   queued_inputs?: AgentQueuedInput[];
 }
@@ -465,11 +484,11 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
-  executor?: "assistant" | "coding";
-  /** For a new work carried by Coding: the mode of its first round. Later rounds use the session's own setting. */
+  executor?: AssistantExecutorChoice;
+  /** For a new work carried by a plugin: the mode of its first round. Later rounds use the session's own setting. */
   mode?: string;
-  /** For a new work carried by Coding: continue this existing session (the one open on the Coding page) instead of a new one. */
-  coding_session_id?: string;
+  /** For a new work carried by a plugin: continue this existing session (the one open on the plugin's page) instead of a new one. */
+  executor_session_id?: string;
   /** The Character to carry this and later rounds (null: the Assistant itself); omitted keeps the work's choice. */
   character?: AssistantCharacterRef | null;
   /** Required for a new work; ignored for an existing one, whose scope never changes. */
@@ -501,12 +520,12 @@ export interface AssistantSendResult {
 }
 
 /**
- * Hand a work to another agent and keep it one work: to Coding (in its project, with a note of what was agreed and
- * produced so far), or back to the Assistant (whose next round reads what Coding did). Only between rounds.
+ * Hand a work to another agent and keep it one work: to a plugin's Agent (in its project, with a note of what was agreed and
+ * produced so far), or back to the Assistant (whose next round reads what the plugin did). Only between rounds.
  */
 export interface AssistantHandover {
-  to: "coding" | "assistant";
-  /** For Coding: the mode its first round runs in. */
+  to: AssistantExecutorChoice;
+  /** For a plugin: the mode its first round runs in. */
   mode?: string;
 }
 
@@ -561,20 +580,6 @@ export interface AssistantUsage {
   daily_tokens: number | null;
 }
 
-/** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
-export interface AssistantMemory {
-  memory_id: string;
-  scope: "personal" | "project" | "character";
-  /** For a project memory: which project. */
-  project_id?: string;
-  text: string;
-  /** Where it came from: the work, the date and the person's own words. */
-  origin: string;
-  /** Kept, but not used in work until switched on again (different from deleting it). */
-  disabled: boolean;
-}
-
-/** What the Assistant may do with memory, set by the person; applied exactly as written. */
 /** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
 export interface AssistantMethod {
   /** `<plugin_id>/<skill_id>`. */
@@ -586,53 +591,19 @@ export interface AssistantMethod {
   summary: string;
 }
 
-export interface AssistantMemoryPrefs {
-  /** May keep what the person explicitly asks it to remember. It never keeps anything the person did not ask for or accept. */
-  form: boolean;
-  /** Personal memories are used in work. */
-  use_personal: boolean;
-  /** A project's memories are used in that project's work. */
-  use_project: boolean;
-  /** May propose, from work, a personal preference or lesson worth keeping — only as a candidate the person accepts. */
-  learn_personal: boolean;
-  /** May propose, from a project's work, a convention or lesson for that project — only as a candidate. */
-  learn_project: boolean;
-}
-
-/**
- * Something a work suggests keeping (a preference seen more than once, a lesson from how a work went). It takes effect
- * only when the person accepts it; declined or left alone for 14 days, it goes.
- */
-export interface AssistantMemoryCandidate {
-  candidate_id: string;
-  work_id: string;
-  work_title: string;
-  scope: "personal" | "project" | "character";
-  project_id?: string;
-  text: string;
-  /** What in the work it rests on. */
-  why: string;
-  /** When it applies. */
-  applies: string;
-  state: "pending" | "accepted" | "discarded" | "expired";
-  created_at: string;
-  memory_id?: string;
-  /** Why the write gate held back what the person asked to keep, in the memory service's words; absent for the work's own suggestions. */ held?: string;
-}
-
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.
  * `reminder`: a reminder the person set in a Plugin came due (a time on a to-do); it belongs to no work.
- */
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder";
+ * `directory-read`: a Plugin read a local directory the person authorized (PG-049; every read is told, whoever started it); its text is a host translation template with required text_params, drawn in the current UI language. */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read";
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
-  /** The work it is about; empty for a reminder. */
-  work_id: string;
+  /** The work it is about; empty for a reminder. */ work_id: string;
   /** The work's title, or for a reminder the Plugin that holds it. */
   work_title: string;
   text: string;
+  text_params?: { plugin: string; folder: string; origin: string };
   created_at: string;
   /** For a reminder: where the person opens the item (its project, or null for the personal space). */
   open?: { surface: string; id: string; title: string; project_id: string | null };
@@ -744,7 +715,9 @@ export interface AssistantRoundDiagnostics {
     capability?: { capability_id: string; version: number; provider_id: string }; method?: { method_id: string; version?: number } }>;
   usage: { input: number; output: number; cached_input: number } | null;
   /** Calls that failed or whose outcome is not known, with the tool's own name and summary. */
-  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string }>;
+  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string;
+    /** The runtime's own words for the failure, bounded; when a summary only names a generic code, the rule that refused the call and its reason are here. */
+    detail?: string }>;
 }
 
 /** Immutable destination of a discussion work. The owner provides context and stores the final reply. */

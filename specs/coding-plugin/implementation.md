@@ -30,7 +30,7 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 （`plugins/native/goals/src/` 下的 `board-entry-capabilities.ts`、`goal-entry-contract.ts`、
 `goal-event-entry-capabilities.ts`、`proposal-capabilities.ts`）和 Coding 在用的四个
 （`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`、`goals.progress.receipt.v1`，
-定义在 `packages/contracts/src/modules/goals.ts`，由 `apps/local-host/src/project-capabilities.ts` 注册）。
+定义在 `plugins/native/goals/src/contract/goals.ts`（PG-111 前在 `packages/contracts/src/modules/goals.ts`），由 `apps/local-host/src/project-capabilities.ts` 注册）。
 这些随 W3-07 改成 Goals 的动作，旧入口删除（用户 2026-10-10，见
 [防腐整理 spec](../repository-anti-corruption/spec.md) §1、`docs/system/CALL-CHAINS.md` §10.2）。当年写在这里的
 「Goals 的 38 个能力定义放在 `plugins/native/goals/src/goals-entry-capabilities.ts`」已不成立：那个文件和 26 个没有
@@ -119,14 +119,13 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 
 Agent Host 的 `AgentReviewQueue` 已经有请求、决定、一次性消费、回执和停止时撤回
 （`horizontal/agent-host/src/reviews.ts`，`tests/agent-host.test.ts` 覆盖了各条边界）。
-**缺的只是用户能操作的界面**。
+审查队列由宿主持有。
 
-它属于宿主，不属于 Coding——放在宿主的审查面里，不放进插件。
-`registerAgentHostCapabilities` 原先只有测试在调用。本阶段做的是**把接缝开出来**：
-`MolisWorkLocalHost.registerCapability` 让组合根可以接，`tests/agent-host-wiring.test.ts` 证明这条路通。
-
-**产品的装配根仍然没有构造 Agent Host，也没有挂审查面。** 这和 `createPluginPlatform` 是同一个状态：
-接得通、有测试证明通，但今天跑起来的产品没有调用。等 Coding 真正由 Plugin Runtime 托管时一起接。
+`apps/local-host/src/system-agent-service.ts` 的 `ensureSystemAgentService` 已调用 `composeAgentHost` 构造 Agent Host。
+`apps/local-host/src/agent-host-composition.ts` 通过 `registerAgentHostCapabilities` 将动作交给
+`MolisWorkLocalHost.registerAction` 登记；首次调用时初始化 Runtime，并把 `agentHost.reviews` 接给 Prologue adapter。
+`tests/agent-host-wiring.test.ts` 验证声明消费的插件能经 `services.actions` 调到这些动作，以及宿主客户端的拒绝路径。
+该用例验证宿主动作接线；审查界面与真实 Provider 的完成度仍以各自的验收记录为准。
 
 ## 5. C5：审批桥与真实验证
 

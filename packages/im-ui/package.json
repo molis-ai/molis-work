@@ -5,10 +5,20 @@
   "description": "Shared group conversation and inline Thread UI; no server identity or storage implementation.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "sideEffects": false,
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist", "README.md"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
@@ -16,11 +26,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*"
-  },
-  "molis-work": {
-    "path": "packages/im-ui", "kind": "foundation", "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/services/im",
-    "migrationGoals": ["goal-reorg-f2"], "ssot": "docs/SSOT-MATRIX.md"
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   }
 }

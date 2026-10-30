@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+
 export interface McpToolDefinition {
   name: string;
   description: string;
@@ -63,7 +65,11 @@ export async function handleMcpMessage(
   if (method === "tools/call") {
     try {
       const params = message.params as { name: string; arguments?: Record<string, unknown>; _meta?: Record<string, unknown> };
-      const output = await ports.callTool(params.name, params.arguments || {}, toolCallContextFromParams(params));
+      if (!params || typeof params !== "object" || Array.isArray(params) || typeof params.name !== "string"
+        || (params.arguments !== undefined && (!params.arguments || typeof params.arguments !== "object" || Array.isArray(params.arguments)))) {
+        throw new ActionError("actions.input_invalid", "MCP 工具调用参数必须是具名对象");
+      }
+      const output = await ports.callTool(params.name, params.arguments ?? {}, toolCallContextFromParams(params));
       const result = typeof output === "string" ? { content: [{ type: "text", text: output }], isError: false } : output;
       return { jsonrpc: "2.0", id: msgId, result };
     } catch (error) {

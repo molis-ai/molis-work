@@ -7,17 +7,16 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import { readMaterialWebsite } from "../apps/local-host/dist/material-web.js";
 import {
   isShelfFailure,
-  clearShelfRuntimeCache,
   defaultPanelKeys,
   defaultShelfDeviceSettings,
   parseSettingsWriteBody,
   shortcutOutputName,
   shortcutSlotId,
 } from "@molis-ai/molis-work-module-shelf";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 const HELP_WITH_PRINT = [
   "Usage: claude [options] [prompt]",
@@ -40,11 +39,9 @@ ${body}
 
 async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   const home = await mkdtemp(join(tmpdir(), "molis-work-shelf-settings-"));
-  clearShelfRuntimeCache();
   try {
     return await run(home);
   } finally {
-    clearShelfRuntimeCache();
     await rm(home, { recursive: true, force: true });
   }
 }
@@ -76,7 +73,7 @@ test("the settings route refuses a half-written action or runtime and takes a go
 
 test("panel keys save one slot at a time and keep the rest", async () => {
   await withHome(async (home) => {
-    const store = openHostShelfStore(home, { disabled: true });
+    const store = openTestShelfStore(home, { disabled: true });
     const saved = await store.saveSettings({ panel_keys: { copy: { code: "KeyD", meta: true, ctrl: false, alt: false, shift: false } } });
     assert.deepEqual(saved.panel_keys.copy, { code: "KeyD", meta: true, ctrl: false, alt: false, shift: false });
     assert.deepEqual(saved.panel_keys.paste, defaultPanelKeys().paste);
@@ -89,17 +86,15 @@ test("terminal choice preserves all engines while automatic jobs use the shared 
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, "exit 0");
     await fakeAgent(bin, "gemini", "Usage: gemini\\n  --prompt <text>", "exit 0");
-    const store = openHostShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
-    assert.equal(store.runtime().runtime_key, "claude");
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
+    assert.equal((await store.runtime()).runtime_key, "claude");
     await store.saveSettings({ engine: "gemini" });
-    clearShelfRuntimeCache();
-    assert.equal(store.runtime().runtime_key, "gemini");
+    assert.equal((await store.runtime()).runtime_key, "gemini");
 
     const custom = await fakeAgent(bin, "house-agent", "Usage: house-agent", `printf '%s\\n' "# 摘要" "" "这份材料的重点。" > summary.md`);
     await store.saveSettings({ custom_runtimes: [{ id: "house", title: "House CLI", executable: custom, kind: "cli" }] });
     await store.saveSettings({ engine: "custom:house" });
-    clearShelfRuntimeCache();
-    const runtime = store.runtime();
+    const runtime = await store.runtime();
     assert.equal(runtime.runtime_key, "custom:house");
     assert.equal(runtime.can_run_job, false);
     assert.equal(runtime.capability_pending, true);
@@ -117,7 +112,7 @@ test("a saved shortcut action runs on the copy and writes 原名-动作.md", asy
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, `printf '%s\\n' "# 联系人" "" "张三 · 13800000000" > 报价-抽联系人.md`);
-    const store = openHostShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
     const settings = await store.saveSettings({
       shortcuts: [{ id: "act1", name: "抽联系人", prompt: "把材料里的联系人写成一张表。", kinds: ["markdown", "pdf"] }],
     });
@@ -143,7 +138,7 @@ test("a saved shortcut action runs on the copy and writes 原名-动作.md", asy
 
 test("the action bar order keeps known slots, drops strangers, and adopts new actions", async () => {
   await withHome(async (home) => {
-    const store = openHostShelfStore(home, { disabled: true });
+    const store = openTestShelfStore(home, { disabled: true });
     const saved = await store.saveSettings({
       shortcuts: [{ id: "act1", name: "抽联系人", prompt: "写成一张表。", kinds: ["markdown"] }],
       action_order: ["combine", "made-up", "summarize"],
@@ -162,7 +157,7 @@ test("the action bar order keeps known slots, drops strangers, and adopts new ac
 // defaults, specs/repository-anti-corruption §4.1). Stored catalogs are brought to the current shape by maintenance instead.
 test("an old catalog without the new settings is refused and left unchanged", async () => {
   await withHome(async (home) => {
-    const store = openHostShelfStore(home, { disabled: true });
+    const store = openTestShelfStore(home, { disabled: true });
     await store.admit({ filename: "旧.md", bytes: Buffer.from("旧材料", "utf8"), mime: "text/markdown" });
     const catalogPath = join(home, "shelf", "catalog.json");
     const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as Record<string, unknown>;
@@ -174,7 +169,7 @@ test("an old catalog without the new settings is refused and left unchanged", as
     }
     const bytes = JSON.stringify(catalog);
     writeFileSync(catalogPath, bytes);
-    const reopened = openHostShelfStore(home, { disabled: true });
+    const reopened = openTestShelfStore(home, { disabled: true });
     await assert.rejects(() => reopened.snapshot(), error => isShelfFailure(error) && error.code === "shelf.invalid_file");
     assert.equal(readFileSync(catalogPath, "utf8"), bytes, "the refused catalog is not rewritten");
   });
@@ -184,7 +179,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, `printf '%s\\n' "# 合稿" "" "读了整棵树。" > summary.md`);
-    const store = openHostShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
     const folder = await store.admitFolder({
       name: "报价材料",
       entries: [
@@ -214,7 +209,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
 
 test("a catalog whose jobs predate multi-material runs is refused and left unchanged", async () => {
   await withHome(async (home) => {
-    const store = openHostShelfStore(home, { disabled: true });
+    const store = openTestShelfStore(home, { disabled: true });
     const item = await store.admit({ filename: "旧.md", bytes: Buffer.from("旧材料", "utf8"), mime: "text/markdown" });
     const catalogPath = join(home, "shelf", "catalog.json");
     const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as Record<string, unknown>;
@@ -231,7 +226,7 @@ test("a catalog whose jobs predate multi-material runs is refused and left uncha
     }];
     const bytes = JSON.stringify(catalog);
     writeFileSync(catalogPath, bytes);
-    const reopened = openHostShelfStore(home, { disabled: true });
+    const reopened = openTestShelfStore(home, { disabled: true });
     await assert.rejects(() => reopened.hide(item.item_id), error => isShelfFailure(error) && error.code === "shelf.invalid_file");
     assert.equal(readFileSync(catalogPath, "utf8"), bytes, "the refused catalog is not rewritten");
   });
@@ -249,7 +244,7 @@ test("a link is shelved as a captured page, and a dead link still lands with its
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address() as AddressInfo;
-    const store = openHostShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite });
+    const store = openTestShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite });
     try {
       const page = await store.admitText(`http://127.0.0.1:${address.port}/page`);
       assert.equal(page.kind, "website");
@@ -285,7 +280,8 @@ else
 fi
 `, { mode: 0o700 });
     await writeFile(other, `#!/bin/sh\nprintf start > '${otherMarker}'\n`, { mode: 0o700 });
-    const store = openHostShelfStore(home, { pathEnvironment: bin, home, preferred: "claude" }, {}, shelfTestAi());
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
+    await store.saveSettings({ engine: "claude" });
     const item = await store.admit({ filename: "note.md", bytes: Buffer.from("A local fixture"), mime: "text/markdown" });
     for (let index = 0; index < 3; index++) {
       const snapshot = await store.snapshot();

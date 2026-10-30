@@ -11,38 +11,23 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  ALWAYS_ON_PLUGIN_IDS,
-  PERSONAL_PLUGIN_IDS,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  pluginMarketCards,
-  railEntries,
+  BUILTIN_PLUGIN_CATALOG, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
-import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
-  datasetActions,
-  mergeDatasetDraftRows,
-  openDatasetStore,
-  parseCsv,
-  toCsv,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  FORM_CLIENT_FACTORY_SCRIPT,
-  FORM_EN,
-  FORM_STYLES,
-  formActions,
-  openFormStore,
-} from "@molis-ai/molis-work-plugin-form";
-import {
-  PPT_CLIENT_FACTORY_SCRIPT,
-  openPptStore,
-  pptActions,
-} from "@molis-ai/molis-work-plugin-ppt";
+import { datasetActions, mergeDatasetDraftRows, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { FORM_CLIENT_FACTORY_SCRIPT, FORM_EN, FORM_STYLES, formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { pptActions } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,
   renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkWorkbenchWithPluginStylesheets,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-creative-tools";
 const OTHER = "project-other";
@@ -55,27 +40,17 @@ function projectBody(body: Record<string, unknown> = {}): Record<string, unknown
   return { project_id: PROJECT, ...body };
 }
 
-function saveFunctionSource(script: string): string {
-  const start = script.search(/const save = (?:async )?\(\)/);
-  const end = script.indexOf("const queueSave", start);
-  assert.ok(start >= 0 && end > start, "找不到 save()");
-  return script.slice(start, end);
-}
-
 // Forms' page is TypeScript bundled into its client pack (W4-04): what its code does is read in the sources, what it ships in the bundle.
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
+// Dataset's page is the same: TypeScript bundled into its client pack, read here in the sources.
+const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+// PPT's page is the same.
+const pptSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
 const between = (text: string, from: string, to: string) => {
   const start = text.indexOf(from), end = text.indexOf(to, start);
   assert.ok(start >= 0 && end > start, `找不到 ${from}`);
   return text.slice(start, end);
 };
-
-function fillEditorSource(script: string): string {
-  const start = script.indexOf("const fillEditor");
-  const end = script.indexOf("const closeEditor", start);
-  assert.ok(start >= 0 && end > start, "找不到 fillEditor()");
-  return script.slice(start, end);
-}
 
 function emptyView(): MolisWorkWebView {
   return {
@@ -137,16 +112,17 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],
   );
-  const market = pluginMarketCards();
+  const market = pluginMarketCards({}, builtinMarketDirectory());
   // Every personal plugin is in the market except the 常开插件 (Shelf), which nobody adds or removes.
-  assert.deepEqual(ALWAYS_ON_PLUGIN_IDS, ["shelf"]);
+  const alwaysOn = BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.always_on === true).map((entry) => entry.project_plugin_id);
+  assert.deepEqual(alwaysOn, ["goals", "shelf"]);
   assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
-    PERSONAL_PLUGIN_IDS.filter((id) => !ALWAYS_ON_PLUGIN_IDS.includes(id)));
+    PERSONAL_PLUGIN_IDS.filter((id) => !alwaysOn.includes(id)));
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 
 test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label 里", () => {
-  const owner = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="form"/);
   assert.match(html, /data-plugin-id="dataset"/);
@@ -192,7 +168,7 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /class="ppt-meta"/);
   assert.match(html, /role="tab"/);
   assert.match(html, /data-ppt-editor-status/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /--tab-tone: var\(--plugin-form/);
+  assert.match(renderMolisWorkWorkbenchWithPluginStylesheets(), /--tab-tone: var\(--ink-soft\)/);
   // A form pane arrives with the product's one rise on the state clock; the plugin writes no keyframes of its own.
   assert.match(renderMolisWorkWorkbenchStylesheet(), /@keyframes craft-rise \{/);
   assert.match(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: craft-rise var\(--dur-move\)/);
@@ -203,55 +179,57 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.ok(script.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
+  // Which market card is personal is the Host's mark on the card (W5-02 B1); the client keeps no list of its own.
+  assert.doesNotMatch(script, /PERSONAL_PLUGIN_IDS/);
+  assert.ok(script.includes("data-market-personal"));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
-  assert.doesNotMatch(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /fillEditor/);
-  assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.doesNotMatch(between(datasetSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
+  assert.doesNotMatch(between(pptSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
   // Form serialization and stale-response preservation are exercised in the actual browser.
   // Dataset save ordering and conflict preservation are exercised in the real browser tests.
   // PPT save ordering and conflict retention are verified through the real browser.
   assert.match(formSource("results.ts"), /seq !== page\.resultsSeq \|\| page\.sel\?\.id !== id/); // the open questionnaire is `sel` (fa63ade24)
   assert.match(between(formSource("list.ts"), "export const fillEditor", "export const closeEditor"), /resetEditing\(page\)/);
   assert.match(between(formSource("list.ts"), "const resetEditing", "export const fillEditor"), /clearTimeout\(page\.saveTimer\)/);
-  assert.match(fillEditorSource(DATASET_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
-  assert.match(fillEditorSource(PPT_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /closest\("\[data-column-type\]"\)/);
+  assert.match(between(datasetSource("editor.ts"), "page.fillEditor = ", "page.closeEditor"), /clearTimeout\(s\.saveTimer\)/);
+  assert.match(between(pptSource("editor.ts"), "page.fillEditor = ", "page.closeEditor"), /clearTimeout\(s\.saveTimer\)/);
+  assert.match(datasetSource("commands.ts"), /closest\("\[data-column-type\]"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-question-move/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-check/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form-preview-rating/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-option-remove/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-result-list/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /还有必填题没填/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /载入中/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-notes/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-empty/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.fill\.missing-required/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.result\.loading/);
+  assert.match(pptSource("slides.ts"), /ppt-card-notes/);
+  assert.match(pptSource("slides.ts"), /ppt-card-empty/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(datasetSource("list.ts"), /feed-stage-entry directory-list-row/);
+  assert.match(pptSource("list.ts"), /feed-stage-entry directory-list-row/);
   // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
-  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [DATASET_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/], [PPT_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/]] as const) {
+  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [datasetSource("list.ts"), /fixedCell\(record\)/], [pptSource("list.ts"), /fixedCell\(page, record\)/]] as const) {
     assert.doesNotMatch(script, /kindChip\(/);
     assert.doesNotMatch(script, /plugin-stage-kind/);
     assert.match(script, cell);
-    assert.match(script, /L\("固定版本"\) \+ " v" \+ record\.artifact_version/);
+    assert.match(script, /L\("(?:固定版本|form\.fixed\.label|dataset\.fixed\.label|ppt\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
     // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
     assert.doesNotMatch(script, /creative-artifact-act/);
   }
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /L\("空表"\)/);
+  assert.match(datasetSource("list.ts"), /L\("dataset\.list\.empty-table"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /is-arriving/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /is-arriving/);
+  assert.match(datasetSource("page.ts"), /is-arriving/);
+  assert.match(pptSource("page.ts"), /is-arriving/);
   assert.match(formSource("list.ts"), /mw-status mw-status--plain mw-status--" \+ \(published/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-slide-index/);
+  assert.match(pptSource("slides.ts"), /ppt-slide-index/);
   // The PPT row carries no placeholder status span any more; its state cell is fixedCell (asserted above).
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /mw-status--quiet feed-entry-status/);
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /L\("草稿"\)/);
+  assert.doesNotMatch(pptSource("list.ts"), /mw-status--quiet feed-entry-status/);
+  assert.doesNotMatch(pptSource("list.ts"), /L\("草稿"\)/);
   assert.doesNotMatch(formSource("list.ts"), /className = "form-row/);
-  assert.doesNotMatch(DATASET_CLIENT_FACTORY_SCRIPT, /className = "dataset-row/);
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /className = "ppt-row/);
+  assert.doesNotMatch(datasetSource("list.ts"), /className = "dataset-row/);
+  assert.doesNotMatch(pptSource("list.ts"), /className = "ppt-row/);
 });
 
-test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一合并函数", () => {
+test("Dataset：删行丢掉，筛选藏着的行留下；页面包用同一合并函数", () => {
   const columns = [{ id: "name" }];
   const deleted = mergeDatasetDraftRows(
     [
@@ -300,16 +278,13 @@ test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一�
   );
   assert.deepEqual(clearedFilterTooSoon.map((row) => row.id), ["shown"], "空筛选只能描述当前 DOM；隐藏行要用画出 DOM 时的旧筛选提交");
 
-  assert.ok(DATASET_CLIENT_FACTORY_SCRIPT.includes(mergeDatasetDraftRows.toString()));
-  // The filter the rows were drawn with is filterSeen (renamed from renderedFilter).
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /mergeDatasetDraftRows\(selected\?\.rows \|\| \[\], rowsFromDom\(\), columns, filterSeen\)/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /let filterSeen = ""/);
-  const changeStart = DATASET_CLIENT_FACTORY_SCRIPT.indexOf('addEventListener("change"');
-  const changeEnd = DATASET_CLIENT_FACTORY_SCRIPT.indexOf("void loadList", changeStart);
-  assert.ok(changeStart >= 0 && changeEnd > changeStart);
-  const changeHandler = DATASET_CLIENT_FACTORY_SCRIPT.slice(changeStart, changeEnd);
+  // The page's code takes the same function from the package's source (the bundle includes it) and hands it the filter the rows
+  // were drawn with (filterSeen), not the one being typed.
+  assert.match(datasetSource("table.ts"), /import \{ mergeDatasetDraftRows \} from "\.\.\/row-merge\.js"/);
+  assert.match(datasetSource("table.ts"), /mergeDatasetDraftRows\(s\.selected\?\.rows \|\| \[\], page\.rowsFromDom\(\), columns, s\.filterSeen\)/);
+  assert.match(datasetSource("page.ts"), /filterSeen: ""/);
   // Actual type switching (including textarea replacement) is covered by Dataset browser tests.
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /filter\(\(item\) => item\.id !== id\)/);
+  assert.match(datasetSource("table-commands.ts"), /filter\(\(item\) => item\.id !== id\)/);
 });
 
 test("Forms：建题、预览提交、结果计数，重开还在；出题是本地 stub", async () => {
@@ -436,5 +411,68 @@ test("问卷、数据表、演示稿按项目隔离", async () => {
     forms.close();
     datasets.close();
     ppts.close();
+  });
+});
+test("RAC-1635: Forms counts a form's title in Unicode characters, as its action schemas do", async () => {
+  // create and update in plugins/native/form/src/actions.ts allow an 80-character title; one 🟢 is one character but two UTF-16 units.
+  await withHome(async (home) => {
+    const store = openFormStore(home);
+    try {
+      const { actions } = formTestPorts(store, PROJECT);
+      const wide = (count: number) => "🟢".repeat(count);
+      const created = (await actions.invoke(formActions.create, { title: wide(80) })).form;
+      assert.equal(created.title, wide(80), "create keeps an 80-character title");
+      const renamed = (await actions.invoke(formActions.update, { id: created.id, title: "改" + wide(79) })).form;
+      assert.equal(renamed.title, "改" + wide(79), "update keeps an 80-character title");
+      assert.equal((await actions.invoke(formActions.get, { id: created.id })).form.title, "改" + wide(79), "the stored title reads back whole");
+      await assert.rejects(actions.invoke(formActions.create, { title: wide(81) }), { code: "actions.input_invalid" }, "81 characters is still past the schema");
+    } finally {
+      store.close();
+    }
+  });
+});
+
+test("RAC-1636: a form's description, a question's title and questions.add's prompt are counted in Unicode characters", async () => {
+  // update allows a 2000-character description and 200-character question titles; questions.add allows a 200-character prompt, which becomes the new question's title.
+  await withHome(async (home) => {
+    const store = openFormStore(home);
+    try {
+      const { actions } = formTestPorts(store, PROJECT);
+      const wide = (count: number) => "🟢".repeat(count);
+      const id = (await actions.invoke(formActions.create, { title: "字数" })).form.id;
+      const described = (await actions.invoke(formActions.update, { id, description: wide(2000) })).form;
+      assert.equal(described.description, wide(2000), "update keeps a 2000-character description");
+      const asked = (await actions.invoke(formActions.update, { id, questions: [{ id: "q1", type: "text", title: wide(200), required: false, order: 1 }] })).form;
+      assert.equal(asked.questions[0]?.title, wide(200), "update keeps a 200-character question title");
+      const added = (await actions.invoke(formActions.generate, { id, prompt: "加" + wide(199) })).form;
+      assert.equal(added.questions.at(-1)?.title, "加" + wide(199), "questions.add keeps a 200-character prompt as the new question's title");
+      const stored = (await actions.invoke(formActions.get, { id })).form;
+      assert.deepEqual([stored.description, ...stored.questions.map((question) => question.title)], [wide(2000), wide(200), "加" + wide(199)], "the stored description and titles read back whole");
+      await assert.rejects(actions.invoke(formActions.update, { id, description: wide(2001) }), { code: "actions.input_invalid" }, "2001 characters is still past the schema");
+      await assert.rejects(actions.invoke(formActions.update, { id, questions: [{ id: "q1", type: "text", title: wide(201), required: false, order: 1 }] }), { code: "actions.input_invalid" }, "a 201-character question title is still past the schema");
+      await assert.rejects(actions.invoke(formActions.generate, { id, prompt: wide(201) }), { code: "actions.input_invalid" }, "a 201-character prompt is still past the schema");
+    } finally {
+      store.close();
+    }
+  });
+});
+
+test("RAC-1637: an answer is counted in Unicode characters, as submit's schema does", async () => {
+  // submit allows an answer of FORM_ANSWER_LIMIT (4000, plugins/native/form/src/fillpage.ts) characters; the package does not export it, so the number is written here.
+  await withHome(async (home) => {
+    const store = openFormStore(home);
+    try {
+      const { actions } = formTestPorts(store, PROJECT);
+      const wide = (count: number) => "🟢".repeat(count);
+      const id = (await actions.invoke(formActions.create, { title: "回答" })).form.id;
+      await actions.invoke(formActions.update, { id, questions: [{ id: "q1", type: "text", title: "想说的话", required: true, order: 1 }] });
+      // A draft takes the person's own trial fill: the caller is the user audience, recorded as preview (assertTakesAnswers in src/store.ts).
+      const { submission } = await actions.invoke(formActions.submit, { id, answers: { q1: wide(4000) } });
+      assert.equal(submission.answers.q1, wide(4000), "submit keeps a 4000-character answer");
+      assert.equal((await actions.invoke(formActions.results, { id })).submissions[0]?.answers.q1, wide(4000), "the stored answer reads back whole");
+      await assert.rejects(actions.invoke(formActions.submit, { id, answers: { q1: wide(4001) } }), { code: "actions.input_invalid" }, "4001 characters is still past the schema");
+    } finally {
+      store.close();
+    }
   });
 });

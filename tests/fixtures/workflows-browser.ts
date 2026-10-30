@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
-import { openWorkflowsStore, type Workflow } from "@molis-ai/molis-work-plugin-workflows";
+import { type Workflow } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./plugin-home-stores.js";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { openGoalBrowser } from "./goal-browser.js";
 import { pluginFrameBrowser } from "./plugin-frame-browser.js";
 
 export async function openWorkflowsBrowser(t: TestContext, { open = true, chromeArgs }: { open?: boolean; chromeArgs?: readonly string[] } = {}) {
   assert.ok(locateTestChrome(), "Chrome is required for the Workflows ownership regression");
-  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, undefined, undefined, {}, undefined, chromeArgs);
+  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, undefined, {}, undefined, chromeArgs);
   assert.ok(browser, "Chrome is required for the Workflows ownership regression");
   const frame = await pluginFrameBrowser(t, browser, "workflows");
   const path = `/projects/${browser.projectId}/api/plugins/io.molis.work.native.workflows/workflows`;

@@ -6,7 +6,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
-// S-61: a project's storage directory is <projects directory>/<project_id>; a project id is one plain directory name, so a catalog row
+// S-102: a project's storage directory is <projects directory>/<project_id>; a project id is one plain directory name, so a catalog row
 // (an edited or restored catalog) can never point a file operation (delete, rename, uninstall, source-state scan) outside that directory.
 
 const insertRow = (home: string, projectId: string) => {
@@ -17,7 +17,7 @@ const insertRow = (home: string, projectId: string) => {
 };
 const guarded = { code: "catalog.project_storage_invalid" };
 
-test("S-61 a catalog row whose project id is not a plain directory name is refused before any file is touched: reading, deleting and removing a demo project", async t => {
+test("S-102 a catalog row whose project id is not a plain directory name is refused before any file is touched: reading, deleting and removing a demo project", async t => {
   const root = mkdtempSync(join(tmpdir(), "security-project-storage-")), home = join(root, "home");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });

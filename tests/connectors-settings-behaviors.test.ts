@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -16,14 +17,7 @@ import {
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
-import {
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-  createLocalFeedApplication,
-  liveHostFunctionAuthoringCatalog,
-  seedDemoBoard,
-  withConnectorConnections,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -31,6 +25,7 @@ import { connectorAccountActions, readConnectorAccount } from "../apps/local-hos
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";
@@ -94,7 +89,7 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): readonly string[] {
+function agentBehaviorIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
@@ -326,6 +321,9 @@ test("Functions and judgment sources do not talk to GitHub", async () => {
     "modules/functions/src/service.ts",
     "apps/local-host/src/functions-http/route-handlers.ts",
     "apps/workbench/src/functions/client.ts",
+    "apps/workbench/src/functions/client-render.ts",
+    "apps/workbench/src/functions/client-records.ts",
+    "apps/workbench/src/functions/client-events.ts",
   ];
   for (const relative of files) {
     const source = await readFile(join(ROOT, "..", relative), "utf8");
@@ -356,11 +354,11 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
 
 test("a saved connection does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async (homeDirectory) => {
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
   });
 });
 
@@ -433,7 +431,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
         "the account check is the registered connector action, not a catalog behavior");
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
-      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId),
+      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
         { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
       assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
       const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {
@@ -465,11 +463,11 @@ test("deleting a Feed GitHub source keeps its connection's credential", async ()
       const connection = withConnectorConnections(homeDirectory, connections => connections.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
       const feed = createLocalFeedApplication(store.db);
       const at = new Date().toISOString();
-      const source = feed.upsertSource({ project_id: DEMO_PROJECT_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
+      const source = feed.sources.upsert({ project_id: DEMO_PROJECT_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
         name: "GitHub", description: "通知", status: "active", enabled: true, item_count: 0, origin: "molis_work",
         config: { connection_id: connection.connection_id }, schedule: { mode: "manual" }, cursor: {}, credential_ref: connection.credential_ref,
         account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at });
-      feed.retireSource(DEMO_PROJECT_ID, source.source_id, "retain_history");
+      feed.sources.retire(DEMO_PROJECT_ID, source.source_id, "retain_history");
       assert.equal(createFileSecretStore().get(connection.credential_ref!), TOKEN);
     } finally {
       store.close();
@@ -496,11 +494,11 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   if (result.ok) assert.equal(result.login, "molis");
   assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
   await withIsolatedHome(async (homeDirectory) => {
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "slack", displayName: "Slack", token: "xoxb-liveTokenABCD" }));
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });
 

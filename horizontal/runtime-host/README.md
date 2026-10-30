@@ -1,12 +1,12 @@
-# Runtime 与终端进程适配
+# 终端进程适配
 
-把 Runtime 的发现、启动、恢复、内容流、中断和停止统一到公开端口，使产品用例不绑定某个进程协议。
+把本机终端（PTY）进程的启动、接入、写入、缩放、结束统一到公开端口，使产品用例不绑定某个进程实现。Codex 会话适配器与路由已随 Sessions 下线删除。
 
 包名：`@molis-ai/molis-work-service-runtime-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-RuntimeHostRouter 选择具备所需能力的 Adapter；Codex Session Adapter 通过 app-server transport 交互，MolisWorkPtyHost 管理终端进程。Work Plugin 消费这些端口，把技术结果转成会话体验。
+宿主的终端 socket 调 `MolisWorkPtyHost` 管理终端进程；Goal 终端面板和工作区终端经它启动命令。
 
 ## 从哪里读代码
 
@@ -14,18 +14,13 @@ RuntimeHostRouter 选择具备所需能力的 Adapter；Codex Session Adapter �
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/runtime-router.ts](src/runtime-router.ts) | 能力选择与 Adapter 路由 |
-| [src/adapters/codex-session.ts](src/adapters/codex-session.ts) | Codex 会话适配 |
-| [src/adapters/codex-app-server.ts](src/adapters/codex-app-server.ts) | app-server 传输 |
 | [src/adapters/terminal-pty.ts](src/adapters/terminal-pty.ts) | PTY 生命周期 |
 
 可对照现有调用方 [apps/local-host/src/pty-socket.ts](../../apps/local-host/src/pty-socket.ts) 阅读装配方式。
 
 ## 接入与边界
 
-Runtime Session 能力矩阵新增 `message`，Adapter 必须明确声明 native 或 unsupported。Codex 的 message 只向给定现有 threadId 调用 turn/start，收到 turn ID 才报告已接收；无回执或连接故障不能推定安全重发。它不创建 thread，不创建 Handoff 包，也不负责消息持久化或幂等去重；这些归 Work/Private Work Context owner。
-
-Runtime 进程与 Molis Work Session 是不同身份。Adapter 不创建 Goal，也不负责 Session 关联；原生终端依赖 node-pty 和可用的本机命令。
+Runtime 进程与 Molis Work Session 是不同身份。本包不创建 Goal，也不负责会话关联；原生终端依赖 node-pty 和可用的本机命令。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
@@ -48,17 +43,15 @@ node scripts/run-tests.mjs tests/runtime-host.test.ts
 
 ## 开发要求
 
-- 负责：Runtime 提供方的发现、启动、恢复、内容流、中断、停止与技术回执。
+- 负责：本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放。
 - 不负责：Goal、Session、工作目录、对话谱系、Artifact。
 - 公开入口：`@molis-ai/molis-work-service-runtime-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/runtime-host`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 能力矩阵的每一项由 Adapter 明确声明 native 或 unsupported。
-  - 没有回执或连接故障时不能推定可以安全重发；崩溃恢复不自动重放写操作。
-  - 不创建 thread 或 Handoff 包，不负责消息持久化与幂等去重。
-  - 本包不持有产品版本：Codex 传输向 Codex 报出的 `clientVersion` 是必填选项，由宿主传入（`apps/local-host/src/product-version.ts`）。
-  - 外部不导入本包 `src/**`；本包也不导入 Session Registry 或 Web Server。
-- 改动后必跑：`node scripts/run-tests.mjs tests/runtime-host.test.ts tests/session-adapters.test.ts tests/desktop-tui.test.ts tests/codex-transport.test.ts`
+  - 终端进程退出后必须清理句柄；`killAll` 结束全部进程；重放缓冲有上限。
+  - 一个面板只认它当前的进程：被 `kill` 停掉或重启时换下的旧进程，之后的输出不进重放、不转给面板，退出也不报告。
+  - 外部不导入本包 `src/**`；本包也不导入 Web Server 或任何业务 Store。
+- 改动后必跑：`node scripts/run-tests.mjs tests/runtime-host.test.ts tests/desktop-tui.test.ts`
 - 相关手册：[docs/horizontal/runtime-host.md](../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -66,8 +59,5 @@ node scripts/run-tests.mjs tests/runtime-host.test.ts
 - [职责与接入说明](../../docs/horizontal/runtime-host.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/services/runtime-host`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-wk2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

@@ -4,7 +4,7 @@ import test, { type TestContext } from "node:test";
 import { createPluginPlatform, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult, PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -29,7 +29,8 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
   let requests = 0;
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const aside = asideReply(body);
     if (!aside) {
       requests++; response.on("close", () => disconnected.resolve()); started.resolve();
@@ -46,7 +47,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const store = await f.host.withProject(project.reference, runtime => runtime.store);
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const actions = { registry: f.host.actionRegistry(project.reference), client: { ...f.host.actionClient(project.reference), ...f.host.syncActionClient(project.reference) }, project_id: project.project_id };
-  const platform = createPluginPlatform({ db: store.db, project_id: project.project_id, actor_id: "fixture-person", actions,
+  const platform = createPluginPlatform({ db: store.db, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, actions,
     home: { directory: f.home, stores: homeStores(), completeText: () => null },
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
@@ -54,7 +55,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: "Awaited Agent", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "awaited-agent" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [grant, "storage:private"].map(permission => ({ permission, required: true, reason: "Run the declared role and store its answer" })),
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, denied, query],
+    capabilities: { provides: [], consumes: [agentHostCapabilities.readSession.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, denied, query],
     agent: { roles: [{ role_id: "reader", version: 1, name: "Reader", workspace: interaction ? "business" : "none", execution: interaction ? "operate" : "read-only", host_tools: interaction ? ["ask-user"] : [], prompts: ["reader"] }], prompts: [{ prompt_id: "reader", version: 1 }] },
     databases: { project: { store_name: "awaited-agent", version: 1, read_permission: "storage:private", write_permission: "storage:private", schema: "CREATE TABLE awaited_agent_results (text TEXT NOT NULL);" } } },
     agent_prompts: [{ prompt_id: "reader", version: 1, layer: "role", body: "Return only a concise answer from the supplied task." }],
@@ -67,11 +68,11 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
       } })) };
     },
   };
-  const installed = await platform.start([{ definition, bundled: true }]);
+  const installed = await platform.start([{ definition, trust: { level: "host" } }]);
   assert.deepEqual(installed.failed, []); assert.ok(installed.running.includes(id));
   close = async () => { release.resolve(); await platform.closeCoordination(); for (const record of platform.runtime.list()) if (record.plugin_id === id && record.state === "running") await platform.runtime.stop(record.install_id); };
   const installation = () => platform.runtime.list().find(row => row.plugin_id === id)!;
-  const caller: ActionCallContext = { actor_id: "fixture-person", project_id: project.project_id, audience: "user", permissions: [grant, "storage:private"] };
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: [grant, "storage:private"] };
   return { ...f, project, platform, installation, caller, get context() { return context!; }, requests: () => requests, borrow: (client: PluginAgentClient) => { borrowed = client; },
     started: started.promise, disconnected: disconnected.promise, release: () => release.resolve(),
     count: () => Number(store.db.prepare("SELECT COUNT(*) AS n FROM awaited_agent_results").get()?.n),
@@ -82,8 +83,9 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
 test("SYS-15-A1: public plugin Agent uses its actual installation and the Home runtime, then persists its completed result", { timeout: 60_000 }, async t => {
   const f = await fixture(t), result = await f.invoke();
   assert.equal(result.text, "Owned plugin result"); assert.equal(f.count(), 1); assert.equal(f.requests(), 1);
-  const session = await f.host.client(f.project.reference).invoke(agentHostCapabilities.readSession, [result.session]);
-  assert.deepEqual(session.owner, { project_id: f.project.project_id, plugin_id: id, install_id: f.installation().install_id, actor_id: "fixture-person" });
+  // Reading a session is the owning plugin's own action (R8 batch 3): the plugin reads back the session its Agent ran in.
+  const session = await f.context.services!.actions!.invoke(agentHostCapabilities.readSession, [result.session]);
+  assert.deepEqual(session.owner, { project_id: f.project.project_id, plugin_id: id, install_id: f.installation().install_id, actor_id: LOCAL_PERSON_ACTOR_ID });
   assert.equal(session.latest_run?.phase, "completed");
 });
 

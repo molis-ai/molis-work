@@ -70,7 +70,7 @@ export class KnowledgeWorkspace {
     const { invoke } = await this.reader(access, origin, named.workspace_id);
     const read = await invoke({ workspace_id: named.workspace_id, path: named.path, kind: "text" });
     if (read.outcome !== "text") throw knowledgeErrors.unreadable(read.outcome in NOT_TEXT ? NOT_TEXT[read.outcome as keyof typeof NOT_TEXT] : "这个文件不能按文字读取");
-    return { subject, revision: read.fingerprint, title: named.path.join("/"), content: read.text, truncated: false, goal_ids: [], session_id: null };
+    return { subject, revision: read.fingerprint, title: named.path.join("/"), content: read.text, truncated: false };
   }
 
   /** The workspace read action and the project's folders, as this caller may reach them now. */

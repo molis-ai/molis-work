@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution, RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult, BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult, MolisWorkProjectBindingScope, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding, RuntimeContextBindingEventRecord as MolisWorkRuntimeContextBindingEvent } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import type { ProjectWorkspaceMembership as MolisWorkWorkspaceMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution, RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult, BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
+import type { RuntimeBindingRecords } from "./runtime-binding-records.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
 import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
 import { bindingErrors } from "./binding-errors.js";
@@ -24,11 +24,12 @@ export class RuntimeProjectBindingCommands {
     private readonly projects: RuntimeProjectBindingPorts,
     private readonly validation: RuntimeProjectBindingValidation,
     private readonly transaction: <T>(operation: () => T) => T,
+    private readonly records: RuntimeBindingRecords,
   ) {}
   resolveRuntimeContext(context: RuntimeWorkContext, clues: readonly RuntimeProjectSuggestionClue[] = []): MolisWorkRuntimeContextResolution {
     return this.contextResolution.resolveRuntimeContext(this.validation.normalizeRuntimeWorkContext(context), clues);
   }
-rejectRuntimeContextSuggestion(
+  rejectRuntimeContextSuggestion(
     input: RejectRuntimeContextSuggestionInput,
   ): MolisWorkRuntimeContextSuggestionRejectionResult {
     const normalized = this.validation.requireStableRuntimeWorkContext(input.context);
@@ -74,7 +75,7 @@ rejectRuntimeContextSuggestion(
     });
   }
 
-bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution {
+  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution {
     const normalized = this.validation.requireRoutableRuntimeWorkContext(input.context);
     const actorId = this.validation.requiredActorId(input.actor_id);
     const projectId = input.project_id.trim();
@@ -90,9 +91,9 @@ bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextR
       );
     }
 
+    const bindingScope = input.binding_scope
+      ?? (normalized.stable_work_context_id ? "session" : "workspace_member");
     return this.transaction(() => {
-      const bindingScope = input.binding_scope
-        ?? (normalized.stable_work_context_id ? "session" : "workspace_member");
       return this.bindRuntimeContextInTransaction({
         normalized,
         projectId,
@@ -103,7 +104,7 @@ bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextR
     });
   }
 
-unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult {
+  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult {
     const normalized = this.validation.requireRoutableRuntimeWorkContext(input.context);
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.user_confirmed !== true) {
@@ -118,7 +119,7 @@ unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeCont
           );
         }
         const projectId = this.validation.requiredProjectId(input.project_id ?? "");
-        const membership = this.findWorkspaceMembershipByIds(normalized.workspace.workspace_id, projectId);
+        const membership = this.records.findWorkspaceMembershipByIds(normalized.workspace.workspace_id, projectId);
         if (!membership) {
           return {
             resolution: this.resolveRuntimeContext(input.context),
@@ -148,7 +149,7 @@ unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeCont
         };
       }
       const project = this.projects.query.getProject(current.project_id);
-      this.removeSessionBinding(current, actorId);
+      this.records.removeSessionBinding(current, actorId);
       return {
         resolution: this.resolveRuntimeContext(input.context),
         unbound_project: { project_id: project.project_id, display_name: project.display_name },
@@ -157,25 +158,18 @@ unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeCont
     });
   }
 
-bindRuntimeContextInTransaction(input: {
+  bindRuntimeContextInTransaction(input: {
     normalized: NormalizedRuntimeWorkContext;
     projectId: string;
     actorId: string;
     rebindConfirmed: boolean;
-    bindingScope: MolisWorkProjectBindingScope | "workspace_member";
+    /** workspace_default is refused by both entries before they get here, so the type leaves it out. */
+    bindingScope: "session" | "workspace_member";
   }): MolisWorkRuntimeContextResolution {
     const project = this.projects.query.getProject(input.projectId);
-    if (input.bindingScope === "workspace_default") {
-      throw bindingErrors.workspace_default_unsupported("工作目录不再保存默认项目；请为当前 Session 选择项目",
-      );
-    }
-
     if (input.bindingScope === "workspace_member") {
-      if (!input.normalized.workspace) {
-        throw bindingErrors.workspace_required("当前 Runtime 没有 Session 标识时，必须提供项目目录才能记录本次选择",
-        );
-      }
-      this.upsertWorkspaceMembership(input.normalized.workspace, project.project_id, input.actorId);
+      // Both entries ran requireRoutableRuntimeWorkContext: a context without a Session id has a workspace.
+      this.projects.lifecycle.upsertWorkspaceMembership(input.normalized.workspace!, project.project_id, input.actorId);
       return boundResolution(input.normalized, project);
     }
 
@@ -184,7 +178,7 @@ bindRuntimeContextInTransaction(input: {
       );
     }
     if (input.normalized.workspace) {
-      this.upsertWorkspaceMembership(input.normalized.workspace, project.project_id, input.actorId);
+      this.projects.lifecycle.upsertWorkspaceMembership(input.normalized.workspace, project.project_id, input.actorId);
     }
     const current = this.contextResolution.findRuntimeContextBinding(input.normalized);
     if (!current) {
@@ -199,7 +193,7 @@ bindRuntimeContextInTransaction(input: {
         updated_at: now,
       };
       this.workContexts.insert(binding);
-      this.appendRuntimeContextBindingEvent({
+      this.records.appendRuntimeContextBindingEvent({
         binding,
         type: "context.bound",
         previousProjectId: null,
@@ -230,7 +224,7 @@ bindRuntimeContextInTransaction(input: {
       bound_by: input.actorId,
       updated_at: now,
     };
-    this.appendRuntimeContextBindingEvent({
+    this.records.appendRuntimeContextBindingEvent({
       binding: rebound,
       type: "context.rebound",
       previousProjectId: current.project_id,
@@ -250,80 +244,5 @@ bindRuntimeContextInTransaction(input: {
       previous_project_id: current.project_id,
     });
     return boundResolution(input.normalized, project);
-  }
-
-listRuntimeContextBindingEvents(
-    context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] {
-    const normalized = context ? this.validation.normalizeRuntimeWorkContext(context) : null;
-    if (normalized && !normalized.stable_work_context_id) return [];
-    return normalized
-      ? this.workContexts.listEvents({
-          runtime_id: normalized.runtime_id,
-          stable_work_context_id: normalized.stable_work_context_id!,
-        })
-      : this.workContexts.listEvents();
-  }
-
-listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] {
-    return this.workContexts.list();
-  }
-
-findWorkspaceMembershipByIds(
-    workspaceId: string,
-    projectId: string,
-  ): MolisWorkWorkspaceMembership | null {
-    return this.projects.query.listWorkspaceMemberships().find(
-      (membership) => membership.workspace_id === workspaceId && membership.project_id === projectId,
-    ) ?? null;
-  }
-
-upsertWorkspaceMembership(
-    workspace: NormalizedRuntimeWorkspaceContext,
-    projectId: string,
-    actorId: string,
-  ): void {
-    this.projects.lifecycle.upsertWorkspaceMembership(workspace, projectId, actorId);
-  }
-
-removeSessionBinding(binding: MolisWorkRuntimeContextBinding, actorId: string): void {
-    const now = new Date().toISOString();
-    this.workContexts.remove(binding.binding_id, actorId, now);
-    this.appendRuntimeContextBindingEvent({
-      binding,
-      type: "context.unbound",
-      previousProjectId: binding.project_id,
-      actorId,
-      createdAt: now,
-    });
-    this.projects.lifecycle.appendEvent(binding.project_id, "project.runtime_context_unbound", actorId, {
-      binding_id: binding.binding_id,
-      runtime_id: binding.runtime_id,
-      stable_work_context_id: binding.stable_work_context_id,
-    });
-  }
-
-findRuntimeContextSetupRequest(
-    context: NormalizedRuntimeWorkContext,
-    idempotencyKey: string,
-  ): { request_fingerprint: string; project_id: string } | null {
-    const persistenceId = this.validation.runtimeContextPersistenceId(context);
-    return this.workContexts.findSetupRequest(context.runtime_id, persistenceId, idempotencyKey);
-  }
-
-appendRuntimeContextBindingEvent(input: {
-    binding: MolisWorkRuntimeContextBinding;
-    type: MolisWorkRuntimeContextBindingEvent["type"];
-    previousProjectId: string | null;
-    actorId: string;
-    createdAt: string;
-  }): void {
-    this.workContexts.appendEvent({
-      binding: input.binding,
-      type: input.type,
-      previous_project_id: input.previousProjectId,
-      actor_id: input.actorId,
-      created_at: input.createdAt,
-    });
   }
 }

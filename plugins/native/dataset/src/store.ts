@@ -1,7 +1,5 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   DatasetColumn,
   DatasetColumnInput,
@@ -10,9 +8,11 @@ import type {
   DatasetRow,
   DatasetRowInput,
   DatasetVersionRecord,
-} from "@molis-ai/molis-work-contracts/modules/dataset";
+} from "./contract.js";
 import { datasetErrors } from "./error.js";
 import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
+import { DATASET_DATABASE } from "./database.js";
+export { DATASET_DATABASE };
 
 interface DatasetRowDb {
   id: string;
@@ -144,7 +144,7 @@ export class DatasetStore {
     return this.once(normalizeProjectId(projectId), "receive:" + requestId, () => {
       const parsed = parseCsv(csv);
       if (parsed.columns.length === 0) throw datasetErrors.invalid("收到的内容不是带表头的 CSV");
-      const created = this.create({ title: title.slice(0, 80) || "未命名数据表", project_id: projectId });
+      const created = this.create({ title: [...title].slice(0, 80).join("") || "未命名数据表", project_id: projectId });
       return this.update(created.id, { columns: parsed.columns, rows: parsed.rows, expected_version: created.version }, projectId);
     });
   }
@@ -171,7 +171,7 @@ export class DatasetStore {
   generateColumn(id: string, prompt: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const current = this.get(id, projectId);
     const name = prompt.trim() || `列 ${current.columns.length + 1}`;
-    if (name.length > 80) throw datasetErrors.invalid("列名须为 1 到 80 个字");
+    if ([...name].length > 80) throw datasetErrors.invalid("列名须为 1 到 80 个字");
     const column: DatasetColumn = {
       id: crypto.randomUUID(),
       name,
@@ -194,7 +194,7 @@ export class DatasetStore {
     const record: DatasetVersionRecord = {
       id: crypto.randomUUID(),
       dataset_id: id,
-      note: (note ?? "").trim().slice(0, 80),
+      note: [...(note ?? "").trim()].slice(0, 80).join(""),
       snapshot,
       created_at: new Date().toISOString(),
     };
@@ -282,54 +282,6 @@ export class DatasetStore {
   }
 }
 
-/**
- * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in.
- */
-const DATASET_SCHEMA = `
-  CREATE TABLE datasets (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    status TEXT NOT NULL,
-    columns_json TEXT NOT NULL,
-    rows_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
-    artifact_id TEXT NOT NULL DEFAULT '',
-    artifact_version INTEGER NOT NULL DEFAULT 0,
-    publication_pending_json TEXT
-  );
-  CREATE TABLE dataset_versions (
-    id TEXT PRIMARY KEY,
-    dataset_id TEXT NOT NULL,
-    note TEXT NOT NULL,
-    snapshot_json TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
-`;
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: PluginDatabaseDeclaration = { store_name: "dataset", version: 1,
-  read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };
-
-export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_DATABASE);
-  const sql: DatasetSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new DatasetStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {
   // Spreadsheet exports (ours included) start with a byte-order mark; it is not part of the first column's name.
@@ -431,12 +383,12 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名数据表";
-  if (title.length > 80) throw datasetErrors.invalid("标题须为 1 到 80 个字");
+  if ([...title].length > 80) throw datasetErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw datasetErrors.invalid("说明须为 0 到 2000 个字");
+  if ([...value].length > 2000) throw datasetErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 

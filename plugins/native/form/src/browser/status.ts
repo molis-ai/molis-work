@@ -1,5 +1,6 @@
-import type { FormRecord, FormStatus } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord, FormStatus } from "../contract.js";
 import { type FormPage, hasUnsaved } from "./page.js";
+import type { Translate } from "./types.js";
 
 /** The editor's one note line; `scope` says which later success may clear it (save, publication, required, draft). */
 export const showNote = (page: FormPage, text: string, isError: boolean, scope = "") => {
@@ -20,7 +21,7 @@ export const placed = (detail: Record<string, unknown>) => { window.dispatchEven
 
 /** The form on screen, for the placement bar and the Assistant. */
 export const publishContext = (page: FormPage) => {
-  const context: Record<string, unknown> = { plugin_id: "io.molis.work.form", surface_title: "Forms" };
+  const context: Record<string, unknown> = { plugin_id: page.host.pluginId, surface_title: "Forms" };
   const { sel } = page;
   if (sel) {
     context.object = { kind: "form", id: sel.id, version: sel.version, title: page.titleInput.value || sel.title };
@@ -29,14 +30,14 @@ export const publishContext = (page: FormPage) => {
   page.bench.setAttribute("data-assistant-context", JSON.stringify(context));
 };
 
-const COLLECT: Record<FormStatus, string> = { draft: "未开始收集", published: "正在这台电脑上收集", closed: "已停止收集" };
+const collectWord = (L: Translate, status: FormStatus) => status === "published" ? L("form.collect.on") : status === "closed" ? L("form.collect.stopped") : L("form.collect.off");
 const paintCollect = (page: FormPage, record: FormRecord) => {
   const { L, one } = page;
   const collecting = record.status === "published";
   const state = one("[data-form-collect-state]");
-  if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = L(COLLECT[record.status] || COLLECT.draft); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
+  if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = collectWord(L, record.status); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
   const start = one("[data-form-publish]");
-  if (start) { start.hidden = collecting; start.textContent = record.status === "closed" ? L("重新开始收集") : L("开始收集"); }
+  if (start) { start.hidden = collecting; start.textContent = record.status === "closed" ? L("form.collect.restart") : L("form.collect.start"); }
   const fill = one("[data-form-fill]");
   if (fill) fill.hidden = !collecting;
   const close = one("[data-form-close]");
@@ -47,12 +48,12 @@ export const paintStatus = (page: FormPage, record: FormRecord) => {
   const { L, statusEl, saveError, savePromise, busy } = page;
   const unsaved = page.editRev > page.savedRevision;
   statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet"); statusEl.dataset.mwState = saveError ? "failed" : savePromise ? "saving" : unsaved ? "unsaved" : busy ? "running" : "saved";
-  statusEl.textContent = saveError ? L("保存失败") : savePromise ? L("保存中") : unsaved ? L("尚未保存") : busy ? L("处理中") : L("已保存");
+  statusEl.textContent = saveError ? L("form.save.failed") : savePromise ? L("form.save.saving") : unsaved ? L("form.save.unsaved") : busy ? L("form.save.busy") : L("form.save.saved");
   paintCollect(page, record);
   if (page.sel && page.sel.id === record.id) publishContext(page);
   const pending = page.one("[data-form-publication-note]")!;
   pending.hidden = !record.publication_pending;
-  pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的编辑可以再存一版。") : "";
+  pending.textContent = record.publication_pending ? L("form.fixed.pending-note") : "";
 };
 
 export const setBusy = (page: FormPage, value: boolean) => {

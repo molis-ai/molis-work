@@ -1,5 +1,5 @@
-import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsPlanningApi } from "./contract/goals.js";
+import type { GoalTreeProposalItemRecord } from "./contract/governance-collaboration.js";
 import { GoalTreeInputReader } from "./goal-tree-inputs.js";
 
 /** Proposal reference checks combine owner queries; they do not write or simulate changes. */

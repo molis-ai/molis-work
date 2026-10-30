@@ -52,7 +52,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 
 **保留到 W5-04 的两处**（不是兼容层，各有删除条件）：
 - `molisWorkControlHeaders()` 是同一助手只给头的入口，供还没迁的调用方使用（工作台主程序里还没迁的脚本、编进主程序的 Goals 工厂、插件客户端和约 25 个浏览器用例）。它会把令牌加到调用方给的任何地址上，所以「令牌只发同源」只对经助手本身发出的请求成立。删除条件：W5-04 迁完最后一个插件客户端、用例改用 `molisWorkRequest` 之后，若再无调用方就删（W5-04 收尾 PR 决定）。
-- PTY 客户端包（`apps/workbench/src/character-terminal-client.ts`，与 Shelf、工作台 `src/terminal/` 的终端客户端一起打成 `dist/web/pty-client.js`）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
+- PTY 客户端包（`apps/workbench/src/terminal-client.ts`，只含终端渲染器、页面终端 `src/terminal/page-terminal.ts` 与工作台自己的工作终端，打成 `dist/web/pty-client.js`；Shelf 与 Characters 的终端客户端在各自的客户端包里，PG-053）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
 
 ## 本地开发
 
@@ -79,6 +79,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 - 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 挂载前检查 surface 与目标 slot 兼容、身份与格式。
+  - 贡献属于哪个插件由平台填，插件不写：`UiHost.register` 只收 `OwnedUiContribution`（`ownedContribution` 按受信任的 Manifest 合成）；`ui:register` 的声明自带 `plugin_id`（哪怕是自己的）一律 `ui_host.plugin_denied`（PG-098）。
   - `mountDeclared` 只在宿主自己的 slot 里找 surface 声明的那一个；找不到就拒绝（`ui_host.slot_incompatible`），不退回别的 slot。
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。
@@ -92,9 +93,6 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 - [职责与接入说明](../../docs/platform/UI-PLATFORM.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`, `goal-reorg-ap3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

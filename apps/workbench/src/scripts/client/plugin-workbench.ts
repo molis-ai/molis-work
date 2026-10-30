@@ -1,11 +1,12 @@
-import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
-import { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
-/** Workbench composes bundled project entries and exact Artifact contributions. The menus holding the market's update count
- * light their dot from `data-market-updates`: a style rule that looked inside them restyled each whole menu on every change. */
+/** The Artifacts snippets share this script's scope and say their words with `L`; here `L` is the page's, so they say them with `AL`, Artifacts' own words (none of them has a name that ends in `L` before a parenthesis). */
+const inArtifactsWords = (script: string): string => script.replaceAll("L(", "AL(");
+
+/** Workbench composes bundled project entries and exact Artifact contributions. The switcher holding the market's update count
+ * lights its dot from `data-market-updates`: a style rule that looked inside it restyled the whole switcher on every change. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
-  const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
   const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
@@ -17,15 +18,24 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const projectCheck = market.querySelector("[data-market-project-check]");
   const status = market.querySelector("[data-market-status]");
   const retry = market.querySelector("[data-market-retry]");
-  // The market entry lives in the bar's Dock menu (the rail's only on older shells); its count lights the menu's dot too.
-  const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]');
+  // The market entry is the button at the head of the switcher, in the bar's Dock menu; its count lights the switcher's dot too.
+  const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
   let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false, marketDirty = true, marketRevision = 0;
+  // What a market card brings or takes, from the Host's own marks on the cards (W5-02 B1): the same data the Projects service applies.
+  const listOf = (value) => (value || "").split(" ").filter(Boolean);
+  const marketName = (id) => {
+    const card = market.querySelector('[data-market-plugin="' + id + '"]');
+    const heading = card && card.querySelector("h2");
+    return heading ? heading.textContent : id;
+  };
+  // One sentence with the names filled in; no sentence when the list is empty (so a button has no empty title).
+  const relation = (ids, template) => ids.length ? L(template).replace("{list}", ids.map(marketName).join(L("、"))) : "";
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
       updateCount.textContent = updates.length ? String(updates.length) : "";
-      updateCount.closest(".plugin-picker, .account-global-menu")?.toggleAttribute("data-market-updates", updates.length > 0);
+      updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);
     }
     if (marketLink) marketLink.setAttribute("aria-label", updates.length
       ? L("插件市场") + "，" + updates.length + L("个可用更新")
@@ -110,20 +120,28 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin) || (PERSONAL_PLUGIN_IDS.includes(card.dataset.marketPlugin) && !hiddenIds.includes(card.dataset.marketPlugin));
+      const added = addedIds.includes(card.dataset.marketPlugin) || (card.hasAttribute("data-market-personal") && !hiddenIds.includes(card.dataset.marketPlugin));
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
       button.disabled = !current || pending || marketDirty;
       button.dataset.marketMembership = added ? "added" : "available";
-      button.textContent = added ? L("移除") : L("添加");
+      const action = added ? L("移除") : L("添加");
+      button.textContent = action;
       const currentProject = selector.value === projectId;
       const openButton = card.querySelector('[data-market-open]');
       openButton.hidden = !added || !currentProject;
       openButton.disabled = pending;
       button.classList.toggle('mw-btn--ghost', added);
       button.classList.toggle('mw-btn--secondary', !added);
-      button.setAttribute('aria-label', (added ? L('移除') : L('添加')) + ' ' + card.querySelector('h2').textContent);
+      button.setAttribute('aria-label', action + ' ' + card.querySelector('h2').textContent);
+      // What the operation brings or takes: said on the button before it is pressed, and only when there is something to say.
+      const needs = listOf(card.dataset.marketNeeds), neededBy = listOf(card.dataset.marketNeededBy);
+      const title = added
+        ? relation(neededBy.filter(id => addedIds.includes(id)), "移除会同时移除：{list}")
+        : [relation(needs.filter(id => !addedIds.includes(id)), "添加会同时添加：{list}"),
+          relation(neededBy.filter(id => !addedIds.includes(id)), "依赖它的插件不会一并添加：{list}")].filter(Boolean).join(L("；"));
+      if (title) button.title = title; else button.removeAttribute("title");
       const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
       const upgradeButton = card.querySelector("[data-market-upgrade]");
       upgradeButton.dataset.marketUpgrade = update?.plugin_id || "";
@@ -241,6 +259,9 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (!button || button.disabled || pending) return;
     const targetProject = selector.value;
     const removing = button.dataset.marketMembership === "added";
+    const beforeIds = (projects.find(project => project.project_id === targetProject)?.plugins || []).slice();
+    const clickedCard = button.closest("[data-market-plugin]");
+    const clickedNeededBy = clickedCard ? listOf(clickedCard.dataset.marketNeededBy) : [];
     pending = true; selector.disabled = true; filter();
     status.textContent = removing ? L("正在移除…") : L("正在添加…");
     try {
@@ -256,7 +277,14 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const project = projects.find(project => project.project_id === targetProject);
       project.plugins = result.plugins;
       project.hidden = result.hidden || [];
-      status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name;
+      // What went or came with it, from the plugin list before and after (not from the directory: the service decides); a plugin
+      // that depends on it is not added with it, and the line says so when it happened.
+      const also = (removing ? beforeIds.filter(id => !result.plugins.includes(id)) : result.plugins.filter(id => !beforeIds.includes(id)))
+        .filter(id => id !== button.dataset.marketAdd);
+      const came = targetProject === projectId ? "" : relation(also, removing ? "同时移除了：{list}" : "同时添加了：{list}");
+      const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "依赖它的插件不会一并添加：{list}");
+      const note = [came, missing].filter(Boolean).map(part => L("；") + part).join("");
+      status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name + note;
       if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { molisWorkRequest.show(status,error); }
     finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
@@ -307,7 +335,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
-  ${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}${ARTIFACT_HANDOFF_CLIENT_SCRIPT}${ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
+  const AL = (key, vars) => LF(${JSON.stringify(ARTIFACTS_PLUGIN_ID)}, key, vars);
+  ${inArtifactsWords(ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT + ARTIFACT_WORKS_CLIENT_SCRIPT + ARTIFACT_HANDOFF_CLIENT_SCRIPT + ARTIFACT_PORT_INPUT_CLIENT_SCRIPT)}
   // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version and it opens here.
   const continueFrom = async (button) => {
     if (button.disabled) return;

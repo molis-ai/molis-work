@@ -1,11 +1,11 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
@@ -13,15 +13,17 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
   const home=mkdtempSync(join(tmpdir(),'coding-child-http-')),dbPath=join(home,'board.db');seedDemoBoard(dbPath);let store=new LocalProjectDatabase(dbPath);
   const sessions=codingSessions(store);await sessions.create(noEffect, {project_id:DEMO_PROJECT_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID,'app','sdk',new Date().toISOString());
   let state='running',cancels=0;
-  const host=()=>({store,...openProjectVersionStores(store),homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
-    capabilities:{async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{
+  const agentHost={async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{
       const input=args as any[];
       if(input[0]?.session_id!=='sdk'||input[1]?.run_id!=='parent')throw new Error('not original parent');
       if(definition.capability_id===agent.listSubagents.capability_id)return [{subagent_id:'child',parent_run:input[1],role_id:'coding-reader',task:'read',state,result:'candidate',workspace_path:home}] as O;
-      if(definition.capability_id===agent.cancelSubagent.capability_id){assert.equal(input[2],'child');assert.equal(input[3],'web-user');cancels++;return undefined as O;}
+      // Who stops it is the caller the host knows, never a field of the input (R8 rule 4).
+      if(definition.capability_id===agent.cancelSubagent.capability_id){assert.equal(input[2],'child');assert.equal(input.length,3);cancels++;return undefined as O;}
       throw new Error('Unexpected capability');
-    }}});
-  const server=createServer((req,res)=>{void handleProjectPluginHttp(req,res,new URL(req.url!,'http://localhost'),host(), codingRouteHooks).catch(error=>{res.writeHead(500);res.end(String(error));});});
+    }};
+  const host=()=>withFakeAgentHost({store,...openProjectVersionStores(store),homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
+    agentHost});
+  const server=createServer((req,res)=>{void handleProjectPluginHttp(req,res,new URL(req.url!,'http://localhost'),host()).catch(error=>{res.writeHead(500);res.end(String(error));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address!=='string');
   const post=async(body:any,child='child',run='parent')=>{const res=await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/runs/${run}/subagents/${child}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});return {status:res.status,body:await res.json()};};
   try{

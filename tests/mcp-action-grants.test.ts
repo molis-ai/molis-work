@@ -3,10 +3,10 @@ import test from "node:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority, openByDefault } from "../apps/local-host/dist/mcp-action-grants.js";
-import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
+import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, writeMcpActionGrants, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
 
 const caller: ActionCallContext = { actor_id: "runtime:client-a", project_id: "a", audience: "mcp", permissions: [] };
 function view(scope: "home" | "project" = "project", version = 1, provider = "unknown-plugin"): ActionView {
@@ -22,19 +22,21 @@ test("persisted grants keep concurrent management updates; duplicates and other 
   const second = { ...first, client_id: "runtime:client-b", enabled: false };
   await Promise.all([writeMcpActionGrant(home, first), writeMcpActionGrant(home, second)]);
   const preference = await readMcpToolPreference(home);
-  assert.deepEqual(preference, { version: 2, action_grants: [first, second] });
+  assert.equal(preference.version, 3);
+  assert.deepEqual(preference.action_grants.map(({ generation, ...facts }) => { assert.ok(generation); return facts; }), [first, second]);
+  const [storedFirst, storedSecond] = preference.action_grants;
   await writeMcpActionGrant(home, { ...first, enabled: false });
   assert.equal((await readMcpToolPreference(home)).action_grants?.length, 2);
   assert.equal(JSON.parse(await readFile(mcpToolPreferencePath(home), "utf8")).action_grants[1].enabled, false);
   // W1-18-MCP-CONFIG-01: duplicate records remain visible facts; resolving them never grants or restores a default.
-  const duplicate = JSON.stringify({ ...preference, action_grants: [first, { ...first, enabled: false }, second] });
+  const duplicate = JSON.stringify({ ...preference, action_grants: [storedFirst, { ...storedFirst, enabled: false }, storedSecond] });
   const conflicted = parseMcpToolPreference(JSON.parse(duplicate));
-  assert.deepEqual(conflicted.action_grants, [first, { ...first, enabled: false }, second]);
+  assert.deepEqual(conflicted.action_grants, [storedFirst, { ...storedFirst, enabled: false }, storedSecond]);
   assert.deepEqual(resolveMcpActionContext(caller, [view()], conflicted).allowed_actions, []);
   await writeFile(mcpToolPreferencePath(home), duplicate);
   await assert.rejects(writeMcpActionGrant(home, first), { code: "actions.configuration_unavailable" });
   assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), duplicate);
-  const invalid = JSON.stringify({ ...preference, action_grants: [first, { ...first, enabled: false }, { ...first, version: "1" }] });
+  const invalid = JSON.stringify({ ...preference, action_grants: [storedFirst, { ...storedFirst, enabled: false }, { ...storedFirst, version: "1" }] });
   assert.throws(() => parseMcpToolPreference(JSON.parse(invalid)), { code: "actions.configuration_unavailable" });
   await writeFile(mcpToolPreferencePath(home), invalid);
   await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
@@ -46,10 +48,45 @@ test("persisted grants keep concurrent management updates; duplicates and other 
   assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), otherVersion);
 });
 
+test("ACA005-04/06 management owns each generation, preserving permission sets, unrelated grants and atomic failures", async t => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-generation-")); t.after(() => rm(home, { recursive: true, force: true }));
+  const first = { ...createMcpActionGrant(caller.actor_id, "a", view(), true), permissions: ["unknown:write", "unknown:read"] };
+  const second = { ...first, capability_id: "other.action" };
+  await writeMcpActionGrants(home, [first, second]);
+  const rows = async () => (await readMcpToolPreference(home)).action_grants;
+  const original = await rows(), firstGeneration = original[0].generation, secondGeneration = original[1].generation;
+  assert.notEqual(firstGeneration, secondGeneration);
+  await writeMcpActionGrant(home, { ...first, permissions: [...first.permissions].reverse() });
+  assert.equal((await rows()).find(row => row.capability_id === first.capability_id)?.generation, firstGeneration);
+  await writeMcpActionGrant(home, { ...second, enabled: false });
+  const unrelated = await rows();
+  assert.equal(unrelated.find(row => row.capability_id === first.capability_id)?.generation, firstGeneration);
+  assert.notEqual(unrelated.find(row => row.capability_id === second.capability_id)?.generation, secondGeneration);
+  await writeMcpActionGrant(home, { ...first, enabled: false });
+  const revoked = (await rows()).find(row => row.capability_id === first.capability_id)!;
+  assert.notEqual(revoked.generation, firstGeneration);
+  await writeMcpActionGrant(home, first);
+  const regranted = (await rows()).find(row => row.capability_id === first.capability_id)!;
+  assert.notEqual(regranted.generation, firstGeneration); assert.notEqual(regranted.generation, revoked.generation);
+  await writeMcpActionGrant(home, { ...first, permissions: ["unknown:write"] });
+  assert.notEqual((await rows()).find(row => row.capability_id === first.capability_id)?.generation, regranted.generation);
+  const file = mcpToolPreferencePath(home), before = await readFile(file, "utf8");
+  await assert.rejects(writeMcpActionGrants(home, [first, { ...first, enabled: false }]), { code: "actions.configuration_unavailable" });
+  const spoofed = { ...first, generation: "caller-chosen" };
+  await assert.rejects(writeMcpActionGrant(home, spoofed), /动作授权无效/);
+  assert.equal(await readFile(file, "utf8"), before, "invalid or duplicate proposals never partially publish");
+  for (const value of [{ version: 2, action_grants: [first] }, { ...JSON.parse(before), action_grants: [{ ...regranted, generation: "" }] }]) {
+    const text = JSON.stringify(value); await writeFile(file, text);
+    await assert.rejects(readMcpToolPreference(home), { code: "actions.configuration_unavailable" });
+    await assert.rejects(writeMcpActionGrant(home, first), { code: "actions.configuration_unavailable" });
+    assert.equal(await readFile(file, "utf8"), text, "old or broken storage is not rewritten at read or management");
+  }
+});
+
 test("MCP grants are exact for client, project, Home, provider, version and accepted permissions; no permission borrowing", () => {
   const project = view(), home = view("home"), newer = view("project", 2), replacement = view("project", 1, "replacement");
   const grant = createMcpActionGrant(caller.actor_id, "a", project, true);
-  const preference = { version: 2 as const, action_grants: [grant] };
+  const preference = { version: 3 as const, action_grants: [grant] };
   const resolve = (context = caller, actions = [project, home, newer, replacement]) => resolveMcpActionContext(context, actions, preference);
   assert.deepEqual(resolve().allowed_actions, [{ capability_id: project.capability_id, version: 1, provider_id: project.provider.provider_id }]);
   assert.deepEqual(resolve({ ...caller, project_id: "b" }).permissions, []);
@@ -92,9 +129,12 @@ test("Host inspection exposes metadata without execution rights; exact scope and
   await assert.rejects(client.invoke({ ...authorized, allowed_capability_ids: [action.capability_id] }, newer, {}), { code: "actions.forbidden" });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   t.after(() => release.resolve());
-  const blocking = { capability_id: "fixture.block", version: 1, operation: "command" as const };
-  host.register(blocking, async () => { entered.resolve(); await release.promise; });
-  const first = host.client(reference).invoke(blocking, undefined); await entered.promise;
+  // A Host action of the same project holds its queue, so the MCP call below waits behind it.
+  const blocking: ActionDefinition<Record<string, never>, null> = { capability_id: "fixture.block", version: 1, operation: "command",
+    action: { title: "Block", description: "Hold the project's queue", kind: "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "null" } } };
+  host.registerAction(blocking, async () => { entered.resolve(); await release.promise; return null; });
+  const first = host.client(reference).invoke(blocking, {}); await entered.promise;
   const mutable = { ...authorized, allowed_actions: [...authorized.allowed_actions!] };
   const queued = client.invoke({ ...mutable, validate_authority: async ref => assertMcpActionAuthority(caller, [action], await readMcpToolPreference(home), ref) }, action, {});
   const rejected = assert.rejects(queued, { code: "mcp.action_revoked" });
@@ -126,7 +166,7 @@ test("permission-free system defaults can be revoked per client and restored, wi
   const base = view("home");
   const action: ActionView = { ...base, provider: { ...base.provider, kind: "system" }, action: { ...base.action, permissions: [] } };
   const context = { ...caller, project_id: null };
-  const preference = { version: 2 as const, action_grants: [] };
+  const preference = { version: 3 as const, action_grants: [] };
   assert.equal(resolveMcpActionContext(context, [action], preference).allowed_actions?.length, 1);
   const deny = createMcpActionGrant(caller.actor_id, null, action, false);
   assert.deepEqual(resolveMcpActionContext(context, [action], { ...preference, action_grants: [deny] }).allowed_actions, []);
@@ -146,7 +186,7 @@ test("PMAT-24 the built-in Agent holds project knowledge without a grant record,
     provider: { provider_id: "pages", title: "Pages", kind: "plugin", ...(project ? { project_id: project } : {}) },
     action: { ...view("project").action, kind, audiences: ["agent", "mcp"], permissions: ["pages:read"], input_type: "molis.subject-reference.v1", output_type: "molis.subject-context.v1" } });
   const writer: ActionView = { ...view("project"), provider: { provider_id: "pages", title: "Pages", kind: "plugin", project_id: "a" }, action: { ...view("project").action, audiences: ["agent", "mcp"] } };
-  const empty = { version: 2 as const, action_grants: [] };
+  const empty = { version: 3 as const, action_grants: [] };
   assert.deepEqual([openByDefault(knowledge, agent), openByDefault(reader("a"), agent)], [true, true]);
   assert.equal(openByDefault(writer, agent), false, "a write still needs its own grant");
   const manage: ActionView = { ...knowledge, capability_id: "knowledge.card.edit", operation: "command", action: { ...knowledge.action, kind: "operation", effect: "write", permissions: ["knowledge:manage"] } };

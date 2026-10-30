@@ -4,24 +4,21 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
-test("Immersive directories resize and retain compact, operable Goal, Feed and Session lists", { timeout: 90_000 }, async t => {
+test("Immersive directories resize and retain compact, operable Goal and Feed lists", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, store, projectId, homeDirectory } = browser;
   const todo = await pluginFrameBrowser(t, browser, "todo");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "sessions"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
+  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
   const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
   catalog.close();
   new GoalProjectApplication(store).goalEvents.createIntent({ project_id: projectId!, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
-  const before = store.snapshot(projectId!);
-  const registry = await openWorkSessionRegistry({ homeDirectory });
-  const session = registry.createSession({ runtime_id: "codex", project_id: projectId!, current_goal_id: "CORE", title: "完成 Molis Work 架构、代码与文档重组，保留已有项目工作过程", user_confirmed: true, actor_id: "directory-test" });
-  registry.createSession({ runtime_id: "claude-code", project_id: projectId!, current_goal_id: "WEB", title: "检查目录与工作区交互", user_confirmed: true, actor_id: "directory-test" });
-  registry.close();
+  const before = boardSnapshot(store, projectId!);
   const page = origin + "/projects/" + projectId + "/?desktop=1";
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__uiErrors=[];addEventListener('error',e=>window.__uiErrors.push(e.message));" }, sessionId);
   const viewport = (width: number, height = 1000) => command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
@@ -42,7 +39,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
   // craft-finish round 4 retired the left plugin rail, its project island and the Dock line; the bottom-bar test below
-  // covers the current shell. This test keeps to the Goal, Feed and Session lists themselves.
+  // covers the current shell. This test keeps to the Goal and Feed lists themselves.
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate("Math.round(document.querySelector('.immersive-titlebar').getBoundingClientRect().height)"), 32, "Titlebar is a 32px Linear-height row");
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
@@ -184,10 +181,6 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
   await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=sessions]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-session-stage-chrome] [data-open-session-add]')");
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-section=sessions]')"), null);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && Boolean(document.querySelector('[data-graph-node][data-goal-id=long-child] [data-graph-open]'))");
   await click("[data-board-view-tab=canvas]");
@@ -210,7 +203,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
 
   const feed = createLocalFeedApplication(store.db);
   const now = new Date().toISOString();
-  const source = feed.upsertSource({ project_id: projectId!, source_id: "directory-rss", kind: "rss", definition_id: "rss", sync_kind: "manual", name: "产品观察", description: "目录验证", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now });
+  const source = feed.sources.upsert({ project_id: projectId!, source_id: "directory-rss", kind: "rss", definition_id: "rss", sync_kind: "manual", name: "产品观察", description: "目录验证", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now });
   const item = feed.ingestItem({ source, externalId: "first", title: "从首次使用观察中找到下一步值得改进的地方", summary: "完整保留消息来源和正文，再决定如何推进。", body: "这条消息用于验证在真实目录中打开和阅读内容。", occurredAt: now, attention: false });
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
@@ -245,64 +238,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
     return { ok: inset >= 10 && inset <= 18, dump: JSON.stringify({ inset: Math.round(inset * 10) / 10 }) };
   })()`);
   assert.ok(feedBack.ok, "Feed close sits in the reading bar's inset " + feedBack.dump);
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.querySelectorAll('[data-operation-row=session]').length===2 && document.querySelector('[data-plugin-strip] [data-plugin-id=sessions]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  const sessionRow = await evaluate<{ height: number; size: string; weight: string; line: string; titleRight: number; stateLeft: number; border: string; subtitle: string; goal: string }>("(()=>{const row=document.querySelector('[data-operation-row=session]'),title=row?.querySelector('strong'),state=row?.querySelector('.mw-dir-row__status, .directory-row-state'),goal=row?.querySelector('.session-stage-row__goal'),small=row?.querySelector('.project-record-select small, .mw-dir-row__copy small');if(!row||!title||!state||!goal)throw new Error('session row missing parts');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,line:getComputedStyle(title).whiteSpace,titleRight:title.getBoundingClientRect().right,stateLeft:state.getBoundingClientRect().left,border:getComputedStyle(state).borderWidth,subtitle:small?getComputedStyle(small).display:'none',goal:goal.textContent.trim()};})()");
-  // Sessions is a plugin list page now: one centred column with 44px single-line rows (spec → 第二轮 · 插件列表页).
-  assert.equal(sessionRow.height, 44, "Session rows are single-line list-page rows");
-  assert.equal(sessionRow.size, "13px");
-  assert.equal(sessionRow.line, "nowrap");
-  assert.ok(Number(sessionRow.weight) <= 500);
-  assert.ok(sessionRow.titleRight <= sessionRow.stateLeft, "Long session titles must not cover the status");
-  assert.equal(sessionRow.border, "0px", "Session status uses the Goal label, not a second enclosing box");
-  assert.equal(sessionRow.subtitle, "none");
-  assert.ok(sessionRow.goal.length > 0, "Session rows show the current Goal");
-  assert.ok(await evaluate(`(() => {
-    const fold = document.querySelector('[data-session-runtime-fold]');
-    const caret = fold?.querySelector(':scope > summary .goal-collection-caret');
-    const title = fold?.querySelector('[data-operation-row=session] .session-stage-row__title strong');
-    const goals = [...(fold?.querySelectorAll('.session-stage-row__goal') ?? [])].map((node) => Math.round(node.getBoundingClientRect().left));
-    const states = [...(fold?.querySelectorAll('.mw-dir-row__status, .directory-row-state') ?? [])].map((node) => Math.round(node.getBoundingClientRect().left));
-    if (!caret || !title) return false;
-    return Math.abs((title.getBoundingClientRect().left - caret.getBoundingClientRect().left) - 16) <= 2
-      && new Set(goals).size === 1
-      && new Set(states).size === 1;
-  })()`), "Session rows sit one indent step under the runtime caret");
-  // Sessions is a list page (spec → 第二轮 · 插件列表页): New Session and the filter sit in the page header, with the
-  // title on the left and the actions on the right, instead of at the stage's top-left corner.
-  assert.ok(await evaluate("(()=>{const add=document.querySelector('[data-session-stage-chrome] [data-open-session-add]'),filter=document.querySelector('[data-session-stage-chrome] .project-record-filter-menu'),list=document.querySelector('[data-session-stage-list]'),shell=document.querySelector('[data-session-stage-shell]');if(!add||!filter||!list||!shell)return false;const a=add.getBoundingClientRect(),f=filter.getBoundingClientRect(),s=shell.getBoundingClientRect();return a.top-s.top<96 && a.right<=s.right && f.left>=a.right && !document.querySelector('[data-operation-search]') && document.querySelector('[data-session-stage-workspace]')?.hidden===true;})()"), "New Session and filter sit on the stage list; detail stays closed");
-  await capture("directory-sessions-list");
-  await click('[data-session-stage-chrome] .project-record-filter-menu > summary');
-  await waitFor("document.querySelector('[data-session-stage-chrome] .project-record-filter-menu')?.open===true");
-  assert.ok(await evaluate("(()=>{let p=document.querySelector('[data-session-stage-chrome] .project-record-filter-menu > div').getBoundingClientRect(),r=document.querySelector('[data-work-surface=sessions]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
-  await capture("directory-sessions-filter");
-  await evaluate("(()=>{let s=document.querySelector('[data-session-runtime-filter]');s.value='codex';s.dispatchEvent(new Event('change',{bubbles:true}));})()");
-  await waitFor("document.querySelectorAll('[data-operation-row=session]:not([hidden])').length===1");
-  assert.equal(await evaluate("document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true'"), false, "Filtering a closed list does not open detail");
-  await key("Escape", 27);
-  assert.equal(await evaluate("document.querySelector('[data-session-stage-chrome] .project-record-filter-menu').open"), false);
-  await click('[data-operation-select="' + session.session_id + '"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true' && document.querySelector('[data-work-surface=sessions] [data-operation-detail]:not([hidden])')");
-  const sessionBack = await evaluate<{ ok: boolean; dump: string }>(`(() => {
-    const back = document.querySelector('[data-session-stage-workspace] [data-operation-detail]:not([hidden]) .session-stage-back');
-    const workspace = document.querySelector('[data-session-stage-workspace]');
-    if (!workspace || !back) return { ok: false, dump: 'missing' };
-    const inset = back.getBoundingClientRect().left - workspace.getBoundingClientRect().left;
-    return { ok: inset >= 2 && inset <= 6, dump: JSON.stringify({ inset: Math.round(inset * 10) / 10 }) };
-  })()`);
-  assert.ok(sessionBack.ok, "Session back uses the Goal toolbar inset " + sessionBack.dump);
-  const split = await evaluate<{ list: number; listRight: number; chromeRight: number; treeWidth: number; detail: boolean; goalDisplay: string }>("(()=>{const list=document.querySelector('[data-session-stage-list]').getBoundingClientRect(),chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect(),goal=document.querySelector('.session-stage-row__goal'),treeWidth=parseFloat(getComputedStyle(document.querySelector('[data-workspace]')).getPropertyValue('--tree-width'))||240;return {list:Math.round(list.width),listRight:list.right,chromeRight:chrome.right,treeWidth,detail:!document.querySelector('[data-session-stage-workspace]')?.hidden,goalDisplay:goal?getComputedStyle(goal).display:'none'};})()");
-  assert.ok(Math.abs(split.list - split.treeWidth) < 3, "Session split list matches the directory column width " + JSON.stringify(split));
-  assert.equal(split.detail, true);
-  assert.equal(split.goalDisplay, "none");
-  await click("[data-operation-detail]:not([hidden]) [data-session-collapse]");
-  await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded !== 'true' && document.querySelector('[data-session-stage-workspace]')?.hidden === true");
-  await click('[data-operation-select="' + session.session_id + '"]');
-  await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true'");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme='dark'");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-operation-row=session] strong')).color"), await evaluate("(()=>{const n=document.createElement('span');n.style.color='var(--ink)';document.body.append(n);const c=getComputedStyle(n).color;n.remove();return c;})()"));
-  await capture("directory-sessions-dark");
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
   await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
@@ -316,7 +253,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "todo");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=todo]')"), null);
-  const coreTitle = store.snapshot(projectId!).goals.find((goal) => goal.goal_id === "CORE")!.title;
+  const coreTitle = boardSnapshot(store, projectId!).goals.find((goal) => goal.goal_id === "CORE")!.title;
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   await evaluate("(()=>{const input=document.querySelector('[data-global-search]');input.focus();input.value=" + JSON.stringify(coreTitle) + ";input.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -325,8 +262,6 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=goals]')"), null);
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.querySelector('[data-session-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await viewport(1024, 800);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));
   await capture("directory-1024");
@@ -342,20 +277,14 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("document.querySelector('[data-tree-resizer]').getClientRects().length"), 0);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));
   await capture("directory-mobile");
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-session-stage-list]')");
-  await click('[data-operation-select="' + session.session_id + '"]');
-  await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true' && getComputedStyle(document.querySelector('[data-session-stage-list]')).display === 'none'");
-  await click("[data-operation-detail]:not([hidden]) [data-session-collapse]");
-  await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded !== 'true'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal=\"long-child\"]')?.getClientRects().length > 0");
   await click('[data-select-goal="long-child"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
-  assert.deepEqual(store.snapshot(projectId!).goals, before.goals);
-  assert.deepEqual(store.snapshot(projectId!).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId!).runs, before.runs);
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 
@@ -427,7 +356,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // Switching goes through the list at the bar's left; its label follows.
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
   assert.equal(await evaluate("document.querySelector('[data-dock-pin=goals]').getAttribute('aria-current')"), "page");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");

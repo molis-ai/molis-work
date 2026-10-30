@@ -6,11 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesInputSnapshot } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesInputSnapshot } from "@molis-ai/molis-work-plugin-pages/contract";
 import { createInboxActionHandlers, inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, type InboxActionEntry, type InboxPagesInput } from "@molis-ai/molis-work-plugin-inbox";
 import { createInboxPagesHandlers, inboxPagesRequestHash } from "@molis-ai/molis-work-plugin-inbox";
 import { createPagesActionHandlers, ownPagesStores, pagesActions, preparePagesImport, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { feedInboxActions } from "@molis-ai/molis-work-plugin-feed";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers, type HomeOfferExecutionInput } from "../apps/local-host/src/home-offer-actions.js";
 
 const inboxId = "io.molis.work.inbox", pagesId = "io.molis.work.pages";
@@ -42,6 +43,10 @@ async function fixture(t: test.TestContext) {
       if (!authorized) throw new ActionError("actions.source_unavailable", "来源已断开");
       return { ...structuredClone(material), captured_at: String(++clock) }; },
   });
+  // Inbox's generation reads the material again through Feed's `feed.items.material`, a required action: Feed only has to be there,
+  // the material itself comes from `readMaterial` above.
+  actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", kind: "plugin", title: "Feed", project_id: "project" }, definitions: [feedInboxActions.material],
+    handlers: [{ ...feedInboxActions.material, handle: () => { throw new Error("unused"); } }] });
   const withdrawInbox = actions.registerProvider({ provider: { provider_id: inboxId, kind: "plugin", title: "Inbox", project_id: "project" }, definitions: INBOX_ACTIONS,
     handlers: createInboxActionHandlers({ ...pages, listEntries: () => [entry], setStatus: () => { throw new Error("unused"); } }) });
   actions.registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home", project_id: "project" }, definitions: Object.values(homeOfferActions), handlers: createHomeOfferHandlers(actions) });

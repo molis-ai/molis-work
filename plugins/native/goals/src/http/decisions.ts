@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsFailure, goalsRoute } from "./failure.js";
 import { goalsActions } from "../actions.js";
-import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecideInput } from "../contract/governance-collaboration.js";
 import type { GoalsRoutePorts } from "./types.js";
 
 /** `goals.tree-decide`: the person's decision on a proposed change to the Goal tree, item by item or the whole proposal. */
@@ -13,7 +13,7 @@ export function goalDecisionRoutes(ports: GoalsRoutePorts): PluginRouteBinding[]
       return goalsFailure(new ActionError("actions.input_invalid", "decisions 必须是条目决定列表"));
     }
     const confirmsWholeProposal = body.confirm_all_pending === true;
-    const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? "");
+    const idempotencyKey = String(body.idempotency_key ?? "");
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     const result = await context.actions.invoke(goalsActions.treeDecide, {
       proposal_id: context.params.proposalId!,

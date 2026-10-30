@@ -6,22 +6,23 @@ import test from "node:test";
 
 import { toFeedPublicError } from "@molis-ai/molis-work-plugin-feed";
 import { PROVIDER_CONTRACT_FIXTURES } from "./fixtures/provider-contract.js";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
-import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
-test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", () => {
+import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+
+test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-fixtures-"));
   const databasePath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
       const feed = createLocalFeedApplication(store.db);
       const now = "2026-08-30T00:00:00.000Z";
       const ingested = PROVIDER_CONTRACT_FIXTURES.map((fixture) => {
-        const source: FeedSourceRecord = feed.upsertSource({
+        const source: FeedSourceRecord = feed.sources.upsert({
           project_id: DEMO_PROJECT_ID,
           source_id: fixture.source.source_id,
           kind: fixture.provider,
@@ -61,13 +62,14 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(snapshot.inbox_entries.length, 2);
       assert.equal("items" in snapshot, false);
       assert.equal(snapshot.inbox_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
-      const goalDecision = feed.createInboxEntry({
+      // Feed has no Goal facts: a Goal's decision reminder is Goals' to open, so Feed refuses to.
+      assert.throws(() => feed.createInboxEntry({
         projectId: DEMO_PROJECT_ID,
         subjectType: "goal_decision",
         subjectId: "CORE",
         reason: "goal_decision",
         detail: { obligation_id: "fixture-obligation" },
-      });
+      }), { code: "feed.invalid_transition" });
       const sourceFault = feed.createInboxEntry({
         projectId: DEMO_PROJECT_ID,
         subjectType: "source_fault",
@@ -75,14 +77,13 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         reason: "source_fault",
         detail: { error_code: "fixture_network" },
       });
-      assert.equal(goalDecision.entry.subject_type, "goal_decision");
       assert.equal(sourceFault.entry.subject_type, "source_fault");
 
       const github = PROVIDER_CONTRACT_FIXTURES[0]!;
-      const githubSource = feed.getSource(DEMO_PROJECT_ID, github.source.source_id);
+      const githubSource = feed.sources.get(DEMO_PROJECT_ID, github.source.source_id);
       // J3D-01/J3D-03: the internal deletion contract refuses before any facts change.
       const beforeBadDelete = feed.snapshot(DEMO_PROJECT_ID);
-      assert.throws(() => feed.retireSource(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
+      assert.throws(() => feed.sources.retire(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
       assert.deepEqual(feed.snapshot(DEMO_PROJECT_ID), beforeBadDelete);
       const replay = feed.ingestItem({
         source: githubSource,
@@ -95,7 +96,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(replay.created, false);
       assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 3);
 
-      const secondGithubSource = feed.upsertSource({
+      const secondGithubSource = feed.sources.upsert({
         ...githubSource,
         source_id: "fixture-source-github-second",
         name: "GITHUB SECOND",

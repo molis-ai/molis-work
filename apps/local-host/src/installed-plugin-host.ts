@@ -1,23 +1,28 @@
 import { installedPluginExposure } from './installed-plugin-exposure.js';
+import { installedDefinitions } from './installed-plugin-definition.js';
+import { pluginProjectsPort } from './plugin-projects-service.js';
 import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
-import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
-import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
+import { openProjectVersionStores } from './project-version-stores.js';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
-import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { SandboxError, effectsFromContract, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
 import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platform.js';
+import { closePlugin, supervisedInstall } from './plugin-platform-close.js';
 import { configuredModelChoices } from './configured-models.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
-import { generatedPluginManifest, installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
-import { effectsFromContract } from './plugin-builder/build-project.js';
+import { generatedPluginManifest, installedSignature } from './plugin-builder/installed.js';
+import { installedVersion, releaseVersion, type InstalledRelease } from './installed-release.js';
+import { SandboxPackageStore } from './sandbox-package-store.js';
+import { HomeConsentLedger } from './home-plugin-store.js';
+import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
@@ -25,7 +30,9 @@ import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
-import { APPROVED_KEY, covered, installedLifecycle } from './installed-plugin-lifecycle.js';
+import { APPROVED_KEY, installedLifecycle } from './installed-plugin-lifecycle.js';
+import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
@@ -37,7 +44,7 @@ interface InstalledPluginHostOptions {
   actorId?: string;
   routePrefix?: string;
   actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
-  capabilities?: PluginPlatformOptions['capabilities'];
+  dependencyCheck?: PluginPlatformOptions['dependencyCheck'];
   /** Explicit fixture/embed replacement only; production uses the shared Home inference owner. */
   generate?: CapabilityImplementations['generate'];
 }
@@ -45,6 +52,9 @@ interface InstalledPluginHostOptions {
 /** One execution owner per project database. Authoring and its Workflow are separate consumers. */
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
+
+/** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
+export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);
@@ -70,7 +80,7 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
-  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, project_id: projectId }; })();
+  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
   const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
   let catalogPending: Promise<CatalogCapability[]> | undefined, exposureRevision = 0;
   const catalog = (): Promise<CatalogCapability[]> => {
@@ -91,29 +101,44 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return catalogPending;
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
-  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: null,
-    artifacts: new ArtifactsModule({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
+  const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
+  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost({ drawingAs: withPluginWords }), home: null, projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
+    consents: ledger,
+    ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
+    deleteInstallationData: id => privateStorage.deleteInstallationData(id),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
-    ...(options.capabilities ? { capabilities: options.capabilities } : {}) });
-  const records = () => platform.runtime.list().filter(item => item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
+    ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
+  // The studio's installs, and the ones from a signed package a pinned publisher made: both run in the sandbox and are listed, started and removed alike.
+  const records = () => platform.runtime.list().filter(item => (item.publisher_signature.startsWith(SIGNATURE) || item.publisher_trust === 'pinned') && item.state !== 'uninstalled');
   const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
-  const releaseFor = (pluginId: string) => {
+  const packages = new SandboxPackageStore(homeDirectory), packaged = new Map<string, InstalledRelease>();
+  /** A packaged release is read back (and checked again) from the Home's package store the first time an installation asks for it; a signature that checks is not enough, the publisher must still be trusted (BL-559). */
+  const packagedFor = (record: PluginInstanceRecord): InstalledRelease => {
+    if (!standing.trusted(record)) throw pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE);
+    const key = JSON.stringify([record.plugin_id, record.publisher_signature, record.version]);
+    let release = packaged.get(key);
+    if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
+    return release;
+  };
+  const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
-    return record && releases.versions(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
+    if (!record) return undefined;
+    if (record.publisher_trust === 'pinned') { try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error)); return undefined; } }
+    return releases.versions(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
   };
   const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
   const titleOf = (pluginId: string) => releaseFor(pluginId)?.design.title ?? releases.releases().find(item => item.pluginId === pluginId)?.design.title;
   let closed = false;
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
-    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
-      throw new SandboxError('plugin.capability_denied', '插件的安装执行身份已失效');
+    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record)) {
+      throw staleInstallation();
     }
   };
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> => catalogCapabilities({ actions, catalog, live, author: titleOf,
-    declaration: identity => sandboxDeclaration(identity, releases, release => definitions.get(JSON.stringify([release.pluginId, release.buildId, release.version]))?.value.manifest, { recordFor, releaseFor }),
+    declaration: identity => sandboxDeclaration(identity, releases, release => manifestOf(release), { recordFor, releaseFor }),
     granted: identity => sandboxGrants(identity, releases, { recordFor, releaseFor, approvedFor }) });
   const secrets = pluginSecrets(homeDirectory, projectId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
@@ -135,31 +160,18 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw, homeDirectory, actorId: options.actorId ?? 'web-user',
     changed: () => { exposureRevision++; }, catalog });
-  const definitions = new Map<string, { pluginId: string; value: ReturnType<typeof sandboxedPluginDefinition> }>();
-  const definition = (release: AgentRelease, approved: SandboxEffects) => {
-    if (!covered(release.permissions, approved)) throw new Error('此版本的安装批准不足，请重新确认权限');
-    const key = JSON.stringify([release.pluginId, release.buildId, release.version]), prior = definitions.get(key);
-    // Runtime retains immutable implementations across version switches; rollback must reuse the same object.
-    if (prior) return prior.value;
-    const capability = capabilityFor(() => true);
-    const guard = (context: Parameters<typeof capability.call>[0]) => ({ ...context, beforeEffect: async () => {
-      await context.beforeEffect?.(); context.signal.throwIfAborted(); assertInstalled(context.identity);
-    } });
-    const value = sandboxedPluginDefinition(release, release.permissions, releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version), {
-      capabilities: catalog,
-      capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
-      network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return network.request(guarded, input, authorization); } },
-    });
-    definitions.set(key, { pluginId: release.pluginId, value });
-    return value;
-  };
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled,
+    earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
-  const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') =>
-    registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)), promptScope(recordFor(release.pluginId)!.install_id));
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
+    registerGeneratedPrompts(homeDirectory, generatedRegistration(release, release.packaged ? [release] : releases.versions(release.buildId), state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
+  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
+  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
-      for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
+      forgetDefinitions(pluginId);
+      // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
+      forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });
     } });
   const close = async () => {
     if (closed) return;
@@ -167,30 +179,35 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
-    for (const pluginId of platform.supervisor.enabledPluginIds()) {
-      const state = platform.supervisor.state(pluginId);
-      if (state?.status === 'running' && state.install_id) try { await platform.runtime.stop(state.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
-      platform.supervisor.revoke(pluginId);
-    }
+    // Closing the Host is not switching a plugin off; closePlugin says what is stopped, and what is only revoked.
+    for (const pluginId of platform.supervisor.enabledPluginIds()) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');
   };
   try {
     for (const record of records()) {
       try {
+        if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        if (!release) throw new Error('找不到已安装版本 ' + record.version + ' 的发布记录');
+        if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
         if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
-        if (record.state === 'disabled' || record.state === 'quarantined') continue;
-        const report = await platform.start([{ definition: definition(release, approved), grants: record.grants }]);
+        if (record.state === 'disabled' || record.state === 'quarantined') {
+          const restored = definition(release, approved); platform.runtime.register(restored);
+          await platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
+        }
+        // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
+        const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
     }
 
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
-      refreshPublicActions: async () => { if (exposed.size) await catalog(); },
-      installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.slice(SIGNATURE.length), version: Number(item.version.split('.')[0]),
+      /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
+      installPackage: (release: InstalledRelease, input: { consent: true }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
+      packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
+      refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); }, reconcilePublishers: stops.reconcile,
+      installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }
 }
@@ -199,7 +216,12 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
  * What a sandboxed plugin declared to the Host, for the caller its capability calls run under (S-15): the Manifest its running
  * installation was started with, or for a trial, the one its build would install with. Anything else has declared nothing.
  */
-function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, started: (release: AgentRelease) => PluginManifest | undefined,
+/** The package a signed-package installation runs, read back and checked, without asking whether its publisher is still trusted: the person can still take it off. */
+function signedPackageOf(packages: SandboxPackageStore, record: PluginInstanceRecord | undefined): InstalledRelease | undefined {
+  return record?.publisher_trust === 'pinned' ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
+}
+
+export function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, started: (release: AgentRelease) => PluginManifest | undefined,
   installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined; releaseFor(pluginId: string): AgentRelease | undefined }): HostPluginCaller['declaration'] | undefined {
   if (identity.namespace === 'installed') {
     const record = installed.recordFor(identity.pluginId);
@@ -215,7 +237,7 @@ function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases: Pick<
  * The capabilities a sandbox identity may reach: for an installed plugin, those its running release declares and the person
  * approved; for a trial, those its design declares (its writes stay stand-ins).
  */
-function sandboxGrants(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined;
+export function sandboxGrants(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined;
   releaseFor(pluginId: string): AgentRelease | undefined; approvedFor(pluginId: string): SandboxEffects | null }): readonly string[] {
   if (identity.namespace === 'installed') {
     const record = installed.recordFor(identity.pluginId), approved = installed.approvedFor(identity.pluginId)?.capabilities ?? [];

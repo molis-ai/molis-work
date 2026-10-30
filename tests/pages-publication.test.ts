@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import type { ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { servePages } from "./fixtures/pages-runtime.js";
-import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 /** Pages as the Home Runtime runs it in one project (W5-01-PAGES-04): the publication is the plugin's, the 成果库 the project's. */

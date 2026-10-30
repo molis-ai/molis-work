@@ -1,5 +1,5 @@
 import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
@@ -24,18 +24,20 @@ export class PublicSourceSync {
     }
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
     const beforeEffect = createFeedSourceSyncGuard(this.feed, source, input);
+    // Every write of this pull checks the source again inside its transaction: one changed while the commit waited gets nothing (FI-C-05).
+    const write = <T>(operation: () => T): Promise<T> => this.commit(() => { beforeEffect.check(); return operation(); });
     await beforeEffect();
     const operationId = stableId("feed-operation", `${source.source_id}\u0000${idempotencyKey}`);
     const request = buildExactRequest(source, operationId, this.ports.providers);
     const planFingerprint = fingerprintSearchIntentExactV1(request);
-    const prior = this.feed.getSourceRunByOperationId(this.projectId, operationId);
+    const prior = this.feed.sources.runByOperationId(this.projectId, operationId);
     if (prior?.phase === "terminal") {
       const storedFingerprint = prior.receipt?.intent_fingerprint;
       if (storedFingerprint && storedFingerprint !== planFingerprint) {
         throw feedErrors.source_idempotency_conflict("同一幂等键对应的来源配置已经变化");
       }
       return {
-        source: this.feed.getSource(this.projectId, sourceId),
+        source: this.feed.sources.get(this.projectId, sourceId),
         run: prior,
         created: 0,
         deduped: 0,
@@ -44,7 +46,7 @@ export class PublicSourceSync {
     }
 
     const startedAt = new Date().toISOString();
-    const running: FeedSourceRunRecord = {
+    let running: FeedSourceRunRecord = {
       project_id: this.projectId,
       run_id: prior?.run_id ?? stableId("feed-run", operationId),
       operation_id: operationId,
@@ -61,25 +63,44 @@ export class PublicSourceSync {
       completed_at: null,
       updated_at: startedAt,
     };
-    this.feed.upsertSourceRun(running);
-    this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
-      operation_id: operationId,
+    const started = running;
+    await write(() => {
+      this.feed.sources.upsertRun(started);
+      this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
+        operation_id: operationId,
+      });
     });
 
-    const runtime = this.ports.createRuntime(source);
+    // The run names a body before the Home's ledger is told of it and before it is written, so a pull that is cut off at any point
+    // leaves every body it may have written named by a run: retrying it, or deleting the source, finds them.
+    const hold = this.ports.holdContent ? async (contentRefs: readonly string[]) => {
+      await beforeEffect();
+      running = { ...running, receipt: withReceiptContentRefs(running.receipt, contentRefs) };
+      const named = running;
+      await write(() => { this.feed.sources.upsertRun(named); });
+      await this.ports.holdContent!(source, contentRefs);
+    } : undefined;
+    const runtime = this.ports.createRuntime(source, operationId, hold);
     try {
       const result = await runtime.intelligenceCollect.executeExact(
         request,
         input.signal ? { signal: input.signal } : undefined,
       );
       await beforeEffect();
-      return await this.commitPublicResult(source, running, result, runtime);
+      return await this.commitPublicResult(source, running, result, runtime, write);
     } catch (error) {
-      await beforeEffect();
-      const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
-      // The pull may have committed before a downstream judgment was cancelled.
-      // Preserve the refusal; an explicit retry can replay the durable pull.
+      // A pull that has already committed is done, whatever a judgment made of it afterwards: report that failure as it is. The guard below
+      // counts the pull's own source write as one person's edit of another (it keeps the revision the source had when the pull started), so it
+      // must not be asked once the terminal run is there; the run keeps the record an explicit retry can replay.
+      const current = this.feed.sources.runByOperationId(this.projectId, operationId);
       if (current?.phase === "terminal") throw error;
+      // A pull refused for its source keeps no receipt, as one the platform refused inside the pull does: the same key pulls again, and what
+      // was fetched for the source as it was is never replayed into it (FI-C-05). A call that may no longer write leaves the record, which the
+      // run still names.
+      if (beforeEffect.refused) {
+        await runtime.discard?.().catch(() => undefined);
+      }
+      await beforeEffect();
       await input.beforeEffect?.();
       input.signal?.throwIfAborted();
       const updatedAt = new Date().toISOString();
@@ -92,16 +113,16 @@ export class PublicSourceSync {
         receipt: withReceiptContentRefs(running.receipt, runtime.writtenContentRefs?.() ?? []),
         updated_at: updatedAt,
       };
-      this.ports.transaction(() => {
-        this.feed.upsertSourceRun(interrupted);
-        const latest = this.feed.getSource(this.projectId, sourceId);
+      await write(() => {
+        this.feed.sources.upsertRun(interrupted);
+        const latest = this.feed.sources.get(this.projectId, sourceId);
         const rssFailure = this.ports.providers.rss.isSourceKind(latest.kind)
           ? this.ports.providers.rss.withFailure(latest.cursor)
           : null;
         const actionable = rssFailure
           ? rssFailureAction(errorCode, rssFailure.failures)
           : null;
-        this.feed.upsertSource({
+        this.feed.sources.upsert({
           ...latest,
           status: latest.enabled ? (actionable ? "error" : rssFailure ? "active" : "error") : "paused",
           cursor: rssFailure?.cursor ?? latest.cursor,
@@ -112,13 +133,13 @@ export class PublicSourceSync {
           operation_id: operationId,
           error_code: errorCode,
         });
+        // The fault that explains the failure is part of the same write.
+        const failedSource = this.feed.sources.get(this.projectId, sourceId);
+        if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
+          const fault = rssFailureAction(errorCode, this.ports.providers.rss.failureCount(failedSource.cursor));
+          if (fault) this.recordRssSourceFault(failedSource, errorCode, fault, updatedAt);
+        }
       });
-      const failedSource = this.feed.getSource(this.projectId, sourceId);
-      if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
-        const failures = this.ports.providers.rss.failureCount(failedSource.cursor);
-        const actionable = rssFailureAction(errorCode, failures);
-        if (actionable) this.recordRssSourceFault(failedSource, errorCode, actionable, updatedAt);
-      }
       throw feedErrors.source_sync_interrupted(interruptedMessage(errorCode));
     } finally {
       await runtime.shutdown().catch(() => undefined);
@@ -130,6 +151,7 @@ export class PublicSourceSync {
     running: FeedSourceRunRecord,
     result: IntelligenceCollectResult,
     runtime: PublicFeedRuntime,
+    write: <T>(operation: () => T) => Promise<T>,
   ): Promise<FeedSourceSyncResult> {
     const completedAt = new Date().toISOString();
     const consumable = result.outcome === "completed" || (result.outcome === "partial" && result.requirementMet);
@@ -140,8 +162,8 @@ export class PublicSourceSync {
     let durableSource = entrySource;
     let terminal!: FeedSourceRunRecord;
     let actionableRssFailure: ReturnType<typeof rssFailureAction> = null;
-    this.ports.transaction(() => {
-      const latest = this.feed.getSource(this.projectId, entrySource.source_id);
+    await write(() => {
+      const latest = this.feed.sources.get(this.projectId, entrySource.source_id);
       if (consumable) {
         for (const material of result.materials) {
           const externalId = `${latest.kind}:${sourceDedupeScope(latest)}:${material.candidateId}`;
@@ -154,7 +176,7 @@ export class PublicSourceSync {
             url: material.canonicalUrl,
             kind: "update",
             priority: "medium",
-            tags: [latest.kind, `feed-source:${latest.source_id}`],
+            tags: [latest.kind],
             author: material.sourceName,
             occurredAt: material.capturedAt,
             material: {
@@ -215,7 +237,7 @@ export class PublicSourceSync {
         completed_at: completedAt,
         updated_at: completedAt,
       };
-      durableSource = this.feed.upsertSource({
+      durableSource = this.feed.sources.upsert({
         ...latest,
         status: latest.enabled
           ? (actionableRssFailure
@@ -233,22 +255,26 @@ export class PublicSourceSync {
         last_error_code: errorCode,
         updated_at: completedAt,
       });
-      this.feed.upsertSourceRun(terminal);
+      this.feed.sources.upsertRun(terminal);
       this.ports.appendEvent(this.projectId, latest.source_id, "feed_source.sync_completed", `来源同步${result.outcome}：新增 ${created}，去重 ${deduped}`, {
         operation_id: running.operation_id,
         outcome: result.outcome,
         created,
         deduped,
       });
-    });
-    if (rssSource) {
-      if (consumable) resolveSourceFaults(this.feed, this.projectId, entrySource.source_id);
-      else if (actionableRssFailure && terminal.error_code) {
-        this.recordRssSourceFault(durableSource, terminal.error_code, actionableRssFailure, completedAt);
+      // The faults a good pull ends, or the one a failed pull of a feed raises, are part of the same write.
+      if (rssSource) {
+        if (consumable) resolveSourceFaults(this.feed, this.projectId, entrySource.source_id);
+        else if (actionableRssFailure && terminal.error_code) this.recordRssSourceFault(durableSource, terminal.error_code, actionableRssFailure, completedAt);
       }
-    }
+    });
     await this.feed.flushPendingJudgments();
     return { source: durableSource, run: terminal, created, deduped, replayed: false };
+  }
+
+  /** A write after the sync has awaited: the Runtime's commit when the Feed has one, otherwise the transaction it always used. */
+  private async commit<T>(operation: () => T): Promise<T> {
+    return this.ports.commit ? await this.ports.commit(operation) : this.ports.transaction(operation);
   }
 
   private recordRssSourceFault(

@@ -11,6 +11,17 @@ import { composeScheduledTaskPrompt, parseScheduledAgentReply } from "./reply.js
 import { deliverScheduleReminder } from "./reminders.js";
 import { prepareScheduledOperation, runScheduledOperation } from "./operations.js";
 
+/** The notification service takes a title of at most 200 UTF-16 units; a longer one is cut at a whole character and ends with 「…」. */
+function notificationTitle(title: string): string {
+  if (title.length <= 200) return title;
+  let cut = "";
+  for (const character of title) {
+    if (cut.length + character.length > 199) break;
+    cut += character;
+  }
+  return cut + "…";
+}
+
 export async function scheduleRuntimeWakeup(services: PluginHostServices, runtime: ScheduleRuntime, installId: string,
   caller: ActionExecutionContext, input: ScheduleWakeupInput) {
   if (caller.audience !== "plugin" || caller.plugin_install_id !== installId || input.plugin_id !== SCHEDULE_PLUGIN_ID) {
@@ -34,7 +45,7 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   const owners = scheduleInstallations(services.installations!, observed, views);
   if (input.capability_id === SCHEDULE_REMINDER_WAKEUP) return runtime.write(caller.beforeEffect, () => deliverScheduleReminder(runtime.db, input, control, {
     currentInstallation: reminder => owners.matches(reminder.pluginId, reminder.installationId, reminder.installationGeneration),
-    deliver: (reminder, dueAt) => runtime.notify({ key: reminder.id + ":" + dueAt, title: reminder.pluginTitle + "：" + reminder.text,
+    deliver: (reminder, dueAt) => runtime.notify({ key: reminder.id + ":" + dueAt, title: notificationTitle(reminder.pluginTitle + "：" + reminder.text),
       summary: reminder.text, body: reminder.text, open_plugin_id: reminder.pluginId }),
   }));
   if (input.capability_id !== SCHEDULE_OPERATION_WAKEUP) throw new ActionError("actions.forbidden", "未知的定时唤醒");
@@ -64,7 +75,7 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
       } };
     },
     deliver: (run, dueAt, outcome, text) => runtime.notify({ key: run.id + ":" + dueAt,
-      title: run.pluginTitle + "：" + (outcome.state === "succeeded" ? (text.replace(/\s+/g, " ").trim().slice(0, 80) || run.operationTitle) : run.operationTitle.slice(0, 40) + "没有完成"),
-      summary: text.slice(0, 280), body: text || "操作已结束", open_plugin_id: run.pluginId }),
+      title: notificationTitle(run.pluginTitle + "：" + (outcome.state === "succeeded" ? ([...text.replace(/\s+/g, " ").trim()].slice(0, 80).join("") || run.operationTitle) : [...run.operationTitle].slice(0, 40).join("") + "没有完成")),
+      summary: [...text].slice(0, 280).join(""), body: text || "操作已结束", open_plugin_id: run.pluginId }),
   });
 }

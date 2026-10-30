@@ -6,12 +6,11 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFile
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { LocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { expectingRefusal, recordedCallId, refusalExpected, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions as q, feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { ActionCallLog } from "../apps/local-host/dist/action-call-log.js";
 
 const PROJECT = "project-call-log";
@@ -301,11 +300,11 @@ const areaAction = (capability_id: string): ActionDefinition<Record<string, neve
   action: { title: capability_id, description: "fixture", kind: "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
     input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "string" } } });
 
-test("a refusal the page looked for is exempt, but what the handler it started then calls is not: a nested refusal with the same code, in awaited work, work left running, and a typed handler, is a row", { timeout: 60_000 }, () => logOf("nested", async (_home, log) => {
+test("a refusal the page looked for is exempt, but what the handler it started then calls is not: a nested refusal with the same code, in awaited work, work left running, and a Host action reached through the project client, is a row", { timeout: 60_000 }, () => logOf("nested", async (_home, log) => {
   const project = { project_id: "nested", storage_key: "memory:nested" };
   const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] };
   const [probe, outer, awaited, detached, typedInner] = ["probe", "outer", "awaited", "detached", "typed_inner"].map(name => areaAction(`fixture.area.${name}`));
-  const typedOuter: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "fixture.area.typed_outer", version: 1, operation: "command" };
+  const typedOuter = areaAction("fixture.area.typed_outer");
   const closed = new Set([probe, awaited, detached, typedInner].map(definition => definition!.capability_id));
   const notEnabled = { code: "actions.plugin_disabled" };
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled: (call, described, outcome) => log.record(call, described, outcome),
@@ -321,7 +320,7 @@ test("a refusal the page looked for is exempt, but what the handler it started t
       return "outer done";
     } },
   ] });
-  host.register(typedOuter, async () => { await assert.rejects(client.invoke(caller, typedInner!, {}), notEnabled); return "typed done"; });
+  host.registerAction(typedOuter, async () => { await assert.rejects(client.invoke(caller, typedInner!, {}), notEnabled); return "typed done"; });
   try {
     await expectingRefusal(["actions.plugin_disabled"], async () => {
       await assert.rejects(client.invoke(caller, probe!, {}), notEnabled);
@@ -367,22 +366,13 @@ test("a contract failure keeps the fact and not the fields: a record keyed by wh
   } finally { await host.close(); }
 }));
 
-test("a read is recorded only when it failed, a wait never, and a row says which kind of call it was", () => logOf("operations", (_home, log) => {
+test("a read is recorded only when it failed, and a row says which kind of call it was", () => logOf("operations", (_home, log) => {
   log.record(callBy(), action("r.ok", "query"), { ok: true });
   log.record(callBy(), action("r.failed", "query"), { ok: false, code: "r.failed", message: "读取失败" });
   log.record(callBy(), action("r.refused", "query"), refusal("actions.forbidden", "无权"));
-  log.record(callBy(), action("w.ok", "wait"), { ok: true });
-  log.record(callBy(), action("w.failed", "wait"), { ok: false, message: "等待失败" });
   log.record(callBy(), action("missing.id", "unknown"), refusal("actions.missing", "没有这项能力"));
   log.record(callBy(), action("c.ok"), { ok: true });
   assert.deepEqual(log.list(null).map(row => [row.capability_id, row.operation]), [["c.ok", "command"], ["missing.id", "unknown"], ["r.refused", "query"], ["r.failed", "query"]]);
-}));
-
-test("a call through the Host's typed port is a row of its own kind, named for the Host and with no provider to tell search about", () => logOf("typed", (_home, log) => {
-  const call = callBy();
-  log.record(call, { capability_id: "agent.run.start", version: 1, provider_id: undefined, operation: "command", title: "agent.run.start", provider_title: "Molis Work", path: "typed" }, { ok: true });
-  const [row] = log.list(null);
-  assert.deepEqual([row!.call_id, row!.path, row!.provider_id, row!.provider_title, row!.operation], [call.call_id, "typed", "", "Molis Work", "command"]);
 }));
 
 test("W5-01-DELEGATE-07 S-43 a call made through a plugin's action directory records which plugin made it, and never folds into the same call made another way", () => logOf("delegated", (_home, log) => {

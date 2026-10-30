@@ -6,13 +6,13 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory preview, import, synthesize, review and fixed citation through actual UI`, { timeout: 90_000 }, async t => {
   let chosen: string | null = null, picks = 0, pickerPrompt = "";
-  const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }, undefined, undefined, undefined, { chooseDirectory: async prompt => { picks++; pickerPrompt = prompt ?? ""; return chosen ? { status: "picked", path: chosen } : { status: "cancelled" }; } }); if (!browser) return;
+  const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }, undefined, undefined, { chooseDirectory: async prompt => { picks++; pickerPrompt = prompt ?? ""; return chosen ? { status: "picked", path: chosen } : { status: "cancelled" }; } }); if (!browser) return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
   const read = () => { const store = openCogniaStore(homeDirectory); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
@@ -59,8 +59,12 @@ for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory previ
   await waitFor("document.querySelector('#cognia-dialog-title').textContent === '审阅知识草稿' && !document.querySelector('[data-cognia-submit]').disabled");
   assert.equal(read().drafts.length, 2); assert.equal(read().drafts[0]!.references[0]!.revision, 1);
   await click('[data-cognia-dialog] header [data-cognia-action=close]');
+  // SYS-15: reload the list only after Back clears the reader and the shell's saved object.
+  await click('[data-cognia-action=back]');
+  await waitFor("document.querySelector('[data-cognia=workbench]').dataset.expanded === 'false' && document.querySelector('[data-cognia-workspace]').hidden");
+  await browser.waitFor("(() => { const surface = document.querySelector('[data-work-surface=cognia][data-assistant-context]'); return surface?.dataset.expanded === 'false' && !JSON.parse(surface.dataset.assistantContext).object; })()");
   await reloadPage(); await open();
-  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2");
+  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2 && [...document.querySelectorAll('[data-cognia-id]')].every(row => row.getClientRects().length > 0)");
   assert.equal(read().materials.find(m => m.id === source.id)!.body.includes("UPDATED_EVIDENCE"), true);
   await writeFile(new URL(`cognia-library-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await evaluate("document.querySelector('[data-cognia-source]').value=" + JSON.stringify(source.source_id) + ";document.querySelector('[data-cognia-source]').dispatchEvent(new Event('change',{bubbles:true}))");
@@ -92,7 +96,8 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const requests: Array<{ path: string; key: unknown; body: Record<string, unknown> }> = [];
   const model = createServer(async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     // The Home's own background work (knowledge cards for the demo project's pieces) is answered aside: `requests` are Cognia's.
     const aside = asideReply(body);
     if (aside === undefined) requests.push({ path: req.url!, key: req.headers["x-api-key"], body: JSON.parse(body) });
@@ -137,12 +142,22 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await writeFile(new URL(`cognia-http-review-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果'");
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(m => m.title === "本机模型整理结果")!.body, "已核对本机资料 [S1]");
+  // The shell persists this device's open record before a reload can restore it. Observe that output, never seed it.
+  await browser.waitFor(`JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia === ${JSON.stringify(read().materials.find(m => m.title === "本机模型整理结果")!.id)}`);
   await reloadPage(); await open(); assert.equal(read().materials.length, 2); assert.equal(requests.length, 1);
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.models.upsert({ ...catalog.models.get("local-only")!, enabled: false })));
   await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))");
   await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
   await reloadPage(); await open();
   await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
+  // Reload restores the saved reader asynchronously; at 390px its list (and Add) is hidden.
+  if (width === 390) assert.equal(await evaluate("document.querySelector('[data-cognia-action=add]').getClientRects().length"), 0, "the restored narrow reader hides list actions");
+  await click('[data-cognia-action=back]');
+  await waitFor("document.querySelector('[data-cognia=workbench]').dataset.expanded === 'false' && document.querySelector('[data-cognia-workspace]').hidden");
+  await browser.waitFor(`!JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia`);
+  assert.equal(await evaluate("document.querySelector('[data-cognia-action=add]').getClientRects().length > 0"), true, "Back makes Add visible before input is dispatched");
   assert.equal(await evaluate("document.querySelector('[data-cognia-action=synthesize]').disabled"), true);
   assert.equal(await evaluate<string>("document.querySelector('[data-cognia-action=synthesize]').title"), "请先在「模型设置」里连接文字模型");
   await click('[data-cognia-action=add]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");

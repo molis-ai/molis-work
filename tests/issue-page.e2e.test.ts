@@ -4,7 +4,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
-import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -15,8 +15,9 @@ import { issueModel } from "./fixtures/issue-model.js";
 const create = (title: string, type: "bug" | "experience" | "feature", description: string) => ({ title, type, description });
 
 test("ISSUE-01 the failed Home page retries only on click and recovers without restarting Work", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "empty", path => {
+  const browser = await openGoalBrowser(t, "empty", async path => {
     seedDemoBoard(path);
+    await seedDemoGoals(path);
     const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
     const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();
   }, null);
@@ -202,7 +203,8 @@ test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps
     "removing the view must release its global listener");
   await evaluate(`issueChecks.parent.append(issueChecks.root);
     const mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text, route: path => path };
+    const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text, route: path => path,
+      pluginId: 'io.molis.work.issues', pluginRoute: path => '/api/plugins/io.molis.work.issues' + path, readRefusal: () => '' };
     globalThis.molisWorkbenchPluginFactories.issues(host);globalThis.molisWorkbenchPluginFactories.issues(host);`);
   await waitFor("issueChecks.reads === 1");
   assert.equal(await evaluate(`(async()=>{issueChecks.reads=0;issueChecks.refresh();${nextFrame}return issueChecks.reads;})()`), 1,

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -21,7 +22,8 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const action: ActionDefinition<{ value: number }, { doubled: number }> = {
     capability_id: "unknown.double", version: 1, operation: "query", action: {
-      title: "Double", description: "Pure arithmetic", kind: "query", scope: "project", audiences: ["user", "mcp", "workflow"], permissions: [], subject_kinds: [],
+      // `plugin`: the activation also calls its own action outside every call (PG-028 gives that self-call the plugin audience).
+      title: "Double", description: "Pure arithmetic", kind: "query", scope: "project", audiences: ["user", "mcp", "workflow", "plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", properties: { value: { type: "number" } }, required: ["value"], additionalProperties: false },
       output_schema: { type: "object", properties: { doubled: { type: "number" } }, required: ["doubled"], additionalProperties: false },
     },
@@ -41,10 +43,10 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     },
   };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    capabilities: { availability: () => ({ available: true }), invoke: async () => 1 as never },
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
+    dependencyCheck: () => ({ available: true }),
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   try {
-    const installed = runtime.install({ definition, deployment: "local", grants: [] }).install;
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
     await runtime.start(installed.install_id);
     const contribution = runtime.contribution(installed.install_id)!;
     assert.equal(contribution.kind, "app");
@@ -55,23 +57,22 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     assert.equal((await route.handle(request("owner", { value: "bad" }))).status, 400);
     assert.equal((await route.handle(request("intruder", { value: 7 }))).status, 403);
     const old = contexts[0]!.services!.actions!;
-    const oldCapabilities = contexts[0]!.services!.capabilities!;
     const backend = { capability_id: "unknown.backend", version: 1, operation: "query" as const };
-    assert.equal(oldCapabilities.availability(backend).available, true);
-    assert.equal(await oldCapabilities.invoke(backend, {}), 1);
+    assert.equal(old.availability(backend).available, true);
     await assert.rejects(old.invoke({ ...action, capability_id: "foreign.action" }, { value: 1 }));
     assert.equal(calls, 1);
     await runtime.reportCrash(installed.install_id);
     await runtime.recover(installed.install_id);
-    assert.equal(oldCapabilities.availability(backend).available, false);
+    assert.equal(old.availability(backend).available, false);
     // BL-411: outside every call the crashed activation's clients are refused and throw nothing: their calls never answer.
-    assert.equal(await within(oldCapabilities.invoke(backend, {})), PENDING);
-    assert.equal(contexts[1]!.services!.capabilities!.availability(backend).available, true);
+    assert.equal(contexts[1]!.services!.actions!.availability(backend).available, true);
     assert.equal(await within(old.invoke(action, { value: 7 })), PENDING);
     assert.equal(await within(old.discover()), PENDING);
     // BL-403: the Host routes requests to the running activation only. Held directly, the crashed activation's route is refused by
     // the Runtime with 403 before its handler runs; the action does not run (`calls` below).
-    assert.equal((await route.handle(request("owner", { value: 7 }))).status, 403);
+    const refused = await within(route.handle(request("owner", { value: 7 })));
+    assert.notEqual(refused, PENDING, "the crashed activation's route answers instead of hanging");
+    assert.equal((refused as { value: { status: number } }).value.status, 403);
     assert.deepEqual(await contexts[1]!.services!.actions!.invoke(action, { value: 3 }), { doubled: 6 });
     assert.equal(calls, 2);
     await runtime.stop(installed.install_id);

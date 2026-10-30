@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 
@@ -198,5 +198,135 @@ test("an action that writes through other actions is granted together with them:
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1331 W3-02-G4-04 an unavailable action answers by the kind its owner declares; one without a kind still answers 400", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-kind-")), token = "mcp-action-kind-test-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "授权的种类", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  let connected = true, kind: "conflict" | "unavailable" | undefined;
+  const id = `kind.${randomUUID()}`;
+  const definition: ActionDefinition = { capability_id: id, version: 1, operation: "command", action: {
+    title: "Kind", description: "An action whose refusal kind its owner declares", kind: "operation", scope: "project", audiences: ["mcp"],
+    permissions: ["fixture:write"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "integer" },
+  } };
+  const stop = host.actionRegistry(ref).registerProvider({ provider: { provider_id: id, title: "种类的插件", kind: "plugin" }, definitions: [definition],
+    handlers: [{ capability_id: id, version: 1, handle: () => 1, availability: () => connected ? { available: true }
+      : { available: false, code: "fixture.offline", reason: "服务未连接", ...(kind ? { kind } : {}) } }] });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const input = { client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true };
+    const send = () => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body: JSON.stringify(input), headers: {
+      origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
+    } });
+    connected = false;
+    kind = "conflict";
+    const conflict = await send();
+    assert.equal(conflict.status, 409, await conflict.clone().text());
+    assert.equal((await conflict.json() as { code?: string }).code, "fixture.offline");
+    kind = "unavailable";
+    assert.equal((await send()).status, 503);
+    kind = undefined;
+    assert.equal((await send()).status, 400);
+    stop();
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    catalog.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1332 an oversized body answers 413 and a POST naming a missing project answers 404, both with their codes", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-limits-")), token = "mcp-action-limits-test-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const send = (body: string) => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body, headers: {
+      origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
+    } });
+    const oversized = await send(JSON.stringify({ client_id: "runtime:external", project_id: null, padding: "x".repeat(300_000) }));
+    assert.equal(oversized.status, 413, await oversized.clone().text());
+    assert.equal((await oversized.json() as { code?: string }).code, "actions.input_too_large");
+    const missing = await send(JSON.stringify({ client_id: "runtime:external", project_id: "no-such-project", capability_id: "x", version: 1, provider_id: "x", enabled: true }));
+    assert.equal(missing.status, 404, await missing.clone().text());
+    assert.equal((await missing.json() as { code?: string }).code, "catalog.project_not_found");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    catalog.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1333 the whole-read failures of the MCP settings answer by kind over HTTP, and an unknown failure keeps its text out", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-get-")), token = "mcp-action-get-test-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "整次读取", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const id = `whole-read.${randomUUID()}`;
+  const definition: ActionDefinition = { capability_id: id, version: 1, operation: "command", action: {
+    title: "Whole read", description: "An action that is discoverable but currently unavailable", kind: "operation", scope: "project", audiences: ["mcp"],
+    permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "integer" },
+  } };
+  const stop = host.actionRegistry(ref).registerProvider({ provider: { provider_id: id, title: "整次读取的插件", kind: "plugin" }, definitions: [definition],
+    handlers: [{ capability_id: id, version: 1, handle: () => 1, availability: () => ({ available: false as const, code: "fixture.offline", reason: "服务未连接" }) }] });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  const originalInspect = host.inspectActions;
+  const replaceInspect = (next: typeof host.inspectActions) => Object.defineProperty(host, "inspectActions", { configurable: true, value: next });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const read = () => fetch(`${origin}/api/settings/mcp/actions?client_id=runtime:external&project_id=${project.project_id}`);
+    const post = (body: Record<string, unknown>) => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body: JSON.stringify(body), headers: {
+      origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
+    } });
+    // The normal GET and the two business outcomes (single unavailable action, a project that is not there) are still 200.
+    const initial = await read();
+    assert.equal(initial.status, 200);
+    const initialEntry = ((await initial.json()) as { entries: Array<{ capability_id: string; status: string }> }).entries.find(entry => entry.capability_id === id);
+    assert.ok(initialEntry, "the single unavailable action is still listed as a business read");
+    assert.equal(initialEntry.status, "ungranted");
+    assert.equal((await fetch(`${origin}/api/settings/mcp/actions?client_id=runtime:external&project_id=no-such-project`)).status, 200);
+    // A whole read that says the service is unavailable answers 503 with its code and reason.
+    replaceInspect(async () => { throw new ActionError("actions.unavailable", "插件停用了"); });
+    const unavailable = await read();
+    assert.equal(unavailable.status, 503, await unavailable.clone().text());
+    const unavailableBody = await unavailable.json() as { code?: string; error?: string };
+    assert.equal(unavailableBody.code, "actions.unavailable");
+    assert.equal(unavailableBody.error, "插件停用了");
+    // Any other failure is the Host's unhandled answer: 500 with a diagnostic id on both methods, never the internal text.
+    replaceInspect(async () => { throw new Error("内部秘密"); });
+    for (const response of [await read(), await post({ client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true })]) {
+      assert.equal(response.status, 500, await response.clone().text());
+      const body = await response.json() as { code?: string; error?: string; diagnostic_id?: string };
+      assert.equal(body.code, "actions.execution_failed");
+      assert.equal(typeof body.diagnostic_id, "string");
+      assert.ok(body.diagnostic_id);
+      assert.doesNotMatch(body.error ?? "", /内部秘密/);
+    }
+    // Restored: the normal read is 200 again and no grant was written.
+    replaceInspect(originalInspect);
+    const restored = await read();
+    assert.equal(restored.status, 200);
+    assert.deepEqual(((await restored.json()) as { grants: unknown[] }).grants, []);
+  } finally {
+    stop();
+    replaceInspect(originalInspect);
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    catalog.close();
+    await rm(home, { recursive: true, force: true });
   }
 });

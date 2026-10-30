@@ -17,23 +17,6 @@ export const DIFF_MESSAGES = {
   "diff.board.files": { zh: "一轮的文件行 · 增删行数与长路径", en: "A round's file rows · lines added and removed, long paths" },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
-  "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动": { zh: "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动", en: "Choose an input first: two snapshots, a change Coding prepared, or a Git workspace change" },
-  "在 Git 里选一处改动，这里就会显示": { zh: "在 Git 里选一处改动，这里就会显示", en: "Choose a change in Git and it shows here" },
-  "Coding 准备好一轮变更后，这里会显示": { zh: "Coding 准备好一轮变更后，这里会显示", en: "When Coding has prepared a round of changes, they show here" },
-  "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异": { zh: "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", en: "Pin a before and an after in the file reader first, and the difference shows here" },
-  "在 Sources 里选一组输入": { zh: "在 Sources 里选一组输入", en: "Choose an input in Sources" },
-  "回到 Git 重新选一处改动": { zh: "回到 Git 重新选一处改动", en: "Go back to Git and choose a change again" },
-  "让 Coding 再跑一轮": { zh: "让 Coding 再跑一轮", en: "Have Coding run another round" },
-  "回到文件阅读区，重新固定对比前和对比后": { zh: "回到文件阅读区，重新固定对比前和对比后", en: "Go back to the file reader and pin a before and an after again" },
-  "读不了这两份快照": { zh: "读不了这两份快照", en: "Couldn't read these two snapshots" },
-  "这两份快照来自不同的工作目录，没法比": { zh: "这两份快照来自不同的工作目录，没法比", en: "These two snapshots come from different working folders and can't be compared" },
-  "读不了这次变更": { zh: "读不了这次变更", en: "Couldn't read this change" },
-  "这一轮没有可读取的文本审查；命令及外部操作请查看原回执": { zh: "这一轮没有可读取的文本审查；命令及外部操作请查看原回执", en: "This round has no text review to read. See the original receipt for commands and outside actions." },
-  "这一轮没有改动任何文件": { zh: "这一轮没有改动任何文件", en: "This round didn't change any files" },
-  "读不了这一轮的 diff": { zh: "读不了这一轮的 diff", en: "Couldn't read this round's diff" },
-  "文件权限：新增执行权限（100644 → 100755）": { zh: "文件权限：新增执行权限（100644 → 100755）", en: "File mode: made executable (100644 → 100755)" },
-  "文件权限：移除执行权限（100755 → 100644）": { zh: "文件权限：移除执行权限（100755 → 100644）", en: "File mode: no longer executable (100755 → 100644)" },
-  "正文未改变": { zh: "正文未改变", en: "The text is unchanged" },
   // Sentences with a path or a count in them are written in Chinese by the producer (an Agent reads them too), so each is a
   // template here (`DIFF_TEMPLATES`): the SDK's `diffViewText` finds which template a sentence is, and the page says it with the
   // values in its own words. The three about a hunk are the sentences the SDK's `parseUnifiedDiff` refuses with.
@@ -41,12 +24,12 @@ export const DIFF_MESSAGES = {
   "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
   "diff.msg.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
   "diff.msg.hunk-header": { zh: "读不懂的 hunk 头：{header}", en: "Can't read this hunk header: {header}" },
-  "这段 diff 里没有可读的 hunk": { zh: "这段 diff 里没有可读的 hunk", en: "There is no readable hunk in this diff" },
-  "固定差异不可用": { zh: "固定差异不可用", en: "The pinned difference isn't available" },
-  "固定差异不可用，请重新选择原变更": { zh: "固定差异不可用，请重新选择原变更", en: "The pinned difference isn't available. Choose the original change again." },
-  "Coding 固定变更当前不可读，请保留原会话后重试": { zh: "Coding 固定变更当前不可读，请保留原会话后重试", en: "The pinned Coding change can't be read right now. Keep the original session and try again." },
-  "Git 固定变更当前不可读，请重新选择原变更": { zh: "Git 固定变更当前不可读，请重新选择原变更", en: "The pinned Git change can't be read right now. Choose the original change again." },
-  "请选择两份文件快照进行对比": { zh: "请选择两份文件快照进行对比", en: "Choose two file snapshots to compare" },
+  "diff.stage.refresh": { zh: "刷新", en: "Refresh" },
+  "diff.stage.open-files": { zh: "打开 Files", en: "Open Files" },
+  "diff.stage.reading": { zh: "正在读取固定内容…", en: "Reading the pinned versions…" },
+  "diff.stage.retry": { zh: "。请点击刷新重试。", en: ". Select Refresh to try again." },
+  "diff.error.unreadable": { zh: "无法读取文件工作区", en: "Couldn't read the file workspace" },
+  "diff.stage.add-files": { zh: "到插件市场添加 Files", en: "Add Files from the plugin market" },
 } as const;
 
 /** The keys above that are sentences with values in them. */

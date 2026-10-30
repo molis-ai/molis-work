@@ -1,15 +1,14 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export interface TerminalPaneModel {
-  selected?: Pick<GoalRecord, "goal_id" | "title" | "decomposition_state" | "fulfillment_state"> & { statusHtml: string; event_work?: boolean };
+  selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
   text(value: string, vars?: Record<string, string | number>): string;
   icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
 }
 
-/** The Goal terminal pane beside the Goal document; `startGoalTerminalClient` drives it in the page. */
+/** The Goal terminal pane beside the Goal document; `startWorkTerminalClient` drives it in the page. */
 export function renderTerminalPane(model: TerminalPaneModel): string {
   const { selected, children, cliAvailability, text: L, icon } = model;
   const selectedGoalId = selected?.goal_id ?? "";

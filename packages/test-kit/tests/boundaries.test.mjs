@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   APP_IMPORT_ALLOWLIST,
   PLUGIN_MODULE_IMPORT_ALLOWLIST,
+  PRIVATE_UI_EXEMPT_PLUGINS,
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
@@ -46,8 +47,8 @@ test("rejects an unpublished deep import", () => {
 test("rejects a Module implementation or Store import from another Module", () => {
   const target = boundaryPackage("@molis-ai/molis-work-module-goals", "modules/goals", "module");
   const importer = boundaryPackage(
-    "@molis-ai/molis-work-module-feed",
-    "modules/feed",
+    "@molis-ai/molis-work-module-shelf",
+    "modules/shelf",
     "module",
     [target.name],
   );
@@ -56,7 +57,7 @@ test("rejects a Module implementation or Store import from another Module", () =
     importer,
     target,
     specifier: `${target.name}/store`,
-    sourceFile: "modules/feed/src/promote.ts",
+    sourceFile: "modules/shelf/src/promote.ts",
   });
   assert.ok(codes.has("cross-module-implementation"));
   assert.ok(codes.has("deep-import"));
@@ -83,6 +84,25 @@ test("rejects imports between Plugin implementations", () => {
       sourceFile: "plugins/native/goals/src/index.ts",
     }).has("plugin-implementation-import"),
   );
+});
+
+test("rejects a Plugin's ./testing entry from production sources: another package's, or the Plugin's own modules", () => {
+  const target = boundaryPackage("@molis-ai/molis-work-plugin-pages", "plugins/native/pages", "native-plugin", [], [".", "./testing"]);
+  const importer = boundaryPackage("@molis-ai/molis-work-app-local-host", "apps/local-host", "app", [target.name]);
+
+  assert.ok(
+    violationCodes({ importer, target, specifier: `${target.name}/testing`, sourceFile: "apps/local-host/src/index.ts" })
+      .has("plugin-testing-entry-import"),
+  );
+  assert.ok(
+    violationCodes({ importer: target, specifier: "./testing.js", sourceFile: "plugins/native/pages/src/index.ts" })
+      .has("plugin-testing-entry-import"),
+  );
+  // The public entry is not the test entry, and a foundation package's own `testing` subpath is another thing.
+  assert.ok(!violationCodes({ importer, target, specifier: target.name, sourceFile: "apps/local-host/src/index.ts" }).has("plugin-testing-entry-import"));
+  const contracts = boundaryPackage("@molis-ai/molis-work-contracts", "packages/contracts", "foundation", [], ["./platform/testing"]);
+  assert.ok(!violationCodes({ importer, target: contracts, specifier: `${contracts.name}/platform/testing`, sourceFile: "apps/local-host/src/index.ts" })
+    .has("plugin-testing-entry-import"));
 });
 
 test("rejects direct database drivers in Apps", () => {
@@ -140,11 +160,11 @@ test("allows explicit public Contract subpaths", () => {
     "packages/contracts",
     "foundation",
     [],
-    [".", "./modules/goals"],
+    [".", "./modules/artifacts"],
   );
   const importer = boundaryPackage(
-    "@molis-ai/molis-work-module-feed",
-    "modules/feed",
+    "@molis-ai/molis-work-module-shelf",
+    "modules/shelf",
     "module",
     [contracts.name],
   );
@@ -153,8 +173,8 @@ test("allows explicit public Contract subpaths", () => {
     evaluateImportBoundary({
       importer,
       target: contracts,
-      specifier: "@molis-ai/molis-work-contracts/modules/goals",
-      sourceFile: "modules/feed/src/index.ts",
+      specifier: "@molis-ai/molis-work-contracts/modules/artifacts",
+      sourceFile: "modules/shelf/src/index.ts",
     }),
     [],
   );
@@ -162,16 +182,16 @@ test("allows explicit public Contract subpaths", () => {
 
 test("extracts static, dynamic, re-export, and CommonJS imports", () => {
   const source = `
-    import type { Goal } from "@molis-ai/molis-work-contracts/modules/goals";
+    import type { Goal } from "@molis-ai/molis-work-contracts/modules/artifacts";
     export { capability } from "@molis-ai/molis-work-kernel";
     const lazy = import("@molis-ai/molis-work-plugin-goals/internal");
     const legacy = require("better-sqlite3");
-    // import ignored from "@molis-ai/molis-work-module-feed";
+    // import ignored from "@molis-ai/molis-work-module-shelf";
     const example = 'import ignored from "@molis-ai/molis-work-module-actions"';
   `;
 
   assert.deepEqual(extractImportSpecifiers(source), [
-    "@molis-ai/molis-work-contracts/modules/goals",
+    "@molis-ai/molis-work-contracts/modules/artifacts",
     "@molis-ai/molis-work-kernel",
     "@molis-ai/molis-work-plugin-goals/internal",
     "better-sqlite3",
@@ -344,7 +364,7 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     "packages/contracts",
     "foundation",
     [],
-    [".", "./modules/goals", "./modules/artifacts", "./modules/signals", "./services/listener-host", "./platform/app-host", "./platform/kernel"],
+    [".", "./modules/goals", "./modules/artifacts", "./platform/plugin-source-pull", "./services/connector-host", "./platform/app-host", "./platform/kernel"],
   );
   const storage = boundaryPackage("@molis-ai/molis-work-storage", "packages/storage", "foundation");
   const goals = boundaryPackage("@molis-ai/molis-work-module-goals", "modules/goals", "module");
@@ -379,8 +399,8 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     [contracts.name],
   );
   const listener = boundaryPackage(
-    "@molis-ai/molis-work-service-listener-host",
-    "horizontal/listener-host",
+    "@molis-ai/molis-work-service-search",
+    "horizontal/search",
     "horizontal",
     [contracts.name],
   );
@@ -463,14 +483,14 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     {
       importer: listener,
       target: contracts,
-      specifier: "@molis-ai/molis-work-contracts/modules/signals",
-      sourceFile: "horizontal/listener-host/src/index.ts",
+      specifier: "@molis-ai/molis-work-contracts/platform/plugin-source-pull",
+      sourceFile: "horizontal/search/src/index.ts",
     },
     {
       importer: listener,
       target: contracts,
-      specifier: "@molis-ai/molis-work-contracts/services/listener-host",
-      sourceFile: "horizontal/listener-host/src/index.ts",
+      specifier: "@molis-ai/molis-work-contracts/services/connector-host",
+      sourceFile: "horizontal/search/src/index.ts",
     },
     {
       importer: runtimeHost,
@@ -709,4 +729,29 @@ test("allows the Plugin SDK importing the contracts through a subpath", () => {
   const { sdk, kernel } = layerPackages();
   const kernelImportingSdk = { importer: boundaryPackage(kernel.name, kernel.path, kernel.kind, [sdk.name]), target: sdk, specifier: sdk.name, sourceFile: "packages/kernel/src/action-service.ts" };
   assert.deepEqual(evaluateImportBoundary(kernelImportingSdk), []);
+});
+
+// RAC-549 RAC-550
+test("rejects a Plugin importing a private UI package, and lets only Plugin Studio keep it", () => {
+  const designSystem = boundaryPackage("@molis-ai/molis-work-design-system", "packages/design-system", "foundation");
+  const importing = (path, name, target = designSystem) => ({
+    importer: boundaryPackage(name, path, "native-plugin", [target.name]),
+    target,
+    specifier: target.name,
+    sourceFile: `${path}/src/ui.ts`,
+  });
+  assert.ok(violationCodes(importing("plugins/native/files", "@molis-ai/molis-work-plugin-files")).has("plugin-private-ui-dependency"));
+  for (const other of [
+    boundaryPackage("@molis-ai/molis-work-im-ui", "packages/im-ui", "foundation"),
+    boundaryPackage("@molis-ai/molis-work-ui-host", "packages/ui-host", "foundation"),
+  ]) {
+    assert.ok(violationCodes(importing("plugins/native/files", "@molis-ai/molis-work-plugin-files", other)).has("plugin-private-ui-dependency"), other.name);
+  }
+  assert.deepEqual(PRIVATE_UI_EXEMPT_PLUGINS, ["plugins/native/plugin-builder"]);
+  assert.ok(!violationCodes(importing("plugins/native/plugin-builder", "@molis-ai/molis-work-plugin-builder")).has("plugin-private-ui-dependency"));
+  // An integration plugin is held to it too, and an App or the design system's own users are not.
+  const integration = { ...importing("plugins/integrations/gmail", "@molis-ai/molis-work-integration-gmail"), importer: boundaryPackage("@molis-ai/molis-work-integration-gmail", "plugins/integrations/gmail", "integration-plugin", [designSystem.name]) };
+  assert.ok(violationCodes(integration).has("plugin-private-ui-dependency"));
+  const workbench = { importer: boundaryPackage("@molis-ai/molis-work-app-workbench", "apps/workbench", "app", [designSystem.name]), target: designSystem, specifier: designSystem.name, sourceFile: "apps/workbench/src/renderer.ts" };
+  assert.ok(!violationCodes(workbench).has("plugin-private-ui-dependency"));
 });

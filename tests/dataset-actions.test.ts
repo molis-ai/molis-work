@@ -4,16 +4,18 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, openDatasetStore, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
@@ -141,4 +143,36 @@ test("Dataset AI availability follows all required grants and the caller capabil
     await assert.rejects(f.client.invoke(caller, actions.generateAi, { id: "irrelevant", prompt: "日期" }), { code: "actions.forbidden" });
   }
   assert.equal((await f.bound.invoke(actions.list, {})).ai_available, true);
+});
+
+test("RAC-1612: Dataset counts a column name, title, description and snapshot note in Unicode characters, as its action schemas do", async t => {
+  // README:13 and the maxLength in src/actions.ts count characters; one 🟢 is one character but two UTF-16 units.
+  const f = await fixture(t), wide = (count: number) => "🟢".repeat(count);
+  const { dataset } = await f.bound.invoke(actions.create, { title: wide(80) });
+  assert.equal(dataset.title, wide(80), "create keeps an 80-character title");
+  const added = (await f.bound.invoke(actions.generate, { id: dataset.id, prompt: wide(80) })).dataset;
+  assert.equal(added.columns.at(-1)!.name, wide(80), "columns.add keeps an 80-character name");
+  const described = (await f.bound.invoke(actions.update, { id: dataset.id, description: wide(2000) })).dataset;
+  assert.equal(described.description, wide(2000), "update keeps a 2000-character description");
+  const { version } = await f.bound.invoke(actions.snapshot, { id: dataset.id, note: wide(80) });
+  assert.equal(version.note, wide(80), "a snapshot keeps its whole 80-character note");
+});
+
+test("RAC-1613: an AI column name of 80 Unicode characters is added; one of 81 is refused as the model's and adds nothing", async t => {
+  let reply = "🟢".repeat(80);
+  const f = await fixture(t, async () => reply);
+  const { dataset } = await f.bound.invoke(actions.create, {});
+  const added = (await f.bound.invoke(actions.generateAi, { id: dataset.id, prompt: "状态灯" })).dataset;
+  assert.equal(added.columns.at(-1)!.name, "🟢".repeat(80), "the model's 80-character name is kept");
+  reply = "🟢".repeat(81);
+  await assert.rejects(f.bound.invoke(actions.generateAi, { id: dataset.id, prompt: "状态灯" }),
+    { code: "dataset.invalid", message: /没有返回有效列名/ }, "81 characters is refused as the model's answer, not by the store");
+  assert.equal((await f.bound.invoke(actions.get, { id: dataset.id })).dataset.columns.length, 1, "the refused name adds no column");
+});
+
+test("RAC-1614: a table received from a workflow cuts its title at 80 whole Unicode characters", async t => {
+  const home = await mkdtemp(join(tmpdir(), "dataset-receive-")), store = openDatasetStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const received = store.receiveCsv("a", "rac-1614", "表" + "🟢".repeat(80), "列\n值");
+  assert.equal(received.title, "表" + "🟢".repeat(79), "the title keeps 80 whole characters, never half of one");
 });

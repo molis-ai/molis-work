@@ -18,11 +18,13 @@ import {
   type HostLogEntry,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { withLibrary } from "./fixtures/home-library.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // W3-06 D: a plugin the Host runs in a project's platform can have a library in the Home, through the one service main has for
-// it, `services.database`, when the Host's own start list declares one for it (`PluginPlatformEntry.database`). Nothing the
-// plugin holds picks the library: not its definition, not its id, not an action argument.
+// it, `services.database`, when its Manifest declares one (`databases.home`) and the Host's start list holds that definition
+// (`databaseFor` in apps/local-host/src/plugin-entry-identity.ts). Nothing the plugin holds gets it a library on its own: not
+// its Manifest, not its id, not an action argument.
 
 const STORAGE = { permission: "storage:private", required: true, reason: "插件把自己的数据存进 Home 里它自己的库" } as const;
 const READ = { permission: "dataprobe:read", required: true, reason: "读自己的库" } as const;
@@ -38,7 +40,7 @@ const idOf = (name: string) => `io.molis.work.example.${name}`;
 
 /** The Home's top-level entries that are not a library, registered or not (docs/system/HOME-DATA.md sections 5 and 6). */
 const HOME_DIRECTORIES = ["feed", "config", "agent-runtime", "browser", "shelf", "logs", "releases", "bin", "cache", "backups", "plugin-builder",
-  "directory-access", "runtime-integrations", "projects", "sessions", "alchemist"];
+  "directory-access", "runtime-integrations", "projects", "sessions", "alchemist", "plugin-files"];
 
 interface ProbeOptions {
   name?: string;
@@ -121,7 +123,7 @@ test("a start-list entry that declares a database gives its plugin services.data
   withDirectory(async directory => {
     const item = platformIn(directory), plugin = probe();
     try {
-      assert.deepEqual((await item.platform.start([{ definition: plugin.definition, bundled: true, database: DECLARATION }])).running, [plugin.id]);
+      assert.deepEqual((await item.platform.start([{ definition: withLibrary(plugin.definition, DECLARATION), trust: { level: "host" } }])).running, [plugin.id]);
       const database = plugin.database();
       assert.equal(existsSync(libraryFile(directory, "dataprobe")), false, "the plugin id's last segment names nothing: the entry does");
       assert.equal(inspect(directory, LIBRARY, db => (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version), 1);
@@ -138,7 +140,7 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
   withDirectory(async directory => {
     const item = platformIn(directory), plugin = probe();
     try {
-      await item.platform.start([{ definition: plugin.definition, bundled: true, database: DECLARATION }]);
+      await item.platform.start([{ definition: withLibrary(plugin.definition, DECLARATION), trust: { level: "host" } }]);
       const database = plugin.database();
       await assert.rejects(database.transaction(async () => { throw new Error("这一次调用已被取消"); }, tx => tx.run("INSERT INTO notes (text) VALUES ('cancelled')")),
         /已被取消/);
@@ -150,14 +152,29 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
     } finally { item.store.close(); }
   }));
 
-test("only the Host's entry gives a library: a definition listed without a declaration has none whatever its Manifest asks for, and another definition that carries the same plugin id has none either, listed beside or installed over the declared one",
+test("RAC-304 only a definition the Host's start list holds is given a library: one listed whose Manifest declares none has none, and another definition that carries the same plugin id and asks for the library in its Manifest is refused and runs nothing, installed over the declared one: the registry's library is the shipped plugin's, and the ledger gives an installed plugin no store the Host's registry holds (plugin.home_database.object_taken)",
   withDirectory(async directory => {
     const first = platformIn(directory), declared = probe(), undeclared = probe({ name: "plainprobe" }), lookalike = probe({ version: "1.1.0" });
     try {
-      assert.deepEqual((await first.platform.start([{ definition: declared.definition, bundled: true, database: DECLARATION },
-        { definition: undeclared.definition, bundled: true }])).running.sort(), [declared.id, undeclared.id].sort());
+      assert.deepEqual((await first.platform.start([{ definition: withLibrary(declared.definition, DECLARATION), trust: { level: "host" } },
+        { definition: undeclared.definition, trust: { level: "host" } }])).running.sort(), [declared.id, undeclared.id].sort());
       assert.ok(declared.started.at(-1)?.database);
       assert.equal(undeclared.started.at(-1)?.database, undefined, "storage:private and the two permissions are in its Manifest, and no entry declared a library");
+      // A Manifest that asks for the library does not make the lookalike the plugin the list holds: it is refused, not given a library.
+      const asking = probe({ version: "1.2.0" });
+      await assert.rejects(first.platform.runtime.upgrade({ install_id: first.installId(declared.id), definition: withLibrary(asking.definition, DECLARATION),
+        grants: [STORAGE.permission, READ.permission, WRITE.permission] }), /启动失败/u);
+      assert.deepEqual(first.platform.runtime.list().map(record => [record.state, record.version]), [["running", "1.0.0"], ["running", "1.0.0"]], "the refused version left the plugin as it was");
+      assert.equal(asking.started.length, 0, "it ran nothing, so it read and wrote nothing of the library");
+      // A definition installed beside the list asks for the shipped plugin's library name: the Host's registry holds it, so the
+      // ledger refuses (installed-plugin-libraries.test.ts has the installed plugin that asks for a free name), and the Runtime's
+      // record says why under the refusal's own code.
+      const installed = probe({ name: "askprobe" });
+      const { install } = first.platform.runtime.install({ trust: { level: "unsigned" }, definition: withLibrary(installed.definition, DECLARATION), deployment: "local",
+        grants: [STORAGE.permission, READ.permission, WRITE.permission] });
+      await assert.rejects(first.platform.runtime.start(install.install_id), /启动失败/u);
+      assert.equal(installed.started.length, 0, "the installed plugin's code never ran");
+      assert.equal(first.platform.runtime.get(install.install_id).last_error_code, "plugin.home_database.object_taken", "not the Runtime's generic executor failure");
       // The entry is about the definition object the Host listed. A different one with the same plugin id, here a version put over
       // the declared plugin, is not it.
       await first.platform.runtime.upgrade({ install_id: first.installId(declared.id), definition: lookalike.definition,
@@ -184,27 +201,30 @@ test("a start list that declares a library wrongly does not start at all, and no
       } finally { item.store.close(); }
     };
     const beside = probe({ name: "besideprobe" });
-    await refuse("sandboxed", [{ definition: probe({ name: "sandboxed", execution: "sandbox" }).definition, grants: [STORAGE.permission, READ.permission, WRITE.permission], database: DECLARATION },
+    await refuse("sandboxed", [{ definition: withLibrary(probe({ name: "sandboxed", execution: "sandbox" }).definition, DECLARATION), grants: [STORAGE.permission, READ.permission, WRITE.permission] },
       { definition: beside.definition }], /沙箱/);
-    await refuse("no Home", [{ definition: probe().definition, bundled: true, database: DECLARATION }, { definition: beside.definition }], /Home/, null);
-    await refuse("permissions not listed", [{ definition: probe({ permissions: [STORAGE] }).definition, bundled: true, database: DECLARATION }, { definition: beside.definition }], /权限/);
-    await refuse("another probe's", [{ definition: probe({ name: "first" }).definition, bundled: true, database: DECLARATION },
-      { definition: probe({ name: "second" }).definition, bundled: true, database: DECLARATION }], /主人/, directory, { [LIBRARY]: idOf("first") });
+    // PG094-CLI-02: even the Host's dual mark cannot redeem an in-process Home library for sandboxed code without Home.
+    await refuse("sandboxed dual without Home", [{ definition: withLibrary(probe({ name: "sandboxdual", execution: "sandbox" }).definition, DECLARATION), dual_instance: true },
+      { definition: beside.definition }], /沙箱/, null);
+    await refuse("no Home", [{ definition: withLibrary(probe().definition, DECLARATION), trust: { level: "host" } }, { definition: beside.definition }], /Home/, null);
+    await refuse("permissions not listed", [{ definition: withLibrary(probe({ permissions: [STORAGE] }).definition, DECLARATION), trust: { level: "host" } }, { definition: beside.definition }], /权限/);
+    await refuse("another probe's", [{ definition: withLibrary(probe({ name: "first" }).definition, DECLARATION), trust: { level: "host" } },
+      { definition: withLibrary(probe({ name: "second" }).definition, DECLARATION), trust: { level: "host" } }], /主人/, directory, { [LIBRARY]: idOf("first") });
     const libraries = homeStores().stores.filter(store => store.library).map(store => store.path);
     assert.ok(["assistant", "memory", "functions", "characters", "server", "issues", "todo", "pages"].every(name => libraries.includes(name)));
     for (const name of libraries) {
-      await refuse(`library ${name}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /主人/);
+      await refuse(`library ${name}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /主人/);
     }
     for (const name of HOME_DIRECTORIES) {
-      await refuse(`directory ${name}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /不是库|没有登记/);
+      await refuse(`directory ${name}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /不是库|没有登记/);
     }
     assert.equal(homeStores().get("unlisted"), undefined);
-    await refuse("not registered", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: "unlisted" } }], /没有登记/);
-    await refuse("another baseline", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, version: 2 } }], /基线不同/);
+    await refuse("not registered", [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: "unlisted" }), trust: { level: "host" } }], /没有登记/);
+    await refuse("another baseline", [{ definition: withLibrary(probe().definition, { ...DECLARATION, version: 2 }), trust: { level: "host" } }], /基线不同/);
     // PART-02 (specs/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
-    await refuse("partitioned", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, partition: "project" } as PluginDatabaseDeclaration }], /Home 级插件/);
+    await refuse("partitioned", [{ definition: withLibrary(probe().definition, { ...DECLARATION, partition: "project" } as PluginDatabaseDeclaration), trust: { level: "host" } }], /Home 级插件/);
     for (const name of ["Dataset", "../data", "a/b", ""]) {
-      await refuse(`name ${JSON.stringify(name)}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /库名|目录名/);
+      await refuse(`name ${JSON.stringify(name)}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /库名|目录名/);
     }
     for (const name of [LIBRARY, "unlisted", "Dataset", "a", "data", ...libraries, ...HOME_DIRECTORIES]) {
       assert.equal(existsSync(join(directory, name)), false, `${name}: nothing was made`);
@@ -219,7 +239,7 @@ test("a library at another version is refused when its plugin starts and left as
       const older = new DatabaseSync(libraryFile(directory, LIBRARY));
       older.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL); INSERT INTO notes (text) VALUES ('older'); PRAGMA user_version = 7;");
       older.close();
-      const report = await item.platform.start([{ definition: declared.definition, bundled: true, database: DECLARATION }, { definition: beside.definition, bundled: true }]);
+      const report = await item.platform.start([{ definition: withLibrary(declared.definition, DECLARATION), trust: { level: "host" } }, { definition: beside.definition, trust: { level: "host" } }]);
       assert.deepEqual(report.running, [beside.id]);
       assert.deepEqual(report.failed.map(entry => entry.plugin_id), [declared.id]);
       assert.equal(declared.started.length, 0, "the plugin was never given the chance to start without its library");
@@ -230,12 +250,12 @@ test("a library at another version is refused when its plugin starts and left as
     const keptLibrary = { "kept-notes": idOf("keepprobe") };
     const first = platformIn(directory, directory, keptLibrary), kept = probe({ name: "keepprobe" });
     try {
-      await first.platform.start([{ definition: kept.definition, bundled: true, database: { ...DECLARATION, store_name: "kept-notes" } }]);
+      await first.platform.start([{ definition: withLibrary(kept.definition, { ...DECLARATION, store_name: "kept-notes" }), trust: { level: "host" } }]);
       await noteInto(kept.database(), "kept");
     } finally { first.store.close(); }
     const second = platformIn(directory, directory, keptLibrary), same = probe({ name: "keepprobe" });
     try {
-      await second.platform.start([{ definition: same.definition, bundled: true, database: { ...DECLARATION, store_name: "kept-notes" } }]);
+      await second.platform.start([{ definition: withLibrary(same.definition, { ...DECLARATION, store_name: "kept-notes" }), trust: { level: "host" } }]);
       assert.deepEqual(plain(same.database().all("SELECT text FROM notes")), [{ text: "kept" }], "the same version opens the library again with its rows");
     } finally { second.store.close(); }
   }));
@@ -249,7 +269,7 @@ test("a library is the plugin's only while the plugin runs: after stop, after a 
     } });
     const item = platformIn(directory, directory, { [LIBRARY]: idOf("lifeprobe") });
     try {
-      await item.platform.start([{ definition: plugin.definition, bundled: true, database: DECLARATION }]);
+      await item.platform.start([{ definition: withLibrary(plugin.definition, DECLARATION), trust: { level: "host" } }]);
       const first = plugin.database();
       await noteInto(first, "before");
       const installId = item.installId(plugin.id);
@@ -279,11 +299,15 @@ test("a library is the plugin's only while the plugin runs: after stop, after a 
 
 // W4-11: each shipped plugin's library is registered to that plugin, so only it (or the Runtime plugin that replaces it under
 // the same id) is given it; the refusals above show every other owner's library is refused to anyone else.
-test("every shipped plugin's Home library is registered to that plugin, at the baseline it declares", () => {
-  const shipped = BUILTIN_PLUGIN_CATALOG.flatMap(entry => [
-    ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: entry.home_store.library?.baseline }] : [],
-    ...entry.runtime?.database ? [{ path: entry.runtime.database.store_name, owner: entry.manifest.plugin_id, baseline: entry.runtime.database }] : []]);
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+test("RAC-302 every shipped plugin's Home library is registered to that plugin, at the baseline its Manifest declares (databases.home), and a catalog entry's home_store never carries a library of its own", () => {
+  const shipped = BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+    const library = entry.manifest.databases?.home;
+    assert.equal(entry.home_store?.library, undefined, `${entry.project_plugin_id}: its library is the Manifest's, written once`);
+    return [
+      ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
+      ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: library }] : []];
+  });
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "feed-content", "form", "goals", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
     assert.equal(store?.owner, owner, path);
@@ -297,7 +321,7 @@ test("the library needs the grants the entry's declaration names: without storag
     const all = [STORAGE.permission, READ.permission, WRITE.permission];
     const optionalStorage = platformIn(directory, directory, { [LIBRARY]: idOf("nostorage") }), unstorable = probe({ name: "nostorage", permissions: [{ ...STORAGE, required: false }, READ, WRITE] });
     try {
-      const refused = await optionalStorage.platform.start([{ definition: unstorable.definition, database: DECLARATION }]);
+      const refused = await optionalStorage.platform.start([{ definition: withLibrary(unstorable.definition, DECLARATION) }]);
       assert.deepEqual(refused.running, []);
       assert.deepEqual(refused.failed.map(entry => entry.code), ["plugin.grant_denied"]);
       assert.equal(unstorable.started.length, 0, "the plugin was never given the chance to start without its library");
@@ -305,7 +329,7 @@ test("the library needs the grants the entry's declaration names: without storag
 
     const narrow = platformIn(directory, directory, { [LIBRARY]: idOf("heldback") }), held = probe({ name: "heldback", permissions: [STORAGE, { ...READ, required: false }, { ...WRITE, required: false }] });
     try {
-      assert.deepEqual((await narrow.platform.start([{ definition: held.definition, database: DECLARATION }])).running, [held.id], "the required permission is enough to start");
+      assert.deepEqual((await narrow.platform.start([{ definition: withLibrary(held.definition, DECLARATION) }])).running, [held.id], "the required permission is enough to start");
       const database = held.database();
       assert.throws(() => database.get("SELECT 1"), { code: "plugin.grant_denied" });
       assert.throws(() => database.all("SELECT 1"), { code: "plugin.grant_denied" });
@@ -315,7 +339,7 @@ test("the library needs the grants the entry's declaration names: without storag
 
     const granted = platformIn(directory, directory, { [LIBRARY]: idOf("grantedprobe") }), again = probe({ name: "grantedprobe", permissions: [STORAGE, { ...READ, required: false }, { ...WRITE, required: false }] });
     try {
-      assert.deepEqual((await granted.platform.start([{ definition: again.definition, grants: all, database: DECLARATION }])).running, [again.id]);
+      assert.deepEqual((await granted.platform.start([{ definition: withLibrary(again.definition, DECLARATION), grants: all }])).running, [again.id]);
       await noteInto(again.database(), "granted");
       assert.deepEqual(plain(again.database().all("SELECT text FROM notes")), [{ text: "granted" }]);
     } finally { granted.store.close(); }
@@ -324,7 +348,7 @@ test("the library needs the grants the entry's declaration names: without storag
 test("the upgrade preflight is read-only: it is given no database", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe({ version: "1.0.0" });
   try {
-    await item.platform.start([{ definition: plugin.definition, bundled: true, database: DECLARATION }]);
+    await item.platform.start([{ definition: withLibrary(plugin.definition, DECLARATION), trust: { level: "host" } }]);
     const next = probe({ version: "1.1.0" });
     await item.platform.runtime.upgrade({ install_id: item.installId(plugin.id), definition: next.definition,
       grants: [STORAGE.permission, READ.permission, WRITE.permission] });
@@ -347,7 +371,7 @@ test("production path: a fixture the Host is given with a declaration reaches it
     catalog.close();
     const plugin = probe({ name: "hostprobe" }), undeclared = probe({ name: "hostplain" });
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-      pluginFixtures: { project: [{ definition: plugin.definition, database: DECLARATION }, undeclared.definition] } });
+      pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, DECLARATION) }, undeclared.definition] } });
     try {
       const [a, b] = references as [typeof references[number], typeof references[number]];
       assert.equal(await host.actionClient(a).invoke(asUser(a.project_id), plugin.note, { text: "从甲写入" }), "stored");
@@ -358,7 +382,7 @@ test("production path: a fixture the Host is given with a declaration reaches it
       assert.equal(inspect(home, LIBRARY, db => (db.prepare("PRAGMA journal_mode").get() as { journal_mode: string }).journal_mode), "wal");
       assert.ok(undeclared.started.length > 0 && undeclared.started.every(services => services?.database === undefined), "a fixture the Host gave no declaration has no library");
     } finally { await host.close(); }
-    const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [{ definition: plugin.definition, database: DECLARATION }] } });
+    const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, DECLARATION) }] } });
     try {
       const [a] = references as [typeof references[number]];
       assert.equal(await reopened.actionClient(a).invoke(asUser(a.project_id), plugin.count, {}), 2, "the rows outlive the Host");
@@ -375,7 +399,7 @@ test("W4-11-03 a fixture the Host is given registers its library as its own, so 
     const plugin = probe({ name: "hostprobe" });
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
       // Lingguang's own name and baseline (a library its owner opens only when used): only that it is another owner's can refuse it.
-      pluginFixtures: { project: [{ definition: plugin.definition, database: { ...DECLARATION, ...homeStores().get("lingguang")!.library!.baseline, store_name: "lingguang" } }] } });
+      pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, { ...DECLARATION, ...homeStores().get("lingguang")!.library!.baseline, store_name: "lingguang" }) }] } });
     try {
       // The project's platform refuses its start list whole (the registry finds `lingguang` registered twice), so the fixture's
       // action never registers: the same answer a caller gets for any plugin that did not start.

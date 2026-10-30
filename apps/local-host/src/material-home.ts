@@ -26,8 +26,8 @@ export async function extractHomeMaterial(home: string, source: MaterialSource, 
   await check();
   const modelDirectory = materialMediaExtensions.has(path.extname(source.file_name).toLowerCase()) ? await modelCacheDirectory(home) : undefined;
   await check();
-  const extract = createMaterialExtractor({ helperPath: options.helperPath ?? process.env.MOLIS_JELLY_NATIVE_HELPER,
-    whisperHelperPath: options.whisperHelperPath ?? process.env.MOLIS_JELLY_WHISPER_HELPER,
+  const extract = createMaterialExtractor({ helperPath: options.helperPath ?? process.env.MOLIS_MATERIAL_NATIVE_HELPER,
+    whisperHelperPath: options.whisperHelperPath ?? process.env.MOLIS_MATERIAL_WHISPER_HELPER,
     platform: options.platform, modelDirectory, beforeEffect: options.beforeEffect });
   const result = await extract(source, options);
   await check();

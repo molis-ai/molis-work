@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import type { FunctionRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { armResponse, openAuditBrowser, releaseResponse, typeField, until, waitHeld, type AuditBrowser } from "./fixtures/workbench-audit-browser.js";
 
-async function post(browser: AuditBrowser, path: string, body: object): Promise<{ function: FunctionRecord }> {
+async function post(browser: AuditBrowser, path: string, body: object): Promise<{ function: JudgmentRuleRecord }> {
   const response = await fetch(browser.origin + path, { method: "POST", headers: {
     origin: browser.origin, "content-type": "application/json", "x-molis-work-control-token": browser.controlToken,
     "x-molis-work-idempotency-key": randomUUID(),
@@ -13,7 +13,7 @@ async function post(browser: AuditBrowser, path: string, body: object): Promise<
   return response.json();
 }
 
-async function get(browser: AuditBrowser, id: string): Promise<FunctionRecord> {
+async function get(browser: AuditBrowser, id: string): Promise<JudgmentRuleRecord> {
   const response = await fetch(browser.origin + "/api/functions/" + encodeURIComponent(id));
   assert.equal(response.status, 200);
   return (await response.json()).function;

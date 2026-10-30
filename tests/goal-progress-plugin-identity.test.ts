@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -45,7 +45,7 @@ test("W3-07-8-02 Goal progress refuses a plugin caller the Host did not issue an
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("a plugin reaches an action through the typed port as the plugin audience, so an action not offered to plugins stays out of its reach", async t => {
+test("a plugin reaches an action as the plugin audience, so an action not offered to plugins stays out of its reach", async t => {
   const plugin = callerPlugin("typedport", "project");
   const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [plugin.definition] } } });
   const { host } = home, { reference, project_id } = await home.createProject("Typed port");
@@ -59,7 +59,6 @@ test("a plugin reaches an action through the typed port as the plugin audience, 
   host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [remove, offered],
     handlers: [{ capability_id: remove.capability_id, version: 1, handle: () => { deletes++; return { ok: true }; } }, { capability_id: offered.capability_id, version: 1, handle: () => ({ items: [] }) }] });
   const issued = await issuedCaller(probe, plugin, project_id);
-  const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", plugin_caller: issued, before_effect: async () => {} };
   // A command leaves one row in the Home's call log however it ended; a read leaves one only when it failed.
   const settled = async (run: () => Promise<unknown>) => {
     const callId = newCallId();
@@ -69,11 +68,9 @@ test("a plugin reaches an action through the typed port as the plugin audience, 
   const refused = (run: () => Promise<unknown>) => () => assert.rejects(run(), { code: "actions.forbidden" });
   assert.deepEqual(await settled(refused(() => host.actionClient(reference).invoke(callAs(issued, []), remove, {}))), [["Delete", false, "actions.forbidden", true]],
     "the action client settles the refusal once, by the action service, and never enters the handler");
-  assert.deepEqual(await settled(refused(() => host.client(reference).invoke(remove as never, {}, asPlugin))), [["Delete", false, "actions.forbidden", true]],
-    "so does the typed port");
   assert.equal(deletes, 0);
-  assert.deepEqual(await host.client(reference).invoke(offered as never, {}, asPlugin), { items: [] }, "an action offered to plugins is still reachable");
-  assert.deepEqual(await settled(async () => assert.deepEqual(await host.client(reference).invoke(remove as never, {}), { ok: true })), [["Delete", true, undefined, undefined]],
-    "the Host's own typed callers are unchanged");
+  assert.deepEqual(await host.actionClient(reference).invoke(callAs(issued, []), offered, {}), { items: [] }, "an action offered to plugins is still reachable");
+  assert.deepEqual(await settled(async () => assert.deepEqual(await host.client(reference).invoke(remove, {}), { ok: true })), [["Delete", true, undefined, undefined]],
+    "the Host's own project client calls as the person");
   assert.equal(deletes, 1);
 });

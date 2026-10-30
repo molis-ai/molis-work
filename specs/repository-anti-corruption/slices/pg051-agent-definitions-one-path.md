@@ -1,6 +1,6 @@
 # PG-051：Agent 定义只留一条登记路（设计稿）
 
-状态：设计已定、未实现（2026-10-23，防腐线 ac-kernel 片，R8 的一部分）；统筹 10-23 定了第 6 节两项（Q1 选 b、Q2 照推荐），按第 5 节分片写代码。代码按 main `acc71ae47` 核过。
+状态：P1（#1124）、P2a（#1138）、P2b（#1147）已合入；卸载清理重试与 #1166 一轮 P2 重装交错均已修复、定向验证通过，待独立增量评审与测试收口（第 7 节，Codex 修复 2）。原设计与取舍保留如下；本轮以 main `89c9a7194` 的实现为基线。
 
 ## 1. 现状：两条路
 
@@ -60,7 +60,8 @@ Home 有一份 Agent 定义的登记表（`apps/local-host/src/agent-definitions
 **10-23 调整**：项目级内置插件的定义只在 `apps/local-host/src/project-plugins.ts` 的监督器里造，目录读不到；Q1 选 (b) 之后，Host 启动时由登记库按「未运行」恢复，目录那条可以直接删。所以实际分片是：
 
 - **P1（#1124）**：运行中的定义登记完整——Agent 块的角色与 Agent Prompt（修 V-05）；目录已为同一主人登记的、只带 Agent 块的插件照旧交给目录；Todo 的定义补上 `agent_prompts`。
-- **P2**：登记库持久化（Q1 b 与 RAC-196）、三个字段从 `PluginRegistration` 搬到 `PluginDefinition`、删目录那条、`BUILTIN_PLUGIN_AGENTS`、`startAuthority` 回落与互斥规则；创作台按 Q2 改成平台自己的来源。
+- **P2a**：登记库持久化（Q1 b，RAC-193、RAC-196）：新 Home 库 `agent-declarations` 记住每个安装最近一次登记的声明，最后一个实例停下时改成「未运行」、Host 打开登记册时恢复、卸载时（`PluginExecutor.uninstalled`）删；未运行的主人不给方法。
+- **P2b**：三个字段从 `PluginRegistration` 搬到 `PluginDefinition`、删目录那条、`BUILTIN_PLUGIN_AGENTS`、`startAuthority` 回落与互斥规则；创作台按 Q2 改成平台自己的来源。
 
 **`startAuthority` 回落的调用方**（RAC-195 之前先列，按 main `acc71ae47` 查）：没有插件调用者时 `ports.authority` 走目录回落。生产代码里只有 Characters 的宿主提供方 `apps/local-host/src/characters-host.ts` 的 `listActions(["prologue", CHARACTER_PLUGIN_ID])`；Characters 没有 Agent 块，回落本来就是空声明。Coding 的调用都带宿主签发的调用者，助理用自己的 `authority`（`assistant/assistant-http.ts`），工作流、定时、MCP 走动作、不经这个口。所以 P2 去掉回落时，没有调用者的调用得到空声明，不报错：列动作照常，用插件角色起跑因为没有角色被拒——这才是真正没有主人的调用。
 
@@ -91,3 +92,26 @@ Home 有一份 Agent 定义的登记表（`apps/local-host/src/agent-definitions
 - **Q2 创作台的设计师与代码 Agent 归谁？** 10-18 定创作台是平台能力。
   - **(推荐)** 主人 id 不变（`io.molis.work.plugin-builder`，本人改过的 Prompt 按这个键存，不迁数据），来源改成平台自己的（和个人助理一样启动时登记）。
   - 另一种：主人改成 `system:builder`，要迁本人改过的 Prompt，需要用户确认迁移。
+
+## 7. 卸载清理失败后的重试（2026-10-23）
+
+来源：[#1138 一轮评审建议 1](https://github.com/molis-ai/molis-work/pull/1138#issuecomment-6374062523)。`PluginRuntime.uninstallOnce` 先保存 `uninstalled`，再调用宿主的 `PluginExecutor.uninstalled` 清除记住的 Agent 声明并释放加载的实现；宿主清理失败后，重试却因状态已卸载直接返回，未完成的清理永久跳过。完成目标是该故障路径可恢复，工程验证覆盖真实临时 Home 的数据库清理；不涉及真实 Home 维护或最终用户验收。
+
+保留状态写入顺序：卸载先撤销激活与动作注册并持久化卸载事实，清理失败不能恢复运行权。再次卸载沿同一安装的生命周期队列重新执行幂等的宿主清理，并在成功后释放该安装已加载的实现；不重新启动插件、不再次调用插件的 stop、不加载冷安装代码。重放沿用已保存的卸载记录，包括数据保留选择、安装世代和时间，不因重试参数重写；成功仍返回 `replayed: true`。清理再次失败继续向调用者报错，不返回成功回执。宿主清理钩子必须允许重试和完成后的重复调用。无需新状态、持久任务、自动重试或读取兼容机制。
+
+[#1166 一轮评审 P2](https://github.com/molis-ai/molis-work/pull/1166#issuecomment-6380139209)：同步 `install()` 不进入队列，重放清理等待时能重装同版本，旧清理恢复后误删新实现。采用写入前安全拒绝：安装记录为 `uninstalled` 且同安装的生命周期队列尚未结束时，`install()` 在登记定义、保存新世代和其他写入之前返回已有的 `plugin.state_invalid`，调用方等卸载完成后再试；不改同步安装 API。队列返回的 Promise 必须包含本次队尾标记释放，因此没有后续排队操作时，`await uninstall()` 成功后即可正常重装；清理失败也释放自己的标记，使重试可以继续。排在后面的操作保持每安装串行，旧操作完成不能删除新队尾的标记，重装继续等待该队列结束。使用现有队列表，不增加另一套锁或持久状态。
+
+边界：只改 Runtime 的卸载重放、同安装重装的写入前拒绝、队尾释放时序，以及清理钩子的合同说明和必要回归/包文档。跨版本交错、模型端口的旧注释、安装失败撤回和其他安装跨项目语义保持独立，不在本轮扩改。保留已有权限、撤销和数据保留约束；清理只移除安装声明和释放实现，不能借清理获得插件业务写权限。
+
+| 验收 | 证明 |
+| --- | --- |
+| RAC-196-U1 | 真实临时 Home 中，插件停止后持有 Agent 声明库的 SQLite 写锁；卸载清理报错但安装已持久化为 `uninstalled`、方法不可用。释放锁后再次卸载实际移除内存和持久声明；重启读取也没有残留，重复卸载仍安全，同版本新实现可以重新登记。`tests/plugin-methods-runtime.test.ts`。 |
+| RAC-196-U2 | 从运行中卸载时清理失败，原激活已撤权，stop 只调用一次；同进程及重建 Runtime 后的重试均只继续清理，返回保留原卸载记录的重放回执。重叠重试串行执行，成功后释放已加载实现；清理失败不可回报成功。`tests/plugin-lifecycle-states.test.ts`。 |
+| RAC-196-U3 | 完成卸载后的重放在真实 Promise 屏障中等待时，同版本新对象的安装被拒绝，原记录保持不变；释放屏障并等待卸载返回后，立即重装产生新世代并能成功启动。`tests/plugin-lifecycle-states.test.ts`。 |
+| RAC-196-U4 | 第一次重放清理失败、下一次已在排队时，后一次仍会执行且不能重叠；前一次完成不删除后一次的队尾标记，后一次等待期间安装仍被拒绝；其完成返回后立即重装和启动成功。`tests/plugin-lifecycle-states.test.ts`。 |
+
+验证：先用上述回归证明旧行为失败，再 `pnpm build`、`node scripts/run-tests.mjs --jobs 2` 点名两份回归及 plugin-runtime README 要求的相关用例；按公共机器槽位运行构建与边界检查。`node scripts/check-health-gates.mjs --base origin/main`、diff 检查和提交后 secrets 检查。共享核心命中的 full 交统筹集成，本轮不启动 full 或浏览器。
+
+首轮交付结果（`beb065b34`）：RAC-196-U1 在旧实现上真实遇到 SQLite 写锁，重试仍留声明；RAC-196-U2 在同进程与重建 Runtime 两种情况下都证明清理未重试。修复后整体构建通过；两包 README 要求的定向用例加 U1 共 28 文件、572/572 通过（U1、U2 均通过），健康门禁与页面资源预算检查通过，API 形状及门禁数字不变。影响分析命中共享核心，188 个建议文件中本轮执行 28 个，余下 160 个及 full 由统筹统一安排；该结果未覆盖新增的 U3/U4，不作为 P2 修复或全量、用户验收证据。
+
+一轮 P2 修复验证：U3/U4 在 `beb065b34` 上均失败于清理屏障内的重装未被拒绝，其他 19 项通过。最小修复后整体构建通过；原 28 文件共 574/574 通过（U1～U4 均通过），新增提示文字对应的 i18n 检查另 11/11 通过，合计 29 文件、585/585。健康/API、边界和页面资源预算均通过，受控数字无增长。影响分析为 189 建议文件（182 unit、7 browser），本轮执行 29 个，160 个延后，`uncovered=[]`；共享核心 full 仍交统筹集成，本轮未启动 full/browser。

@@ -1,0 +1,768 @@
+import type { GoalEventStateView } from "./goal-events.js";
+
+/** Read-only, scoped by the Host's project. Consumers cannot supply another board. */
+export interface GoalContextSnapshot {
+  goal: GoalRecord;
+  /** Only this Goal's cursor belongs in its context; unrelated project events do not. */
+  state: Omit<GoalEventStateView, "observed_event_cursor">;
+}
+import type {
+  GoalEventAdoptedPlanningRequest,
+  GoalEventTypeDefinitionInput,
+  PlanningMethodDefaultRequirement,
+  ResolvedPlanningEventAdoption,
+} from "./goal-events.js";
+
+export type GoalDefinitionState = "draft" | "accepted";
+export type GoalDecompositionState =
+  | "abstract"
+  | "frontier_open"
+  | "closed_leaf"
+  | "closed_compound";
+export type GoalValidityState = "valid" | "needs_revalidation" | "invalidated";
+export type GoalFulfillmentState = "unmet" | "satisfied";
+export type GoalTaskContext = "game" | "app" | "ai_data" | "content_research" | "operations" | "other";
+export const goalRelationTypes = ["part_of", "depends_on", "conflicts_with", "mitigates", "extends", "replaces", "corrects", "invalidates", "migrates_from"] as const;
+export type GoalRelationType = typeof goalRelationTypes[number];
+
+/** Where a decomposition review stands. A new review must use one of these (checked when a Goal is created). */
+export const goalDecompositionReviewStatuses = ["complete", "paused"] as const;
+export type GoalDecompositionReviewStatus = (typeof goalDecompositionReviewStatuses)[number];
+
+export interface GoalDecompositionReview {
+  status: GoalDecompositionReviewStatus;
+  method_pack_ids?: string[];
+  task_context?: GoalTaskContext;
+  coverage: Array<{
+    area: string;
+    disposition: "goal" | "owned" | "not_applicable";
+    goal_ids: string[];
+    reason: string;
+  }>;
+  open_goal_ids: string[];
+  next_step: string;
+  contract_coverage?: {
+    promised_outputs: Array<{
+      parent_promised_output: string;
+      status: "complete" | "partial" | "integration_required" | "uncovered";
+      child_outputs: Array<{ goal_id: string; promised_output: string }>;
+      reason: string;
+    }>;
+    acceptance_criteria: Array<{
+      parent_criterion_id: string;
+      status: "complete" | "partial" | "integration_required" | "uncovered";
+      child_criteria: Array<{ goal_id: string; criterion_id: string }>;
+      reason: string;
+    }>;
+  };
+}
+
+/** How an acceptance criterion is judged. A new criterion must use one of these (checked when a Goal is created). */
+export const goalDecisionMethods = ["automated_check", "measurement", "inspection", "human_decision"] as const;
+export type GoalDecisionMethod = (typeof goalDecisionMethods)[number];
+
+export interface GoalAcceptanceCriterion {
+  criterion_id: string;
+  goal_id: string;
+  statement: string;
+  decision_method: GoalDecisionMethod;
+  pass_condition: string;
+  target: Record<string, unknown> | null;
+  required_evidence: string[];
+}
+
+export interface GoalLeafReadiness {
+  verdict: "ready" | "split_required";
+  primary_deliverable: string;
+  output_coverage: Array<{
+    promised_output: string;
+    role: "primary" | "supporting" | "independent";
+    reason: string;
+  }>;
+  split_candidates: Array<{
+    work_item: string;
+    separately_deliverable: boolean;
+    separately_acceptable: boolean;
+    independently_reworkable: boolean;
+    decision: "keep" | "split";
+    reason: string;
+  }>;
+  rationale: string;
+  unresolved_decisions: string[];
+  independent_deliverables: string[];
+  acceptance_criterion_ids: string[];
+}
+
+export interface GoalRecord {
+  goal_id: string;
+  project_id: string;
+  title: string;
+  outcome: string;
+  why: string;
+  business_logic: string;
+  in_scope: string[];
+  out_of_scope: string[];
+  constraints: string[];
+  required_inputs: string[];
+  promised_outputs: string[];
+  decomposition_review: GoalDecompositionReview | null;
+  definition_state: GoalDefinitionState;
+  decomposition_state: GoalDecompositionState;
+  validity_state: GoalValidityState;
+  fulfillment_state: GoalFulfillmentState;
+  trashed_at: string | null;
+  trashed_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+  priority: number;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  acceptance_criteria: GoalAcceptanceCriterion[];
+}
+
+export interface CreateGoalInput {
+  goal_id?: string;
+  title: string;
+  outcome: string;
+  why: string;
+  business_logic: string;
+  in_scope?: string[];
+  out_of_scope?: string[];
+  constraints?: string[];
+  required_inputs?: string[];
+  promised_outputs?: string[];
+  leaf_readiness?: GoalLeafReadiness;
+  decomposition_review?: GoalDecompositionReview;
+  definition_state?: GoalDefinitionState;
+  decomposition_state?: GoalDecompositionState;
+  priority?: number;
+  acceptance_criteria: Array<{
+    criterion_id?: string;
+    statement: string;
+    decision_method: GoalAcceptanceCriterion["decision_method"];
+    pass_condition: string;
+    target?: Record<string, unknown> | null;
+    required_evidence?: string[];
+  }>;
+}
+
+export interface GoalRelationRecord {
+  relation_id: string;
+  project_id: string;
+  from_goal_id: string;
+  to_goal_id: string;
+  type: GoalRelationType;
+  state: "proposed" | "active" | "inactive";
+  reason: string;
+  created_by: string;
+  created_at: string;
+  deactivated_at: string | null;
+}
+
+export type PlanningMethodScope = "built_in" | "personal" | "project";
+export type PlanningMethodKind =
+  | "meta"
+  | "work_type"
+  | "domain"
+  | "industry"
+  | "overlay"
+  | "custom";
+
+export interface PlanningCoverageRule {
+  area: string;
+  label: string;
+  question: string;
+}
+
+export interface PlanningDependencyRule {
+  rule_id: string;
+  statement: string;
+  direction_hint: string;
+}
+
+export interface PlanningMethodPack {
+  method_id: string;
+  version: number;
+  scope: PlanningMethodScope;
+  kind: PlanningMethodKind;
+  name: string;
+  summary: string;
+  /** Complete Runtime-facing guidance; structured fields support UI and checks. */
+  instructions: string;
+  applies_to: string[];
+  domain_tags: string[];
+  steps: string[];
+  required_coverage: PlanningCoverageRule[];
+  dependency_rules: PlanningDependencyRule[];
+  evidence_requirements: string[];
+  completion_checks: string[];
+  failure_modes: string[];
+  source_refs: string[];
+  confidence: number;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  event_types: GoalEventTypeDefinitionInput[];
+  default_requirements: PlanningMethodDefaultRequirement[];
+}
+
+export type PlanningMethodPackInput = Omit<
+  PlanningMethodPack,
+  "scope" | "version" | "created_at" | "updated_at" | "instructions" | "event_types" | "default_requirements"
+> & {
+  version?: number;
+  instructions?: string;
+  event_types?: GoalEventTypeDefinitionInput[];
+  default_requirements?: PlanningMethodDefaultRequirement[];
+};
+
+export interface ResolvedPlanningMethodPack extends PlanningMethodPack {
+  overridden_scopes: PlanningMethodScope[];
+}
+
+export interface PlanningMethodPath {
+  method_id: string;
+  method_name: string;
+  kind: PlanningMethodKind;
+  steps: string[];
+  instructions: string;
+}
+
+export interface PlanningMethodComposition {
+  method_pack_ids: string[];
+  method_names: string[];
+  method_paths: PlanningMethodPath[];
+  required_coverage: PlanningCoverageRule[];
+  dependency_rules: PlanningDependencyRule[];
+  evidence_requirements: string[];
+  completion_checks: string[];
+  failure_modes: string[];
+}
+
+/** Structural input only; Proposal and Decision persistence remain Governance-owned. */
+export interface PlanningProposalItem {
+  item_id?: string;
+  kind: string;
+  operation: string;
+  payload: Record<string, unknown>;
+}
+
+export interface PlanningRelationChange {
+  action: "add" | "deactivate";
+  relation_id?: string | null;
+  from_goal_id: string;
+  to_goal_id: string;
+  type: GoalRelationType;
+  reason?: string;
+}
+
+export interface PlanningGraphIssue {
+  code:
+    | "goals.planning.goal_missing"
+    | "goals.planning.goal_trashed"
+    | "goals.planning.relation_self_reference"
+    | "goals.planning.relation_duplicate"
+    | "goals.planning.part_of_cycle"
+    | "goals.planning.dependency_cycle"
+    | "goals.planning.execution_cycle";
+  message: string;
+  goal_ids: string[];
+  relation_ids: string[];
+  path: string[];
+}
+
+export interface PlanningMetric {
+  goal_id: string;
+  topological_level: number;
+  unlock_count: number;
+  longest_downstream_chain: number;
+}
+
+export interface GoalChangeImpact {
+  changed_goal_ids: string[];
+  affected_ancestors: string[];
+  affected_dependents: string[];
+  adjacent_dependencies: string[];
+  reusable_open_goal_ids: string[];
+  review_order: string[];
+  graph_issues: PlanningGraphIssue[];
+}
+
+export interface SaveProjectPlanningMethodInput {
+  project_id: string;
+  method: PlanningMethodPackInput;
+  actor_id: string;
+  user_confirmed: boolean;
+}
+
+export interface GoalsPlanningApi {
+  validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
+  proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
+  wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean;
+  effectiveMethods(projectId: string): PlanningMethodPack[];
+  projectComposition(projectId: string): PlanningMethodComposition;
+  saveProjectMethod(input: SaveProjectPlanningMethodInput): {
+    method: PlanningMethodPack;
+    observed_event_cursor: number;
+  };
+  resolveEventAdoption(
+    projectId: string,
+    requested: GoalEventAdoptedPlanningRequest[],
+  ): ResolvedPlanningEventAdoption;
+  analyzeChange(projectId: string, changedGoalIds: readonly string[]): GoalChangeImpact;
+  validateBoardGraph(projectId: string): {
+    issues: PlanningGraphIssue[];
+    observed_event_cursor: number;
+  };
+}
+
+export type GoalTrashStatus =
+  | "trashed"
+  | "restored"
+  | "already_trashed"
+  | "already_active";
+
+export interface GoalTrashResult {
+  status: GoalTrashStatus;
+  goal: GoalRecord;
+  active_goal_cleared: boolean;
+  deactivated_relation_ids: string[];
+  restored_relation_ids: string[];
+  pending_relation_ids: string[];
+}
+
+export interface GoalArchiveResult {
+  goal: GoalRecord;
+  active_goal_cleared: boolean;
+  observed_event_cursor: number;
+  replayed: boolean;
+}
+
+export interface AddGoalRelationInput {
+  from_goal_id: string;
+  to_goal_id: string;
+  type: GoalRelationType;
+  state?: "proposed" | "active";
+  reason: string;
+}
+
+/** A Goal's rules. Only the user's acceptance at closure is a rule; quality checks belong to Coding (specs/coding-quality-assurance). */
+export interface GoalPolicy {
+  human_approval: boolean;
+}
+
+export interface GoalsBoardRecord {
+  project_id: string;
+  active_goal_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The journal keys a work event by its own id; this names the Goal it was recorded on. */
+export interface GoalWorkEventLinkRecord {
+  goal_id: string;
+  event_id: string;
+}
+
+export interface GoalPolicyBindingRecord {
+  scope: "project_default" | "ancestor_minimum" | "goal_override";
+  goal_id: string | null;
+  policy: Partial<GoalPolicy>;
+}
+
+/** Historical bindings for user-facing rule records, not just the active policy. */
+export interface GoalPolicyHistoryRecord extends Omit<GoalPolicyBindingRecord, "scope"> {
+  scope: "project_default" | "ancestor_minimum" | "goal";
+  policy_binding_id: string;
+  state: "active" | "replaced" | "withdrawn";
+  created_by: string;
+  reason: string;
+  created_at: string;
+}
+
+export type GoalDependencyFact = Pick<GoalRecord, "goal_id" | "title" | "fulfillment_state" | "validity_state">;
+export interface GoalReplacementFact {
+  relation_id: string;
+  replacement_goal_id: string;
+  replacement_goal_title: string;
+}
+
+export type ProjectGuidanceKind =
+  | "context"
+  | "requirement"
+  | "constraint"
+  | "convention"
+  | "workflow"
+  | "quality_bar";
+
+export interface ProjectGuidanceEntryRecord {
+  guidance_id: string;
+  project_id: string;
+  position: number;
+  revision: number;
+  active: boolean;
+  kind: ProjectGuidanceKind;
+  content: string;
+  content_hash: string;
+  source_refs: string[];
+  created_by: string;
+  confirmation_summary: string;
+  reason: string;
+  created_at: string;
+  updated_by: string;
+  updated_at: string;
+}
+
+export interface ProjectGuidanceRevisionRecord {
+  revision_id: string;
+  guidance_id: string;
+  project_id: string;
+  revision: number;
+  kind: ProjectGuidanceKind;
+  content: string;
+  content_hash: string;
+  source_refs: string[];
+  active: boolean;
+  changed_by: string;
+  change_kind: "created" | "edited" | "deactivated" | "restored";
+  confirmation_summary: string;
+  reason: string;
+  created_at: string;
+}
+
+export interface ProjectGuidanceView {
+  entries: ProjectGuidanceEntryRecord[];
+  inactive_entries: ProjectGuidanceEntryRecord[];
+  revisions: ProjectGuidanceRevisionRecord[];
+  virtual_document: string;
+  runtime_prompt_prefix: string;
+}
+
+export interface GoalsQuerySnapshot {
+  board: GoalsBoardRecord;
+  observed_event_cursor: number;
+  goals: GoalRecord[];
+  relations: GoalRelationRecord[];
+  policy_bindings: GoalPolicyBindingRecord[];
+  planning_method_packs: PlanningMethodPack[];
+  project_guidance: ProjectGuidanceEntryRecord[];
+}
+
+export interface GoalFactsView {
+  board: GoalsBoardRecord;
+  observed_event_cursor: number;
+  goal_path: string;
+  goal: GoalRecord;
+  parent_contract_coverage: Array<{
+    parent_goal_id: string;
+    parent_goal_title: string;
+    record_status: "recorded" | "unrecorded";
+    promised_outputs: NonNullable<GoalDecompositionReview["contract_coverage"]>["promised_outputs"];
+    acceptance_criteria: NonNullable<GoalDecompositionReview["contract_coverage"]>["acceptance_criteria"];
+  }>;
+  relations: GoalRelationRecord[];
+  resolved_policy: GoalPolicy;
+  project_guidance: ProjectGuidanceEntryRecord[];
+}
+
+export interface GoalsQueryApi {
+  listProjectIds(): string[];
+  listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[];
+  listPolicyHistory(projectId: string): GoalPolicyHistoryRecord[];
+  listWorkEventGoalLinks(projectId: string): GoalWorkEventLinkRecord[];
+  listDependencies(projectId: string, goalId: string): GoalDependencyFact[];
+  activeReplacement(projectId: string, goalId: string): GoalReplacementFact | null;
+  /** Global ID collision check only; does not expose another Board's Goal contents. */
+  hasGoalIdentity(goalId: string): boolean;
+  getRelation(projectId: string, relationId: string): GoalRelationRecord | null;
+  policyBindingState(projectId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null;
+  /** Global criterion identity is needed to reject cross-Goal ID collisions. */
+  criterionGoalId(criterionId: string): string | null;
+  getBoard(projectId: string): GoalsBoardRecord | null;
+  getGoal(projectId: string, goalId: string): GoalRecord | null;
+  listGoals(
+    projectId: string,
+    options?: { include_archived?: boolean; include_trashed?: boolean },
+  ): GoalRecord[];
+  listRelations(projectId: string, goalId?: string): GoalRelationRecord[];
+  listTrashedGoals(projectId: string): GoalRecord[];
+  snapshot(projectId: string): GoalsQuerySnapshot;
+  resolvePolicy(projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy;
+  readGoal(projectId: string, goalId: string): GoalFactsView;
+  readProjectGuidance(projectId: string): ProjectGuidanceView;
+}
+
+export interface AddProjectGuidanceInput {
+  project_id: string;
+  actor_id: string;
+  kind: ProjectGuidanceKind;
+  content: string;
+  source_refs?: string[];
+  reason: string;
+  confirmation_summary: string;
+  user_confirmed: boolean;
+  idempotency_key: string;
+}
+
+export interface AddProjectGuidanceResult {
+  entry: ProjectGuidanceEntryRecord;
+  created: boolean;
+  observed_event_cursor: number;
+  replayed: boolean;
+}
+
+export interface UpdateProjectGuidanceInput {
+  project_id: string;
+  guidance_id: string;
+  actor_id: string;
+  action: "edit" | "deactivate" | "restore";
+  kind?: ProjectGuidanceKind;
+  content?: string;
+  source_refs?: string[];
+  reason: string;
+  confirmation_summary: string;
+  user_confirmed: boolean;
+  idempotency_key: string;
+}
+
+export interface UpdateProjectGuidanceResult {
+  entry: ProjectGuidanceEntryRecord;
+  revision: ProjectGuidanceRevisionRecord;
+  observed_event_cursor: number;
+  replayed: boolean;
+}
+
+export interface GoalsActorWrite {
+  actor_id: string;
+  actor_kind?: "user" | "runtime";
+  idempotency_key: string;
+  reason?: string;
+}
+
+/** Finite Policy write inside an already-authorized Proposal decision transaction. */
+export type ConfirmedPolicyChange = {
+  project_id: string;
+  actor_id: string;
+  reason: string;
+  at: string;
+  source_item_id: string;
+} & ({ operation: "deactivate"; policy_binding_id: string } | {
+  operation: "replace";
+  policy_binding_id?: string;
+  goal_id: string | null;
+  policy: { [K in keyof GoalPolicy]?: unknown };
+});
+
+export interface ConfirmedRelationBatch {
+  project_id: string; actor_id: string; reason: string; at: string; source_item_id: string;
+  relations: Array<{
+    action: "add" | "deactivate";
+    relation_id?: string | null;
+    from_goal_id: string;
+    to_goal_id: string;
+    type: GoalRelationType | null;
+    reason: string;
+  }>;
+}
+
+export interface GoalsCommandApi {
+  /** User-submitted project defaults. Replaces the active binding and preserves history. */
+  saveProjectPolicy(input: {
+    project_id: string; actor_id: string; user_confirmed: boolean;
+    policy: GoalPolicy; idempotency_key: string;
+  }): { policy_binding_id: string; observed_event_cursor: number; replayed: boolean };
+  validateGoalInput(input: CreateGoalInput): void;
+  applyConfirmedRelations(input: ConfirmedRelationBatch): Array<{ relation_id: string }>;
+  initializeBoard(input: { project_id: string; actor_id: string; idempotency_key: string }): { project_id: string; replayed: boolean; observed_event_cursor: number };
+  setActiveGoal(projectId: string, input: { goal_id: string; reason: string }, write: GoalsActorWrite): { active_goal_id: string; replayed: boolean; observed_event_cursor: number };
+  createGoal(projectId: string, input: CreateGoalInput, write: GoalsActorWrite): {
+    goal: GoalRecord;
+    observed_event_cursor: number;
+    replayed: boolean;
+  };
+  addRelation(projectId: string, input: AddGoalRelationInput, write: GoalsActorWrite): {
+    relation_id: string;
+    observed_event_cursor: number;
+    replayed: boolean;
+  };
+  deactivateRelation(projectId: string, input: { relation_id: string; reason: string }, write: GoalsActorWrite): {
+    relation: GoalRelationRecord;
+    observed_event_cursor: number;
+    replayed: boolean;
+  };
+  addProjectGuidance(input: AddProjectGuidanceInput): AddProjectGuidanceResult;
+  updateProjectGuidance(input: UpdateProjectGuidanceInput): UpdateProjectGuidanceResult;
+}
+
+export interface GoalsLifecycleApi {
+  setArchived(
+    projectId: string,
+    input: { goal_id: string; archived: boolean; reason: string },
+    write: GoalsActorWrite,
+  ): GoalArchiveResult;
+  setTrashed(
+    projectId: string,
+    input: { goal_id: string; trashed: boolean; reason: string },
+    write: GoalsActorWrite,
+  ): GoalTrashResult & { observed_event_cursor: number; replayed: boolean };
+  listTrashed(projectId: string): GoalRecord[];
+}
+
+/** Public application-facing Goals capabilities; Apps bind this port without owning rules or Stores. */
+export interface GoalsApplicationApi {
+  commands: GoalsCommandApi;
+  lifecycle: GoalsLifecycleApi;
+  planning: GoalsPlanningApi;
+}
+export type { GoalInputBindingRecord, GoalInputBindingsApi } from "./goal-inputs.js";
+export { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef } from "./goal-inputs.js";
+export type {
+  ApplyGoalConcernInput,
+  CiteGoalDecisionInput,
+  ConfigureGoalEventsApplicationInput,
+  ConfigureGoalEventsInput,
+  ConfigureGoalEventsResult,
+  CreateGoalIntentInput,
+  CreateGoalIntentRequirementInput,
+  CreateGoalIntentResult,
+  GoalIntentSourceKind,
+  GoalConfigurationWorkEventRecord,
+  AcknowledgeGoalEventInput,
+  GoalEventAcknowledgementBy,
+  GoalEventAcknowledgementCategory,
+  GoalEventAcknowledgementReference,
+  GoalEventAcknowledgementTreatment,
+  GoalEventAcknowledgementsApi,
+  GoalEventAdoptedPlanningRef,
+  GoalEventAdoptedPlanningRequest,
+  GoalEventAgreementChange,
+  GoalEventAgreementResult,
+  GoalEventAgreementView,
+  GoalEventAppliedDecisionView,
+  GoalEventClosureKind,
+  GoalEventClosureResult,
+  GoalEventClosureView,
+  GoalEventConcernAction,
+  GoalEventConcernResult,
+  GoalEventConcernStatus,
+  GoalEventDecisionCommitment,
+  GoalEventDecisionEffect,
+  GoalEventDecisionEffectKind,
+  GoalEventConcernView,
+  GoalEventConfigView,
+  GoalEventConfigurationPayload,
+  GoalEventDecisionOption,
+  GoalEventDecisionPurpose,
+  GoalEventDecisionRequestResult,
+  GoalEventDecisionRequestView,
+  GoalEventDecisionResult,
+  GoalEventExtraRequirement,
+  GoalEventExtraRequirementInput,
+  GoalEventFactsApi,
+  GoalEventIntentApi,
+  GoalEventStateApi,
+  GoalEventFieldDefinition,
+  GoalEventFieldFormat,
+  GoalEventFieldSource,
+  GoalEventJudgmentInput,
+  GoalEventJudgmentVerdict,
+  GoalEventLatestReports,
+  GoalEventLatestReportsQuery,
+  GoalEventHistoryPage,
+  GoalEventHistoryQuery,
+  GoalEventListPage,
+  GoalEventListQuery,
+  GoalEventMutationResult,
+  GoalEventPlanningMethodRef,
+  GoalEventProgressResult,
+  GoalEventProgressSummaryView,
+  GoalProgressArtifactSource,
+  GoalEventDirectoryItem,
+  GoalEventDirectoryPage,
+  GoalEventDirectoryQuery,
+  GoalEventReportSummary,
+  GoalEventRequirementBinding,
+  GoalEventRequirementCommitment,
+  GoalEventRequirementCurrentStatus,
+  GoalEventRequirementRevisionInput,
+  GoalEventRequirementSource,
+  GoalEventRequirementReport,
+  GoalEventRequirementStatus,
+  GoalEventResumeResult,
+  GoalEventScope,
+  GoalEventSemanticFamily,
+  GoalEventStateOwnerView,
+  GoalEventStateView,
+  GoalEventSystemPayload,
+  GoalEventTimelineItem,
+  GoalEventTimelinePage,
+  GoalHistoryLane,
+  GoalEventTrustedAuthority,
+  GoalEventTrustedAuthoritySource,
+  GoalEventTrustedDecisionRecord,
+  GoalEventTypeDefinition,
+  GoalEventTypeDefinitionInput,
+  GoalEventTypeSource,
+  GoalEventTypeSourceKind,
+  GoalEventUnmetReason,
+  GoalEventUserConclusion,
+  GoalEventWorkGap,
+  GoalEventWorkStateView,
+  GoalEventWorkStatus,
+  GoalReportWorkEventRecord,
+  GoalSystemWorkEventRecord,
+  GoalWorkEventJudgment,
+  GoalWorkEventRecord,
+  PlanningMethodDefaultRequirement,
+  RecordGoalNoteInput,
+  RecordGoalProgressSummaryInput,
+  RecordGoalUserDecisionInput,
+  GoalEventReportProgressInput,
+  ReportGoalEventsInput,
+  ReportGoalEventsRecordedResult,
+  ReportGoalEventsResult,
+  ReportGoalWorkEventInput,
+  RequestGoalDecisionInput,
+  ResolvedPlanningEventAdoption,
+  ResumeGoalEventWorkInput,
+  SetGoalEventAgreementInput,
+  SubmitGoalEventClosureInput,
+} from "./goal-events.js";
+export {
+  goalEventAcknowledgementCategories,
+  goalEventAcknowledgementTreatments,
+  goalEventClosureKinds,
+  goalIntentSourceKinds,
+  goalEventConcernActions,
+  goalEventConcernStatuses,
+  goalEventDecisionEffectKinds,
+  goalEventDecisionPurposes,
+  goalEventFieldFormats,
+  goalEventJudgmentVerdicts,
+  goalEventRequirementCurrentStatuses,
+  goalEventSemanticFamilies,
+  goalEventSystemOperations,
+  goalEventTrustedAuthoritySources,
+  goalEventTypeSourceKinds,
+  goalEventUserConclusionVerdicts,
+  goalEventWorkStatuses,
+} from "./goal-events.js";
+
+import type { GoalTreeProposalRecord } from "./governance-collaboration.js";
+/** Existing full project snapshot; every record is defined by its fact owner. */
+export interface BoardSnapshot {
+  cursor: number;
+  board: GoalsBoardRecord;
+  goals: GoalRecord[];
+  relations: GoalRelationRecord[];
+  planning_method_packs: PlanningMethodPack[];
+  project_guidance: ProjectGuidanceEntryRecord[];
+  goal_tree_proposals: GoalTreeProposalRecord[];
+}
+
+/** Public entry contract: Goal facts plus the owners' records about it. */
+export interface GoalContractView extends GoalFactsView {
+  goal_tree_proposals: GoalTreeProposalRecord[];
+}

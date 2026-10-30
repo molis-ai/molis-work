@@ -11,9 +11,9 @@ import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
-import * as artifactsPlugin from "@molis-ai/molis-work-plugin-artifacts";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import Database from "better-sqlite3";
@@ -76,6 +76,8 @@ const FUNCTIONS_STATUS: Readonly<Record<string, number>> = {
   invalid: 400, stale_preview: 400, published_immutable: 400, key_conflict: 400, preview_required: 400,
   not_found: 404,
   conflict: 409, version_conflict: 409, provider_not_configured: 409,
+  // FI-2 (#1283): a plugin declaring a default rule whose key another plugin holds; it came after the mapper, as a conflict.
+  rule_key_taken: 409,
   provider_unauthorized: 502, provider_failed: 502,
   provider_timeout: 504,
 };
@@ -204,7 +206,12 @@ for (const leavesRow of [false, true]) {
     const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
-    const mcp = new hostModule.LocalMcpServer(async () => {
+    // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and Todo's `get` reads the catalog
+    // through it for the person's project list (PG-014): that nested read goes to the real catalog, or the failing read would call itself.
+    let entered = false;
+    const mcp = new hostModule.LocalMcpServer(async (options, operation) => {
+      if (entered) return withMolisWorkProjectCatalog(options, operation);
+      entered = true;
       if (leavesRow) await assert.rejects(host.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", audience: "user",
         project_id: null, permissions: ["todo:read"] }, todoActions.get, { id: "no-such-todo" }), { code: "todo.not_found" });
       throw failure;
@@ -298,10 +305,14 @@ test("the 成果 browser's route failures carry a code and the status of their k
   assert.deepEqual([badVersion.status, badVersion.body], [400, { error: "成果版本必须是正整数", code: "artifacts.reference_invalid" }]);
   const badId = await edge.send("GET", "/artifacts/%E0%A4%A/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.deepEqual([badId.status, badId.body], [400, { error: "成果 ID 编码无效", code: "artifacts.reference_invalid" }]);
-  const artifactsErrors = declared(artifactsPlugin, "artifactsErrors");
-  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "plugin_denied", "plugin_incompatible", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
+  const artifactsErrors = declared(artifactsModule, "artifactsErrors");
+  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
   const status = (reason: string) => actionHttpStatus(artifactsErrors[reason]!("x"));
-  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed", "plugin_denied", "plugin_incompatible"].map(status), [400, 404, 404, 400, 409, 403, 400]);
+  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed"].map(status), [400, 404, 404, 400, 409]);
+  // The plugin-facing client's two codes moved to the Artifacts module with the client (ac-artifacts A2).
+  const clientErrors = declared(artifactsModule, "pluginArtifactErrors");
+  assert.deepEqual(Object.keys(clientErrors).sort(), ["plugin_denied", "plugin_incompatible"]);
+  assert.deepEqual(["plugin_denied", "plugin_incompatible"].map(reason => actionHttpStatus(clientErrors[reason]!("x"))), [403, 400]);
 });
 
 /**
@@ -310,12 +321,12 @@ test("the 成果 browser's route failures carry a code and the status of their k
  * connection_revoked, connection_required, credentials_unavailable) declares the other six, all `invalid`, in artifact-document-import.ts.
  */
 const DOCUMENT_STATUS: Readonly<Record<string, number>> = {
-  source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, empty: 400, binary: 400,
-  original_not_offered: 400, too_large: 413,
+  source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, original_not_offered: 400, empty: 400, binary: 400,
+  too_large: 413,
 };
 
 test("the import's failures are declared, each with the status of its kind: 415 and 422 are 400, too large is 413", async t => {
-  const documentErrors = declared(artifactsPlugin, "documentErrors");
+  const documentErrors = declared(artifactsModule, "documentErrors");
   assert.deepEqual(Object.keys(documentErrors).sort(), Object.keys(DOCUMENT_STATUS).sort(), "documentErrors declares exactly the codes the import itself raises");
   for (const [reason, status] of Object.entries(DOCUMENT_STATUS)) {
     const error = documentErrors[reason]!(`document ${reason}`);
@@ -413,7 +424,7 @@ test("a project reference that cannot be opened is a coded failure of the Host's
   refused("project://docs/missing.md", "host.project_reference_not_found", 404);
   const noRoot = capture(() => hostModule.readProjectReference(join(base, "no-such-root"), "project://docs/plan.md"));
   assert.ok(noRoot instanceof ActionError && noRoot.code === "host.project_reference_not_found");
-  const noWorkspace = capture(() => artifactsPlugin.openArtifactProjectReference({ readProjectReference: () => assert.fail("nothing is read without a workspace") }, { reference: "project://result.txt" }));
+  const noWorkspace = capture(() => artifactsModule.openArtifactProjectReference({ readProjectReference: () => assert.fail("nothing is read without a workspace") }, { reference: "project://result.txt" }));
   assert.ok(noWorkspace instanceof ActionError);
   assert.deepEqual([noWorkspace.code, actionHttpStatus(noWorkspace)], ["artifacts.workspace_unconfirmed", 409]);
 });

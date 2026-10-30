@@ -4,6 +4,7 @@ import type { ComputerDesk } from "./computer-desk.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { ComputerSettings } from "./computer-settings.js";
 import type { HelperConnection, HelperPermission } from "./helper-connection.js";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * The computer tab's HTTP side (specs/computer-use): the master switch and forbidden apps, system-permission status and
@@ -16,6 +17,14 @@ interface ComputerHttpPorts {
   readonly helper: HelperConnection;
   readonly desk: ComputerDesk;
   readonly records: ComputerRecords;
+  /** Shelf's public actions as the person at this computer, one bound client per request (PG-057). */
+  readonly shelf: () => ComputerShelf;
+}
+
+/** What putting a record on the Shelf needs: `shelf.items.admit@2` and `shelf.items.delete@1`, found in the action directory. */
+export interface ComputerShelf {
+  admit(input: { title: string; text: string } | { filename: string; mime: string; bytes_base64: string }): Promise<{ item: { item_id: string } }>;
+  remove(itemId: string): Promise<unknown>;
 }
 
 const PERMISSIONS: readonly HelperPermission[] = ["accessibility", "screen_recording", "input_monitoring"];
@@ -94,6 +103,33 @@ export async function handleComputerHttp(request: IncomingMessage, response: Ser
     const id = recordMatch[1]!;
     if (request.method === "GET") { const record = ports.records.get(id); record ? json(200, { record }) : json(404, { error: "找不到这份记录" }); return true; }
     if (request.method === "DELETE") { json(200, { removed: ports.records.remove(id) }); return true; }
+  }
+  // The round's record on the Shelf (specs/computer-use §5): the words the panel wrote, then the latest screenshot as a png.
+  // Shelf is reached through its public actions; if the screenshot cannot follow, the text copy is taken back.
+  const shelfMatch = /^\/api\/computer\/records\/([a-z0-9-]{8,80})\/shelf$/u.exec(url.pathname);
+  if (shelfMatch && request.method === "POST") {
+    const record = ports.records.get(shelfMatch[1]!);
+    if (!record) { json(404, { error: "找不到这份记录" }); return true; }
+    const body = await readNativePluginJsonBody(request, 300_000).catch(() => ({} as Record<string, unknown>));
+    if (typeof body.title !== "string" || !body.title || body.title.length > 200 || typeof body.text !== "string" || !body.text || body.text.length > 200_000) {
+      json(400, { error: "请写好标题与正文" }); return true;
+    }
+    const shelf = ports.shelf();
+    let itemId = "";
+    try {
+      itemId = (await shelf.admit({ title: body.title, text: body.text })).item?.item_id ?? "";
+      if (!itemId) throw new Error("没能放进 Shelf。");
+      const shot = [...record.steps].reverse().find(step => step.shot)?.shot;
+      const bytes = shot ? ports.records.shot(record.id, shot) : null;
+      if (shot && !bytes) throw new Error("这张截图不在了");
+      if (shot && bytes) await shelf.admit({ filename: shot, mime: "image/png", bytes_base64: bytes.toString("base64") });
+      json(200, { item_id: itemId, shot: Boolean(shot) });
+    } catch (error) {
+      if (itemId && !await shelf.remove(itemId).then(() => true, () => false)) await shelf.remove(itemId).catch(() => undefined);
+      const failed = actionErrorResponse(error);
+      json(failed.status, failed.body);
+    }
+    return true;
   }
   const shotMatch = /^\/api\/computer\/records\/([a-z0-9-]{8,80})\/(\d{3}\.png)$/u.exec(url.pathname);
   if (shotMatch && request.method === "GET") {

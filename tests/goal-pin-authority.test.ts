@@ -5,9 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore, pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { goalsActions, goalsArtifactInputActions, goalsDeliverableActions, GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (const phase of ["before_dispatch", "after_pin"] as const)
   for (const interruption of ["revoke_parent", "cancel", "disable_parent", "archive_goal"] as const) {
@@ -24,8 +26,8 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
       const client = host.actionClient(ref), abort = new AbortController();
       const actions = bindActionClient(client, () => user);
       try {
-        const { coordinator: app, artifacts } = await host.withProject(ref, runtime => runtime);
-        app.initializeBoard({ project_id: "board", actor_id: user.actor_id, idempotency_key: "board" });
+        const { artifacts } = await host.withProject(ref, runtime => runtime);
+        await initializeBoard(host, ref, { actor_id: user.actor_id, idempotency_key: "board" });
         await actions.invoke(goalsActions.create, { goal_id: "G1", title: "Delivery", outcome: "Pinned result", requirements: [{ requirement_id: "delivered", statement: "Ready" }], idempotency_key: "goal" });
         if (interruption === "archive_goal") {
           await actions.invoke(goalsActions.configure, { goal_id: "G1", expected_version: 0, idempotency_key: "delivery-type",

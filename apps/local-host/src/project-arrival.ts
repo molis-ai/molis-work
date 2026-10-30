@@ -29,7 +29,7 @@ const MAX_DESCRIPTION = 240;
 const MAX_PROJECTS = 2_000;
 
 function statePath(homeDirectory?: string): string {
-  return path.join(path.resolve(homeDirectory ?? resolveConfiguredHome()), PROJECT_ARRIVAL_RELATIVE_PATH);
+  return path.join(resolveConfiguredHome(homeDirectory), PROJECT_ARRIVAL_RELATIVE_PATH);
 }
 
 function instant(value: unknown): string | null {

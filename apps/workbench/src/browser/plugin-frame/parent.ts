@@ -14,7 +14,8 @@ import { copyFromPage } from "./clipboard.js";
 import { frameContext } from "./context.js";
 import { pageDrafts } from "./drafts.js";
 import { pageNavigation } from "./navigation.js";
-import { pageTodo } from "./todo.js";
+import { pageIntake } from "./intake.js";
+import { subjectSurfaces } from "./subjects.js";
 import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
 import { pageFilePicker } from "./file-picker.js";
@@ -34,13 +35,32 @@ function stored(prefix: string): FrameConfig["storage"] {
   return storage;
 }
 
+/**
+ * A page never navigates a document. A settings address opens the workbench's settings in place, in the shell page that
+ * owns them: a frame in the shell asks this document, an embedded shell asks the one it is embedded in, and a pane hands
+ * the address to the pane's one relay to the workbench it sits in. Any other address changes nothing.
+ */
+function openSettings(url: URL): void {
+  const pane = new URLSearchParams(location.search).get("workbenchPane");
+  if (window.parent !== window && pane !== null) {
+    window.parent.postMessage({ type: "workbench-open-settings", paneId: pane, href: url.href }, location.origin);
+    return;
+  }
+  let owner = document;
+  try { if (window.top && window.top !== window) owner = window.top.document; } catch { /* A cross-origin embedder keeps its own documents. */ }
+  owner.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: url.href } }));
+}
+
 function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string): void {
   const url = new URL(message.url);
   const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
     && [...url.searchParams.keys()].every(key => ["openPlugin", "openItem", "openTitle", "openVersion"].includes(key));
-  if (url.origin === location.origin && (objectLink || ["/settings/models", "/settings/connectors", "/capabilities/connections", prefix + "/settings/workspaces"].includes(url.pathname))) {
-    const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
-  } else if (["https:", "http:", "mailto:"].includes(url.protocol) && url.origin !== location.origin) window.open(url.href, "_blank", "noopener,noreferrer");
+  if (url.origin !== location.origin) {
+    if (["https:", "http:", "mailto:"].includes(url.protocol)) window.open(url.href, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (!objectLink) { openSettings(url); return; }
+  const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
 }
 
 /** An installed surface may have appeared since this shell loaded. The server rebuilds the current project's catalog. */
@@ -54,8 +74,11 @@ function openPlugin(host: FrameHost, surface: unknown, prefix: string): void {
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
   if (!scope) throw new Error("View is already mounted");
+  // The owner's deferred client already wrote the same guard before it called this; only the raw mounts own it.
+  let own = false;
   try {
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id }, scope });
+  const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
   root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
@@ -68,7 +91,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
   const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
   const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side));
-  const makeTodo = pageTodo(port, scope, frame, grant.page_id, route);
+  const makeIntake = pageIntake(scope, frame, root);
   const placement = pagePlacement(port, scope, root, frame);
   const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
   const modal = pageModal(scope, frame);
@@ -95,7 +118,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
   scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
-  const fail = (error: Error) => { clearTimeout(deadline); readyReject(error); };
+  const fail = (error: Error) => {
+    clearTimeout(deadline);
+    if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
+    readyReject(error);
+  };
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
@@ -112,7 +139,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") { void drafts(message); return; }
-    if (message.type === "make-todo") { void makeTodo(message); return; }
+    if (message.type === "context-intake") { makeIntake(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
     if (message.type === "modal") { modal(message.open); return; }
     if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
@@ -128,7 +155,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (message.type === "page-message") receiveMessage(message.message);
       else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
       else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
-      else if (message.type === "ready") { clearTimeout(deadline); root.dataset.uiClientState = "ready"; root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve(); }
+      else if (message.type === "ready") {
+        clearTimeout(deadline);
+        if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
+        root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve();
+      }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui" && Array.isArray(message.args)) {
         if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
@@ -158,14 +189,20 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { todoAvailable: navigation.todoAvailable(), origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
+    const config: FrameConfig = { subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
-      messages: globalThis.MOLIS_WORK_MESSAGES ?? {}, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
+      messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
     frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);
   };
-  frame.srcdoc = frameDocument(root, pack); root.append(frame);
+  frame.srcdoc = frameDocument(root, pack);
+  own = root.dataset.uiClientState !== "loading";
+  if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
+  root.append(frame);
   await ready; return { frame, scope };
-  } catch (error) { scope.dispose(); throw error; }
+  } catch (error) {
+    if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
+    scope.dispose(); throw error;
+  }
 }

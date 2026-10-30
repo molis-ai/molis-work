@@ -9,28 +9,20 @@ import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import {
-  createLocalFeedApplication,
-  createLocalFeedSourceService,
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-  listFeedSourceCatalog,
-  openProjectVersionStores,
-  seedDemoBoard,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, listFeedSourceCatalog, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
-  FeedPluginRouteTable,
-  createFeedRouteHandlers,
   feedCaptureArtifactId,
   createFeedRuleHandlers, feedRuleActions,
 } from "@molis-ai/molis-work-plugin-feed";
 import {
   FEED_CAPTURE_SCENE_ID,
-  INBOX_ADMIT_BEHAVIOR_ID,
+  INBOX_ADMIT_OPTION_ID,
 } from "@molis-ai/molis-work-contracts/modules/functions";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { FEED_API, feedTestRoutes } from "./fixtures/feed-http.js";
 
 const TOKEN = "feed-out-rules-test-token-0123456789012345";
 
@@ -56,7 +48,7 @@ function close(data: ReturnType<typeof harness>): void {
 test("new Feed Item matching an out rule leaves an exact Artifact and no success Inbox row", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -89,18 +81,18 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
 });
 
 test("out-rule judgment records a suggestion without admitting the Feed Item", async () => {
-  const fixture = feedCaptureFixture(() => ({ status: "ok", suggested_behavior_ids: [INBOX_ADMIT_BEHAVIOR_ID] }));
+  const fixture = feedCaptureFixture(() => ({ status: "ok", suggested_behavior_ids: [INBOX_ADMIT_OPTION_ID] }));
   const data = harness(fixture.options);
   fixture.attach(data.feed, DEMO_PROJECT_ID);
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
       judgment: fixture.reference,
     });
-    assert.throws(() => data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: " " }));
-    assert.throws(() => data.feed.updateOutRule(DEMO_PROJECT_ID, "missing-rule", { name: "替换" }));
-    assert.deepEqual(data.feed.listOutRules(DEMO_PROJECT_ID)[0]?.judgment, fixture.reference);
+    assert.throws(() => data.feed.outRules.update(DEMO_PROJECT_ID, rule.rule_id, { name: " " }));
+    assert.throws(() => data.feed.outRules.update(DEMO_PROJECT_ID, "missing-rule", { name: "替换" }));
+    assert.deepEqual(data.feed.outRules.list(DEMO_PROJECT_ID)[0]?.judgment, fixture.reference);
     const ingested = data.feed.ingestItem({
       source: data.source,
       externalId: "launch-judge",
@@ -124,7 +116,7 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
 test("re-ingesting the same envelope does not create a new Artifact lineage", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -183,7 +175,7 @@ test("creating a rule does not backfill historical Feed Items", () => {
       occurredAt: "2026-09-14T00:00:00.000Z",
       attention: false,
     });
-    data.feed.createOutRule(DEMO_PROJECT_ID, {
+    data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -213,16 +205,17 @@ test("creating a rule does not backfill historical Feed Items", () => {
 test("registerVersion failure writes artifact_out_failed Attention and keeps the Feed Item", () => {
   const data = harness({
     artifacts: {
-      registerVersion() {
-        throw Object.assign(new Error("injected artifact failure"), { code: "artifacts.artifact.unavailable" });
-      },
-      latestVersion() {
-        return null;
-      },
+      // The 成果库 refuses the capture itself, not the call: Feed records it as the item's failed capture.
+      capture: (_projectId, write) => write({
+        head: () => null,
+        publish() {
+          throw Object.assign(new Error("injected artifact failure"), { code: "artifacts.artifact.unavailable" });
+        },
+      }),
     },
   });
   try {
-    data.feed.createOutRule(DEMO_PROJECT_ID, {
+    data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -252,10 +245,65 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
   }
 });
 
+// RAC-510: a capture is pinned in the commit of its item, and a refusal of the call itself there (cancelled, revoked, stopped, a permission
+// withdrawn from the running installation, the provider replaced) is the call's, not a failed capture: it goes up, so the Runtime rolls the
+// whole commit back, and Feed records no artifact_out_failed for it.
+for (const [what, refusal, expected] of [
+  ["revoked", new ActionError("actions.forbidden", "所属安装已停止或撤权"), { code: "actions.forbidden" }],
+  ["permission withdrawn", new ActionError("actions.plugin_permission", "插件所需授权已撤销"), { code: "actions.plugin_permission" }],
+  ["provider replaced", new ActionError("actions.provider_changed", "所需能力的提供方已变化，原引用不能自动替换"), { code: "actions.provider_changed" }],
+  ["cancelled", new DOMException("This operation was aborted", "AbortError"), { name: "AbortError" }],
+] as const) {
+  test(`RAC-510 a refusal of the call while capturing (${what}) goes up and is not recorded as a failed capture`, () => {
+    const data = harness({
+      artifacts: { capture: () => { throw refusal; } },
+    });
+    try {
+      data.feed.outRules.create(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+      assert.throws(() => data.feed.ingestItem({
+        source: data.source,
+        externalId: "launch-refused",
+        title: "Launch refused",
+        summary: "The call was refused",
+        occurredAt: "2026-09-15T00:00:00.000Z",
+        attention: false,
+      }), expected);
+      assert.equal(data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) => entry.reason === "artifact_out_failed").length, 0);
+    } finally {
+      close(data);
+    }
+  });
+}
+
+// Anything else a capture throws is the item's failed capture, as on main, an error without a code too (a TypeError of the content, a SQLite
+// error): the item stays, so one item that cannot be captured does not hold its batch back on every retry.
+test("RAC-510 a capture that throws without a code is recorded as feed_artifact_register_failed and keeps the Feed Item", () => {
+  const data = harness({
+    artifacts: { capture: (_projectId, write) => write({ head: () => null, publish() { throw new TypeError("不是可保存的 JSON 值"); } }) },
+  });
+  try {
+    data.feed.outRules.create(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+    const ingested = data.feed.ingestItem({
+      source: data.source,
+      externalId: "launch-uncapturable",
+      title: "Launch uncapturable",
+      summary: "The content cannot be saved",
+      occurredAt: "2026-09-15T00:00:00.000Z",
+      attention: false,
+    });
+    const failures = data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) =>
+      entry.subject_id === ingested.item.item_id && entry.reason === "artifact_out_failed");
+    assert.deepEqual(failures.map((entry) => entry.detail.error_codes), [["feed_artifact_register_failed"]]);
+    assert.equal(data.feed.getFeedItem(DEMO_PROJECT_ID, ingested.item.item_id).item_id, ingested.item.item_id);
+  } finally {
+    close(data);
+  }
+});
+
 test("source_rule Attention can coexist with a successful out capture", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -284,16 +332,16 @@ test("source_rule Attention can coexist with a successful out capture", () => {
 test("out-rule CRUD rejects an empty match and can disable a rule", () => {
   const data = harness();
   try {
-    assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
+    assert.equal(data.feed.outRules.list(DEMO_PROJECT_ID).length, 0);
     assert.throws(
-      () => data.feed.createOutRule(DEMO_PROJECT_ID, { name: "空规则", match: {} }),
+      () => data.feed.outRules.create(DEMO_PROJECT_ID, { name: "空规则", match: {} }),
       (error: unknown) => error instanceof ActionError && error.code === "feed.out_rule_invalid",
     );
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
-    data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { enabled: false });
+    data.feed.outRules.update(DEMO_PROJECT_ID, rule.rule_id, { enabled: false });
     data.feed.ingestItem({
       source: data.source,
       externalId: "launch-disabled",
@@ -308,8 +356,8 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
       }).length,
       0,
     );
-    data.feed.deleteOutRule(DEMO_PROJECT_ID, rule.rule_id);
-    assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
+    data.feed.outRules.delete(DEMO_PROJECT_ID, rule.rule_id);
+    assert.equal(data.feed.outRules.list(DEMO_PROJECT_ID).length, 0);
   } finally {
     close(data);
   }
@@ -361,36 +409,36 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
 
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   // Out-rules belong to a Source; a new project has none until one is added.
-  const registered = await webFetch(`${origin}${prefix}/api/feed/sources`, { method: "POST", headers: { "content-type": "application/json" },
+  const registered = await webFetch(`${origin}${prefix}${FEED_API}/sources`, { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }) });
   assert.equal(registered.status, 201, await registered.clone().text());
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.match(page, /data-feed-rule-instructions/);
   assert.match(page, /data-feed-out-rule-function-key/);
-  const directory = await (await webFetch(`${origin}${prefix}/api/feed/out-rules/judgments`)).json() as { choices: { reference: { capability_id: string } }[] };
+  const directory = await (await webFetch(`${origin}${prefix}${FEED_API}/out-rules/judgments`)).json() as { choices: { reference: { capability_id: string } }[] };
   assert.ok(directory.choices.some(choice => choice.reference.capability_id === "functions.published.system_admit_inbox"));
   assert.doesNotMatch(page, /data-feed-add-out-rule-function-key/);
 
   const published = (key: string) => ({ capability_id: `functions.published.${key}`, version: 1, provider_id: "system.functions" });
-  const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const unpublished = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "坏判断", contains: "launch", judgment: published("not_a_published_function") }),
   });
   assert.equal(unpublished.status, 400);
-  const emptyAfterUnpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const emptyAfterUnpublished = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(((await emptyAfterUnpublished.json()) as { rules: unknown[] }).rules.length, 0);
 
-  const mismatched = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const mismatched = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "首页判断", contains: "launch", judgment: published("system_pick_home_dock") }),
   });
   assert.equal(mismatched.status, 400);
-  const emptyAfterMismatch = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const emptyAfterMismatch = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(((await emptyAfterMismatch.json()) as { rules: unknown[] }).rules.length, 0);
 
-  const bound = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const bound = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "发布判断", contains: "launch", judgment: published("system_admit_inbox") }),
@@ -398,12 +446,12 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   assert.equal(bound.status, 201);
   const boundBody = await bound.json() as { rule: { rule_id: string; judgment: unknown } };
   assert.deepEqual(boundBody.rule.judgment, published("system_admit_inbox"));
-  const deletedBound = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
+  const deletedBound = await webFetch(`${origin}${prefix}${FEED_API}/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
     method: "DELETE",
   });
   assert.equal(deletedBound.status, 200);
 
-  const createdRule = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const createdRule = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "发布相关", contains: "launch" }),
@@ -412,12 +460,12 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const createdBody = await createdRule.json() as { rule: { rule_id: string; enabled: boolean; match: { contains?: string } } };
   assert.equal(createdBody.rule.match.contains, "launch");
 
-  const listed = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const listed = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(listed.status, 200);
   const listedBody = await listed.json() as { rules: Array<{ rule_id: string }> };
   assert.equal(listedBody.rules.length, 1);
 
-  const patched = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
+  const patched = await webFetch(`${origin}${prefix}${FEED_API}/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ enabled: false }),
@@ -426,14 +474,14 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const patchedBody = await patched.json() as { rule: { enabled: boolean } };
   assert.equal(patchedBody.rule.enabled, false);
 
-  const deleted = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
+  const deleted = await webFetch(`${origin}${prefix}${FEED_API}/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
     method: "DELETE",
   });
   assert.equal(deleted.status, 200);
-  const after = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const after = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(((await after.json()) as { rules: unknown[] }).rules.length, 0);
 
-  const empty = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const empty = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "空规则" }),
@@ -466,18 +514,13 @@ test("Feed rule preview matches recent source messages without writes or backfil
       occurredAt: `2026-09-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`, attention: false,
     });
     data.feed.ingestItem({ source: another, externalId: "foreign", title: "launch from another source", summary: "foreign", occurredAt: "2026-09-30T00:00:00.000Z", attention: false });
-    const unused = (): never => { throw new Error("preview called a mutating or unrelated port"); };
     const service = new ActionService();
     service.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: "preview-project" },
       definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_PROJECT_ID, item => item) });
-    const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
-      actions: bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })),
-      routePrefix: "", inboxEntries: unused, connectors: unused,
-      changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused,
-    }));
+    const routes = feedTestRoutes(bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })));
     const writesBefore = data.store.db.prepare("SELECT total_changes() AS n").get();
     const before = data.feed.snapshot(DEMO_PROJECT_ID);
-    const request = { method: "POST" as const, pathname: "/api/feed/out-rules/preview", query: new URLSearchParams(), body: { source_id: data.source.source_id, contains: "launch" } };
+    const request = { method: "POST" as const, pathname: `${FEED_API}/out-rules/preview`, query: new URLSearchParams(), body: { source_id: data.source.source_id, contains: "launch" } };
     const response = await routes.handle(request);
     assert.equal(response?.status, 200);
     const samples = (response?.body as { samples: { title: string; matched: boolean; input: string }[] }).samples;
@@ -493,7 +536,7 @@ test("Feed rule preview matches recent source messages without writes or backfil
 test("Feed rule validation cannot overwrite a rule edited while its selected capability was being checked", async () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, { name: "原规则", match: { contains: "launch" } });
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, { name: "原规则", match: { contains: "launch" } });
     const service = new ActionService();
     let entered!: () => void, release!: () => void;
     const ready = new Promise<void>(resolve => { entered = resolve; });
@@ -507,9 +550,9 @@ test("Feed rule validation cannot overwrite a rule edited while its selected cap
     const pending = client.invoke(feedRuleActions.update, { rule_id: rule.rule_id, patch: {
       judgment: { capability_id: "fixture.judgment", version: 1, provider_id: "fixture" }, name: "旧页面修改" } });
     await ready;
-    data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: "另一窗口的新修改" });
+    data.feed.outRules.update(DEMO_PROJECT_ID, rule.rule_id, { name: "另一窗口的新修改" });
     release(); await assert.rejects(pending, { code: "feed.revision_conflict" });
-    const saved = data.feed.listOutRules(DEMO_PROJECT_ID).find(value => value.rule_id === rule.rule_id)!;
+    const saved = data.feed.outRules.list(DEMO_PROJECT_ID).find(value => value.rule_id === rule.rule_id)!;
     assert.equal(saved.name, "另一窗口的新修改"); assert.equal(saved.judgment, null);
   } finally { close(data); }
 });

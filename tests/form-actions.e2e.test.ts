@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -160,6 +160,14 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   // The form being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage();await open();await waitFor("document.querySelector('[data-form-title]')?.getClientRects().length > 0");await idle();
   await click('[data-form-tab=results]');await idle();
+  // Assert the restored result set before inspecting its historical answer; capture the page if it never appears.
+  try { await waitFor("document.querySelector('[data-form-result-summary]').textContent === '2 份答卷'"); }
+  catch(error) {
+    t.diagnostic(JSON.stringify(await evaluate(`({summary:document.querySelector('[data-form-result-summary]').textContent,result:document.querySelector('[data-form-result-list]').textContent,
+      tabs:[...document.querySelectorAll('[data-form-tab]')].map(n=>n.outerHTML),panes:[...document.querySelectorAll('[data-form-pane]')].map(n=>n.outerHTML.slice(0,200)),
+      note:document.querySelector('[data-form-note]').outerHTML,confirm:document.querySelector('[data-form-confirm]').outerHTML,body:document.body.innerText.slice(-3500)})`)));
+    throw error;
+  }
   assert.match(await evaluate<string>("document.querySelector('[data-form-result-list]').textContent"),/已删掉的题.*历史回答/);
   assert.equal(await evaluate("document.querySelector('[data-form-stage-workspace]').scrollLeft"),0);
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'));

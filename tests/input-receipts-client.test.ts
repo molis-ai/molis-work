@@ -394,8 +394,8 @@ test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's ow
 
 // Stage 3d-4 (§4.3, D21): what the board records about the step added for a supplement, apart from what the AI says.
 const added = (state: string, extra: Record<string, unknown> = {}) => ({ nodes: [
-  { state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1, by: "本会话" }] },
-  { state, title: "注册接口失败路径测试", inserted: true, origins: [{ session_id: "s", input_id: "steer-1" }], reports: [{ note: "用户插入：注册接口失败路径测试；完成条件：测试通过", at_ms: 2, by: "用户" }], ...extra },
+  { state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1, by: { kind: "session", label: "本会话" } }] },
+  { state, title: "注册接口失败路径测试", inserted: true, origins: [{ session_id: "s", input_id: "steer-1" }], reports: [{ note: "用户插入：注册接口失败路径测试；完成条件：测试通过", at_ms: 2, by: { kind: "person", label: "用户" } }], ...extra },
 ] });
 
 test("RCPT-354, 3d-4: the step the board says was added for it is a fact of the records, said apart from what the AI says", () => {

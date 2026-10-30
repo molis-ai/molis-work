@@ -1,4 +1,4 @@
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginAttentionDeclaration, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginManifestDigest } from "./identity.js";
 
 export interface PluginRuntimeReleaseArtifact {
@@ -39,6 +39,8 @@ export const PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL = `
 
 /** Code shipped by a trusted Native factory, stored inside the project Runtime database. */
 export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRuntimeReleaseArtifactRepository {
+  /** `declaredAttention`'s statement, prepared once: the Inbox asks it of every running installation on each check. */
+  private attention?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
   constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {
     db.exec(PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL);
   }
@@ -48,6 +50,17 @@ export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRunti
       WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
       .get(pluginId, publisherSignature, version, manifestDigest) as { artifact_json: string } | undefined;
     return row ? JSON.parse(row.artifact_json) as PluginRuntimeReleaseArtifact : null;
+  }
+
+  /**
+   * The `attention` one build's Manifest declared, or null (the build is not archived, or declares none). The Inbox asks it of every running
+   * installation, so it is read in SQLite without parsing the build's module source.
+   */
+  declaredAttention(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): PluginAttentionDeclaration | null {
+    const row = (this.attention ??= this.db.prepare(`SELECT json_extract(artifact_json, '$.manifest.attention') AS attention FROM plugin_runtime_release_artifacts
+      WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`))
+      .get(pluginId, publisherSignature, version, manifestDigest) as { attention: string | null } | undefined;
+    return row?.attention ? JSON.parse(row.attention) as PluginAttentionDeclaration : null;
   }
 
   list(pluginId: string, publisherSignature: string): PluginRuntimeReleaseArtifact[] {
@@ -111,4 +124,18 @@ function validateArtifact(artifact: PluginRuntimeReleaseArtifact): void {
 
 function artifactKey(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): string {
   return `${pluginId}\u0000${publisherSignature}\u0000${version}\u0000${manifestDigest}`;
+}
+
+/**
+ * The Manifest an install record was started with, as the release archive in the same database kept it (null when no row is there:
+ * the plugin was started without a stored release). Reads only: the table is not created, so a database opened read-only works,
+ * and one that never ran a start has no table and answers null.
+ */
+export function readPluginReleaseManifest(db: Pick<PluginRuntimeReleaseArtifactDatabase, "prepare">,
+  record: Pick<PluginInstanceRecord, "plugin_id" | "publisher_signature" | "version" | "manifest_digest">): PluginManifest | null {
+  if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugin_runtime_release_artifacts'").get()) return null;
+  const row = db.prepare(`SELECT artifact_json FROM plugin_runtime_release_artifacts
+    WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
+    .get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest) as { artifact_json: string } | undefined;
+  return row ? (JSON.parse(row.artifact_json) as PluginRuntimeReleaseArtifact).manifest : null;
 }

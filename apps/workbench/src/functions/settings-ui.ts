@@ -1,8 +1,8 @@
-import type { FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsUiPrimitives } from "./ui.js";
 
 export interface FunctionsSettingsUiModel {
-  readonly settings: FunctionsSettingsStatus;
+  readonly settings: JudgmentRuleSettingsStatus;
   readonly primitives: FunctionsUiPrimitives;
   readonly connections?: readonly { connection_id: string; display_name: string; state: string }[];
   readonly selected_connection_id?: string;

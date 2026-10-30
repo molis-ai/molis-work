@@ -41,7 +41,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 ### 平台产品服务
 
-回答“跨插件的产品行为由谁统一管”。目前有四项：记忆（`horizontal/memory`）、放置（`horizontal/placement`）、系统搜索（`horizontal/search`）和情境排序（`packages/kernel` 的 `contextual.ts`）。它们可以持有跨插件的策略——哪些内容可以记住、对象放在哪里、搜索结果怎样按调用者权限聚合、情境里先给用户看什么——也可以保存本服务自己的机制记录，例如记忆的开关与候选、放置的关联与来源、可删除重建的搜索索引；但不拥有任何业务事实：对象事实总向所有者读取，策略不改写插件或 Module 的事实，也不替它们决定业务结果。它们的能力以系统动作登记在同一个动作目录里，情境排序是目前唯一的例外：它只给工作台自己的选区条用，只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行（2026-10-10 的日常取舍；删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作）。代码位置暂不变动：前三项仍在 `horizontal/` 下，情境排序在 `packages/kernel` 里与内核核心分开（边界由 `pnpm health:check` 守着，见 [包边界](PACKAGE-BOUNDARIES.md) §6），按职责都属于本类。
+回答“跨插件的产品行为由谁统一管”。目前有五项：记忆（`horizontal/memory`）、放置（`horizontal/placement`）、系统搜索（`horizontal/search`）、项目资料（`horizontal/knowledge`）和情境排序（`packages/kernel` 的 `contextual.ts`）。它们可以持有跨插件的策略——哪些内容可以记住、对象放在哪里、搜索结果怎样按调用者权限聚合、情境里先给用户看什么——也可以保存本服务自己的机制记录，例如记忆的开关与候选、放置的关联与来源、可删除重建的搜索索引；但不拥有任何业务事实：对象事实总向所有者读取，策略不改写插件或 Module 的事实，也不替它们决定业务结果。它们的能力以系统动作登记在同一个动作目录里，情境排序是目前唯一的例外：它只给工作台自己的选区条用，只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行（2026-10-10 的日常取舍；删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作）。代码位置暂不变动：前四项仍在 `horizontal/` 下，情境排序在 `packages/kernel` 里与内核核心分开（边界由 `pnpm health:check` 守着，见 [包边界](PACKAGE-BOUNDARIES.md) §6），按职责都属于本类。
 
 ### Plugin
 
@@ -77,7 +77,7 @@ Goals 与成果（Artifacts）是两个内置插件，各自拥有自己的事�
 
 当前本地 Goal 工作使用一套事件协议。Goals 保存意图、笔记、类型版本、报告、当前约定与要求，并决定显式收尾的完成效果；Governance 保存可信用户决定与有限树提案。Native Goals 组合用例和界面，Host 提供已绑定项目、Session 身份与同库事务，MCP/Web 不另算工作状态。普通记录不要求先建立规划。
 
-旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。真实 Session、Runtime 进程和终端仍由 Work/Runtime Host 负责。当前调用合同见 [Goals](../modules/goals.md)、[Governance](../modules/governance-collaboration.md) 和 [Runtime](../runtime.md)。
+旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。Runtime 进程和终端由 Runtime Host 与终端工作区负责（Sessions 已下线，重做见 BL-177）。当前调用合同见 [Goals](../modules/goals.md)、[Governance](../modules/governance-collaboration.md) 和 [Runtime](../runtime.md)。
 
 ## 6. Local 与 Server
 
@@ -85,7 +85,7 @@ Goals 与成果（Artifacts）是两个内置插件，各自拥有自己的事�
 
 Local Host 是用户真正工作的地方，组合完整 Module、Horizontal Service、平台产品服务、Plugin Runtime、Storage 和 Adapter。Desktop、Workbench、CLI、MCP 共享同一个 Host 能力，不各自维护一套业务状态。
 
-AP2 已落地 embedded Local Host：typed Capability/Client Contract、Kernel registry、按 Project 复用的单 Runtime，以及 Web/CLI/MCP 的统一兼容装配。一个 Home 只有一个常驻宿主（Web 服务）持有执行；stdio MCP 等其他进程经本机动作网关（`/api/internal/action-service`）转发给它。详细边界见 [`LOCAL-HOST.md`](../platform/LOCAL-HOST.md)。
+AP2 已落地 embedded Local Host：typed Capability/Client Contract、Kernel registry、按 Project 复用的单 Runtime，以及 Web/CLI/MCP 的统一兼容装配。其中 typed 通道与 Kernel 的 typed 注册是 AP2 当时的形态，R8 已删：现在能力只经 `registerAction` 注册成动作，进同一个动作目录。一个 Home 只有一个常驻宿主（Web 服务）持有执行；stdio MCP 等其他进程经本机动作网关（`/api/internal/action-service`）转发给它。详细边界见 [`LOCAL-HOST.md`](../platform/LOCAL-HOST.md)。
 
 AP4 已把 Desktop 的启动配方、Panel lifecycle、Capsule presentation 和 Tauri native adapter 迁入 `apps/desktop`。Desktop 通过 port 使用 Project/context 能力，不直接拥有 Projects Store；`apps/desktop/src-tauri/` 只保留发布配置。当前能力和未来系统通知、Keychain、App updater 的边界见 [`DESKTOP.md`](../platform/DESKTOP.md)。
 

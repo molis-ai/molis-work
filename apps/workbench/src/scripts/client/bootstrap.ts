@@ -68,6 +68,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const documentCollection = trashView ? "trash" : archiveView ? "archive" : "current";
     const routePrefix = document.body.dataset.routePrefix || "";
     const route = (pathname) => routePrefix + pathname;
+    const feedApi = "/api/plugins/io.molis.work.feed";
     const api = (pathname,method,body,msg="来源操作失败") => molisWorkRequest(route(pathname), {method,body:body==null?undefined:body,fallback:L(msg)});
     const markFeedItemRead = async (row, entryId) => {
       if (
@@ -81,7 +82,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       const detail = feedWorkbench?.querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');
       const status = detail?.querySelector("[data-feed-action-status]");
       try {
-        await api("/api/feed/items/" + encodeURIComponent(itemId) + "/read", "POST", {});
+        await api(feedApi + "/items/" + encodeURIComponent(itemId) + "/read", "POST", {});
         row.dataset.feedEntryRead = "read";
         if (detail) detail.dataset.feedDetailRead = "read";
         row.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
@@ -140,7 +141,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let pluginWorkbench = null;
     let globalSearchPalette = null;
     let desktopDirectoryOrigin = null;
-    let activeDesktopSurface = document.body.dataset.desktopSurface || "goal";
+    let activeDesktopSurface = document.body.dataset.desktopSurface || "goals";
     let activeFeedPreset = feedDirectory?.dataset.feedPreset || "feed";
     let selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";

@@ -1,14 +1,13 @@
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { AgentRelease } from './installed-plugin-host.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
-import { releaseVersion } from './plugin-builder/installed.js';
+import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { pluginPagesFor } from './plugin-page-authority.js';
 
 interface ExposurePorts {
   homeDirectory: string; actorId: string;
-  actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: PluginPlatform;
+  actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
   exposed: Map<string, InstalledPluginActions>; recoveryErrors: Map<string, string>;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   closed(): boolean; withdraw(pluginId: string): void; changed(): void; catalog(): Promise<unknown>;
@@ -16,9 +15,9 @@ interface ExposurePorts {
 
 /** A stale catalog response belongs to its original exposure and enablement, not the plugin id's newest instance. */
 export function installedPluginExposure(c: ExposurePorts) {
-  return async (release: AgentRelease, onFailure?: 'caller') => {
+  return async (release: InstalledRelease, onFailure?: 'caller') => {
     const pluginId = release.pluginId, record = c.recordFor(pluginId), epoch = c.platform.supervisor.generation(pluginId);
-    if (c.closed() || !record || epoch === undefined || record.state !== 'running' || record.version !== releaseVersion(release.version)) throw new Error('原插件安装或启用状态已变化，不能采用旧曝光结果');
+    if (c.closed() || !record || epoch === undefined || record.state !== 'running' || record.version !== installedVersion(release)) throw new Error('原插件安装或启用状态已变化，不能采用旧曝光结果');
     c.withdraw(pluginId);
     let exposure: InstalledPluginActions | undefined;
     const current = () => {
@@ -48,7 +47,13 @@ export function installedPluginExposure(c: ExposurePorts) {
       if (current()) {
         c.recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error));
         // Install/enable owns their cleanup; a version switch restores its old release and keys instead of revoking itself first.
-        if (onFailure !== 'caller') { c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId); await c.platform.runtime.stop(record.install_id); }
+        if (onFailure !== 'caller') {
+          c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);
+          // The installation may have left running while this exposure was reading the catalog; its own failure is what the person needs.
+          await c.platform.runtime.stop(record.install_id).catch((error: unknown) => {
+            if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
+          });
+        }
       } else throw new ActionError('actions.provider_replaced', '原插件曝光或启用已变化，旧请求不再恢复或停用当前实例');
       throw error;
     }

@@ -8,10 +8,10 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
-import { readPersonalPlanningMethodPacks } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
+import { savePersonalMethod } from "./fixtures/personal-planning.js";
 
 test("planning actions preserve complete methods, project versions, live policy and restart state", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-planning-actions-"));
@@ -132,12 +132,10 @@ test("project planning HTTP reads, adopts and saves through current action polic
 test("applying a personal override preserves executable Goal event configuration and project ownership", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-planning-personal-"));
   const source = BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!;
-  const project = await withCatalog({ homeDirectory: home }, async c => {
-    c.personalPlanningMethods.save({ ...source, name: "我的工程方法", instructions: "先记录真实交付，再验证结果。" }, new Date().toISOString());
-    return c.createProject({ display_name: "Personal planning", actor_id: "user" });
-  });
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Personal planning", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, planningMethods: () => readPersonalPlanningMethodPacks(home) });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  await savePersonalMethod(host, { ...source, name: "我的工程方法", instructions: "先记录真实交付，再验证结果。" });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:planner", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] }));
   try {
     const applied = await actions.invoke(goalsActions.planningApply, { method_id: source.method_id, user_confirmed: true });

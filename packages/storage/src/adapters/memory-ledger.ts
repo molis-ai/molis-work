@@ -8,6 +8,8 @@ import type {
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { isDeepStrictEqual } from "node:util";
+import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
 
@@ -20,7 +22,7 @@ import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js"
 export const MEMORY_LEDGER_STORE = "memory";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 3, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 4, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -64,67 +66,43 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
   try { applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE); } catch (error) { db.close(); throw error; }
   let depth = 0;
+  const retention = createMemoryLedgerRetention(db, work => ledger.transaction(work));
   const ledger: MemoryLedgerPort = {
-    forget: memoryId => ledger.transaction(() => {
-      db.prepare("DELETE FROM memory_revisions WHERE memory_id=?").run(memoryId);
-      db.prepare("DELETE FROM memory_uses WHERE memory_id=?").run(memoryId);
-      // Recent changes stay (what happened, when), but no longer carry the deleted text.
-      for (const row of db.prepare("SELECT change_id, body FROM memory_changes WHERE memory_id=?").all(memoryId)) {
-        const change = JSON.parse(String(row.body)) as MemoryChangeRecord;
-        db.prepare("UPDATE memory_changes SET body=? WHERE change_id=?").run(JSON.stringify({ ...change, text: "", reason: null, undoable: false, undo: null }), String(row.change_id));
-      }
-      // A pair that named it shows no copy of it any more.
-      for (const row of db.prepare("SELECT pair_id, body FROM memory_pairs").all()) {
-        const pair = JSON.parse(String(row.body)) as { a: { memory_id: string }; b: { memory_id: string } };
-        if (pair.a.memory_id === memoryId || pair.b.memory_id === memoryId) db.prepare("DELETE FROM memory_pairs WHERE pair_id=?").run(String(row.pair_id));
-      }
-      // Candidates that became this memory keep no copy of it either.
-      for (const row of db.prepare("SELECT candidate_id, body FROM memory_candidates").all()) {
-        const candidate = JSON.parse(String(row.body)) as MemoryCandidateRecord;
-        if (candidate.memory_id === memoryId) db.prepare("UPDATE memory_candidates SET body=? WHERE candidate_id=?")
-          .run(JSON.stringify({ ...candidate, text: "", why: "", memory_id: null }), String(row.candidate_id));
-      }
-    }),
-    forgetScopes: input => ledger.transaction(() => {
-      const gone = new Set(input.scopes.map(item => JSON.stringify([item.scope, item.owner])));
-      // Changes, candidate notes and pairs carry their scope and owner in the record, not in a column.
-      const drop = (table: string, key: string) => {
-        for (const row of db.prepare(`SELECT ${key}, body FROM ${table}`).all()) {
-          const record = JSON.parse(String(row.body)) as { scope?: string; owner?: string };
-          if (gone.has(JSON.stringify([record.scope, record.owner]))) db.prepare(`DELETE FROM ${table} WHERE ${key}=?`).run(String(row[key]));
-        }
-      };
-      drop("memory_changes", "change_id");
-      drop("memory_candidates", "candidate_id");
-      drop("memory_pairs", "pair_id");
-      for (const item of input.scopes) db.prepare("DELETE FROM memory_owners WHERE scope=? AND owner=?").run(item.scope, item.owner);
-      db.prepare("DELETE FROM memory_owners WHERE project_id=?").run(input.project_id);
-      for (const key of input.prefs_keys) db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
-      for (const key of input.marker_keys) db.prepare("DELETE FROM memory_markers WHERE key=?").run(key);
-      for (const prefix of input.signal_prefixes) db.prepare("DELETE FROM memory_signal_events WHERE substr(key, 1, ?)=?").run(prefix.length, prefix);
-    }),
+    forget: retention.forget,
+    forgetScopes: retention.forgetScopes,
     revisions: memoryId => db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId)
       .map(row => JSON.parse(String(row.body)) as MemoryRevision),
-    addRevision: (memoryId, revision) => {
-      db.prepare("INSERT INTO memory_revisions(memory_id,version,body) VALUES (?,?,?) ON CONFLICT(memory_id,version) DO UPDATE SET body=excluded.body")
+    addRevision: (memoryId, revision) => ledger.transaction(() => {
+      retention.assertNotForgotten(memoryId);
+      const before = parse<MemoryRevision>(db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? AND version=?").get(memoryId, revision.version));
+      if (before) {
+        if (!isDeepStrictEqual({ text: before.text, kind: before.kind, applies: before.applies, snapshot: before.snapshot },
+          { text: revision.text, kind: revision.kind, applies: revision.applies, snapshot: revision.snapshot })) {
+          throw Object.assign(new Error("同一记忆版本的历史内容不能被重写"), { code: "memory.conflict" });
+        }
+        return;
+      }
+      db.prepare("INSERT INTO memory_revisions(memory_id,version,body) VALUES (?,?,?)")
         .run(memoryId, revision.version, JSON.stringify(revision));
-    },
+    }),
     candidates: actorId => db.prepare("SELECT body FROM memory_candidates WHERE actor_id=? ORDER BY rowid").all(actorId)
       .map(row => JSON.parse(String(row.body)) as MemoryCandidateRecord),
-    saveCandidate: record => {
+    saveCandidate: record => ledger.transaction(() => {
+      if (record.memory_id) retention.assertNotForgotten(record.memory_id);
       db.prepare("INSERT INTO memory_candidates(candidate_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(record.candidate_id, record.actor_id, record.state, JSON.stringify(record));
-    },
+    }),
     dropCandidate: candidateId => { db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(candidateId); },
     changes: (actorId, limit) => db.prepare("SELECT body FROM memory_changes WHERE actor_id=? ORDER BY at DESC, rowid DESC LIMIT ?").all(actorId, limit)
       .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
     changesOf: memoryId => db.prepare("SELECT body FROM memory_changes WHERE memory_id=? ORDER BY at DESC, rowid DESC").all(memoryId)
       .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
     change: changeId => parse<MemoryChangeRecord>(db.prepare("SELECT body FROM memory_changes WHERE change_id=?").get(changeId)),
-    saveChange: record => {
+    saveChange: record => ledger.transaction(() => {
+      if (record.memory_id && (record.text || record.reason || record.undoable || record.undo)) retention.assertNotForgotten(record.memory_id);
       db.prepare("INSERT INTO memory_changes(change_id,actor_id,memory_id,at,body) VALUES (?,?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET memory_id=excluded.memory_id, body=excluded.body")
         .run(record.change_id, record.actor_id, record.memory_id, record.at, JSON.stringify(record));
-    },
+    }),
     prefs: (actorId, key) => parse<Partial<MemoryPrefs>>(db.prepare("SELECT body FROM memory_prefs WHERE actor_id=? AND key=?").get(actorId, key)),
     savePrefs: (actorId, key, prefs) => {
       db.prepare("INSERT INTO memory_prefs(actor_id,key,body) VALUES (?,?,?) ON CONFLICT(actor_id,key) DO UPDATE SET body=excluded.body").run(actorId, key, JSON.stringify(prefs));
@@ -136,10 +114,23 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       return { state: Number(inserted.changes) > 0 ? "counted" as const : "duplicate" as const, count: Number(counts.count), distinct: Number(counts.distinct_count) };
     }),
     recordUses: uses => ledger.transaction(() => {
-      for (const use of uses) db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body")
-        .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
+      for (const use of uses) {
+        // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
+        if (retention.isForgotten(use.memory_id)) continue;
+        const before = parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?").get(use.memory_id, use.receipt_id));
+        if (before?.source === "run-context") {
+          if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
+            [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
+            throw Object.assign(new Error("同一记忆回执的执行与版本不能被替换"), { code: "memory.conflict" });
+          }
+          const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
+          if (rank(before.state) >= rank(use.state)) continue;
+        }
+        db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body")
+          .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
+      }
     }),
-    lastUse: memoryId => parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='used' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
+    lastUse: memoryId => parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='response-observed' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
     uses: filter => {
       const where: string[] = [], values: string[] = [];
       if (filter.receipt_id) { where.push("receipt_id=?"); values.push(filter.receipt_id); }
@@ -163,10 +154,11 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       return [...found.values()];
     },
     pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
-    savePair: (actorId, pair) => {
+    savePair: (actorId, pair) => ledger.transaction(() => {
+      retention.assertNotForgotten(pair.a.memory_id); retention.assertNotForgotten(pair.b.memory_id);
       db.prepare("INSERT INTO memory_pairs(pair_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(pair_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(pair.pair_id, actorId, pair.state, JSON.stringify(pair));
-    },
+    }),
     marker: (actorId, key) => {
       const row = db.prepare("SELECT at, body FROM memory_markers WHERE actor_id=? AND key=?").get(actorId, key);
       return row ? { at: String(row.at), body: JSON.parse(String(row.body)) as unknown } : null;

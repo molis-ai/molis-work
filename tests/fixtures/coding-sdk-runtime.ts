@@ -3,10 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { ActionService } from "@molis-ai/molis-work-kernel";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -25,13 +24,14 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
   await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
   seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), sessions = codingSessions(store), service = new ActionService(), reviews = new AgentReviewQueue();
+  const store = new LocalProjectDatabase(file), sessions = codingSessions(store), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   let adapter = await makeAdapter(), agentHost = new AgentHost({ reviews }); agentHost.register(adapter);
   const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: file };
-  registerAgentHostCapabilities({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, {
-    agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], method_owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding" } }),
+  const service = { ...local.actionRegistry(reference), ...local.actionClient(reference), ...local.syncActionClient(reference) };
+  registerAgentHostCapabilities({ register: (definition, handler) => local.registerAction(definition, handler) }, {
+    agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], skill_owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding" } }),
   });
   local.registerAction(projectSettingsCapabilities.workspaces, () => [{ workspace_id: "work", canonical_path: home, display_name: "Fixture", realpath_verified: true }]);
   const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
@@ -49,7 +49,7 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
     } }] });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
     actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-  await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }, ...(options.extraPlugins ?? [])]);
+  await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), trust: { level: "host" }, grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }, ...(options.extraPlugins ?? [])]);
   t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
     await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";

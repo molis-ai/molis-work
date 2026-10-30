@@ -5,9 +5,9 @@
 ## 1. 定版本，写材料
 
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
-- [ ] 这个版本会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止，1.0 或更早出现的第一个外部用户，哪个先发生，它就是那个版本（`specs/repository-anti-corruption/spec.md` §1）。会的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程，库的版本变更要带升级路径，不再是拒绝加一次性维护（[POLICY.md](POLICY.md) 第 2、5 节和本清单第 4.3 节写的做法只到这一版为止）。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位；库的升级机制现在也没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2。不会的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。
+- [ ] 这个版本是 1.0.0 或之后、并且会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止；用户 2026-10-29 又定「1.0.0 之前都是开发版本」，所以 1.0.0 之前的版本都不是它（`specs/repository-anti-corruption/spec.md` §1）。两样都是的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程，库的版本变更要带升级路径，不再是拒绝加一次性维护（[POLICY.md](POLICY.md) 第 2、5 节和本清单第 4.3 节写的做法只到这一版为止）。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位；库的升级机制现在也没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2。有一样不是的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`（Feed、搜索运行时、MCP 客户端、Codex 会话传输的版本都从它取；[POLICY.md](POLICY.md) 第 1 节）。
-- [ ] 内置插件清单的版本与摘要：`BUILTIN_PLUGIN_CATALOG` 中现行 26 个内置 Manifest 均等于产品版本；`verify-release-versions.mjs` 核对源码，`tests/builtin-manifests-contract.test.ts` 核对构建后的目录。官方集成、示例与第三方插件独立编号。跑 `tests/plugin-release-artifact.test.ts` 验证 `bundled` 清单降版及同版本摘要变化仍跟随宿主。按第 4.5 节方法取得实际清单摘要并写入发布说明；表应覆盖整个目录，不只覆盖早期 7 个项目 Runtime 插件。
+- [ ] 内置插件清单的版本与摘要：`BUILTIN_PLUGIN_CATALOG` 中现行的内置 Manifest（不在这里写死个数）均等于产品版本；`verify-release-versions.mjs` 核对源码，`tests/builtin-manifests-contract.test.ts` 核对构建后的目录。官方集成、示例与第三方插件独立编号。跑 `tests/plugin-release-artifact.test.ts` 验证 `bundled` 清单降版及同版本摘要变化仍跟随宿主。按第 4.5 节方法取得实际清单摘要并写入发布说明；表应覆盖整个目录，不只覆盖早期 7 个项目 Runtime 插件。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
 - [ ] `node scripts/verify-release-versions.mjs` 通过（打 tag 时再加 `--tag v<版本>`）。
@@ -31,50 +31,60 @@
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
-| 项目库 | `projects/<project_id>/molis-work.db` | 9 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 11 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 拒绝（只停 Coding） |
-| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
+| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝（只停 Goals） |
+| 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 拒绝（只停 Inbox） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 23 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
-| 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
-| Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
-| 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
-| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 2 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
+| Functions | `functions/functions.db` | 4 | `user_version` | `modules/functions/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
+| 助理 | `assistant/assistant.db` | 3 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
+| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 3 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
+| 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 拒绝 |
+| 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 拒绝 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 拒绝 |
-| Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
-| 记忆 | `memory/memory.db` | 3 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧有效偏好需显式采用，不在启动时重设 |
+| Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 拒绝 |
+| Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 拒绝；目录库中的旧个人方法须显式维护移入，真实 Home 尚未执行 |
+| Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 拒绝 |
+| 记忆 | `memory/memory.db` | 4 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧有效偏好需显式采用，不在启动时重设 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
-| Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/store.ts#FORM_DATABASE` | 拒绝 |
+| Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 拒绝 |
+| 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 拒绝 |
 | 连接 | `connectors/connectors.db` | 2 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 拒绝 |
 | 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 拒绝 |
-| Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/store.ts#COGNIA_DATABASE` | 拒绝 |
-| Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/store.ts#DATASET_DATABASE` | 拒绝 |
-| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/store.ts#IMAGES_DATABASE` | 拒绝 |
-| Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/store.ts#JELLY_DATABASE` | 拒绝 |
-| 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/store.ts#LINGGUANG_DATABASE` | 拒绝 |
-| Pages | `pages/pages.db` | 2 | `user_version` | `plugins/native/pages/src/store.ts#PAGES_DATABASE` | 拒绝 |
-| PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/store.ts#PPT_DATABASE` | 拒绝 |
-| Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/store.ts#TODO_DATABASE` | 拒绝 |
-| Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_DATABASE` | 拒绝 |
+| Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 拒绝 |
+| Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 拒绝 |
+| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 拒绝 |
+| Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/database.ts#JELLY_DATABASE` | 拒绝 |
+| 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/database.ts#LINGGUANG_DATABASE` | 拒绝 |
+| Pages | `pages/pages.db` | 2 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 拒绝 |
+| PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 拒绝 |
+| Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 拒绝 |
+| Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
-| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
+| server（讨论） | `server/server.sqlite` | 2 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
 | 角色 | `characters/characters.sqlite` | 2 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
-| MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
+| MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 3 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
 - Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 - 统一服务接入将连接库基线从 1 改为 2，授权结果增加接入方案与发起者字段，并由连接 owner 保存最近检查和调用观察。原连接、协议、绑定及凭据引用保留；隔离副本维护已演练，真实 Home 尚未维护，不能直接用新构建打开旧库。维护与回退边界见[统一服务接入规格](../../specs/assistant-service-connections/spec.md) §9.3。
+- W5-16 B1 将讨论库从 1 升至 2，邀请只存 SHA-256，生成/更换回执不含原文；新建群尚无邀请，页面只在本人明确操作时生成。旧 v1 由运行时拒绝，不自动升级。一次性维护与 W5-17、Goals S9 进入同一个批准窗口：先在副本 `node tests/fixtures/im-invite-maintenance.mjs list --home <副本> --json`，再在已停写的副本 `apply --home <副本> --backup <Home 外的新目录> --json`；原链接仍有效，其他业务事实保持，新文件及 backup API 副本无已知邀请原文字节。原件和 WAL 留在私有备份，不进新快照。若留下 `server/.invite-maintenance.json`，宿主拒绝打开，先按 HOME-DATA 3.4 恢复原件；真实 Home 本项尚未执行，不能勾为完成。演练：`tests/im-invite-maintenance.test.ts`。
+
 - Sessions 收尾 SC-2 将角色库基线从 1 改为 2，新增 `character_runs`（角色的原生执行记录：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出），草稿表不变。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在停宿主、整份备份后按 `tests/fixtures/characters-maintenance-v2.sql` 维护（演练 `tests/characters-maintenance-v2.test.ts`，维护清单见 `specs/repository-anti-corruption/spec.md` §4.1）。以前记在会话库里的角色运行不迁。
-- 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
+- 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`）。
+- Sessions 下线（SC-4，2026-10-23）：`sessions/sessions.db`（v7）从上表删去——业务运行不再打开它，也没有升级路径；W5-16 离线技术备份只按 registry 的固定 owner/meta v7 声明用 backup API 保存，不恢复业务读者；旧库与 `sessions/content/` 留在 Home 里，备份与 `uninstall --purge-user-data` 仍按存储登记处理，清理另做（SC-5，在备份副本上，经用户批准）。
 - （实验插件已在 2026-10-10 删除，它的私有库不在上表里，Home 里残留的目录由第 4.3 节的维护六移出；下面是维护五当时的写法，作为历史保留。）实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
 - 项目库 v7（2026-10-10，用户决定删除 Casebook）比 v6 少 Casebook 的 5 张表（`casebook_interaction_scopes`、`casebook_interaction_facts`、`casebook_goal_contexts`、`casebook_interaction_audit_keys`、`casebook_interaction_actions`），别的表没变。新构建拒绝 v6 的项目库，只认 6 的旧构建（Home 安装版、已开着的会话里的 MCP）拒绝 v7，所以带这一行的发布要先做真实 Home 的维护六，见第 4.3 节。
 - 项目库 v8（2026-10-20，PG-020，`specs/plugin-project-database` L1b）：基线只剩平台与 Module 的表，多两张平台表——项目根 `project_root`（每库正好一行，id 与 Goals 的 Board 相同）和插件库账本 `plugin_project_databases`——11 张表的外键由 `boards` 改指 `project_root`。Coding、Feed、Goals、Schedule 的表不在基线里了（Coding、Feed、Schedule 的 8 张；Goals 的 31 张，含 `boards` 与治理的 4 张，S8）：各插件在 Manifest 的 `databases.project` 声明，Host 打开项目库时由平台第一次建表并记账本，以后按账本核对，发布者、版本或形状不符只停这个插件（Goals 被拒也只停 Goals），库和别的插件照常打开（上表 `#coding`、`#feed`、`#goals`、`#schedule` 四行；`位置` 里 `#` 后面是声明的 `store_name`）。Goals 的 `boards` 去掉了 `title` 列（项目名只在项目目录里），`project_id` 的外键指 `project_root`、随它删除，Goals 的其余 30 张表仍指 `boards`。新构建拒绝 v7 的项目库，只认 7 的旧构建拒绝 v8，所以带这一行的发布要先做第 4.3 节维护八里的项目库一项，有 v7 项目库的 Home 在维护之前不装新构建。
 - 项目库 v9（SYS-15）新增 scheduler 拥有的 `schedule_action_bindings`，将定时动作绑定到安装 id、世代和动作版本。旧任务不会由新安装自动执行。v8 拒绝直接打开；维护需在副本上建表并将缺少安装绑定的旧闹钟暂停，保留任务和历史，由人明确恢复。临时副本维护与失败回滚演练已通过（`tests/project-maintenance-v9.test.ts`，脚本 `tests/fixtures/project-maintenance-v9.sql`）；真实 Home 尚未维护，不能安装此构建到现有 Home。进度见[系统评审修复规格](../../specs/archive/system-review-fixes/spec.md)。
+- 项目库 v10 与 Home Plugin Runtime 库 v3（ac-trust T1，`specs/repository-anti-corruption/slices/ac-trust-install.md`）：安装记录表 `plugin_runtime_installs` 多一列 `publisher_trust`（`host`、`pinned`、`unsigned`，记录自己的 JSON 里也有同名字段），Home Runtime 库另多同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`。旧版本拒绝直接打开；维护按安装记录的 `execution` 补证据（`host` → `host`，`sandbox` → `unsigned`，两者之外的整笔回滚），演练是 `tests/project-maintenance-v10.test.ts`、`tests/plugin-runtime-maintenance-v3.test.ts`。内置插件的同意行由宿主启动时按当前 Manifest 幂等补上，不在维护里写。
+- 项目库 v11（Feed 的表归 Feed 声明，FI-5，`specs/repository-anti-corruption/slices/feed-inbox-store-into-feed.md`）：基线不再建 Feed 条目、Sources、Signals、Listener Host 的 11 张表和 11 条索引，由 Feed 的 `databases.project`（版本 2，12 张表）声明；`plugin_project_databases` 里 Feed 那一行从版本 1 变为版本 2、`tables_json` 列 12 张表和它们的索引。旧版本拒绝直接打开；Feed 的表与行一行不动，维护改 `user_version` 和这一行记录，并（FI-6，Feed、Inbox 改用平台服务）给 Inbox 条目与它们的事件写上 owner（Feed 事项、来源故障 → Feed，Goal 决定 → Goals）、把情境账里 Feed 的 `feed.goal:<事项>` 边的键改成 `io.molis.work.feed:feed.goal:<事项>`；日志历史不改写。演练是 `tests/project-maintenance-v11.test.ts`。
 - 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
 
 ## 4. 真实 Home 的处理
@@ -93,7 +103,7 @@
 - [ ] 现在的做法是离线整份备份 Home（`docs/installation.md`「离线备份与恢复边界」）：先退出 App、停止常驻服务和其他写入进程，再把整个 Home 拷到 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点。外部工作区文件不在 Home 里，另行备份。
 - [ ] 服务已停的情况下，备份与原 Home 逐个比对一致（库和配置文件），记下路径、大小和比对方式，写进发布 PR。
 - [ ] Keychain 或环境变量里的密钥不随 Home 文件复制，另行确认还在（`docs/installation.md`）。
-- [ ] 目录库不再保存项目库的绝对路径（W5-17，目录库 v23，用户 2026-10-08 的决定）：项目库是 `<Home>/projects/<project_id>/molis-work.db`，由 `modules/projects/src/project-paths.ts` 推出，备份恢复到别的 Home 路径后目录库照样指向那里的文件。v22 的目录库先做维护（`node tests/fixtures/catalog-path-maintenance.mjs`：`list` 在副本上只读，`rewrite` 在真实 Home 上要用户批准的窗口；spec §4.1 的维护清单有一行），再装 v23 的构建。
+- [ ] 目录库 v23 不再存项目库绝对路径，由当前 Home 与 project_id 推导；v22 须先按第 4.3 节 W5-17 维护。完整恢复仍受 W5-16 的原 Home 路径与原 key 绑定约束，不能仅凭目录可推导就宣称可跨 Home 恢复。
 - [ ] 旧备份删不删由用户定，发布者不自行清理；2026-10-08 用户已经定了一次性清理的范围，见第 4.5 节「Home 里没有来路不明的东西」一项。
 
 ### 4.3 第 3 节有库的版本变了：先演练再动真库
@@ -101,7 +111,7 @@
 没有变化的发布跳过这一节，但第一项每次都做。这一节的做法（版本不符就拒绝，旧 Home 先一次性维护）只适用到第一个装到开发机之外的版本为止（第 1 节第 2 项）。
 
 - [ ] 发布前逐库对照上一个装出去的构建（看它的提交，不只看版本号：0.2.0 的 tag 是 9 月的，真实 Home 装的是 10-11 用同一版本号构建的）：第 3 节表里每个库的版本，和那个提交里定义处的数比；升了的每一个都要在 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的「库版本维护清单」里有一行（哪个提交改的、怎么维护、做没做），没有的先补上再往下走；对 merge-base 的那一半由 `pnpm health:check` 拦（`scripts/gates/store-versions.mjs`），对上一个装出去的构建的这一半只能在这里查。
-- [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库 v22 存的是真实 Home 的绝对路径，照着它去开会打到真库（v23 起目录库不存路径，这一条只对还没维护的 v22 副本成立）——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
+- [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库存的是真实 Home 的绝对路径，照着它去开会打到真库——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
 - [ ] 副本上逐库核对：结构与当前基线逐项相同（表、列顺序、索引、外键、CHECK，`packages/storage/src/sqlite-baseline.ts` 的 `describeSqliteSchema`），版本等于第 3 节的数，`PRAGMA integrity_check` 为 `ok`，`PRAGMA foreign_key_check` 没有行，行数与搬之前一致。
 - [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups` 下（用户 2026-10-08 的决定，「真实 Home 的残留物」一行），建议目录名 `<日期>-replaced-by-<事项>/`、权限 700（维护三留下的 `maintenance-3-replaced/` 就是 700）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
 - [ ] 维护流程和演练记录（日期、副本、每库行数与核对结果）写进发布说明的「兼容与升级」或对应 spec。流程里用到的一次性脚本要么入库，要么在记录里写清它的输入输出，不让「怎么做的」只留在会话里。
@@ -123,9 +133,19 @@
 
 - [ ] **本发布要做的一次性维护：维护八（候选，未做；动真实 Home 之前弹窗问用户）**，做 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1「库版本维护清单」里还没做的行，与装新构建同一步做。连接库 1 → 2、Pages 库 1 → 2 两行的做法写在那张表里；这里列项目库 v7 → v8（PG-020 项目库按插件分区，`specs/plugin-project-database/spec.md` §3 L1b 与 S8 同一批）。2026-10-20 本机没有真实 Home，旧机器的 Home 已退役；有 v7 项目库的 Home 才要做。
   - [ ] **项目库 v7 → v8。** 对每个项目目录里的 `projects/<id>/molis-work.db` 跑 `tests/fixtures/project-maintenance-v8.sql`（在事务外关外键，跑完开回），范围与维护六相同（目录库列出的项目，加磁盘上有、目录库没列出的项目库）。一库一个事务：版本不是 7、表不是正好 v7 那一套、有视图或触发器、Board 不是正好一个、`boards` 或 11 张表的列不对、外键检查不空、行数变了，整个脚本回滚，什么都不改。做的事：建 `project_root` 并抄 Board 的那一行；按 SQLite 的改表流程重建 `boards`（去掉 `title`，外键指 `project_root`，ON DELETE CASCADE；那一行与它的 rowid 不变，丢掉的只有 `title` 的值；Goals 其余 30 张表的外键仍写 `boards(project_id)`，不动）和 11 张表（外键改指 `project_root`），行（含 rowid 与自增序号）不变；建看板的幂等回执（`initialize_board`）换成现行的请求哈希（S8：请求不再带看板名，旧回执的哈希里有它，不换的话同一个键重试会被当成键被别的请求用过）；建账本并写 Coding、Feed、Goals、Schedule 四行（版本 1、发布者签名、表和索引名；Goals 那行是它的 31 张表与 30 个索引，S8）；`user_version` 写 8。先在一次性 Home 和备份的拷贝上跑 `tests/project-maintenance-v8.test.ts` 的演练和同一份脚本，再对真库跑；维护前整份备份（第 4.2 节）。可以和 Characters 安装记录的清理（`docs/system/RUNTIME-MIGRATION.md` 5.4 第 6 点）合成一次，到时由用户定。做完以后这份 SQL 和演练用例删除，从 Git 历史取。
+  - [ ] **项目库 v9 → v10 与 Home Plugin Runtime 库 v2 → v3（ac-trust T1，候选，未做；动真实 Home 之前弹窗问用户，时段与 W5-17 同一次）。** 新构建只认新版本，所以和装新构建同一步做。停宿主、整份备份（第 4.2 节）后，在副本上演练：对每个项目库一个事务跑 `tests/fixtures/project-maintenance-v10.sql`，对 `plugin-runtime/plugin-runtime.db` 跑 `tests/fixtures/plugin-runtime-maintenance-v3.sql`；两个脚本都先核对版本（9、2），按每条安装记录的 `execution` 写 `publisher_trust`（`host` → `host`，`sandbox` → `unsigned`），遇到别的取值整笔回滚、什么都不改。跑之前先在副本上列出 `execution` 为 `host` 的记录：`SELECT json_extract(record_json,'$.plugin_id') FROM plugin_runtime_installs WHERE json_extract(record_json,'$.execution') = 'host'`，应当都是宿主启动名单里的内置插件，不是的先弄清楚再动。跑完用新构建启动，内置插件的同意行（`host_build`）由启动幂等补上。
   - [ ] **Shelf 目录 `shelf/catalog.json` 1 → 2（Shelf S3，① 裁定 D3；候选，未做）。** 新构建只认版本 2，打开版本 1 的目录会拒绝，所以和装新构建同一步做。工具是 `tests/fixtures/shelf-catalog-maintenance.mjs`：停宿主、整份备份（第 4.2 节）后，先在备份副本上跑 `list`（只报版本、条目数和带路径的条目数，不报路径），再在维护窗口里对真 Home 跑 `rewrite --home <Home> --maintenance-window`，跑完再 `list` 一次，应是版本 2、没有带路径的条目。做法和为什么这样做见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1「真实 Home 维护八」下的「Shelf 目录」一行。目录是 JSON 文件，不在第 3 节的库版本表里，`verify-release-versions` 也不核对它，只靠这一项不漏。
   - [ ] **删掉 Characters 留下的安装记录（待做，CHR-1 之后）。** Characters 已不是插件（CHR-1，2026-10-22）：宿主自己登记它的动作，项目库 `plugin_runtime_installs` 里 `plugin_id` 为 `io.molis.work.characters` 的那条记录没人启动、也没人改（监督器只启动自己的条目），留着不影响打开项目，但它和它的授权已经是孤儿。对每个项目库先只读数一遍：这条安装记录（授权写在记录里）、`plugin_runtime_release_artifacts` 里同一 `plugin_id` 的发行物存档、按它的 `install_id` 存在别的 `plugin_*` 表里的行（私有值、事件游标等），把数字报给用户；再整份备份（第 4.2 节），在拷贝上删、核对其余插件的记录一行不变，经用户同意后对真库做。和上一项的 v8 维护合不合成一次，由用户定（`specs/plugin-project-database/spec.md` 决定表 2026-10-19「v8 在真实 Home 上何时维护、是否与 Characters 清理合并」）。产品代码里不写这一步。
   - [ ] **角色库 `characters/characters.sqlite` 1 → 2（Sessions 收尾 SC-2，#1080）。** 停宿主、整份备份（第 4.2 节）后，对这一个库在一个事务里跑 `tests/fixtures/characters-maintenance-v2.sql`：版本不是正好 1 就整个回滚，什么都不改；做的事只有建 `character_runs` 表与它的索引、`user_version` 写 2，`character_drafts` 一行不动。先在一次性 Home 和备份的拷贝上跑 `tests/characters-maintenance-v2.test.ts` 的演练和同一份脚本，再对真库跑。以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。清单那一行见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1「库版本维护清单」的 `characters/characters.sqlite` 行。做完以后这份 SQL 和演练用例删除，从 Git 历史取。
+
+- [ ] **项目库 v10 → v11（Feed 的表归 Feed 声明，FI-5；候选，未做；动真实 Home 之前弹窗问用户，时段与 W5-17 同一次）。** 新构建只认 v11，所以和装新构建同一步做。停宿主、整份备份（第 4.2 节）后，在副本上演练：对每个项目库一个事务跑 `tests/fixtures/project-maintenance-v11.sql`，先核对 `user_version` 正好是 10、11 张表和 11 条索引都在、Feed 的账本行正好是版本 1 的那一行，任一不对整笔回滚、什么都不改；做的事：把 `plugin_project_databases` 里 Feed 那一行改成版本 2 和 12 张表的 `tables_json`、`user_version` 写 11；给 `inbox_entries`、`attention_events` 里还没有 owner 的行写上 owner（Feed 事项与来源故障 → `io.molis.work.feed`，Goal 决定 → `io.molis.work.goals`），把 `context_edges` 里 `feed.goal:` 开头的键加上 `io.molis.work.feed:` 前缀（FI-6）。核对项多两条：没有任何条目已有 owner、账本里没有 `io.molis.work.feed:` 开头的键，否则整笔回滚。跑完用新构建打开一个项目，Feed 不被拒，并核对「事项关联的 Goal」还在、Inbox 里的待决事项数与维护前一致。与 Goals S9-2 等其他动项目库版本的维护排同一个窗口，版本号按合入顺序定，撞号时后合入的顺延。
+- [ ] **`inbox.next` 的绑定从 Functions 库搬进项目库（FI-6 P3；候选，未做；动真实 Home 之前弹窗问用户，与 v11 同一个窗口，在 v11 之后）。** 新构建的 Inbox 在项目库自己的表 `inbox_scene_bindings` 里读写绑定，不再读 Functions 库的 `function_scene_bindings`，所以存量项目的绑定要搬一次，否则 Inbox 的「下一步」判断会当成没有配置。停宿主、整份备份后，在副本上先 `node tests/fixtures/inbox-binding-maintenance.mjs list --functions <functions.sqlite> --project <项目库.sqlite>`（只读，列出该项目是否需要搬），再对每个项目库跑 `move`：把该项目 `inbox.next` 的那一行连修订号复制进项目库的新表，再从 Functions 库删掉；Home 的 dock 绑定与别的项目的行不动，重跑无变化；新表不在（项目库还没按新构建打开过）或项目库里已有另一份绑定时整笔不写、退出码 1。用新构建打开一个项目后，核对 Inbox 的场景配置页读到搬过来的绑定，并且改配置还能用（修订号接得上）。
+- [ ] **Feed 的 Home 引用账回填（FI-4 4d；候选，未做；动真实 Home 之前弹窗问用户，在 v11 与 Inbox 绑定搬迁之后、Feed 一半翻转那个版本的同一个窗口）。** Feed 进 Runtime 后，证据正文由 Home 库 `feed-content` 里的一张账（哪个项目的哪个来源持有哪份正文）决定能不能删。存量 Home 里已有正文，账一开始是空的，空账不等于没人持有，所以在回填标记写上之前 Feed 一概不删正文（只多留，不误删）。停宿主、整份备份后，在副本上先 `node tests/fixtures/feed-content-ledger-maintenance.mjs list --ledger <feed-content.sqlite> --project <项目库.sqlite> [--project …]`（只读，列出每个项目持有多少份正文、账里还缺几份），再跑 `backfill`（同样列出每个项目库）：只读项目库，把各来源的材料正文和拉取回执里的正文写进账，重跑无变化；只有加了 `--all-projects`（表示列出的就是这个 Home 的全部项目）才写回填标记。账库不存在（Home 还没用新构建启动过）、某个项目库不是项目库、某份回执不是 JSON 时整笔不写、退出码 1。用新构建打开一个项目后，核对删除一个来源的历史时，只被它持有的正文被删，别的来源还持有的正文留着。
+- [ ] **Feed 捕捉成果改记在 Feed Manifest 的身份下（RAC-510，R-69；候选，未做；动真实 Home 之前弹窗问用户，与项目库 v11 同一个窗口）。** main 上宿主的 Feed 把捕捉规则捕获的成果记成版本 `0.0.0`、签名 `native:feed`，插件号 10-25（`6cac075ed`）之前是 `io.molis.work.native.feed`、之后是 `io.molis.work.feed`（GLOSSARY R-B9）；进 Runtime 后由平台按 Feed 的 Manifest 盖章（`io.molis.work.feed`、`0.3.0`、`official-feed-binding`）。成果线只认插件号和签名都相同的 producer（PG-107），所以存量的捕获成果 Feed 认不出：同一条消息再次命中同一条规则时，`head` 以 `artifacts.plugin_denied` 拒绝，记成这条消息的 `artifact_out_failed`。停宿主、整份备份（第 4.2 节）后，在副本上对每个项目库一个事务：把 `library_artifacts` 里签名为 `native:feed`、插件号为上面两个之一的行改成插件号 `io.molis.work.feed`、签名 `official-feed-binding`，把这些线在 `library_artifact_versions` 里的 `producer_plugin_version` 从 `0.0.0` 改成 `0.3.0`。先核对两件事：这些线的版本都是 `0.0.0`；没有同一 `artifact_id` 已经记在新身份下。任一不对整笔回滚、什么都不改。内容、版本号、作者、日志历史都不改。还没有演练夹具：做之前先在 `tests/fixtures/` 写维护脚本和演练用例。跑完用新构建打开一个项目，核对一条已经捕获过的消息再次命中规则时得到下一版，而不是 `artifact_out_failed`。
+
+- [ ] **项目库 v9 → v10（Attention 对象归属，S9-0b）。** Entry 和 event 增加明确的 `owner_plugin_id`，未归属旧行保持 null；唯一约束按 owner 区分。实际库沿用统一维护窗口，先备份、给出具体两表维护补丁并在隔离拷贝演练，再按当次授权处理真实 Home；不在启动时改表或猜旧 owner。本片源码与新库验证不等于真实维护完成，见 [S9-0b slice](../../specs/repository-anti-corruption/slices/goals-s9-0b-attention-ledger-services.md)。组合分支若同时改项目 schema，最终版本由集成 carrier 统一。
+
+- [ ] **目录库 v22 → v23（W5-17；候选，未做）。** 与 Goals、维护八同一个批准窗口：先项目库按实际旧版顺序维护到现行版，跑 Goals 的 names→personal move，再在副本上 `node tests/fixtures/catalog-path-maintenance.mjs list --home <副本> --json`。完整旧结构、版本22、所有项目在副本推导位置都成立后，`rewrite` 在一个事务内去掉 `projects.database_path`、保留其余值与 rowid、写23；提交前逐项核目标完整schema、所有表行数、integrity与FK。错版/错结构/路径阻塞或途中失败整个回滚。工具不沿旧绝对路径做文件访问，不移动项目库。重复执行核现行结构后零改；真实执行需 `--maintenance-window`，旧库移交Home外备份，#1101若先落则由后落分支顺延版本，窗口前重核。演练 `tests/catalog-path-maintenance.test.ts`、`tests/catalog-path-derivation.test.ts`。
 
 ### 4.4 装新构建
 
@@ -148,7 +168,7 @@
   }'
   ```
 
-  上述表覆盖所有内置插件；再对每个项目库取实际由监督器运行的插件安装记录（只读，停写时在快照拷贝上做最稳妥）：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。`apps/local-host/src/project-plugins.ts` 交给监督器的 Shelf、Form、Coding、Files、Diff、Git、TextStats 每个项目最多一条（项目撤下的插件除外；CHR-1 以前装过的项目库里还会有一条 Characters 的旧记录，见第 4.3 节维护八）；Home 监督器的插件另查 `plugin-runtime/plugin-runtime.db`。记录的版本与摘要要和上面打出的相同。做法 A 已经落地（[POLICY.md](POLICY.md) 第 7.8 节），内置插件启动时 Runtime 把记录改成当前构建的清单，不论版本更高、更低还是同版本摘要不同，所以这一项是 A 的验收：记录版本比清单高，或版本相同而摘要不同，说明这个构建里没有 A，或这个插件这次启动失败了（看 `plugin_runtime_installs` 里记录的 `state` 和监督器报告的失败码）；记录的 `install_id` 应该和以前一样，私有数据才还在。一个项目撤下的插件没有被启动，它的记录停在上次启动时的样子，不算没跟上，启动一次再查。
+  上述表覆盖所有内置插件；再对每个项目库取实际由监督器运行的插件安装记录（只读，停写时在快照拷贝上做最稳妥）：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。`apps/local-host/src/project-plugins.ts` 交给监督器的插件（`projectPluginEntries()`，名单以登记上的 `project_runtime` 为准，不在这里写死）每个项目最多一条（项目撤下的插件除外；CHR-1 以前装过的项目库里还会有一条 Characters 的旧记录，见第 4.3 节维护八）；Home 监督器的插件另查 `plugin-runtime/plugin-runtime.db`。记录的版本与摘要要和上面打出的相同。做法 A 已经落地（[POLICY.md](POLICY.md) 第 7.8 节），内置插件启动时 Runtime 把记录改成当前构建的清单，不论版本更高、更低还是同版本摘要不同，所以这一项是 A 的验收：记录版本比清单高，或版本相同而摘要不同，说明这个构建里没有 A，或这个插件这次启动失败了（看 `plugin_runtime_installs` 里记录的 `state` 和监督器报告的失败码）；记录的 `install_id` 应该和以前一样，私有数据才还在。一个项目撤下的插件没有被启动，它的记录停在上次启动时的样子，不算没跟上，启动一次再查。
 - [ ] Home 里没有来路不明的东西。把 Home 的目录和 [HOME-DATA.md](../system/HOME-DATA.md) 对一遍，不在里面的文件夹、旧备份、没有表的空库、孤儿文件、旧的 `goalboard-*` 安装版，都算残留。残留先核对（谁写的、有没有引用、里面有没有数据），有用的搬到 `~/molis-work-backups`，确认没用的才删，不批量删。用户 2026-10-08 为开发机的真实 Home 定了一次性清理：保留 2026-10-07 维护前的整份备份和 `runtime-configs`，维护替换下来的旧文件搬到 `~/molis-work-backups`，其余旧备份、孤儿文件、空库、旧 `goalboard-*` 安装版核对后删；动手前先整份备份。同一个决定里还有目录库 v23 的路径派生（W5-17）和给实验库标版本 1（W2-05）；三件事都经用户批准，先在拷贝上演练再动真库。
 - [ ] 版本不符被拒绝是正常的保护：不要回滚库，也不要用 SQLite 命令绕过；用与它相符的构建打开，或从备份恢复。
 

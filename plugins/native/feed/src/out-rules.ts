@@ -1,35 +1,21 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import type {
-  ArtifactJsonValue,
-  ArtifactVersionRecord,
-  ArtifactVersionResult,
-  RegisterArtifactVersionInput,
-} from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { feedErrors } from "./contract/feed.js";
+import type { ArtifactJsonValue, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { PluginArtifactPublishInput, PluginArtifactWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
+import type { FeedSql } from "./store/sql.js";
 
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
-export const FEED_ARTIFACT_PRODUCER = {
-  plugin_id: "io.molis.work.native.feed",
-  plugin_version: "0.0.0",
-  binding_signature: "native:feed",
-} as const;
 
-export interface FeedPluginSqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): {
-    all(...params: unknown[]): unknown[];
-    get(...params: unknown[]): unknown;
-    run(...params: unknown[]): { changes: number | bigint };
-  };
-}
-
+/**
+ * Where Feed pins what its out rules capture: `capture` runs `write` with the 成果库 inside Feed's current write transaction
+ * (`services.artifacts.join`), so a capture is committed with its item or rolled back with it. The platform stamps the producer
+ * (Feed's Manifest) and the author (the original caller); Feed names neither.
+ */
 export interface FeedArtifactProducer {
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  latestVersion(projectId: string, artifactId: string): ArtifactVersionRecord | null;
+  capture<T>(projectId: string, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface FeedOutRuleWrite {
@@ -67,18 +53,14 @@ export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
 
 export class FeedOutRuleStore {
   /** The table is already there: the platform made it when the project's library opened with Feed. */
-  constructor(private readonly db: FeedPluginSqliteDatabase) {}
+  constructor(private readonly db: FeedSql) {}
 
   list(projectId: string): FeedOutRuleRecord[] {
-    return (this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id",
-    ).all(projectId) as Row[]).map(mapOutRule);
+    return (this.db.all("SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id", projectId) as Row[]).map(mapOutRule);
   }
 
   get(projectId: string, ruleId: string): FeedOutRuleRecord {
-    const row = this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?",
-    ).get(projectId, ruleId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?", projectId, ruleId) as Row | undefined;
     if (!row) throw feedErrors.out_rule_not_found("找不到这条捕捉规则");
     return mapOutRule(row);
   }
@@ -101,22 +83,13 @@ export class FeedOutRuleStore {
   }
 
   saveCreate(record: FeedOutRuleRecord): FeedOutRuleRecord {
-    this.db.prepare(`
+    this.db.run(`
       INSERT INTO feed_out_rules (
         project_id, rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      record.project_id,
-      record.rule_id,
-      record.name,
-      record.enabled ? 1 : 0,
-      JSON.stringify(record.match),
-      record.created_at,
-      record.updated_at,
-      record.admission,
-      record.judgment ? JSON.stringify(record.judgment) : null,
-      record.revision,
-    );
+    `,
+    record.project_id, record.rule_id, record.name, record.enabled ? 1 : 0, JSON.stringify(record.match), record.created_at, record.updated_at,
+    record.admission, record.judgment ? JSON.stringify(record.judgment) : null, record.revision);
     return record;
   }
 
@@ -140,30 +113,20 @@ export class FeedOutRuleStore {
   }
 
   saveUpdate(next: FeedOutRuleRecord, expectedRevision?: string): FeedOutRuleRecord {
-    const result = this.db.prepare(`
+    const result = this.db.run(`
       UPDATE feed_out_rules
       SET name = ?, enabled = ?, match_json = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
       WHERE project_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
-    `).run(
-      next.name,
-      next.enabled ? 1 : 0,
-      JSON.stringify(next.match),
-      next.updated_at,
-      next.admission,
-      next.judgment ? JSON.stringify(next.judgment) : null,
-      next.revision,
-      next.project_id,
-      next.rule_id,
-      expectedRevision ?? null,
-      expectedRevision ?? null,
-    );
+    `,
+    next.name, next.enabled ? 1 : 0, JSON.stringify(next.match), next.updated_at, next.admission, next.judgment ? JSON.stringify(next.judgment) : null, next.revision,
+    next.project_id, next.rule_id, expectedRevision ?? null, expectedRevision ?? null);
     if (!result.changes) throw feedErrors.revision_conflict("规则已变化，请刷新后再保存");
     return next;
   }
 
   delete(projectId: string, ruleId: string): FeedOutRuleRecord {
     const current = this.get(projectId, ruleId);
-    this.db.prepare("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?").run(projectId, ruleId);
+    this.db.run("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?", projectId, ruleId);
     return current;
   }
 }
@@ -201,22 +164,18 @@ function feedCapturePayload(item: FeedItemRecord): ArtifactJsonValue {
 }
 
 export function registerFeedCaptureVersion(
-  artifacts: FeedArtifactProducer,
+  artifacts: PluginArtifactWriter,
   item: FeedItemRecord,
   rule: FeedOutRuleRecord,
-  actorId = LOCAL_PERSON_ACTOR_ID,
 ): ArtifactVersionResult {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);
-  const latest = artifacts.latestVersion(item.project_id, artifactId);
-  const input = (version: number, supersedes: number | null): RegisterArtifactVersionInput => ({
-    project_id: item.project_id,
+  const latest = artifacts.head(artifactId);
+  const input = (version: number, supersedes: number | null): PluginArtifactPublishInput => ({
     artifact_id: artifactId,
     version,
-    actor_id: actorId,
     artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
     schema_version: FEED_CAPTURE_SCHEMA_VERSION,
-    producer: { ...FEED_ARTIFACT_PRODUCER },
     content: { kind: "inline", payload },
     metadata: {
       feed_item_id: item.item_id,
@@ -229,11 +188,54 @@ export function registerFeedCaptureVersion(
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });
   try {
-    return artifacts.registerVersion(input(latest?.version ?? 1, null));
+    return artifacts.publish(input(latest?.version ?? 1, null));
   } catch (error) {
     if (!isVersionConflict(error) || latest == null) throw error;
-    return artifacts.registerVersion(input(latest.version + 1, latest.version));
+    return artifacts.publish(input(latest.version + 1, latest.version));
   }
+}
+
+/**
+ * A refusal of the call itself: cancelled, revoked, stopped, expired, its grant gone, a permission withdrawn from the stored grant of the
+ * running installation, the provider replaced, or the transaction over (RAC-510).
+ */
+const CALL_REFUSALS: ReadonlySet<string> = new Set([
+  "actions.cancelled", "actions.forbidden", "actions.plugin_unavailable", "actions.expired", "plugin.grant_denied",
+  "actions.plugin_permission", "actions.provider_changed",
+]);
+
+/** Throws a refusal of the call itself, a cancellation included, again: it stops the call here, not at the commit's last check. */
+export function throwIfCallRefused(error: unknown): void {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
+  const aborted = !!error && typeof error === "object" && "name" in error && error.name === "AbortError";
+  if (aborted || CALL_REFUSALS.has(code)) throw error;
+}
+
+/**
+ * The code Feed records as the item's `artifact_out_failed` for a capture that failed, as on main: the error's own code, or
+ * `feed_artifact_register_failed` for one without (a TypeError of the content, a SQLite error), so an item that cannot be captured does not
+ * hold back its batch on every retry. A refusal of the call itself is not a failed capture: it is thrown again (`throwIfCallRefused`),
+ * and the whole commit is rolled back with the item.
+ */
+export function feedCaptureFailure(error: unknown): string {
+  throwIfCallRefused(error);
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
+  return code || "feed_artifact_register_failed";
+}
+
+/** Pins each matched rule's capture in `writer`; a rule whose capture failed is listed with its code (`feedCaptureFailure`). */
+export function captureFeedRules(writer: PluginArtifactWriter, item: FeedItemRecord, rules: readonly FeedOutRuleRecord[]): { failedRuleIds: string[]; errorCodes: string[] } {
+  const failedRuleIds: string[] = [];
+  const errorCodes: string[] = [];
+  for (const rule of rules) {
+    try {
+      registerFeedCaptureVersion(writer, item, rule);
+    } catch (error) {
+      errorCodes.push(feedCaptureFailure(error));
+      failedRuleIds.push(rule.rule_id);
+    }
+  }
+  return { failedRuleIds, errorCodes };
 }
 
 export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): FeedOutRuleWrite {

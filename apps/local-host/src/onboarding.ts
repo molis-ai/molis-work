@@ -39,7 +39,7 @@ const DEFAULT_ONBOARDING_STATE: MolisWorkOnboardingState = Object.freeze({
 });
 
 function molisWorkHome(homeDirectory?: string): string {
-  return path.resolve(homeDirectory ?? resolveConfiguredHome());
+  return resolveConfiguredHome(homeDirectory);
 }
 
 function optionalString(value: unknown): string | null {
@@ -116,21 +116,6 @@ export function molisWorkOnboardingStatus(
       && currentVersion !== null
       && currentVersion !== state.last_seen_app_version,
   };
-}
-
-export function markMolisWorkOnboardingStarted(
-  homeDirectory: string | undefined,
-  lastPresentedStep = 0,
-  now = new Date(),
-): MolisWorkOnboardingState {
-  const current = readMolisWorkOnboardingState(homeDirectory);
-  const at = now.toISOString();
-  return writeMolisWorkOnboardingState(homeDirectory, {
-    ...current,
-    last_presented_step: lastPresentedStep,
-    started_at: current.started_at ?? at,
-    updated_at: at,
-  });
 }
 
 export function completeMolisWorkOnboarding(

@@ -1,10 +1,9 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const FIRST = "联系阿杰确认秋季发布计划。附上本周方案和预算说明。";
 const SECOND = "联系小王确认周末徒步路线。附上集合时间。";
@@ -14,10 +13,11 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 // selection (rules alone recommend one destination), and since Todo declares how a todo is undone, one click makes it and the
 // completion card offers 「打开」 and 「撤销」. Clicking again for the same selection makes nothing more; 撤销 after an edit elsewhere is
 // refused by Todo and changes nothing.
-test("S1 W4-1 contextual Todo: real selection → made at once from what was selected → once per request → owner readback → undo only while unchanged", { timeout: 120_000 }, async t => {
+test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what was selected → once per request → owner readback → undo only while unchanged", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const child=await pluginFrameBrowser(t,browser,"pages");
+  const todoFrame=await pluginFrameBrowser(t,browser,"todo");
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
@@ -30,7 +30,7 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
-  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, everything: true };
+  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
   const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const TODO = `[...document.querySelectorAll('${BAR} button')].find(button => !button.disabled && button.textContent.startsWith('记成待办'))`;
@@ -121,6 +121,13 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await evaluate(`[...${CARD("已记成待办")}.querySelectorAll('button')].find(button => button.textContent === '打开').click()`);
   await waitFor(`JSON.parse([...document.querySelectorAll('[data-assistant-context]')].map(node => node.getAttribute('data-assistant-context')).find(value => value && value.includes(${JSON.stringify(opened)})) || 'null')?.object?.id === ${JSON.stringify(opened)}`, 15_000)
     .catch(async error => { throw new Error(`${(error as Error).message}\n${await evaluate<string>("location.href + ' | ' + [...document.querySelectorAll('[data-assistant-context]')].map(node => node.getAttribute('data-assistant-context')).join(' || ')")}`); });
+
+  // The source names the Pages page only as an object; the workbench says from the running declarations which surface opens it, so the
+  // source is a link and it opens the page it was selected in (统筹 10-24: no fragment input v2, no kind table in the workbench).
+  const sourceLink = `[data-todo-sources] [data-workbench-item-plugin=pages][data-workbench-item-id="${page.id}"]`;
+  await todoFrame.waitFor(`document.querySelector(${JSON.stringify(sourceLink)})`);
+  await todoFrame.click(sourceLink);
+  await waitFor("document.body.dataset.desktopSurface === 'pages'", 15_000);
 });
 
 // W4-1 kept from S1 (统筹 10-18): an action without an undo still goes through a card, and a refused run of that card writes

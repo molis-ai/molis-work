@@ -8,7 +8,7 @@ import {
   pageHistoryItems,
   renderHistoryItemBody,
 } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalEventTimelineItem } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventTimelineItem } from "@molis-ai/molis-work-plugin-goals/contract";
 
 test("history merges event work with the journal's records, keeps original IDs and does not duplicate work events", () => {
   const work = {

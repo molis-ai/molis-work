@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
@@ -91,7 +90,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
     await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===localStorage.getItem('molis.assistant.current'))?.state==='completed')`, 30_000);
     const todos = openTodoStore(homeDirectory);
     try {
-      assert.equal(todos.list({ projectId, everything: true, actor: "user", actorId: "web-user" }).filter(item => item.title === `投影测试-${decision}`).length, decision === "approve" ? 1 : 0,
+      assert.equal(todos.list({ projectId, projectIds: [], actor: "user", actorId: "web-user" }).filter(item => item.title === `投影测试-${decision}`).length, decision === "approve" ? 1 : 0,
         "a real approval persists exactly one todo; a rejection persists none");
     } finally { todos.close(); }
   }

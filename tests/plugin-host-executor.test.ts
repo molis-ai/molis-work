@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -23,34 +24,35 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const host = new MolisWorkLocalHost();
-  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const };
+  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const,
+    action: { title: "Development", description: "Removed", kind: "operation" as const, scope: "project" as const, audiences: ["plugin" as const], permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
   const port = host.client({ project_id: DEMO_PROJECT_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
-    project_id: DEMO_PROJECT_ID, actor_id: "user", capabilities: port,
+    project_id: DEMO_PROJECT_ID, actor_id: "user", dependencyCheck: reference => port.availability(reference, { consumer: "plugin" }),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-  }));
-  const base = createGithubIntegrationPlugin({ provider: {
+  }), { hostIds: ISOLATED_HOST_IDS });
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const definition: PluginDefinition = { ...base,
     manifest: { ...base.manifest, plugin_id: "io.molis.work.example.protected-adapter",
       capabilities: { ...base.manifest.capabilities, consumes: [protectedEntry.capability_id] } },
     async start(context) {
-      const sdk = context.services!.capabilities!;
+      const sdk = context.services!.actions!;
       const availability = sdk.availability(protectedEntry);
       assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.dependency_missing");
       const forged = { ...protectedEntry, host_only: false };
-      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.dependency_missing" });
+      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }), { code: "actions.dependency_missing" });
       return base.start(context);
     },
   };
   let installId: string | undefined;
   try {
-    installId = runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
     await runtime.start(installId);
-    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.dependency_missing" }, "the normal Host client cannot restore the removed protocol");
+    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.missing" }, "the normal Host client cannot restore the removed protocol");
   } finally {
     if (installId && runtime.get(installId).state === "running") await runtime.stop(installId);
     await host.close(); store.close(); rmSync(directory, { recursive: true, force: true });
@@ -69,14 +71,14 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const ui = new UiHost();
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "author",
-    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions: pluginActions(store, DEMO_PROJECT_ID) });
+    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   let failStart = false;
   let failStop = false;
   const contexts: PluginStartContext[] = [];
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const id = "io.molis.work.example.hosted";
   // The 成果 type the plugin pins is named and has a preview of its own (specs/artifact-positioning A1/A7).
   const preview = artifactPreview(id);
@@ -90,10 +92,10 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       contexts.push(context);
       const services = context.services!;
       const count = Number(services.storage!.get("visits") ?? "0") + 1;
-      const descriptor = { contribution_id: "example.notes", plugin_id: id, kind: "primary-page" as const,
+      const descriptor = { contribution_id: "example.notes", kind: "primary-page" as const,
         label: "Notes", slots: [], surfaces: [{ surface_id: "main", target_slot_id: "main", format: "html" }] };
       services.ui.register({ descriptor, render: () => `<p>Visit ${count}</p>` });
-      descriptor.plugin_id = "changed-after-registration";
+      (descriptor as { label: string }).label = "changed-after-registration";
       if (failStart) throw new Error("start failed after UI registration");
       services.storage!.set("visits", String(count));
       services.artifacts.publish({ artifact_id: "hosted-note", version: count, artifact_type_id: "example.note",
@@ -102,19 +104,25 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
     }, async stop(context) { assert.ok(context.services); if (failStop) throw new Error("stop failed"); } };
   try {
-    const installation = runtime.install({ definition, deployment: "local",
+    const installation = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local",
       grants: definition.manifest.permissions.map(permission => permission.permission) });
     const installId = installation.install.install_id;
     await runtime.start(installId);
     const old = contexts[0]!.services!;
-    assert.equal(ui.list()[0]!.plugin_id, id);
+    assert.equal(ui.list()[0]!.plugin_id, id, "RAC-635 the owner is the one the installation's Manifest names");
+    assert.equal(ui.list()[0]!.label, "Notes", "what the plugin changes after registering is not what the registry holds");
     assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>");
     assert.deepEqual(old.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
     // UIERR-01: an actual Plugin client cannot remove another owner or register undeclared content.
     assert.throws(() => old.ui.unregister("another-plugin"), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
-    assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared", plugin_id: id,
+    assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared",
       kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
+    // RAC-636: a declaration that names an owner is refused, another plugin's and its own alike; the Host fills it, so there is nothing to compare.
+    for (const claimed of ["another-plugin", id]) {
+      assert.throws(() => old.ui.register({ descriptor: { contribution_id: "example.notes", plugin_id: claimed, kind: "primary-page", label: "Claimed", slots: [] }, render: () => "bad" } as never),
+        (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden", claimed);
+    }
     assert.equal(ui.list().length, 1);
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);
@@ -141,7 +149,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
 
     failStart = true;
     failStop = false;
-    runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(permission => permission.permission) });
+    runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: definition.manifest.permissions.map(permission => permission.permission) });
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed startup must release SDK actions");
@@ -164,7 +172,7 @@ test("compatible Host execution and crash recovery use the implementation versio
     artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) });
   const contexts: PluginStartContext[] = [];
   let failStart = false;
-  const base = createGithubIntegrationPlugin({ provider: { type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } } });
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({ type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } }) });
   const preview = artifactPreview(base.manifest.plugin_id);
   const make = (version: string): PluginDefinition => ({
     ...base,
@@ -182,7 +190,7 @@ test("compatible Host execution and crash recovery use the implementation versio
       if (failStart) throw new Error("fixture still broken");
       const count = Number(context.services!.storage!.get("visits") ?? "0") + 1;
       context.services!.storage!.set("visits", String(count));
-      context.services!.ui.register({ descriptor: { contribution_id: "example.compatible", plugin_id: base.manifest.plugin_id,
+      context.services!.ui.register({ descriptor: { contribution_id: "example.compatible",
         kind: "primary-page", label: "Compatible", slots: [], surfaces: [{ surface_id: "main", target_slot_id: "main", format: "html" }] },
         render: () => `<p>${version}</p>` });
       context.services!.artifacts.publish({ artifact_id: "compatible-note", version: count,
@@ -192,14 +200,14 @@ test("compatible Host execution and crash recovery use the implementation versio
     },
   });
   try {
-    const first = new PluginRuntime(repository, executor(), { actions: pluginActions(store, DEMO_PROJECT_ID) });
+    const first = new PluginRuntime(repository, executor(), { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
     const old = make("1.0.0");
-    const installed = first.install({ definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
+    const installed = first.install({ trust: { level: "unsigned" }, definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
     await first.start(installed.install_id);
     await first.stop(installed.install_id);
-    const runtime = new PluginRuntime(repository, executor(), { actions: pluginActions(store, DEMO_PROJECT_ID) });
+    const runtime = new PluginRuntime(repository, executor(), { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
     const next = make("2.0.0");
-    runtime.install({ definition: next, deployment: "local", grants: installed.grants });
+    runtime.install({ trust: { level: "unsigned" }, definition: next, deployment: "local", grants: installed.grants });
     await runtime.start(installed.install_id);
     assert.equal(contexts.at(-1)!.services!.storage!.get("visits"), "2");
     assert.deepEqual(contexts.at(-1)!.services!.artifacts.read({ artifact_id: "compatible-note", version: 1 })!.payload, { count: 1 });

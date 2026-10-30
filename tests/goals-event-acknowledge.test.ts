@@ -5,15 +5,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
-import { RECEIPT_WORDS } from "@molis-ai/molis-work-design-system";
+import { GOALS_PLUGIN_ID, goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
+import { createWorkbenchLocale, inWordsOf } from "@molis-ai/molis-work-app-workbench";
+import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalWorkEventRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { managementCaller, managementGoals, mcpRuntimeCaller } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 /**
  * `goals.events.acknowledge` is how an external AI session says it read a note, a requirement or the person's decision on a Goal and how
@@ -90,16 +91,18 @@ async function mcpRig(runtimeId: string, stable: string | null) {
   const directory = await mkdtemp(join(tmpdir(), "goals-ack-mcp-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory });
   const project = await catalog.createProject({ display_name: "Ack MCP", actor_id: "user" });
-  await grantGoalsMcp(homeDirectory, project, `runtime:${runtimeId}`);
+  // The rig's Host is the Home's: the grants go through the access settings it serves.
+  const served = await serveTestHost(null, { home: homeDirectory, host });
+  await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const actions = host.actionClient(ref, false), project_id = project.project_id, person = managementGoals(actions, project_id);
+  const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
   const mcp = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
   const call = async (id: string, input: object) => JSON.parse(await mcp.callTool(TOOL(id), input));
   return { mcp, call, host, actions, person, project_id,
-    close: async () => { await mcp.close(); await host.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); } };
+    close: async () => { await mcp.close(); await served.close(); await host.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); } };
 }
 
 test("RCPT-376: a stable-session MCP caller says how it will treat the person's note: one system record under the session, the note it answers, replayed by key", { timeout: 120_000 }, async () => {
@@ -337,7 +340,8 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
     assert.ok(!second!.html.includes("你的"), "the person did not write it");
 
     // English: every phrase the card adds has an English form; only the person's and the session's own words stay as written.
-    const english = createWorkbenchLocale(() => "en").L;
+    // The card is Goals' own text, so it is translated with Goals' words (its Manifest's ui.translations), not the Host's table alone (PG-071).
+    const english = inWordsOf(GOALS_PLUGIN_ID, createWorkbenchLocale(() => "en").L);
     const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     const html = renderWorkEventBody(record, english, escape, {}, "user");
     assert.ok(html.includes(`read your note “${reference.title}” at cursor ${note.observed_event_cursor}`), html);
@@ -374,4 +378,31 @@ test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for a
     assert.deepEqual(reads.map(read => read.version), ["2"], `${id} is registered only at @2`);
     assert.equal(reads[0]!.audiences, "agent,mcp,user,workflow");
   }
+});
+
+// The heading of a record is the first 80 characters of what was said, as whole characters (an emoji is one): never half of one, never short of 80.
+const HEADINGS = [
+  { name: "the 80th character is a two-unit one", said: "a".repeat(79) + "😀" + "尾".repeat(10), heading: "a".repeat(79) + "😀" },
+  { name: "100 two-unit characters", said: "😀".repeat(100), heading: "😀".repeat(80) },
+  { name: "exactly 80 two-unit characters", said: "😀".repeat(80), heading: "😀".repeat(80) },
+  { name: "short", said: "接口先做完", heading: "接口先做完" },
+];
+
+test("RAC-1889 the heading of a note and of an acknowledgement is its first 80 whole characters", { timeout: 120_000 }, async t => {
+  const r = await hostRig("heading");
+  const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "heading-session-1");
+  try {
+    const goal_id = "ACK-HEADING", first = await r.newGoal(goal_id);
+    const headingOf = async (event_id: string) => (await r.events(goal_id)).find(event => event.event_id === event_id)?.title;
+    for (const [index, c] of HEADINGS.entries()) {
+      await t.test(`note: ${c.name}`, async () => {
+        const noted = await r.person.invoke(goalsActions.note, { goal_id, body: c.said, idempotency_key: `note-${index}` });
+        assert.equal(await headingOf(noted.event_id), c.heading);
+      });
+      await t.test(`acknowledgement: ${c.name}`, async () => {
+        const said = await r.actions.invoke(mcp, goalsActions.acknowledge, { ...r.input(goal_id, first.event_id, await r.cursor(goal_id), `ack-${index}`), note: c.said });
+        assert.equal(await headingOf(said.event_id), c.heading);
+      });
+    }
+  } finally { await r.close(); }
 });

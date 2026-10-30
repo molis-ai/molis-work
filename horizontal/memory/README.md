@@ -4,6 +4,12 @@
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+## 整包导入的固定重试输入
+
+`importScope` 在派发任何条目前完整读取当前 v2 包并复制可变输入和调用身份（保留原取消信号），以可信 scope/owner 和有序有效条目的 SHA-256 摘要固定本次操作。它是业务重试输入身份，不是源码或流程校验；现 ledger 只保存摘要，不保存正文副本或 encoded request。对象键序不影响身份，条目和语义数组顺序保持，分类、原出处、来源/依据、期限、适用条件、Session 与 namespace 均参与固定。同操作换包在新副作用前报 `memory.conflict`，原包仍按既有逐项回执恢复，拒绝数、部分结果与已提交事实不变。
+
+整包身份的新绑定和已有第 0 子操作检查在同一 ledger 事务内；已有子操作却没有整包身份时不能推断未开始条目的原输入，明确拒绝继续。Backend/ledger 仍沿现窄口替换，权限、取消与身份规则不能关闭；App 提供原包和操作号，用户仍在现导入入口选择文件，没有新增配置。旧 v1/缺分类的显式采用不在本片。
+
 ## 首期策略接入合同（设计，尚未实现）
 
 首期目标、分类字典、矩阵配方、依赖顺序和验收统一见 [Prologue 记忆策略与 Molis Work 接入](../../specs/prologue-memory-strategy/spec.md)。本节只说明本包的责任变化；下面的「一次典型调用」和现有不变量仍描述当前实现，不能把合同当成已经接通的能力。
@@ -15,7 +21,7 @@
 - session 生命周期绑定可信 Session 引用，仅该逻辑会话 active 时用于任务。archive 暂停使用，unarchive 只在原期限未到时恢复；purge 永久结束并清理。Run 完成、停止或进程退出都不算会话结束。App 更早结束生命周期时，经同一写门记录到期时刻；重启、unarchive 和读取都不清除或延长 expiresAt。
 - 新用户配方和已有 Home 的采用分别处理。没有保存偏好不等于新用户；采用时先按旧规则求出并物化有效开关，再映射到新配方。已有条目、候选及人工修改不因缺分类而丢失，不默认扩成 common。具体字典、生命周期和默认值以 spec 中的首期短合同为准。
 - `write`、候选提议/接受/晋升、`change` 的更新/启停/删除/恢复/移动、`undo`、配对处理、维护、导入、改类和批量操作都必须重新通过与该动作对应的门。不能只保护新入口；人工保存和管理读取/删除也不能被自动形成开关误挡。
-- P0 保留现有 Molis 历史、撤销和 `molis.memory` 信封，补齐当前阶段需要的分类、状态及策略信息。恢复仍需当前授权与版本检查；人之后编辑的值不能被旧自动变更撤销。SDK 历史正文搬迁与导出 v2 属于后续范围。
+- P0 保留现有 Molis 历史、撤销和 `molis.memory` 信封，补齐当前阶段需要的分类、状态及策略信息。恢复仍需当前授权与版本检查；人之后编辑的值不能被旧自动变更撤销。当前 v2 往返范围见下文；旧 v1 的显式采用和 SDK 历史正文搬迁仍属后续范围。
 - 删除继续使用已有 Host 删除收据和单一执行主人。SDK 与账本分别提交可核对的结果；失败可重试，未完成清理不能报完成。停用、遗忘、项目删除或撤权后，已排队提炼和迟到结果也不能回写；同来源重试不能把遗忘内容学回来。
 - 新格式沿用 `MemoryLedger` 的严格基线版本门：采用后的基线升为新版本，已有程序只认的旧版本因此拒绝打开。版本检查必须在 inference/builder 绑定、SDK 初始化及动作处理器可用之前成功；失败不能留下半装配。新建 Home 由可信创建入口明确初始化为新配方；已有 Home 缺少偏好或采用记录时不自行按新用户补默认。先在隔离副本验证旧产品的 Web、MCP 和 Home 入口明确拒绝，且没有 SDK 目标写入，再启用新格式。
 - 上述版本门保护受支持的 Molis 产品写入口，不声称阻挡持有同一磁盘/密钥权限、绕开产品启动过程的任意旧 Host 程序。SDK 自身的新格式校验仍由 SDK 承担。首期不另建 generation 库或第二个 Runtime root，也不复制一份历史正文。真实 Home 的备份、采用或回退需要对应授权，不是普通启动时的隐式迁移。
@@ -25,6 +31,20 @@
 Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、常驻集合和 token 预算；界面只管理已声明分类，不提供任意规则语言。提炼器与召回器通过 Agent Host 接入 SDK 的窄口，未装配的必需能力明确不可用，不回落到另一套行为。模型调用与提示词登记仍走 Host 的共同入口。
 
 不可配置掉的是来源与权限边界、秘密检查、版本/幂等约束、模型不能自批、删除后的不可读，以及最终注入硬预算。终端用户在原设置页选择读/形成/自动记住开关，查看依据，改类、纠正、停用、撤销或遗忘；操作结果和部分失败由同一个服务回执说明。
+
+### 普通保存重复项的固定重试分支
+
+引用 spec §9.4 同名合同。manual/said/plugin 写入与 auto offer 命中重复时，沿现 duplicate marker 固定目标 scope/owner/id/version、来源与 skip/adopt；完成回执和来源/自动撤销归属投影同一事务，重启不改为 append。公开 accept 使用独立候选决定；undo-recreate 保留其原固定创建身份。
+
+普通采用仍按原顺序追加 evidence 并取末六条，marker 仅存新增条数，不复制证据。SDK 已提交但回应/账本失败时，核原新增证据尾段、保留当前完整证据，重放原 facts CAS 让 SDK 核对原输入；不重复追加、不凭 source 相同确认。原目标后继编辑/删除或当前撤权/取消均拒绝。无固定分支且无实际创建/替换/候选步骤的 pending 保存保持待核对，不猜测自动恢复。原导入身份和前片合同不变。已有候选继续等待用原 candidate-hold 身份固定候选与版本，重试须重新读取 SDK pending 原件，并在最后异步读取之后重核来源/Action beforeEffect；开关变化不能把既有等待决定升级为创建。已完成采用也在重读当前目标后核新增证据，不能用并发请求的旧快照绕过。
+
+### 导入重复项的固定重试分支
+
+引用 spec §9.4「M2 导入重复项的固定重试分支」。导入命中同文同约束的已有条目时，在采用该条目的异步修改之前固定原 scope/owner/id/version 与 skip/adopt 分支。原操作只恢复这一决定，不重新选同文目标、不因已有 commit 而创建第二条。完成回执只含 duplicate、目标 ID 和版本；相关投影与回执在现 ledger 事务提交。原目标后继修改、删除或当前权限失效时明确拒绝；没有可核对分支或 SDK append 身份的旧在途导入保持待核对，不猜成功。
+
+自动条目采用沿原 facts CAS 重放，更新时间使用原 marker 时刻；即使当前 source 已变成 imported，仍由 SDK 的原操作与输入核验确认。导入不增加原话证据，未知 basis/approved 保持现导入语义，原 namespace、分类、期限和 paused/disabled 不被采用恢复或重置。SDK 已提交而响应/ledger 失败后可以补账，取消或撤权后不补完成。重复项职责在 `src/duplicates.ts`；其它保存来源的后续恢复见上节普通保存合同。Service 的权限、筛查及唯一正式写链不变。
+
+本片不支持 v1、缺分类采用或整包输入身份，亦不保存正文快照、编码请求或新账。真实反例和专项以 `tests/memory-service-cas.test.ts` 的公开 Node SDK 与 SQLite 路径验证；源码完成、静态检查和尚未执行的行为回归分别记录，不将旧产物红例当成修复后验证。
 
 ### M1 第一片：采用与有效开关
 
@@ -47,6 +67,50 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 本片不增加持久配置或 SDK 适配口。分类字典、四预设及矩阵随 M2 真实装配完成，不能把 `form=false` 当成 off，也不能把泛用 agent 身份当成 coding 场景。验证覆盖真实候选、接受、历史、撤销、重启及下面列出的记忆回归，不将配置声明当成已接通的管理能力。
 
+### M1 配置片：四预设
+
+短合同见 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。本片将 off/manual/reviewed/assisted 展开为实际的 enabled/task_recall 与原六字段，服务读取和全部写入口共同消费。preset 不另存，细项开关不会被配方覆盖；off 保留管理读取与删除，manual 保留本人保存和可信 Host 的显式回忆。新字段启用依赖 M2 的严格格式采用，当前不能独立合入发布，不能让旧 App 忽略关闭选择。
+
+### M2：条件写入与原操作补账（集成中）
+
+沿 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，Host 每次以可信 caller 绑定 Backend；模型参数不能取得管理或本人批准。追加以稳定 `operation_id` 对接 SDK 幂等键；已有条目与候选分别带自己的原版本。正文与元数据编辑走一次 CAS；接受纠正走 SDK `settleInto`，不先更新正式条目。
+
+SDK 已提交而 ledger 失败时不做删除补偿。现有 marker 只留动作、目标、原版本、时刻和无正文回执；重试必须带原完整请求，不从 marker 恢复正文，也不把后来版本改成原期望。历史、最近变动与完成回执在同一 ledger 事务落盘；后继修改使原提交不可证明时明确冲突，不能猜成功。清空预览将固定 refs、versions 和 SDK purge decision 存在同一 marker 中；部分失败保留逐项结果，重试不重新列出新目标。离线采用与真实 Host 授权由各自主人接线，本模块局部验证不代表 M2 或 P0 已完成。
+
+正式删除在任何异步来源或候选清理之前固定原确认版本，清理前后及原操作重试始终使用同一 purge 条件，不能改用后继版本。若旧版已留下与原确认版本不一致的 purge marker，升级后必须拒绝消费，保留原 marker 和待核对条目，不静默改写条件。来源抑制和关联候选可能已经清理，未知结果或中途失败不代表零副作用；候选 SDK 删除已提交但回应或 ledger 投影失败时，按现有候选删除 marker 重放并补齐投影，不能把当前列表中缺失当作清理已全部完成。未发生外部修改时原操作可继续完成；原确认之后有人编辑则拒绝删除其新版本，保留新正文、版本和历史。
+
+删除、撤销自动写入和跨范围移动在 SDK 已清除源条目而 ledger 清理失败时，按原操作继续清理历史、使用记录和变动正文。恢复先核对原决定与 purge 条件的动作、范围、版本和状态，原范围必须仍属于当前 caller；undo 在原记录仍存在及已完成返回时也检查原 caller 范围。Service 的 `beforeEffect` 沿现 Action control 接入，在候选列举后抑制来源、候选删除后清投影、正式删除后清账这三个边界重新检查 App 授权，实际 SQL 仍受同步的存活、取消和当前 authority 检查保护。SDK 的 `already-absent` 只证明当前不存在，不证明是原操作删掉的，也不提供 App 删除授权。undo 的 SDK 删除在事务外，ledger 的 forget 与 undone 回执在同一现有事务内提交；任一失败后都能用原操作重试。已完成操作保留原结果的幂等返回。`src/moves.ts` 拥有跨范围移动的完整生命周期，目标只来自原创建身份；已保存目标结果后的清理和完成重放不受 enabled 阻挡，保存或创建目标仍检查开关。旧 marker 没有结果时，必须以原版本完整快照重放原 SDK 创建并核对已有创建历史。目标已被后来编辑或无法核对时明确冲突，不创建第二副本、不把后来版本记成原创建。
+
+### M2 维护提交后的补账
+
+沿 spec §9.4，维护先用同一 SDK 对固定的真实命令预检，再在现 revision history 准备原版本。现 operation marker 只保留步骤身份、原版本、历史指针和提交状态；原操作重试先恢复未完成步骤，再扫描当前条目，不把停用或缺失当成已记账。SDK 确认原 CAS 提交后，唯一 change、实际版本、历史与完成标记在同一 ledger 事务提交。后继编辑、未知回执、撤权、取消及遗忘屏障都不能被补账绕过。
+
+合并冗余项使用 SDK 逻辑删除的真实版本回执，补账成功前保留其原历史，完成后再清理账本；用户删除/清空仍物理清除并抑制来源。合并只引用已有、与原版本一致的历史快照，不借删除预检复制未知旧正文。依据恢复后的自动 resume 引用原版本的暂停记录，撤销按实际应用版本恢复原暂停理由，不复制未知理由。合并的 recreate 撤销只重建被合并项，不改 survivor，因此不对 survivor 建 undo CAS；状态/正文撤销仍核实际写目标版本。没有可靠回执的旧物理删除不追溯猜成功。
+
+范围为本包维护/operations/Backend、AgentHost 固定命令预检与逻辑删除薄口、LocalHost 薄适配和真实 Node/SQLite 维护恢复测试。无新 SDK、数据库表、UI 或恢复循环；阈值与选择规则不变。验证覆盖提交后账失败、合并更新/逻辑删除后的中断、事务回滚与重开、同操作只补一次及准确撤销，以及后继编辑/遗忘拒绝。
+
+同一 actor 的现 operation marker 索引最多保留一个在途步骤：当前维护逐步串行、每步提交后才进入下一步，因此不需要缓存整批。准备历史、计划与登记索引在一个事务，完成变更与移除索引也在一个事务；满时新动作明确拒绝，不淘汰旧计划。下一次后台调用即使换了父操作号也先恢复。原 consumer/项目/插件/角色/Session 绑定必须与当前调用相符并重新授权；并发的其它范围也不能覆盖在途项，删除标记优先。
+
+recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；重试使用同一 SDK 创建回执，不以同文判断原创建成功。合并的 undo 计划只增存被合并项的 source refs 身份；重建经现 commit 检查来源抑制并重新链接。创建已完成而最终 undone 记账失败时，新请求只补原事实；后继编辑不被覆盖或复制成第二条，遗忘重建项后也不能重放原来源。
+
+### M2 新写分类准备
+
+新普通写入与候选使用可信 Host caller 的场景，按既有场景映射准备分类；新记忆无明确期限时由 App 选择 long-term，有正式期限时选择 short-term。分类准备属于本包的产品规则，不在 SDK taxonomy 配默认值。候选等待 14 天是候选自身的期限，不是正式记忆的生命周期；修改已有条目和使用已有候选时保留 canonical 分类及 Session 关联。旧导入和撤销重建不经新输入默认，不能凭缺字段推成 common。
+
+本刀不增加公开分类编辑、来源事件、晋升或导入格式。候选正式期限、未知审批投影和旧原件恢复另行收口。`tests/memory-new-classification.test.ts` 使用生产 `memoryRuntimePolicy`、生产 Backend 与真实 Node/SQLite，验证新保存、候选、当前授权和重启；不能使用测试 taxonomy 默认分类补齐。分类的准备可由 App 变更，当前授权、内容门、版本和最终写门不能配掉。
+
+### M2 期限与当前格式往返
+
+沿 spec §9.5，候选自身最多等待 14 天；正式记忆的绝对期限单独保存在内部候选记录 `formal_expires_at`，不出现在公开候选投影。短于等待期时，候选同时提前到期；长于等待期或无期限时，不把等待日期当成正式期限。同一操作的无正文 marker 在 SDK 提议前冻结正式期限，补账不能把原 30 天改成 60 天。接受仍由 SDK 检查候选自身期限；已提交的同操作可以按 SDK 合同补关联与历史，不能重新产生一次正式写入。
+
+已记录的候选 `formal_expires_at: null` 表示无正式期限，缺字段表示旧记录未记录该决定；两者不混用。公开 `write` 的替换请求沿用原语义：省略或传 `expires_at: null` 都保留目标原期限，并不提供清空期限或续期能力。
+
+当前导出信封及导入/导出动作升级为 v2，保留 canonical 分类、Session 引用、命名空间、依据类别和绝对期限，仍对正文、出处与适用文字脱敏；敏感约束不能改名后冒充相同授权。导入只接受完整 v2，缺分类或旧 v1 整包拒绝，不补 common。相同正文但分类、Session、命名空间或期限不同的条目不能被静默当成重复。Session 仍要求原可信绑定，导出不授予新的会话权限。
+
+历史快照与合并撤销重建保留原分类、Session、命名空间和期限；到期后撤销明确拒绝，等待本人决定续期，不清空期限或转成长效。移动仍沿原合同创建新 scope/ref 并清理旧历史，不承诺历史跨 ref 跟随。旧 v1 采用、缺分类选择、状态完整往返和续期 UI 仍需后续 P0 切片；本片不补自动晋升或来源批准能力。
+
+范围读取和视图投影、固定清空预览/重试、导出与导入由 `MemoryScopeCommands` 持有，使用同一 Backend/ledger；导入与撤销重建回到 Service 的同一个写入门，不另建正文真值。`tests/memory-retention-roundtrip.test.ts` 使用生产权限策略、Backend、Node 磁盘和 SQLite，覆盖实际保存、候选接受、原操作补账、重启与往返；不调用模型，也不将这些工程证据当作旧 Home 采用或整体 P0 完成。
+
 ## 一次典型调用
 
 助理的一轮开始前，Host 以“助理”这个使用方调用 `MemoryService.recall`：服务按用户的开关确定能读哪些范围（个人、当前项目），从 Prologue Memory 读出条目，结合 Host 记下的类别、适用情境、状态和有效期逐条过滤，用中文两字片段与英文词打分，按上限与字数预算取用，把用上的和因预算没带上的都记成使用回执（设置里显示“最近用于”）。用户说“以后都……”时，`write` 经写入门：开关、秘密形状、像指令的文字、范围、重复与冲突，最后才写入 Prologue Memory 并记一条“最近变动”。
@@ -58,12 +122,16 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 | 文件 | 用途 |
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
-| [src/prefs.ts](src/prefs.ts) | 开关的默认值、补全与使用方权限 |
+| [src/scope-commands.ts](src/scope-commands.ts) | 授权范围读取与视图、固定清空、当前格式导出/导入；导入复用 Service 写门 |
+| [src/prefs.ts](src/prefs.ts) | 开关的默认值、四预设配方、补全与使用方权限 |
+| [src/preferences.ts](src/preferences.ts) | 有效偏好读写、项目继承与助理设置映射；持久化仍经原 ledger |
 | [src/policy.ts](src/policy.ts) | 自动批准规则版本与低风险类型门；只决定自动提议是否仍需本人认可 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断（`sameWords`：同样的话，由 `fold` 折叠后相等；`sameText`：去掉标点的粗略相等，只用来给建议去重）、秘密形状与像指令的文字（确定性规则） |
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
 
 合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
+
+`MemoryServicePorts.bindChangeTarget` 将 `change` 已授权定位的 scope、owner、project 同步交给当前 Host 控制，发生在变更记账和正式提交前；不返回正文，也不另查目标。助理受控工厂必传此口，用同一调用的最终检查覆盖实际目标撤权后的 SDK 提交与 ledger 写入；普通管理装配继续使用其现有 Action 控制。
 
 ## 接入与边界
 
@@ -80,7 +148,21 @@ pnpm --filter @molis-ai/molis-work-service-memory typecheck
 pnpm --filter @molis-ai/molis-work-service-memory build
 ```
 
+### M2 来源绑定与规则 v3（实施中）
+
+范围与验收以 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定) 为准。沿现学习队列，自动学习只经 SDK `candidates.form` 调用一次登记的 Host 提炼并写候选；人工提议仍使用现公开提议口。无长期信号时返回 skipped，不读取来源、不调用模型。明确表达复用 `spoken.theirWords` 的整条消息规则，重复只数独立来源。模型引用、工作/Run/job 数量和旧无来源候选不构成自动批准。
+
+形成前由本包读取同一份当前授权上下文（最多 30 条正式、20 条待审），冻结个人/项目的新建槽与跨类别替换槽。正式上下文按当前 task 读取许可取得；已过期、暂停、停用或不在当前场景可见范围的条目不进入提炼上下文，也不生成替换槽。管理页面仍可按原管理许可查看它们，不清期限或重分类。待审上下文沿候选管理审阅许可，并再次求交当前形成/学习开关、场景、私有命名空间和有效期，仅服务本轮去重与来源合并，不冒充正式 task 召回许可。关闭任务召回而仍允许形成时，不读取正式上下文，仍可形成新候选。目标类别复用当前 consumer 与插件的 explicit 许可求交；默认 Coding 仅提供 preference/convention，明确授权其它类别后才增加相应槽，不因一个未授权类别阻断全部合法形成。每种当前允许类别可新建三条，App 明确配置最多 144 槽；提炼每轮仍最多三条，原文上下文只传一次。替换槽保留原目标与读取时版本，接受只能走同一目标的 `settleInto`；目标丢失或后继编辑不得改成新建或追最新版本。只有与本次整条本人原话对应的旧 explicit 待审候选可贡献其 SDK 已确认来源，最终仍由 SourcePort 重读；不把其它待审来源送入模型。
+
+每次实际模型派发前沿同一公开读取口复核这份固定上下文的权限、状态及原版本；变化即拒绝派发，不替换正文、目标或期望版本。该回调只活在当前调用，不进模型或持久记录。
+
+候选账注只登记 SDK 已确认的引用、版本、来源和冻结期限。模型的 inferred 提示始终保守待审；自动 v3 晋升仍独立核验两份完整本人表态、当前权限、低风险类别及原撤销 journal。形成的 partial、unknown、取消和提炼用量原样返回，不能变成空成功；同操作按 SDK 完整创建输入恢复，不宣称整批 exactly-once。模型、SDK 写主人、权限与取消都不可替换为第二条 App 提议循环。验收使用真实 Node 存储及有界提炼替身，覆盖无信号零调用、同类多条、条件与跨类纠正、来源重复、固定版本冲突、取消和部分提交。
+
+产品规则 v3 和撤销准备/补账归本包，SDK 仍拥有正式 CAS 与候选决定。准备写现操作 marker/原版本历史，并在原 marker 内一次生成有界变更 ID；提交及重试复用该 ID，提交后记现变更与撤销；失败沿原操作恢复，后继人工版本不得覆盖。遗忘先写无正文来源抑制标识，清理和重放都复用现 ledger，不新增来源正文表。`learning.ts` 拥有学习编排，`promotion.ts` 拥有版本化批准与当前账本回执；这些不成为另一个候选或执行内核。现候选账注的可选 `source_refs` 只保留 SDK 已确认的来源身份，不保存原文、不替代最终授权；晋升准备读此账注，避免重入 SDK 正在执行的候选队列。
+
 ## 开发要求
+
+使用历史只由真实 Run Context 回执补入现有 ledger；显式召回返回记为 `returned`，不会进入最近参考。相同条目/SDK receipt 保存一份逐 call 事实的摘要，确认响应后不会被较弱状态降级；显示时间为原轮次开始时间。逐 call 完整事实仍归 Run，旧 `used` 不能转换成确认派发。遗忘后迟到回执逐条忽略已删身份，不阻断同批其他条目。对应回归为 `tests/memory-use-receipts.test.ts` 与 `tests/prologue-memory-run-context.test.ts`。
 
 - 负责：开关与使用方权限、写入门（开关、秘密、像指令的文字、范围、重复与冲突、记作“亲口说的”的核对、自动写入的决定表）、召回的过滤与排序与预算、使用回执、候选的规则（同文只提一次、每项工作最多 3 条、14 天过期）、最近变动与撤销、版本历史、界面信号计数与门槛。候选读取只认当前 owner 的记录，缺失明确拒绝，不迁入或改写账本。
 - 不负责：记忆正文的存储、版本号、墓碑与作用域隔离（Prologue Memory）；模型调用与提炼（Agent Host）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（Workbench）。
@@ -88,6 +170,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 拒绝由公开 `memoryErrors` 声明并返回共同 `ActionError`：权限与范围是 `forbidden`，不存在是 `not_found`，待处理建议上限与预览后变动是 `conflict`，输入与开关是 `invalid`。Host 和助理保留 `memory.*` 码、消息、kind 与 details；HTTP 经 SDK 分别回答 403、404、409、400，不另把它改成助理码。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 正式记忆缺少依据、批准者或原时间时投影为 `null`；未知证据类别和原引用保持原值，状态编辑和恢复不补造事实。新写与候选的依据、证据输入保持严格。导出不含证据正文；未知依据往返，导入缺少原批准事实仍未知。缺时间不获新近权重、不能据此执行 90 天自动停用。见当前 Memory 策略 spec §9.4。
   - 前台控制按调用贯穿 SDK 的异步准备、实际 storage 提交和同步 owner 账本；后台维护使用自身授权。被拒绝的后续写入不反抹已经提交的 SDK 事实，部分失败明确报出并可重开核对。
   - 模型只提议不批准：自动写入由确定性的写入门决定，规则版本写进来源与最近变动。
   - 单次行为、仅靠推断的内容、背景事实、经验、像指令的文字、形似秘密的文字都不会被自动写入；只有偏好/约定可通过重复证据与开关门自动晋升，推断不能覆盖用户明确说过的。
@@ -103,18 +186,15 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 经 `memory.write` 动作调用的其他 Agent（Coding 会话、插件里的 Agent 等；MCP 和插件都不在这个动作的受众里），宿主没有它和本人的对话，没有可核对的原话：它交来的 `said` 是它自己写的，不算消息。所以它写的一律作为建议（候选，依据记为推断，原因写“宿主没有保存你对这个 Agent 说过的话”），本人认可才生效；它写的内容正好是已有的一条时只回“已经记着”，不改那条的来源。要让某个入口也能记作“他说的”，得先由宿主保存本人在那里打的消息，再像助理那样交给写入门。
   - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
   - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
-  - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
+  - 显式召回只记录返回，不更新最近参考；最近参考由真实 Run 的 `response-observed` Context 回执投影。派发未知和记录失败单独显示，不重发模型；迟到回执不能恢复已遗忘身份。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/services/memory`
-- Migration Goals: `goal-reorg-f2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

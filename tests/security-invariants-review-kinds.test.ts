@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { execFileSync } from "node:child_process";
@@ -101,7 +102,7 @@ test("S-50 PG-009 a review kind outside the platform's list is refused when the 
   const unknown = worktreeManifest("unknown-kind", [{ permission: "review:git-reset", required: false, reason: "Not a platform review" }]);
   assert.throws(() => parsePluginManifest(unknown), { code: "plugin.permission_invalid" });
   assert.throws(() => parsePluginManifest(worktreeManifest("bare", [{ permission: "review:", required: false, reason: "No kind" }])), { code: "plugin.permission_invalid" });
-  assert.throws(() => new PluginRuntime().install({ definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
     { code: "plugin.manifest_invalid" });
   for (const kind of ["git-index", "git-operation", "git-worktree", "git-integration"]) {
     parsePluginManifest(worktreeManifest(kind, [{ permission: `review:${kind}`, required: true, reason: "A platform review" }]));
@@ -259,8 +260,8 @@ async function openGitHost(t: TestContext, clean = false) {
     async start(name: string, grants: readonly string[], consumes: readonly string[] = []) {
       const plugin = callerPlugin(name, "project", { [INDEX]: false, [OPERATION]: false, [REVIEW]: false, [INTEGRATION]: false, "workspace:read": true },
         [...[...gitHostActions, ...writerHostActions].map(action => action.capability_id), workspaceReadActions.git.capability_id, ...consumes]);
-      const started = await startPlugin(host, reference, store, plugin, { grants, capabilities: host.client(reference) });
-      return { ...started, plugin, actions: plugin.actions("project"), capabilities: plugin.context("project").services!.capabilities! };
+      const started = await startPlugin(host, reference, store, plugin, { grants, dependencies: host.client(reference) });
+      return { ...started, plugin, actions: plugin.actions("project"), services: plugin.context("project").services! };
     },
     /** What a staging review is prepared against, and what a Git operation is: the changed file's diff, the repository's summary. */
     async revisions(actions: ReturnType<ReturnType<typeof callerPlugin>["actions"]>) {
@@ -319,9 +320,8 @@ test("S-15 PG035-GIT-02 Git's Host actions are offered to plugins only and calle
   // A plugin-audience call without a caller the Host issued.
   const unissued = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project", audience: "plugin" as const, permissions: [INDEX, OPERATION, "workspace:read"] };
   await assert.rejects(gateway.invoke(unissued, prepareGitIndexCapability, stage(revision.index, "index-unissued")), { code: "host.plugin_caller_invalid" });
-  // The typed client, which Git used before: an action is called as an action, holding the kind or not.
-  await assert.rejects(holder.capabilities.invoke(prepareGitIndexCapability, stage(revision.index, "index-typed")), { code: "actions.forbidden" });
-  await assert.rejects(lacking.capabilities.invoke(prepareGitIndexCapability, stage(revision.index, "index-typed-lacking")), { code: "actions.plugin_permission" });
+  // There is no typed client, which Git used before: an action is called only as an action.
+  for (const plugin of [holder, lacking]) assert.equal(Reflect.get(plugin.services, "capabilities"), undefined, plugin.plugin.id);
   assert.deepEqual(h.reviews.list("project"), []);
 });
 
@@ -366,10 +366,10 @@ test("PG035-GIT-05 PG035-WRITER-05 a plugin's dependency check asks whether a Ho
   const consumes = [projectSettingsCapabilities.browsingWorkspace.capability_id, projectSettingsCapabilities.selectBrowsingWorkspace.capability_id];
   const holder = await h.start("holder", [INDEX, OPERATION], consumes), lacking = await h.start("lacking", [], consumes);
   for (const plugin of [holder, lacking]) {
-    for (const action of [...gitHostActions, ...writerHostActions]) assert.deepEqual(plugin.capabilities.availability!(action), { available: true }, `${plugin.plugin.id} ${action.capability_id}`);
+    for (const action of [...gitHostActions, ...writerHostActions]) assert.deepEqual(plugin.actions.availability(action), { available: true }, `${plugin.plugin.id} ${action.capability_id}`);
     // An action offered to plugins with no permission reads as before; one offered to the person only is still not offered.
-    assert.deepEqual(plugin.capabilities.availability!(projectSettingsCapabilities.browsingWorkspace), { available: true });
-    assert.equal(plugin.capabilities.availability!(projectSettingsCapabilities.selectBrowsingWorkspace).available, false);
+    assert.deepEqual(plugin.actions.availability(projectSettingsCapabilities.browsingWorkspace), { available: true });
+    assert.equal(plugin.actions.availability(projectSettingsCapabilities.selectBrowsingWorkspace).available, false);
   }
   const revision = await h.revisions(holder.actions);
   await assert.rejects(lacking.actions.invoke(prepareGitIndexCapability, stage(revision.index, "index-ready-not-held")), { code: "plugin.grant_denied" });
@@ -420,10 +420,8 @@ test("S-15 PG035-WRITER-02 the writers' Host actions are offered to plugins only
   const unissued = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project", audience: "plugin" as const, permissions: [REVIEW, INTEGRATION, "workspace:read"] };
   await assert.rejects(gateway.invoke(unissued, writerDirectoryCapabilities.prepare, worktree("worktree-unissued")), { code: "host.plugin_caller_invalid" });
   await assert.rejects(gateway.invoke(unissued, writerDirectoryCapabilities.list, { workspace_id: "main" }), { code: "host.plugin_caller_invalid" });
-  // The typed client, which Coding used before: an action is called as an action, holding the kind or not.
-  await assert.rejects(holder.capabilities.invoke(writerDirectoryCapabilities.prepare, worktree("worktree-typed")), { code: "actions.forbidden" });
-  await assert.rejects(holder.capabilities.invoke(writerDirectoryCapabilities.list, { workspace_id: "main" }), { code: "actions.forbidden" });
-  await assert.rejects(lacking.capabilities.invoke(writerDirectoryCapabilities.prepare, worktree("worktree-typed-lacking")), { code: "actions.plugin_permission" });
+  // There is no typed client, which Coding used before: an action is called only as an action.
+  for (const plugin of [holder, lacking]) assert.equal(Reflect.get(plugin.services, "capabilities"), undefined, plugin.plugin.id);
   assert.deepEqual(h.reviews.list("project"), []);
   assert.equal(h.worktrees(), 1);
 });

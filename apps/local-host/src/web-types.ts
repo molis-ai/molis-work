@@ -1,6 +1,4 @@
-import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
-import type { FeedSourceScheduler } from "@molis-ai/molis-work-plugin-feed";
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
@@ -30,7 +28,6 @@ export interface WebServerOptions {
   /** Test-only deterministic local Web control token. Production persists one per Molis Work home. */
   controlToken?: string;
   /** Test/host injection. Production starts a private Codex app-server lazily on first read/resume. */
-  runtimeSessionTransport?: RuntimeSessionTransport;
   /** Shared Local Host fixture or embedding owner. Production Web owns one when omitted. */
   localHost?: MolisWorkLocalHost;
   /** How often (milliseconds, default one minute) the server finishes project deletions that other processes left pending. */
@@ -48,8 +45,8 @@ export interface ResolvedWebBoardOptions {
   homeDirectory?: string;
 }
 
-export interface FeedSchedulerRuntime {
-  scheduler: Pick<FeedSourceScheduler, "tick"> & { close?(): void };
+/** What the Host keeps running for one project besides its plugins: the Scheduler service's clock. Feed's source clock is Feed's own (its wakeup job). */
+export interface ProjectScheduleRuntime {
   schedule: ScheduleService;
 }
 

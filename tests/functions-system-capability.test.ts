@@ -3,19 +3,18 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import {
-  FEED_ARCHIVE_BEHAVIOR_ID,
+  FEED_ARCHIVE_OPTION_ID,
   FEED_CAPTURE_SCENE_ID,
-  FEED_OPEN_BEHAVIOR_ID,
-  FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_SAVE_BEHAVIOR_ID,
-  HOME_CONTINUE_BEHAVIOR_ID,
+  FEED_OPEN_OPTION_ID,
+  FEED_PROMOTE_OPTION_ID,
+  FEED_SAVE_OPTION_ID,
+  HOME_CONTINUE_OPTION_ID,
   HOME_DOCK_SCENE_ID,
-  HOME_TALK_BEHAVIOR_ID,
-  INBOX_ADMIT_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  INBOX_DISMISS_BEHAVIOR_ID,
+  INBOX_ADMIT_OPTION_ID,
+  INBOX_DONE_OPTION_ID,
+  INBOX_DISMISS_OPTION_ID,
   INBOX_NEXT_SCENE_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
@@ -29,29 +28,32 @@ import {
 import {
   functionsErrors,
   createFunctionsService,
-  openFunctionsStore,
   publishedFunctionAction,
+  publishedFunctionReference,
+  publishedFunctionKey,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
-import { liveHostFunctionAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
+import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { openTestHome } from "./fixtures/test-home.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
-function memorySecrets(initial: Record<string, string> = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    put(ref: string, value: string) { map.set(ref, value); },
-    get(ref: string) { return map.get(ref) ?? null; },
-    delete(ref: string) { return map.delete(ref); },
-  };
-}
+test("FI-1 RAC-482 published rule references keep their owner, key and exact version without a full definition", () => {
+  const identity = { function_key: "next_step_v7", status: "published" as const, version: 7 };
+  const reference = publishedFunctionReference(identity);
+  assert.deepEqual(reference, { capability_id: "functions.published.next_step_v7", version: 7, provider_id: "system.functions" });
+  assert.equal(publishedFunctionKey(reference), "next_step_v7");
+  for (const record of [{ ...identity, status: "draft" as const }, { ...identity, version: null }, { ...identity, version: 0 }]) {
+    assert.throws(() => publishedFunctionReference(record), { code: "actions.function_unpublished" });
+  }
+});
 
 function fixtureProvider(choice: string | null): TypeSafeProvider {
   return {
@@ -83,10 +85,9 @@ async function publishChoice(
   home: string,
   input: { name: string; function_key: string; keys: readonly string[]; provider?: TypeSafeProvider },
 ) {
-  const store = openFunctionsStore(home);
   const service = createFunctionsService({
-    store,
-    secrets: memorySecrets(),
+    home,
+    credential: () => null,
     env: { TYPESAFE_API_KEY: "sk-test" },
     provider: input.provider ?? fixtureProvider(input.keys[0] ?? null),
   });
@@ -98,84 +99,79 @@ async function publishChoice(
   });
   await service.preview(created.id, "样例");
   const published = service.publish(created.id);
-  return { store, service, published };
+  return { service, published };
 }
 
 test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plus unknowns", () => {
   assert.deepEqual(
     filterSuggestedBehaviorIds(
-      [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      HOME_CONTINUE_BEHAVIOR_ID,
+      [HOME_CONTINUE_OPTION_ID, INBOX_DONE_OPTION_ID],
+      [HOME_CONTINUE_OPTION_ID, INBOX_DONE_OPTION_ID],
+      HOME_CONTINUE_OPTION_ID,
     ),
-    [HOME_CONTINUE_BEHAVIOR_ID],
+    [HOME_CONTINUE_OPTION_ID],
   );
   assert.deepEqual(
     filterSuggestedBehaviorIds(
-      [HOME_CONTINUE_BEHAVIOR_ID],
-      [HOME_CONTINUE_BEHAVIOR_ID],
+      [HOME_CONTINUE_OPTION_ID],
+      [HOME_CONTINUE_OPTION_ID],
       "not-a-behavior",
     ),
-    [],
-  );
-  assert.deepEqual(
-    filterSuggestedBehaviorIds([HOME_TALK_BEHAVIOR_ID], [HOME_TALK_BEHAVIOR_ID], HOME_TALK_BEHAVIOR_ID),
     [],
   );
 });
 
 test("Feed disposition defaults are offered until a valid choice selects them", () => {
   assert.deepEqual(defaultFeedCaptureBehaviorIds(true), [
-    INBOX_ADMIT_BEHAVIOR_ID,
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
-    FEED_OPEN_BEHAVIOR_ID,
+    INBOX_ADMIT_OPTION_ID,
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
+    FEED_OPEN_OPTION_ID,
   ]);
   assert.deepEqual(defaultFeedCaptureBehaviorIds(false), []);
   assert.deepEqual(visibleFeedDispositionIds([], true), [
-    INBOX_ADMIT_BEHAVIOR_ID,
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
+    INBOX_ADMIT_OPTION_ID,
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
   ]);
-  assert.deepEqual(visibleFeedDispositionIds([FEED_OPEN_BEHAVIOR_ID], true), [
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
+  assert.deepEqual(visibleFeedDispositionIds([FEED_OPEN_OPTION_ID], true), [
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
   ]);
-  assert.deepEqual(visibleFeedDispositionIds([FEED_PROMOTE_BEHAVIOR_ID], true), [FEED_PROMOTE_BEHAVIOR_ID]);
+  assert.deepEqual(visibleFeedDispositionIds([FEED_PROMOTE_OPTION_ID], true), [FEED_PROMOTE_OPTION_ID]);
   assert.deepEqual(visibleFeedDispositionIds(["invented.behavior"], true), [
-    INBOX_ADMIT_BEHAVIOR_ID,
-    FEED_SAVE_BEHAVIOR_ID,
-    FEED_PROMOTE_BEHAVIOR_ID,
-    FEED_ARCHIVE_BEHAVIOR_ID,
+    INBOX_ADMIT_OPTION_ID,
+    FEED_SAVE_OPTION_ID,
+    FEED_PROMOTE_OPTION_ID,
+    FEED_ARCHIVE_OPTION_ID,
   ]);
 });
 
 test("historical judgments retain original object, project and scene scope", async () => {
   await withHome(async home => {
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
-      const write = (scene: string, project: string, result: string) => store.recordJudgment({ function_key: "old-rule", function_version: 1,
+      const write = (scene: string, project: string, result: string) => functions.recordSceneJudgment({ function_key: "old-rule", function_version: 1,
         subject: { kind: "inbox_entry", id: "same-object", project_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
-      const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
-      const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
-      const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);
-      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
-      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
-      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
-      assert.deepEqual(store.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID), [inbox]);
-    } finally { store.close(); }
+      const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_OPTION_ID);
+      const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_OPTION_ID);
+      const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_OPTION_ID);
+      assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
+      assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
+      assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
+      assert.deepEqual(functions.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID, null), [inbox]);
+    } finally { functions.close(); }
   });
 });
 
 test("system module can publish using the existing rule store", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
+      home,
+      credential: () => null,
       env: { TYPESAFE_API_KEY: "sk-test" },
       provider: fixtureProvider("yes"),
     });
@@ -193,7 +189,7 @@ test("system module can publish using the existing rule store", async () => {
       assert.equal(published.status, "published");
       assert.equal(published.version, 1);
     } finally {
-      store.close();
+      service.close();
     }
   });
 });
@@ -209,14 +205,14 @@ test("authoring derives exact Agent capabilities from the supplied directory wit
   const second = catalogAction("unknown.notes", 2);
   const unavailable = { ...catalogAction("unknown.write"), availability: { available: false as const, code: "notes.offline", reason: "Offline" } };
   const userOnly = { ...catalogAction("private.user"), action: { ...first.action, audiences: ["user" as const] } };
-  const catalog = liveHostFunctionAuthoringCatalog([first, second, unavailable, userOnly]);
+  const catalog = liveHostJudgmentRuleAuthoringCatalog([first, second, unavailable, userOnly]);
   assert.deepEqual(catalog.destinations.map(row => row.destination_id), ["agent.mcp"]);
   assert.equal(catalog.behaviors.length, 3);
   assert.deepEqual(catalog.behaviors.map(row => row.action_ref), [first, second, unavailable].map(row => ({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id })));
   assert.equal(new Set(catalog.behaviors.map(row => row.behavior_id)).size, 3);
   assert.equal(catalog.behaviors[2]?.availability?.available, false);
-  assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
-  assert.equal(liveHostFunctionAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
+  assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
+  assert.equal(liveHostJudgmentRuleAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
 });
 
 test("authoring names the owning plugin by its plugin id, never by the installation that registered it", () => {
@@ -239,7 +235,7 @@ test("authoring names the owning plugin by its plugin id, never by the installat
   });
   const offered = scene(host, { scene_id: "example.offered", recommendation_source: "subject-offers" });
   const finite = scene(consumer, { scene_id: "example.finite", result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["example.one"] } } } } });
-  const catalog = liveHostFunctionAuthoringCatalog([read, finish, offers, system], [offered, finite]);
+  const catalog = liveHostJudgmentRuleAuthoringCatalog([read, finish, offers, system], [offered, finite]);
   const behavior = (match: (row: (typeof catalog.behaviors)[number]) => boolean) => catalog.behaviors.find(match)!;
 
   const agentRead = behavior(row => row.action_ref?.capability_id === "notes.read");
@@ -266,30 +262,48 @@ test("Home preserves declared navigation and bound suggestions without inventing
     id: "opaque", event_id: "note-event", subject: { kind: "note", id: "note-1" },
     source: { capability_id: "plugin.events", version: 1, provider_id: "unknown" }, origin: { surface: "notes", title: "笔记", icon: "note" },
     occurred_at: now.toISOString(), placement: "occurred", category: "personal", title: "笔记", summary: "摘要", content: "正文", facts: [], needs_attention: false,
-    open, suggested_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID],
+    open, suggested_behavior_ids: [HOME_CONTINUE_OPTION_ID],
   }] });
   assert.deepEqual(events[0]?.open, open);
-  assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_BEHAVIOR_ID]);
+  assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_OPTION_ID]);
 });
 
-test("built-in function keys exist in the Module store", async () => {
-  await withHome(async (home) => {
-    const store = openFunctionsStore(home);
-    try {
-      const keys = store.list().map((row) => row.function_key);
-      assert.ok(keys.includes(SYSTEM_HOME_DOCK_FUNCTION_KEY));
-      assert.ok(keys.includes(SYSTEM_INBOX_ADMIT_FUNCTION_KEY));
-      assert.ok(keys.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
-      const homeDock = store.requirePublishedByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY);
-      assert.equal(homeDock.status, "published");
-      assert.ok(
-        Array.isArray(homeDock.criteria)
-        && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_BEHAVIOR_ID),
-      );
-    } finally {
-      store.close();
-    }
-  });
+/** A Home whose project has opened, so the shipped scenes have registered and written the rules they declare (RAC-484). */
+async function openHomeWithRules(t: TestContext) {
+  const home = await openTestHome(t, { host: { functions: { env: {}, credential: () => null } } });
+  const project = await home.createProject("规则", ["feed", "inbox"]);
+  await home.inspect("owner", project.project_id);
+  return home.home;
+}
+
+test("built-in function keys exist in the Module store once the scenes that declare them have registered", async (t) => {
+  const home = await openHomeWithRules(t);
+  const functions = createFunctionsService({ home, credential: () => null });
+  try {
+    const keys = functions.list().map((row) => row.function_key);
+    assert.ok(keys.includes(SYSTEM_HOME_DOCK_FUNCTION_KEY));
+    assert.ok(keys.includes(SYSTEM_INBOX_ADMIT_FUNCTION_KEY));
+    assert.ok(keys.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
+    const homeDock = functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!;
+    assert.equal(homeDock.status, "published");
+    assert.ok(
+      Array.isArray(homeDock.criteria)
+      && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_OPTION_ID),
+    );
+  } finally {
+    functions.close();
+  }
+});
+
+test("the built-in Home rule is seeded for the Home scene and Inbox entries", async (t) => {
+  const home = await openHomeWithRules(t);
+  const functions = createFunctionsService({ home, credential: () => null });
+  try {
+    assert.equal(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
+    assert.deepEqual(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
+  } finally {
+    functions.close();
+  }
 });
 
 test("a judgment's choice follows the rule's scene map", () => {
@@ -299,33 +313,20 @@ test("a judgment's choice follows the rule's scene map", () => {
       { key: "urgent", description: "急" },
       { key: "later", description: "不急" },
     ],
-    scene_map: { urgent: INBOX_DONE_BEHAVIOR_ID, later: INBOX_DISMISS_BEHAVIOR_ID },
-  }, { choice: "urgent" }), INBOX_DONE_BEHAVIOR_ID);
+    scene_map: { urgent: INBOX_DONE_OPTION_ID, later: INBOX_DISMISS_OPTION_ID },
+  }, { choice: "urgent" }), INBOX_DONE_OPTION_ID);
   assert.equal(mapJudgmentChoice({
     primitive: "noul",
     criteria: { true_description: "够", false_description: "不够" },
-    scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
-  }, { noul: 0.8 }), INBOX_DONE_BEHAVIOR_ID);
-});
-
-test("the built-in Home rule is seeded for the Home scene and Inbox entries", async () => {
-  await withHome(async (home) => {
-    const store = openFunctionsStore(home);
-    try {
-      assert.equal(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
-      assert.deepEqual(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
-    } finally {
-      store.close();
-    }
-  });
+    scene_map: { true: INBOX_DONE_OPTION_ID, false: INBOX_DISMISS_OPTION_ID },
+  }, { noul: 0.8 }), INBOX_DONE_OPTION_ID);
 });
 
 test("agent.mcp functions are plain judgments, never a site scene's recommendation", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
+      home,
+      credential: () => null,
       env: { TYPESAFE_API_KEY: "sk-test" },
       provider: fixtureProvider("molis_work_v1_form_create"),
     });
@@ -344,7 +345,7 @@ test("agent.mcp functions are plain judgments, never a site scene's recommendati
       const published = service.publish(created.id);
       assert.equal(publishedFunctionAction(published).action.output_type, "molis.judgment.v1");
     } finally {
-      store.close();
+      service.close();
     }
   });
 });
@@ -353,7 +354,7 @@ test("Agent suggestions respect subject contracts and exclude other scenes", () 
   const generic = catalogAction("generic.read");
   const note = { ...catalogAction("note.read"), action: { ...generic.action, subject_kinds: ["note"] } };
   const feed = { ...catalogAction("feed.read"), action: { ...generic.action, subject_kinds: ["feed_item"] } };
-  const base = liveHostFunctionAuthoringCatalog([generic, note, feed]);
+  const base = liveHostJudgmentRuleAuthoringCatalog([generic, note, feed]);
   const catalog = { ...base, behaviors: [...base.behaviors, { ...base.behaviors[0]!, behavior_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
   // The page filters these rows by the chosen subject kinds (tests/functions-plugin.test.ts runs that rule); the catalog carries each
   // suggestion with its own subject kinds, hangs only Agent capabilities under agent.mcp, and keeps another scene's symbol out.
@@ -397,9 +398,11 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "apps/workbench/src/scripts/client/project-home.ts",
     "apps/workbench/src/scripts/client/navigation-inbox.ts",
     "apps/workbench/src/scripts/client/navigation-feed.ts",
+    "apps/workbench/src/scripts/client/navigation-feed-sources.ts",
+    "apps/workbench/src/scripts/client/navigation-feed-stage.ts",
     "apps/workbench/src/scripts/client/events-primary.ts",
     "apps/local-host/src/home-dock-http.ts",
-    "apps/local-host/src/feed-native-plugin-http.ts",
+    "apps/local-host/src/plugin-stage-fragment-http.ts",
     "apps/local-host/src/web-view.ts",
   ];
   for (const relative of files) {
@@ -419,6 +422,8 @@ test("home dock HTTP binds a published function at the scene without executing w
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-home-dock-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "卡底绑定", actor_id: "test" });
+  // The Home dock's choices are the Inbox's behaviors: they exist while the project has the Inbox (FI-6: a Runtime plugin of the project, not always there).
+  for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const token = "home-dock-test-token-0123456789012345";
   const localHost = new MolisWorkLocalHost({ homeDirectory, functions: { env: { TYPESAFE_API_KEY: "fixture-only" } } });
@@ -466,7 +471,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.match(page, /"inbox_judgment"/);
   assert.doesNotMatch(page, /"home_dock_functions"/);
   const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
-  const functionsClient = await readFile(join(ROOT, "..", "apps/workbench/src/functions/client.ts"), "utf8");
+  const functionsClient = (await Promise.all(["client", "client-render", "client-records", "client-events"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/functions/${part}.ts`), "utf8")))).join("\n");
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
   assert.doesNotMatch(functionsClient, /\/api\/home\/dock-judgment|\/api\/inbox\/judgment/, "the generic editor must not keep native scene dispatch branches");
   const now = new Date();
@@ -527,7 +532,7 @@ test("all builtin action declarations feed the Agent palette without maintaining
   const directory = BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).map(definition => ({ ...definition,
     provider: { provider_id: entry.manifest.plugin_id, title: entry.manifest.name, kind: "plugin" as const }, availability: { available: true as const },
   })));
-  const actual = liveHostFunctionAuthoringCatalog(directory);
+  const actual = liveHostJudgmentRuleAuthoringCatalog(directory);
   const expected = directory.filter(row => row.action.audiences.some(audience => audience === "agent" || audience === "mcp"));
   assert.ok(expected.length > 0);
   assert.equal(actual.behaviors.length, expected.length);

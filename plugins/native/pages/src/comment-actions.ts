@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { pagesErrors } from "./error.js";
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadContext, AssistantThreadDraft } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesCommentThread } from "./contract.js";
 import type { PagesStores } from "./store.js";
 import type { AppendPagesComment } from "./comments-store.js";
 import { nodesToMarkdown } from "./to-markdown.js";
@@ -35,6 +35,21 @@ export const pagesCommentActions = {
   reply: define<{ subject_id: string; thread_id: string }, { thread: PagesCommentThread }>("reply", "接收助理在原评论的回复", object(target), object({ thread }), true, "reply"),
 };
 
+/** What of a document and of a comment thread the assistant is handed: at most this many UTF-16 units of each (the opening of the document, the latest of the thread). The Host refuses a context text over 100000 units, and these two parts are most of it. */
+const CONTEXT_PART_UNITS = 30000;
+/** The first `limit` UTF-16 units of `value`; a character the cut would split (an emoji is two units) is left out whole, never half of it. */
+function headUnits(value: string, limit: number): string {
+  if (value.length <= limit) return value;
+  const end = /[\uD800-\uDBFF]/u.test(value[limit - 1]!) ? limit - 1 : limit;
+  return value.slice(0, end);
+}
+/** The last `limit` UTF-16 units of `value`, with the same rule at the other end. */
+function tailUnits(value: string, limit: number): string {
+  if (value.length <= limit) return value;
+  const start = value.length - limit;
+  return value.slice(/[\uDC00-\uDFFF]/u.test(value[start]!) ? start + 1 : start);
+}
+
 export function createPagesCommentHandlers(stores: PagesStores): ActionHandlerBinding[] {
   const project = (caller: ActionExecutionContext): string => {
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
@@ -54,9 +69,10 @@ export function createPagesCommentHandlers(stores: PagesStores): ActionHandlerBi
       if (input.draft && input.draft.revision !== String(page.version)) throw pagesErrors.conflict("正文已改变，请保存后重新发起评论");
       const document = input.draft?.text ?? nodesToMarkdown(nodeFromUnknown(page.body).content.content);
       const messages = found.messages.map(message => `${message.author} [${message.message_id}]${message.reply_to ? ` 回复 ${message.reply_to}` : ""}: ${message.body}`).join("\n\n");
-      const truncated = document.length > 30000 || messages.length > 30000;
-      return { title: page.title, revision: String(page.version), truncated,
-        text: `Page: ${page.title}\n版本: ${page.version}${input.draft ? "（用户明确附上的未保存草稿）" : ""}\n引用: ${found.anchor.excerpt}\n${found.detached ? "原文已变更，保留引用。\n" : ""}正文${document.length > 30000 ? "（前 30000 字）" : ""}:\n${document.slice(0, 30000)}\n\n本评论线程${messages.length > 30000 ? "（最近 30000 字）" : ""}:\n${messages.slice(-30000)}`,
+      const documentCut = document.length > CONTEXT_PART_UNITS, messagesCut = messages.length > CONTEXT_PART_UNITS;
+      const documentNote = documentCut ? `（只取开头的部分，不超过 ${CONTEXT_PART_UNITS} 字）` : "", messagesNote = messagesCut ? `（只取最近的部分，不超过 ${CONTEXT_PART_UNITS} 字）` : "";
+      return { title: page.title, revision: String(page.version), truncated: documentCut || messagesCut,
+        text: `Page: ${page.title}\n版本: ${page.version}${input.draft ? "（用户明确附上的未保存草稿）" : ""}\n引用: ${found.anchor.excerpt}\n${found.detached ? "原文已变更，保留引用。\n" : ""}正文${documentNote}:\n${headUnits(document, CONTEXT_PART_UNITS)}\n\n本评论线程${messagesNote}:\n${tailUnits(messages, CONTEXT_PART_UNITS)}`,
         message: { message_id: request.message_id, body: request.body, request_id: request.request_id } };
     })),
     bind(pagesCommentActions.reply, async (input, caller) => {

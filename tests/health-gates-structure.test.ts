@@ -412,11 +412,17 @@ const violations: Scenario[] = [
     expect: [/plugin one is named in 4 files outside its package \(was 3\)/] },
   { name: "a plugin package name is added to a script", mutate: () => put("scripts/other.mjs", 'export const n = "@fx/plugin-two";\n'),
     expect: [/plugin two is named in 4 files outside its package \(was 3\)/] },
-  { name: "a new plugin named in more files than the smallest existing plugin", mutate: () => {
+  // RAC-575: the allowance for a new plugin is 0 (W5-02 PR-C), so one file outside its package that names it fails.
+  { name: "RAC-575 a new plugin named in one file outside its package", mutate: () => {
     put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
     put("plugins/native/three/src/index.ts", "export const three = 1;\n");
-    for (let index = 0; index < 8; index++) put(`apps/local-host/src/uses-${index}.ts`, `export const t${index} = "@fx/plugin-three";\n`);
-  }, expect: [/plugin three is named in 8 files outside its package \(a new plugin may be named in at most 7\)/] },
+    put("apps/local-host/src/uses-three.ts", 'export const t = "@fx/plugin-three";\n');
+  }, expect: [/plugin three is named in 1 files outside its package \(a new plugin may be named in none\)/] },
+  { name: "RAC-575 a new plugin named in a script", mutate: () => {
+    put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
+    put("plugins/native/three/src/index.ts", "export const three = 1;\n");
+    put("scripts/other.mjs", 'export const n = "@fx/plugin-three";\n');
+  }, expect: [/plugin three is named in 1 files outside its package \(a new plugin may be named in none\)/] },
 ];
 
 for (const scenario of violations) {
@@ -534,11 +540,10 @@ test("changes that shrink or only move things pass against the merge-base", () =
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
 });
 
-test("a new plugin that stays within the allowance passes", () => {
+test("RAC-575 a new plugin named nowhere outside its package passes", () => {
   branch("small-plugin", () => {
     put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
     put("plugins/native/three/src/index.ts", "export const three = 1;\n");
-    for (let index = 0; index < 7; index++) put(`apps/local-host/src/uses-${index}.ts`, `export const t${index} = "@fx/plugin-three";\n`);
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
@@ -565,31 +570,22 @@ test("the change that introduces the layer lists passes against a merge-base tha
   git("clean", "-fdq");
 });
 
-// The fixture proves the rules; this proves they read this repository: the alias and the registrars are found by scanning, so
-// they have to be found where they are today (a rename of LocalHost or HostMethodCapability is then a visible change to the gate).
-test("on this repository the typed capability rule finds the alias and the registrars it is meant to follow", async () => {
+// The fixture proves the rules; this proves they read this repository. R8 deleted the typed channel: the definition type, its
+// alias and every Host registrar are gone, so the scan finds no alias, no registrar and nothing to count, and none may come back.
+test("on this repository the typed capability rule finds no alias, no registrar and nothing to count", async () => {
   const { createTypedCapabilityIndex } = await import("../scripts/gates/typed-capabilities.mjs");
   const root = fileURLToPath(new URL("..", import.meta.url));
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0")
     .filter((file) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts") && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file));
   const index = createTypedCapabilityIndex({ files, read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } }, files);
-  assert.ok(index.typeNames.has("HostCapabilityDefinition"));
-  if (/export type HostMethodCapability\b/.test(readFileSync(path.join(root, "packages/contracts/src/platform/app-host.ts"), "utf8"))) {
-    assert.ok(index.typeNames.has("HostMethodCapability"), "the alias that wraps the definition is followed");
+  assert.deepEqual([...index.typeNames], ["HostCapabilityDefinition"], "only the rule's own name: no alias wraps a definition that no longer exists");
+  assert.ok(!index.typeNames.has("ActionDefinition"), "the action definition is the path that stays, not an alias");
+  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "ScheduleCapabilityRegistrar", "AgentCapabilityRegistrar"]) {
+    assert.equal(index.registrarTypes.has(registrar), false, `${registrar} registers actions only; a typed registrar must not come back`);
   }
-  assert.ok(!index.typeNames.has("HostCapabilityInput"), "a type that only reads a definition is not an alias");
-  assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
-  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "AgentCapabilityRegistrar"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
-  assert.equal(index.registrarTypes.has("ScheduleCapabilityRegistrar"), false, "Schedule now registers Runtime actions; its removed typed registrar must not remain");
-  assert.ok(index.registrarFunctions.has("createMolisWorkLocalHost"), "an exported function that returns the Host is followed (`createMolisWorkLocalHost().register(…)`)");
-  // The composition root still hands the typed Git and writer entries to `registerCapability` (PG-035 left them to G3, G4);
-  // the Host's own workspace reads went to `registerAction`, the action seam, which is not a typed registration.
-  assert.ok(index.countsOf("apps/local-host/src/agent-host-composition.ts")["register-calls"] > 0, "the Host's own registrations through `localHost.registerCapability(…)` are counted");
-  assert.equal(index.countsOf("apps/local-host/src/project-capabilities.ts")["register-calls"] ?? 0, 0, "`registerAction` is not counted as a typed registration");
-  // The Agent Host registers about 40 typed capabilities through a local helper whose first parameter is the definition.
-  const agent = index.countsOf("horizontal/agent-host/src/capability-registration.ts");
-  assert.ok(agent["register-calls"] >= 30, `the local \`register\` helper of the Agent Host is followed (${agent["register-calls"]} register-calls)`);
-  assert.ok(agent["without-action"] >= 0 && agent["type-refs"] > 0);
+  assert.equal(index.registrarFunctions.size, 0, "no function returns a typed registrar");
+  const counted = files.flatMap(file => Object.entries(index.countsOf(file)).filter(([, count]) => (count as number) > 0).map(([kind]) => `${file}#${kind}`));
+  assert.deepEqual(counted, [], "no typed reference, descriptor without an action, or typed registration remains");
 });
 
 test("the report flags hybrid plugins and prints the new numbers", () => {

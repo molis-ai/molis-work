@@ -1,7 +1,7 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
-export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "rules" | "planning";
+export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "rules" | "planning";
 
 export interface ProjectSettingsFoldProject {
   project_id: string;
@@ -19,7 +19,7 @@ interface ProjectSettingsFoldContent {
 interface ProjectSettingsFoldsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: Extract<MolisWorkIcon, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
+  icon(name: Extract<PluginIconName, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
   withDesktopQuery(path: string): string;
 }
 
@@ -71,6 +71,10 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
           <p class="settings-form-error" role="alert" hidden></p>
         </form>
         <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本地数据")}</strong><span>${L("查看项目标识与数据库位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${L("项目 ID")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${L("数据文件")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>
+      </section>
+      <section class="settings-section" data-project-runtime data-runtime-prefix="/projects/${encodeURIComponent(project.project_id)}" hidden>
+        <div class="settings-setting-row"><label class="setting-copy" for="project-runtime"><strong>${L("Agent 运行时")}</strong><span>${L("这个项目的新会话用哪个运行时；默认跟随宿主的默认运行时。")}</span></label>
+          <div class="setting-value"><select id="project-runtime"></select></div><p class="settings-form-error" role="alert" hidden></p></div>
       </section>
       <section class="settings-section settings-project-maintenance"><h2>${L("项目管理")}</h2>${renderDanger(project)}</section>
       ${renderProjectDeleteDialog(project, desktopShell)}

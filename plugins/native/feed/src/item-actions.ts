@@ -63,7 +63,7 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
   const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>, enabled = true): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     availability: () => enabled ? { available: true } : { available: false, code: "actions.connection_required", reason: "此项目尚未接通 Goal 服务" },
-    handle: async (caller, input) => await handle(input as Input, caller),
+    handle: (caller, input) => handle(input as Input, caller),
   });
   const ref = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version });
   return [
@@ -87,7 +87,7 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
       // Admission starts the Inbox next-step judgment with this caller's authority, as the Workbench route always did. The
       // action runs beside the project's queue while the model answers, so it judges the entry it admitted and no other's.
       const entry = feed.listInboxEntries(board).find(entry => entry.subject_type === "feed_item" && entry.subject_id === item.item_id && (entry.status === "open" || entry.status === "in_progress"));
-      if (entry) await feed.flushPendingInboxJudgments(retainActionAuthority(caller, { ...feedItemActions.inbox, provider_id: FEED_PLUGIN_ID }), [entry.entry_id]);
+      if (entry) await feed.flushPendingInboxJudgments(retainActionAuthority(caller, feedItemActions.inbox), [entry.entry_id]);
       return { item };
     }),
     bind(feedItemActions.disposition, input => ({ item: feed.setDisposition(board, input.item_id, input.disposition, input.expected_revision) })),

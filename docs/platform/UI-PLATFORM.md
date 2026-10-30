@@ -13,7 +13,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉规范是 [`DESIGN.md`](../../DESIGN.md) 的 Soft Workbench：珍珠灰桌面上一张连续白色工作面，石墨主操作，铜色焦点与链接，字重 400/500/600，动效约 130/250/420ms。开发预览组件板是 `/__ui/catalog`（真实底栏标本在 `/__ui/catalog/bar`）。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
 
-合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取 `palette.ts` 的共享 token，不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
+合同是 HTML Slot：部件由 Plugin SDK 公开，插件从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `render*` / `icon`（宿主一侧同样直接取它，design-system 不转出），产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取 `palette.ts` 的共享 token，不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
 
 ### 全局导航
 
@@ -44,7 +44,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 - **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发；一个界面把自己的情况报给持有共同状态的主人，也是 `request`，如 `molis:surface-focus`、`molis:assistant-surface-changed`）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。带 `cancelable` 的事件（登记里现在三个：请求 `molis:side-open`、`molis:context-panel-open`，公告 `molis:assistant-context-action-chosen`）由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。代码里还有第三处这样用、却没有登记也没有人接住的：见「现状与例外」里的 `molis-work:open-settings-section`。
 - **页面状态的主人**（`PAGE_STATE_OWNERS`）：持有一块页面状态的客户端模块和它持有什么。工作台客户端由许多片段文件拼成一个程序，所以一个主人可以是几个文件。目标规则：一块状态一个主人，别的模块不去改它的内部变量，只发 request、听 announcement。门禁查的只有主人这一侧（announcement 从它的文件里发出、request 在它的文件里被听到），不查别的模块有没有绕过去。登记的范围是「别的模块要通过事件看到或请它改」的状态；模块内部的变量和存储键都不在其中（`state` 的描述里提到某个存储键，只是说明主人持有什么，那个键本身没有登记）。
-- **前缀**（`DOM_EVENT_PREFIXES`）：现在有四种写法（`molis-work:`、`molis:`、`molis-shelf-`、`workbench-`）。合成一种是后续单独的改动；在那之前，新名字必须落在列表里的某个前缀上，不会出现第五种。
+- **前缀**（`DOM_EVENT_PREFIXES`）：平台自己的前缀现在有三种写法（`molis-work:`、`molis:`、`workbench-`）。合成一种是后续单独的改动；在那之前，平台事件的名字必须落在列表里的某个前缀上。插件主人另用 `molis-<owner>-`，判定见 `dom-events.ts`：同一张 `PAGE_STATE_OWNERS` 表中，该主人的 `files` 全部属于同一个 `plugins/<组>/<目录>/` 包；跨插件与平台、或跨两个插件包的主人必须拆开登记。事件登记的 `owner` 须等于最长完整前缀中的 `<owner>`（`molis-shelf-notice` 的主人是 `shelf`）。平台主人不能用该通用前缀，平台表不再给某个插件开专用前缀（ac-artifacts A4，PG-096）；前缀和登记的主人对不上，门禁直接失败。
 
 加一个事件：在 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码在同一个改动里；浏览器代码里把名字写成字符串字面量，不拼接、不放进变量（浏览器程序是模板字符串，不能 import 这份合同，门禁只能读源码；TypeScript 的类型实参 `new CustomEvent<T>("名字")` 照常读）。合同的公开 API 快照随之变，跑 `pnpm api:update`，并在 PR 里说明新事件对插件和调用方意味着什么。
 
@@ -70,7 +70,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 门禁对公告也只查「主人的文件里有人发」，不查「只有主人发」，所以下面两条登记为公告、却有主人以外的文件在发的事件它拦不住（`--report` 会列出）。它们同样是待清的差距，不是批准的例外；清的时候改成经主人发，或者改登记的种类：
 
 - `molis-work:goal-document-loaded`（主人 `tab-workspace`）：`plugins/native/goals/src/navigation-client.ts` 在自己装完 Goal 文档后也直接发它，不经 `tab-workspace`。
-- `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/functions/client.ts`（判断规则页）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
+- `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/functions/client-events.ts`（判断规则页，`client.ts` 的一部分）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
 
 （`molis:surface-focus` 登记为 `request`，不是公告：发它的是各个界面，听它的是主人 `context-actions`。主人自己在 `context-actions.ts` 里也发它，那是替只声明了对象、不自己上报焦点的界面，按人的文字选区代发。）
 
@@ -93,6 +93,7 @@ Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native 
 
 - `apps/workbench` 已拥有稳定 HTML 文档 Shell 和 `workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side` 五个命名 Slot；插件视图按 Manifest 的 `navigator`、`stage`、`settings`、`island`、`side` 声明位置。`settings-page` contribution 只能挂到 `workbench.settings`，由全局设置目录列出；插件工作台仍走 directory/main/overlay。
   - 设置分类只有一张表（`apps/workbench/src/settings-sections.ts`）：宿主分类有固定 order（10–90），插件设置页按 Manifest 里 `settings` view 的 `order` 插入，并跟随它前面那个宿主分类的分组；不写 order（默认 100）的进「插件」组。宿主不按插件名排位置。
+  - 一个插件在插件切换列表里归哪一组、在目标材料里能新建什么、在项目首页给什么起点、设置页用什么图标，都由它的视图声明（W5-06 第 2b 片，2026-10-23）：`navigator`/`island` 视图的 `group`、`creates`、`start`，`settings` 视图的 `icon`，都可选。宿主只管组名与组的顺序（`immersive-shell.ts` 的 `RAIL_GROUP_LABELS`，顺序是合同的 `UI_VIEW_GROUPS`）；没写分组的在「更多」，没写图标的设置页用 `settings`，没写 `creates`、`start` 的插件不出现在新建和首页起点里。工作台经 `plugin-catalog.ts` 的 `creatableKinds`、`homeStarts` 读，校验与拒绝在插件 SDK（`view-placement-declarations.ts`）。写法见 `skills/molis-plugin-dev/ui.md`。
   - 页面由项目里运行的插件渲染、又要作为设置页出现时，插件把工作台页面声明为 `stage` view（不进导航），在渲染出的根元素上标 `data-settings-page="<设置分类 id>"`，再另外声明一个 `settings` view；工作台的设置覆盖层会直接挂载这块已绑定的页面，独立设置页则由宿主转回带项目的工作台（`/projects/<id>/?settings=<id>`）。目前没有插件这样用：「角色」原来是这个例子，现在是宿主自己的一节设置（`settings-sections.ts` 的 `HOST_SECTIONS`，`order: 35`），页面由 `apps/workbench/src/characters/ui.ts` 渲染，根元素同样标 `data-settings-page="characters"`；Characters 不再是插件（CHR-1，2026-10-22）。
 - `packages/ui-host` 在 mount 时校验 contribution、surface、目标 Slot 与 format；Plugin 不能向未声明或不兼容的 Slot 插入内容。
 - Feed Native Plugin 已按 surface 显式声明可装载位置，Workbench 通过 UI Host mount，不直接调用 Plugin renderer。

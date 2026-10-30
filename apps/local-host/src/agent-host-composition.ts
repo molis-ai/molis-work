@@ -1,5 +1,7 @@
+import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
+import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
@@ -12,20 +14,19 @@ import {
   type PrologueNodeAdapterOptions,
   type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
-import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readProjectGuidance } from "./goals-actions.js";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
 import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
 import { draftText } from "./model-draft.js";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescriptor, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
@@ -64,6 +65,11 @@ export interface AgentHostComposition {
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
+  /**
+   * What Characters asks of the built-in Agent in one project: the engines and the actions a round may be given. Characters is a
+   * provider the Host registers itself, with no plugin caller, so it is answered here rather than through the plugin-only actions.
+   */
+  charactersCatalog(runtime: MolisWorkProjectRuntime): { listRuntimes(): Promise<AgentRuntimeDescriptor[]>; listActions(runtimeId: string): Promise<readonly ActionView[]> };
   /** Starts the runtime when it has not started yet. */
   readonly ready: Promise<void>;
   /** Settles once the runtime has started because something needed it; waiting on it never starts the runtime. */
@@ -89,37 +95,48 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const agentHost = new AgentHost(options.prompts ? { prompts: options.prompts } : {});
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  let initialization: ReturnType<typeof createPrologueNodeAdapter> | undefined;
   let ready: Promise<void> | undefined;
   let markStarted!: () => void;
   const started = new Promise<void>(resolve => { markStarted = resolve; });
   let disposed = false, disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
-    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
-      ...options.prologue,
-      // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
-      documentParsers: [pdfDocumentParser],
-      // File, owner and background-job waits each recheck the authority of their own source.
-      checks: hostConditionChecks(options),
-      reviewQueue: agentHost.reviews,
-      app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
+    return ready ??= (async () => {
+      if (options.prologue === undefined) return;
+      // A rejected start may still own resources. Finish that instance before creating another one.
+      await initialization?.close();
+      if (disposed) return;
+      initialization = createPrologueNodeAdapter({
+        ...options.prologue,
+        // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
+        documentParsers: [pdfDocumentParser],
+        // File, owner and background-job waits each recheck the authority of their own source.
+        checks: hostConditionChecks(options),
+        reviewQueue: agentHost.reviews,
+        app: { appId: "io.molis.work", appVersion: "0.0.0" },
+      });
+      const adapter = await initialization;
+      if (disposed) return;
+      prologue = adapter; agentHost.register(adapter); markStarted();
+    })()
       .catch(error => { ready = undefined; throw error; });
   };
   // Connected external MCP tools join the project directory; they follow every list, save and connection change.
   const externalMcp = createExternalMcpDirectory({ localHost: options.localHost, homeDirectory: options.homeDirectory });
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => { // Each kind on its own seam (PG-035): an action to the action one, the typed rest to the other.
+      register: (definition, handler) => { // Every Agent Host entry is an action (R8); the runtime starts on the first call.
         const started: typeof handler = async (project, input, invocation) => { await initialize(); return handler(project, input, invocation); };
-        return definition.action ? options.localHost.registerAction(definition as typeof definition & ActionDefinition, started) : options.localHost.registerCapability(definition, started);
+        return options.localHost.registerAction(definition, started);
       },
     },
     {
       agentHost: () => agentHost,
+      originalInput: (_runtime, caller) => currentOriginalInput(caller),
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       projectId: (runtime) => runtime.project_id,
-      mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
+      mcpChanged: (runtime, runtimeId, library, owner, check) => externalMcp.sync(runtime, runtimeId, library, owner, check),
       writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
@@ -136,7 +153,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     } }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
   const inference = inferenceClient(initialize, () => prologue);
-  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
+  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw hostErrors.builder_unavailable("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
   const decideSurfaceSite = (decision: { scope: string; decision: "allow" | "block" | "forget" }) => {
@@ -144,11 +161,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
   };
   const refreshExternalMcp = async (owner: AgentSkillOwner) => {
-    if (!options.projectReference) throw new Error("项目连接目录尚未装配");
+    if (!options.projectReference) throw hostErrors.project_connection_unavailable("项目连接目录尚未装配");
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: caller => preparePluginAgent(options, caller), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -158,14 +175,26 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     externalMcp.close();
     return disposal = (async () => {
       await ready?.catch(() => undefined);
-      await prologue?.close();
-    })();
+      await initialization?.close();
+    })().catch(error => { disposal = undefined; throw error; });
   } };
+}
+
+/** The built-in Agent's engines, and the actions its rounds may be given in this project, as Characters reads them. */
+function charactersCatalog(options: AgentHostCompositionOptions, agentHost: AgentHost, initialize: () => Promise<void>, runtime: MolisWorkProjectRuntime) {
+  return {
+    listRuntimes: async () => { await initialize(); return agentHost.descriptors(); },
+    listActions: async (runtimeId: string) => {
+      await initialize();
+      const authority = await startAuthority(runtime, CHARACTER_PLUGIN_ID, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory);
+      return authority.actions ? (await authority.actions(runtimeId)).discover() : [];
+    },
+  };
 }
 
 /** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
 function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
-  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
+  if (!prologue) throw hostErrors.agent_runtime_unavailable("Agent 运行时没有启动，读不到写后检查器");
   return prologue.writeCheckers;
 }
 
@@ -194,6 +223,15 @@ async function preparePluginAgent(options: AgentHostCompositionOptions, caller: 
   return { authority, workspaces };
 }
 
+function currentOriginalInput(caller: HostPluginCaller | undefined) {
+  const invocation = currentPluginInvocation();
+  return invocation && "definition" in invocation && invocation.install_id === caller?.install_id
+    && invocation.caller.original_input?.install_id === caller.install_id
+    && invocation.definition.capability_id === invocation.caller.original_input.action.capability_id
+    && invocation.definition.version === invocation.caller.original_input.action.version
+    ? structuredClone(invocation.caller.original_input) : undefined;
+}
+
 async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
@@ -203,12 +241,12 @@ async function startAuthority(
   homeDirectory?: string,
   caller?: HostPluginCaller,
 ): Promise<AgentStartAuthority> {
-  // Plugin declarations come from its actual activation. The bundled lookup is
-  // retained only for trusted Host composition that calls this API directly.
-  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills }
-    : BUILTIN_PLUGIN_AGENTS.get(pluginId);
-  const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
+  // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
+  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
+  const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
+  const original = currentOriginalInput(caller);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
   // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,
@@ -216,11 +254,12 @@ async function startAuthority(
   const callId = currentCallId() ?? newCallId();
   return {
     call_id: callId,
+    ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
-    method_owner: { project_id: runtime.project_id, plugin_id: pluginId },
+    skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate, session) => {
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       // `actor_id` stays the grant's client id (`agent:<runtime>`). The session is the one the Host checked against the Runtime's own record
@@ -264,10 +303,10 @@ async function checkActionInput(authorized: { context: ActionCallContext; servic
  * into an instruction, which is a different claim.
  */
 async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
-  let view: ProjectGuidanceView;
+  let view: ProjectGuidanceFacts;
   try {
     const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-    view = await readProjectGuidance(localHost.actionClient(reference, false), reference);
+    view = await readProjectGuidance(localHost.actionClient(reference), reference);
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.
@@ -312,7 +351,7 @@ export function workspaceRefFor(
 }
 
 function inferenceClient(initialize: () => Promise<void>, current: () => Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined): PrologueInferenceClient {
-  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw new Error("Prologue 推理服务未装配"); return adapter.inference; };
+  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw hostErrors.inference_unavailable("Prologue 推理服务未装配"); return adapter.inference; };
   return {
     completeText: async input => (await get()).completeText(input),
     completeTextResult: async input => (await get()).completeTextResult(input),

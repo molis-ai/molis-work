@@ -1,7 +1,8 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { randomUUID } from "node:crypto";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
 import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "./contract.js";
 import type { LingguangConversationState, LingguangStores } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
 import { lingguangErrors } from "./error.js";
@@ -75,9 +76,9 @@ export function prepareLingguangFragmentOffers(input: FragmentOffersInput): Frag
   const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n\n");
   if (!text) return [];
   const first = text.split("\n")[0]!.trim();
-  const title = first.length > 40 ? first.slice(0, 39) + "…" : first;
+  const title = [...first].length > 40 ? [...first].slice(0, 39).join("") + "…" : first;
   const from = input.fragment.object.title ? `\n\n出自：${input.fragment.object.title}` : "";
-  const body = (text + from).slice(0, LINGGUANG_BODY_LIMIT);
+  const body = firstCharacters(text + from, LINGGUANG_BODY_LIMIT);
   return [{ offer_id: "capture", title: "记下灵光", action: { capability_id: "lingguang.create", version: 1 },
     input: { title, body, request_id: input.request_id.slice(0, 160) }, summary: `在灵光里记下一条：「${title}」`, editable: ["title", "body"] }];
 }
@@ -146,21 +147,42 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
 }
 
 const reading = (port: unknown): ActionAvailability => port ? { available: true } : { available: false, code: "actions.connection_required", reason: "这里不能读取文件或链接" };
+/** The first `limit` whole characters of `value`, counted as the action schemas count them (an emoji is one): never half of one, and read no further than that. */
+function firstCharacters(value: string, limit: number): string {
+  let end = 0, count = 0;
+  for (const character of value) {
+    if (count === limit) break;
+    end += character.length;
+    count += 1;
+  }
+  return value.slice(0, end);
+}
 /** What a spark can hold of a reading: all of it up to the limit, and it says when it is not all. */
 function keptMaterial(read: LingguangHostMaterial): LingguangMaterial {
   const coverage = typeof read.coverage === "string" ? { status: read.coverage, issues: [] as string[] } : { status: read.coverage?.status, issues: read.coverage?.issues ?? [] };
   const room = LINGGUANG_BODY_LIMIT - 2_000;
-  const issues = [...coverage.issues, ...(read.text.length > room ? [`内容较长，只保留了前 ${room} 字`] : [])];
-  return { text: read.text.slice(0, room), ...(read.title ? { title: read.title.slice(0, 200) } : {}), ...(read.file_name ? { file_name: read.file_name } : {}),
-    ...(read.source_url ? { source_url: read.source_url } : {}), ...(coverage.status && coverage.status !== "sufficient" || read.text.length > room ? { partial: true } : {}), ...(issues.length ? { issues } : {}) };
+  const kept = firstCharacters(read.text, room), cut = kept.length < read.text.length;
+  const issues = [...coverage.issues, ...(cut ? [`内容较长，只保留了前 ${room} 字`] : [])];
+  return { text: kept, ...(read.title ? { title: firstCharacters(read.title, 200) } : {}), ...(read.file_name ? { file_name: read.file_name } : {}),
+    ...(read.source_url ? { source_url: read.source_url } : {}), ...(coverage.status && coverage.status !== "sufficient" || cut ? { partial: true } : {}), ...(issues.length ? { issues } : {}) };
 }
 const SPARK_IN_PROMPT = 12_000;
+/** A spark's opening part for the conversation, said so when the rest is left out: up to SPARK_IN_PROMPT UTF-16 units, as the whole prompt is counted, and never half a character. */
+function sparkOpening(body: string): string {
+  if (body.length <= SPARK_IN_PROMPT) return body;
+  let end = 0;
+  for (const character of body) {
+    if (end + character.length > SPARK_IN_PROMPT) break;
+    end += character.length;
+  }
+  return body.slice(0, end) + "\n（以下省略）";
+}
 function conversationPrompt(state: LingguangConversationState, body: string): InstructedPrompt {
-  // JSON keeps source text visibly separate from the instruction; all values remain untrusted material.
+  // The person may rewrite the instruction, so the untrusted-materials notice belongs to the fixed fence below, not to the instruction (S-13).
   // A spark read from a file or page can be long: the conversation gets its opening part, said so.
-  const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body: body.length > SPARK_IN_PROMPT ? body.slice(0, SPARK_IN_PROMPT) + "\n（以下省略）" : body })),
+  const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body: sparkOpening(body) })),
     history: state.messages.filter(message => message.role !== "stub").map(({ role, body }) => ({ role, body })), message: body };
-  const data = JSON.stringify(material);
+  const data = fencedMaterials(material, "MATERIALS_" + randomUUID());
   if (data.length > 180_000) throw lingguangErrors.context_too_large("这场对话的材料过长，请减少所选灵光后开启对话");
   return instructed(LINGGUANG_CONVERSATION, data);
 }

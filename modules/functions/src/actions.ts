@@ -1,8 +1,10 @@
 import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AGENT_MCP_DESTINATION_ID, type FunctionRecord, FunctionSummary, FunctionDescribe, FunctionInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
+import { AGENT_MCP_DESTINATION_ID, FUNCTIONS_PROVIDER_ID, PUBLISHED_FUNCTION_PREFIX, publishedFunctionKey, type JudgmentRuleRecord, JudgmentRuleSummary, JudgmentRuleDescribe, JudgmentRuleInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsService } from "./service.js";
 import { functionAuthoringActions, functionAuthoringHandlers } from "./authoring-actions.js";
+
+export { FUNCTIONS_PROVIDER_ID, publishedFunctionKey };
 
 const text = { type: "string" };
 const integer = { type: "integer", minimum: 1 };
@@ -28,39 +30,39 @@ function define<Input, Output>(id: string, title: string, description: string, i
 
 export const functionsActions = {
   connectionUsages: defineConnectorUsagesAction("functions.connection.usages", "判断规则使用的连接", [], "home"),
-  list: define<Record<string, never>, { functions: FunctionSummary[] }>("functions.list", "已发布判断规则", "列出已发布规则及稳定身份；草稿不在调用目录中。", empty,
+  list: define<Record<string, never>, { functions: JudgmentRuleSummary[] }>("functions.list", "已发布判断规则", "列出已发布规则及稳定身份；草稿不在调用目录中。", empty,
     { type: "object", properties: { functions: { type: "array", items: summary } }, required: ["functions"] }),
-  describe: define<{ function_key: string }, { function: FunctionDescribe }>("functions.describe", "查看判断合同", "读取指定已发布规则的输入、判断条件和版本。", {
+  describe: define<{ function_key: string }, { function: JudgmentRuleDescribe }>("functions.describe", "查看判断合同", "读取指定已发布规则的输入、判断条件和版本。", {
     type: "object", properties: { function_key: { type: "string", minLength: 1 } }, required: ["function_key"], additionalProperties: false,
   }, { type: "object", properties: { function: { ...summary, properties: { ...summary.properties, instructions: text,
     input: { type: "object", properties: { content: { const: "string" } }, required: ["content"] }, criteria: { oneOf: [{ type: "array" }, { type: "object" }] } },
     required: [...summary.required, "instructions", "input", "criteria"] } }, required: ["function"] }),
-  invoke: define<{ function_key: string; input: string }, FunctionInvokeResult>("functions.invoke", "调用判断规则", "执行已发布规则并保存判断记录；needs_review 表示需要人判断，结果不授予业务操作权限。", {
+  invoke: define<{ function_key: string; input: string }, JudgmentRuleInvokeResult>("functions.invoke", "调用判断规则", "执行已发布规则并保存判断记录；needs_review 表示需要人判断，结果不授予业务操作权限。", {
     type: "object", properties: { function_key: { type: "string", minLength: 1 }, input: { type: "string", minLength: 1, maxLength: 8000 } },
     required: ["function_key", "input"], additionalProperties: false,
   }, resultSchema, true),
 } as const;
 
-/** The Functions rule a judgment reference names, if it names one; scene judgments are filed under that rule's key. */
-export function publishedFunctionKey(reference: ActionReference): string | null {
-  return reference.provider_id === "system.functions" && reference.capability_id.startsWith("functions.published.")
-    ? reference.capability_id.slice("functions.published.".length) : null;
+/** Stable identity for a published rule; callers do not need its complete action definition. */
+export function publishedFunctionReference(record: Pick<JudgmentRuleRecord, "function_key" | "status" | "version">): ActionReference {
+  if (record.status !== "published" || !record.version) throw new ActionError("actions.function_unpublished", "草稿不能注册为可调用判断");
+  return { capability_id: `${PUBLISHED_FUNCTION_PREFIX}${record.function_key}`, version: record.version, provider_id: provider.provider_id };
 }
 
-export function publishedFunctionAction(record: FunctionRecord): ActionDefinition<{ content: string }, FunctionInvokeResult> {
-  if (record.status !== "published" || !record.version) throw new ActionError("actions.function_unpublished", "草稿不能注册为可调用判断");
+export function publishedFunctionAction(record: JudgmentRuleRecord): ActionDefinition<{ content: string }, JudgmentRuleInvokeResult> {
+  const reference = publishedFunctionReference(record);
   const value = record.primitive === "choice"
     ? { choice: { enum: [...(record.criteria as readonly { key: string }[]).map(item => item.key), null] } }
     : record.primitive === "noul" ? { noul: { type: "number" } }
       : { score: { type: "number" }, legend: { type: "array", items: text } };
-  const definition = define<{ content: string }, FunctionInvokeResult>(`functions.published.${record.function_key}`, record.name,
+  const definition = define<{ content: string }, JudgmentRuleInvokeResult>(reference.capability_id, record.name,
     record.instructions, { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
     { ...resultSchema, properties: { ...resultSchema.properties, function_key: { const: record.function_key }, version: { const: record.version },
       primitive: { const: record.primitive }, data: { type: "object", properties: value, required: Object.keys(value), additionalProperties: false } } }, true);
   const recommendations = record.scene_id !== AGENT_MCP_DESTINATION_ID && (!!record.scene_id || Object.keys(record.scene_map ?? {}).length > 0);
   const choices = record.primitive === "choice" ? (record.criteria as readonly { key: string }[]).map(item => record.scene_map[item.key] ?? item.key)
     : Object.values(record.scene_map ?? {});
-  return { ...definition, version: record.version, action: { ...definition.action, subject_kinds: [...record.subject_kinds],
+  return { ...definition, version: reference.version, action: { ...definition.action, subject_kinds: [...record.subject_kinds],
     ...(Object.keys(record.action_map ?? {}).length ? { required_actions: Object.values(record.action_map!) } : {}),
     ...(record.scene_id && record.scene_version && record.scene_provider_id ? { result_scene: { scene_id: record.scene_id, version: record.scene_version, provider_id: record.scene_provider_id } } : {}),
     output_type: recommendations ? "molis.behavior-recommendation.v1" : "molis.judgment.v1",
@@ -74,12 +76,12 @@ export function publishedFunctionAction(record: FunctionRecord): ActionDefinitio
 export interface FunctionsActionPorts {
   credentialAvailable(): boolean;
   connectionId?(): string | null;
-  validatePublication?(record: FunctionRecord, caller: ActionCallContext): Promise<import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference | void>;
-  validateRecommendations?(record: FunctionRecord, caller: ActionCallContext): Promise<void>;
+  validatePublication?(record: JudgmentRuleRecord, caller: ActionCallContext): Promise<import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference | void>;
+  validateRecommendations?(record: JudgmentRuleRecord, caller: ActionCallContext): Promise<void>;
   read<T>(operation: (service: FunctionsService) => T): T;
   run<T>(operation: (service: FunctionsService) => Promise<T>): Promise<T>;
 }
-const provider = { provider_id: "system.functions", title: "判断规则", kind: "system" as const };
+const provider = { provider_id: FUNCTIONS_PROVIDER_ID, title: "判断规则", kind: "system" as const };
 const credentialAvailability = (ports: FunctionsActionPorts) => ports.credentialAvailable()
   ? { available: true as const } : { available: false as const, code: "actions.connection_required", reason: "请先连接判断服务" };
 
@@ -88,7 +90,7 @@ export function functionsActionProvider(ports: FunctionsActionPorts): ActionProv
     ...functionAuthoringHandlers(ports),
     { ...functionsActions.connectionUsages, handle: (_caller, input) => ({ usages: ports.connectionId?.() === (input as { connection_id: string }).connection_id
       ? ports.read(service => service.listPublished()).map(record => ({ usage_id: record.function_key, title: record.name, detail: `判断模型：${record.model}`, enabled: ports.credentialAvailable(),
-        actions: [{ action: { capability_id: `functions.published.${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) : [] }) },
+        actions: [{ action: { capability_id: `${PUBLISHED_FUNCTION_PREFIX}${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) : [] }) },
     { ...functionsActions.list, handle: () => ports.read(service => ({ functions: service.listPublished() })) },
     { ...functionsActions.describe, handle: (_caller, input) => ports.read(service => ({ function: service.describePublished((input as { function_key: string }).function_key) })) },
     { ...functionsActions.invoke, availability: () => credentialAvailability(ports), handle: (caller, input) => {
@@ -102,7 +104,7 @@ export function functionsActionProvider(ports: FunctionsActionPorts): ActionProv
   ] };
 }
 
-export function publishedFunctionProvider(record: FunctionRecord, ports: FunctionsActionPorts): ActionProviderRegistration {
+export function publishedFunctionProvider(record: JudgmentRuleRecord, ports: FunctionsActionPorts): ActionProviderRegistration {
   const definition = publishedFunctionAction(record);
   return { provider, definitions: [definition], handlers: [{ ...definition,
     availability: () => credentialAvailability(ports),

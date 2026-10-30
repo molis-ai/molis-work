@@ -34,7 +34,7 @@ class WatchedHost extends MolisWorkLocalHost {
   }
 }
 
-interface Settled { capability_id: string; path: string | undefined; operation: string; actor_id: string; audience: string | undefined; ok: boolean; call_id: string }
+interface Settled { capability_id: string; operation: string; actor_id: string; audience: string | undefined; ok: boolean; call_id: string }
 
 /** Every call this Home settles, with the number of the operation it belonged to. */
 function watchCalls(host: WatchedHost): Settled[] {
@@ -42,7 +42,7 @@ function watchCalls(host: WatchedHost): Settled[] {
   const log = host.callLog!;
   const record = log.record.bind(log);
   log.record = (caller, action, outcome) => {
-    seen.push({ capability_id: action.capability_id, path: (action as typeof action & { path?: string }).path, operation: action.operation,
+    seen.push({ capability_id: action.capability_id, operation: action.operation,
       actor_id: caller.actor_id, audience: caller.audience, ok: outcome.ok, call_id: caller.call_id });
     record(caller, action, outcome);
   };
@@ -63,7 +63,7 @@ async function setup() {
       return JSON.parse(lines.at(-1)!) as Printed;
     } finally { printing.mock.restore(); }
   };
-  const person = managementGoals(host.actionClient(reference, false), PROJECT);
+  const person = managementGoals(host.actionClient(reference), PROJECT);
   return { home, host, reference, cli, person, calls: watchCalls(host),
     done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -75,14 +75,14 @@ interface Proposed { proposal: { proposal_id: string } }
 interface Listed { proposals: Array<{ decisions: Array<{ actor_id: string; authority_source: string; conversation_ref: string; message_ref: string }> }> }
 const evidence = { conversation_ref: "conversation://cli", message_ref: "message://confirm" };
 
-test("each CLI command is one Goals action call as the person on this machine: one row, its own call number, no typed capability beside it", async () => {
+test("each CLI command is one Goals action call as the person on this machine: one row, its own call number, nothing beside it", async () => {
   const { host, cli, person, calls, done } = await setup();
   try {
     const rows: Array<[string, Settled]> = [];
     const run = async (operation: string, expected: string, input?: object) => {
       calls.length = 0;
       const output = await cli(operation, input);
-      assert.equal(calls.length, 1, `${operation} leaves one settlement, not a typed row and an action row: ${JSON.stringify(calls.map(row => [row.capability_id, row.path]))}`);
+      assert.equal(calls.length, 1, `${operation} leaves one settlement: ${JSON.stringify(calls.map(row => row.capability_id))}`);
       assert.equal(calls[0]!.capability_id, expected, operation);
       rows.push([operation, calls[0]!]);
       return output;
@@ -99,14 +99,13 @@ test("each CLI command is one Goals action call as the person on this machine: o
       reason: "确认", idempotency_key: "decide", authority: evidence });
 
     for (const [operation, row] of rows) {
-      assert.deepEqual([row.path, row.actor_id, row.audience, row.ok], [undefined, LOCAL_PERSON_ACTOR_ID, "user", true], `${operation}: the Goals action, as the person`);
+      assert.deepEqual([row.actor_id, row.audience, row.ok], [LOCAL_PERSON_ACTOR_ID, "user", true], `${operation}: the Goals action, as the person`);
       assert.ok(row.call_id, `${operation} has a call number`);
     }
     assert.equal(new Set(rows.map(([, row]) => row.call_id)).size, rows.length, "each command is its own operation");
     const kept = host.callLog!.list(PROJECT);
     assert.deepEqual(kept.map(row => row.capability_id).sort(), [goalsActions.initialize, goalsActions.create, goalsActions.active, goalsActions.treeSubmit, goalsActions.treeCheck, goalsActions.treeDecide]
       .map(definition => definition.capability_id).sort(), "the call log keeps the commands that ran, once each");
-    assert.deepEqual(kept.filter(row => row.path !== undefined), [], "none of them is a typed capability");
   } finally { await done(); }
 });
 
@@ -121,7 +120,7 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
     assert.equal(managed.length, 1, "init reaches the Host's action client once, as a management caller (not through a typed capability)");
     const initialize = managed[0]!;
     assert.deepEqual(pick(initialize), pick(managementCaller(PROJECT, "init")), "init: the same actor, kind, audience, source and reference format as the helper");
-    assert.deepEqual(host.preparedManagementCalls(), [], "a command starts none of the project's Runtime plugins: Goals is registered when the project opens");
+    assert.deepEqual(host.preparedManagementCalls(), [goalsActions.initialize.capability_id], "a command goes through the project's client, which starts the project's Runtime plugins: Goals is one of them");
     assert.deepEqual([initialize.permissions, initialize.allowed_actions], [goalsActions.initialize.action.permissions,
       [{ capability_id: goalsActions.initialize.capability_id, version: goalsActions.initialize.version, provider_id: GOALS_PLUGIN_ID }]], "only that one action, with its own permissions");
 
@@ -146,7 +145,7 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
       affected_objects: [{ object_type: "goal", object_id: "other" }] }] })).proposal.proposal_id;
     await cli("goal-tree-decide", { project_id: PROJECT, proposal_id: second, decisions: [{ item_id: "other", decision: "confirm" }], reason: "确认", idempotency_key: "decide-2" });
     const [stored] = (await cli<Listed>("goal-tree-read", { project_id: PROJECT, proposal_id: second })).proposals[0]!.decisions;
-    assert.deepEqual([stored!.actor_id, stored!.authority_source, stored!.conversation_ref, stored!.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", `management:${PROJECT}`, "management-tree-decision:decide-2"]);
+    assert.deepEqual([stored!.actor_id, stored!.authority_source, stored!.conversation_ref, stored!.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", `management:${PROJECT}`, "management:decide-2"]);
   } finally { await done(); }
 });
 

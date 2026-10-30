@@ -1,3 +1,4 @@
+import { originalInputOf } from "./prologue-original-inputs.js";
 import type { QueuedInput, Runtime } from "@prologue/sdk";
 import type { AgentRecoveryReport, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentQueuedInput } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -25,7 +26,9 @@ const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[],
   || open.items.some(item => item.origin.session === index.ref.id && !index.attempts.some(attempt => attempt.run_id === item.origin.run || attempt.run_id === item.id));
 
 /** A supplement still waiting in the session, in the Host's words; the runtime's record stays its only owner. */
-const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
+export const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
+  ...(input.original ? { original: { ...input.original } } : {}),
+  ...(input.acceptedAtMs === undefined ? {} : { accepted_at_ms: input.acceptedAtMs }),
   source: input.source === "app" ? "host" : input.source, ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}),
   ...(input.from ? { left_by: { run_id: input.from.run, applied: input.from.applied } } : {}) });
 
@@ -60,7 +63,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (run.operations.some(operation => operation.outcome === "unknown")) reasons.push("有操作缺少可核实的结果；不会自动重复执行，也不能将它标记为成功。");
       if (run.blockers.length && !reasons.length) reasons.push("执行或操作记录尚未核实，请稍后重新核对。");
       return { run_id: run.ref.id, version: run.version, live: run.live, waiting: run.waiting,
-        operations: run.operations.map(operation => ({ ...operation })), blockers: reasons,
+        operations: run.operations.map(({ effect_id, kind, summary, outcome }) => ({ effect_id, kind, summary, outcome })), blockers: reasons,
         can_close: run.canClose && blockers.length === 0, ...(run.canAnswer && blockers.length === 0 ? { can_answer: true as const } : {}),
         ...(run.questions.length ? { questions: run.questions.map(question => ({ pending_id: question.ref.id, pending_revision: question.ref.revision, kind: question.kind,
           prompt: question.prompt, ...(question.answered ? { answered: true as const } : {}) })) } : {}),
@@ -118,6 +121,8 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (statusOnly && attempt !== last) continue;
       runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
         started_at: attempt.started_at, task: attempt.task,
+        original_input: originalInputOf(index, attempt.original_input?.ref ?? attempt.original_input_ref),
+        ...(attempt.memory_context ? { memory_context: attempt.memory_context } : {}),
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
         ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),

@@ -55,6 +55,15 @@ const KINDS = ["announcement", "request"];
 const TARGETS = ["window", "document", "element"];
 const EVENT_FIELDS = new Set(["name", "kind", "owner", "on", "bubbles", "cancelable", "detail", "summary"]);
 const OWNER_FIELDS = new Set(["files", "state"]);
+/** The longest registered owner matching the complete `molis-<owner>-` prefix; null for any other name. */
+export function ownerPrefixOf(name, owners) {
+  let longest = null;
+  for (const id of Object.keys(owners ?? {})) {
+    if (name.startsWith(`molis-${id}-`) && (longest === null || id.length > longest.length)) longest = id;
+  }
+  return longest;
+}
+
 const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)?$/;
 const FIRST_ARGUMENT_LIMIT = 400;
 
@@ -166,9 +175,9 @@ const argumentsAt = (pattern, text, open) => { pattern.lastIndex = open + 1; ret
  *   dispatches: { file, line, names | null, text, ctor, receiver }   `names` is null when the first argument is not readable
  *   listeners:  { file, line, name, receiver }                       only names with one of `prefixes`
  */
-export function domEventSites(snapshot, prefixes) {
+export function domEventSites(snapshot, prefixes, owners = {}) {
   const dispatches = [], listeners = [];
-  const pageName = (name) => prefixes.some((prefix) => name.startsWith(prefix));
+  const pageName = (name) => prefixes.some((prefix) => name.startsWith(prefix)) || ownerPrefixOf(name, owners) !== null;
   for (const file of snapshot.files.filter(isScanned)) {
     const text = snapshot.read(file);
     if (text === null || !/Event\b|Listener\b|\blisten\b/.test(text)) continue;
@@ -208,10 +217,16 @@ function registryProblems(registry, snapshot) {
   const at = `${DOM_EVENTS_CONTRACT}:`;
   if (!prefixes.length || prefixes.some((prefix) => typeof prefix !== "string" || !prefix)) problems.push(`${at} DOM_EVENT_PREFIXES has to list the name prefixes as non-empty strings`);
   const files = new Set(snapshot.files);
+  const pluginOwners = new Set();
   for (const [id, owner] of Object.entries(owners)) {
     for (const field of Object.keys(owner ?? {})) if (!OWNER_FIELDS.has(field)) problems.push(`${at} owner "${id}" has the unknown field "${field}"`);
     if (!owner || !Array.isArray(owner.files) || !owner.files.length) problems.push(`${at} owner "${id}" needs files: the client modules that hold the state`);
     else for (const file of owner.files) if (!files.has(file)) problems.push(`${at} owner "${id}" names ${file}, which is not a tracked file; it moved or was deleted, so point the owner at where the state lives now`);
+    if (Array.isArray(owner?.files) && owner.files.length) {
+      const packages = new Set(owner.files.map((file) => /^(plugins\/[^/]+\/[^/]+)\//.exec(file)?.[1] ?? null));
+      if (packages.size === 1 && !packages.has(null)) pluginOwners.add(id);
+      else if ([...packages].some((item) => item !== null)) problems.push(`${at} owner "${id}" mixes plugin and platform files or different plugin packages; split it into separate owners`);
+    }
     if (!sentence(owner?.state)) problems.push(`${at} owner "${id}" needs a sentence saying what state it owns`);
   }
   const seen = new Set();
@@ -224,7 +239,10 @@ function registryProblems(registry, snapshot) {
     seen.add(name);
     if (previous && name < previous) problems.push(`${at} "${name}" is out of name order (after "${previous}")`);
     previous = name;
-    if (!prefixes.some((prefix) => name.startsWith(prefix))) problems.push(`${at} "${name}" starts with none of DOM_EVENT_PREFIXES (${prefixes.join(" ")})`);
+    const byPrefix = ownerPrefixOf(name, owners);
+    if (byPrefix !== null && byPrefix !== event.owner) problems.push(`${at} "${name}" starts with molis-${byPrefix}-, which is ${byPrefix}'s prefix, but it is owned by ${JSON.stringify(event.owner)}; name it molis-${event.owner}-… or register it under ${byPrefix}`);
+    else if (byPrefix !== null && !pluginOwners.has(byPrefix)) problems.push(`${at} "${name}" uses molis-${byPrefix}-, but "${byPrefix}" is not a plugin owner whose files all belong to one plugin package; platform owners must use DOM_EVENT_PREFIXES (${prefixes.join(" ")})`);
+    else if (byPrefix === null && !prefixes.some((prefix) => name.startsWith(prefix))) problems.push(`${at} "${name}" starts with none of DOM_EVENT_PREFIXES (${prefixes.join(" ")}) or molis-<owner>- for its owner`);
     if (!KINDS.includes(event.kind)) problems.push(`${at} "${name}" has kind ${JSON.stringify(event.kind)}; it is one of ${KINDS.join(", ")}`);
     if (!TARGETS.includes(event.on)) problems.push(`${at} "${name}" has on ${JSON.stringify(event.on)}; it is one of ${TARGETS.join(", ")}`);
     if (!Object.hasOwn(owners, event.owner)) problems.push(`${at} "${name}" is owned by ${JSON.stringify(event.owner)}, which is not in PAGE_STATE_OWNERS`);
@@ -244,7 +262,7 @@ export function domEventProblems(snapshot) {
   const text = snapshot.read(DOM_EVENTS_CONTRACT);
   const registry = text === null ? null : readRegistry(text);
   if (registry?.error) return [`DOM events: ${DOM_EVENTS_CONTRACT} cannot be evaluated: ${registry.error}`];
-  const { dispatches, listeners } = domEventSites(snapshot, registry?.prefixes ?? []);
+  const { dispatches, listeners } = domEventSites(snapshot, registry?.prefixes ?? [], registry?.owners);
   if (!registry) {
     const some = dispatches[0];
     return some ? [`DOM events: ${some.file}:${some.line} creates a CustomEvent but ${DOM_EVENTS_CONTRACT} does not exist; the registry lists every page event (docs/platform/UI-PLATFORM.md)`] : [];
@@ -294,7 +312,7 @@ export function domEventReport(snapshot) {
   const text = snapshot.read(DOM_EVENTS_CONTRACT);
   const registry = text === null ? null : readRegistry(text);
   if (!registry || registry.error) return { error: registry?.error ?? `${DOM_EVENTS_CONTRACT} is missing`, events: [], findings: [] };
-  const { dispatches, listeners } = domEventSites(snapshot, registry.prefixes);
+  const { dispatches, listeners } = domEventSites(snapshot, registry.prefixes, registry.owners);
   const events = [], findings = [];
   for (const event of registry.events) {
     const sent = dispatches.filter((site) => site.names?.includes(event.name));

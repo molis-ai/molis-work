@@ -1,7 +1,7 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "./contract.js";
 import { pagesManifest } from "./manifest.js";
 import { createPagesActionHandlers, pagesActions, PAGES_SUBJECT_KIND, type PagesActionPorts } from "./actions.js";
 import { pagesCommentActions } from "./comment-actions.js";
@@ -12,13 +12,15 @@ import { preparePagesImport, type PagesImportFile, type PreparedPagesImport } fr
 import { PagesStore, type PagesSql, type PagesStores } from "./store.js";
 import { pagesUiContribution } from "./ui.js";
 import { promotePagesDocument, type PagesLineHeadPort, type PagesPromoteStore, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
+import { pagesSkills } from "./skills.js";
+import { PAGES_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Pages as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
  * `pages` store its Host entry declares; the 成果 it pins, the model and the uploaded-file reader come from the Runtime's services.
  */
 export function createPagesPlugin(): PluginDefinition {
-  return { manifest: pagesManifest, async start(context) {
+  return { manifest: pagesManifest, instructions: PAGES_INSTRUCTIONS, methods: pagesSkills, async start(context) {
     for (const permission of pagesManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, artifacts = context.services?.artifacts, actions = context.services?.actions;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供文档库");

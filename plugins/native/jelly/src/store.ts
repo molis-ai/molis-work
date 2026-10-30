@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { JellyCommand, JellyWorkspace } from "./contract.js";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
 import { decodeJellyImport, mergeJellyImport } from "./import.js";
 import { isJellyFailure, jellyAssert, jellyErrors } from "./error.js";
+import { JELLY_DATABASE } from "./database.js";
+export { JELLY_DATABASE };
 
 export interface JellyPreview { confirmation_token: string; revision: number; counts: Record<string, number>; warnings: string[] }
 function validate(state: JellyWorkspace): void { validateJellyWorkspace(state); validateJellyContent(state); }
@@ -20,9 +21,6 @@ function decode(row: PluginSqlRow | null): JellyWorkspace {
 export interface JellyStores {
   read<T>(run: (store: JellyStore) => T): T;
   write<T>(caller: ActionExecutionContext, run: (store: JellyStore) => T): Promise<T>;
-}
-export function ownJellyStores(withStore: <T>(run: (store: JellyStore) => T) => T): JellyStores {
-  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(store => store.transaction(() => run(store))); } };
 }
 
 export class JellyStore {
@@ -104,38 +102,3 @@ export class JellyStore {
     this.db.run("DELETE FROM jelly_previews WHERE token = ?", [command.confirmation_token]);
   }
 }
-/**
- * The Jelly store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version.
- */
-export const JELLY_DATABASE: PluginDatabaseDeclaration = { store_name: "jelly", version: 1, read_permission: "jelly:read", write_permission: "jelly:write", schema: `
-  CREATE TABLE jelly_workspace (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), revision INTEGER NOT NULL, body TEXT NOT NULL, checksum TEXT NOT NULL);
-  CREATE TABLE jelly_note_versions (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-  CREATE TABLE jelly_history (id INTEGER PRIMARY KEY AUTOINCREMENT, command TEXT NOT NULL, before_body TEXT NOT NULL, after_body TEXT NOT NULL, before_checksum TEXT NOT NULL, after_checksum TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
-  CREATE TABLE jelly_previews (token TEXT PRIMARY KEY, type TEXT NOT NULL, fingerprint TEXT NOT NULL, revision INTEGER NOT NULL, expires_at INTEGER NOT NULL);
-` };
-
-export function openJellyStore(home: string): JellyStore {
-  const db = openHomeSqliteDatabase(home, JELLY_HOME_STORE.path);
-  try {
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    applySqliteBaseline(db, homeSqlitePath(home, JELLY_HOME_STORE.path), JELLY_DATABASE);
-    const sql: PluginDatabaseTransaction = {
-      get: (query, parameters = []) => db.prepare(query).get(...parameters) ?? null,
-      all: (query, parameters = []) => db.prepare(query).all(...parameters),
-      run: (query, parameters = []) => db.prepare(query).run(...parameters),
-    };
-    const atomically = <T>(run: () => T): T => {
-      if (db.isTransaction) return run();
-      db.exec("BEGIN IMMEDIATE");
-      try { const result = run(); db.exec("COMMIT"); return result; }
-      catch (error) { db.exec("ROLLBACK"); throw error; }
-    };
-    const store = new JellyStore(sql, atomically, () => db.close());
-    atomically(() => store.initialize());
-    return store;
-  } catch (error) { db.close(); throw error; }
-}
-
-/** This plugin's store in the Home's store registry (W4-11): `jelly/jelly.db` at its one baseline. */
-export const JELLY_HOME_STORE: HomeStoreDeclaration = { path: "jelly", library: { baseline: JELLY_DATABASE } };

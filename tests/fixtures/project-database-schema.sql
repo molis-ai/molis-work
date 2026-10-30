@@ -1,9 +1,10 @@
--- The project database baseline, version 8 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
--- the Host opens the plugins' own tables in it. Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
+-- The project database baseline, version 11 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
+-- the Host opens the plugins' own tables in it (Feed's, since FI-5, among them). Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       type TEXT NOT NULL,
       subject_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
@@ -35,109 +36,10 @@ CREATE TABLE events (
           payload_json TEXT NOT NULL,
           at TEXT NOT NULL
         );
-CREATE TABLE feed_item_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      at TEXT NOT NULL
-    );
-CREATE TABLE feed_items (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      item_id TEXT NOT NULL,
-      source_id TEXT,
-      signal_id TEXT,
-      signal_revision INTEGER,
-      kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '',
-      body TEXT,
-      source_kind TEXT NOT NULL,
-      source_label TEXT NOT NULL,
-      external_id TEXT,
-      url TEXT,
-      origin_status TEXT NOT NULL,
-      priority TEXT NOT NULL,
-      tags_json TEXT NOT NULL DEFAULT '[]',
-      author TEXT,
-      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
-      read_at TEXT,
-      revision INTEGER NOT NULL DEFAULT 1,
-      source_created_at TEXT NOT NULL,
-      source_updated_at TEXT NOT NULL,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, item_id)
-    );
-CREATE TABLE feed_materials (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      material_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      canonical_url TEXT,
-      title TEXT NOT NULL,
-      source_name TEXT NOT NULL,
-      published_at TEXT,
-      preview TEXT NOT NULL DEFAULT '',
-      content_hash TEXT,
-      content_ref TEXT,
-      content_available INTEGER NOT NULL DEFAULT 0,
-      content_type TEXT,
-      character_count INTEGER,
-      captured_at TEXT,
-      provenance_json TEXT NOT NULL DEFAULT '{}',
-      selected_for_context INTEGER NOT NULL DEFAULT 0,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, material_id),
-      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
-    );
 CREATE TABLE feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
     PRIMARY KEY (namespace, key)
   );
-CREATE TABLE feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      run_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
-      outcome TEXT,
-      empty INTEGER NOT NULL DEFAULT 0,
-      error_code TEXT,
-      receipt_json TEXT,
-      created_count INTEGER NOT NULL DEFAULT 0,
-      deduped_count INTEGER NOT NULL DEFAULT 0,
-      recovery_count INTEGER NOT NULL DEFAULT 0,
-      started_at TEXT NOT NULL,
-      completed_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, run_id),
-      UNIQUE (project_id, operation_id)
-    );
-CREATE TABLE feed_sources (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      source_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      definition_id TEXT,
-      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
-      config_json TEXT NOT NULL DEFAULT '{}',
-      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
-      credential_ref TEXT,
-      account_label TEXT,
-      last_sync_at TEXT,
-      last_outcome TEXT,
-      last_error_code TEXT,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-);
 CREATE TABLE idempotency_records (
           project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
@@ -151,6 +53,7 @@ CREATE TABLE idempotency_records (
 CREATE TABLE inbox_entries (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
       reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
@@ -160,8 +63,7 @@ CREATE TABLE inbox_entries (
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (project_id, entry_id),
-      UNIQUE (project_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id)
 );
 CREATE TABLE library_artifact_versions (
     artifact_id TEXT NOT NULL REFERENCES library_artifacts(artifact_id) ON DELETE CASCADE,
@@ -205,37 +107,6 @@ CREATE TABLE library_artifacts (
     created_at TEXT NOT NULL,
     UNIQUE (artifact_id, project_id)
   );
-CREATE TABLE listener_deliveries (
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      raw_event_id TEXT NOT NULL,
-      provider_dedupe_id TEXT NOT NULL,
-      raw_event_json TEXT NOT NULL,
-      cursor_after_json TEXT,
-      adapter_plugin_id TEXT NOT NULL,
-      adapter_version TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('pending', 'retry_wait', 'accepted', 'quarantined')),
-      attempt INTEGER NOT NULL DEFAULT 0,
-      signal_id TEXT,
-      last_error_code TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id, raw_event_id)
-    );
-CREATE TABLE listener_instances (
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      cursor_json TEXT NOT NULL DEFAULT '{}',
-      state TEXT NOT NULL CHECK (state IN ('idle', 'listening', 'retry_wait', 'quarantined')),
-      attempt INTEGER NOT NULL DEFAULT 0,
-      retry_at TEXT,
-      last_error_code TEXT,
-      lease_owner TEXT,
-      lease_expires_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-    );
 CREATE TABLE plugin_event_cursors (
       project_id TEXT NOT NULL,
       subscriber_plugin_id TEXT NOT NULL,
@@ -266,6 +137,24 @@ CREATE TABLE plugin_events (
       payload_json TEXT NOT NULL,
       correlation_id TEXT,
       occurred_at TEXT NOT NULL
+    );
+CREATE TABLE plugin_notifications (
+      notification_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      sender_plugin_id TEXT NOT NULL,
+      sender_install_id TEXT NOT NULL,
+      sender_generation TEXT NOT NULL,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      body TEXT NOT NULL,
+      open_plugin_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      item_id TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
+      UNIQUE (sender_install_id, sender_generation, key)
     );
 CREATE TABLE plugin_input_groups (
       project_id TEXT NOT NULL,
@@ -320,7 +209,8 @@ CREATE TABLE plugin_project_databases (
       tables_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
-CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
+CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL,
+      publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 CREATE TABLE plugin_runtime_release_artifacts (
       plugin_id TEXT NOT NULL,
       publisher_signature TEXT NOT NULL,
@@ -401,76 +291,15 @@ CREATE TABLE schedule_wakeups (
       detail TEXT,
       FOREIGN KEY (job_id) REFERENCES schedule_jobs(job_id)
     );
-CREATE TABLE signal_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('signal.accepted', 'signal.changed')),
-      revision INTEGER NOT NULL,
-      at TEXT NOT NULL
-    );
-CREATE TABLE signal_revisions (
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      draft_json TEXT NOT NULL,
-      accepted_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id, revision)
-    );
-CREATE TABLE signals (
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      provider_dedupe_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      occurred_at TEXT NOT NULL,
-      observed_at TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      content_refs_json TEXT NOT NULL DEFAULT '[]',
-      raw_event_id TEXT NOT NULL,
-      adapter_plugin_id TEXT NOT NULL,
-      adapter_version TEXT NOT NULL,
-      provenance_json TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      validation TEXT NOT NULL CHECK (validation = 'accepted'),
-      superseded_by TEXT,
-      withdrawn_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id),
-      UNIQUE (project_id, source_id, provider_dedupe_id)
-    );
-CREATE TABLE source_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('source.created', 'source.updated', 'source.status_changed', 'source.retired')),
-      payload_json TEXT NOT NULL,
-      at TEXT NOT NULL
-    );
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
 CREATE INDEX events_project_idx ON events(project_id, seq);
-CREATE INDEX feed_item_events_project_item_idx
-      ON feed_item_events(project_id, item_id, at, event_id);
-CREATE UNIQUE INDEX feed_items_project_signal_idx
-      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
-CREATE UNIQUE INDEX feed_items_project_source_external_idx
-      ON feed_items(project_id, source_id, external_id)
-      WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
-CREATE INDEX feed_items_project_updated_idx
-      ON feed_items(project_id, disposition, source_updated_at DESC);
-CREATE INDEX feed_materials_project_item_idx
-      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
-CREATE INDEX feed_source_runs_project_source_idx
-      ON feed_source_runs(project_id, source_id, started_at DESC);
-CREATE INDEX feed_sources_project_updated_idx
-      ON feed_sources(project_id, updated_at DESC, source_id);
+CREATE UNIQUE INDEX inbox_entries_owned_subject_idx
+      ON inbox_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
+CREATE UNIQUE INDEX inbox_entries_unassigned_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
 CREATE INDEX inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_project_subject_idx
@@ -479,24 +308,16 @@ CREATE INDEX library_artifact_versions_type_idx
     ON library_artifact_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX library_artifacts_project_idx
     ON library_artifacts(project_id, created_at DESC, artifact_id);
-CREATE INDEX listener_deliveries_recovery_idx
-      ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
 CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
+CREATE INDEX plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_project_idx
     ON process_items(project_id, created_at DESC, artifact_id);
 CREATE INDEX schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
-CREATE INDEX signal_events_project_source_idx
-      ON signal_events(project_id, source_id, at, event_id);
-CREATE INDEX signals_project_source_observed_idx
-      ON signals(project_id, source_id, observed_at DESC, signal_id);
-CREATE INDEX source_events_project_source_idx
-      ON source_events(project_id, source_id, at, event_id);
-
 CREATE TABLE schedule_action_bindings (
   job_id TEXT PRIMARY KEY REFERENCES schedule_jobs(job_id) ON DELETE CASCADE,
   install_id TEXT NOT NULL,

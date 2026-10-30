@@ -2,14 +2,16 @@
 
 挑最近的同类抄结构，不要混抄。
 
-三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Plugin Runtime 启动的插件之间的总线（Coding 族、Shelf 与已安装插件）；Integration 进来的是 Signal。
+三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Plugin Runtime 启动的插件之间的总线（登记上有 `project_runtime` 或 `runtime` 的内置插件与已安装插件）；Integration 进来的是 Signal。
 
 ## Feed：外来消息的去向
 
 人盯着一条 `feed_item`。详情上四条竞争处置：加入 Inbox、保存、升格 Goal、忽略。
 
+Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `routes`，页面 HTML 是外壳的舞台（`/api/stage/feed`、`/api/stage/inbox`）；宿主里给它们写的代码只剩冻结名单（`tests/builtin-plugin-assembly-gate.test.ts`）记着的那些，不要抄。对照产品行为（动作、场景、不进池的规则、搜索）；新插件按 [host.md](host.md) 必改第 6、8 步。
+
 - UI：plugin-stage 外壳里的文章列 + 阅读页：来源收在列顶的来源菜单，时间线 + 全部 / 未读 / 已保存，点卡片在右侧读。
-- HTTP：Host `/api/feed/items/:id/(inbox|save|promote|archive|…)`。
+- HTTP：Manifest `routes`，`/api/plugins/io.molis.work.feed/items/:item_id/:action`（`inbox|save|promote|archive|…`）；阅读页是外壳的舞台 `/api/stage/feed/items/<item_id>`。
 - 动作：`feed.*` 与内容协议 `feed.content.*`；处置按钮由事项动作查询准备，旧 HTTP 只转发。
 - 场景：`feed.capture`。`feed.open` 只映射「留在 Feed」，不是 footer 按钮。打开原文常驻。
 - 不进池：标已读、恢复、来源设置、token、计划。
@@ -48,15 +50,15 @@
 
 ## Schedule：到点叫醒
 
-人盯着定时任务。`kind: "native"` 但有 `agent`。HTTP 走 `web-request.ts` 路由表里的 schedule 条目。不要把 Coding 的 workspace-write 角色抄过来。
+人盯着定时任务。`kind: "native"` 但有 `agent`。HTTP 是 Manifest `routes`，经 `/api/plugins/<plugin_id>/`。不要把 Coding 的 workspace-write 角色抄过来。
 
 ## Sessions / Shelf / Artifacts / Goals
 
-- Sessions：会话列表和终端，不是消息去向。包在 `plugins/native/work`，全球 id `io.molis.work.sessions`，项目短名 `sessions`。终端传输留在 Host。
+- Sessions：已下线（SC-4），重做见 BL-177；终端传输留在 Host，由终端工作区使用。
 - Shelf：置物架文件与摘录，`personal`，有设置页。
 - Artifacts：打开已保存成果和版本。
 - Goals：树、画布、提案、决定。采用/退回是对象处置，同样先不要塞进 Feed/Inbox 池。
-- 搜索：Sessions 只给摘要（终端正文不进索引）；Artifacts 列每个成果的最新版本；Goals 的条目版本与读取器版本一致。Shelf 的材料照常对外；剪贴板历史原本只给本机的人，所以单独一个受众为 `["user"]` 的来源（`shelf.clipboard.search.entries`）——来源的受众不能比你原有的读取更宽。
+- 搜索：Artifacts 列每个成果的最新版本；Goals 的条目版本与读取器版本一致。Shelf 的材料照常对外；剪贴板历史原本只给本机的人，所以单独一个受众为 `["user"]` 的来源（`shelf.clipboard.search.entries`）——来源的受众不能比你原有的读取更宽。
 
 要做就单独立场景、判断时机、已接线按钮。
 
@@ -73,7 +75,7 @@
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认来源写在各输入口的 `default_source`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执使用共用合同 `@molis-ai/molis-work-contracts/modules/goal-actions` 的 `goalPluginActions`；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`。
+`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认来源写在各输入口的 `default_source`；还有事件、`agent` 角色。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执按 Goals 动作的 id 与版本调用（`plugins/native/coding/src/goals-actions.ts` 的 `GOALS_ACTIONS`），用到的字段就地声明，不 import Goals 的合同；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`。
 
 ## GitHub / Gmail 等接入
 

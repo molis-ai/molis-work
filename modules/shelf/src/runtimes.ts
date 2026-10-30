@@ -1,13 +1,9 @@
-import { spawnSync } from "node:child_process";
-import { accessSync, constants, statSync } from "node:fs";
-import { homedir } from "node:os";
-import path from "node:path";
 import type {
   ShelfCustomRuntime,
   ShelfIsolationGrade,
   ShelfRuntimeInstall,
   ShelfRuntimeStatus,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "./contract.js";
 
 /**
  * DropAgent `AgentEngine` + `AgentService` + `HeadlessCLI`, in Node.
@@ -33,155 +29,21 @@ export const SHELF_ENGINES: readonly ShelfEngine[] = [
   { key: "qwen", title: "Qwen Code", binaries: ["qwen"], install_url: "https://github.com/QwenLM/qwen-code" },
 ];
 
-export interface ShelfRuntimeProbe {
-  readonly pathEnvironment?: string;
-  readonly home?: string;
+/**
+ * What the Shelf asks of the platform's local tools service (`services.localTools`, PG-112): where each of the declared tools is on this
+ * machine, and whether one path the person chose is a runnable file. The Shelf looks nowhere else and starts nothing.
+ */
+export interface ShelfLocalToolsPort {
+  find(): Promise<readonly { readonly tool_id: string; readonly executable: string | null }[]>;
+  isExecutable(path: string): Promise<boolean>;
+}
+
+/** Where the Shelf looks for terminal Agents. Without `tools` it finds none. */
+export interface ShelfRuntimeLookup {
+  readonly tools?: ShelfLocalToolsPort;
+  /** The person's pick (`auto` or an engine key); else the first one found. */
   readonly preferred?: string | null;
   readonly customRuntimes?: readonly ShelfCustomRuntime[];
-  /** Look nowhere: an isolated trial or a test that must not meet this Mac's CLIs. */
-  readonly disabled?: boolean;
-  /** Passive by default. Only an explicit job may set false to probe its chosen CLI. */
-  readonly skipHelp?: boolean;
-}
-
-/**
- * Agent discovery follows the real PATH. An isolated trial or a test pins it,
- * the same way `--home` pins the shelf itself.
- */
-export function shelfRuntimeProbe(): ShelfRuntimeProbe {
-  const search = process.env.MOLIS_WORK_SHELF_AGENT_PATH;
-  const preferred = process.env.MOLIS_WORK_SHELF_AGENT;
-  if (preferred === "off") return { disabled: true };
-  return {
-    ...(search === undefined ? {} : { pathEnvironment: search }),
-    ...(preferred ? { preferred } : {}),
-  };
-}
-
-const HELP_CACHE = new Map<string, string>();
-const SANDBOX_CACHE = new Map<string, boolean>();
-
-export function shelfSearchDirectories(pathEnvironment: string, home: string): string[] {
-  const directories = pathEnvironment.split(":").filter(Boolean);
-  directories.push(
-    path.join(home, ".grok/bin"),
-    path.join(home, ".local/bin"),
-    path.join(home, ".opencode/bin"),
-    path.join(home, ".cursor/bin"),
-    path.join(home, ".kimi-code/bin"),
-    path.join(home, ".codebuddy/bin"),
-    path.join(home, ".qwen/bin"),
-    path.join(home, "bin"),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin",
-    path.join(home, "Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin"),
-  );
-  return [...new Set(directories)];
-}
-
-export function shelfRuntimeCandidates(engine: ShelfEngine, probe: ShelfRuntimeProbe = {}): string[] {
-  const directories = probe.pathEnvironment === undefined
-    ? shelfSearchDirectories(pathEnvironmentOf(probe), homeOf(probe))
-    : probe.pathEnvironment.split(path.delimiter).filter(Boolean);
-  const urls: string[] = [];
-  for (const directory of directories) {
-    for (const binary of engine.binaries) urls.push(path.join(directory, binary));
-  }
-  return [...new Set(urls)];
-}
-
-function pathEnvironmentOf(probe: ShelfRuntimeProbe): string {
-  return probe.pathEnvironment ?? process.env.PATH ?? "";
-}
-
-function homeOf(probe: ShelfRuntimeProbe): string {
-  return probe.home ?? homedir();
-}
-
-function isExecutableFile(candidate: string): boolean {
-  try {
-    if (!statSync(candidate).isFile()) return false;
-    accessSync(candidate, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Executables on this device, in DropAgent's preference order. */
-export function installedShelfEngines(probe: ShelfRuntimeProbe = {}): { engine: ShelfEngine; executable: string }[] {
-  const found: { engine: ShelfEngine; executable: string }[] = [];
-  for (const engine of SHELF_ENGINES) {
-    const executable = shelfRuntimeCandidates(engine, probe).find(isExecutableFile);
-    if (executable) found.push({ engine, executable });
-  }
-  return found;
-}
-
-export function readCliHelp(executable: string): string {
-  const cached = HELP_CACHE.get(executable);
-  if (cached !== undefined) return cached;
-  const help = runCapture(executable, ["--help"]);
-  // A probe that timed out or could not start says nothing about the CLI: ask again next time
-  // instead of reporting "no headless entry" until the process restarts.
-  if (help.completed) HELP_CACHE.set(executable, help.text);
-  return help.text;
-}
-
-export function supportsWorkspaceSandbox(executable: string): boolean {
-  const cached = SANDBOX_CACHE.get(executable);
-  if (cached !== undefined) return cached;
-  const probe = runCapture(executable, ["exec", "--help"]);
-  const supported = probe.text.includes("--sandbox") && probe.text.includes("workspace-write");
-  if (probe.completed) SANDBOX_CACHE.set(executable, supported);
-  return supported;
-}
-
-function runCapture(executable: string, args: readonly string[]): { text: string; completed: boolean } {
-  try {
-    const result = spawnSync(executable, [...args], {
-      timeout: 3_000,
-      encoding: "utf8",
-      maxBuffer: 4 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return { text: `${result.stdout ?? ""}${result.stderr ?? ""}`, completed: !result.error && result.status !== null };
-  } catch {
-    return { text: "", completed: false };
-  }
-}
-
-/** DropAgent `HeadlessCLI.canRunJob`. */
-export function canRunJob(engineKey: string, help: string): boolean {
-  switch (engineKey) {
-    case "codex":
-      return /\bexec\b/u.test(help);
-    case "grok":
-      return help.includes("--prompt-file") || help.includes("--single");
-    case "claude":
-    case "cursor":
-    case "codebuddy":
-      return help.includes("--print") || help.includes("-p,") || help.includes("-p ");
-    case "gemini":
-      return help.includes("--prompt");
-    case "kimi":
-    case "qwen":
-      return help.includes("--prompt") || help.includes("-p,") || help.includes("-p ");
-    case "opencode":
-      return hasRunCommand(help);
-    default:
-      return help.includes("--print")
-        || help.includes("--prompt-file")
-        || help.includes("--prompt")
-        || hasRunCommand(help);
-  }
-}
-
-function hasRunCommand(help: string): boolean {
-  return help.includes("run [message")
-    || help.includes("opencode run")
-    || /^\s+run\b/mu.test(help);
 }
 
 export function isolationFact(grade: ShelfIsolationGrade): string {
@@ -222,45 +84,34 @@ interface FoundRuntime {
   readonly key: string;
   readonly title: string;
   readonly executable: string;
-  readonly engine: ShelfEngine | null;
   readonly kind: "tui" | "cli";
   readonly install_url: string;
 }
 
-/** Custom runtimes sit beside the nine presets, same rules. */
-function foundRuntimes(probe: ShelfRuntimeProbe): FoundRuntime[] {
-  const found: FoundRuntime[] = installedShelfEngines(probe).map((entry) => ({
-    key: entry.engine.key,
-    title: entry.engine.title,
-    executable: entry.executable,
-    engine: entry.engine,
-    kind: "tui",
-    install_url: entry.engine.install_url,
-  }));
-  for (const custom of probe.customRuntimes ?? []) {
-    if (!isExecutableFile(custom.executable)) continue;
-    found.push({
-      key: `custom:${custom.id}`,
-      title: custom.title,
-      executable: custom.executable,
-      engine: null,
-      kind: custom.kind,
-      install_url: "",
-    });
+/** The nine presets are the platform's tools of the same ids (`local_tools` in the Manifest); custom runtimes sit beside them, same rules. */
+async function foundRuntimes(lookup: ShelfRuntimeLookup): Promise<FoundRuntime[]> {
+  const tools = lookup.tools;
+  if (!tools) return [];
+  const executables = new Map((await tools.find()).map(tool => [tool.tool_id, tool.executable]));
+  const found: FoundRuntime[] = [];
+  for (const engine of SHELF_ENGINES) {
+    const executable = executables.get(engine.key);
+    if (executable) found.push({ key: engine.key, title: engine.title, executable, kind: "tui", install_url: engine.install_url });
+  }
+  for (const custom of lookup.customRuntimes ?? []) {
+    if (!custom.executable.startsWith("/") || !(await tools.isExecutable(custom.executable))) continue;
+    found.push({ key: `custom:${custom.id}`, title: custom.title, executable: custom.executable, kind: custom.kind, install_url: "" });
   }
   return found;
 }
 
-function runtimeCanRunJob(runtime: FoundRuntime, help: string): boolean {
-  if (runtime.engine) return canRunJob(runtime.engine.key, help);
-  if (runtime.kind === "cli") return true;
-  return canRunJob("", help);
+/** Everything this Mac could run a recipe in, installed or not. */
+export async function shelfRuntimeCatalog(lookup: ShelfRuntimeLookup = {}): Promise<ShelfRuntimeInstall[]> {
+  return catalogOf(lookup, await foundRuntimes(lookup));
 }
 
-/** Everything this Mac could run a recipe in, installed or not. */
-export function shelfRuntimeCatalog(probe: ShelfRuntimeProbe = {}): ShelfRuntimeInstall[] {
-  if (probe.disabled) return [];
-  const found = new Map(foundRuntimes(probe).map((runtime) => [runtime.key, runtime]));
+function catalogOf(lookup: ShelfRuntimeLookup, foundRows: readonly FoundRuntime[]): ShelfRuntimeInstall[] {
+  const found = new Map(foundRows.map(runtime => [runtime.key, runtime]));
   const rows: ShelfRuntimeInstall[] = SHELF_ENGINES.map((engine) => {
     const live = found.get(engine.key);
     return {
@@ -273,7 +124,7 @@ export function shelfRuntimeCatalog(probe: ShelfRuntimeProbe = {}): ShelfRuntime
       install_url: engine.install_url,
     };
   });
-  for (const custom of probe.customRuntimes ?? []) {
+  for (const custom of lookup.customRuntimes ?? []) {
     const live = found.get(`custom:${custom.id}`);
     rows.push({
       runtime_key: `custom:${custom.id}`,
@@ -289,19 +140,18 @@ export function shelfRuntimeCatalog(probe: ShelfRuntimeProbe = {}): ShelfRuntime
 }
 
 /**
- * The Agent a recipe would run in, DropAgent `recipePresence`: pick the TUI
- * (preference, else install order), then ask whether it has a job entry.
+ * The Agent a person would open a terminal in: their pick, else the first one found in DropAgent's preference order. What it can run
+ * headless is not asked (nothing here starts a CLI), so it is reported as not yet known.
  */
-export function detectShelfRuntime(probe: ShelfRuntimeProbe = {}): ShelfRuntimeStatus {
-  if (probe.disabled) return emptyShelfRuntime();
-  const found = foundRuntimes(probe);
-  const catalog = shelfRuntimeCatalog(probe);
+export async function detectShelfRuntime(lookup: ShelfRuntimeLookup = {}): Promise<ShelfRuntimeStatus> {
+  const found = await foundRuntimes(lookup);
+  const catalog = catalogOf(lookup, found);
   if (!found.length) return { ...emptyShelfRuntime(), catalog };
-  const wanted = probe.preferred && probe.preferred !== "auto"
-    ? found.find((runtime) => runtime.key === probe.preferred)
+  const wanted = lookup.preferred && lookup.preferred !== "auto"
+    ? found.find((runtime) => runtime.key === lookup.preferred)
     : undefined;
   const chosen = wanted ?? found[0];
-  const status = {
+  return {
     image_text: false,
     runtime_key: chosen.key,
     title: chosen.title,
@@ -309,21 +159,9 @@ export function detectShelfRuntime(probe: ShelfRuntimeProbe = {}): ShelfRuntimeS
     kind: chosen.kind,
     installed: found.map((runtime) => runtime.key),
     catalog,
+    isolation: "unknown",
+    isolation_fact: "执行能力与隔离范围在执行时检查，登录尚未确认",
+    can_run_job: false,
+    capability_pending: true,
   };
-  if (probe.skipHelp !== false) {
-    return { ...status, isolation: "unknown", isolation_fact: "执行能力与隔离范围在执行时检查，登录尚未确认", can_run_job: false, capability_pending: true };
-  }
-  const help = readCliHelp(chosen.executable);
-  if (!runtimeCanRunJob(chosen, help)) {
-    return { ...status, isolation: "tui", isolation_fact: isolationFact("tui"), can_run_job: false };
-  }
-  const isolation: ShelfIsolationGrade = chosen.key === "codex" && supportsWorkspaceSandbox(chosen.executable)
-    ? "workspace"
-    : "unknown";
-  return { ...status, isolation, isolation_fact: isolationFact(isolation), can_run_job: true };
-}
-
-export function clearShelfRuntimeCache(): void {
-  HELP_CACHE.clear();
-  SANDBOX_CACHE.clear();
 }

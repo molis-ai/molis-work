@@ -92,12 +92,6 @@
       ],
       "reason": "The Characters module and the Host files that assemble, serve and run it (the plugin was removed in CHR-1); character.* becomes characters.* (spec W3-02 R4c)."
     },
-    "coding": {
-      "paths": [
-        "apps/local-host/src/coding-*"
-      ],
-      "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
-    },
     "computer": {
       "paths": [
         "apps/local-host/src/computer/"
@@ -138,15 +132,6 @@
       ],
       "reason": "The unified-diff parse the SDK's /diff-view gives Diff, Coding and third-party plugins, moved out of the Diff plugin (PG-062); its codes already start with diff."
     },
-    "feed": {
-      "paths": [
-        "modules/feed/",
-        "packages/contracts/src/modules/feed.ts",
-        "apps/local-host/src/feed-*",
-        "apps/local-host/src/research-library-source.ts"
-      ],
-      "reason": "The Feed module, plugin and the Host files that sync and promote; the feed_* snake codes become feed.* (spec W3-02 E)."
-    },
     "functions": {
       "paths": [
         "modules/functions/",
@@ -164,13 +149,11 @@
     },
     "goals": {
       "paths": [
-        "modules/goals/",
-        "modules/governance-collaboration/",
         "apps/local-host/src/goal-*",
-        "apps/local-host/src/goals-actions.ts",
+        "apps/local-host/src/goal-callers.ts",
         "apps/local-host/src/web-goals-read.ts"
       ],
-      "reason": "Goals is the plugin plus its module, the governance module that records tree proposals and event decisions, and the Host files that serve them; every Goals code is goals.<family>.<reason>."
+      "reason": "Goals is the plugin, whose package also holds its Goal module and the governance module that records tree proposals and event decisions (S9-3), plus the Host files that serve them; every Goals code is goals.<family>.<reason>."
     },
     "host": {
       "paths": [
@@ -186,10 +169,9 @@
     },
     "inbox": {
       "paths": [
-        "apps/local-host/src/inbox-*",
         "packages/contracts/src/modules/attention-resumption.ts"
       ],
-      "reason": "The Inbox plugin and the Host files that serve it; the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
+      "reason": "The Inbox plugin (its Host files are gone, FI-7); the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
     },
     "installer": {
       "paths": [
@@ -212,10 +194,9 @@
     },
     "listener": {
       "paths": [
-        "horizontal/listener-host/",
-        "packages/contracts/src/services/listener-host.ts"
+        "plugins/native/feed/src/store/listener.ts"
       ],
-      "reason": "The listener host: its listener_* codes become listener.*."
+      "reason": "The listener host (inside Feed's store since FI-5): its listener_* codes become listener.*."
     },
     "material": {
       "paths": [
@@ -272,6 +253,12 @@
       ],
       "reason": "The plugin builder (Studio) plugin and its Host side."
     },
+    "rss": {
+      "paths": [
+        "plugins/official-integrations/rss/"
+      ],
+      "reason": "The RSS official integration (the custom RSS address rules the platform's source vocabulary uses); its refusals were raised in Feed's name until PG-111 Feed (T-110)."
+    },
     "runtime_host": {
       "paths": [
         "horizontal/runtime-host/"
@@ -300,23 +287,28 @@
     },
     "shelf": {
       "paths": [
-        "modules/shelf/",
-        "apps/local-host/src/shelf-*"
+        "modules/shelf/"
       ],
-      "reason": "The Shelf module, plugin and its Host AI file; its codes already start with shelf."
+      "reason": "The Shelf module and plugin; its codes already start with shelf."
     },
     "signals": {
       "paths": [
-        "modules/signals/"
+        "plugins/native/feed/src/store/signals.ts"
       ],
-      "reason": "The signals module: its signal_* codes become signals.*."
+      "reason": "The signals module (inside Feed's store since FI-5): its signal_* codes become signals.*."
     },
     "sources": {
       "paths": [
-        "modules/sources/",
-        "packages/contracts/src/modules/sources.ts"
+        "plugins/native/feed/src/store/sources.ts"
       ],
-      "reason": "The sources module (SourcesError): its source_* codes become sources.*."
+      "reason": "The sources module (SourcesError; inside Feed's store since FI-5): its source_* codes become sources.*."
+    },
+    "storage": {
+      "paths": [
+        "packages/storage/src/adapters/file-secret-store.ts",
+        "packages/storage/src/adapters/storage-owner.ts"
+      ],
+      "reason": "Platform storage owns sealed-vault integrity and the shared filesystem storage owner's exclusive lease and capability refusals."
     },
     "ui_host": {
       "paths": [
@@ -328,16 +320,9 @@
       "paths": [
         "modules/private-work-context/",
         "packages/contracts/src/modules/private-work-context.ts",
-        "packages/contracts/src/modules/workspace-artifacts.ts",
-        "apps/local-host/src/work-*"
+        "packages/contracts/src/modules/workspace-artifacts.ts"
       ],
-      "reason": "The Work plugin owns sessions, handoffs, workspaces and their private context; the session, sessions, handoff, context and workspace prefixes become work.* (spec W3-02 R4a)."
-    },
-    "workflows": {
-      "paths": [
-        "apps/local-host/src/workflow-*"
-      ],
-      "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
+      "reason": "The private work context module owns the runtime-context bindings and workspace artifacts; the context and workspace prefixes become work.* (spec W3-02 R4a). The Sessions plugin that used to share this owner is retired (SC-4)."
     },
     "workspace_git": {
       "paths": [
@@ -348,6 +333,12 @@
         "apps/local-host/src/workspace-git-writers.ts"
       ],
       "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* (G3) and projects.workspace.writers.* (G4, workspace_git.writer.*) actions the Host registers for plugins, and the operations, writer worktrees (workspace_git.worktree.*) and integration behind them, renamed from git-*.ts (G5). Not the Git plugin, so not git.*; not Work's workspace.* either. workspace-git.ts and workspace-git-index.ts were the host owner's before G5 and stay so (the table only gets stricter)."
+    },
+    "youtube": {
+      "paths": [
+        "plugins/official-integrations/youtube/"
+      ],
+      "reason": "The YouTube official integration (the public channel rules the platform's source vocabulary uses); its refusal was raised in Feed's name until PG-111 Feed (T-110)."
     }
   }
 }

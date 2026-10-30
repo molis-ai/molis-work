@@ -27,7 +27,7 @@ const open = (file: string, projectsDirectory: string) => {
 };
 const scratch = () => mkdtempSync(join(tmpdir(), "catalog-path-derivation-"));
 
-test("RAC-240 the catalog stores no path: a project's database is derived from the projects directory and its id, and follows the catalog into another Home", () => {
+test("RAC-2300 the catalog stores no path: a project's database is derived from the projects directory and its id, and follows the catalog into another Home", () => {
   const first = scratch(), second = scratch();
   try {
     const { db, projects } = open(join(first, "catalog.db"), first);
@@ -48,7 +48,7 @@ test("RAC-240 the catalog stores no path: a project's database is derived from t
   } finally { rmSync(first, { recursive: true, force: true }); rmSync(second, { recursive: true, force: true }); }
 });
 
-test("RAC-241 a project id that is not one plain path segment has no directory: refused when a project is created and when a row is read", () => {
+test("RAC-2301 a project id that is not one plain path segment has no directory: refused when a project is created and when a row is read", () => {
   const directory = scratch();
   try {
     const { db, projects } = open(join(directory, "catalog.db"), directory);
@@ -66,7 +66,7 @@ test("RAC-241 a project id that is not one plain path segment has no directory: 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("RAC-242 the project.created event records the project, not a path; the module has no way to move a project's database", () => {
+test("RAC-2302 the project.created event records the project, not a path; the module has no way to move a project's database", () => {
   const directory = scratch();
   try {
     const { db, projects } = open(join(directory, "catalog.db"), directory);
@@ -79,7 +79,7 @@ test("RAC-242 the project.created event records the project, not a path; the mod
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("RAC-243 the derived file name is the one the storage package names, and the catalog's version is 23", () => {
+test("RAC-2303 the derived file name is the one the storage package names, and the catalog's version is 23", () => {
   assert.equal(projectDatabasePath("/home/projects", "p"), join("/home/projects", "p", PROJECT_DATABASE_FILENAME));
   assert.equal(CATALOG_SCHEMA_VERSION, 23, "catalog v23 is the one that stores no path");
 });

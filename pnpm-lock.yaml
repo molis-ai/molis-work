@@ -73,18 +73,9 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:modules/context-ledger
-      '@molis-ai/molis-work-module-feed':
-        specifier: workspace:*
-        version: link:modules/feed
       '@molis-ai/molis-work-module-functions':
         specifier: workspace:*
         version: link:modules/functions
-      '@molis-ai/molis-work-module-goals':
-        specifier: workspace:*
-        version: link:modules/goals
-      '@molis-ai/molis-work-module-governance-collaboration':
-        specifier: workspace:*
-        version: link:modules/governance-collaboration
       '@molis-ai/molis-work-module-private-work-context':
         specifier: workspace:*
         version: link:modules/private-work-context
@@ -94,12 +85,6 @@ importers:
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:modules/shelf
-      '@molis-ai/molis-work-module-signals':
-        specifier: workspace:*
-        version: link:modules/signals
-      '@molis-ai/molis-work-module-sources':
-        specifier: workspace:*
-        version: link:modules/sources
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:plugins/native/alchemist
@@ -181,9 +166,6 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:plugins/native/todo
-      '@molis-ai/molis-work-plugin-work':
-        specifier: workspace:*
-        version: link:plugins/native/work
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:plugins/native/workflows
@@ -196,9 +178,6 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:horizontal/knowledge
-      '@molis-ai/molis-work-service-listener-host':
-        specifier: workspace:*
-        version: link:horizontal/listener-host
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
@@ -284,9 +263,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@molis-ai/molis-work-plugin-goals':
-        specifier: workspace:*
-        version: link:../../plugins/native/goals
 
   apps/desktop:
     dependencies:
@@ -371,18 +347,9 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:../../modules/context-ledger
-      '@molis-ai/molis-work-module-feed':
-        specifier: workspace:*
-        version: link:../../modules/feed
       '@molis-ai/molis-work-module-functions':
         specifier: workspace:*
         version: link:../../modules/functions
-      '@molis-ai/molis-work-module-goals':
-        specifier: workspace:*
-        version: link:../../modules/goals
-      '@molis-ai/molis-work-module-governance-collaboration':
-        specifier: workspace:*
-        version: link:../../modules/governance-collaboration
       '@molis-ai/molis-work-module-private-work-context':
         specifier: workspace:*
         version: link:../../modules/private-work-context
@@ -392,12 +359,6 @@ importers:
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:../../modules/shelf
-      '@molis-ai/molis-work-module-signals':
-        specifier: workspace:*
-        version: link:../../modules/signals
-      '@molis-ai/molis-work-module-sources':
-        specifier: workspace:*
-        version: link:../../modules/sources
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
@@ -440,6 +401,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-issues':
+        specifier: workspace:*
+        version: link:../../plugins/native/issues
       '@molis-ai/molis-work-plugin-jelly':
         specifier: workspace:*
         version: link:../../plugins/native/jelly
@@ -473,9 +437,6 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
-      '@molis-ai/molis-work-plugin-work':
-        specifier: workspace:*
-        version: link:../../plugins/native/work
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -491,9 +452,6 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
-      '@molis-ai/molis-work-service-listener-host':
-        specifier: workspace:*
-        version: link:../../horizontal/listener-host
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
@@ -549,9 +507,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@molis-ai/molis-work-plugin-goals':
-        specifier: workspace:*
-        version: link:../../plugins/native/goals
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
@@ -669,9 +624,6 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
-      '@molis-ai/molis-work-plugin-work':
-        specifier: workspace:*
-        version: link:../../plugins/native/work
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -696,9 +648,12 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz
 
   horizontal/connector-host:
     dependencies:
@@ -707,12 +662,6 @@ importers:
         version: link:../../packages/contracts
 
   horizontal/knowledge:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
-  horizontal/listener-host:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -781,15 +730,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  modules/feed:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
-
   modules/functions:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -799,32 +739,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
 
-  modules/goals:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-      better-sqlite3:
-        specifier: 12.8.0
-        version: 12.8.0
-
-  modules/governance-collaboration:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
   modules/private-work-context:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      better-sqlite3:
-        specifier: 12.8.0
-        version: 12.8.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^9.6.0
@@ -845,18 +764,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
 
-  modules/signals:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
-  modules/sources:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
   packages/contracts: {}
 
   packages/design-system:
@@ -864,6 +771,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       lucide:
         specifier: ^1.31.0
         version: 1.31.0
@@ -876,6 +786,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../design-system
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/kernel:
     dependencies:
@@ -955,9 +868,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -986,18 +896,15 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../../../packages/design-system
+        version: link:../../../packages/plugin-sdk
 
   plugins/native/coding:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1013,42 +920,39 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/dataset:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/diff:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/feed:
     dependencies:
@@ -1061,9 +965,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1076,21 +977,23 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/form:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/git:
     dependencies:
@@ -1100,15 +1003,16 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/goals:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1118,15 +1022,16 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/inbox:
     dependencies:
@@ -1139,57 +1044,44 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/jelly:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
 
   plugins/native/lingguang:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/pages:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
       highlight.js:
         specifier: ^11.11.2
         version: 11.11.2
@@ -1232,6 +1124,10 @@ importers:
       prosemirror-view:
         specifier: ^1.41.4
         version: 1.42.4
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/plugin-builder:
     dependencies:
@@ -1247,96 +1143,84 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
       fflate:
         specifier: 0.8.2
         version: 0.8.2
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/schedule:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/shelf:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:../../../modules/shelf
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@xterm/addon-fit':
-        specifier: ^0.11.0
-        version: 0.11.0
-      '@xterm/xterm':
-        specifier: ^6.0.0
-        version: 6.0.0
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/text-stats:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/todo:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
-
-  plugins/native/work:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/workflows:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/official-integrations/catalog:
     dependencies:
@@ -1400,6 +1284,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../packages/storage
@@ -1762,8 +1649,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz':
-    resolution: {integrity: sha512-PeJD7Rp6vKAykGzQpxfALojVLIFaWWiqcdW8YXOwU+t+gE/INsJVT6x0IGjBVZAqN3rQMaTYEJLLPZksyrtxAA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
+    resolution: {integrity: sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3530,7 +3417,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

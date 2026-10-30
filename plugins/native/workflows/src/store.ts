@@ -1,6 +1,5 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   type Workflow,
   type WorkflowChain,
@@ -15,6 +14,9 @@ import {
   stoppedOf,
 } from "./model.js";
 import { workflowsErrors } from "./error.js";
+import { WORKFLOWS_DATABASE } from "./database.js";
+import { firstCharacters } from "./bounded-cut.js";
+export { WORKFLOWS_DATABASE };
 
 interface WorkflowRow {
   workflow_id: string;
@@ -204,59 +206,13 @@ export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowI
     ? { ...step, held: { at, reason: "流程已停止；这一项已经返回真实结果，内容保留，不会继续下一站。" } } : step) });
 }
 
-/**
- * The workflow store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
- * ones must already be at its version.
- */
-const WORKFLOWS_SCHEMA = `
-  CREATE TABLE workflows (
-    workflow_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    chain_json TEXT NOT NULL,
-    revision INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    deleted INTEGER NOT NULL DEFAULT 0
-  );
-  CREATE INDEX workflows_project ON workflows (project_id, deleted, updated_at);
-  CREATE TABLE instances (
-    instance_id TEXT PRIMARY KEY,
-    workflow_id TEXT NOT NULL,
-    project_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL,
-    current INTEGER NOT NULL,
-    chain_json TEXT NOT NULL,
-    steps_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
-
-`;
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const WORKFLOWS_DATABASE: PluginDatabaseDeclaration = { store_name: "workflows", version: 1,
-  read_permission: "workflows:read", write_permission: "workflows:write", schema: WORKFLOWS_SCHEMA };
-
-export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
-  const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);
-  db.exec("PRAGMA journal_mode = WAL;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, WORKFLOWS_HOME_STORE.path), WORKFLOWS_DATABASE);
-  const sql: WorkflowsSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new WorkflowsStore(sql, () => db.close());
-}
 
 function chainJson(chain: WorkflowChain): string {
   return JSON.stringify({ stations: chain.stations, links: chain.links });
 }
 
 function normalizeTitle(value: string): string {
-  const title = value.replace(/\s+/g, " ").trim().slice(0, 120);
+  const title = firstCharacters(value.replace(/\s+/g, " ").trim(), 120);
   return title || "未命名流程";
 }
 

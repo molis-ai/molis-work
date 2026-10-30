@@ -12,7 +12,6 @@ interface Invocation { capability_id: string; input: Record<string, unknown> }
 
 function stubPorts(answers: Record<string, unknown> = {}) {
   const invocations: Invocation[] = [];
-  let changes = 0;
   const actions: BoundActionClient = {
     discover: async () => [],
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
@@ -20,17 +19,14 @@ function stubPorts(answers: Record<string, unknown> = {}) {
       return (Object.hasOwn(answers, definition.capability_id) ? answers[definition.capability_id] : { ok: true }) as Output;
     },
   };
-  const ports: GoalsRoutePorts = {
-    actions: () => actions,
-    routePrefix: () => "/projects/p-1",
-    idempotencyKey: () => "header-key",
-    changed: () => { changes += 1; },
-  };
-  return { ports, invocations, changes: () => changes };
+  // The plugin prefix carries no Host page address and no Host cache: the page joins its own prefix and reads its view on its next
+  // request, and a retry key travels in the write's body (BL-386).
+  const ports: GoalsRoutePorts = { actions: () => actions };
+  return { ports, invocations };
 }
 
 function request(method: string, params: Record<string, string>, body: unknown = null, query: Record<string, string> = {}): PluginRouteRequest {
-  return { method: method as PluginRouteRequest["method"], pathname: "/api/goals", params, query, body, actor_id: LOCAL_PERSON_ACTOR_ID };
+  return { method: method as PluginRouteRequest["method"], pathname: "/api/plugins/io.molis.work.goals/goals", params, query, body, actor_id: LOCAL_PERSON_ACTOR_ID };
 }
 
 function binding(route_id: string, ports: GoalsRoutePorts) {
@@ -48,7 +44,7 @@ test("PG094-09: every declared Goals route has exactly one binding, and the Mani
   assert.deepEqual(parsePluginManifest(structuredClone(goalsManifest)).routes, goalsManifest.routes);
 });
 
-test("PG094-09: the page's old `/api` paths each reach the route the Manifest declares for them", () => {
+test("PG094-09: each plugin-prefix path reaches the route the Manifest declares for it", () => {
   const match = pluginRouteMatcher(goalsManifest);
   const at = (method: string, rest: string) => match(method, `/api/plugins/${GOALS_PLUGIN_ID}${rest}`);
   const goal = { goalId: "goal 1" };
@@ -108,15 +104,104 @@ test("PG094-09: a Goals binding answers refusals with the shared error body and 
   assert.deepEqual(invocations.map((call) => call.capability_id), ["goals.history.read"]);
 });
 
-test("PG094-09: a Goals write reads its path parameter, takes the Host's idempotency key when the body has none, and tells the Host the page changed", async () => {
-  const { ports, invocations, changes } = stubPorts({ "goals.note": { event_id: "e-9" } });
-  const answered = await binding("goals.event-note", ports).handle(request("POST", { goalId: "goal 1" }, { body: "便笺" }));
+test("PG094-09: a Goals write reads its path parameter and its retry key from the body", async () => {
+  const { ports, invocations } = stubPorts({ "goals.note": { event_id: "e-9" } });
+  const answered = await binding("goals.event-note", ports).handle(request("POST", { goalId: "goal 1" }, { body: "便笺", idempotency_key: "body-key" }));
   assert.deepEqual(answered, { status: 200, body: { event_id: "e-9" } });
-  assert.deepEqual(invocations, [{ capability_id: "goals.note", input: { goal_id: "goal 1", idempotency_key: "header-key", body: "便笺" } }]);
-  assert.equal(changes(), 1);
+  assert.deepEqual(invocations, [{ capability_id: "goals.note", input: { goal_id: "goal 1", idempotency_key: "body-key", body: "便笺" } }]);
+
+  // The page always names the act; a write with no key still happens once under a key of its own, never under a request header the
+  // Runtime route cannot see (the Host's header key is gone with the old `/api` rewrite).
+  const noKey = await binding("goals.event-note", ports).handle(request("POST", { goalId: "goal 1" }, { body: "便笺" }));
+  assert.equal(noKey.status, 200);
+  assert.match(String((invocations.at(-1)!.input as { idempotency_key: string }).idempotency_key), /^event-note-.+$/u);
 
   const timeline = await binding("goals.event-timeline", ports).handle(request("GET", { goalId: "goal 1" }, null, { before_cursor: "c-1", limit: "500" }));
   assert.equal(timeline.status, 200);
   assert.deepEqual(invocations.at(-1), { capability_id: "goals.history.list", input: { goal_id: "goal 1", before_cursor: "c-1", limit: 100 } });
-  assert.equal(changes(), 1, "a read does not change the page");
+});
+
+// T-233 / RAC-2210 to RAC-2212: a new Goal's title is at most 120 characters and its outcome, why and business_logic at most
+// 4000. A character may take two UTF-16 units (an emoji does), so these bounds are counted in characters, not in units. The route
+// is the only place that bounds them: the `goals.create` action's schema sets no length on the title or on the three texts.
+const PAIR = "\u{1F600}"; // one character, two UTF-16 units (U+D83D U+DE00)
+type CreateField = "title" | "outcome" | "why" | "business_logic";
+const CREATE_BOUND: Record<CreateField, number> = { title: 120, outcome: 4000, why: 4000, business_logic: 4000 };
+
+/** What `goals.create` answers once a request gets through the route's bound. */
+const createdGoal = { goal: { goal_id: "goal-1", project_id: "project-1", title: "目标", outcome: "" }, replayed: false, observed_event_cursor: 1 };
+
+/** Sends one create request through the route, with `field` set to `text`, and gives the answer and what reached `goals.create`. */
+async function createRequest(field: CreateField, text: string) {
+  const { ports, invocations } = stubPorts({ "goals.create": createdGoal });
+  const response = await binding("goals.create", ports).handle(request("POST", {}, { title: "目标", [field]: text, idempotency_key: "create-1" }));
+  return { response, invocations };
+}
+
+test("RAC-2210: a title of 120 characters and an outcome, why or business_logic of 4000 are kept whole, however many units they take", async () => {
+  for (const { field, text } of [
+    { field: "title" as const, text: PAIR.repeat(120) }, // 240 units, 120 characters
+    { field: "title" as const, text: `${"a".repeat(119)}${PAIR}` }, // 121 units, 120 characters
+    { field: "outcome" as const, text: PAIR.repeat(4000) }, // 8000 units, 4000 characters
+    { field: "outcome" as const, text: `${"a".repeat(3999)}${PAIR}` }, // 4001 units, 4000 characters
+    { field: "why" as const, text: PAIR.repeat(4000) },
+    { field: "business_logic" as const, text: PAIR.repeat(4000) },
+  ]) {
+    const { response, invocations } = await createRequest(field, text);
+    assert.equal(response.status, 201, `${field} of ${[...text].length} characters is accepted`);
+    assert.equal(invocations.length, 1, "the goals.create action is dispatched once");
+    const dispatched = invocations[0];
+    assert.ok(dispatched, "the dispatch is there");
+    assert.equal((dispatched.input as Record<string, unknown>)[field], text, "the whole text reaches goals.create");
+  }
+  for (const { field, text } of [
+    { field: "title" as const, text: "a".repeat(120) },
+    { field: "outcome" as const, text: "a".repeat(4000) },
+  ]) {
+    const { response } = await createRequest(field, text);
+    assert.equal(response.status, 201, `${field} of ${text.length} one-unit characters is still accepted`);
+  }
+});
+
+test("RAC-2211: one character over the bound is still refused, with the same 「内容过长」 message", async () => {
+  for (const { field, text } of [
+    { field: "title" as const, text: PAIR.repeat(121) }, // 242 units, 121 characters
+    { field: "title" as const, text: `${"a".repeat(120)}${PAIR}` }, // 122 units, 121 characters
+    { field: "outcome" as const, text: PAIR.repeat(4001) }, // 8002 units, 4001 characters
+    { field: "outcome" as const, text: `${"a".repeat(4000)}${PAIR}` }, // 4002 units, 4001 characters
+  ]) {
+    const { response, invocations } = await createRequest(field, text);
+    assert.equal(response.status, 400, `${field} of ${[...text].length} characters is refused`);
+    assert.deepEqual(response.body, { error: `${field} 内容过长`, code: "actions.input_invalid" }, "the message still names the field");
+    assert.equal(invocations.length, 0, "nothing reaches goals.create");
+  }
+});
+
+/** `createRequest` with the string iterator wrapped: counts the strings longer than `over` units that anything spreads. */
+async function createSpreading(field: CreateField, text: string, over: number) {
+  const original = String.prototype[Symbol.iterator];
+  let spread = 0;
+  String.prototype[Symbol.iterator] = function (this: string) {
+    if (String(this).length > over) spread += 1;
+    return original.call(this);
+  };
+  try {
+    return { ...(await createRequest(field, text)), spread };
+  } finally {
+    String.prototype[Symbol.iterator] = original;
+  }
+}
+
+test("RAC-2212: a text of more than twice the bound in units is refused without being spread", async () => {
+  // Anything over twice the bound in units is over it in characters whatever it holds, so a shorter one is all that gets counted.
+  for (const { field, text } of [
+    { field: "title" as const, text: "a".repeat(241) },
+    { field: "outcome" as const, text: "a".repeat(8001) },
+    { field: "outcome" as const, text: PAIR.repeat(4001) }, // 8002 units
+  ]) {
+    const { response, invocations, spread } = await createSpreading(field, text, CREATE_BOUND[field] * 2);
+    assert.equal(response.status, 400, `${field} of ${text.length} units is refused`);
+    assert.equal(spread, 0, "the long text is not spread or iterated");
+    assert.equal(invocations.length, 0, "nothing reaches goals.create");
+  }
 });

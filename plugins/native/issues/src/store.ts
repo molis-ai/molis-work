@@ -1,6 +1,7 @@
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginSqlRow, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDatabaseReader, PluginSqlRow, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { validateIssueImages, type IssueImage } from "./images.js";
+export { ISSUES_DATABASE } from "./database.js";
 export type { IssueImage } from "./images.js";
 
 export const ISSUE_TYPES = ["bug", "experience", "feature"] as const;
@@ -23,16 +24,6 @@ export interface IssueCursor { created_at: string; id: string }
 export interface IssueList { type?: IssueType; limit?: number; cursor?: IssueCursor }
 export interface IssueListResult { items: IssueSummary[]; next_cursor: IssueCursor | null }
 
-export const ISSUES_DATABASE: PluginDatabaseDeclaration = {
-  store_name: "issues", version: 2, read_permission: "issues:read", write_permission: "issues:write",
-  schema: `CREATE TABLE issues (
-    id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 200),
-    type TEXT NOT NULL CHECK(type IN ('bug','experience','feature')), description TEXT NOT NULL CHECK(length(description) <= 100000),
-    context_json TEXT NOT NULL, images_json TEXT NOT NULL, submitter_id TEXT NOT NULL,
-    entered_via TEXT NOT NULL CHECK(entered_via IN ('manual','assistant','mcp')),
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, version INTEGER NOT NULL CHECK(version >= 1)
-  ); CREATE INDEX issues_by_submitter_created ON issues(submitter_id,created_at DESC,id DESC);`,
-};
 
 function decode(row: PluginSqlRow): IssueSummary {
   return { id: String(row.id), title: String(row.title), type: row.type as IssueType, description: String(row.description),
@@ -40,7 +31,7 @@ function decode(row: PluginSqlRow): IssueSummary {
     created_at: String(row.created_at), updated_at: String(row.updated_at), version: Number(row.version), image_count: Number(row.image_count) };
 }
 function text(value: unknown, name: string, maximum: number, nonempty = false): asserts value is string {
-  if (typeof value !== "string" || value.length > maximum || nonempty && !value.trim()) throw new ActionError("actions.input_invalid", `${name}格式不正确或太长`);
+  if (typeof value !== "string" || [...value].length > maximum || nonempty && !value.trim()) throw new ActionError("actions.input_invalid", `${name}格式不正确或太长`);
 }
 function fields(input: Partial<IssueCreate>): void {
   if (input.title !== undefined) text(input.title, "标题", 200, true);

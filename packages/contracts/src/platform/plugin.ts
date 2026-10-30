@@ -1,46 +1,41 @@
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
-import type { RawEventAdapter } from "../services/listener-host.js";
-import type { HostCapabilityDefinition } from "./app-host.js";
+import type { RawEventAdapter } from "./plugin-source-pull.js";
 import type { ContractDescriptor } from "./package.js";
-import type { UiCommandAvailability, UiContribution, UiOpenedObjectView } from "./ui.js";
+import type { UiContribution } from "./ui.js";
 import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } from "./plugin-events.js";
 import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstreamUnavailableReason } from "./plugin-wiring.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "./plugin-materials.js";
-export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
-export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
+export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner, SandboxPackageInterface, SandboxPackagePrompt } from "./plugin-package.js";
+export { SANDBOX_PACKAGE_FILES } from "./plugin-package.js";
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
+export * from "./plugin-attention.js";
+export * from "./plugin-scenes.js";
+export * from "./plugin-judgments.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
-export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
+export { PLUGIN_LOCAL_TOOLS_PERMISSION, PLUGIN_LOCAL_TOOLS_LIMITS } from "./plugin-local-tools.js";
+export type { PluginLocalToolsClient, PluginLocalToolsDeclaration } from "./plugin-local-tools.js";
+export { PLUGIN_PROJECTS_EXIST_PERMISSION, PLUGIN_PROJECTS_EXIST_LIMITS } from "./plugin-projects.js";
+export type { PluginProjectsClient } from "./plugin-projects.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
-export type { PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginManifest } from "./plugin-manifest.js";
+export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginMessagesDeclaration, PluginTranslationsDeclaration } from "./plugin-manifest.js";
 export { SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
-export type { PluginCommandInput, PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
-import type { PluginCommandInput, PluginRouteBinding } from "./plugin-routes.js";
-
-/** Narrow, grant-checked access to Capabilities the Manifest declared as consumed. */
-export interface PluginCapabilityClient {
-  /** Inspect a declared dependency without invoking it. Actual calls still validate their input and authority. */
-  availability(capability: import("./actions.js").ActionReference): import("./actions.js").ActionAvailability;
-  invoke<Input, Output>(
-    capability: HostCapabilityDefinition<Input, Output>,
-    input: Input,
-    options?: import("./app-host.js").HostCapabilityCallOptions,
-  ): Promise<Output>;
-}
+export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
+import type { PluginRouteBinding } from "./plugin-routes.js";
 
 export const platformPluginContract = {
   contractId: "io.molis.work.platform.plugin.v1",
@@ -72,6 +67,8 @@ export interface PluginInstanceRecord {
   grants: string[];
   /** Trusted host provenance, never read from a plugin Manifest. */
   execution: "host" | "sandbox";
+  /** Who vouched for this install (ac-trust): the Host's evidence at install time, never read from a plugin Manifest or a caller's input. */
+  publisher_trust: import("./plugin-trust.js").PluginTrustLevel;
   state: PluginLifecycleState;
   recovery_count: number;
   last_error_code: string | null;
@@ -83,8 +80,19 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
   kind: "integration";
-  connector_driver: ConnectorDriver;
-  signal_adapter: RawEventAdapter;
+  /**
+   * The driver and the adapter for one source. The plugin is started once and serves every source of its integrations; what
+   * differs between sources arrives here as references (`IntegrationBinding`), so a source's change needs no restart.
+   */
+  bind(binding: import("./plugin-integrations.js").IntegrationBinding): {
+    connector_driver: ConnectorDriver;
+    signal_adapter: RawEventAdapter;
+    /**
+     * How the source's account reads after a pull, from the pull's cursor and the label it has now; `null` keeps both as they are.
+     * Without it the source's account label and configuration stay as they are.
+     */
+    account?(cursor: unknown, current_account_label: string | null): import("./plugin-integrations.js").IntegrationAccountPresentation | null;
+  };
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
 }
@@ -102,11 +110,6 @@ export interface PluginAppContribution {
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
   routes?: readonly PluginRouteBinding[];
-  commandAvailability?(commandId: string): UiCommandAvailability;
-  executeCommand?(
-    commandId: string,
-    input: PluginCommandInput,
-  ): UiOpenedObjectView | Promise<UiOpenedObjectView>;
   /** Complete, fixed input set. The Host never delivers a partial change. */
   onUpstreamReady?(
     inputs: PluginUpstreamReadyInputs,
@@ -149,7 +152,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -196,6 +199,14 @@ export interface PluginExecutor {
   /** Host snapshot hooks keep persisted private data intact if candidate startup fails. */
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
+  /** The installation is uninstalled and its row saved: remove what the Host kept for it (PG-051 Q1 b). Must be idempotent: uninstall retries call this again, including after a cleanup failure or a completed uninstall. */
+  uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+  /** Synchronous, idempotent revocation of an earlier uninstalled record's authorization before a reinstall registers code or saves its row, even when private data is kept. Hosts owning installation authorization supply this hook; it must not remove private data. A throw refuses the reinstall. */
+  prepareReinstall?(record: PluginInstanceRecord): void;
+  /** Synchronous, idempotent. Before an install that has no earlier row in this executor's scope registers code or saves its row: the Host drops what other places' earlier installations of the same `install_id` left in its own keeping and nothing still installed uses (BL-596). A throw refuses the install. */
+  prepareNewInstall?(installId: string): void;
+  /** Synchronous, idempotent Host cleanup of the earlier uninstalled `record`. With `retain_private_data: false`, before a reinstall registers code or saves a new row: remove its owner files, then private KV; a throw refuses the reinstall. With retained data and explicit `discard_kept_data`, called after the replacement row is saved as before; the Host's existing kept-data handling remains responsible for private KV. */
+  keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
 export interface PluginRuntimeRepository {
@@ -225,8 +236,20 @@ export interface PluginRuntimeApi {
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+  /**
+   * The person's switch for one optional permission of an installation: stop (if running), change the grants, start again, as one step.
+   * Taking a permission away takes effect at once: the running activation's authority is withdrawn before anything else and the new
+   * grants are saved even if the restart then fails. A permission the Manifest does not declare, or a required one switched off, is
+   * `plugin.grant_denied`.
+   */
+  regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
   start(installId: string): Promise<PluginLifecycleReceipt>;
-  /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
+  /**
+   * Stop an installation without uninstalling it; restart goes back through `start`. A running one is stopped. A crashed or never-started
+   * one is switched off (disabled) without calling its stop hook, and keeps its crash code. An already disabled one answers as it is.
+   * With `preserve_enabled` (the Host's shutdown) only a running one is stopped, and it stays installed; a crashed or never-started one is
+   * then `plugin.state_invalid`, and a quarantined or uninstalled one is refused that way with or without the option.
+   */
   stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;
   reportCrash(installId: string, errorCode?: string): Promise<PluginLifecycleReceipt>;
   /** Quarantine release requires an explicit Host action; ordinary recovery never releases it. */
@@ -279,7 +302,7 @@ export type IntegrationProviderSyncResult =
 
 export interface IntegrationProviderPort {
   readonly type: string;
-  health(): Promise<{
+  health(control: import("../services/connector-host.js").ConnectorCallControl): Promise<{
     account?: { login: string; account_id?: string };
     ok: boolean;
     status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
@@ -289,13 +312,14 @@ export interface IntegrationProviderPort {
   sync(input: {
     cursor: unknown;
     mode?: "normal" | "rebuild_cursor";
-  }): Promise<IntegrationProviderSyncResult>;
+  }, control: import("../services/connector-host.js").ConnectorCallControl): Promise<IntegrationProviderSyncResult>;
 }
 
 export { pluginErrors } from "./plugin-errors.js";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
 
-export type { PluginInstallationClient, PluginInstallationView } from "./plugin-installations.js";
+export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 
-export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "./plugin-notifications.js";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "./plugin-notifications.js";

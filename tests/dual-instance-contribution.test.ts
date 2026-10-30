@@ -52,12 +52,13 @@ const homeHalf = () => plugin({ actions: [homeRead.handler], routes: [route("hom
 const projectHalf = () => plugin({ actions: [projectRead.handler], action_scenes: [sceneHandler], routes: [route("project-page")] });
 
 function runtime(service: ActionService, redemption?: (definition: PluginDefinition) => RedemptionScope, projectId?: string) {
-  return new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { ...(redemption ? { redemption } : {}),
-    actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => PLUGIN } });
+  return new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: new Set([PLUGIN, `${PLUGIN}-other`]), ...(redemption ? { redemption } : {}),
+    actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: record => record.plugin_id } });
 }
 async function start(target: PluginRuntime, definition: PluginDefinition) {
   const grants = definition.manifest.permissions.map(declared => declared.permission);
-  const installed = target.install({ definition, deployment: "local", grants }).install;
+  // This fixture Host ships these definitions; stable plugin-id providers require its evidence, independently of partial redemption.
+  const installed = target.install({ trust: { level: "host" }, definition, deployment: "local", grants }).install;
   await target.start(installed.install_id);
   return target.get(installed.install_id);
 }

@@ -9,12 +9,12 @@ import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FunctionRecord, FunctionsPrimitive, FunctionCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord, JudgmentRulePrimitive, JudgmentRuleCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:invoke"] };
-const criteria: Record<FunctionsPrimitive, FunctionCriteria> = {
+const criteria: Record<JudgmentRulePrimitive, JudgmentRuleCriteria> = {
   choice: [{ key: "yes", description: "符合条件" }, { key: "no", description: "不符合" }],
   noul: { true_description: "符合", false_description: "不符合" }, score: ["低", "高"],
 };
@@ -38,7 +38,7 @@ test("published rules become versioned system actions without a project, preserv
   try {
     const client = host.homeActionClient();
     await client.discover(caller); // Source exists before publication.
-    const records: FunctionRecord[] = [];
+    const records: JudgmentRuleRecord[] = [];
     for (const primitive of ["choice", "noul", "score"] as const) {
       const record = await withFunctionsServiceAsync(home, async service => {
         const draft = service.create({ primitive, function_key: `test_${primitive}` });
@@ -104,7 +104,8 @@ test("published rules become versioned system actions without a project, preserv
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("global HTTP published invocation uses the same system handler and separate Homes never mix definitions", async t => {
+// RAC-105-A-17: the Host action client and the MCP client reach this one resident provider and persist in this Home (the by-key HTTP route is gone, BL-081 ②).
+test("global published invocation by the Host action client and by MCP uses the same system handler and separate Homes never mix definitions", async t => {
   const root = await mkdtemp(join(tmpdir(), "functions-http-"));
   const home = join(root, "a"), otherHome = join(root, "b");
   const calls = { value: 0 }, options = fixtureOptions(calls);
@@ -125,19 +126,21 @@ test("global HTTP published invocation uses the same system handler and separate
     await assert.rejects(other.homeActionClient().invoke(caller, definition, { content: "another account" }), { code: "actions.missing" });
     const { origin } = served;
     const before = calls.value;
-    const response = await fetch(`${origin}/api/functions/by-key/${record.function_key}/invoke`, { method: "POST",
+    const invoked = await host.homeActionClient().invoke(caller, functionsActions.invoke, { function_key: record.function_key, input: "via the Host action client" }) as { data: { choice: string } };
+    assert.equal(invoked.data.choice, "yes");
+    const refused = await fetch(`${origin}/api/functions/by-key/${record.function_key}/invoke`, { method: "POST",
       headers: { origin, "content-type": "application/json", "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": "system-function-invoke" },
       body: JSON.stringify({ input: "via HTTP" }) });
-    assert.equal(response.status, 200, await response.clone().text());
-    assert.equal((await response.json()).data.choice, "yes");
-    assert.equal(calls.value, before + 1, "the configured system provider ran exactly once");
+    // RAC-1021: a removed route reaches the catalog's 400 refusal, not an internal error.
+    assert.equal(refused.status, 400, `the by-key HTTP spelling is gone, the catalog refusal answers it: ${await refused.clone().text()}`);
+    assert.equal(calls.value, before + 1, "the configured system provider ran exactly once, and the refused HTTP spelling ran nothing");
     assert.deepEqual(host.status().projects, []);
     const listed = await host.homeActionClient().invoke(caller, functionsActions.list, {}) as { functions: { function_key: string }[] };
     assert.ok(listed.functions.some(row => row.function_key === record.function_key));
     // The MCP client is granted through the access settings, like a person does; the Host checks each grant against what the client can really use.
     await served.grant("runtime:codex", null, [functionsActions.invoke, ...Object.values(functionContextActions)]);
     await external.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/system-functions-mcp-server.ts", import.meta.url)), home], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/system-functions-mcp-server.ts", import.meta.url)), home, origin], stderr: "pipe" }));
     const tools = await external.listTools();
     const directoryName = "molis_work_v1_action_functions.list__v1";
     assert.ok(tools.tools.some(tool => tool.name === directoryName));
@@ -152,8 +155,9 @@ test("global HTTP published invocation uses the same system handler and separate
     const result = await external.callTool({ name: "molis_work_v1_action_functions.invoke__v1", arguments: { function_key: record.function_key, input: "external MCP" } });
     assert.notEqual(result.isError, true, JSON.stringify(result));
     assert.equal(JSON.parse((result.content as { text: string }[])[0]!.text).data.choice, "yes");
+    assert.equal(calls.value, before + 2, "the Host action client and MCP each run this same resident provider once");
     const history = withFunctionsService(home, service => service.listJudgments(), options);
-    assert.equal(history.filter(row => row.function_key === record.function_key).length, 2, "HTTP and external MCP each persist one judgment in the same Home");
+    assert.equal(history.filter(row => row.function_key === record.function_key).length, 2, "the Host action client and external MCP each persist one judgment in the same Home");
   } finally {
     await external.close();
     await served.close();

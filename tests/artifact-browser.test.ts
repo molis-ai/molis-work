@@ -5,15 +5,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { readArtifactBrowser } from "@molis-ai/molis-work-module-artifacts";
 import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
+import { installProducers } from "./fixtures/installed-producers.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { MolisWorkLocalHost, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 const artifactId = "report/季度 & <draft>";
 const encodedId = encodeURIComponent(artifactId);
@@ -30,13 +32,17 @@ function registration(overrides: Partial<RegisterArtifactVersionInput> = {}): Re
   return { ...pinnedArtifact(titleOf(input.content, "Original report")), ...input };
 }
 
-async function fixture(t: test.TestContext) {
+/** `seed: "board"` is the project with its board alone; the full sample also puts CORE's deliverable (two versions of one record) in the 成果库, as Goals' sample does. */
+async function fixture(t: test.TestContext, seed: "sample" | "board" = "sample") {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-browser-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  if (seed === "board") seedDemoBoard(databasePath); else await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
+  // Installed in this project (S-81): the fixture's own writer, which also writes other owners' type ids to prove it gets no preview of theirs.
+  installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report", "io.molis.work.goal.delivery", "io.molis.work.feed.capture", "io.molis.work.pages.document", "coding.report.v1"] },
+    { plugin_id: "com.example.installed", artifact_types: ["coding.changeset.v1"] });
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-browser-test-control-token-0123456789" });
   t.after(async () => {
@@ -76,7 +82,7 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   const first = library.artifacts.commands.registerVersion(registration()).artifact;
   const second = library.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } })).artifact;
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   const versions = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const root = await (await get("/")).text();
   assert.match(root, /data-plugin-id="artifacts"/);
@@ -134,12 +140,13 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   assert.match(english, /No compatible plugin/);
   assert.match(english, /Export this version/);
   assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), versions);
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
 });
 
 test("Artifact HTTP keeps unknown and cross-project versions missing and rejects malformed exact references", async (t) => {
   const { coordinator, library, get, surface, direct } = await fixture(t);
+  const sampled = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length;
   library.artifacts.commands.registerVersion(registration());
   coordinator.initializeBoard({ project_id: "other-project", actor_id: "owner", idempotency_key: "other-project" });
   library.artifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
@@ -164,11 +171,11 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
       await page.text();
     }
   }
-  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
+  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, sampled + 1);
 });
 
 test("Artifact empty, unavailable, archived and embedded views reflect Module state without inventing consumers", async (t) => {
-  const { library, surface } = await fixture(t);
+  const { library, surface } = await fixture(t, "board");
   assert.match(await (await surface("/artifacts")).text(), /还没有成果/);
   assert.doesNotMatch(await (await surface("/artifacts")).text(), /插件明确发布的结果会出现在这里|查看插件发布的结果、来源和原始内容/);
   library.artifacts.commands.registerVersion(registration());
@@ -203,6 +210,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   catalog.close();
   const store = new LocalProjectDatabase(alpha.database_path);
   const library = openProjectVersionStores(store);
+  installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
   const original = library.artifacts.commands.registerVersion(registration({ project_id: alpha.project_id })).artifact;
   store.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "artifact-project-test-control-token-0123456789" });
@@ -230,9 +238,20 @@ test("Artifact navigation and export retain the selected catalog Project", async
   assert.match(root, /data-plugin-id="artifacts"/);
   const exported = await fetch(origin + prefix + `/api${exactPath(1)}/export`);
   assert.deepEqual(await exported.json(), original);
-  const other = await fetch(origin + `/projects/${beta.project_id}` + exactPath(1));
-  assert.equal(other.status, 403, "a project without the 成果 plugin is refused with the status of a plugin that is off (it was 404, before the edge read the failure's kind)");
-  assert.doesNotMatch(await other.text(), /Original report|Alpha results/);
+  const betaPrefix = `/projects/${beta.project_id}`;
+  const other = await fetch(origin + betaPrefix + exactPath(1), { redirect: "manual" });
+  assert.equal(other.status, 302, "the platform reader opens this project's workbench without requiring the 成果 shell");
+  const otherOpened = new URL(other.headers.get("location")!, origin);
+  assert.equal(otherOpened.pathname, `${betaPrefix}/`);
+  assert.equal(otherOpened.searchParams.get("openItem"), betaPrefix + exactPath(1));
+  const otherVersion = await fetch(origin + betaPrefix + exactPath(1), { headers: { "x-molis-work-fragment": "artifact-workbench" } });
+  assert.equal(otherVersion.status, 404, "the exact Alpha version is still absent from Beta");
+  const otherHtml = await otherVersion.text();
+  assert.match(otherHtml, /不会自动替换成最新版本/);
+  assert.doesNotMatch(otherHtml, /Original report|Alpha results/);
+  const otherExport = await fetch(origin + betaPrefix + `/api${exactPath(1)}/export`);
+  assert.equal(otherExport.status, 404);
+  await otherExport.text();
 });
 
 test("Goal context embeds explicit exact Artifact relations and refreshes owner state without mutating facts", async (t) => {
@@ -257,7 +276,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   ledger.commands.put(access, { key: "foreign", type: "goal.input", cause: "Explicit foreign namespace",
     source: { module: "goals", id: "V1", version: null, scope },
     target: { module: "artifacts", id: artifactId, version: 1, scope, project_id: "foreign-project" } });
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   const beforeEdges = ledger.query.list(access);
   const beforeArtifacts = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const page = await (await get(documentPath)).text();
@@ -281,7 +300,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.deepEqual(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: artifactId, version: 1 }), first);
   assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), beforeArtifacts);
   assert.deepEqual(ledger.query.list(access), beforeEdges);
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
 
   library.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, artifact_id: artifactId, version: 1,
@@ -321,7 +340,7 @@ test("Artifact type folds use the names their owners declare, and an undeclared 
 });
 
 test("Artifact browser distinguishes no results, unselected versions and missing references", async t => {
-  const {library,surface}=await fixture(t);
+  const {library,surface}=await fixture(t,"board");
   const empty=await (await surface("/artifacts")).text();
   assert.match(empty,/还没有项目成果/);
   assert.doesNotMatch(empty,/<h1>选择一个结果版本<\/h1>/);

@@ -1,6 +1,9 @@
 import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
+import { actionGrantKey } from "./mcp-settings-store.js";
+
+type GrantFacts = { readonly action_grants: readonly McpActionGrant[] };
 
 /** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
 export const actionClientAudience = (clientId: string) => clientId.startsWith("agent:") ? "agent" as const : "mcp" as const;
@@ -45,7 +48,7 @@ export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, 
 }
 
 /** Declarations are not authority. Only explicit, unchanged grants produce permissions. */
-export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionView[], preference: McpToolPreference): ActionCallContext {
+export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionView[], preference: GrantFacts): ActionCallContext {
   const accepted = catalog.filter(view => {
     if (!view.action.audiences.includes(caller.audience === "agent" ? "agent" : "mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
     const records = preference.action_grants.filter(grant => grant.client_id === caller.actor_id
@@ -59,10 +62,31 @@ export function resolveMcpActionContext(caller: ActionCallContext, catalog: read
   };
 }
 
-export function assertMcpActionAuthority(caller: ActionCallContext, catalog: readonly ActionView[], preference: McpToolPreference, reference: ActionReference): void {
+export function assertMcpActionAuthority(caller: ActionCallContext, catalog: readonly ActionView[], preference: GrantFacts, reference: ActionReference): void {
   const allowed = resolveMcpActionContext(caller, catalog, preference).allowed_actions ?? [];
   if (!allowed.some(item => item.capability_id === reference.capability_id && item.version === reference.version
     && item.provider_id === reference.provider_id)) {
     throw new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销或发生变化，请重新检查对外接入设置");
   }
+}
+
+/** Keep this acceptance's exact grant instances (or an actual default's absence), across every later check. */
+export function pinMcpActionGrants(caller: ActionCallContext, catalog: readonly ActionView[], preference: McpToolPreference) {
+  const allowed = resolveMcpActionContext(caller, catalog, preference).allowed_actions ?? [];
+  const original = catalog.filter(view => allowed.some(ref => ref.capability_id === view.capability_id && ref.version === view.version
+    && ref.provider_id === view.provider.provider_id)).map(view => {
+    const key = actionGrantKey({ client_id: caller.actor_id, project_id: view.action.scope === "home" ? null : caller.project_id,
+      capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+    return { key, capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
+      scope: view.action.scope, permissions: [...new Set(view.action.permissions)],
+      generation: preference.action_grants.find(grant => actionGrantKey(grant) === key)?.generation ?? null };
+  });
+  return (currentCatalog: readonly ActionView[], current: McpToolPreference): readonly ActionView[] => currentCatalog.filter(view => {
+    const candidates = original.filter(ref => ref.capability_id === view.capability_id && ref.version === view.version
+      && ref.provider_id === view.provider.provider_id && ref.scope === view.action.scope);
+    if (candidates.length !== 1) return false;
+    const origin = candidates[0], records = current.action_grants.filter(grant => actionGrantKey(grant) === origin.key);
+    return (origin.generation === null ? records.length === 0 : records.length === 1 && records[0].generation === origin.generation)
+      && origin.permissions.length === new Set(view.action.permissions).size && view.action.permissions.every(permission => origin.permissions.includes(permission));
+  });
 }

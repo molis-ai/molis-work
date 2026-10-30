@@ -14,9 +14,13 @@ export const declaresActionDelegation = (manifest: PluginManifest): boolean => m
  * `services.actions.directory` (S-43): the Host's action directory, reached from inside this plugin's own running action as the action's
  * original caller under the workflow audience, with that caller's permissions as they are (user decision 2026-10-20: not narrowed to the
  * plugin's own grants). The kernel then applies the target's audience, permissions, availability and input schema as it does for a workflow.
- * What this adds on top: the installation's `actions:delegate` grant on every call and again after every await, a caller that is not a plugin
- * (a plugin's own-grant call must not be widened to the workflow audience), the action's own cancellation and lifetime, and the plugin's
- * `plugin_id` in `delegated_by` so the call log shows both parties. Nothing here works outside a running action.
+ * What this adds on top: the installation's `actions:delegate` grant on every call and again after every await, the action's own cancellation
+ * and lifetime, and the plugin's `plugin_id` in `delegated_by` so the call log shows both parties. Nothing here works outside a running action.
+ *
+ * An original caller that is itself another plugin (audience `plugin`, its own grants) is not widened to the workflow audience (user decision
+ * 2026-10-26, option A): the nested call stays that plugin's own call, with its audience, grants, installation identity and the list of actions
+ * its Manifest lets it reach, so it passes exactly the checks the plugin would pass calling the target itself. The plugin that delegates adds
+ * nothing to it (its own grants do not count) and takes nothing from it.
  */
 export function pluginActionDirectory(context: PluginStartContext, manifest: PluginManifest,
   options: { client: ActionClient; project_id?: string; assertActive(): void }): PluginActionDirectory {
@@ -27,13 +31,15 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     const scope = currentPluginAction();
     if (!scope || !inPluginInstance(scope, context) || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "动作目录只能由本插件正在执行的动作使用");
     if (options.project_id !== undefined && scope.caller.project_id !== options.project_id) throw new ActionError("actions.scope_mismatch", "调用所在的项目与插件实例不一致");
-    if (scope.caller.audience === "plugin") throw new ActionError("actions.forbidden", "插件自己的授权发起的调用不能放宽成工作流受众");
     return scope.caller;
   };
   const delegate = (original: ActionExecutionContext, control?: PluginExecutionControl) => {
-    // The original's identity and authority stay; what only a plugin calling carries (its installation and Host caller) and what only the
-    // original dispatch owns (its own effect fence and retained authority) do not travel to the nested caller.
+    // The original's identity and authority stay; what only the original dispatch owns (its own effect fence and retained authority) does not
+    // travel to the nested caller. A person's, agent's, MCP client's or workflow's call is reached as workflow and carries no plugin identity.
+    // A plugin's own call (audience `plugin`) keeps its audience and its installation and Host caller: the Host checks them as it checks them
+    // for that plugin's direct call, so the nested call can reach what that plugin could reach and nothing the delegating plugin can.
     const { plugin_install_id, host_plugin, beforeEffect, retainAuthority, retainBackgroundAuthority, ...inherited } = original;
+    const plugin = original.audience === "plugin";
     const source = () => { grant(); requireSynchronous(original.assert_authority_current?.()); };
     const check = async () => { source(); await original.beforeEffect(); source(); };
     const signal = control?.signal && inherited.signal ? AbortSignal.any([inherited.signal, control.signal]) : control?.signal ?? inherited.signal;
@@ -43,10 +49,11 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current?.()); } };
     const own: ActionCallContext = { ...inherited, validate_authority: async target => { await original.validate_authority?.(target); source(); },
       assert_authority_current: original.assert_authority_current };
-    const caller: ActionCallContext = { ...inherited, audience: "workflow", delegated_by: manifest.plugin_id,
+    const caller: ActionCallContext = { ...inherited, ...(plugin ? { plugin_install_id, host_plugin } : { audience: "workflow" as const }),
+      delegated_by: manifest.plugin_id, delegated_audience: original.audience,
       ...(signal ? { signal } : {}), ...(control?.query_only ? { query_only: true as const } : {}), ...withControlChecks(own, fence),
       validate_permissions: async permissions => { source(); await original.validate_permissions?.(permissions); source(); } };
-    return { caller, check, source };
+    return { caller, check, source, audience: plugin ? undefined : { audience: "workflow" as const } };
   };
   return {
     discover: async () => {
@@ -57,13 +64,14 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       return views;
     },
     invoke: async <Output>(reference: ActionReference, input: unknown, control?: PluginExecutionControl) => {
-      const ref = checkedReference(reference), original = originOf(), { caller, check, source } = delegate(original, control);
+      const ref = checkedReference(reference), original = originOf(), { caller, check, source, audience } = delegate(original, control);
       await check();
       const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
       await check();
-      // The guard admits the target as workflow sees it, the audience it is called under: not narrowed to the original caller's own audience
-      // (user decision 2026-10-20), while a target reloaded or made unavailable during the call still keeps its result from the plugin.
-      const retained = original.retainAuthority!([pinned], { audience: "workflow" });
+      // The guard admits the target as the nested call sees it, the audience it is called under: workflow, not narrowed to the original
+      // caller's own audience (user decision 2026-10-20); a plugin's own call keeps the plugin audience it is called under (2026-10-26). A target
+      // reloaded or made unavailable during the call still keeps its result from the plugin.
+      const retained = original.retainAuthority!([pinned], audience);
       await retained(); source();
       const result = await options.client.invoke(caller, pinned, input);
       await retained(); await check(); retained.assertCurrent(); source();

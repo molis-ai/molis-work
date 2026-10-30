@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -99,7 +100,7 @@ test("a bundled entry registers under its plugin_id and names the installation w
   withDirectory(async directory => {
     const shipped = hostProcess(directory);
     try {
-      assert.deepEqual((await shipped.platform.start([{ definition: plugin(), bundled: true }])).running, [BUILT_IN]);
+      assert.deepEqual((await shipped.platform.start([{ definition: plugin(), trust: { level: "host" } }])).running, [BUILT_IN]);
       const installId = shipped.installOf(BUILT_IN).install_id;
       assert.notEqual(installId, BUILT_IN);
       assert.equal(shipped.registered.length, 1);
@@ -119,38 +120,37 @@ test("a bundled entry registers under its plugin_id and names the installation w
     } finally { other.store.close(); }
   }));
 
-test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list never gets that id: a developed, sandboxed or fixture plugin keeps its installation id",
+test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list is not installed (S-75); a developed, sandboxed or fixture plugin under its own id keeps its installation id",
   withDirectory(async directory => {
     const host = hostProcess(directory);
     try {
-      await host.platform.start([{ definition: plugin({ pluginId: "io.molis.work.todo", signature: "an-unsigned-copy" }) }]);
-      const unsigned = host.installOf("io.molis.work.todo");
-      assert.equal(host.registered[0]!.provider_id, unsigned.install_id, "the entry is not bundled, whatever it is called");
+      const copy = await host.platform.start([{ definition: plugin({ pluginId: "io.molis.work.todo", signature: "an-unsigned-copy" }) }]);
+      assert.deepEqual([copy.running, copy.failed.map(state => state.code)], [[], ["plugin.id_namespace_conflict"]], "the entry is not bundled, so it cannot be called what a bundled plugin is called");
+      assert.equal(host.registered.length, 0);
 
       // An installation made the way generated plugins are (explicit grants, sandboxed execution), outside the Host's list.
-      await host.platform.runtime.stop(unsigned.install_id);   // the capability ids are the fixture's, so only one copy at a time
-      const sandboxed = plugin({ pluginId: "io.molis.work.coding", signature: "generated-copy", execution: "sandbox" });
-      const id = host.platform.runtime.install({ definition: sandboxed, deployment: "local", grants: [WRITE] }).install.install_id;
+      const sandboxed = plugin({ pluginId: "io.molis.work.example.generated", signature: "generated-copy", execution: "sandbox" });
+      const id = host.platform.runtime.install({ trust: { level: "unsigned" }, definition: sandboxed, deployment: "local", grants: [WRITE] }).install.install_id;
       await host.platform.runtime.start(id);
       const provider = host.registered.at(-1)!;
-      assert.deepEqual([provider.provider_id, provider.plugin_install_id, provider.plugin_id], [id, id, "io.molis.work.coding"]);
+      assert.deepEqual([provider.provider_id, provider.plugin_install_id, provider.plugin_id], [id, id, "io.molis.work.example.generated"]);
     } finally { host.store.close(); }
   }));
 
-test("a PluginRuntime built without the Host's rule keeps registering under the installation id; with the rule it registers under what the rule says", async () => {
+test("a PluginRuntime built without the Host's rule keeps registering under the installation id; with the rule a Host-build install registers under what the rule says", async () => {
   const service = new ActionService();
   const providers: ActionProvider[] = [];
   const registry: ActionRegistryPort = { registerProvider: registration => { if (registration.provider.kind === "plugin") providers.push(registration.provider); return service.registerProvider(registration); } };
   service.registerProvider({ provider: { provider_id: DEPENDENCY_PROVIDER, title: "Host fixture", kind: "system" }, definitions: [DEPENDENCY], handlers: [{ ...DEPENDENCY, handle: () => "dependency" }] });
-  const plain = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry, project_id: "p" } });
-  const first = plain.install({ definition: plugin({ pluginId: "io.molis.work.example.plain", signature: "plain" }), deployment: "local", grants: [WRITE] }).install.install_id;
+  const plain = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry, project_id: "p" } });
+  const first = plain.install({ trust: { level: "unsigned" }, definition: plugin({ pluginId: "io.molis.work.example.plain", signature: "plain" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await plain.start(first);
   assert.deepEqual([providers[0]!.provider_id, providers[0]!.plugin_install_id], [first, first]);
   await plain.stop(first);   // the capability ids are the fixture's, so only one copy at a time
 
   const ruled = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
-    { actions: { registry, project_id: "p", providerId: record => record.plugin_id } });
-  const second = ruled.install({ definition: plugin({ pluginId: "io.molis.work.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry, project_id: "p", providerId: record => record.plugin_id } });
+  const second = ruled.install({ trust: { level: "host" }, definition: plugin({ pluginId: "io.molis.work.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await ruled.start(second);
   assert.deepEqual([providers[1]!.provider_id, providers[1]!.plugin_install_id], ["io.molis.work.example.ruled", second]);
 });
@@ -160,7 +160,7 @@ test("the nested check of an owner action asks the caller's authority about the 
     const saved: number[] = [];
     const shipped = hostProcess(directory);
     try {
-      await shipped.platform.start([{ definition: plugin({ saved }), bundled: true }]);
+      await shipped.platform.start([{ definition: plugin({ saved }), trust: { level: "host" } }]);
       const asked: ActionReference[] = [];
       assert.equal(await shipped.actions.client.invoke(shipped.caller(reference => { asked.push(reference); }), SAVE, {}), 1);
       assert.deepEqual(saved, [1]);
@@ -183,7 +183,7 @@ test("a plugin's own action client lists its own installation's actions under th
       const hostRead: ActionDefinition<Record<string, never>, string[]> = { ...READ, capability_id: "shipped.host-read" };
       shipped.actions.registry.registerProvider({ provider: { provider_id: BUILT_IN, plugin_id: BUILT_IN, title: "Host", kind: "plugin", project_id: DEMO_PROJECT_ID },
         definitions: [hostRead], handlers: [{ ...hostRead, handle: () => [] }] });
-      await shipped.platform.start([{ definition: plugin(), bundled: true }]);
+      await shipped.platform.start([{ definition: plugin(), trust: { level: "host" } }]);
       assert.deepEqual(await shipped.actions.client.invoke(shipped.caller(), READ, {}), [`shipped.read@${BUILT_IN}`, `shipped.save@${BUILT_IN}`],
         "its own two actions, both under the plugin id; neither the Host's dependency nor the Host-assembled provider's action");
     } finally { shipped.store.close(); }
@@ -226,7 +226,7 @@ test("W3-07-8-01 plugin dependencies resolve their actual provider and retain de
   const originalStart = definition.start;
   definition.start = async context => { client = context.services!.actions; return originalStart(context); };
   try {
-    assert.deepEqual((await host.platform.start([{ definition, bundled: true }])).running, [BUILT_IN]);
+    assert.deepEqual((await host.platform.start([{ definition, trust: { level: "host" } }])).running, [BUILT_IN]);
     assert.ok(client);
     assert.equal(await client.invoke(DEPENDENCY, {}), "dependency", "a real non-host provider owns this declared dependency");
     assert.equal(await client.invoke({ ...DEPENDENCY, provider_id: DEPENDENCY_PROVIDER }, {}), "dependency", "an exact owner pin stays usable");

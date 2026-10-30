@@ -12,15 +12,15 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 `definePlugin` 校验 Manifest 后冻结定义。`start(context)` 必须返回 `PluginContribution`：
 
-- integration → `kind: "integration"` + `connector_driver` + `signal_adapter`
-- app → `kind: "app"` + 兑现 Manifest 声明的 views/routes/actions（每个声明的动作都要有处理器，否则启动失败）；有命令再兑现 `commandAvailability` / `executeCommand`；有订阅再兑现 `onEvent`；有输入口再兑现 `onUpstreamReady` / `onUpstreamUnavailable`
+- integration → `kind: "integration"` + `bind(binding)`，返回这个来源的 `{ connector_driver, signal_adapter }`（`definePollingIntegrationPlugin` 替你写好）
+- app → `kind: "app"` + 兑现 Manifest 声明的 views/routes/actions（每个声明的动作都要有处理器，否则启动失败）；有订阅再兑现 `onEvent`；有输入口再兑现 `onUpstreamReady` / `onUpstreamUnavailable`
 
 `PluginStartContext`：`requireGrant(permission)`；`install_id` 加 `installation_generation` 是这个实例（双实例插件的两半 `install_id` 相同、世代不同）；`services` 仅在应用 Host 里有：
 
 | services | 何时有 | 做什么 |
 | --- | --- | --- |
 | `storage` | 声明了 `storage:private`，安装持有授权 | get/set/delete；可选 `compareAndSet`。需要冲突检测时 Host 没有该方法就拒绝，不要用 get+set 假装原子 |
-| `artifacts` | 有真实项目的执行器；Home 不提供 | publish 固定一版成果：除内容外必须写 `origin`（`{kind:"pinned", subject:{kind,id}, revision}` 或导入文件 `{kind:"imported", file_name}`）、`title`、真实 `media_type`，可选 `trace`（来自哪些过程项）；按 id+version read 成果或过程项；`listConsumable()` 返回所有可消费固定版本摘要（成果在前、过程在后），不含正文/owner/路径。Host 绑定项目、用户、生产者 |
+| `artifacts` | 有真实项目的执行器；Home 不提供 | publish 固定一版成果：除内容外必须写 `origin`（`{kind:"pinned", subject:{kind,id}, revision}` 或导入文件 `{kind:"imported", file_name}`）、`title`、真实 `media_type`，可选 `trace`（来自哪些过程项）；按 id+version read 成果或过程项；`listConsumable()` 返回所有可消费固定版本摘要（成果在前、过程在后），不含正文/owner/路径。Host 绑定项目、用户、生产者。有项目库的插件另有 `join(transaction, writer => …)`：在自己 `services.project_database` 的写事务里固定成果版本，与自己的行同一次提交或回滚；动作要是并发的、声明 `artifact:write`，写入器每次都重新认调用方，事务结束后失效 |
 | `processItems` | 有真实项目的执行器；方法按权限与声明检查 | 项目执行器的 `record` 记下过程项（不进成果库）；`head/readOwn` 核 producer id、签名与个人 owner 后读取自己的版本供恢复，允许同签名升级及归档/unavailable，不要求 consumes；读需 `artifact:read`。端口 `outputs.publish` 也是过程项；Home 尚不提供 |
 | `ui` | 一直在 | register/unregister Manifest 声明过的 contribution；`invalidate()` 让自己已打开的页面重新读取（声明了 `ui.views` 就能调，激活停了再调被拒，见 [ui.md](ui.md)） |
 | `events` | 声明了 publishes | `publish({ event_type_id, type_version, payload })`。没声明就没有这个 client |
@@ -32,7 +32,9 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 作者不碰 Store、SQL、数据库路径。缺权限、停用的旧上下文、未声明的类型/界面都会被 owner 拒绝。
 
-`PluginDefinition` 还可带 `event_types`、`agent_prompts`、`agent_skills`。可选 `stop` / `health`。
+`PluginDefinition` 还可带 `event_types`、`agent_prompts`、`agent_skills`、`instructions`、`methods`：Agent 块声明的每段 Prompt 都要在 `agent_prompts` 里有正文，模型指令与给别的 Agent 的方法正文也都随定义走，插件运行时 Host 登记它们（PG-051）。可选 `stop` / `health`。
+
+Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作者在 `PluginDefinition.agent_prompts` 提供对应的正文，按 `prompt_id` 和 `version` 与声明配齐。运行中的非沙箱插件会由 Host 登记角色和提示词；角色引用的提示词缺少正文时，登记报 `agent_definitions.invalid`，整个插件启动失败。当前检查针对角色引用的提示词，不保证所有未被角色引用的声明都经过同样检查。内置目录的过渡安排见 [elements.md 的 agent 块](elements.md#agent-块)。
 
 ## CLI（第三方 / 本地样例）
 

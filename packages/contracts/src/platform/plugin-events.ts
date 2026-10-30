@@ -27,6 +27,9 @@ export const RESERVED_EVENT_NAMESPACES = ["molis.", "host."] as const;
  */
 export const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
 export const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
+export const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
+/** What a subscriber to `host.connection.changed@1` holds, and what `connectors.connection.availability` asks: to learn that a connection changed and whether it can be used now, never its account, label or credentials. */
+export const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
 
 export interface HostEventType {
   readonly event_type_id: string;
@@ -39,6 +42,7 @@ export interface HostEventType {
 export const HOST_EVENT_TYPES: readonly HostEventType[] = [
   { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, delivery: "addressed" },
   { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: "workspace:read" },
+  { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
 ];
 
 /** `source_plugin_id` and `source_install_id` of a host event's record. Never a plugin id: those are `io.molis.work.…`. */
@@ -59,11 +63,27 @@ export interface HostReviewSettledPayload {
 /**
  * `host.workspace.changed@1`: files in this project's workspace may have changed, so a subscriber that shows or holds them reads
  * them again. It carries no review, operation, outcome or installation: it tells every subscriber that holds `workspace:read`
- * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values.
+ * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values: `plugin-operation` is a
+ * plugin's person-reviewed operation, `agent-change` an Agent's own approved file edit, command or Git step in that workspace,
+ * `workspace-settings` the project's folder settings changed (a folder linked, repaired or unlinked, or the browsing folder chosen)
+ * and `workspace_id` names that folder (BL-521), and `project-opened` the project's plugin platform has just been opened through the
+ * Host's web entry and tells what a subscriber could not hear while none ran: `workspace_id` names the folder the project browses
+ * then, or is empty when it has none (BL-521).
  */
 export interface HostWorkspaceChangedPayload {
   workspace_id: string;
-  cause: "plugin-operation";
+  cause: "plugin-operation" | "agent-change" | "workspace-settings" | "project-opened";
+}
+
+/**
+ * `host.connection.changed@1`: a connection of this Home (an account the person connected, enabled, disabled, disconnected or removed,
+ * or whose token was replaced) may now be usable or unusable, so a subscriber that keeps something in step with it looks again. It carries
+ * only which connection, never whether it is usable, its service, account or credentials: the subscriber reads the answer itself
+ * (`connectors.connection.availability`) and does not trust the payload. It goes only to the installations of a project whose platform is
+ * running, so one that starts later reads the connections it cares about when it starts; nothing is kept for it.
+ */
+export interface HostConnectionChangedPayload {
+  connection_id: string;
 }
 
 export type PluginEventErrorCode =

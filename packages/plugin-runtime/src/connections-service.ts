@@ -1,19 +1,26 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  PLUGIN_CONNECTIONS_PERMISSION, type PluginConnectionMethod, type PluginConnectionRequest, type PluginConnectionResponse, type PluginConnectionsClient,
+  isPluginConnectionRecordKey, PLUGIN_CONNECTIONS_PERMISSION, type PluginConnectionDescription, type PluginConnectionMethod, type PluginConnectionRequest,
+  type PluginConnectionResponse, type PluginConnectionsClient, type PluginConnectionSlotDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly, type PluginInstance } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
   connections_call_required: "forbidden", connections_permission_undeclared: "forbidden", connections_action_not_concurrent: "forbidden",
   connections_slot_undeclared: "invalid", connections_request_invalid: "invalid", connections_read_only: "forbidden",
+  connections_record_key_invalid: "invalid", connections_project_required: "forbidden", connections_release_unsupported: "invalid",
+  connections_call_ended: "forbidden",
 });
 
 const METHODS: readonly PluginConnectionMethod[] = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
 const MAX_URL = 8 * 1024, MAX_HEADERS = 32, MAX_HEADER_VALUE = 8 * 1024, MAX_BODY = 256 * 1024;
-/** The person's credential is the Host's to add; a plugin cannot write one of its own beside or instead of it. */
-const CREDENTIAL_HEADERS = new Set(["authorization", "proxy-authorization", "cookie"]);
+/**
+ * The person's credential is the Host's to add; a plugin cannot write one of its own beside or instead of it, in any header a service
+ * takes it in (`ConnectorRequestCredential`).
+ */
+const CREDENTIAL_HEADERS = new Set(["authorization", "proxy-authorization", "cookie", "private-token", "x-figma-token"]);
 /** Headers the connection itself owns. */
 const TRANSPORT_HEADERS = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade", "keep-alive", "te", "trailer", "proxy-connection", "expect"]);
 const HEADER_NAME = /^[a-z0-9!#$%&'*+.^_`|~-]{1,128}$/u;
@@ -29,63 +36,165 @@ export interface PluginConnectionDispatch {
   readonly signal: AbortSignal;
   /** Recheck right before the request leaves (after its address is known) and before its answer is handed back. */
   beforeEffect(): Promise<void>;
+  current(): void;
 }
 
-/** Which slot of which installation a request is for. The Host reads the binding under exactly this. */
+/**
+ * Which slot of which installation a request is for. The Host reads the binding under exactly this. A `per_record` slot's target also
+ * names the project, always the call's own, and the plugin's record key; an installation slot's names neither.
+ */
 export interface PluginConnectionTarget {
   readonly plugin_id: string;
   readonly install_id: string;
   readonly slot_id: string;
   readonly service_id: string;
+  readonly project_id?: string;
+  readonly record_key?: string;
 }
 
 /** The Host's side: binding, credential, origin and transport. No plugin code chooses any of them. */
 export interface PluginConnectionsPort {
   request(target: PluginConnectionTarget, request: PluginConnectionDispatch): Promise<PluginConnectionResponse>;
+  describe(target: PluginConnectionTarget): PluginConnectionDescription;
+  /** Removes a `per_record` binding; it never adds or widens one. */
+  release(target: PluginConnectionTarget): void;
 }
 
 export interface PluginConnectionsGate extends PluginInstance {
+  /** The project this activation belongs to, when it belongs to one: a call from another project may not use its `per_record` slots. */
+  readonly project_id?: string;
   assertActive(): void;
   requireGrant(permission: string): void;
 }
 
 /**
  * The client a plugin's `services.connections` is. Authority comes from the call the plugin's code is running in, never from an
- * argument: this instance's own action declaring `connections:use` with `scheduling: "concurrent"`, or one of its kept jobs declaring
- * it. A route, `start`, `stop`, a timer outside every call, a scene and another installation's call are all refused, and so is any
- * method but GET and HEAD inside a read-only call.
+ * argument: this instance's own action declaring `connections:use` (with `scheduling: "concurrent"` to send a request), or one of its
+ * kept jobs declaring it. A route, `start`, `stop`, a timer outside every call, a scene and another installation's call are all refused,
+ * and so is any method but GET and HEAD, and `release`, inside a read-only call. A `per_record` slot's record is the call's project's.
  */
 export function createPluginConnectionsClient(manifest: PluginManifest, port: PluginConnectionsPort, gate: PluginConnectionsGate): PluginConnectionsClient {
-  const slots = new Map((manifest.connections?.slots ?? []).map(slot => [slot.slot_id, slot.service_id]));
+  const slots = new Map((manifest.connections?.slots ?? []).map(slot => [slot.slot_id, slot]));
+  const enter = (slot_id: unknown, record_key: unknown, sends: boolean, releases = false) => {
+    const scope = currentPluginInvocation();
+    if (!scope || !inPluginInstance(scope, gate) || "scene" in scope) throw errors.connections_call_required("连接只能在本插件自己的动作或后台作业里使用");
+    if ("definition" in scope) {
+      if (!scope.definition.action.permissions.includes(PLUGIN_CONNECTIONS_PERMISSION)) throw errors.connections_permission_undeclared(`动作 ${scope.definition.capability_id} 没有声明 ${PLUGIN_CONNECTIONS_PERMISSION}`);
+      if (sends && scope.definition.action.scheduling !== "concurrent") throw errors.connections_action_not_concurrent("使用连接的动作必须声明 scheduling: concurrent");
+    }
+    if (!scope.caller.permissions.includes(PLUGIN_CONNECTIONS_PERMISSION)) throw errors.connections_permission_undeclared(`这次调用没有 ${PLUGIN_CONNECTIONS_PERMISSION}`);
+    const slot = typeof slot_id === "string" ? slots.get(slot_id) : undefined;
+    if (!slot) throw errors.connections_slot_undeclared(`连接槽 ${String(slot_id)} 没有在 Manifest 的 connections.slots 里声明`);
+    if (releases && slot.binding !== "per_record") throw errors.connections_release_unsupported(`连接槽 ${slot.slot_id} 按安装绑定，账号只能由本人在设置里解除`);
+    return { scope, slot, target: slotTarget(manifest, gate, slot, record_key, scope.caller.project_id) };
+  };
+  const currentFor = (scope: NonNullable<ReturnType<typeof currentPluginInvocation>>, signal?: AbortSignal) => () => {
+    signal?.throwIfAborted(); gate.assertActive(); gate.requireGrant(PLUGIN_CONNECTIONS_PERMISSION);
+    assertCapturedPluginActionCurrent(scope, gate); signal?.throwIfAborted();
+  };
   return Object.freeze({
     async request(slot_id: string, request: PluginConnectionRequest): Promise<PluginConnectionResponse> {
-      const scope = currentPluginInvocation();
-      if (!scope || !inPluginInstance(scope, gate) || "scene" in scope) throw errors.connections_call_required("连接只能在本插件自己的动作或后台作业里使用");
-      if ("definition" in scope) {
-        if (!scope.definition.action.permissions.includes(PLUGIN_CONNECTIONS_PERMISSION)) throw errors.connections_permission_undeclared(`动作 ${scope.definition.capability_id} 没有声明 ${PLUGIN_CONNECTIONS_PERMISSION}`);
-        if (scope.definition.action.scheduling !== "concurrent") throw errors.connections_action_not_concurrent("使用连接的动作必须声明 scheduling: concurrent");
-      }
-      if (!scope.caller.permissions.includes(PLUGIN_CONNECTIONS_PERMISSION)) throw errors.connections_permission_undeclared(`这次调用没有 ${PLUGIN_CONNECTIONS_PERMISSION}`);
-      const service_id = typeof slot_id === "string" ? slots.get(slot_id) : undefined;
-      if (!service_id) throw errors.connections_slot_undeclared(`连接槽 ${String(slot_id)} 没有在 Manifest 的 connections.slots 里声明`);
+      const { scope, target } = enter(slot_id, request?.record_key, true);
       const checked = connectionRequest(request);
       if (pluginInvocationReadOnly(scope) && checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("只读调用里只能发 GET 或 HEAD 请求");
       const signal = AbortSignal.any([scope.caller.signal, request?.signal].filter(item => item !== undefined));
-      const current = () => {
-        signal.throwIfAborted(); gate.assertActive(); gate.requireGrant(PLUGIN_CONNECTIONS_PERMISSION);
-        assertCapturedPluginActionCurrent(scope, gate); signal.throwIfAborted();
-      };
+      const current = currentFor(scope, signal);
       const beforeEffect = async () => { current(); if ("definition" in scope) await scope.caller.beforeEffect(); current(); };
       await beforeEffect();
-      const response = await port.request({ plugin_id: manifest.plugin_id, install_id: gate.install_id, slot_id, service_id }, { ...checked, signal, beforeEffect });
+      const response = await port.request(target, { ...checked, signal, beforeEffect, current });
       await beforeEffect();
       return response;
+    },
+    async describe(slot_id: string, record_key?: string): Promise<PluginConnectionDescription> {
+      const { scope, target } = enter(slot_id, record_key, false);
+      currentFor(scope, scope.caller.signal)();
+      // Rebuilt from the three fields, so nothing else the Host's side might carry reaches the plugin.
+      const { bound, display_name, state } = port.describe(target);
+      return bound ? { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) } : { bound };
+    },
+    async release(slot_id: string, record_key: string): Promise<void> {
+      const { scope, target } = enter(slot_id, record_key, false, true);
+      if (pluginInvocationReadOnly(scope)) throw errors.connections_read_only("只读调用里不能解除连接");
+      const current = currentFor(scope, scope.caller.signal);
+      current();
+      if ("definition" in scope) await scope.caller.beforeEffect();
+      current();
+      port.release(target);
     },
   });
 }
 
+/**
+ * The account one call of the Host's own gives a sandboxed integration (S-95): the connection the person chose for the source it pulls,
+ * the service its plugin declared for it, and that service's origins when the platform's table has none (the package's, kept with the
+ * publisher the person trusted). `connection_id` is `null` for a source without an account: its requests then go out without one.
+ */
+export interface CallConnection {
+  readonly plugin_id: string;
+  readonly service_id: string;
+  readonly connection_id: string | null;
+  readonly origins?: readonly string[];
+}
+
+/** The Host's side of a call's connection: the connection, its credential, the origins and the transport. */
+export interface CallConnectionsPort {
+  request(connection: CallConnection, request: PluginConnectionDispatch): Promise<PluginConnectionResponse>;
+  describe(connection: CallConnection): PluginConnectionDescription;
+}
+
+/**
+ * The connections a sandboxed integration's pull has for that one call (S-95). The only slot is `slot_id`, the platform's reserved one; it
+ * takes no record key, reads only (GET and HEAD: a pull changes nothing at the service), never releases, and stops answering when the call
+ * ends (`call.signal`). The plugin learns whether the source has an account, its name and how it stands, never which connection.
+ */
+export function createCallConnectionsClient(port: CallConnectionsPort, connection: CallConnection, slot_id: string,
+  call: ConnectorCallControl): PluginConnectionsClient {
+  const enter = (slot: unknown, record_key: unknown) => {
+    if (call.signal.aborted) throw errors.connections_call_ended("这次拉取已经结束，它的账号不能再用");
+    call.current();
+    if (slot !== slot_id) throw errors.connections_slot_undeclared(`集成拉取只能经连接槽 ${slot_id} 用来源的账号，不认 ${String(slot)}`);
+    if (record_key !== undefined) throw errors.connections_record_key_invalid(`连接槽 ${slot_id} 是这次拉取的来源的账号，不带记录键`);
+  };
+  const currentFor = (signal: AbortSignal) => () => { signal.throwIfAborted(); call.current(); signal.throwIfAborted(); };
+  return Object.freeze({
+    async request(slot: string, request: PluginConnectionRequest): Promise<PluginConnectionResponse> {
+      enter(slot, request?.record_key);
+      const checked = connectionRequest(request);
+      if (checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("集成拉取只能发 GET 或 HEAD 请求");
+      const signal = AbortSignal.any([call.signal, request?.signal].filter(item => item !== undefined));
+      const current = currentFor(signal);
+      const beforeEffect = async () => { current(); await call.beforeEffect(); current(); };
+      await beforeEffect(); current();
+      const response = await port.request(connection, { ...checked, signal, beforeEffect, current });
+      await beforeEffect();
+      return response;
+    },
+    async describe(slot: string, record_key?: string): Promise<PluginConnectionDescription> {
+      enter(slot, record_key);
+      const { bound, display_name, state } = port.describe(connection);
+      return bound ? { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) } : { bound };
+    },
+    async release(): Promise<void> {
+      throw errors.connections_release_unsupported(`连接槽 ${slot_id} 是来源的账号，只能由本人在来源上换或解除`);
+    },
+  });
+}
+
+/** The binding a call reaches: an installation slot takes no record key; a `per_record` slot needs one, and the call's own project. */
+export function slotTarget(manifest: PluginManifest, gate: PluginConnectionsGate, slot: PluginConnectionSlotDeclaration, record_key: unknown,
+  project_id: string | null): PluginConnectionTarget {
+  const target = { plugin_id: manifest.plugin_id, install_id: gate.install_id, slot_id: slot.slot_id, service_id: slot.service_id };
+  if (slot.binding !== "per_record") {
+    if (record_key !== undefined) throw errors.connections_record_key_invalid(`连接槽 ${slot.slot_id} 按安装绑定，不带记录键`);
+    return target;
+  }
+  if (!isPluginConnectionRecordKey(record_key)) throw errors.connections_record_key_invalid(`连接槽 ${slot.slot_id} 按记录绑定：记录键必须是 1 到 128 个字符，不含 /、: 和控制字符`);
+  if (!project_id || (gate.project_id !== undefined && gate.project_id !== project_id)) throw errors.connections_project_required(`连接槽 ${slot.slot_id} 按记录绑定，只能在本项目的调用里使用`);
+  return { ...target, project_id, record_key };
+}
+
 /** The request's shape, settled once before anything reaches the Host: an https address and the headers a plugin may write. */
-function connectionRequest(request: PluginConnectionRequest): Omit<PluginConnectionDispatch, "signal" | "beforeEffect"> {
+function connectionRequest(request: PluginConnectionRequest): Omit<PluginConnectionDispatch, "signal" | "beforeEffect" | "current"> {
   if (!request || typeof request !== "object") throw errors.connections_request_invalid("请求必须是对象");
   const method = request.method ?? "GET";
   if (!METHODS.includes(method)) throw errors.connections_request_invalid(`不支持的请求方法：${String(method)}`);

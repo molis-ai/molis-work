@@ -149,3 +149,27 @@ test("ISSUE-01 ISSUE-05 persistence survives reopening, another Home is empty, w
   assert.equal(check.prepare("SELECT description FROM issues WHERE id=?").get(saved.id)!.description, original.description);
   check.close();
 });
+test("RAC-1662 an issue's title, description and image name are counted in Unicode characters: 200, 100000 and 200 🟢 are kept on create and update; one more is refused and nothing is written", async t => {
+  // The action schema (src/actions.ts) and the table's CHECKs (src/database.ts) count characters; one 🟢 is one character but two UTF-16 units.
+  const home = await mkdtemp(join(tmpdir(), "issue-wide-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
+  t.after(async () => { connection.close(); await rm(home, { recursive: true, force: true }); });
+  const wide = (count: number) => "🟢".repeat(count);
+  const store = new IssueStore(connection.client, "owner");
+  const created = await store.create({ title: wide(200), type: "bug", description: wide(100_000), images: [{ ...picture, name: wide(200) }] }, caller);
+  assert.deepEqual([created.title, created.description, created.images[0]!.name], [wide(200), wide(100_000), wide(200)], "create keeps all three at the limit");
+  const short = await store.create(original, caller);
+  const updated = await store.update({ id: short.id, expected_version: 1, title: wide(200), description: wide(100_000), images: [{ ...picture, name: wide(200) }] }, caller);
+  assert.deepEqual([updated.title, updated.description, updated.images[0]!.name], [wide(200), wide(100_000), wide(200)], "update keeps all three at the limit");
+  await assert.rejects(store.create({ title: wide(201), type: "bug", description: "原文" }, caller),
+    { code: "actions.input_invalid", message: "标题格式不正确或太长" }, "a 201-character title is still past the limit");
+  await assert.rejects(store.create({ title: "描述太长", type: "bug", description: wide(100_001) }, caller),
+    { code: "actions.input_invalid", message: "描述格式不正确或太长" }, "100001 characters of description is still past the limit");
+  await assert.rejects(store.update({ id: updated.id, expected_version: 2, title: wide(201) }, caller),
+    { code: "actions.input_invalid", message: "标题格式不正确或太长" }, "update is held to the same title limit");
+  await assert.rejects(store.update({ id: updated.id, expected_version: 2, description: wide(100_001) }, caller),
+    { code: "actions.input_invalid", message: "描述格式不正确或太长" }, "update is held to the same description limit");
+  await assert.rejects(store.update({ id: updated.id, expected_version: 2, images: [{ ...picture, name: wide(201) }] }, caller),
+    { code: "actions.input_invalid", message: "图片名称或大小不正确，单张最多 2 MiB" }, "a 201-character image name is still past the limit");
+  assert.deepEqual(store.read(updated.id), updated, "no refused update changed the record");
+  assert.equal(store.list({}).items.length, 2, "no refused create wrote a record");
+});

@@ -1,14 +1,14 @@
 import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
-import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
+import { currentCallId, markCallRecorded, newCallId, assertActionInput } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import type { GoalsManagementActions } from "./goals-actions.js";
+import { goalsManagementContext, managementInputFields, requireManagementDefinition, type GoalsActionReference, type GoalsManagementActions } from "./goal-callers.js";
 
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 
@@ -32,21 +32,28 @@ export function catalogManagementProject(home: string, databasePath: string): { 
 /** Only a never-delivered call may use its original in-process path. Refusal and unknown delivery never fall back. */
 export function residentManagementActions(options: {
   home: string; origin: string; databasePath: string; projectId: string; signal?: AbortSignal;
+  ensureResident?(): Promise<void>;
   fallback(): GoalsManagementActions;
 }): GoalsManagementActions {
   const origin = residentHostOrigin(options.origin);
   let delivered = false;
-  return { project_id: options.projectId, async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
+  return { project_id: options.projectId, fields: managementInputFields, async invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
     options.signal?.throwIfAborted();
+    if (options.ensureResident) {
+      goalsManagementContext(options.projectId, reference, input, evidence, options.signal);
+      assertActionInput(requireManagementDefinition(reference).action.input_schema, input);
+      await options.ensureResident(); options.signal?.throwIfAborted();
+    }
     const callId = currentCallId() ?? newCallId();
     const answer = await postToResidentHost({ origin, homeDirectory: options.home, path: MANAGEMENT_ACTION_PATH, signal: options.signal,
       retryHint: "请先按调用编号核对结果，不要另起一次管理操作",
       body: { home_id: actionGatewayHomeId(options.home), database_path: options.databasePath, project_id: options.projectId, call_id: callId,
-        capability: { capability_id: definition.capability_id, version: definition.version }, input, ...(evidence !== undefined ? { evidence } : {}) } });
+        capability: { capability_id: reference.capability_id, version: reference.version }, input, ...(evidence !== undefined ? { evidence } : {}) } });
     if (!answer) {
       options.signal?.throwIfAborted();
       if (delivered) throw new ActionError("actions.delivery_unknown", "这次管理操作已经交给常驻服务，不能换进程继续执行");
-      return options.fallback().invoke(definition, input, evidence);
+      if (options.ensureResident) throw new ActionError("actions.service_unavailable", "生产 MCP 的常驻管理入口不可用，请重新发现并核对原调用");
+      return options.fallback().invoke<Output>(reference, input, evidence);
     }
     delivered = true;
     if (answer.body.call_id === callId && currentCallId() === callId) markCallRecorded();

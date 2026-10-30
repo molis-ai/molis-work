@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 
 import {
   GoalsModule,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 import { createGoalsApplication } from "@molis-ai/molis-work-plugin-goals";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -20,16 +20,17 @@ import type {
   GoalEventFieldDefinition,
   GoalEventTypeDefinitionInput,
   ReportGoalWorkEventInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "@molis-ai/molis-work-plugin-goals/contract";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 const BOARD = "board-events";
 const GOAL = "goal-events";
 const OTHER_BOARD = "board-other";
 const OTHER_GOAL = "goal-other";
 
-function hooks(db: LocalProjectDatabase["db"]) {
+function hooks(store: LocalProjectDatabase) {
   // W5-08-MOD-02: Goal events use the Module's business records, not its storage implementation.
-  const { records } = new GovernanceCollaborationModule({ db });
+  const { records } = new GovernanceCollaborationModule({ db: pluginLegalSql(store).governance, journal: store });
   return {
     supersedePendingContractProposals: (...args: Parameters<typeof records.supersedePendingContractProposals>) =>
       records.supersedePendingContractProposals(...args),
@@ -42,7 +43,7 @@ function hooks(db: LocalProjectDatabase["db"]) {
 }
 
 function openModule(store: LocalProjectDatabase) {
-  return new GoalsModule(store.db, hooks(store.db));
+  return new GoalsModule(pluginLegalSql(store).db, store, hooks(store));
 }
 
 function fixture(options: { human?: boolean } = {}) {
@@ -621,11 +622,11 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
       types: [storyDelivery(1), storyObservation()],
       requirement_bindings: [{ type_id: "story-delivery", requirement_id: "playable-scene" }],
     });
-    data.module.events.setAgreement({
+    data.module.events.state.setAgreement({
       project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "cfg-types-req",
       expected_config_version: 1,
-      expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
+      expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
       new_requirements: [{
         requirement_id: "ready",
         statement: "开场已经可以交给别人玩",
@@ -861,7 +862,7 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
 
 /** Goals composes its event application itself (PG094-07); these tests drive it over this fixture's library. */
 function eventApp({ module, store }: { module: GoalsModule<unknown>; store: LocalProjectDatabase }) {
-  const governance = new GovernanceCollaborationModule({ db: store.db });
+  const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).governance, journal: store });
   return createGoalsApplication({
     goals: { commands: module.commands, lifecycle: module.lifecycle, planning: module.planning, query: module.query, events: module.events },
     governance: { provenance: governance.provenance, query: governance.query, records: governance.records, decisions: governance.decisions,
@@ -1022,11 +1023,11 @@ test("extra requirement unknown control fields are rejected and human_decision_r
     });
     const before = data.module.events.listEvents(BOARD, GOAL).events.length;
     assert.throws(
-      () => data.module.events.setAgreement({
+      () => data.module.events.state.setAgreement({
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: "unknown-field",
         expected_config_version: 1,
-        expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
+        expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
         new_requirements: [{
           requirement_id: "human-extra",
           statement: "用户必须亲自确认购买体验",
@@ -1037,11 +1038,11 @@ test("extra requirement unknown control fields are rejected and human_decision_r
       (error: unknown) => error instanceof ActionError && error.code === "goals.event_config.unsupported_property",
     );
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
-    data.module.events.setAgreement({
+    data.module.events.state.setAgreement({
       project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "human-extra-ok",
       expected_config_version: 1,
-      expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
+      expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
       new_requirements: [{
         requirement_id: "human-extra",
         statement: "用户必须亲自确认购买体验",

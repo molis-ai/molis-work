@@ -9,6 +9,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("guidance action consumers preserve original receipts, revisions, prompt text, scope and policy", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-guidance-actions-"));
@@ -30,7 +31,7 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceAdd, input), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceRead, {}), { code: "actions.scope_mismatch" });
     assert.deepEqual(await bound.invoke(goalsActions.guidanceRead, {}), before);
-    const legacy = await host.withProject(ref, runtime => runtime.coordinator.goals.commands.addProjectGuidance({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
+    const legacy = await host.withProject(ref, runtime => goalApplicationOf(runtime).goals.commands.addProjectGuidance({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await bound.invoke(goalsActions.guidanceAdd, input), { ...legacy, replayed: true });
     const duplicate = await bound.invoke(goalsActions.guidanceAdd, { ...input, idempotency_key: "same-content" });
     assert.equal(duplicate.created, false);
@@ -86,12 +87,12 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
         ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body),
     });
     const input = { kind: "constraint", content: "所有导出必须由用户发起。", reason: "项目数据边界", user_confirmed: true, idempotency_key: "web-guidance" };
-    assert.equal((await request("/api/project-guidance", input, "POST", false)).status, 403);
-    const response = await request("/api/project-guidance", input);
+    assert.equal((await request("/api/plugins/io.molis.work.goals/project-guidance", input, "POST", false)).status, 403);
+    const response = await request("/api/plugins/io.molis.work.goals/project-guidance", input);
     assert.equal(response.status, 200, await response.clone().text());
     const added = await response.json() as { entry: { guidance_id: string; created_by: string }; project_guidance: unknown };
     assert.equal(added.entry.created_by, "web-user");
-    assert.deepEqual(await (await request("/api/project-guidance")).json(), added.project_guidance);
+    assert.deepEqual(await (await request("/api/plugins/io.molis.work.goals/project-guidance")).json(), added.project_guidance);
     const goal_id = "GUIDANCE-WEB";
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "user", audience: "user", project_id: project.project_id, permissions: ["goals:write"] }));
     await bound.invoke(goalsActions.create, { goal_id, title: "使用项目说明", idempotency_key: "create" });
@@ -99,22 +100,22 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     const prompt = await request(promptPath);
     assert.equal(prompt.status, 200, await prompt.clone().text());
     assert.match((await prompt.json() as { prompt: string }).prompt, /所有导出必须由用户发起/);
-    const editPath = `/api/project-guidance/${added.entry.guidance_id}`;
+    const editPath = `/api/plugins/io.molis.work.goals/project-guidance/${added.entry.guidance_id}`;
     denied.add(goalsActions.guidanceUpdate.capability_id);
     const update = { ...input, action: "deactivate", idempotency_key: "off" };
     assert.equal((await request(editPath, update, "PATCH")).status, 403);
-    assert.deepEqual(await (await request("/api/project-guidance")).json(), added.project_guidance);
+    assert.deepEqual(await (await request("/api/plugins/io.molis.work.goals/project-guidance")).json(), added.project_guidance);
     denied.clear();
     assert.equal((await request(editPath, update, "PATCH")).status, 200);
     assert.doesNotMatch((await (await request(promptPath)).json() as { prompt: string }).prompt, /所有导出必须由用户发起/);
     denied.add(goalsActions.guidanceRead.capability_id);
-    assert.equal((await request("/api/project-guidance")).status, 403);
+    assert.equal((await request("/api/plugins/io.molis.work.goals/project-guidance")).status, 403);
     assert.equal((await request("/settings/guidance")).status, 403);
-    const savedWithoutRefresh = await request("/api/project-guidance", { ...input, content: "保留恢复记录。", idempotency_key: "saved-without-refresh" });
+    const savedWithoutRefresh = await request("/api/plugins/io.molis.work.goals/project-guidance", { ...input, content: "保留恢复记录。", idempotency_key: "saved-without-refresh" });
     assert.equal(savedWithoutRefresh.status, 200);
     const receipt = await savedWithoutRefresh.json() as { created: boolean; project_guidance: unknown; project_guidance_error: string };
     assert.equal(receipt.created, true); assert.equal(receipt.project_guidance, null); assert.match(receipt.project_guidance_error, /说明停用/);
-    assert.equal(await host.withProject(ref, runtime => runtime.coordinator.goalQueries.readProjectGuidance(project.project_id).entries[0]?.content), "保留恢复记录。");
+    assert.equal(await host.withProject(ref, runtime => goalApplicationOf(runtime).goalQueries.readProjectGuidance(project.project_id).entries[0]?.content), "保留恢复记录。");
     const deniedPrompt = await request(promptPath);
     assert.ok(deniedPrompt.status >= 400); assert.match(await deniedPrompt.text(), /说明停用/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }

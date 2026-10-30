@@ -1,4 +1,4 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 
 /**
@@ -12,12 +12,12 @@ import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plug
 interface GlobalSettingsSection {
   readonly id: string;
   readonly label: string;
-  readonly icon: MolisWorkIcon;
+  readonly icon: PluginIconName;
   readonly group: string;
   readonly kind: "host" | "plugin";
 }
 
-interface HostSection { id: string; label: string; icon: MolisWorkIcon; group: string; order: number }
+interface HostSection { id: string; label: string; icon: PluginIconName; group: string; order: number }
 
 /** The address a global settings category is served from. */
 export function globalSettingsSectionPath(id: string): string {
@@ -26,6 +26,7 @@ export function globalSettingsSectionPath(id: string): string {
 
 const HOST_SECTIONS: readonly HostSection[] = [
   { id: "appearance", label: "界面与语言", icon: "sun", group: "本机", order: 10 },
+  { id: "directories", label: "本机目录", icon: "folder", group: "本机", order: 12 },
   { id: "memory", label: "记忆", icon: "bookmark", group: "个人", order: 15 },
   { id: "models", label: "模型设置", icon: "key", group: "AI", order: 20 },
   { id: "assistant", label: "助理", icon: "message", group: "AI", order: 30 },
@@ -43,13 +44,13 @@ const HOST_SECTIONS: readonly HostSection[] = [
 const PLUGIN_GROUP = "插件";
 const HOST_ORDER_END = 100;
 
-function globalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): GlobalSettingsSection[] {
+function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSection[] {
   const placed = [
     ...HOST_SECTIONS.map((section) => ({ ...section, kind: "host" as const })),
-    ...listPluginSettingsNavItems(enabled, hidden).map((item) => ({
+    ...listPluginSettingsNavItems(shown).map((item) => ({
       id: item.section_id,
       label: item.label,
-      icon: item.icon as MolisWorkIcon,
+      icon: item.icon as PluginIconName,
       order: item.order ?? Number.MAX_SAFE_INTEGER,
       group: "",
       kind: "plugin" as const,
@@ -64,9 +65,9 @@ function globalSettingsSections(enabled?: readonly string[], hidden?: readonly s
 }
 
 /** The same list, split where the group changes, for a navigation with group labels. */
-export function groupedGlobalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): { group: string; sections: GlobalSettingsSection[] }[] {
+export function groupedGlobalSettingsSections(shown?: readonly string[]): { group: string; sections: GlobalSettingsSection[] }[] {
   const groups: { group: string; sections: GlobalSettingsSection[] }[] = [];
-  for (const section of globalSettingsSections(enabled, hidden)) {
+  for (const section of globalSettingsSections(shown)) {
     const last = groups.at(-1);
     if (last?.group === section.group) last.sections.push(section);
     else groups.push({ group: section.group, sections: [section] });

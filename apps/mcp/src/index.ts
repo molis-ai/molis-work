@@ -6,11 +6,11 @@ export { handleMcpMessage } from "./protocol.js";
 export { createMcpRuntimeContextHandlers } from "./runtime-context-tools.js";
 export type { McpRuntimeContextPorts } from "./runtime-context-tools.js";
 export type { McpPresentationErrorFactory } from "./goal-presentation.js";
-export { EVENT_TOOLS } from "./goal-event-tools.js";
 export { buildMcpResumeView } from "./resume-view.js";
 export type { McpResumeFacts } from "./resume-view.js";
+export type { McpManagementActionSource, McpManagementActionText } from "./goal-tools.js";
 export {
-  MCP_TOOLS,
+  platformMcpTools,
   RUNTIME_MCP_TOOLS,
   MCP_SERVER_INFO,
   isPlatformMcpTool,
@@ -20,22 +20,9 @@ export type { McpProtocolPorts, McpToolCallContext, McpToolDefinition, McpToolRe
 export { createActionMcpPorts, actionMcpToolName, actionMcpToolDefinition, molisWorkActionToolName, MOLIS_WORK_ACTION_TOOL_PREFIX } from "./action-tools.js";
 export { serveMcpStdio } from "./stdio.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-app-mcp",
-  packagePath: "apps/mcp",
-  kind: "app",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/app-host",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-dv1", "goal-reorg-dv2", "goal-reorg-gw4", "goal-reorg-ex4"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { validateMolisWorkMcpLauncher } from "./launcher-validation.js";
 export type { McpLauncherValidationContext } from "./launcher-validation.js";
-export { dispatchMcpProjectTool } from "./tool-dispatch.js";
+export { dispatchMcpProjectTool, MANAGEMENT_GOAL_ACTIONS } from "./tool-dispatch.js";
 export type { McpToolDispatchPorts, McpManagementActions } from "./tool-dispatch.js";
 
 export { formatMcpToolError } from "./tool-error.js";

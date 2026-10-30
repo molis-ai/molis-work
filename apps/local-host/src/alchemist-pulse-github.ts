@@ -1,3 +1,4 @@
+import { connectorAccountControl } from "./connector-oauth-targets.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveApiConnection } from "./connector-access.js";
 import { hostLog } from "./host-log.js";
@@ -29,7 +30,7 @@ async function boundToken(home: string): Promise<string | undefined> {
   try {
     const bound = withConnectorConnections(home, store => store.binding(SCOPE, CONSUMER, SLOT));
     if (!bound || !lendsToken(bound)) return undefined;
-    return (await resolveApiConnection(home, bound.connection_id, "github")).token || undefined;
+    return (await resolveApiConnection(home, bound.connection_id, connectorAccountControl(home, bound.connection_id), "github")).token || undefined;
   } catch (error) {
     // Searching anonymously is the answer here, but a bound account whose token cannot be read is written, not passed off as none.
     hostLog.warn("alchemist", "pulse_token_unavailable", error);

@@ -74,15 +74,15 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
-  - 一次同步目录是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置在轮内各读一次，轮外（含每次调用）现读，读失败不留存，轮内一次写（`forgetInDirectoryPass`）让同一轮后面的读重新读；不能把轮内结果带到调用或下一次目录。
+  - 一次同步目录是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置在轮内各读一次，轮外（含每次调用）现读，读失败不留存，轮内一次写（`forgetInDirectoryPass`）让同一轮后面的读重新读；不能把轮内结果带到调用或下一次目录。调用者自己的授权检查（不带引用的 `assert_authority_current`，委托调用者的这一项会沿原调用逐层往上查）也按这一轮算：各行的可用性在轮内只问它一次，只留通过的，拒绝每行照抛；带引用的检查、调用和它的 `beforeEffect` 与最后一次检查都照旧现问（`action-service.ts` 的 `rowCaller`）。`allowed_actions` 名单在轮内第二次被问到时建索引，轮外照旧逐条比对。
   - 场景读回调只能查询；绑定与成功/失败消费获得 `ActionSceneExecutionContext.beforeEffect`，原场景和判断被替换、原调用者撤权或取消、回调结束后都拒绝写入。嵌套调用不能移除只读约束，付费查询也不在只读范围内（`tests/security-invariants-plugin-scenes.test.ts`）。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`kernel.runtime_identity_missing`）。
   - 注册时检查同一次注册里的交叉引用（规则在插件 SDK 的 `inspectActionCrossReferences`）：撤销命令、后台任务状态查询、片段与事项选项的目标要在同一次注册里、种类与范围对，被指的字段和位置要在输入输出合同里。检查在 `registerProvider` 原有的一行里调用，不往函数里加行；谁能用目标留到使用时按调用者核对。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。
-  - 调用方可以声明哪些拒绝码是它要的答案（`expectingRefusal`，在 `src/call-scope.ts`；作用域随异步调用传下去）：页面找项目可能没有的插件的区域，「未启用」就是答案，宿主不为这样的拒绝留调用记录行。只对作用域内、调用方自己那一次、处理器之前的、码在声明里的拒绝生效：进入处理器时清空（`startHandler` 经 `insideHandler`，动作的 `execute` 与宿主 typed 口各进一次），所以处理器再调的、它派出去还在跑的，被拒了照常记；声明也有终点：它像 `CallScope` 的 `open` 一样，在 `run` 结束（返回、抛出、拒绝）时关闭，所以调用结束后才触发的计时器、流、子进程、插件平台启动里的同一个拒绝照常记；别的拒绝和作用域之外的同一个拒绝也照常记（`tests/action-call-log.test.ts`）。
+  - 调用方可以声明哪些拒绝码是它要的答案（`expectingRefusal`，在 `src/call-scope.ts`；作用域随异步调用传下去）：页面找项目可能没有的插件的区域，「未启用」就是答案，宿主不为这样的拒绝留调用记录行。只对作用域内、调用方自己那一次、处理器之前的、码在声明里的拒绝生效：进入处理器时清空（`startHandler` 经 `insideHandler`，动作的 `execute` 进一次），所以处理器再调的、它派出去还在跑的，被拒了照常记；声明也有终点：它像 `CallScope` 的 `open` 一样，在 `run` 结束（返回、抛出、拒绝）时关闭，所以调用结束后才触发的计时器、流、子进程、插件平台启动里的同一个拒绝照常记；别的拒绝和作用域之外的同一个拒绝也照常记（`tests/action-call-log.test.ts`）。
   - 调用编号只由宿主给：从调用上下文、此刻的作用域或新生成取，不从请求头、工具参数、`_meta`、业务输入或插件交来的字段读。它不是身份，处理器可以记录或返回它，不能凭它做任何决定。作用域随操作结束关闭，之后才触发的回调拿到新编号。入口答复里的编号只在 `recordedCallId()` 有值（这个编号下留了调用记录行）时给，所以人复制到的编号一定查得到（网页：`apps/local-host/src/call-id-response.ts`；MCP：`apps/local-host/src/mcp-call-id.ts`，经网关转发时编号由 MCP 进程写进请求体、常驻宿主在同一个编号下运行，答复体在写了行时带回它）。
-  - 一次调用只结算一次：动作的注册表条目只能经 `ActionService.invoke` / `invokeSync` 到达（宿主的 typed 口到动作也走 `invoke`），`execute` 只经 `startHandler` 进入处理器（标记「已开始」、清空免记拒绝的声明），不结算。源码里直接调用 `registry.invoke` / `capabilities.invoke` 的只剩 `ActionService` 自己，和宿主 typed 口对不带 `action` 的条目（它们由宿主自己结算）。
+  - 一次调用只结算一次：动作的注册表条目只能经 `ActionService.invoke` / `invokeSync` 到达（宿主项目客户端 `LocalHost.invoke` 也走 `invoke`），`execute` 只经 `startHandler` 进入处理器（标记「已开始」、清空免记拒绝的声明），不结算。源码里直接调用 `registry.invoke` / `capabilities.invoke` 的只剩 `ActionService` 自己（R8 删掉了不带 `action` 的 typed 条目与它们的宿主结算）。
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
   - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
@@ -96,9 +96,6 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/kernel`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

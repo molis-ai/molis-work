@@ -33,7 +33,7 @@ export const todoPrompts: readonly AgentPromptText[] = [
  * Methods Todo offers to other Agents (the Assistant, 待办整理师 as a Character) for business work. Each is declared in
  * the Manifest's `methods` with the same id, version, name, summary and tools; the Host registers the body from here.
  */
-export const todoMethods: readonly AgentSkillDefinition[] = [
+export const todoSkills: readonly AgentSkillDefinition[] = [
   {
     skill_id: "todo-organize", version: 1, name: "整理待办",
     summary: "从用户给的材料里找出要用户推进的事，与已有待办比对，存成等用户确认的整理结果；也用于“看看有没有遗漏的待办”（读最近新来的材料，不只看已有待办）和“这封邮件影响哪些安排”。",

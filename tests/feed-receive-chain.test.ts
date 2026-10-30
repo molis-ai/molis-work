@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,17 +7,17 @@ import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
-import { SignalsModule } from "@molis-ai/molis-work-module-signals";
-import { SourcesModule } from "@molis-ai/molis-work-module-sources";
+import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { SourcesModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
+import { ListenerHost } from "@molis-ai/molis-work-plugin-feed/store";
 import type {
   ConnectorDriver,
   ConnectorFailureKind,
   ConnectorPollResult,
   ConnectorRawEvent,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -56,7 +57,7 @@ function adapter(failOnceFor?: string): RawEventAdapter {
 function createSource(store: LocalProjectDatabase): string {
   const now = "2026-09-02T08:00:00.000Z";
   const sourceId = "source-fd1-fixture";
-  new SourcesModule(store.db).commands.save({
+  new SourcesModule(fromBetterSqlite(store.db)).commands.save({
     project_id: DEMO_PROJECT_ID,
     source_id: sourceId,
     kind: "fixture",
@@ -93,7 +94,7 @@ test("FAS-01: rejected Signal drafts leave records, revisions and events unchang
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const signals = new SignalsModule(store.db);
+    const signals = new SignalsModule(fromBetterSqlite(store.db));
     const draft = { project_id: DEMO_PROJECT_ID, source_id: "fas-source", provider_dedupe_id: "fas-event", kind: "update",
       occurred_at: "2026-09-02T08:00:00.000Z", observed_at: "2026-09-02T08:00:01.000Z", payload: { title: "Accepted event" },
       raw_event_id: "fas-raw-event", adapter: { plugin_id: "io.molis.work.integration.fixture", version: "1.0.0" }, provenance: {} };
@@ -123,10 +124,10 @@ test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring,
   connector.registerDriver(driver);
   assert.throws(() => connector.registerDriver({ ...driver }), { code: "connector.driver_duplicate" });
   connector.connect({ connection_id: "refusal-connection", driver_id: driver.driver_id });
-  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.invocation_failed" });
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }, connectorControl()), { code: "connector.invocation_failed" });
   assert.equal(polls, 1);
   connector.revoke("refusal-connection");
-  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.connection_missing" });
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }, connectorControl()), { code: "connector.connection_missing" });
   assert.equal(polls, 1, "a revoked connection cannot invoke its driver again");
 });
 
@@ -135,7 +136,7 @@ test("J3A-01: Sources owner refusals leave both the source and its durable event
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const sourceId = createSource(store), sources = new SourcesModule(store.db);
+    const sourceId = createSource(store), sources = new SourcesModule(fromBetterSqlite(store.db));
     const before = sources.query.get(DEMO_PROJECT_ID, sourceId), events = sources.events.list(DEMO_PROJECT_ID, sourceId);
     assert.throws(() => sources.query.get(DEMO_PROJECT_ID, "missing-source"), { code: "sources.not_found", message: /找不到/ });
     assert.throws(() => sources.commands.save({ ...before, schedule: { mode: "interval", enabled: true, interval_minutes: 1, next_pull_at: null } }), { code: "sources.invalid_schedule", message: /来源计划/ });
@@ -155,11 +156,11 @@ test("Listener persists a failed provider pull, retains the cursor and replays w
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const sourceId = createSource(store), signals = new SignalsModule(store.db);
+    const sourceId = createSource(store), signals = new SignalsModule(fromBetterSqlite(store.db));
     let polls = 0, failure: ConnectorFailureKind = "needs_auth";
     const driver: ConnectorDriver = { driver_id: "failure-owner-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async poll() { polls += 1; return { ok: false, mode: "live", failure, message: "Provider refused", retry_after_at: "2026-09-02T08:10:00.000Z" }; } };
-    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands);
+    const listener = new ListenerHost(fromBetterSqlite(store.db), connectorWith(driver), signals.commands);
     const cases: ReadonlyArray<readonly [ConnectorFailureKind, string]> = [["needs_auth", "connector.needs_auth"], ["configuration", "connector.configuration"],
       ["network", "connector.network"], ["provider", "connector.provider"], ["rate_limited", "connector.rate_limited"], ["stale_history", "connector.stale_history"]];
     for (const [reason, code] of cases) {
@@ -182,7 +183,7 @@ test("Listener persists a failed provider pull, retains the cursor and replays w
     listener.saveRun(interrupted);
     store.db.prepare("UPDATE listener_instances SET state = 'listening', lease_owner = ?, lease_expires_at = ? WHERE project_id = ? AND source_id = ?")
       .run("old-process", "2026-09-02T08:10:00.000Z", DEMO_PROJECT_ID, sourceId);
-    const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
+    const restarted = new ListenerHost(fromBetterSqlite(store.db), connectorWith(driver), new SignalsModule(fromBetterSqlite(store.db)).commands);
     assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 1);
     assert.equal(restarted.getRunByOperationId(DEMO_PROJECT_ID, interrupted.operation_id)?.error_code, "listener.process_interrupted");
     assert.equal(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).last_error_code, "listener.process_interrupted");
@@ -191,23 +192,27 @@ test("Listener persists a failed provider pull, retains the cursor and replays w
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("Listener refusal after accepting a Signal preserves that receipt but cannot mark delivery, advance cursor or write a failure; restart dedupes it", async () => {
+test("RAC-129-LISTENER: refusal after accepting a Signal preserves the receipt and options receivers; restart dedupes without premature cursor or failure writes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "listener-effect-authority-")), databasePath = join(directory, "project.sqlite");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   try {
-    const sourceId = createSource(store), signals = new SignalsModule(store.db);
+    const sourceId = createSource(store), signals = new SignalsModule(fromBetterSqlite(store.db));
     const event = rawEvent("accepted-before-revocation", { page: 1 });
     let allowed = true;
     const driver: ConnectorDriver = { driver_id: "authority-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async poll() { return { ok: true, mode: "live", events: [event], cursor_after: { page: 1 } }; } };
-    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands, {
-      afterSignalAccepted: async () => { entered.resolve(); await release.promise; },
-    });
+    const controls = {
+      accepted: 0,
+      now(): Date { assert.equal(this, controls); return new Date(); },
+      async afterSignalAccepted(): Promise<void> { assert.equal(this, controls); this.accepted += 1; entered.resolve(); await release.promise; },
+    };
+    const listener = new ListenerHost(fromBetterSqlite(store.db), connectorWith(driver), signals.commands, controls);
     const input = { project_id: DEMO_PROJECT_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "listener-authority-1", adapter: adapter(),
       beforeEffect: async () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };
     const pending = listener.run(input), rejected = assert.rejects(pending, { code: "actions.revoked" });
     await entered.promise;
+    assert.equal(controls.accepted, 1);
     const state = () => ({ signals: signals.query.list(DEMO_PROJECT_ID, sourceId), run: listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id),
       deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE source_id = ?").all(sourceId),
       checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE source_id = ?").get(sourceId) });
@@ -215,7 +220,7 @@ test("Listener refusal after accepting a Signal preserves that receipt but canno
     allowed = false; release.resolve(); await rejected;
     assert.deepEqual(state(), before);
     allowed = true;
-    const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
+    const restarted = new ListenerHost(fromBetterSqlite(store.db), connectorWith(driver), new SignalsModule(fromBetterSqlite(store.db)).commands);
     assert.equal((await restarted.run(input)).outcome, "completed");
     assert.equal(signals.query.list(DEMO_PROJECT_ID, sourceId).length, 1);
     assert.deepEqual(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, { page: 1 });
@@ -231,7 +236,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
     const store = new LocalProjectDatabase(databasePath);
     try {
       const sourceId = createSource(store);
-      assert.equal(new SourcesModule(store.db).events.list(DEMO_PROJECT_ID, sourceId).at(-1)?.type, "source.created");
+      assert.equal(new SourcesModule(fromBetterSqlite(store.db)).events.list(DEMO_PROJECT_ID, sourceId).at(-1)?.type, "source.created");
       let polls = 0;
       const driver: ConnectorDriver = {
         driver_id: "fixture-driver",
@@ -247,9 +252,9 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
           };
         },
       };
-      const firstSignals = new SignalsModule(store.db);
+      const firstSignals = new SignalsModule(fromBetterSqlite(store.db));
       const firstListener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorWith(driver),
         firstSignals.commands,
       );
@@ -268,9 +273,9 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
       assert.equal(firstSignals.query.list(DEMO_PROJECT_ID, sourceId).length, 1);
       assert.equal(firstListener.getRunByOperationId(DEMO_PROJECT_ID, "fd1-operation-recovery")?.phase, "interrupted");
 
-      const restartedSignals = new SignalsModule(store.db);
+      const restartedSignals = new SignalsModule(fromBetterSqlite(store.db));
       const restartedListener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorWith(driver),
         restartedSignals.commands,
       );
@@ -308,7 +313,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
         },
       };
       const revisionListener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorWith(revisionDriver),
         restartedSignals.commands,
       );
@@ -362,9 +367,9 @@ test("Listener lease prevents two callers from consuming one Source concurrently
         },
       };
       const listener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorWith(driver),
-        new SignalsModule(store.db).commands,
+        new SignalsModule(fromBetterSqlite(store.db)).commands,
       );
       const first = listener.run({
         project_id: DEMO_PROJECT_ID,
@@ -427,9 +432,9 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
         },
       };
       const listener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorWith(driver),
-        new SignalsModule(store.db).commands,
+        new SignalsModule(fromBetterSqlite(store.db)).commands,
         { maxDeliveryAttempts: 2 },
       );
       const failingAdapter: RawEventAdapter = {
@@ -468,14 +473,14 @@ for (const fail of [false, true]) test(`Listener revocation during a provider ${
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let allowed = true, pause = true;
   try {
-    const source = createSource(store), signals = new SignalsModule(store.db);
+    const source = createSource(store), signals = new SignalsModule(fromBetterSqlite(store.db));
     const driver: ConnectorDriver = { driver_id: "guarded", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async poll() {
         if (pause) { entered.resolve(); await release.promise; }
         if (fail && pause) throw new Error("provider failed");
         return { ok: true, mode: "live", events: [rawEvent("guarded", { page: 1 })], cursor_after: { page: 1 } };
       } };
-    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands);
+    const listener = new ListenerHost(fromBetterSqlite(store.db), connectorWith(driver), signals.commands);
     const input = { project_id: DEMO_PROJECT_ID, source_id: source, connection_id: "fixture-connection", operation_id: "guarded-operation", adapter: adapter(),
       beforeEffect: async () => { if (!allowed) throw Object.assign(new Error("Revoked"), { code: "fixture.revoked" }); } };
     const pending = listener.run(input), rejected = assert.rejects(pending, { code: "fixture.revoked" });
@@ -483,7 +488,7 @@ for (const fail of [false, true]) test(`Listener revocation during a provider ${
     const before = listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id);
     allowed = false; release.resolve(); await rejected;
     assert.deepEqual(listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id), before);
-    assert.equal(store.db.prepare("SELECT count(*) AS n FROM listener_deliveries WHERE source_id = ?").get(source)!.n, 0);
+    assert.equal((store.db.prepare("SELECT count(*) AS n FROM listener_deliveries WHERE source_id = ?").get(source) as { n: number }).n, 0);
     assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, source).cursor, {});
     allowed = true; pause = false;
     const recovery = await listener.run(input);

@@ -5,9 +5,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_SCREENSHOTS_UNREAD, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
-  issueActionHandlers, issuesActions, issuesManifest, issuesMethods, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+  createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesSkills, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelAvailability, PluginModelClient, PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -190,13 +189,14 @@ test("ISSUE-51 suggesting a name for a saved record's edit writes nothing", asyn
 });
 
 test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction and the Assistant's method share them, and the method names no tool", () => {
-  const [method] = issuesMethods;
+  const [method] = issuesSkills;
   for (const line of [...ISSUE_TOO_LITTLE, ...ISSUE_TITLE_RULES, ...ISSUE_TYPE_RULES]) {
     assert.ok(ISSUES_NAME.body.includes(line), line); assert.ok(method!.body.includes(line), line);
   }
-  // Declared on Issue's own catalog entry, so the person can read and edit it in “Prompt 与 Character”.
-  const entry = BUILTIN_PLUGIN_CATALOG.find(row => row.manifest.plugin_id === ISSUES_PLUGIN_ID)!;
-  assert.deepEqual(entry.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@1`]);
+  // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).
+  const definition = createIssuesPlugin();
+  assert.deepEqual(definition.methods, issuesSkills);
+  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@1`]);
   assert.equal(method!.version, 11);
   for (const word of ["change-reversible", "change-capability", "read-capability", "find-capabilities", "suggest-action", "ask-user", "录入草稿", "待整理记录"]) assert.ok(!method!.body.includes(word), word);
   assert.ok(method!.body.includes("issues.create"));
@@ -246,4 +246,30 @@ test("ISSUE-50 ISSUE-51 through the Host: the page's draft is named by the Host'
   const refused = await post("name-draft", { draft_id: unnamed });
   assert.notEqual(refused.status, 200); assert.equal((await refused.json() as { code: string }).code, "actions.connection_required");
   assert.equal((await post("capture", { draft_id: unnamed, title: "点保存没有反应", type: "bug" })).status, 200);
+});
+
+test("RAC-1664 naming counts Unicode characters: a 200-character title or question from the model is taken and 201 are refused; 100000 characters of edited words go to the model and 100001 are refused before it is asked", async t => {
+  // suggest_name's schema (src/actions.ts) counts characters for the words and for the reply; one 🟢 is one character but two UTF-16 units.
+  const { store } = await issues(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const answers: unknown[] = [
+    { status: "named", title: wide(200), type: "bug" },
+    { status: "needs_input", question: wide(200) },
+    { status: "named", title: wide(201), type: "bug" },
+    { status: "needs_input", question: wide(201) },
+  ];
+  const fake = model(() => answers.shift());
+  const suggest = issueActionHandlers(store, fake.client).find(binding => binding.capability_id === issuesActions.suggestName.capability_id)!;
+  assert.deepEqual(await suggest.handle(caller, { description: wide(100_000) }), { status: "named", title: wide(200), type: "bug" },
+    "100000 characters of words reach the model, and a 200-character title is taken");
+  assert.equal(data(fake.calls[0]!).description, wide(100_000), "the words go to the model whole");
+  assert.deepEqual(await suggest.handle(caller, { description: "保存没反应" }), { status: "needs_input", question: wide(200) }, "a 200-character question is taken");
+  await assert.rejects(suggest.handle(caller, { description: "保存没反应" }),
+    { code: "issues.model_reply_invalid", message: "模型没有给出可用的标题和类型，点开补全后保存" }, "a 201-character title is still past the limit");
+  await assert.rejects(suggest.handle(caller, { description: "保存没反应" }),
+    { code: "issues.model_reply_invalid", message: "模型没有给出可用的标题和类型，点开补全后保存" }, "a 201-character question is still past the limit");
+  assert.equal(fake.calls.length, 4);
+  await assert.rejects(suggest.handle(caller, { description: wide(100_001) }),
+    { code: "actions.input_invalid", message: "请描述问题或添加图片" }, "100001 characters of words is still past the limit");
+  assert.equal(fake.calls.length, 4, "the refused words did not reach the model");
 });

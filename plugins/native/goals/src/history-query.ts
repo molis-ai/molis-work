@@ -1,6 +1,6 @@
 import { findHistoryIndexItem, type GoalEventDocumentPorts } from "./event-document-model.js";
 import { renderHistoryItemBody } from "./event-history-body.js";
-import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalWorkEventRecord } from "./contract/goals.js";
 import type { GoalHistoryIndexItem } from "./event-history-map.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";

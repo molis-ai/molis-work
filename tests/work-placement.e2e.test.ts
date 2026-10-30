@@ -74,7 +74,8 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   await waitFor(`document.querySelector('[data-placement-open=${text(doc!.id)}]')`, 15_000);
   assert.match(await evaluate<string>("document.querySelector('[data-placement-related]').innerText"), /上线前检查清单[\s\S]*个人空间[\s\S]*只有你能打开/u);
   await screenshot("project-home");
-  await click(`[data-placement-open=${text(doc!.id)}]`);
+  // This action changes the top-level document. Observe its load before evaluating in the new context.
+  await navigate(() => click(`[data-placement-open=${text(doc!.id)}]`));
   await waitFor("location.pathname === '/projects/personal/'", 15_000);
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === '上线前检查清单'`, 15_000);
   assert.equal((await current())?.id, doc!.id, "the same document, not a copy");

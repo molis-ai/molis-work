@@ -1,8 +1,10 @@
 import path from "node:path";
+import type { ProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { homeProjectOwners } from "./project-deleted-owners.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 
 export { ProjectDeletedDeferred };
+type CommittedDeletion = Readonly<Pick<ProjectDeletionRecord, "deletion_id" | "project_id">>;
 
 /**
  * One owner's part of deleting a project. Plugins and services keep data of a project in the Home, outside the
@@ -19,6 +21,11 @@ export interface ProjectDeletedOwner {
   readonly label: string | null;
   /** Manifest names substituted when the confirmation is rendered in the person's language. */
   readonly label_values?: Readonly<Record<string, string>>;
+  /**
+   * The plugin whose words translate `label` and its values: a plugin owner's text is its own, whoever published it, so the
+   * confirmation shows it in that plugin's English (`ui.translations`) and in no one else's. Absent for an owner of the Host's.
+   */
+  readonly words_of?: string;
   /** Owners run in ascending order of this (default 0), those with the same value in registration order. */
   readonly priority?: number;
   /**
@@ -39,9 +46,10 @@ export interface ProjectDeletedOwner {
   /**
    * Clears this owner's data of the project. Idempotent: running it again after it succeeded changes nothing, because a
    * failed receipt is retried and the fixed-id demo project is cleared before it is made again. Throws when something is
-   * left; the step then stays pending in the receipt.
+   * left; the step then stays pending in the receipt. Deletion identity comes only from the Catalog's committed receipt;
+   * demo reset has no deletion receipt and must still refer to a current project.
    */
-  clear(projectId: string): void | Promise<void>;
+  clear(projectId: string, deletion?: CommittedDeletion): void | Promise<void>;
 }
 
 /** What the deletion needs from the owners: who is registered, and a way to run one of them. */
@@ -52,7 +60,7 @@ export interface ProjectDeletedPort {
    * Runs one owner. False when no such owner is registered in this process: the step stays pending, with the error it
    * last had, for a process that has the owner.
    */
-  clear(ownerId: string, projectId: string): Promise<boolean>;
+  clear(ownerId: string, projectId: string, deletion?: CommittedDeletion): Promise<boolean>;
   /**
    * Throws `ProjectDeletedDeferred` naming the owners that cannot clear in this process right now; clears nothing. With
    * `leaveElsewhere`, an owner whose service is another process's for good is not named: only owners that merely have to
@@ -107,10 +115,10 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
       .map(item => item.owner);
   }
 
-  async clear(ownerId: string, projectId: string): Promise<boolean> {
+  async clear(ownerId: string, projectId: string, deletion?: CommittedDeletion): Promise<boolean> {
     const owner = this.owners().find(item => item.id === ownerId);
     if (!owner) return false;
-    await owner.clear(projectId);
+    await owner.clear(projectId, deletion);
     return true;
   }
 

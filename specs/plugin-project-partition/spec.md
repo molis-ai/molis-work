@@ -10,7 +10,7 @@ Home 级插件只有一个实例，`services.database` 给它整个 Home 一个�
 
 ## 2. 设计
 
-**声明。** Home 条目的 `runtime.database` 加 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`）。Home 存储登记里同一个库的 `library.partition` 也是 `"project"`，两边不一致时整份启动名单不启动。只有 Home 级条目能声明：项目平台的条目带它，启动前拒绝（项目级实例本来就在项目里）。
+**声明。** Home 级插件 Manifest 的 `databases.home` 加 `partition: "project"`（PG-022 之前写在条目的 `runtime.database` 上）（合同 `HomePluginDatabaseDeclaration`）。Home 存储登记里同一个库的 `library.partition` 也是 `"project"`，两边不一致时整份启动名单不启动。只有 Home 级条目能声明：项目平台的插件带它，启动前拒绝（项目级实例本来就在项目里）。
 
 **项目从哪里来。** 只从调用上下文：当前正在运行的、属于这个安装的动作或场景回调，它的 `caller.project_id`。不读动作参数、不读插件给的任何东西。项目里的页面路由（S-31，`/projects/<id>/api/plugins/<插件>/…`）经插件自己的动作走进来：路由交给插件的 control 带着宿主核过的项目，插件用它调自己的动作，动作就在那个项目里。路由处理器本身、`start`、`stop`、事件订阅都不在任何动作里，用不了分区库。后台作业在受理它的动作里开始，带着那个动作的项目。
 
@@ -55,7 +55,7 @@ Home 级插件只有一个实例，`services.database` 给它整个 Home 一个�
 
 ## 4. 改了什么
 
-- 合同（`pnpm api:update`）：`platform/plugin-database` 的 `HomePluginDatabaseDeclaration`、`HomeStoreDeclaration.library.partition`；`platform/plugin-registration` 的 `runtime.database` 用前者；`modules/projects` 的 `ProjectDataDeclaration.purge` 改成可选。
+- 合同（`pnpm api:update`）：`platform/plugin-database` 的 `HomePluginDatabaseDeclaration`、`HomeStoreDeclaration.library.partition`；`platform/plugin` 的 `PluginManifestDatabases.home` 用前者；`modules/projects` 的 `ProjectDataDeclaration.purge` 改成可选。
 - Plugin Runtime：调用范围记开始的先后（`lastBegunPluginInvocation`），里面再调的、场景回调沿用外层的。
 - 存储：项目库的路径与打开函数多一个可选的项目参数，`homeSqlitePartitionDirectory`；登记的 `libraryPath` 按分区方式要求或拒绝项目。
 - 宿主：`plugin-database-partitions.ts`（新文件：按项目取库、闲置关、删项目）；`plugin-database.ts` 接项目与关闭原因；`home-plugin-executor.ts`、`home-plugins.ts`、`plugin-project-cleanup.ts`（运行中实例的删除顺序）、`project-deleted-owners.ts`（宿主没开时：分区库先 `purge` 再删目录；别的主人没有 `purge` 时，建删除名单那一刻就报错）、`plugin-database-entries.ts`、`home-stores.ts` 接线与检查。不碰 `project-plugins.ts`、`builtin-plugins.ts`。
@@ -71,7 +71,7 @@ Home 级插件只有一个实例，`services.database` 给它整个 Home 一个�
 
 | 编号 | 标准 |
 | --- | --- |
-| PART-01 | 条目的 `partition` 与登记的 `library.partition` 不一致（任一方向），整份启动名单不启动、不建任何库 |
+| PART-01 | Manifest 的 `partition` 与登记的 `library.partition` 不一致（任一方向），整份启动名单不启动、不建任何库 |
 | PART-02 | 项目平台的条目声明 `partition`，启动前拒绝 |
 | PART-03 | 分区库没有 `project_data` 时拒绝；有分区库时 `purge` 可省；没有分区库又没有 `purge` 时拒绝 |
 | PART-04 | 不在项目里的调用（Home 路径下的动作；不在任何动作里的代码，以 `start` 为例，路由处理器本身、`stop`、事件回调同理）答 `actions.project_required`，不建任何文件 |

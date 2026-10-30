@@ -1,6 +1,6 @@
 import type { FeedApplication } from "./application.js";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord } from "./projection.js";
 import type { IntelligenceCollectResult } from "./source-ports.js";
 export function sourceDedupeScope(source: FeedSourceRecord): string {
@@ -48,7 +48,7 @@ export function terminalErrorCode(result: IntelligenceCollectResult): string | n
     .map((receipt) => "errorCode" in receipt ? receipt.errorCode : undefined)
     .find(isSafeCode);
   if (receiptCode) return receiptCode;
-  const stopReason = result.budget.stopReason;
+  const stopReason = "stopReason" in result.budget ? result.budget.stopReason : undefined;
   if (isSafeCode(stopReason)) return stopReason;
   return "feed." + (result.outcome === "failed" ? "provider_failed" : result.outcome);
 }

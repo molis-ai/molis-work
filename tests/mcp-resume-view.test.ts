@@ -1,20 +1,19 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   createMolisWorkLocalHost,
-  GoalProjectApplication,
   LocalProjectDatabase,
   molisWorkHostProjectReference,
-  openWorkSessionRegistry,
 } from "@molis-ai/molis-work-app-local-host";
 import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_status"], boolean]>): McpResumeFacts {
   return {
@@ -68,12 +67,13 @@ test("context_resolve restores Host focus outside the discovery window and write
   let store: LocalProjectDatabase | undefined;
   let runtime: MolisWorkServer | undefined;
   let served: TestHostServer | undefined;
-  let host = createMolisWorkLocalHost();
+  let host = createMolisWorkLocalHost({ homeDirectory: directory });
   try {
     const project = await catalog.createProject({ display_name: "Host 焦点恢复", actor_id: "focus-user" });
     store = new LocalProjectDatabase(project.database_path);
     let tick = Date.parse("2026-09-10T00:00:00.000Z");
     const app = new GoalProjectApplication(store, () => new Date(tick++));
+    app.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
     const create = (goal_id: string, title: string) => app.goalEvents.createIntent({
       project_id: project.project_id, goal_id, title, actor_id: "focus-user", actor_kind: "user",
       idempotency_key: `focus-create-${goal_id}`, source_kind: "web",
@@ -119,26 +119,24 @@ test("context_resolve restores Host focus outside the discovery window and write
     // Sessions are retired (BL-177): the context no longer reads or reports a Session.
     assert.equal(Object.hasOwn(result, "session_registry"), false);
     runtimeHost.goalId = undefined;
+    assert.equal(runtime.runtimeContextHost?.goalId, "FOCUS-HOST", "mutating a constructor input cannot change live transport metadata");
+    runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
     assert.equal(result.resume.focus.source, "project_recovery_order");
     runtimeHost.goalId = "DOES-NOT-EXIST";
+    runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
     assert.equal(result.resume.focus.source, "project_recovery_order");
     await runtime.close();
     await served.close();
     await host.close();
-    host = createMolisWorkLocalHost();
+    host = createMolisWorkLocalHost({ homeDirectory: directory });
     runtimeHost.goalId = "FOCUS-HOST";
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
     assert.equal(result.resume.focus.source, "host_focus");
-    const registry = await openWorkSessionRegistry({ homeDirectory: directory });
-    try {
-      assert.deepEqual(registry.list(), [], "resolving context records no Session");
-    } finally {
-      registry.close();
-    }
+    assert.equal(existsSync(join(directory, "sessions")), false, "resolving context records no Session: nothing opens the retired store");
   } finally {
     await runtime?.close();
     await served?.close();

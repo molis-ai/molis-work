@@ -1,18 +1,24 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { decodeLocalWebPathPart, readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
-import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 
-/** How the settings page hears a refused or failed deletion: a live terminal is a conflict the person can resolve (409, with its code), anything else a 400. */
+/** What an owner says goes with the project, in the person's language; a plugin owner's text is translated with that plugin's own words. */
+export function ownerLabel(owner: Pick<ProjectDeletedOwner, "label" | "label_values" | "words_of">): string {
+  const draw = () => L(owner.label ?? "", owner.label_values && Object.fromEntries(Object.entries(owner.label_values).map(([name, value]) => [name, L(value)])));
+  return owner.words_of ? withPluginWords(owner.words_of, draw) : draw();
+}
+
+/** How the settings page hears a refused or failed deletion: the answer every Host exit gives a failure, chosen by its kind (SDK `actionErrorResponse`), so a missing project is the not-found 404 and a live terminal the 409. */
 export function sendDeletionFailure(response: ServerResponse, error: unknown): void {
-  const live = error instanceof ActionError && error.code === "catalog.project_terminal_live";
-  sendJson(response, live ? 409 : 400, { error: error instanceof Error ? error.message : String(error), ...(live ? { code: error.code } : {}) });
+  respondLocalWebRefusal({ respond: (status, body) => sendJson(response, status, body) }, error);
 }
 
 /**
@@ -40,8 +46,8 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
     const scopeMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete-scope$/);
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.
-      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: L(owner.label, owner.label_values) }] : []);
-      sendJson(response, 200, { project_id: decodeURIComponent(scopeMatch[1]), owners });
+      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: ownerLabel(owner) }] : []);
+      sendJson(response, 200, { project_id: decodeLocalWebPathPart(scopeMatch[1]), owners });
       return true;
     }
     const projectDeleteMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete$/);
@@ -54,7 +60,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
       }
       try {
         const result = await new ProjectDeletionService(withMolisWorkProjectCatalog, deletionPorts).deleteProject(homeDirectory, {
-          project_id: decodeURIComponent(projectDeleteMatch[1]),
+          project_id: decodeLocalWebPathPart(projectDeleteMatch[1]),
           actor_id: LOCAL_PERSON_ACTOR_ID,
           delete_confirmed: true,
           idempotency_key: deletionKey,

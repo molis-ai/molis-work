@@ -1,20 +1,24 @@
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pluginCatalogFor } from "./home-side.js";
+import { pluginReachable, projectReachablePlugins } from "./project-action-availability.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
 
 /** The catalog remains the only project enablement fact; standalone fixtures have no such catalog. */
 export async function projectPluginEnablement(home: string | undefined, projectId: string): Promise<ReadonlyMap<string, boolean> | undefined> {
   const catalog = home ? pluginCatalogFor(home) : undefined;
   if (!catalog) return undefined;
-  const installed = await catalog({ homeDirectory: home }, value => {
-    try { return value.listProjectPlugins(projectId); }
-    catch (error) { if ((error as { code?: string }).code === "catalog.project_not_found") return null; throw error; }
-  });
-  if (!installed) return undefined;
-  const enabled = availableProjectPluginIds(installed);
-  return new Map(BUILTIN_PLUGIN_CATALOG.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, enabled.has(entry.project_plugin_id)]));
+  // The one list actions and routes read (PG-013), so what a project runs and what it may call never disagree.
+  const reachable = await catalog({ homeDirectory: home }, value => projectReachablePlugins(value, projectId, homePluginsOutsideBuild(home)));
+  if (!reachable) return undefined;
+  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
+}
+
+/** Only uninstall suppresses project startup (BL-755, Root choice A). Stored disabled records are retried under their existing grants. */
+export function installationSwitchedOff(platform: Pick<PluginPlatform, "runtime">, pluginId: string): boolean {
+  return platform.runtime.list().some(record => record.plugin_id === pluginId && record.state === "uninstalled");
 }
 
 /** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */
@@ -29,13 +33,22 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         const wanted = enabled.get(state.plugin_id);
         if (wanted === false && active.has(state.plugin_id)) {
           platform.supervisor.revoke(state.plugin_id);
-          if (state.install_id) await platform.runtime.stop(state.install_id);
-        } else if (wanted === true && !active.has(state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
+          // A crashed or never-started installation is recorded disabled, also one whose stop, queued by the revoke above, failed in the
+          // plugin's stop hook and left it crashed; the Runtime refuses only a quarantined one, which is left as it is (R-70). Any other
+          // failure is the stop's own and is thrown.
+          if (state.install_id) await platform.runtime.stop(state.install_id).catch((error: unknown) => {
+            if (!(error instanceof ActionError && error.code === "plugin.state_invalid")) throw error;
+          });
+        } else if (wanted === true && !active.has(state.plugin_id) && !uninstalled(platform, state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
       }
     });
     tail = next.catch(() => {}); return next;
   };
 }
+
+/** An uninstalled installation stays uninstalled: being in the project's plugin list does not install it again (BL-755). */
+const uninstalled = (platform: Pick<PluginPlatform, "runtime">, pluginId: string) =>
+  platform.runtime.list().some(record => record.plugin_id === pluginId && record.state === "uninstalled");
 
 /** Settings finish only after an already-open project has stopped or enabled its Runtime owners. */
 export async function refreshOpenProjectPlugins(host: MolisWorkLocalHost, projectId: string): Promise<void> {

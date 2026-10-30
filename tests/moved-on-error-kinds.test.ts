@@ -3,8 +3,7 @@ import test from "node:test";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
-import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import { goalErrors } from "@molis-ai/molis-work-module-goals";
+import { goalErrors } from "./fixtures/goals-modules.js";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { actionErrorFromResponse, actionErrorKind, actionErrorResponse, draftActionCard, runActionCard, type ActionCard, type ActionCardPorts } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -15,8 +14,6 @@ const MOVED_ON = [
   [goalErrors["goals.event_agreement.stale_config_version"]("当前配置版本已变化"), "goals.event_agreement.stale_config_version"],
   [goalErrors["goals.event_decision.stale_commitment"]("原约定已经变化"), "goals.event_decision.stale_commitment"],
   [goalErrors["goals.event_progress.stale_goal"]("原目标已变化"), "goals.event_progress.stale_goal"],
-  [sessionErrors.message_target_changed("Session 的目标已变化"), "work.session.message_target_changed"],
-  [sessionErrors.message_attempt_changed("消息发送尝试已变化"), "work.session.message_attempt_changed"],
   [attentionErrors.revision_conflict("这条 Inbox Entry 已经变化"), "attention.revision_conflict"],
   [shelfErrors.configuration_changed("生成期间模型选择已变化"), "shelf.configuration_changed"],
 ] as const;

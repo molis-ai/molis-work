@@ -1,7 +1,6 @@
-import { realpathSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -40,9 +39,9 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
   }
   // SYS-15-U2: the read bridges are bound to this manifest's subject reader and this project.
+  // RAC-912: related Assistant works are the action `assistant.works.related` (PG-057); the old HTTP bridge is refused even for the page's own kind.
   const prefix = `/projects/${browser.projectId}`;
-  assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + "/api/assistant/related?kind=cognia_material&id=missing")}).then(response=>response.status)`), 200);
-  for (const path of ["/api/assistant/related?kind=todo_item&id=missing", "/api/assistant/works", "/api/assistant/works/another-work"]) {
+  for (const path of ["/api/assistant/related?kind=cognia_material&id=missing", "/api/assistant/related?kind=todo_item&id=missing", "/api/assistant/works", "/api/assistant/works/another-work"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + path)}).then(response=>response.status)`), 403, "a page cannot read another owner's object or a work's conversation");
   }
   for (const object of [{kind: "todo_item", id: "missing"}, {kind: "cognia_material", id: "missing", project_id: "another-project"}]) {
@@ -84,6 +83,37 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   assert.equal(await browser.evaluate("Boolean(document.querySelector('meta[name=molis-work-control-token]'))"), true, "the owner's independent page remains available");
 });
 
+// SYS-15 S-47 (2026-10-23 review of #1018): a page's link channel never navigates the owner document. The settings
+// addresses the parent used to click through now open the settings surface in place; a shareable link address that is not
+// a settings address changes nothing, and neither path needs a gesture the page does not have.
+test("SYS-15 S-47 a page link never navigates the owner document: a settings address opens the settings surface in place", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  const { command, sessionId, evaluate, navigate, waitFor } = browser;
+  await navigate(() => command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, sessionId));
+  await browser.surfaceReady("cognia"); await child.waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
+  const opened = "Boolean(document.querySelector('[data-work-surface=settings] [data-model-settings]') || document.querySelector('[data-directory-panel=settings] [data-settings-section=models][aria-current]'))";
+  const owner = "({href:location.href,marker:window.__ownerMarker,frames:document.querySelectorAll('iframe[data-plugin-frame]').length,token:Boolean(document.querySelector('meta[name=molis-work-control-token]'))})";
+  const page = await child.evaluate<string>("location.href");
+  await evaluate("window.__ownerMarker='owner-page';window.__settingsAddresses=[];document.addEventListener('molis-work:open-settings-path',event=>window.__settingsAddresses.push(String(event.detail?.href||'')))");
+  const before = await evaluate(owner);
+  assert.equal(await evaluate(opened), false, "the settings are not open yet");
+  // A scripted click carries no gesture: the page's own settings link suppresses its navigation and reports the address.
+  await child.evaluate(`(() => {
+    const link = document.createElement("a"); link.setAttribute("href", "/settings/models"); link.textContent = "模型设置";
+    document.body.append(link); link.click(); link.remove();
+  })()`);
+  await waitFor(opened, 10_000);
+  assert.deepEqual(await evaluate<string[]>("window.__settingsAddresses"), [`${browser.origin}/settings/models`], "the address reached the shell as a settings request, not as a navigation");
+  assert.deepEqual(await evaluate(owner), before, "the owner document did not navigate, reload or lose its frame");
+  assert.equal(await evaluate<string>("window.__ownerMarker"), "owner-page", "no full page load happened");
+  assert.equal(await child.evaluate<string>("location.href"), page, "the page itself did not follow the link");
+  // The message path without any click moves nothing either, for an owner address that opens no surface.
+  await child.evaluate(`molisWorkOpenExternalUrl(${JSON.stringify(`/projects/${browser.projectId}/desk`)})`);
+  await waitFor("window.__settingsAddresses.some(href=>href.endsWith('/desk'))");
+  assert.deepEqual(await evaluate(owner), before, "a host address that opens no surface still moves nothing");
+});
+
 test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a trusted click, then opens its owned copy", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "shelf");
@@ -118,10 +148,11 @@ test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a tr
   const selectedId = await child.evaluate<string>("[...document.querySelectorAll('[data-shelf-item]')].find(row=>row.textContent.includes('Selected.txt')).dataset.shelfItem");
   await child.click(`[data-shelf-item="${selectedId}"] .shelf-name`, 2);
   await child.waitFor("!document.querySelector('[data-shelf-bar-hint]').textContent.includes('拒绝')");
-  await browser.waitFor("nativeCalls.some(call=>call.name==='shelf_open_path')");
-  const opened = await browser.evaluate<string>("nativeCalls.find(call=>call.name==='shelf_open_path').input.path");
-  assert.ok(opened.startsWith(realpathSync(browser.homeDirectory) + "/"), opened);
-  assert.ok(opened.endsWith("/Selected.txt"), opened);
+  await browser.waitFor("nativeCalls.some(call=>call.name==='files_open')");
+  const opened = await browser.evaluate<{ endpoint: string; pageId: string; paths: string[] }>("nativeCalls.find(call=>call.name==='files_open').input");
+  assert.equal(opened.paths.length, 1); assert.ok(!opened.paths[0]!.startsWith("/"), "the shell is given a relative path, never a file path");
+  assert.ok(opened.paths[0]!.endsWith("Selected.txt"), opened.paths[0]);
+  assert.match(opened.endpoint, /\/api\/host\/plugin-page-files$/); assert.ok(opened.pageId.length >= 8);
   await find(); await browser.click("[data-native-file-cancel]");
   assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 1, "cancel imports nothing else");
 });
@@ -158,4 +189,42 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
   assert.equal(clipped,true,"a page cannot place its embedded region over owner controls");
   await child.evaluate("slot.remove()");
   await browser.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
+});
+
+// W2-18-HOME-LOCALE-01: the standalone Home settings host consumes the same restricted request.
+test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept the existing connection pages", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "issues");
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fissues` }, b.sessionId));
+  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const address = await b.evaluate("location.href");
+  const refuse = () => b.evaluate(`(async () => {
+    const fetch = window.fetch, requests = [], field = document.querySelector('[data-model-base-url]');
+    window.fetch = function(url, init) { requests.push(String(url)); return fetch.call(this, url, init); };
+    try {
+      for (const detail of [undefined, null, {}, {href:null}, {href:42}, {href:'http://['},
+        {href:'https://example.invalid/settings/models'}, {href:'/settings/appearance'},
+        {href:'/projects/another-project/settings'}, {href:'/api/plugins/io.molis.work.issues/list'}]) {
+        document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', {detail}));
+      }
+      await Promise.resolve();
+      return {requests, open:document.querySelector('[data-home-model-settings]').open, address:location.href,
+        draft:field?.value ?? null, sameField:field === document.querySelector('[data-model-base-url]')};
+    } finally { window.fetch = fetch; }
+  })()`);
+  assert.deepEqual(await refuse(), { requests: [], open: false, address, draft: null, sameField: true }, "unsupported settings requests neither fetch, open nor navigate");
+  await b.evaluate("document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', {detail:{href:'/settings/models'}}))");
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]')", 15_000);
+  await b.click("[data-model-template=deepseek]");
+  await b.waitFor("document.querySelector('[data-model-base-url]')");
+  const draft = "https://example.invalid/unsaved-model";
+  await b.evaluate(`(() => { const field = document.querySelector('[data-model-base-url]'); field.value = ${JSON.stringify(draft)}; field.dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  assert.deepEqual(await refuse(), { requests: [], open: true, address, draft, sameField: true }, "unsupported settings requests preserve the open settings draft");
+  await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
+  for (const href of ["/settings/connectors", "/capabilities/connections"]) {
+    await b.evaluate(`document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', {detail:{href:${JSON.stringify(href)}}}))`);
+    await b.waitFor("document.querySelector('[data-home-model-settings]').open && document.querySelector('[data-home-model-content] [data-connectors-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);
+    assert.equal(await b.evaluate("location.href"), address);
+    await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
+  }
 });

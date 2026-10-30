@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,7 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/src/connector-api-oauth.ts";
-import { API_OAUTH_PROVIDERS } from "../apps/local-host/src/connector-api-oauth-providers.ts";
+import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { CATALOG_OAUTH_METHODS } from "@molis-ai/molis-work-integration-catalog";
+import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
+import { gmailIntegrationManifest } from "@molis-ai/molis-work-integration-gmail";
+import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "../apps/local-host/cloudflare/providers.ts";
+import { oauthAuthorizationUrl, oauthClientAuth, oauthEndpoint, oauthMethodOption, oauthScope, oauthSecretRequired, resolveOAuthSettings } from "../apps/local-host/src/connector-oauth-declarations.ts";
 import { connectorProtocolSecrets } from "../apps/local-host/src/connector-protocol-store.ts";
 import { createOAuthBroker, type BrokerEnv } from "../apps/local-host/cloudflare/worker.ts";
 
@@ -26,7 +32,8 @@ for (const id of ["gmail", "google-calendar", "google-drive"]) row(id, "https://
 for (const id of ["outlook", "onedrive", "sharepoint", "teams"]) row(id, "https://login.microsoftonline.com/common/oauth2/v2.0/authorize", "https://login.microsoftonline.com/common/oauth2/v2.0/token", "https://graph.microsoft.com/v1.0/me", { id: "graph-user", userPrincipalName: "ada@example.test" }, ":graph-user", { pkce: true });
 row("dropbox", "https://www.dropbox.com/oauth2/authorize", "https://api.dropboxapi.com/oauth2/token", "https://api.dropboxapi.com/2/users/get_current_account", { account_id: "dbid:user", email: "ada@example.test" }, ":dbid:user", { pkce: true });
 row("box", "https://account.box.com/api/oauth2/authorize", "https://api.box.com/oauth2/token", "https://api.box.com/2.0/users/me", { id: "box-user", login: "ada@example.test" }, ":box-user");
-row("notion", "https://api.notion.com/v1/oauth/authorize", "https://api.notion.com/v1/oauth/token", "https://api.notion.com/v1/users/me", { id: "bot-user", name: "Molis" }, "workspace:bot-user", { basic: true, json: true, tokenExtra: { workspace_id: "workspace" } });
+// The broker passes on no workspace name (its token whitelist, cloudflare/worker.ts); the label then comes from the bot's own answer.
+row("notion", "https://api.notion.com/v1/oauth/authorize", "https://api.notion.com/v1/oauth/token", "https://api.notion.com/v1/users/me", { object: "user", id: "bot-user", type: "bot", bot: { workspace_name: "Molis (bot)" } }, "workspace", { basic: true, json: true, tokenExtra: { workspace_id: "workspace", workspace_name: "Molis" } });
 row("slack", "https://slack.com/oauth/v2/authorize", "https://slack.com/api/oauth.v2.access", "https://slack.com/api/auth.test", { ok: true, user_id: "bot-user", team_id: "workspace", user: "molis" }, "workspace:bot-user");
 row("discord", "https://discord.com/oauth2/authorize", "https://discord.com/api/oauth2/token", "https://discord.com/api/v10/users/@me", { id: "discord-user", username: "ada" }, ":discord-user", { basic: true, pkce: true });
 for (const [id, domain, token, json] of [["feishu", "feishu.cn", "https://open.feishu.cn/open-apis/authen/v2/oauth/token", true], ["lark", "larksuite.com", "https://open.larksuite.com/open-apis/authen/v2/oauth/token", true]] as const) row(id, `https://accounts.${domain}/open-apis/authen/v1/authorize`, token, `https://open.${domain}/open-apis/authen/v1/user_info`, { code: 0, data: { open_id: "ou_user", name: "Ada" } }, ":ou_user", { pkce: true, json });
@@ -55,8 +62,54 @@ row("stripe", "https://connect.stripe.com/oauth/authorize", "https://connect.str
 row("x", "https://x.com/i/oauth2/authorize", "https://api.x.com/2/oauth2/token", "https://api.x.com/2/users/me", { data: { id: "x-user", username: "ada" } }, ":x-user", { basic: true, pkce: true });
 row("linkedin", "https://www.linkedin.com/oauth/v2/authorization", "https://www.linkedin.com/oauth/v2/accessToken", "https://api.linkedin.com/v2/userinfo", { sub: "li-user", name: "Ada" }, ":li-user", { noRefresh: true });
 
-test("contract cases cover each implemented API OAuth provider", () => {
-  assert.deepEqual(contracts.map(c => c.id).sort(), Object.keys(API_OAUTH_PROVIDERS).sort());
+/** Every OAuth method the built-in plugins declare: the catalog's, GitHub's web flow and Gmail's generic flow. */
+const DECLARED: Readonly<Record<string, PluginOAuthMethodDeclaration>> = {
+  ...CATALOG_OAUTH_METHODS,
+  github: githubIntegrationManifest.connection_services[0].auth.methods[0] as PluginOAuthMethodDeclaration,
+  gmail: gmailIntegrationManifest.connection_services[0].auth.methods[0] as PluginOAuthMethodDeclaration,
+};
+
+test("contract cases cover each declared OAuth method", () => {
+  assert.deepEqual(contracts.map(c => c.id).sort(), Object.keys(DECLARED).sort());
+});
+
+// W5-11 §2.9 (A1): the broker Worker keeps its own copy of the endpoints. Every entry of that copy expands to what the plugin's
+// declaration expands to; a service the Worker has and no plugin declares fails, one the plugins declare and the Worker lacks only
+// cannot go through the broker. A difference here is a redeploy of the Worker, a release line for the person to decide.
+const SETTINGS: Readonly<Record<string, readonly Record<string, string>[]>> = {
+  outlook: [{}, { tenant: "organizations" }, { tenant: "0f6a3c1e-0000-4000-8000-000000000001" }],
+  cloudflare: [{ api_scopes: "zone.read" }, { api_scopes: "zone.read account.read", client_auth: "post" }, { api_scopes: "zone.read", client_auth: "none" }],
+  vercel: [{ integration_slug: "molis" }],
+  jira: [{ site_url: "https://molis.atlassian.net" }], confluence: [{ site_url: "https://molis.atlassian.net" }],
+  salesforce: [{}, { login_origin: "https://test.salesforce.com" }],
+  stripe: [{}, { stripe_scope: "read_write" }],
+};
+test("RAC-1080 the Worker's copy of every service expands to what its declaration expands to", () => {
+  assert.deepEqual(Object.keys(API_OAUTH_PROVIDERS).filter(id => !Object.hasOwn(DECLARED, id)), [], "a service the Worker has must be declared");
+  for (const id of Object.keys(API_OAUTH_PROVIDERS)) for (const settings of SETTINGS[id] ?? [{}]) {
+    const worker = apiOAuthProvider(id, { ...settings }), declaration = DECLARED[id]!, resolved = resolveOAuthSettings(id, declaration, settings);
+    const where = `${id} ${JSON.stringify(settings)}`;
+    const authorize = new URL(oauthAuthorizationUrl(declaration, resolved, { clientId: "c", redirectUri: "https://auth.molis.test/callback", state: "s", codeChallenge: "x" }));
+    assert.equal(authorize.origin + authorize.pathname, worker.authorize, where);
+    assert.equal(oauthEndpoint(declaration.token_url, resolved), worker.token, where);
+    assert.equal(declaration.refresh_url && oauthEndpoint(declaration.refresh_url, resolved), worker.refresh, where);
+    assert.equal(oauthScope(declaration, resolved), worker.scope, where);
+    assert.deepEqual(declaration.parameters ?? {}, worker.parameters ?? {}, where);
+    assert.equal(declaration.pkce === "S256", Boolean(worker.pkce), where);
+    assert.equal(declaration.token_format ?? "form", worker.format ?? "form", where);
+    assert.equal(!oauthSecretRequired(declaration, resolved), Boolean(worker.optionalSecret), where);
+    // A public client sends no secret either way; the Worker writes it as `basic` with none to put in it.
+    if (oauthSecretRequired(declaration, resolved)) assert.equal(oauthClientAuth(declaration, resolved), worker.auth ?? "post", where);
+  }
+});
+
+// RAC-1080: what the settings page shows for each OAuth method is what the Host's table gave it before slice 4.
+test("RAC-1080 the method option of every declared service is the one the platform's table gave", () => {
+  for (const [id, declaration] of Object.entries(DECLARED)) {
+    const table = API_OAUTH_PROVIDERS[id]!;
+    const before = { client_secret_required: !table.optionalSecret, fields: table.fields ?? [], note: table.note };
+    assert.deepEqual(JSON.parse(JSON.stringify(oauthMethodOption(declaration))), JSON.parse(JSON.stringify(before)), id);
+  }
 });
 for (const mode of ["direct", "broker"] as const) for (const c of contracts) test(`${mode}: ${c.id} exchange → stable account → persisted token → refresh`, async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-contract-"));
@@ -111,17 +164,18 @@ for (const mode of ["direct", "broker"] as const) for (const c of contracts) tes
     }
     const result = await completeApiOAuth(home, { origin, state, code }, transport);
     assert.ok(result.connection.account_label);
+    if (c.id === "notion") assert.equal(result.connection.account_label, mode === "broker" ? "Molis (bot)" : "Molis", "the broker drops the workspace name");
     assert.equal(apiOAuthContext(home, start.connection_id)?.account_id, c.account);
-    assert.equal(await resolveApiOAuthToken(home, start.connection_id, false, transport), "access-original");
+    assert.equal(await resolveApiOAuthToken(home, start.connection_id, connectorControl(), false, transport), "access-original");
     assert.equal(exchanges, 1); assert.equal(identities, 1);
     const secrets = connectorProtocolSecrets(home, start.connection_id);
     if (mode === "broker") assert.doesNotMatch(secrets.get("client")!, /secret-test/);
     if (!c.noRefresh) {
-      assert.equal(await resolveApiOAuthToken(home, start.connection_id, true, transport), "access-refreshed");
+      assert.equal(await resolveApiOAuthToken(home, start.connection_id, connectorControl(), true, transport), "access-refreshed");
       assert.equal(refreshes, 1); assert.equal(secrets.get("access"), "access-refreshed");
       if (mode === "broker") assert.notEqual(secrets.get("oauth"), "refresh-rotated");
       else assert.equal(secrets.get("oauth"), "refresh-rotated");
-    } else { assert.equal(secrets.get("oauth"), null); await assert.rejects(resolveApiOAuthToken(home, start.connection_id, true, transport), /重新授权/); }
+    } else { assert.equal(secrets.get("oauth"), null); await assert.rejects(resolveApiOAuthToken(home, start.connection_id, connectorControl(), true, transport), /重新授权/); }
   } finally {
     keys.forEach((k, i) => { if (old[i] === undefined) delete process.env[k]; else process.env[k] = old[i]; });
     rmSync(home, { recursive: true, force: true });
@@ -144,11 +198,11 @@ test("Sentry reauthorization rejects a different user in the same organization a
     user = "other";
     const second = await startApiOAuth(home, { ...args, connectionId: first.connection_id });
     await assert.rejects(complete(second.authorization_url), /原账号/);
-    assert.equal(await resolveApiOAuthToken(home, first.connection_id), "access-original");
+    assert.equal(await resolveApiOAuthToken(home, first.connection_id, connectorControl()), "access-original");
     assert.equal(apiOAuthContext(home, first.connection_id)?.account_id, ":org:original");
     user = undefined;
     const missing = await startApiOAuth(home, args);
-    await assert.rejects(complete(missing.authorization_url), /Sentry 未返回/);
+    await assert.rejects(complete(missing.authorization_url), /oauth_user_id/);
     assert.equal(connectorProtocolSecrets(home, missing.connection_id).get("access"), null);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -167,6 +221,6 @@ for (const serviceId of ["outlook", "dropbox", "gitlab", "airtable", "x", "cloud
       }
       assert.equal(String(input), c.identity); return Response.json(c.profile);
     }) as typeof fetch);
-    assert.equal(await resolveApiOAuthToken(home, start.connection_id), "public-access");
+    assert.equal(await resolveApiOAuthToken(home, start.connection_id, connectorControl()), "public-access");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

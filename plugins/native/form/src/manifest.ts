@@ -4,11 +4,14 @@ import {
   FORM_ARTIFACT_TYPE_ID,
   FORM_PLUGIN_ID,
   FORM_PROJECT_PLUGIN_ID,
-} from "@molis-ai/molis-work-contracts/modules/form";
+} from "./contract.js";
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
 import { formContentActions } from "./content-actions.js";
+import { FORM_DATABASE } from "./database.js";
 
+import { FORM_MESSAGES } from "./messages.js";
+import { FORM_EN } from "./en.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 
 /** What the page sends a route reads up to 1 MB, as the Host's Form edge did: answer files reach 400 000 characters each. */
@@ -20,6 +23,7 @@ export const formManifest: PluginManifest = {
   plugin_id: FORM_PLUGIN_ID,
   version: "0.3.0",
   name: "Forms",
+  summary: "建问卷，收答卷，看逐题汇总。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-form-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -33,6 +37,7 @@ export const formManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   // Served under /api/plugins/io.molis.work.form in the project (a route needs a path below the plugin's own); each one only maps
   // the request to its action (plugin.ts).
+  databases: { home: FORM_DATABASE },
   routes: [
     { route_id: "form.list", method: "GET", path: "/forms" },
     { route_id: "form.create", method: "POST", path: "/forms", max_body_bytes: FORM_BODY_BYTES },
@@ -57,9 +62,12 @@ export const formManifest: PluginManifest = {
     consumes: [],
   },
   ui: {
+    messages: FORM_MESSAGES,
+    translations: FORM_EN,
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57 },
+      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", hue: "orange", order: 57, group: "make",
+        creates: { station: "form", title: "问卷" } },
     ],
   },
 };

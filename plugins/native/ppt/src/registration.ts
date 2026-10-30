@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, pptProjectData, PPT_HOME_STORE } from "./index.js";
+import { createPptPlugin, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,12 +7,9 @@ import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTOR
  */
 export const registration: PluginRegistration = {
   project_plugin_id: PPT_PROJECT_PLUGIN_ID, catalog_order: 18,
-  home_store: PPT_HOME_STORE,
   manifest: pptManifest,
-  project_data: pptProjectData,
-  instructions: PPT_INSTRUCTIONS,
+  project_runtime: { create: createPptPlugin, package_name: "@molis-ai/molis-work-plugin-ppt", factory_export: "createPptPlugin" },
   personal: true,
-  summary: "写大纲，放映或导出 PowerPoint。",
   workbench: {
     order: 12,
     contributions: [pptUiContribution],

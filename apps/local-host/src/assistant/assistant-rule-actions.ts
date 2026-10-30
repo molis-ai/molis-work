@@ -6,6 +6,7 @@
 import type { ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantRuleInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantService } from "./assistant-service.js";
+import { assistantErrors } from "./assistant-errors.js";
 import { computerRecordFileSource } from "../computer/computer-record-source.js";
 
 export const ASSISTANT_RULES_PROVIDER = "io.molis.work.assistant.rules";
@@ -79,19 +80,19 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
     { capability_id: "assistant.followups.list", version: 1, handle: async context => ({ followups: service().followUps.list(callingWork(context) ?? undefined) }) },
     { capability_id: "assistant.followups.add", version: 1, handle: async (context, input) => {
       const work = callingWork(context);
-      if (!work) throw new Error("定时要在一项助理工作里添加");
+      if (!work) throw assistantErrors.invalid("定时要在一项助理工作里添加");
       const value = input as { text: string; at: string; repeat?: "none" | "daily" | "weekly"; label: string };
       await service().followUps.save({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
       return { followups: service().followUps.list(work) };
     } },
     { capability_id: "assistant.methods.read", version: 1, handle: async (context, input) => {
       const work = callingWork(context);
-      const method = await service().readMethod(work ? service().workRecord(work) : null, String((input as { method_id?: unknown }).method_id ?? ""));
+      const method = await service().reads.readMethod(work ? service().reads.workRecord(work) : null, String((input as { method_id?: unknown }).method_id ?? ""));
       return { method_id: method.method_id, name: method.name, plugin_title: method.plugin_title, version: method.version, body: method.body };
     } },
     { capability_id: "assistant.followups.remove", version: 1, handle: async (context, input) => {
       const id = String((input as { followup_id?: unknown }).followup_id ?? ""), work = callingWork(context);
-      if (work && !service().followUps.list(work).some(item => item.followup_id === id)) throw new Error("这项工作没有这个定时");
+      if (work && !service().followUps.list(work).some(item => item.followup_id === id)) throw assistantErrors.not_found("这项工作没有这个定时");
       await service().followUps.remove(id);
       return { followups: service().followUps.list(work ?? undefined) };
     } },

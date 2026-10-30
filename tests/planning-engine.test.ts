@@ -1,8 +1,6 @@
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import Database from "better-sqlite3";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -14,18 +12,19 @@ import {
   normalizePlanningMethodPack,
   resolvePlanningMethodPacks,
   type PlanningMethodPackInput,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 import {
   analyzeGoalChangeImpact,
   planningMetrics,
   projectPlanningRelations,
   validatePlanningGraph,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
-import { readPersonalPlanningMethodPacks } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { savePersonalMethodInHome } from "./fixtures/personal-planning.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 function customMethod(methodId: string): PlanningMethodPackInput {
   return {
@@ -329,9 +328,8 @@ test("planning composition keeps work type, domain, industry, and overlay as par
   ]);
 });
 
-test("project and personal methods persist without a second Goal truth model", async () => {
+test("project methods persist without a second Goal truth model", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-planning-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: root });
   const store = new LocalProjectDatabase(path.join(root, "board.db"));
   const coordinator = new GoalProjectApplication(store, () => new Date("2026-08-22T03:00:00.000Z"));
   coordinator.initializeBoard({ project_id: "board-1", actor_id: "user", idempotency_key: "init" });
@@ -351,71 +349,25 @@ test("project and personal methods persist without a second Goal truth model", a
     user_confirmed: true,
   });
   assert.equal(saved.method.scope, "project");
-  assert.equal(store.snapshot("board-1").planning_method_packs.length, 1);
+  assert.equal(boardSnapshot(store, "board-1").planning_method_packs.length, 1);
   store.close();
-
-  const personal = normalizePlanningMethodPack(customMethod("domain-personal-research"), "personal", null, "2026-08-22T04:00:00.000Z");
-  catalog.personalPlanningMethods.save(personal, personal.updated_at);
-  catalog.close();
-  assert.equal(readPersonalPlanningMethodPacks(root)[0]?.method_id, personal.method_id);
 });
 
-test("personal method owner preserves versions and timestamps across reopen and rejects invalid writes", async () => {
+test("RAC-798 personal method versions and timestamps survive reopening Goals' library, and an invalid method is refused", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-methods-"));
   try {
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: root });
     const method = { ...customMethod("domain-personal-test"), version: 7 };
-    try { catalog.personalPlanningMethods.save(method, "2026-09-01T01:00:00.000Z"); }
-    finally { catalog.close(); }
-    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: root });
-    try {
-      const saved = reopened.personalPlanningMethods.save({ ...method, name: "更新的方法", enabled: false }, "2026-09-02T01:00:00.000Z");
-      assert.equal(saved.version, 8);
-      assert.equal(saved.scope, "personal");
-      assert.equal(saved.created_at, "2026-09-01T01:00:00.000Z");
-      assert.throws(() => reopened.personalPlanningMethods.save({ ...method, name: "" }, "2026-09-03T01:00:00.000Z"));
-    } finally { reopened.close(); }
-    const [stored] = readPersonalPlanningMethodPacks(root);
-    assert.equal(stored?.version, 8);
-    assert.equal(stored?.name, "更新的方法");
-    assert.equal(stored?.enabled, false);
-    assert.equal(stored?.created_at, "2026-09-01T01:00:00.000Z");
-    assert.equal(stored?.updated_at, "2026-09-02T01:00:00.000Z");
-    const deleting = await openMolisWorkProjectCatalog({ homeDirectory: root });
-    try {
-      assert.equal(deleting.personalPlanningMethods.delete(method.method_id), true);
-      assert.equal(deleting.personalPlanningMethods.delete(method.method_id), false);
-    } finally { deleting.close(); }
-    assert.deepEqual(readPersonalPlanningMethodPacks(root), []);
-  } finally { rmSync(root, { recursive: true, force: true }); }
-});
-
-test("personal method reads keep a new Home absent and refuse a stored Catalog with no current library unchanged", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-upgrade-"));
-  try {
-    const missingHome = path.join(root, "missing");
-    assert.deepEqual(readPersonalPlanningMethodPacks(missingHome), []);
-    assert.equal(existsSync(missingHome), false);
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: root });
-    const databasePath = catalog.databasePath;
-    catalog.close();
-    const retained = new Database(databasePath);
-    retained.exec("DROP TABLE personal_planning_method_packs; UPDATE catalog_meta SET value = '8' WHERE key = 'schema_version'");
-    retained.close();
-    const bytes = readFileSync(databasePath);
-    assert.throws(() => readPersonalPlanningMethodPacks(root), /no such table.*personal_planning_method_packs/);
-    assert.deepEqual(readFileSync(databasePath), bytes);
-    const unchanged = new Database(databasePath, { readonly: true });
-    try {
-      assert.deepEqual(unchanged.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });
-      assert.equal(unchanged.prepare("SELECT name FROM sqlite_master WHERE name = 'personal_planning_method_packs'").get(), undefined);
-    } finally { unchanged.close(); }
-    await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: root }), { code: "catalog.unsupported_schema" });
-    const refused = new Database(databasePath, { readonly: true });
-    try {
-      assert.deepEqual(refused.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });
-      assert.equal(refused.prepare("SELECT name FROM sqlite_master WHERE name = 'personal_planning_method_packs'").get(), undefined);
-    } finally { refused.close(); }
+    const first = await savePersonalMethodInHome(root, method);
+    const saved = await savePersonalMethodInHome(root, { ...method, name: "更新的方法", enabled: false });
+    assert.equal(saved.version, first.version + 1);
+    assert.equal(saved.scope, "personal");
+    assert.equal(saved.name, "更新的方法");
+    assert.equal(saved.enabled, false);
+    assert.equal(saved.created_at, first.created_at);
+    assert.ok(saved.updated_at >= first.updated_at);
+    await assert.rejects(savePersonalMethodInHome(root, { ...method, name: "" }));
+    const stored = await savePersonalMethodInHome(root, { ...method, name: "再次保存" });
+    assert.equal(stored.version, saved.version + 1, "the refused save left no version behind");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -430,8 +382,8 @@ test("Goals public Planning API owns method versions, graph checks, and change i
       idempotency_key: "init-module-planning",
     });
     // W5-08-MOD-02: planning crosses the same business interface as the Host.
-    const governance = new GovernanceCollaborationModule({ db: store.db });
-    const goals = new GoalsModule(store.db, {
+    const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).governance, journal: store });
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {
       supersedePendingContractProposals: (...args) => governance.records.supersedePendingContractProposals(...args),
       currentActionToken: () => "token:planning",
       authorizeRiskUpdate: () => undefined,

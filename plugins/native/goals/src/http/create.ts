@@ -14,7 +14,7 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     const requiredText = (name: string, maximum = 4_000): string => {
       const result = typeof body[name] === "string" ? body[name].trim() : "";
       if (!result) throw new ActionError("actions.input_invalid", `${name} 不能为空`);
-      if (result.length > maximum) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
+      if (!withinCharacters(result, maximum)) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
       return result;
     };
     const optionalText = (name: string): string | undefined => {
@@ -23,7 +23,7 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     };
     const draftText = (name: string, maximum = 4_000): string => {
       const result = typeof body[name] === "string" ? body[name].trim() : "";
-      if (result.length > maximum) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
+      if (!withinCharacters(result, maximum)) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
       return result;
     };
     const priority = body.priority == null ? undefined : Number(body.priority);
@@ -56,16 +56,24 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
         ),
       ],
       requirements: acceptanceStatements.map((statement) => ({ statement })),
-      idempotency_key: String(body.idempotency_key ?? context.idempotencyHeader ?? `web-goal-${randomUUID()}`),
+      idempotency_key: String(body.idempotency_key ?? `web-goal-${randomUUID()}`),
       source_kind: "web",
     });
     return { status: 201, body: {
       goal: created.goal,
-      goal_path: `${context.routePrefix}/goals/${encodeURIComponent(created.goal.goal_id)}`,
+      goal_path: `/goals/${encodeURIComponent(created.goal.goal_id)}`,
       observed_event_cursor: created.observed_event_cursor,
       replayed: created.replayed,
     } };
   })];
+}
+
+/**
+ * Whether `value` holds at most `limit` characters (code points): a character may take two UTF-16 units. A text of more than
+ * twice the limit in units is over it whatever it holds, so only a shorter one is spread; what a caller sends has no other bound.
+ */
+function withinCharacters(value: string, limit: number): boolean {
+  return value.length <= limit * 2 && [...value].length <= limit;
 }
 
 const CREATE_KEYS = new Set([

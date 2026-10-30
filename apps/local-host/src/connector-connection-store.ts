@@ -1,7 +1,7 @@
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openConnectorsStore } from "./connectors-store.js";
 import { ConnectorConnectionStore, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
-import { invalidateConnectorRequests } from "./connector-lifecycle.js";
+import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
 
 export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 
@@ -16,6 +16,7 @@ export function withConnectorConnections<T>(homeDirectory: string, operation: (s
       put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
       delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
     };
-    return operation(new ConnectorConnectionStore(db, secrets, undefined, id => invalidateConnectorRequests(homeDirectory, id)));
+    return operation(new ConnectorConnectionStore(db, secrets, undefined, id => invalidateConnectorRequests(homeDirectory, id),
+      binding => invalidateConnectorBindingRequests(homeDirectory, binding)));
   } finally { db.close(); }
 }

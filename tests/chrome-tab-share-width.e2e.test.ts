@@ -11,11 +11,11 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
   await click('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=goals]')");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=goals]')");
   await openGoalFrame('.tree-node[data-select-goal="RELEASE"]');
   await waitFor("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-tab-kind=item]').length === 2");
 

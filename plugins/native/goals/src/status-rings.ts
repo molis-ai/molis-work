@@ -1,4 +1,4 @@
-import type { StateRingState } from "@molis-ai/molis-work-design-system";
+import type { StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 
 export const STATUS_MARKS: Record<GoalPresentationState, StateRingState> = {

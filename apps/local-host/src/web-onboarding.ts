@@ -1,9 +1,9 @@
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindLocalWebActions } from "./local-web-actions.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { bindGoalsWebActions } from "./goals-actions.js";
+import { bindGoalsWebActions, goalsHostActions } from "./goal-callers.js";
 import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
@@ -26,9 +26,9 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId, original_file) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
-    }, homeActions: (_home, signal) => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user",
-      permissions: ["todo:read", "todo:write", "model:invoke"], signal })) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+      // Each provider by its own authority (PG-008): Pages and Todo by their installations' grants, the Host's by what the person holds.
+      return bindLocalWebActions(localHost, reference, ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], original_file ? { original_file } : {});
+    }, homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;
@@ -83,8 +83,8 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             .replace(/\s+/gu, " ")
             .trim()
             .slice(0, 120) || input.projectName;
-          // The Web person's Goals call, behind this route's origin, control-token and key checks; it starts none of the project's plugins.
-          const createdGoal = (await bindGoalsWebActions(localHost.actionClient(reference, false), reference).invoke(goalsActions.create, {
+          // The Web person's Goals call, behind this route's origin, control-token and key checks; Goals is a plugin of the project, which the client starts.
+          const createdGoal = (await bindGoalsWebActions(localHost, reference, request).invoke(goalsHostActions.create, {
             title,
             outcome: input.outcome,
             why: "把第一次表达的目标保存为可继续澄清的共同事实",

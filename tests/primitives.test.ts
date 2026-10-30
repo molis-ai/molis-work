@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { escapeHtml, renderAttrs, renderButton, renderDirectoryPanel, renderDirectoryRow, renderField, renderInput, renderSlider } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_CLIENT_SCRIPT,
   MICRO_INTERACTION_STYLES,
   listedIconNames,
   registeredIconNames,
@@ -11,16 +13,8 @@ import {
   VISUAL_FOUNDATION_STYLES,
   PRIMITIVE_CATALOG_IDS,
   renderAlertDialog,
-  renderButton,
-  renderDirectoryPanel,
-  renderDirectoryRow,
-  renderField,
-  escapeHtml,
-  renderAttrs,
   renderHint,
-  renderInput,
   renderPrimitiveCatalog,
-  renderSlider,
   renderSheet,
 } from "@molis-ai/molis-work-design-system";
 
@@ -171,13 +165,13 @@ test("directory add can sit above the list", () => {
   });
   assert.ok(html.indexOf("data-feed-add-toggle") < html.indexOf('data-feed-task="all"'));
   const defaultHtml = renderDirectoryPanel({
-    pluginId: "sessions",
-    listLabel: "会话",
+    pluginId: "inbox",
+    listLabel: "收件",
     listRole: "none",
-    body: `<button data-session>runtime</button>`,
-    add: { label: "新建 Session" },
+    body: `<button data-entry>entry</button>`,
+    add: { label: "新建条目" },
   });
-  assert.ok(defaultHtml.indexOf("新建 Session") > defaultHtml.indexOf("data-session"));
+  assert.ok(defaultHtml.indexOf("新建条目") > defaultHtml.indexOf("data-entry"));
 });
 
 test("hint trigger escapes copy and keeps a popover tooltip", () => {
@@ -315,16 +309,16 @@ test("catalog ships the Soft Workbench palette and complete icon library", () =>
   assert.match(html, /class="mw-icon-lib"/);
   assert.match(html, /Noto Sans SC/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-goals: var\(--ink-soft\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="feed"\]/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="goal"\]/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\.tab-item\[data-plugin="feed"\]/);
+  // RAC-704/705 (PG-075): one neutral tint for every plugin surface; no custom property or selector per plugin.
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /--plugin-goals/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface\], \[data-goal-canvas-shell\], \.tab-item\[data-plugin\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="feed"\]|\.tab-item\[data-plugin="feed"\]/);
   // The empty mark is the shared paper picture drawn by the final layer (spec → 第三轮 · 空状态插图); the texture
   // layer no longer tints it, and the board shows it.
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);
   assert.match(html, /class="mw-empty__mark"/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\.feed-stage-entry:is\(\.is-selected, \.is-open, \[aria-selected="true"\]\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--faint\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink-soft\)/);
   assert.deepEqual([...listedIconNames()].sort(), [...registeredIconNames()].sort());
@@ -365,7 +359,7 @@ test("empty states and calendars keep copy grouped and readable", () => {
 test("plugin rail reuses the segmented thumb and stages share the one arrival", () => {
   assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/);
   assert.match(MICRO_INTERACTION_STYLES, /--seg-tint/);
-  assert.match(MICRO_INTERACTION_STYLES, /assistant-island-card/);
+  assert.doesNotMatch(MICRO_INTERACTION_STYLES, /assistant-island-card/, "RAC-1823: the island card left the rail, and its thumb rules with it");
   assert.match(MICRO_INTERACTION_STYLES, /aria-expanded="true"/);
   assert.match(MICRO_INTERACTION_STYLES, /\.is-arriving \{ animation: craft-rise var\(--dur-arrive, 420ms\)/);
   assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
@@ -392,4 +386,11 @@ test("K1-01 shared HTML escaping protects text and both attribute quote delimite
   assert.equal(escapeHtml(undefined), "");
   assert.equal(escapeHtml(0), "0");
   assert.equal(escapeHtml(false), "false");
+});
+
+test("RAC-1823 the rail's thumb and texture rules name no assistant island, and the thumb reads the current option the one way", () => {
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /assistant-island/, "the texture layer has no rule for the island class");
+  assert.doesNotMatch(MICRO_INTERACTION_CLIENT_SCRIPT, /assistant-island/, "the thumb's script does not look for the island card");
+  assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/, "the rail's own items are still a segmented track");
+  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /const current = track\.querySelector\(":scope > " \+ SEGMENT_CURRENT\);/, "and its current option is the one marked current");
 });

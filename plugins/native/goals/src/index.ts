@@ -1,7 +1,7 @@
 export * from "./personal-planning-actions.js";
 export * from "./decision-view.js";
 export * from "./actions.js";
-export type { InitializeBoardOutput } from "./board-actions.js";
+export type { InitializeBoardOutput } from "./library-actions.js";
 export * from "./decision-groups.js";
 export * from "./decision-results.js";
 export * from "./decision-results-ui.js";
@@ -11,8 +11,11 @@ export * from "./proposal-client.js";
 export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
 export { hostEventDecisionAuthority } from "./goal-event-application.js";
+export { createGoalsPlugin } from "./plugin.js";
+export { createHomeGoalsPlugin } from "./home-plugin.js";
+export { GOALS_HOME_DATABASE } from "./home-database.js";
 export { createGoalsApplication, type GoalsApplication, type GoalsApplicationPorts } from "./goals-application.js";
-export { managementTreeAuthority, managementEventDecisionAuthority } from "./management-evidence.js";
+export { managementEvidence, evidenceText } from "./management-evidence.js";
 export * from "./goal-entry-contract.js";
 export * from "./proposal-normalizer.js";
 export * from "./goal-tree-materialization-order.js";
@@ -78,22 +81,10 @@ export * from "./navigation-model.js";
 export { GOALS_CONTEXT_EN } from "./context-en.js";
 export { GOALS_DOCUMENT_EN } from "./document-en.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-goals",
-  packagePath: "plugins/native/goals",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex4"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 
 
-export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";
+export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./snapshot-query.js";
 
 
 
@@ -104,10 +95,11 @@ export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBindi
 
 export { countGoalDecisions } from "./decision-groups.js";
 
-export { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
+export { buildGoalsDocumentCollection, emptyGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 export type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 export { goalsRoutes } from "./http/index.js";
 export type { GoalsRoutePorts } from "./http/types.js";
 export { GOALS_PLUGIN_ID, GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "./manifest.js";
 export { GOALS_PROJECT_DATABASE } from "./project-database.js";
 export { GOALS_SETTINGS_UI_CONTRIBUTION_ID, goalsSettingsUiContribution, goalsSettingsUiDescriptor } from "./settings-ui.js";
+export { PluginSqlite, type PluginSqliteDatabase } from "./plugin-sqlite.js";

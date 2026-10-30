@@ -3,12 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalHostCapsule, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostCapsule, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
 import { eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 const PROJECT = { project_id: "project-capsule", display_name: "胶囊测试" };
 
@@ -450,7 +451,7 @@ test("SYS-09 a cancelled Goal's production event projection stays Cancelled and 
     expected_config_version: before.config.version, expected_agreement_version: before.agreement.version });
   const current = app.goalEvents.readState(project_id, goal_id), projection = eventDirectoryPresentation(current)!;
   assert.equal(current.work_status, "cancelled");
-  const record = store.snapshot(project_id).goals.find(row => row.goal_id === goal_id)!;
+  const record = boardSnapshot(store, project_id).goals.find(row => row.goal_id === goal_id)!;
   const item = { ...webGoal(record, "invalidated"), ...projection };
   const result = buildCapsuleSnapshot(view([item], goal_id), []);
   assert.equal(result.state.label, "已取消");

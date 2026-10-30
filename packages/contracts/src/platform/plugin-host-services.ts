@@ -5,7 +5,6 @@ import type { PluginEventsClient } from "./plugin-events.js";
 import type { PluginInputsClient, PluginOutputsClient } from "./plugin-wiring.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-import type { PluginCapabilityClient } from "./plugin.js";
 import type { PluginExecutionControl } from "./plugin-routes.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
@@ -48,6 +47,12 @@ export interface PluginActionDirectory {
 
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
+  /**
+   * Whether an action this Manifest consumes is registered and ready, without calling it; synchronous, so an action's own
+   * availability can depend on it. Not consumed, a stopped instance, or a Host with no check answer unavailable. A call still
+   * checks its caller, input and authority.
+   */
+  availability(reference: import("./actions.js").ActionReference): import("./actions.js").ActionAvailability;
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
   /** Dynamic dependencies as this installation, with its own grants and plugin audience; requires actions:invoke. */
   readonly dependencies?: PluginActionDirectory;
@@ -59,6 +64,16 @@ export interface PluginHostServices {
   /** Public metadata of installations in this activation's scope. */
   readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;
   readonly installations?: import("./plugin-installations.js").PluginInstallationClient;
+  /** Whether project ids the plugin holds still exist (BL-680); present with `projects:exist`, answers yes or no per id passed and nothing else. */
+  readonly projects?: import("./plugin-projects.js").PluginProjectsClient;
+  /** The project's Attention entries (the Inbox's); present with `attention:read` or `attention:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
+  readonly attention?: import("./plugin-attention.js").PluginAttentionClient;
+  /** The project's Context Ledger edges; present with `context-ledger:read` or `context-ledger:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
+  readonly contextLedger?: import("./plugin-attention.js").PluginContextLedgerClient;
+  /** The consumption scenes this plugin's Manifest declares (`action_scenes`); present with `scenes:use`, only inside the plugin's own running action (S-89). */
+  readonly scenes?: import("./plugin-scenes.js").PluginSceneClient;
+  /** The judgment ledger of the scenes this plugin's Manifest declares; present with `judgments:read` or `judgments:write`. Not part of the plugin's project transaction (S-90). */
+  readonly judgments?: import("./plugin-judgments.js").PluginJudgmentsClient;
   /** Awaited, owner-bound Agent work through the Home's shared runtime. */
   readonly agents?: import("./plugin-agents.js").PluginAgentClient;
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
@@ -76,13 +91,23 @@ export interface PluginHostServices {
   /**
    * The plugin's own tables in this project's library, present when its Manifest declares `databases.project`. Every statement is
    * checked against the tables the platform made for it (and the project's root row, which it may read); a statement that reaches
-   * any other table, a schema step or a pragma is refused (specs/plugin-project-database).
+   * any other table, a schema step or a pragma is refused (specs/plugin-project-database). `journal` is the project's event log and
+   * idempotency records, for a plugin granted `PROJECT_JOURNAL_PERMISSION` (PG-094 S9-0).
    */
-  readonly project_database?: import("./plugin-database.js").PluginDatabase;
+  readonly project_database?: import("./plugin-database.js").PluginProjectDatabase;
+  /**
+   * The same tables for a plugin the Host runs outside its own process (`execution: "sandbox"`): the host entry that carries the
+   * plugin's code gets this in place of `project_database`, so its statements run in a process the controller can kill.
+   */
+  readonly project_statements?: import("./plugin-database.js").PluginProjectStatements;
+  /**
+   * The plugin's own library in the Home for a plugin the Host runs outside its own process (`execution: "sandbox"`) on the Home Runtime, present
+   * when its Manifest declares `databases.home`: the same statements and the same killable process as `project_statements`, over a file that is
+   * wholly the plugin's (PG-017 BL-490). The host entry that carries the plugin's code gets this in place of `database`.
+   */
+  readonly database_statements?: import("./plugin-database.js").PluginProjectStatements;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
-  /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
-  readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
   readonly terminal?: PluginTerminalClient;
   /**
@@ -92,10 +117,16 @@ export interface PluginHostServices {
   readonly model?: PluginModelClient;
   /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
+  /** Which of the Manifest's `local_tools` this machine has (PG-112); only for a plugin the Host runs itself that declares them, with `local-tools:read`. */
+  readonly localTools?: import("./plugin-local-tools.js").PluginLocalToolsClient;
   /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
   /** Requests through the accounts the person bound to the Manifest's connection slots, when it declares `connections:use` (S-57). */
   readonly connections?: import("./plugin-connections.js").PluginConnectionsClient;
+  /** Pulling public sources and reading evidence bodies through the platform, when the Manifest declares `sources:pull_feed`, `sources:pull_query` or `evidence:read` (S-97, provisional). */
+  readonly sourcePull?: import("./plugin-source-pull.js").PluginSourcePullClient;
+  /** Deleting evidence bodies nothing refers to, only for a Home activation whose Manifest declares `evidence:collect` (S-98, provisional). */
+  readonly evidenceCollector?: import("./plugin-source-pull.js").PluginEvidenceCollectorClient;
   /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
   readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
   /** Project artifact services are absent from Home activations. */
@@ -114,8 +145,6 @@ export interface PluginHostServices {
   readonly inputs?: PluginInputsClient;
   /** Present when the Manifest declares output ports. */
   readonly outputs?: PluginOutputsClient;
-  /** Present when the Manifest declares consumed Capabilities. */
-  readonly capabilities?: PluginCapabilityClient;
 }
 
 /** A user-started interactive terminal in the plugin's declared owner-files directory. */

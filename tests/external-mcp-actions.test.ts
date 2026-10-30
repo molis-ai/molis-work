@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import test from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { MolisWorkLocalHost, type MolisWorkProjectRuntime } from "../apps/local-host/dist/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { createExternalMcpDirectory } from "../apps/local-host/dist/external-mcp-actions.js";
-import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
+import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability, mcpInputContract } from "../apps/local-host/dist/mcp-tool-actions.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
@@ -38,7 +41,7 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     const saved = await library.save(owner, { expected_version: 0, label: "笔记服务", transport: "stdio", enabled: true, timeout_ms: 5000,
       directory: { canonical_path: home, realpath_verified: true }, executable: process.execPath, argv: ["server.mjs"] });
     await library.control(owner, saved.id, "connect");
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
 
     // The tool is discovered in the same directory, grouped under its server, with the shape the server declared.
     const view = (await client.discover(user)).find(row => isMcpToolCapability(row.capability_id) && row.action.title === "record_review_note")!;
@@ -61,7 +64,6 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     const { workflow } = await actions.invoke(w.create, { title: "消息记成外部笔记", chain: { stations: [{ plugin: "feed" },
       { plugin: "action", action: { ref: step.ref, title: step.title, group: step.group, mapping: { note: { from: "title" } } } }],
       links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
-    const { createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
     const source = createLocalFeedSourceService(runtime.store.db, project.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
     createLocalFeedApplication(runtime.store.db).ingestItem({ source, externalId: "one", title: "工作流交来的标题", summary: "s", body: "正文", occurredAt: new Date().toISOString(), attention: false });
     const item = (await actions.invoke(w.stationItems, { plugin: "feed" })).items[0]!;
@@ -92,14 +94,14 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     // An enabled disconnected server stays usable on demand. Discovery starts no process, and missing authority cannot reconnect it.
     await library.control(owner, saved.id, "disconnect");
     // Sync preserves the exact discovered tool version.
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     const offline = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
     assert.equal(offline.availability.available, true);
     assert.equal((await library.list(owner))[0]?.health, "disconnected");
     await assert.rejects(client.invoke({ ...user, audience: "agent", permissions: [] }, ref, { note: "无权限不能重连" }), { code: "actions.forbidden" });
     assert.equal((await library.list(owner))[0]?.health, "disconnected");
     await library.control(owner, saved.id, "connect");
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     assert.ok((await client.discover(user)).some(row => row.capability_id === ref.capability_id && row.version === ref.version && row.availability.available));
     assert.equal((await notes()).length, 3);
 
@@ -129,12 +131,12 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     // Explicitly disabling the configuration refuses the old reference and starts no process.
     await library.save(owner, { id: saved.id, expected_version: saved.version, label: saved.label, enabled: false,
       transport: "stdio", timeout_ms: 5000, directory: saved.directory, executable: saved.executable, argv: saved.argv });
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     await assert.rejects(client.invoke(assistant, ref, { note: "停用后" }), { code: "actions.connection_unavailable" });
     assert.equal((await notes()).length, 4);
     // Removing the configuration removes its entries.
     await library.control(owner, saved.id, "remove");
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id));
     // A removed server is not brought back by the next restart either.
     directory.close();
@@ -167,7 +169,7 @@ test("listing the servers again while an external tool is being called replaces 
   const directory = createExternalMcpDirectory({ localHost: host as never, homeDirectory: home });
   const runtime = { project_id: "p1", store: { path: "memory:p1" } } as MolisWorkProjectRuntime;
   const owner = { project_id: "p1", plugin_id: "coding" };
-  const sync = () => directory.sync(runtime, "coding", "prologue", library as never, owner);
+  const sync = () => directory.sync(runtime, "prologue", library as never, owner);
   const client = host.actionClient(place);
   const user: ActionCallContext = { actor_id: "web-user", project_id: "p1", audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
   const find = async (name: string) => (await client.discover(user)).find(row => row.capability_id.endsWith(`.${name}`));
@@ -196,4 +198,39 @@ test("listing the servers again while an external tool is being called replaces 
     assert.equal(await find("echo"), undefined);
     assert.ok(await find("search"));
   } finally { directory.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// BL-155：MCP 参数标注的规则写在两份实现里——SDK 的校验副本（`mcpToolInputSchema`）和动作合同进目录时的副本
+// （`mcpActionInputSchema`）。SDK 没有公开它，包边界也不许深导入，所以这里钉住两份对同一批 schema 的结论一致，
+// 以及两处有意分歧：动作合同保留 `default`（它是约束，不是默认值注入）、只处理顶层标注。
+test("BL-155: the MCP parameter annotation rule is one behaviour in two copies: same accept, same reject, and `default` only in the action copy", async () => {
+  const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+  const packageRoot = dirname(dirname(requireSdk.resolve("@prologue/sdk")));
+  const sdk = await import(pathToFileURL(join(packageRoot, "dist", "mcp", "core", "input-schema.js")).href) as {
+    mcpToolInputSchema: (schema: Readonly<Record<string, unknown>>) => Record<string, unknown>;
+  };
+  const asJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
+  const annotated = (note: Record<string, unknown>) => ({ type: "object", properties: { note }, required: ["note"], additionalProperties: false });
+
+  // 合法标注：两边都去掉传输层标注，留下的动作合同相同（SDK 的对象没有原型，按 JSON 归一后比较）。
+  const legal = annotated({ type: "string", "x-mcp-header": "X-Note" });
+  const kept = mcpInputContract(legal);
+  assert.equal(kept.availability.available, true);
+  assert.deepEqual(asJson(kept.schema), asJson(sdk.mcpToolInputSchema(legal)));
+
+  // 有意分歧：动作合同保留 `default`（它是约束，不会注入默认值）；SDK 的校验副本把它当不需要的标注去掉。
+  const withDefault = annotated({ type: "string", default: "x", "x-mcp-header": "X-Note" });
+  assert.deepEqual((mcpInputContract(withDefault).schema.properties as Record<string, unknown>).note, { type: "string", default: "x" });
+  assert.deepEqual(asJson((sdk.mcpToolInputSchema(withDefault).properties as Record<string, unknown>).note), { type: "string" });
+
+  // 坏标注：两边都拒绝——SDK 拒绝整份 schema，动作合同让工具可见但不可用，等合同更新后重新发现。
+  const bad = [
+    annotated({ type: "string", "x-mcp-header": "bad header" }),
+    annotated({ type: "number", "x-mcp-header": "X-Note" }),
+    { type: "object", properties: { a: { type: "string", "x-mcp-header": "X-Dup" }, b: { type: "string", "x-mcp-header": "x-dup" } } },
+  ];
+  for (const schema of bad) {
+    assert.throws(() => sdk.mcpToolInputSchema(schema), (error: unknown) => (error as { code?: unknown }).code === "MCP_PROTOCOL_UNSUPPORTED");
+    assert.equal(mcpInputContract(schema).availability.code, "actions.schema_unsupported");
+  }
 });

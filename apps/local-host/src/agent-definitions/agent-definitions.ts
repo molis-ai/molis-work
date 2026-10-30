@@ -1,14 +1,16 @@
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { hostLog } from "../host-log.js";
 import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
   type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
-  type AgentMethodRegistration, type AgentMethodView,
+  type AgentSkillRegistration, type AgentSkillView,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -143,15 +145,15 @@ export class AgentDefinitions {
     return this.view(owner, prompt);
   }
 
-  /** Methods owners offer to other Agents for business work; the body is read with `method`. */
-  methods(): AgentMethodView[] {
-    return [...this.owners.values()].flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
+  /** Methods owners offer to other Agents for business work; the body is read with `method`. A plugin that is not running offers none. */
+  methods(): AgentSkillView[] {
+    return [...this.owners.values()].filter(offering).flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
       source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools] })));
   }
 
   /** One registered method with its body, by owner, id and (when given) exact version. */
-  method(ownerId: string, skillId: string, version?: number): AgentMethodRegistration {
-    const method = this.owners.get(ownerId)?.methods?.find(item => item.skill_id === skillId);
+  method(ownerId: string, skillId: string, version?: number): AgentSkillRegistration {
+    const owner = this.owners.get(ownerId), method = owner && offering(owner) ? owner.methods?.find(item => item.skill_id === skillId) : undefined;
     if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
     return structuredClone(method);
   }
@@ -253,7 +255,7 @@ export class AgentDefinitions {
     try {
       this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller) VALUES (?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller);
       this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, USES_KEPT);
-    } catch { /* A use that fails to record never stops the call. */ }
+    } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // A use that fails to record never stops the call; written as owner and prompt, since a key has no `/`.
   }
 
   private nextRevision(key: string): number {
@@ -308,9 +310,23 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
 
 export interface BuiltinAgent { owner_id: string; source: AgentDefinitionSource; manifest: AgentManifest; prompts: readonly AgentPromptText[]; skills?: readonly AgentSkillDefinition[] }
 
-const registries = new Map<string, AgentDefinitions>();
+const registries = new Map<string, AgentDefinitions>(), declarations = new Map<string, AgentDeclarations>();
 
-/** One register per Home, opened once, with the system's and built-in Plugins' definitions registered. */
+/** Whether an owner's methods are offered: not while its plugin does not run (a remembered declaration, PG-051 RAC-196). */
+const offering = (owner: AgentDefinitionRegistration) => owner.source.kind !== "plugin" || owner.source.state !== "disabled";
+
+/** The Home's remembered installation declarations (PG-051 Q1 b), opened once. */
+export function agentDeclarationsFor(homeDirectory: string): AgentDeclarations {
+  const home = path.resolve(homeDirectory);
+  let opened = declarations.get(home);
+  if (!opened) { opened = AgentDeclarations.open(home); declarations.set(home, opened); }
+  return opened;
+}
+
+/**
+ * One register per Home, opened once, with the system's and built-in Plugins' definitions registered, and each installation's
+ * remembered declaration as not running until the installation starts again.
+ */
 export function agentDefinitionsFor(homeDirectory: string, registrations: () => readonly AgentDefinitionRegistration[]): AgentDefinitions {
   const home = path.resolve(homeDirectory);
   let registry = registries.get(home);
@@ -318,6 +334,7 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
     registry = new AgentDefinitions(openHomeSqliteDatabase(home, AGENT_DEFINITIONS_STORE));
     registries.set(home, registry);
     for (const registration of registrations()) registry.register(registration);
+    for (const kept of agentDeclarationsFor(home).all()) registry.register(notRunning(kept.registration), kept.install_id);
   }
   return registry;
 }
@@ -326,7 +343,7 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
  * A Plugin's Manifest methods with the bodies its package ships, exactly as declared: a declared method is registered only with
  * the body of its id and version, and one without a body is left out with a note for the developer diagnostics.
  */
-export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodies: readonly AgentSkillDefinition[] = []): { methods: AgentMethodRegistration[]; notes: string[] } {
+export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodies: readonly AgentSkillDefinition[] = []): { methods: AgentSkillRegistration[]; notes: string[] } {
   const methods = declared.flatMap(method => {
     const body = bodies.find(item => item.skill_id === method.skill_id && item.version === method.version)?.body;
     return body ? [{ skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools], body }] : [];

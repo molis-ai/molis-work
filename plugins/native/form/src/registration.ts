@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData, FORM_HOME_STORE } from "./index.js";
+import { createFormPlugin, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,16 +7,15 @@ import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FA
  */
 export const registration: PluginRegistration = {
   project_plugin_id: FORM_PROJECT_PLUGIN_ID, catalog_order: 16,
-  home_store: FORM_HOME_STORE,
   manifest: formManifest,
-  project_data: formProjectData,
-  instructions: FORM_INSTRUCTIONS,
+  project_runtime: { create: createFormPlugin, package_name: "@molis-ai/molis-work-plugin-form", factory_export: "createFormPlugin" },
   personal: true,
-  summary: "建问卷，收答卷，看逐题汇总。",
   workbench: {
     order: 10,
     contributions: [formUiContribution],
     stylesheet: FORM_STYLES,
+    // Goals' event documents, drawn in the shell, use these two classes.
+    stylesheetShared: ["form-note", "form-actions"],
     clientFactory: FORM_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-form-id]", idDataset: "formId" },
   },

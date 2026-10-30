@@ -17,7 +17,7 @@ V1 首先服务单设备、单 Home 的本地使用场景：一个 Home 里有�
 Molis Work 是本地优先的插件基座加多插件工作平台。
 
 - **平台**提供一个 Home 的常驻宿主、统一的动作目录与授权、插件运行时、工作台外壳和同一个 AI 运行时。
-- **插件**提供内容。每个项目都带 Goals，再按需添加 Sessions、Inbox、Feed、Schedule、成果和 Coding 一族；个人插件（日历与笔记、待办、文档、知识库等）在所有项目里可用。
+- **插件**提供内容。每个项目都带 Goals，再按需添加 Inbox、Feed、Schedule、成果和 Coding 一族；个人插件（日历与笔记、待办、文档、知识库等）在所有项目里可用。
 - **每项事实只有一个主人。** Goal、关系和工作状态归 Goals，可信用户决定归 Governance，其他插件不复制这些事实；其余事实归各自的插件或 Module，一览见 `docs/SSOT-MATRIX.md`。
 
 成功意味着：用户在一个工作台里找得到、读得懂、推进得了自己的工作，并知道每项内容归哪个插件；新增一个插件不必改平台，它的能力经同一个动作目录、同一套授权被页面、助理、工作流和外部 MCP 客户端使用。
@@ -27,11 +27,11 @@ Molis Work 是本地优先的插件基座加多插件工作平台。
 <!-- 2026-10-07 按代码现状改写（用户更正：产品是插件基座加多插件，Goals 是其中一个内置插件）。只写已从代码核实的事实。 -->
 
 - **一个 Home，一个常驻宿主。** `~/.molis-work` 下只有一个执行进程，管项目数据库、插件、动作目录和 AI 运行时。浏览器和 macOS App 打开同一个 loopback 工作台；CLI 与 MCP 入口不自己执行，转发给常驻宿主。
-- **项目按插件组织。** 内置 25 个，以 `apps/workbench/src/plugin-catalog.ts` 为准，分两类：
-  - 项目插件 11 个，在项目里添加或移除：Goals（每个项目都带、工作台里不能移除，拥有 Goal 的事实）、Sessions（回到会话）、Inbox、Feed、Schedule、成果（Artifacts），以及 Coding 一族（Coding、Files、Git、Diff，加上平台的参考插件 Text stats：它只在开发者模式下出现在插件列表里；开发者模式只由启动 Host 时的环境变量 `MOLIS_WORK_DEVELOPER_MODE=1` 打开，设置里没有开关，这是用户 2026-10-09 定的）。
-  - 个人插件 14 个，对每个项目都开着，项目可以隐藏：Cognia、插件创作工作台、图片、Jelly、Shelf、灵光、待办、角色、Pages、Forms、Dataset、PPT、炼金术士、工作流程。
-- **每项事实一个主人。** Goal、关系和工作状态归 Goals，可信用户决定归 Governance，Session 与交接归 Sessions，来源配置归来源（Sources）、信息流条目归 Feed、需要用户介入的事项归 Inbox，固定版本的成果归成果库；个人插件各管自己的内容（日历与笔记归 Jelly，待办归待办插件，知识库归 Cognia，文档归 Pages，演示稿归 PPT，等等），内容放在 Home 级的库里。其他插件不复制这些事实；完整归属与成熟度以 `docs/SSOT-MATRIX.md` 为准。
-- **能力注册一次，到处可用。** 插件把查询和操作登记到共同动作目录；页面、工作流、Agent 和外部 MCP 客户端从同一目录发现并调用，权限按调用方和每个 MCP 客户端的授予裁决，执行过的调用留下记录。被取消或撤权的调用不再产生任何写入。
+- **项目按插件组织。** 内置 24 个，以各包 `src/registration.ts` 为准（`apps/workbench/src/builtin-plugins.ts` 由它们生成），分两类：
+  - 项目插件 10 个，在项目里添加或移除：Goals（每个项目都带、工作台里不能移除，拥有 Goal 的事实）、Inbox、Feed、Schedule、成果（Artifacts），以及 Coding 一族（Coding、Files、Git、Diff，加上平台的参考插件 Text stats：它只在开发者模式下出现在插件列表里；开发者模式只由启动 Host 时的环境变量 `MOLIS_WORK_DEVELOPER_MODE=1` 打开，设置里没有开关，这是用户 2026-10-09 定的）。
+  - 个人插件 14 个，对每个项目都开着，项目可以隐藏：Cognia、插件创作工作台、图片、Jelly、Shelf、灵光、待办、Issue、Pages、Forms、Dataset、PPT、炼金术士、工作流程。角色（Character）是设置里的一节，不是插件。
+- **每项事实一个主人。** Goal、关系和工作状态归 Goals，可信用户决定归 Governance，来源配置归来源（Sources）、信息流条目归 Feed、需要用户介入的事项归 Inbox，固定版本的成果归成果库；个人插件各管自己的内容（日历与笔记归 Jelly，待办归待办插件，知识库归 Cognia，文档归 Pages，演示稿归 PPT，等等），内容放在 Home 级的库里。其他插件不复制这些事实；完整归属与成熟度以 `docs/SSOT-MATRIX.md` 为准。
+- **能力注册一次，到处可用。** 插件把查询和操作登记到动作目录；页面、工作流、Agent 和外部 MCP 客户端从同一目录发现并调用，权限按调用方和每个 MCP 客户端的授予裁决，执行过的调用留下记录。被取消或撤权的调用不再产生任何写入。
 - **AI 经同一运行时。** 文字、结构化判断、图片与 Agent 运行都经 Home 的 Prologue Runtime；模型、凭据与预算在同一处设置。Agent 的副作用进入审查队列，由人决定。
 - **平台产品服务。** 记忆、放置、搜索和情境排序可以持有跨插件的策略，但不拥有业务事实；对象的内容总向它的主人读取（`docs/system/ARCHITECTURE.md` §3）。
 - **Coding 是参照应用。** 围绕代码的讨论、执行、委派与审查保留连续的任务记录，能在沙箱仓库里开真实 PR。
@@ -43,7 +43,7 @@ Molis Work 是本地优先的插件基座加多插件工作平台。
 
 Molis Work 不是另一个 Kanban，也不是替人分派工作的 Agent 调度器：它不给 Goal 派单，也不选择谁来做。Schedule 只在用户设定的时间运行用户建好的任务；Coding 的委派是一封给人的请求，由对方接受或拒绝，过程留在任务记录里。作为平台，它的差异机制是：
 
-- 能力注册一次，由共同目录供页面、工作流、Agent 和 MCP 使用，不另写名单或宿主分支；
+- 能力注册一次，由动作目录供页面、工作流、Agent 和 MCP 使用，不另写名单或宿主分支；
 - 每项事实一个主人，插件之间不依赖彼此的实现，也不复制彼此的事实；
 - 模型调用只经同一个 Prologue Runtime，Agent 的副作用进入审查队列，由人决定；
 - Runtime 自己读取和上报，Molis Work 不派单。
@@ -52,7 +52,7 @@ Molis Work 不是另一个 Kanban，也不是替人分派工作的 Agent 调度�
 
 V1 在本机一个 Home（`~/.molis-work`）中运行：每个项目一个 SQLite 库，个人插件的内容放在 Home 级的库里，每项事实只由它的主人写入；CLI、MCP 和 Web UI 经同一个常驻宿主使用同一套动作。
 
-安装默认只把自包含程序、共享 Skill 和稳定启动器写入 `~/.molis-work`，不会修改项目或 Runtime 配置，也不会创建项目、关联 Session 或启动服务。Runtime 接入、项目管理和 Session 关联是安装后的独立显式流程，不能再用一个“安装后启用/启动项目”的总动作混在一起。Runtime 接入统一使用 adapter 的 `detect → plan → confirm → apply → validate → remove` 链路；当前配置 adapter 支持 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build；MCP 会话协议本身仍支持其他 Runtime。Pi 的 MCP 写入 `~/.pi/agent/mcp.json`，供官方推荐的 pi-mcp-adapter 读取。预览不返回用户配置全文，写入同时管理 MCP 与 Skill，失败自动回滚，移除只撤销 Molis Work ownership receipt 证明仍属于自己的字段和链接。macOS 常驻 Web 同样先预览再确认，使用 LaunchAgent 的 RunAtLoad/KeepAlive 和可诊断日志，并显式提供安装时 Node 的 PATH；“已加载”和“进程正在运行”必须分别判断。用户在当前对话调用 Skill 后，Molis Work 优先读取单次 MCP 调用元数据中的 Session ID，其次使用 Claude Code 等 adapter 的稳定 Session 信号；工作目录作为独立 workspace 用于查找用户以前明确关联过的项目，不伪装成 Session ID，也不是项目身份。普通选择只记录 workspace 历史；每个新 Session 仍须确认 Project，即使只有一个候选，Molis Work 不保存 workspace default。用户明确拒绝一个建议时，只在能识别该 Session 时记录本 Session 的拒绝；选择、切换、解绑和删除仍各自需要明确确认。每个 Molis Work 项目有自己的 SQLite DB，并按 `user`、`regenerable_demo` 分类；Web、CLI 和开发脚本共用同一 demo 生命周期。普通卸载先预览，只撤销 ownership receipt 仍能证明属于 Molis Work 的接入和程序，清理可再生 demo，保留用户项目、catalog、备份与日志；永久清除用户数据必须再确认精确 home 和用户项目数量。Web 可选；Runtime 不因为 Web 未打开而停止推进工作。服务或项目连接不可用时，Runtime 报告事实，不自行创建另一个真相源、猜测项目或改写配置。
+安装默认只把自包含程序、共享 Skill 和稳定启动器写入 `~/.molis-work`，不会修改项目或 Runtime 配置，也不会创建项目、关联 Session 或启动服务。Runtime 接入、项目管理和 Session 关联是安装后的独立显式流程，不能再用一个“安装后启用/启动项目”的总动作混在一起。Runtime 接入统一使用 adapter 的 `detect → plan → confirm → apply → validate → remove` 链路；当前配置 adapter 支持 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build；MCP 会话协议本身仍支持其他 Runtime。Pi 的 MCP 写入 `~/.pi/agent/mcp.json`，供官方推荐的 pi-mcp-adapter 读取。预览不返回用户配置全文，写入同时管理 MCP 与 Skill，失败自动回滚，移除只撤销 Molis Work ownership receipt 证明仍属于自己的字段和链接。macOS 常驻 Web 同样先预览再确认，使用 LaunchAgent 的 RunAtLoad/KeepAlive 和可诊断日志，并显式提供安装时 Node 的 PATH；“已加载”和“进程正在运行”必须分别判断。用户在当前对话调用 Skill 后，Molis Work 优先读取单次 MCP 调用元数据中的 Session ID，其次使用 Claude Code 等 adapter 的稳定 Session 信号；工作目录作为独立 workspace 用于查找用户以前明确关联过的项目，不伪装成 Session ID，也不是项目身份。当前已实现的 MCP 项目连接中，普通选择只记录 workspace 历史；每个新 Session 仍须确认 Project，即使只有一个候选，Molis Work 不保存 workspace default。用户明确拒绝一个建议时，只在能识别该 Session 时记录本 Session 的拒绝；选择、切换、解绑和删除仍各自需要明确确认。每个 Molis Work 项目有自己的 SQLite DB，并按 `user`、`regenerable_demo` 分类；Web、CLI 和开发脚本共用同一 demo 生命周期。普通卸载先预览，只撤销 ownership receipt 仍能证明属于 Molis Work 的接入和程序，清理可再生 demo，保留用户项目、catalog、备份与日志；永久清除用户数据必须再确认精确 home 和用户项目数量。Web 可选；Runtime 不因为 Web 未打开而停止推进工作。服务或项目连接不可用时，Runtime 报告事实，不自行创建另一个真相源、猜测项目或改写配置。
 
 ## Goals Plugin
 
@@ -93,7 +93,7 @@ Web 中没有左侧栏：项目入口在统一底栏，Goals 插件里是目标�
 - Runtime 发现新需求时只提交结构提案（新建 Goal 及其关系），由用户确认后才写入 Goal 树；接受新 Goal 不等于同意它阻塞当前 Goal。
 - 用户创建 Goal 时亲自指定的 `parent / depends_on` 可以直接成为 active。用户明确选择进行 Goal Tree 拆分或关系提案时，Runtime 发现的拆分、依赖或关系变化仍只能先成为 Proposal；这不是 Goal 开始记录的强制前置。
 - 依赖 Proposal 不由 Molis Work 扫描代码自动产生。Runtime 先选择当前任务的工作类型、专业领域、行业与场景叠加层方法，再结合 Contract、代码、文档、测试、数据结构、业务顺序、影响冲突和风险策略，说明哪项产出被哪项工作消费；依赖方向由这条产出—消费关系推导，不能只凭时间先后或主观直觉连接。
-- 规划方法按 `项目 > 个人 > 内置冷启包` 生效。内置方法分为元方法、工作类型、专业领域、行业和跨行业场景叠加层；它们是共同检查同一 Goal Tree 的正交视角，不是机械串行的阶段模板。每个内置方法只在 `modules/goals/methods/`（按 meta、work-types、domains、industries、overlays 分目录） 中占一个 canonical Markdown 文件，尤其每个行业一个文件；新增行业不应要求修改 Runtime 注册代码或复制通用方法正文。遇到未知领域时，Runtime 先用元方法补齐领域边界、专业阶段、关键产物、质量门和失败模式，再提出可复用的新方法。项目与个人方法都由用户显式保存，不会自动改写 Goal Tree。
+- 规划方法按 `项目 > 个人 > 内置冷启包` 生效。内置方法分为元方法、工作类型、专业领域、行业和跨行业场景叠加层；它们是共同检查同一 Goal Tree 的正交视角，不是机械串行的阶段模板。每个内置方法只在 `plugins/native/goals/methods/`（按 meta、work-types、domains、industries、overlays 分目录） 中占一个 canonical Markdown 文件，尤其每个行业一个文件；新增行业不应要求修改 Runtime 注册代码或复制通用方法正文。遇到未知领域时，Runtime 先用元方法补齐领域边界、专业阶段、关键产物、质量门和失败模式，再提出可复用的新方法。项目与个人方法都由用户显式保存，不会自动改写 Goal Tree。
 - 每轮拆分和关系变更都必须通过同一套整图检查：不存在缺失端点、自依赖、重复关系、父子循环、依赖循环或父子与依赖组合形成的执行循环。通过后，Goals 的规划层按拓扑层级、可解锁下游数量和最长后续链给出执行顺序与理由，不再由各 Runtime 各排一套顺序。
 - 用户提出新要求时，Runtime 先分析直接受影响的 Goal、依赖它的下游和仍可复用的工作，只对受影响子图提交 Proposal；确认后再重新计算整图顺序。历史有效且不受影响的 Goal 不重拆、不重做。
 - 正式 Dependency Proposal 必须说明 `from_goal_id`、`to_goal_id`、类型、原因、`basis`、`evidence_refs`、`impact_if_rejected`、`confidence`，以及为什么方向是 A → B 而不是 B → A。
@@ -129,11 +129,13 @@ Web 中没有左侧栏：项目入口在统一底栏，Goals 插件里是目标�
 - 项目 Goal 主工作区从同一份 Goal 与 active 关系派生依赖画布。`depends_on` 显示为“前置提供者 → 消费者”，`part_of` 用归属说明表达；完成节点保留并弱化。画布位置与视角只属于本地界面状态，不改变关系、排期、完成判断或 Runtime 所有权；空项目和加载失败提供真实创建或重试入口。
 - Web UI 必须能查看 Goal 树、当前事件状态、待决定的结构提案与事件历史。所有待决定事项先说明用户要回答的问题、为什么现在要回答和各选择的后果；没有可靠依据时不得假装给建议；最近一次处理后才生成的待决定项必须标为新事项。
 
-## Sessions and Projects
+## Projects and working directories
 
-Project 是内容范围，不与 Sessions 构成全局 switch。用户先选择项目，再在项目根目录中使用平级的 Goals、Sessions 与工作目录；全局 `/sessions` 与 `/workspaces` 不提供管理页面。Molis Work `session_id` 是目录、关系和 Handoff 的业务主键；`runtime_id + native_runtime_session_id` 只负责在原 Runtime 中读取、恢复和继续执行。每条 Session 最多关联一个 Project、零或一个当前 Goal，并保留 Goal 历史。Runtime adapter 明确声明原生可读、Molis Work 兜底记录或不可读取，不支持时不得猜测对话内容或伪装成可恢复。工作目录管理路径健康、显式 Project 关系和新 Session 启动；它不是 Project 身份，也不建立 Project 默认目录或目录默认 Project。跨 Runtime 继续工作只通过用户确认的 Handoff，把当前 Goal 与必要上下文交给目标 Runtime 并创建新的目标 Session；没有当前 Goal 时必须先选择 Goal。所有关联、转移、解绑、归档、路径修复、启动与 Handoff 都逐次确认；归档 Molis Work 记录不删除 Runtime 原生内容，移除工作目录记录不删除文件。
+Project 是内容范围。用户先选择项目，再在项目根目录中使用平级的插件与工作目录；全局 `/sessions` 与 `/workspaces` 不提供管理页面。
 
-上述规则取代早期“用户可以另设 workspace default”的设想：当前产品不提供持久 workspace / Project 默认关系。普通选择只记录可追溯历史，新 Session 即使只有一个候选也由用户确认。
+Sessions 插件（Session 目录、普通消息、跨 Runtime 交接、会话搜索与首页「说一句」）已于 2026-10-23 下线，等重做时再提供；重做要求见 [Sessions 需求](specs/sessions-rebuild/spec.md)与 `specs/BACKLOG.md` 的 BL-177。2026-10-28 已定的目标是平台能力：国内外主流工具的冷启动导入、持续了解进展与会话控制都要；获准后自动发现已有会话，明确且唯一的目录／仓库关联自动归入项目，不明确时由 AI 建议、用户确认，不自动建项目。这些是待实现要求，不代表当前 MCP 连接流程已改变；归属本身不授予工具访问或执行权限。现在 Runtime 仍可经 MCP 把自己的工作入口绑定到项目，绑定只记 Runtime 与项目的关系，不保存对话内容。旧的 `<home>/sessions/` 数据留在原处，不再被读取；备份仍包含它，卸载时选择清除用户数据才删除，单独清理另做。
+
+工作目录管理路径健康与显式 Project 关系；它不是 Project 身份，也不建立 Project 默认目录或目录默认 Project。当前产品不提供持久 workspace / Project 默认关系，普通选择只记录可追溯历史。
 
 ## Sources, Feed and Inbox
 

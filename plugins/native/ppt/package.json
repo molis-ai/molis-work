@@ -14,6 +14,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./contract": {
+      "types": "./dist/contract.d.ts",
+      "import": "./dist/contract.js"
+    },
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"
@@ -25,29 +29,30 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/ppt-client.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*",
     "fflate": "0.8.2"
   },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
   "molis-work": {
-    "path": "plugins/native/ppt",
-    "kind": "native-plugin",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
+    "maturity": "production",
     "capabilities": [
       "ppt.ui-contribution.v1",
-      "ppt.http-routes.v1"
+      "ppt.http-routes.v1",
+      "ppt.pptx-export.v1"
     ],
-    "registration": "./registration"
+    "registration": "./registration",
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {
+      "fflate": "0.8.2"
+    }
   }
 }

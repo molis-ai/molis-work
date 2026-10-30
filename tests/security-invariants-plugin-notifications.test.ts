@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { createLocalFeedApplication, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { PluginDatabaseTransaction, PluginDefinition, PluginHostServices, PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -39,7 +40,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command, query, serial],
       databases: { project: { store_name: name, version: 1, read_permission: "example:read", write_permission: "example:write", schema: `CREATE TABLE ${name}_notes (text TEXT NOT NULL);` } } },
       async start(context) { services = context.services!; return { kind: "app", actions: [command, query, serial].map(action => ({ ...action, handle: async caller => { await work(caller); return {}; } })) }; } };
-    const report = await platform.start([{ definition, bundled: true }]); assert.deepEqual(report.failed, []);
+    const report = await platform.start([{ definition, trust: { level: "host" } }]); assert.deepEqual(report.failed, []);
     const installation = () => platform.runtime.list().find(record => record.plugin_id === id)!;
     return { id, installation, get database() { return services.project_database!; }, get notifications() { return services.notifications; },
       invoke: (execute: typeof work, caller: Partial<ActionCallContext> = {}, mode: "command" | "query" | "serial" = "command") => {
@@ -51,7 +52,8 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
       stop: () => platform.runtime.stop(installation().install_id),
     };
   };
-  return { start, snapshot: () => createLocalFeedApplication(store.db).snapshot(projectId) };
+  // The notification is the platform's queue row until a receiver takes it; no project host runs here, so none does.
+  return { start, queued: () => new PluginNotificationQueue(store.db).pending(projectId) };
 }
 
 test("SYS-15-N1: a Runtime notification and business record commit together and deduplicate", async t => {
@@ -65,12 +67,13 @@ test("SYS-15-N1: a Runtime notification and business record commit together and 
     second = await a.database.transaction(caller.beforeEffect, tx => a.notifications!.deliver(tx, notice));
     await second.settle();
   });
-  assert.equal(a.count(), 1); assert.equal(first!.created, true); assert.equal(second!.created, false); assert.equal(first!.item_id, second!.item_id);
-  const snapshot = f.snapshot(), item = snapshot.feed_items.find(value => value.item_id === first!.item_id)!;
-  assert.equal(item.body, notice.body); assert.equal(snapshot.feed_items.filter(value => value.item_id === first!.item_id).length, 1);
-  assert.equal(item.url, `/projects/${DEMO_PROJECT_ID}/plugins/${a.id}`);
-  assert.equal(snapshot.sources.find(value => value.source_id === item.source_id)!.name, "notifier");
-  assert.ok(snapshot.inbox_entries.some(value => value.subject_id === first!.item_id));
+  assert.equal(a.count(), 1); assert.equal(first!.created, true); assert.equal(second!.created, false); assert.equal(first!.notification_id, second!.notification_id);
+  const queued = f.queued();
+  assert.equal(queued.length, 1, "the same key is the same notification");
+  const [row] = queued;
+  assert.deepEqual([row!.notification_id, row!.sender_plugin_id, row!.open_plugin_id, row!.key, row!.title, row!.summary, row!.body],
+    [first!.notification_id, a.id, a.id, notice.key, notice.title, notice.summary, notice.body]);
+  assert.equal(row!.sender_install_id, a.installation().install_id); assert.equal(row!.sender_generation, a.installation().installation_generation);
 });
 
 test("SYS-15-N1: rollback, async writes and cancellation leave neither notification nor business record", async t => {
@@ -91,7 +94,7 @@ test("SYS-15-N1: rollback, async writes and cancellation leave neither notificat
       tx.run("INSERT INTO notifier_notes VALUES ('cancelled')"); a.notifications!.deliver(tx, notice); controller.abort();
     });
   }, { signal: controller.signal }));
-  assert.equal(a.count(), 0); assert.equal(f.snapshot().feed_items.filter(item => item.title === notice.title).length, 0);
+  assert.equal(a.count(), 0); assert.deepEqual(f.queued(), []);
 });
 
 test("SYS-15-N2: notification transactions and clients reject foreign, copied and ended handles", async t => {
@@ -111,7 +114,7 @@ test("SYS-15-N2: notification transactions and clients reject foreign, copied an
   });
   await assert.rejects(b.invoke(async () => { await receipt!.settle(); }), { code: "actions.forbidden" });
   await a.stop(); await assert.rejects(receipt!.settle(), { code: "actions.forbidden" });
-  assert.equal(f.snapshot().feed_items.filter(item => item.title === notice.title).length, 1);
+  assert.equal(f.queued().length, 1, "only the copied, foreign and ended handles were refused; the one real delivery is queued");
 });
 
 test("SYS-15-N2: undeclared, unauthorized, query and serial notification calls are refused", async t => {
@@ -121,5 +124,5 @@ test("SYS-15-N2: undeclared, unauthorized, query and serial notification calls a
   await assert.rejects(a.invoke(deliver, { permissions: [] }));
   await assert.rejects(a.invoke(deliver, {}, "query"));
   await assert.rejects(a.invoke(deliver, {}, "serial"), { code: "actions.forbidden" });
-  assert.equal(f.snapshot().feed_items.filter(item => item.title === notice.title).length, 0);
+  assert.deepEqual(f.queued(), []);
 });

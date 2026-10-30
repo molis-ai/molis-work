@@ -3,6 +3,7 @@ import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ASSISTANT_RELATIONS, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
+import { hostLog } from "../host-log.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -14,7 +15,7 @@ const RELATION_OF = new Map<string, AssistantRelation>(Object.entries(ASSISTANT_
 const RANK: Record<AssistantRelation, number> = { origin: 0, material: 1, session: 2, result: 3 };
 
 /** A work, as the source of its relations. */
-interface WorkIdentity { work_id: string; project_id: string | null }
+export interface WorkIdentity { work_id: string; project_id: string | null }
 
 /** A work as the source of its relations: its project namespace, or none for personal work. */
 export function identity(work: { work_id: string; scope: AssistantScope }): WorkIdentity {
@@ -36,7 +37,7 @@ export function linkSent(relations: AssistantRelations, work: { work_id: string;
       relations.link(id, "material", { kind: material.object.kind, id: material.object.id, revision: material.draft ? null : revisionOf(material.object.version) },
         material.explicit ? "用户把它加入这一轮" : "用户保留了当前页面的这个对象");
     }
-  } catch { /* A relation that fails to record never stops the person's Send. */ }
+  } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "send" }); } // A relation that fails to record never stops the person's Send.
 }
 
 /** An object a relation points to: a Plugin's object by its subject kind, in the work's project. */

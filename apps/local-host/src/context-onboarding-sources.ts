@@ -1,3 +1,4 @@
+import { connectorAccountControl } from "./connector-oauth-targets.js";
 import { Buffer } from "node:buffer";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { resolveApiConnection } from "./connector-access.js";
@@ -104,7 +105,8 @@ export async function readOnboardingGmail(home: string, source: ContextSource, f
   if (!source.connection_id) throw new Error("请先连接 Google，或跳过 Gmail");
   const id = source.connection_id;
   return withConnectorRequest(home, id, undefined, async signal => {
-    let access = await resolveApiConnection(home, id, "gmail");
+    const control = connectorAccountControl(home, id, { signal });
+    let access = await resolveApiConnection(home, id, control, "gmail");
     const connection = access.connection;
     const assertConnection = () => {
       signal.throwIfAborted();
@@ -123,7 +125,7 @@ export async function readOnboardingGmail(home: string, source: ContextSource, f
       let response = await dispatch();
       if (response.status === 401 && connection.auth_method === "oauth" && !refreshed) {
         refreshed = true; assertConnection();
-        access = await resolveApiConnection(home, id, "gmail", true);
+        access = await resolveApiConnection(home, id, control, "gmail", true);
         assertConnection(); response = await dispatch();
       }
       if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "Gmail 无读取权限，请重新连接 Google" : `Gmail 暂时无法读取（${response.status}），请重试`);

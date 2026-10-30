@@ -1,4 +1,5 @@
 export const FUNCTIONS_EN: Record<string, string> = {
+  "取消选择": "Clear selection",
   // Said by the delete-project dialog (the label of this owner's project data).
   "判断规则在这个项目里的场景绑定和判断记录": "Function bindings and judgments made in this project",
   "仅列出插件已声明的工具和页面动作。": "Only declared plugin tools and page actions are listed.",
@@ -10,7 +11,7 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "点「新建判断」。": "Click New judgment.",
   "返回列表": "Back",
   "函数": "Function",
-  "判断": "Judgment",
+  "判断": "Evaluation",
   "名称": "Name",
   "函数 key": "Function key",
   "发布后不能改。": "Locked after publish.",
@@ -66,7 +67,7 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "首页卡底": "Home dock",
   "Feed 捕捉规则": "Feed capture rules",
   "Inbox 下一步": "Inbox next step",
-  "还没有说明": "No instructions yet",
+  "还没有说明": "No description yet",
   "试过": "Tried",
   "看什么": "Looks at",
   "首页、Inbox、Feed 要用 Choice。": "Home, Inbox, and Feed need Choice.",
@@ -147,7 +148,7 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "判断对象": "Judgment subjects",
   "判断是或否": "Decide yes or no",
   "判断结果用于推荐页面动作。发布后还需要在当前项目启用。": "Results suggest page actions. Activate in this project after publishing.",
-  "判断规则": "Judgment rules",
+  "判断规则": "Judgment rule",
   "判断说明": "Judgment instructions",
   "发布与启用": "Publish and activate",
   "发布会锁定名称、规则和用途。确认试跑符合预期后再发布；发布不会自动启用页面判断。": "Publishing locks the name, rules and use. Check a test result first. Publishing does not activate page judgments.",

@@ -1,3 +1,4 @@
+// S-16: the side panel's browser surface follows the Home's site policy — every page-changing action asks the person first.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -93,8 +94,8 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
-      (view, input, output) => service.recordResult(work, view, input, output), undefined,
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
+      (view, input, output) => service.outcomes.recordResult(work, view, input, output), undefined,
+      (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.dispatcher.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const send = (text: string, work_id?: string) => service.send({ ...(work_id ? { work_id } : {}), text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");

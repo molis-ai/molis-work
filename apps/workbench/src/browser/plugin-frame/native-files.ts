@@ -23,7 +23,10 @@ export const nativeFileInvoke = () => (globalThis as typeof globalThis & {
   __TAURI__?: { core?: { invoke<T = void>(name: string, input: Record<string, unknown>): Promise<T> } };
 }).__TAURI__?.core?.invoke;
 
-/** IPC stays in the trusted shell. The child can name only relative files owned by its active installation. */
+/**
+ * IPC stays in the trusted shell. The child can name only relative files owned by its active installation, and the window
+ * never holds a file path: the shell asks the Host for the files itself, with the route and page id given here (PG-113).
+ */
 export async function handoffPageFiles(port: MessagePort, scope: FrameScope, pageId: string, route: (path: string) => string,
   message: Extract<FrameUp, { type: "native-files" }>): Promise<void> {
   try {
@@ -32,12 +35,10 @@ export async function handoffPageFiles(port: MessagePort, scope: FrameScope, pag
     if (message.operation === "open" && (!Array.isArray(message.paths) || message.paths.length !== 1)) throw new Error("请选择一份文件");
     if (message.itemIds !== undefined && (!Array.isArray(message.itemIds) || message.itemIds.length > 100
       || message.itemIds.some(id => typeof id !== "string" || id.length > 200))) throw new Error("文件标识无效");
-    const files = await molisWorkRequest<{ paths: string[] }>(route("/api/host/plugin-page-files"), {
-      body: { paths: message.paths }, headers: { "x-molis-plugin-page": pageId }, scope,
-    });
     scope.assertCurrent();
-    if (message.operation === "open") await invoke("shelf_open_path", { path: files.paths[0] });
-    else await invoke(message.operation === "copy" ? "shelf_copy_files" : "shelf_drag_out", { paths: files.paths, itemIds: message.itemIds });
+    const input = { endpoint: route("/api/host/plugin-page-files"), pageId, paths: message.paths };
+    if (message.operation === "open") await invoke("files_open", input);
+    else await invoke(message.operation === "copy" ? "files_copy" : "files_drag_out", { ...input, itemIds: message.itemIds });
     if (scope.alive) port.postMessage({ type: "native-files-done", id: message.id } satisfies FrameDown);
   } catch (error) {
     if (scope.alive) port.postMessage({ type: "native-files-done", id: message.id, error: error instanceof Error ? error.message : String(error) } satisfies FrameDown);

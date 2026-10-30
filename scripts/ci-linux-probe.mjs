@@ -15,6 +15,8 @@
 //     --retries <n>            extra attempts for a file that failed; a later pass is `flaky` (default 1)
 //     --budget-minutes <n>     stop starting files after this long, and stop retrying; the rest are `not-run` (default: no limit)
 //     --expect-platform <p>    exit 2 before running anything unless process.platform is <p> (CI: linux)
+//     --shard <k>/<n>          only the k-th of n even shares of the files to run, taken in turn from the sorted list (CI spreads the list
+//                              over n jobs, none of which then reaches the end of it alone); the excluded browser files are reported by shard 1 only
 // The three files are written again after every file, so a run that is killed outright still leaves everything up to its last
 // file; SIGINT, SIGTERM and SIGHUP (what CI sends a run it cancels or whose job reached its time limit) stop the test processes
 // that are running and write a final partial report first: files without a result are `not-run`, report.json says `endedBy`.
@@ -28,12 +30,12 @@ import { writeReport, STATUSES } from "./ci-linux-probe/report.mjs";
 import { runAll, stopRunning } from "./ci-linux-probe/run.mjs";
 import { MARKS, selectTests } from "./ci-linux-probe/select.mjs";
 
-const USAGE = "usage: ci-linux-probe.mjs [--list] [--root <dir>] [--out <dir>] [--only <regex>] [--jobs <n>] [--timeout-seconds <n>] [--retries <n>] [--budget-minutes <n>] [--expect-platform <p>]";
+const USAGE = "usage: ci-linux-probe.mjs [--list] [--root <dir>] [--out <dir>] [--only <regex>] [--jobs <n>] [--timeout-seconds <n>] [--retries <n>] [--budget-minutes <n>] [--expect-platform <p>] [--shard <k>/<n>]";
 const die = (message) => { console.error(`ci-linux-probe: ${message}`); process.exit(2); };
 
 // option -> [key, whole number, smallest value]
 const NUMBERS = { "--jobs": ["jobs", true, 1], "--timeout-seconds": ["timeoutSeconds", false, 0.001], "--retries": ["retries", true, 0], "--budget-minutes": ["budgetMinutes", false, 0.001] };
-const STRINGS = ["--root", "--out", "--only", "--expect-platform"];
+const STRINGS = ["--root", "--out", "--only", "--expect-platform", "--shard"];
 const options = { list: false, jobs: 1, timeoutSeconds: 600, retries: 1, budgetMinutes: Infinity };
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -50,14 +52,27 @@ for (let index = 0; index < args.length; index++) {
   } else options[name.slice(2).replace(/-(\w)/g, (_, letter) => letter.toUpperCase())] = value;
 }
 
+let shard;
+if (options.shard !== undefined) {
+  const found = /^([1-9]\d*)\/([1-9]\d*)$/.exec(options.shard);
+  if (!found || Number(found[1]) > Number(found[2])) die(`--shard needs <k>/<n> with 1 <= k <= n, not "${options.shard}"\n${USAGE}`);
+  shard = { index: Number(found[1]) - 1, count: Number(found[2]) };
+}
+
 const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
 if (options.expectPlatform && options.expectPlatform !== process.platform) die(`this machine is ${process.platform}, the run is meant for ${options.expectPlatform}; nothing was run`);
 
 let selection;
 try { selection = selectTests(root, options.only); } catch (error) { die(error.message); }
 if (!selection.length) die(`no test file under ${path.join(root, "tests")}${options.only ? ` matches ${options.only}` : ""}`);
+// A share is every n-th file to run, in the order of the sorted list, so the shares differ by at most one file; the files that are not run
+// (browser) are listed by the first share only, which makes the shares' reports add up to the list.
+if (shard) {
+  let position = 0;
+  selection = selection.filter((entry) => entry.run ? position++ % shard.count === shard.index : shard.index === 0);
+}
 const toRun = selection.filter((entry) => entry.run);
-if (!toRun.length) die("every selected test file needs a browser; nothing to run");
+if (!toRun.length) die(shard ? `shard ${shard.index + 1}/${shard.count} has nothing to run` : "every selected test file needs a browser; nothing to run");
 
 // The darwin and live marks are counted over the files that run: a browser file is left out whatever else it says (the browser
 // files' fixtures say "darwin" in a platform check, and counting those would make the macOS-only part of the suite look like most of it).
@@ -80,7 +95,7 @@ const finishedResults = new Map(); // file -> its result, as each file finishes
 const inFlight = new Set();        // files started and not finished
 const meta = (endedBy) => ({
   platform: process.platform, arch: process.arch, node: process.version, commit,
-  jobs: options.jobs, timeoutSeconds: options.timeoutSeconds, retries: options.retries, budgetMinutes: Number.isFinite(options.budgetMinutes) ? options.budgetMinutes : null,
+  jobs: options.jobs, timeoutSeconds: options.timeoutSeconds, retries: options.retries, shard: options.shard ?? null, budgetMinutes: Number.isFinite(options.budgetMinutes) ? options.budgetMinutes : null,
   minutes: Math.round((Date.now() - started) / 6000) / 10, endedBy,
 });
 // Every selected file with what is known now. A file with no result yet is `not-run`, and its detail says why.

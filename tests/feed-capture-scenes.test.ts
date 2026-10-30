@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "feed-capture-scenes-"));
@@ -17,7 +18,7 @@ async function fixture() {
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "test", project_id: project.project_id, audience: "user",
-    permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] };
+    permissions: [...FEED_ACTION_PERMISSIONS, "functions:invoke"] };
   const inputs: string[] = [];
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture" }, provider: { async evaluate(_key, record, input) {
     inputs.push(input);
@@ -39,14 +40,16 @@ test("Feed capture runs through the common scene, keeps judgment history and sur
     const saved = createLocalFeedApplication(store.db);
     const source = createLocalFeedSourceService(store.db, f.project.project_id).register({ kind: "web_query", query: "capture" }).source;
     const judgment = { capability_id: "functions.published.system_admit_inbox", version: 1, provider_id: "system.functions" };
-    const original = saved.createOutRule(f.project.project_id, { name: "原捕捉规则", match: { source_id: source.source_id }, admission: "inbox", judgment });
+    const original = saved.outRules.create(f.project.project_id, { name: "原捕捉规则", match: { source_id: source.source_id }, admission: "inbox", judgment });
     withFunctionsService(f.home, service => service.recordSceneJudgment({ function_key: "system_admit_inbox", function_version: 1,
       subject: { kind: "feed_item", id: "old-item", project_id: f.project.project_id }, scene_id: "feed.capture", outcome: "ok", suggested_behavior_ids: ["feed.open"], error_code: null }), f.functions);
     store.close();
     const runtime = await f.host.withProject(f.reference, runtime => runtime);
     const scenes = f.host.sceneClient(f.reference);
+    // The project's Runtime plugins (Feed) attach as it opens; a discovery waits for them.
+    await f.host.actionClient(f.reference).discover(f.caller);
     const feed = createLocalFeedApplication(runtime.store.db, { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => f.caller, projectId: runtime.project_id }) });
-    const opened = feed.listOutRules(runtime.project_id).find(rule => rule.rule_id === original.rule_id)!;
+    const opened = feed.outRules.list(runtime.project_id).find(rule => rule.rule_id === original.rule_id)!;
     assert.deepEqual(opened.judgment, judgment);
     assert.ok(f.history().some(record => record.subject.id === "old-item"));
     assert.ok((await scenes.usages(f.caller)).some(use => use.binding_id === feedSceneBindingId(original.rule_id) && use.availability.available));
@@ -90,7 +93,7 @@ test("Feed binds unknown judgments and rejects stale rule, item, provider and au
     const actions = bindActionClient(f.host.actionClient(f.reference), () => f.caller), scenes = f.host.sceneClient(f.reference);
     await assert.rejects(f.host.actionClient(f.reference).invoke({ ...f.caller, permissions: f.caller.permissions.filter(permission => permission !== "inbox:write") }, feedRuleActions.create,
       { name: "无权自动入箱", match: { source_id: source.source_id }, admission: "inbox" }), { code: "actions.forbidden" });
-    assert.ok(!feed.listOutRules(runtime.project_id).some(rule => rule.name === "无权自动入箱"));
+    assert.ok(!feed.outRules.list(runtime.project_id).some(rule => rule.name === "无权自动入箱"));
     let rule = (await actions.invoke(feedRuleActions.create, { name: "陌生能力规则", match: { source_id: source.source_id }, admission: "inbox",
       judgment: { capability_id: definition.capability_id, version: 1, provider_id: provider } })).rule;
     assert.deepEqual(rule.judgment, { capability_id: definition.capability_id, version: 1, provider_id: provider });
@@ -106,7 +109,7 @@ test("Feed binds unknown judgments and rejects stale rule, item, provider and au
       delayed = true; const ready = new Promise<void>(resolve => { started = resolve; }); const pending = run();
       await ready; await change(); release(); await assert.rejects(pending, { code }); assert.equal(f.history().length, 1);
     };
-    await race(() => { rule = feed.updateOutRule(runtime.project_id, rule.rule_id, { name: "新规则名" }); }, "actions.binding_changed");
+    await race(() => { rule = feed.outRules.update(runtime.project_id, rule.rule_id, { name: "新规则名" }); }, "actions.binding_changed");
     await race(() => feed.setDisposition(runtime.project_id, item.item_id, "saved"), "actions.subject_changed");
     delayed = true;
     let revoked = false;

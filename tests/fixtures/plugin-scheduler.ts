@@ -7,7 +7,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { PluginDatabaseTransaction, PluginDefinition, PluginHostServices, PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createScheduleService, PluginWakeupIndex } from "@molis-ai/molis-work-service-scheduler";
+import { createScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./plugin-actions.js";
 
@@ -15,8 +15,8 @@ import { pluginActions } from "./plugin-actions.js";
 export async function pluginSchedulerFixture(t: TestContext, options: { directory?: string; now?: () => Date } = {}) {
   const directory = options.directory ?? mkdtempSync(join(tmpdir(), "plugin-scheduler-")), file = join(directory, "project.db");
   if (!existsSync(file)) seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), index = new PluginWakeupIndex();
-  const scheduler = createScheduleService(store.db, { wakeupIndex: index, now: options.now });
+  const store = new LocalProjectDatabase(file);
+  const scheduler = createScheduleService(store.db, { now: options.now });
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   const platform = createPluginPlatform({ db: store.db, project_id: DEMO_PROJECT_ID, actor_id: "tester", actions, scheduler,
@@ -43,7 +43,7 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
       databases: { project: { store_name: name.replaceAll("_", "-"), version: 1, read_permission: "schedule:read", write_permission: "schedule:write",
         schema: `CREATE TABLE ${name}_notes (text TEXT NOT NULL);` } } },
       async start(context) { services = context.services; return { kind: "app", views: [], actions: [{ ...command, handle: async caller => { await work(caller); return {}; } }, { ...wake, handle: (caller, input) => onWake(caller, input) }] }; } };
-    const started = await platform.start([{ definition, bundled: true }]);
+    const started = await platform.start([{ definition, trust: { level: "host" } }]);
     assert.deepEqual(started.failed, [], JSON.stringify(started));
     assert.ok(started.running.includes(id), JSON.stringify(started));
     assert.ok(services?.project_database && services.scheduler);
@@ -51,12 +51,12 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
     return { id, get database() { return services!.project_database!; }, get schedule() { return services!.scheduler!; },
       install, restart: () => platform.runtime.start(install().install_id),
       reinstall: async () => { await platform.runtime.uninstall(install().install_id, { retain_private_data: true });
-        platform.runtime.install({ definition, deployment: "local", bundled: true }); await platform.runtime.start(install().install_id); },
+        platform.runtime.install({ definition, deployment: "local", trust: { level: "host" } }); await platform.runtime.start(install().install_id); },
       onWake: (handler: typeof onWake) => { onWake = handler; },
       invoke: (execute: typeof work, caller: Partial<ActionCallContext> = {}) => { work = execute; return actions.client.invoke({ actor_id: "tester", project_id: DEMO_PROJECT_ID,
         audience: "user", permissions: ["schedule:write"], ...caller }, command, {}); },
       count: () => Number((store.db.prepare(`SELECT COUNT(*) AS n FROM ${name}_notes`).get() as { n: number }).n),
       stop: () => platform.runtime.stop(install().install_id) };
   };
-  return { start, scheduler, index, directory, file };
+  return { start, scheduler, directory, file };
 }

@@ -13,15 +13,15 @@ export function attachWebAssistant(server: Server, home: string, assistant: () =
   server.once("close", () => stopped.abort());
   // Restore waiting/interrupted work and due follow-ups; otherwise stay lazy until something needs the Runtime.
   void runWithMolisWorkHome(home, async () => {
-    if (!assistant().hasTimedWork()) await agents.started;
+    if (!assistant().notices.hasTimedWork()) await agents.started;
     for (let attempt = 0; attempt < 40 && !stopped.signal.aborted; attempt++) {
-      try { await agents.ready; if (!stopped.signal.aborted && await assistant().attachSchedule()) return; }
+      try { await agents.ready; if (!stopped.signal.aborted && await assistant().notices.attachSchedule()) return; }
       catch (error) { if (attempt === 0) hostLog.warn("assistant", "schedule_not_attached", error); }
       await pause(15_000, undefined, { signal: stopped.signal, ref: false });
     }
   }).catch(error => { if (!stopped.signal.aborted) hostLog.warn("assistant", "background_failed", error); });
   periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
-    run: () => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
+    run: () => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => assistant().notices.scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
   periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
     run: () => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
 }

@@ -1,36 +1,13 @@
-import { clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
-import { DatabaseSync } from "node:sqlite";
-import type { PluginDatabaseDeclaration, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { rmSync } from "node:fs";
-import { join } from "node:path";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
+import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesErrors } from "./error.js";
+import { IMAGES_DATABASE } from "./database.js";
+export { IMAGES_DATABASE };
 
 export type StoredConnection = Omit<ImageConnection, "has_key">;
 type Row = Record<string, unknown>;
 
-/** Private data only: credentials are owned by the Host secret store. */
-/**
- * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version.
- */
-export const IMAGES_DATABASE: PluginDatabaseDeclaration = { store_name: "images", version: 1, read_permission: "storage:private", write_permission: "storage:private", schema: `
-  CREATE TABLE connections (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
-    base_url TEXT NOT NULL, model TEXT NOT NULL,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-  );
-  CREATE TABLE jobs (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
-    input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
-    api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
-    size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
-    images_json TEXT NOT NULL, error TEXT NOT NULL,
-    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT,
-    UNIQUE (project_id, request_id)
-  );
-  CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
-` };
 
 /** Queries are side-effect free; the Runtime owns transaction and authority checks. */
 export class ImagesStore {
@@ -114,31 +91,6 @@ export class ImagesStore {
       WHERE project_id = ? AND id = ? AND status = 'running'`, [status, JSON.stringify(images), error, new Date().toISOString(), projectId, id]);
     return Number(result.changes) === 1;
   }
-}
-
-/** Removes a project's jobs inside the caller's transaction; returns the names of the image files they held. */
-function deleteProjectJobs(db: DatabaseSync, projectId: string): string[] {
-  const files = (db.prepare("SELECT images_json FROM jobs WHERE project_id = ?").all(projectId) as Row[])
-    .flatMap(row => (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename));
-  db.prepare("DELETE FROM jobs WHERE project_id = ?").run(projectId);
-  return files;
-}
-
-/** Image files are named by a generated id; anything else in a stored record is not ours to delete. */
-const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
-
-/**
- * Clears a deleted project's jobs and pictures straight from the Home's files, for a process that runs no Images
- * service. A library that does not exist yet has nothing to clear and is not created. A job still running in another
- * process loses its record; its result is dropped when it finishes.
- */
-export function purgeImagesProject(homeDirectory: string, projectId: string): void {
-  const files = clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_DATABASE, db => deleteProjectJobs(db, projectId));
-  if (files) removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files);
-}
-
-function removeAssetFiles(directory: string, filenames: readonly string[]): void {
-  for (const name of filenames) if (ASSET_FILE.test(name)) rmSync(join(directory, name), { force: true });
 }
 
 function jobFromRow(row: Row): ImageJob {

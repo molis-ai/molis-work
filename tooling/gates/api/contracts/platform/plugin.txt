@@ -32,7 +32,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.event_changed": "conflict";
     readonly "actions.event_invalid": "conflict";
     readonly "actions.event_source_changed": "conflict";
-    readonly "actions.service_configured": "conflict";
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
@@ -393,6 +392,8 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly memory_read_mode?: "explicit" | "task";
+    readonly memory_operation_id?: string;
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
     readonly page_context?: {
         readonly url: string | null;
@@ -402,21 +403,19 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly locale?: ActionLocale;
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
+    readonly delegated_audience?: ActionAudience;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
-    readonly user_action?: {
-        readonly source: string;
-        readonly conversation_ref: string;
-        readonly message_ref: string;
-        readonly whole_confirmation_prompted?: boolean;
-        readonly prompted_subject_id?: string;
-    };
+    readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
+    readonly readable_project_ids?: readonly string[];
+    readonly calling_plugin_id?: string;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
+    readonly original_input?: HostOfferedOriginalInput;
     readonly query_only?: true;
     readonly read_only_effects?: true;
     readonly permissions: readonly string[];
@@ -447,7 +446,11 @@ export interface ActionClient {
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
+export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+    readonly __types__?: {
+        input: Input;
+        output: Output;
+    };
     readonly operation: "query" | "command";
     readonly provider_id?: string;
     readonly action: ActionMetadata;
@@ -470,6 +473,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
+    readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;
@@ -531,6 +535,8 @@ export interface ActionMetadata {
         readonly subject_kind: string;
     };
     readonly home_aggregate?: true;
+    readonly project_reach?: "person";
+    readonly placement_relation?: PlacementRelationDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -572,6 +578,7 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
+    readonly words_of?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -644,6 +651,17 @@ export interface ActionSceneConfigureOptions {
     readonly before_write?: () => void | Promise<void>;
 }
 
+export interface ActionSceneDefaultRule {
+    readonly function_key: string;
+    readonly name: string;
+    readonly instructions: string;
+    readonly options: readonly {
+        readonly key: string;
+        readonly description: string;
+    }[];
+    readonly subject_kinds: readonly string[];
+}
+
 export interface ActionSceneDefinition {
     readonly scene_id: string;
     readonly version: number;
@@ -661,6 +679,7 @@ export interface ActionSceneDefinition {
     readonly permissions: readonly string[];
     readonly configuration_permissions?: readonly string[];
     readonly event_schema?: ActionSchema;
+    readonly default_rule?: ActionSceneDefaultRule;
 }
 
 export interface ActionSceneExecutionContext extends ActionCallContext {
@@ -744,8 +763,7 @@ export interface ActionSubjectContext {
     title: string;
     content: string;
     truncated: boolean;
-    goal_ids: string[];
-    session_id: string | null;
+    goal_ids?: string[];
     open?: {
         surface: string;
         id: string;
@@ -765,6 +783,14 @@ export interface ActionUsage {
 
 export interface ActionUsagesInput {
     action: ActionReference;
+}
+
+export interface ActionUserAction {
+    readonly source: string;
+    readonly conversation_ref: string;
+    readonly message_ref: string;
+    readonly whole_confirmation_prompted?: boolean;
+    readonly prompted_subject_id?: string;
 }
 
 export interface ActionView extends ActionReference {
@@ -890,9 +916,20 @@ export interface ArtifactContinueResult {
     };
 }
 
+export interface ArtifactFileDeclaration {
+    extensions: string[];
+    stored_text?: boolean;
+}
+
 export interface ArtifactLineHead {
     version: number;
     source_revision: number | null;
+}
+
+export interface ArtifactLinkDeclaration {
+    kind: string;
+    role: "input" | "output";
+    proposal?: boolean;
 }
 
 export interface ArtifactPinInput {
@@ -2138,6 +2175,10 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
     })[];
 };
 
+export declare const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
+
+export declare const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
+
 export declare const HOST_EVENT_SOURCE = "host";
 
 export declare const HOST_EVENT_TYPES: readonly HostEventType[];
@@ -2220,6 +2261,7 @@ export interface HomeOpenTarget {
 
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
+    readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
 export interface HomeStoreDeclaration {
@@ -2234,6 +2276,10 @@ export interface HomeStoreDeclaration {
     };
 }
 
+export interface HostConnectionChangedPayload {
+    connection_id: string;
+}
+
 export interface HostEventType {
     readonly event_type_id: string;
     readonly type_version: number;
@@ -2246,6 +2292,16 @@ export interface HostOfferedOriginalFile {
     readonly install_id: string;
 }
 
+export interface HostOfferedOriginalInput {
+    readonly use?: "supplement";
+    readonly input_id: string;
+    readonly text: string;
+    readonly written_by: "person" | "host";
+    readonly occurred_at: string;
+    readonly install_id: string;
+    readonly action: ActionReference;
+}
+
 export interface HostReviewSettledPayload {
     review_id: string;
     kind: PluginReviewKind;
@@ -2256,7 +2312,7 @@ export interface HostReviewSettledPayload {
 
 export interface HostWorkspaceChangedPayload {
     workspace_id: string;
-    cause: "plugin-operation";
+    cause: "plugin-operation" | "agent-change" | "workspace-settings" | "project-opened";
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
@@ -2291,7 +2347,7 @@ export interface IntegrationProviderItem {
 
 export interface IntegrationProviderPort {
     readonly type: string;
-    health(): Promise<{
+    health(control: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorCallControl): Promise<{
         account?: {
             login: string;
             account_id?: string;
@@ -2304,7 +2360,7 @@ export interface IntegrationProviderPort {
     sync(input: {
         cursor: unknown;
         mode?: "normal" | "rebuild_cursor";
-    }): Promise<IntegrationProviderSyncResult>;
+    }, control: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorCallControl): Promise<IntegrationProviderSyncResult>;
 }
 
 export type IntegrationProviderSyncResult = {
@@ -2325,8 +2381,6 @@ export type IntegrationProviderSyncResult = {
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
-
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface MaterialSourceContent {
     text: string;
@@ -2417,6 +2471,8 @@ export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1"
 
 export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
 
+export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
+
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
     properties: {
@@ -2451,7 +2507,27 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";
+
+export declare const PLUGIN_ATTENTION_WRITE_PERMISSION = "attention:write";
+
+export declare const PLUGIN_CONTEXT_LEDGER_READ_PERMISSION = "context-ledger:read";
+
+export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
+
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
+
+export declare const PLUGIN_JUDGMENTS_READ_PERMISSION = "judgments:read";
+
+export declare const PLUGIN_JUDGMENTS_WRITE_PERMISSION = "judgments:write";
+
+export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
+    tools: 32;
+    binaries: 4;
+    directories: 24;
+}>;
+
+export declare const PLUGIN_LOCAL_TOOLS_PERMISSION = "local-tools:read";
 
 export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_timeout_ms: 120000;
@@ -2459,6 +2535,19 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_output_tokens: 5000;
     readonly max_output_tokens: 12000;
 };
+
+export declare const PLUGIN_NOTIFICATION_DELIVERY_ACTOR = "platform-notifications";
+
+export declare const PLUGIN_PROJECTS_EXIST_LIMITS: Readonly<{
+    ids: 200;
+    id_length: 200;
+}>;
+
+export declare const PLUGIN_PROJECTS_EXIST_PERMISSION = "projects:exist";
+
+export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
+
+export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
 export interface PlacementCopyInput {
     subject: ActionSubject;
@@ -2471,6 +2560,17 @@ export interface PlacementMoveInput {
     to_project_id: string;
 }
 
+export interface PlacementRelationDeclaration {
+    readonly relation: string;
+    readonly role: PlacementRelationRole;
+    readonly target?: {
+        readonly kind: string;
+        readonly noun: string;
+    };
+}
+
+export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
+
 export interface PlacementResult {
     subject: ActionSubject;
     project_id: string;
@@ -2478,6 +2578,7 @@ export interface PlacementResult {
 }
 
 export interface PluginActionClient extends BoundActionClient {
+    availability(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
     readonly dependencies?: PluginActionDirectory;
     readonly directory?: PluginActionDirectory;
@@ -2513,8 +2614,6 @@ export interface PluginAppContribution {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
     routes?: readonly PluginRouteBinding[];
-    commandAvailability?(commandId: string): UiCommandAvailability;
-    executeCommand?(commandId: string, input: PluginCommandInput): UiOpenedObjectView | Promise<UiOpenedObjectView>;
     onUpstreamReady?(inputs: PluginUpstreamReadyInputs, context: PluginInputDeliveryContext): void | Promise<void>;
     onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
     onEvent?(event: PluginEventRecord, context: PluginEventDeliveryContext): void | Promise<void>;
@@ -2526,6 +2625,7 @@ export interface PluginArtifactClient {
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
     listConsumable(): PluginConsumableVersion[];
+    join?<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2533,6 +2633,57 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     title: string;
     media_type: string;
     trace?: ArtifactReference[];
+}
+
+export interface PluginArtifactWriter {
+    head(artifactId: string): ArtifactLineHead | null;
+    publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
+}
+
+export interface PluginAttentionClient {
+    list(): PluginAttentionEntryRecord[];
+    get(entryId: string): PluginAttentionEntryRecord;
+    listInbox(): AttentionEntryRecord[];
+    getInbox(entryId: string): AttentionEntryRecord;
+    findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
+    findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
+    events(entryId?: string): PluginAttentionEvent[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
+}
+
+export interface PluginAttentionDeclaration {
+    readonly subjects: readonly AttentionSubjectType[];
+    readonly inbox?: readonly AttentionSubjectType[];
+}
+
+export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
+    readonly reason: AttentionReason;
+    readonly detail?: Record<string, unknown>;
+    readonly entry_id?: string;
+    readonly at?: string;
+}
+
+export type PluginAttentionEntryRecord = AttentionEntryRecord & {
+    owner_plugin_id: string;
+};
+
+export type PluginAttentionEvent = AttentionEvent & {
+    owner_plugin_id: string;
+};
+
+export interface PluginAttentionSubjectReference {
+    readonly owner_plugin_id: string;
+    readonly subject_type: AttentionSubjectType;
+    readonly subject_id: string;
+}
+
+export interface PluginAttentionWriter {
+    create(input: PluginAttentionEntryInput): {
+        entry: PluginAttentionEntryRecord;
+        created: boolean;
+    };
+    setStatus(entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
+    deleteSubject(subject: PluginAttentionSubjectReference): number;
 }
 
 export interface PluginBackgroundClient {
@@ -2547,24 +2698,23 @@ export interface PluginBackgroundExecution<T> {
     cancel(): void;
 }
 
-export interface PluginCapabilityClient {
-    availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-    invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions): Promise<Output>;
-}
-
-export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommandInputOf<"object", {
-    ref: UiViewObjectRef;
-}> | PluginCommandInputOf<"agent-session", {
-    session_id: string;
-}> | PluginCommandInputOf<"artifacts", {
-    references: readonly ArtifactReference[];
-}>;
-
 export interface PluginConsumableVersion extends ArtifactReference {
     kind: "artifact" | "process_item";
     artifact_type_id: string;
     schema_version: number;
     title: string | null;
+}
+
+export interface PluginContextLedgerClient {
+    get(key: string): ContextEdge | null;
+    list(query?: ContextEdgeQuery): ContextEdge[];
+    history(key: string): ContextEdge[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginContextLedgerWriter) => T): T;
+}
+
+export interface PluginContextLedgerWriter {
+    put(input: ContextEdgeInput): ContextEdge;
+    remove(key: string, cause: string, recordedAt?: string): ContextEdge | null;
 }
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
@@ -2590,6 +2740,10 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
     run(sql: string, parameters?: readonly PluginSqlValue[]): {
         changes: number | bigint;
     };
+    savepoint<T>(body: () => {
+        readonly keep: boolean;
+        readonly value: T;
+    }): T;
 }
 
 export interface PluginDefinition {
@@ -2814,44 +2968,42 @@ export interface PluginExecutor {
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
+    uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+    prepareReinstall?(record: PluginInstanceRecord): void;
+    prepareNewInstall?(installId: string): void;
+    keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
 export interface PluginExecutorHandle {
     contribution: PluginContribution;
 }
 
-export interface PluginFilesClient {
-    list(): readonly string[];
-    read(name: string): Uint8Array | null;
-    create(control: PluginExecutionControl, name: string, bytes: Uint8Array): Promise<void>;
-    remove(control: PluginExecutionControl, name: string): Promise<void>;
-}
-
-export interface PluginFilesDeclaration {
-    readonly store_name: string;
-    readonly directory: string;
-    readonly max_file_bytes: number;
-    readonly read_permission: string;
-    readonly write_permission: string;
-}
-
 export interface PluginHostServices {
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly projects?: import("platform/plugin-projects").PluginProjectsClient;
+    readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
+    readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
+    readonly scenes?: import("@molis-ai/molis-work-contracts/platform/plugin-scenes").PluginSceneClient;
+    readonly judgments?: import("@molis-ai/molis-work-contracts/platform/plugin-judgments").PluginJudgmentsClient;
     readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
-    readonly project_database?: import("platform/plugin-database").PluginDatabase;
+    readonly project_database?: import("platform/plugin-database").PluginProjectDatabase;
+    readonly project_statements?: import("platform/plugin-database").PluginProjectStatements;
+    readonly database_statements?: import("platform/plugin-database").PluginProjectStatements;
     readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
-    readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly terminal?: PluginTerminalClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
+    readonly localTools?: import("platform/plugin-local-tools").PluginLocalToolsClient;
     readonly materials?: PluginMaterialsClient;
     readonly connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsClient;
+    readonly sourcePull?: import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginSourcePullClient;
+    readonly evidenceCollector?: import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginEvidenceCollectorClient;
     readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
@@ -2860,7 +3012,20 @@ export interface PluginHostServices {
     readonly events?: PluginEventsClient;
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
-    readonly capabilities?: PluginCapabilityClient;
+}
+
+export interface PluginIdempotencyPut {
+    readonly actorId: string;
+    readonly operation: string;
+    readonly key: string;
+    readonly requestHash: string;
+    readonly outcome: unknown;
+    readonly at: string;
+}
+
+export interface PluginIdempotencyRecord {
+    readonly request_hash: string;
+    readonly outcome: unknown;
 }
 
 export interface PluginImageConnectionState {
@@ -2985,6 +3150,12 @@ export interface PluginInputsClient {
 export interface PluginInstallationClient {
     list(): readonly PluginInstallationView[];
     get(installId: string): PluginInstallationView | null;
+    projects(): PluginInstallationProjects;
+}
+
+export interface PluginInstallationProjects {
+    readonly project_ids: readonly string[];
+    readonly complete: boolean;
 }
 
 export interface PluginInstallationView {
@@ -3009,6 +3180,7 @@ export interface PluginInstanceRecord {
     selected_entrypoint: string;
     grants: string[];
     execution: "host" | "sandbox";
+    publisher_trust: import("@molis-ai/molis-work-contracts/platform/plugin-trust").PluginTrustLevel;
     state: PluginLifecycleState;
     recovery_count: number;
     last_error_code: string | null;
@@ -3020,8 +3192,11 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
     kind: "integration";
-    connector_driver: ConnectorDriver;
-    signal_adapter: RawEventAdapter;
+    bind(binding: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationBinding): {
+        connector_driver: ConnectorDriver;
+        signal_adapter: RawEventAdapter;
+        account?(cursor: unknown, current_account_label: string | null): import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationAccountPresentation | null;
+    };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
 }
@@ -3063,6 +3238,55 @@ export interface PluginJobDeclaration {
     readonly permissions: readonly string[];
 }
 
+export interface PluginJournalAppend {
+    readonly eventId: string;
+    readonly actorId: string;
+    readonly type: string;
+    readonly objectType: string;
+    readonly objectId: string;
+    readonly reason: string;
+    readonly payload: unknown;
+    readonly at: string;
+}
+
+export interface PluginJournalEvent {
+    readonly seq: number;
+    readonly event_id: string;
+    readonly actor_id: string;
+    readonly type: string;
+    readonly object_type: string;
+    readonly object_id: string;
+    readonly reason: string;
+    readonly payload: unknown;
+    readonly at: string;
+}
+
+export interface PluginJournalReader {
+    eventCursor(objectType?: string): number;
+    readEventsDescending(): PluginJournalEvent[];
+    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
+}
+
+export interface PluginJournalWriter extends PluginJournalReader {
+    appendEvent(input: PluginJournalAppend): number;
+    putIdempotency(input: PluginIdempotencyPut): void;
+}
+
+export interface PluginJudgmentInput {
+    readonly function: ActionReference;
+    readonly subject: JudgmentRecord["subject"];
+    readonly scene_id: string;
+    readonly scene_provenance: NonNullable<JudgmentRecord["scene_provenance"]>;
+    readonly outcome: JudgmentRecord["outcome"];
+    readonly suggested_behavior_ids: readonly string[];
+    readonly error_code: string | null;
+}
+
+export interface PluginJudgmentsClient {
+    latest(sceneId: string): readonly JudgmentRecord[];
+    record(input: PluginJudgmentInput): JudgmentRecord;
+}
+
 export interface PluginKeptJob {
     readonly done: Promise<void>;
     cancel(): void;
@@ -3082,6 +3306,28 @@ export type PluginLifecycleState = "installed" | "running" | "disabled" | "crash
 
 export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
 
+export interface PluginLocalToolsClient {
+    find(options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<readonly {
+        readonly tool_id: string;
+        readonly executable: string | null;
+    }[]>;
+    isExecutable(path: string, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<boolean>;
+    refresh(): void;
+}
+
+export interface PluginLocalToolsDeclaration {
+    readonly tools: readonly {
+        readonly tool_id: string;
+        readonly binaries: readonly string[];
+    }[];
+    readonly directories?: readonly string[];
+    readonly custom_executables?: true;
+}
+
 export interface PluginManifest {
     schema_version: 1 | 2;
     plugin_id: string;
@@ -3094,6 +3340,8 @@ export interface PluginManifest {
     };
     host_api_version: 1 | 2;
     always_on?: boolean;
+    summary?: string;
+    developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {
@@ -3129,7 +3377,9 @@ export interface PluginManifest {
                 capability_id: string;
                 version: number;
             };
+            file?: ArtifactFileDeclaration;
         }>;
+        links?: ArtifactLinkDeclaration[];
     };
     process_items?: {
         produces: Array<{
@@ -3145,7 +3395,8 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
-        commands?: UiCommandDeclaration[];
+        messages?: PluginMessagesDeclaration;
+        translations?: PluginTranslationsDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;
@@ -3155,24 +3406,36 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
+    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
+    image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
+    runtime?: PluginRuntimeDeclaration;
+    local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
+    attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
+    connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
+    integrations?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginIntegrationDeclaration[];
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
     };
+    notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
 
 export interface PluginManifestDatabases {
     readonly project?: PluginDatabaseDeclaration;
+    readonly home?: HomePluginDatabaseDeclaration;
 }
 
 export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
-export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress">;
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress"> & {
+    readonly allowedDomains?: readonly string[];
+};
 
 export interface PluginMaterialsClient {
     extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
@@ -3182,8 +3445,14 @@ export interface PluginMaterialsClient {
     readLocalPage?(url: string, request?: PluginLocalPageRequest): Promise<MaterialExtraction>;
     claimOriginal?(record_key: string): Promise<void>;
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+    readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
+
+export type PluginMessagesDeclaration = Readonly<Record<string, {
+    readonly zh: string;
+    readonly en: string;
+}>>;
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -3296,6 +3565,26 @@ export interface PluginNotificationClient {
     deliver(transaction: PluginDatabaseTransaction, input: PluginNotificationInput): PluginNotificationReceipt;
 }
 
+export interface PluginNotificationDelivery {
+    notification_id: string;
+    sender_plugin_id: string;
+    sender_name: string;
+    sender_install_id: string;
+    sender_generation: string;
+    key: string;
+    title: string;
+    summary: string;
+    body: string;
+    open_plugin_id: string;
+    created_at: string;
+}
+
+export interface PluginNotificationDeliveryReceipt {
+    item_id: string;
+    created: boolean;
+    judgment_error_code?: string;
+}
+
 export interface PluginNotificationInput {
     key: string;
     title: string;
@@ -3305,13 +3594,33 @@ export interface PluginNotificationInput {
 }
 
 export interface PluginNotificationReceipt {
-    readonly item_id: string;
+    readonly notification_id: string;
     readonly created: boolean;
     settle(): Promise<void>;
 }
 
+export interface PluginNotificationReceiverDeclaration {
+    readonly receive: {
+        readonly capability_id: string;
+        readonly version: number;
+    };
+}
+
 export interface PluginOriginalContent {
     readonly bytes: Uint8Array;
+}
+
+export interface PluginOriginalRangeContent {
+    readonly bytes: Uint8Array;
+    readonly size: number;
+    readonly revision: string;
+}
+
+export interface PluginOriginalRangeRequest {
+    readonly offset: number;
+    readonly length: number;
+    readonly revision?: string;
+    readonly signal?: AbortSignal;
 }
 
 export interface PluginOriginalRequest {
@@ -3384,6 +3693,10 @@ export interface PluginPackageBundle {
         algorithm: "ed25519";
         value_base64: string;
     };
+    publisher_key: null | {
+        algorithm: "ed25519";
+        spki_base64: string;
+    };
 }
 
 export interface PluginPackageFile {
@@ -3399,6 +3712,7 @@ export interface PluginPackagePayload {
 
 export interface PluginPackageSigner {
     readonly publisher_identity: string;
+    readonly public_key_spki_base64: string;
     sign(payload: Uint8Array): Uint8Array;
 }
 
@@ -3497,6 +3811,65 @@ export interface PluginProcessItemInput extends ArtifactReference {
     supersedes_version?: number | null;
 }
 
+export interface PluginProjectDatabase extends PluginDatabase {
+    readonly journal: PluginJournalReader;
+    transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
+}
+
+export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransaction {
+    readonly journal: PluginJournalWriter;
+}
+
+export type PluginProjectRow = Record<string, null | number | string>;
+
+export interface PluginProjectRowsDeclaration {
+    readonly label: string;
+    readonly order?: number;
+    readonly tables: readonly PluginProjectRowsTable[];
+    readonly files?: readonly PluginProjectRowsFiles[];
+}
+
+export interface PluginProjectRowsFiles {
+    readonly table: string;
+    readonly column: string;
+    readonly key?: string;
+    readonly directory: string;
+}
+
+export type PluginProjectRowsTable = {
+    readonly table: string;
+    readonly column: string;
+} | {
+    readonly table: string;
+    readonly column: string;
+    readonly parent: string;
+    readonly key?: string;
+};
+
+export interface PluginProjectStatement {
+    readonly sql: string;
+    readonly parameters: readonly (null | number | string)[];
+}
+
+export interface PluginProjectStatements {
+    get(sql: string, parameters: readonly (null | number | string)[], limits: {
+        readonly bytes: number;
+    }, signal: AbortSignal): Promise<PluginProjectRow | null>;
+    all(sql: string, parameters: readonly (null | number | string)[], limits: {
+        readonly rows: number;
+        readonly bytes: number;
+    }, signal: AbortSignal): Promise<PluginProjectRow[]>;
+    transaction(beforeEffect: () => Promise<void>, statements: readonly PluginProjectStatement[], signal: AbortSignal): Promise<Array<{
+        changes: number;
+    }>>;
+}
+
+export interface PluginProjectsClient {
+    exist(ids: readonly string[], options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<Readonly<Record<string, boolean>>>;
+}
+
 export interface PluginRequirementDeclaration {
     capability_id: string;
     version: number;
@@ -3574,6 +3947,7 @@ export interface PluginRuntimeApi {
         definition: PluginDefinition;
     }): Promise<PluginLifecycleReceipt>;
     grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+    regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
     start(installId: string): Promise<PluginLifecycleReceipt>;
     stop(installId: string, options?: {
         preserve_enabled?: boolean;
@@ -3590,10 +3964,25 @@ export interface PluginRuntimeApi {
     contribution(installId: string): PluginContribution | null;
 }
 
+export interface PluginRuntimeDeclaration {
+    readonly scope: "home";
+}
+
 export interface PluginRuntimeRepository {
     get(installId: string): PluginInstanceRecord | null;
     list(): PluginInstanceRecord[];
     save(record: PluginInstanceRecord): void;
+}
+
+export interface PluginSceneClient {
+    discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+    usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
+    targets(judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
+    bind(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
+    runScene(scene: {
+        scene_id: string;
+        version: number;
+    }, bindingId: string, event: unknown): Promise<unknown>;
 }
 
 export interface PluginScheduleClient {
@@ -3652,6 +4041,8 @@ export interface PluginTerminalClient {
     }>;
 }
 
+export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
+
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -3664,7 +4055,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -3744,6 +4135,14 @@ export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
 }
+
+export declare const SANDBOX_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly entrypoint: "plugin.mjs";
+    readonly contract: "contract.json";
+    readonly interface: "interface.json";
+    readonly prompts: "prompts.json";
+};
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     type: string;
@@ -3932,6 +4331,8 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 
+export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
+
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     type: string;
     properties: {
@@ -3979,6 +4380,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             type: string[];
             maxLength: number;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4008,17 +4417,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -4028,6 +4426,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
     type: string;
     properties: {
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4057,17 +4463,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -4093,6 +4488,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
             required: string[];
             additionalProperties: boolean;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4122,17 +4525,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -4262,6 +4654,20 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
+
+export interface SandboxPackageInterface {
+    parts: SandboxJson[];
+    nodes: SandboxJson[];
+    presentation?: SandboxJson;
+    acceptance?: SandboxJson[];
+}
+
+export interface SandboxPackagePrompt {
+    id: string;
+    title: string;
+    purpose: string;
+    body: string;
+}
 
 export type SceneConfigurationInput = {
     binding_id: string;
@@ -4751,6 +5157,10 @@ export declare function isObjectMover(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isPlacementRelation(action: {
+    placement_relation?: PlacementRelationDeclaration;
+}, relation: string, role: PlacementRelationRole): boolean;
+
 export declare function isReservedEventType(eventTypeId: string): boolean;
 
 export declare function isSearchEntriesSource(action: {
@@ -4827,7 +5237,11 @@ export declare const platformPluginWiringContract: {
 };
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
+    readonly consent_required: "invalid";
+    readonly consent_revoked: "invalid";
+    readonly consent_unknown: "not_found";
     readonly contribution_kind_invalid: "invalid";
     readonly contribution_unredeemed: "invalid";
     readonly declaration_invalid: "invalid";
@@ -4838,12 +5252,22 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly event_type_undeclared: "invalid";
     readonly executor_failed: "invalid";
     readonly grant_denied: "invalid";
+    readonly home_scope_unavailable: "invalid";
+    readonly id_namespace_conflict: "invalid";
+    readonly in_process_denied: "invalid";
     readonly install_replaced: "invalid";
+    readonly integration_declaration_conflict: "invalid";
+    readonly integration_unavailable: "unavailable";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
+    readonly preview_unknown: "not_found";
+    readonly publisher_revoked: "invalid";
+    readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";
+    readonly rule_key_reserved: "invalid";
+    readonly scene_not_declared: "forbidden";
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";
@@ -4874,9 +5298,7 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
     reader: ActionReference;
 }>;
 
-export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & {
-    provider_id: string;
-}, beforeEffect?: () => Promise<void>): Context;
+export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 
@@ -4933,10 +5355,6 @@ interface DestinationDeclaration {
     readonly prepare?: Pick<ActionReference, "capability_id" | "version">;
     readonly places?: readonly SurfacePlace[];
 }
-
-type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> = {
-    kind: Kind;
-} & Payload;
 
 type RoundRef = {
     session_id: string;

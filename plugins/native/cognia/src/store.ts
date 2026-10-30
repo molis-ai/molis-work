@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { adopted, adoptedFrom, adoptedMaterial, KNOWLEDGE_SOURCE, viewDrafts, type StoredDraft } from "./drafts.js";
 import { contentHash, decodeFile, ignoredPath, linksFor, materialRole, metadata, safeRelativePath } from "./content.js";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, stringField, type Domain, type Draft, type ImportEntry, type ImportFile, type Material, type Preview, type Receipt, type Source } from "./types.js";
+import { COGNIA_DATABASE } from "./database.js";
+export { COGNIA_DATABASE };
 interface Staged { path: string; data: string; base_hash: string | null; material: Material }
 interface SavedPreview extends Preview { files: Staged[] }
 const parse = <T>(row: unknown): T | null => row ? JSON.parse((row as { body: string }).body) as T : null;
@@ -50,7 +49,7 @@ export class CogniaStore {
     for (const row of rows) if (matches(JSON.parse(row.body) as SavedPreview)) this.db.run("DELETE FROM cognia_previews WHERE id=?", [row.id]);
   }
   materials(query = "", domainId = "", sourceId = ""): Material[] {
-    requireCognia(query.length <= 500, "搜索词过长"); const terms = query.toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
+    requireCognia([...query].length <= 500, "搜索词过长"); const terms = query.toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
     return this.db.all("SELECT body FROM cognia_materials ORDER BY updated_at DESC").map(r => parse<Material>(r)!).filter(m => (!domainId || m.domain_id === domainId || domainId === "unclassified" && !m.domain_id) && (!sourceId || m.source_id === sourceId) && terms.every(q => [m.title, m.path, m.body, ...m.tags, ...m.aliases].join("\n").toLocaleLowerCase().includes(q)));
   }
   read(id: string, revision?: number): Material { const row = revision === undefined ? this.db.get("SELECT body FROM cognia_materials WHERE id=?", [id]) : this.db.get("SELECT body FROM cognia_versions WHERE material_id=? AND revision=?", [id, revision]); const value = parse<Material>(row); requireCognia(value, "资料或版本不存在", cogniaErrors.not_found); return value; }
@@ -142,31 +141,4 @@ export class CogniaStore {
       this.put(material, Buffer.from(draft.body).toString("base64")); this.db.run("UPDATE cognia_drafts SET body=? WHERE id=?", [JSON.stringify(adopted(draft, material.id)), id]); return material;
     });
   }
-}
-/**
- * The Cognia store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version.
- */
-export const COGNIA_DATABASE: PluginDatabaseDeclaration = { store_name: "cognia", read_permission: "cognia:read", write_permission: "cognia:write", version: 1, schema: `
-  CREATE TABLE cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
-  CREATE TABLE cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);
-  CREATE TABLE cognia_materials (id TEXT PRIMARY KEY,source_id TEXT NOT NULL,path TEXT NOT NULL,updated_at TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,path));
-  CREATE TABLE cognia_versions (material_id TEXT NOT NULL,revision INTEGER NOT NULL,body TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(material_id,revision));
-  CREATE TABLE cognia_previews (id TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL,receipt TEXT);
-  CREATE TABLE cognia_drafts (id TEXT PRIMARY KEY,body TEXT NOT NULL,archived INTEGER NOT NULL DEFAULT 0);
-` };
-
-export function openCogniaStore(home: string): CogniaStore {
-  const db = openHomeSqliteDatabase(home, COGNIA_HOME_STORE.path);
-  try { db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-    applySqliteBaseline(db, homeSqlitePath(home, COGNIA_HOME_STORE.path), COGNIA_DATABASE);
-    return new CogniaStore(cogniaSql(db), run => { db.exec("BEGIN IMMEDIATE"); try { const result = run(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; } }, () => db.close()); } catch(error) { db.close(); throw error; }
-}
-
-/** This plugin's store in the Home's store registry (W4-11): `cognia/cognia.db` at its one baseline. */
-export const COGNIA_HOME_STORE: HomeStoreDeclaration = { path: "cognia", library: { baseline: COGNIA_DATABASE } };
-
-function cogniaSql(db: DatabaseSync): CogniaSql {
-  return { get: (sql, parameters = []) => db.prepare(sql).get(...parameters), all: (sql, parameters = []) => db.prepare(sql).all(...parameters),
-    run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
 }

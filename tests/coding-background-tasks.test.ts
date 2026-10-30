@@ -37,7 +37,7 @@ test("W5-01-CODING-32 Coding declares its background tasks as a read-only projec
   assert.ok(!declared.action.permissions.includes("model:invoke"));
   // The Host no longer opens Coding's tables for the Home: the reader is not part of what the package gives out.
   for (const name of ["listCodingBackgroundSessions", "holdsCodingSessions", "CodingSqliteDatabase"]) assert.ok(!(name in codingPackage), `${name} is no longer exported`);
-  assert.doesNotMatch(source("apps/local-host/src/web-catalog.ts"), /listCodingBackgroundSessions|holdsCodingSessions|codingBackgroundTasks|coding-background-tasks/);
+  for (const file of ["web-catalog.ts", "web-catalog-routes.ts", "web-catalog-settings.ts"]) assert.doesNotMatch(source(`apps/local-host/src/${file}`), /listCodingBackgroundSessions|holdsCodingSessions|codingBackgroundTasks|coding-background-tasks/, file);
 });
 
 test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in every open project, newest first, through Coding's own query; the stop route (CODING-35) and the English (CODING-50) follow from the rows", { timeout: 60_000 }, async t => {
@@ -72,7 +72,7 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
     ["a9", "done", later(15), { commands: ["t9"] }],
   ]);
   await seed(beta, [
-    // Recorded as running before this activation of Coding started: no round survives a restart, so it is waiting to be checked.
+    // Recorded as running before this Home process started: no round survives a restart, so it is waiting to be checked.
     ["b1", "running", "2020-01-01T00:00:00.000Z"], ["b2", "reconcile-required", "2019-01-01T00:00:00.000Z"], ["b3", "idle", later(60)],
     ["b4", "running", later(2), { commands: ["t1"] }],
   ]);
@@ -112,6 +112,26 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
 
   // W5-01-CODING-50: the page translates each sentence by the words Coding sent, so each one has an English entry.
   for (const text of new Set(rows.flatMap(row => row.standing.map(phrase => phrase.text)))) assert.ok(EN[text] && EN[text] !== text, `English for "${text}"`);
+});
+
+test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: a round recorded as running is still running, not cut off", { timeout: 90_000 }, async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Reopened", ["coding"]);
+  await startProjectPlugins(home.host, project.reference);
+  const store = new LocalProjectDatabase(project.database_path);
+  t.after(() => store.close());
+  const coding = codingSessions(store), at = new Date().toISOString();
+  await coding.create(noEffect, { project_id: project.project_id, session_id: "r1", title: "在跑的任务", runtime_id: "prologue", at });
+  await coding.setState(noEffect, project.project_id, "r1", "running", at);
+  // The person closes the project and opens it again: Coding stops and starts, with a new activation; the Home process does not restart.
+  assert.equal(await home.host.closeProject(project.reference), true);
+  await startProjectPlugins(home.host, project.reference);
+  const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
+  const row = attention.background_tasks.find(item => item.id === "r1");
+  assert.deepEqual(row && [row.state, row.waiting, row.standing], ["running", false, [{ text: "进行中" }]],
+    "the round goes on in the Home's agent host; only the Home process starting would cut it");
+  // The boundary the answer takes is the Home process's start, not the activation's.
+  assert.match(source("plugins/native/coding/src/plugin.ts"), /new Date\(Date\.now\(\) - process\.uptime\(\) \* 1000\)\.toISOString\(\)/);
 });
 
 test("W5-01-CODING-34 Coding's reader lists the sessions that are active or hold the person's open steps, tolerates a column it cannot parse, and writes nothing", { timeout: 60_000 }, async t => {

@@ -26,17 +26,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz"
-  },
-  "molis-work": {
-    "path": "horizontal/agent-host",
-    "kind": "horizontal",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/services/agent-host",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-plugin-platform-v2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
+    "@molis-ai/molis-work-storage": "workspace:*",
+    "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz"
   }
 }

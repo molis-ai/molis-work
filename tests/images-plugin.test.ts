@@ -5,17 +5,18 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { imagesManifest, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { PERSONAL_PLUGIN_IDS, pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
-import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { IMAGE_PNG, imageReply } from "./fixtures/images-runtime.js";
-import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { ImageJob } from "@molis-ai/molis-work-plugin-images/contract";
+import { PERSONAL_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 
 test("图片插件通过Manifest进入个人导航和市场，客户端可解析", () => {
   assert.equal(parsePluginManifest(imagesManifest).plugin_id, "io.molis.work.images");
   assert.ok(PERSONAL_PLUGIN_IDS.includes("images"));
-  assert.equal(pluginMarketCards().find((card) => card.id === "images")?.personal, true);
+  assert.equal(pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
   assert.equal(railEntries(["images"])[0]?.label, "图片");
   assert.equal(imagesUiContribution.descriptor.navigation_id, "images");
   assert.doesNotThrow(() => new Function(`return (${IMAGES_CLIENT_FACTORY_SCRIPT});`));
@@ -51,6 +52,21 @@ test("W5-01-IMGPORT-02 HTTP Runtime binds project identity, reads bytes and save
   assert.equal(Buffer.from(await image.arrayBuffer()).toString("base64"), IMAGE_PNG);
   const download = await f.request(first + imagePath + "?download=1&name=retained.png");
   assert.match(download.headers.get("content-disposition") ?? "", /^attachment;.*retained\.png/);
+  // RAC-1881, RAC-1882: the saved name is cut at 80 whole characters. Half of one makes the Content-Disposition name unencodable, so the download used to fail with a 500.
+  const named = async (asked: string) => {
+    const reply = await f.request(first + imagePath + "?download=1&name=" + encodeURIComponent(asked)), header = reply.headers.get("content-disposition");
+    await reply.arrayBuffer();
+    return { status: reply.status, filename: header === null ? null : decodeURIComponent(header.slice(header.indexOf("''") + 2)) };
+  };
+  const wide = (count: number) => "😀".repeat(count);
+  for (const c of [
+    { rac: "RAC-1881", name: "79 letters and an emoji", asked: "a".repeat(79) + wide(1), filename: "a".repeat(79) + wide(1) + ".png" },
+    { rac: "RAC-1881", name: "80 emoji", asked: wide(80), filename: wide(80) + ".png" },
+    { rac: "RAC-1881", name: "81 emoji are cut to 80", asked: wide(81), filename: wide(80) + ".png" },
+    { rac: "RAC-1882", name: "a name that fits", asked: "留一张", filename: "留一张.png" },
+    { rac: "RAC-1882", name: "a name that already ends in the extension", asked: "pic.PNG", filename: "pic.PNG" },
+    { rac: "RAC-1882", name: "forbidden characters become spaces", asked: "a/b:c", filename: "a b c.png" },
+  ]) await t.test(`${c.rac} ${c.name}`, async () => assert.deepEqual(await named(c.asked), { status: 200, filename: c.filename }));
   // IMAGES-SHELF-01: the real Shelf action receives the copy through the shared action contract.
   assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION);
   const kept = await post(first + imagePath + "/shelf", { filename: "留一张.png" });

@@ -1,9 +1,10 @@
 import { defineErrorCodes, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { HOST_CONNECTIONS_OBSERVE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { noProjectMcp, listProjectMcpConnections, manageProjectMcp, type ProjectMcpManagementPort } from "./connector-project-mcp.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
-import { cancelConnectorAuthorization, connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { cancelConnectorAuthorization, connectorAuthorizationStatus, requireConnectorInitiator } from "./connector-authorization-status.js";
 import { checkConnectorConnection, verifyEnabledConnection } from "./connector-check-service.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -42,6 +43,11 @@ export const connectorManagementActions = {
     title: "移除连接", description: "按明确的连接和读取到的修订移除，不能撤回：删除本产品持有的凭据、协议配置和受管理安装目录，要再用须重新接入。保留业务成果；不表示已撤销服务端授权。只想暂时不用时用 connectors.connection.control 停用。",
     kind: "operation", effect: "irreversible", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_WRITE],
     input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, expected_revision: { type: "string", minLength: 1 } }, required: ["connection_id", "expected_revision"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
+  availability: { capability_id: "connectors.connection.availability", version: 1, operation: "query", action: { ...metadata, audiences: ["plugin"],
+    title: "读取连接此刻是否可用", description: "只回答一条连接现在能不能被使用：已保存、已启用且授权没有断开。不联网检查，不返回账号、名称、服务或凭据；不存在的连接也只答不可用。给订阅了连接变化事件的插件用。",
+    kind: "query", effect: "read", permissions: [HOST_CONNECTIONS_OBSERVE_PERMISSION],
+    input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" } }, required: ["connection_id"], additionalProperties: false },
+    output_schema: { type: "object", properties: { connection_id: { type: "string" }, available: { type: "boolean" } }, required: ["connection_id", "available"], additionalProperties: false } } } as ActionDefinition<{ connection_id: string }, { connection_id: string; available: boolean }>,
   authorization: { capability_id: "connectors.authorization.read", version: 1, operation: "query", action: { ...metadata,
     title: "查看接入授权状态", description: "按本次授权请求 id 读取真实状态。关闭登录页不取消授权；connected 只表示连接提交，不能据此认定原任务完成。等待可由任务运行时检查此只读状态，不持续请求模型。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: authorizationInput, output_schema: output } } as ActionDefinition,
@@ -83,11 +89,20 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
       if (id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, { connection_id: id, action: "check" });
       return checkConnectorConnection(home, id, remember, caller);
     }),
+    binding(connectorManagementActions.availability, (_caller, input) => {
+      const id = (input as { connection_id: string }).connection_id;
+      return { connection_id: id, available: withConnectorConnections(home, store => { const connection = store.get(id); return connection !== null && store.state(connection) === "connected"; }) };
+    }),
     binding(connectorManagementActions.control, (caller, input) => change(caller, input as { connection_id: string; expected_revision: string; action: "enable" | "disable" })),
     binding(connectorManagementActions.remove, (caller, input) => change(caller, { ...input as { connection_id: string; expected_revision: string }, action: "remove" })),
-    binding(connectorManagementActions.authorization, (_caller, input) => authorization((input as { authorization_id: string }).authorization_id)),
+    binding(connectorManagementActions.authorization, (caller, input) => {
+      const id = (input as { authorization_id: string }).authorization_id;
+      requireConnectorInitiator(home, id, caller);
+      return authorization(id);
+    }),
     binding(connectorManagementActions.cancel, async (caller, input) => {
       const id = (input as { authorization_id: string }).authorization_id;
+      requireConnectorInitiator(home, id, caller);
       authorization(id); await caller.beforeEffect();
       return cancelConnectorAuthorization(home, id)!;
     }),

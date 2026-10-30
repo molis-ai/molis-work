@@ -1,25 +1,21 @@
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { PROJECT_SCOPED_PLUGIN_IDS } from "./plugin-registry.js";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import { DEMO_PROJECT_ID } from "./demo-seed.js";
+import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { DEMO_PROJECT_ID } from "./demo-project-id.js";
+import { DEMO_CORE_ARTIFACT_ID, registerDemoDeliverableVersions } from "./demo-deliverable.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { openProjectVersionStores } from "./project-version-stores.js";
-import { createLocalFeedApplication } from "./feed-application.js";
-import { createLocalFeedSourceService } from "./feed-source-service.js";
-import { openWorkSessionRegistry } from "./session-registry.js";
-import { openHostShelfStore } from "./shelf-actions.js";
-import { artifactsManifest, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-plugin-artifacts";
-import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { createDemoFeedApplication, createDemoFeedSourceService } from "./demo-feed-library.js";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
+import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 
 export const DEMO_GITHUB_SOURCE_ID = "demo-github";
 export const DEMO_GMAIL_SOURCE_ID = "demo-gmail";
-export const DEMO_CORE_ARTIFACT_ID = "demo/core-lifecycle-record";
+export { DEMO_CORE_ARTIFACT_ID };
 const DEMO_OUT_RULE_NAME = "捕捉首次协作文章";
 const DEMO_YOUTUBE_CHANNEL_ID = "UCmwDemoPublicChannel001";
 const DEMO_WEB_QUERY = "AI 工作台如何保存共同进度";
 
-const DEMO_ACTOR = "demo-user";
 const AT = {
   github: "2026-09-16T06:18:00.000Z",
   gmail: "2026-09-16T05:42:00.000Z",
@@ -32,9 +28,9 @@ const AT = {
 export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PROJECT_ID): void {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    if (!store.goalsQuery.getBoard(projectId)) return;
-    const feed = createLocalFeedApplication(store.db);
-    const sources = createLocalFeedSourceService(store.db, projectId);
+    if (!listProjectRoots(store.db).some(root => root.project_id === projectId)) return;
+    const feed = createDemoFeedApplication(store.db);
+    const sources = createDemoFeedSourceService(store.db, projectId);
     const rss = sources.register({ kind: "rss", definition_id: "solidot" }).source;
     const youtube = sources.register({
       kind: "youtube_channel",
@@ -72,8 +68,8 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
       config: { scope: "in:inbox" },
     }, projectId);
 
-    if (!feed.listOutRules(projectId).some((rule) => rule.name === DEMO_OUT_RULE_NAME)) {
-      feed.createOutRule(projectId, {
+    if (!feed.outRules.list(projectId).some((rule) => rule.name === DEMO_OUT_RULE_NAME)) {
+      feed.outRules.create(projectId, {
         name: DEMO_OUT_RULE_NAME,
         match: { contains: "目标树", source_id: rss.source_id },
         enabled: true,
@@ -206,72 +202,23 @@ export function enableDemoProjectPlugins(
   }
 }
 
-export async function seedDemoProjectExtras(input: {
-  projectId: string;
-  homeDirectory: string;
-  actorId: string;
-}): Promise<void> {
-  await openHostShelfStore(input.homeDirectory).seedSample();
-  const registry = await openWorkSessionRegistry({ homeDirectory: input.homeDirectory });
+/**
+ * The demo's sample in this Home's Shelf, put back if it was removed: Shelf's own action, called by the process that runs Shelf (the
+ * resident Host) after the demo is made or rebuilt. A Shelf that is missing, off or not granted is left as it is; the demo is made
+ * either way. A process without that Host (the CLI) does not call this; Shelf puts its first-run sample on the shelf itself when it
+ * starts.
+ */
+export async function seedDemoHomeSamples(actions: Pick<BoundActionClient, "invoke">): Promise<void> {
   try {
-    const existing = registry.list({ project_id: input.projectId })
-      .filter((session) => session.metadata.regenerable_demo === true);
-    for (const spec of DEMO_SESSIONS) {
-      let session = existing.find((item) => item.metadata.seed_key === spec.seed_key);
-      if (!session) {
-        session = registry.createSession({
-          runtime_id: spec.runtime_id,
-          actor_id: input.actorId,
-          user_confirmed: true,
-          project_id: input.projectId,
-          current_goal_id: spec.goal_id,
-          title: spec.title,
-          provenance: "molis_work_created",
-          metadata: { regenerable_demo: true, seed_key: spec.seed_key },
-        });
-      }
-      if (registry.eventCount(session.session_id) > 0) continue;
-      registry.appendEvent({
-        session_id: session.session_id,
-        source: "molis_work_tui",
-        kind: "terminal_output",
-        source_id: `demo-seed:${spec.seed_key}:output:0`,
-        source_order: 0,
-        content: spec.content,
-        metadata: { regenerable_demo: true, partial_terminal_history: true },
-      });
-    }
-  } finally {
-    registry.close();
+    await actions.invoke(shelfActions.sample, {});
+  } catch (error) {
+    const kind = actionErrorKind(error);
+    if (kind !== "not_found" && kind !== "unavailable" && kind !== "forbidden") throw error;
   }
 }
 
-const DEMO_SESSIONS = [
-  {
-    seed_key: "core-lifecycle",
-    runtime_id: "codex",
-    goal_id: "CORE",
-    title: "接通完成依据",
-    content: [
-      "$ molis-work goal show CORE",
-      "工作从约定、报告到收尾形成完整记录。",
-      "下一步：明确收尾，把可用的生命周期记录交给当前用户确认。",
-    ].join("\n"),
-  },
-  {
-    seed_key: "desktop-workbench",
-    runtime_id: "claude-code",
-    goal_id: "DESKTOP",
-    title: "工作台主栏对齐",
-    content: [
-      "目录、舞台和标签已经能在同一窗口里切换。",
-      "核对分屏后 Goal 绑定仍保持。这条 Session 只保留 Molis Work 本地记录，没有原 Runtime 线程。",
-    ].join("\n"),
-  },
-] as const;
-
 function upsertConnectorSource(
-  feed: ReturnType<typeof createLocalFeedApplication>,
+  feed: ReturnType<typeof createDemoFeedApplication>,
   input: {
     source_id: string;
     kind: "github" | "gmail";
@@ -289,7 +236,7 @@ function upsertConnectorSource(
 ): FeedSourceRecord {
   const existing = feed.snapshot(projectId).sources.find((source) => source.source_id === input.source_id);
   if (existing) return existing;
-  return feed.upsertSource({
+  return feed.sources.upsert({
     project_id: projectId,
     source_id: input.source_id,
     kind: input.kind,
@@ -315,7 +262,7 @@ function upsertConnectorSource(
 }
 
 function ingestOnce(
-  feed: ReturnType<typeof createLocalFeedApplication>,
+  feed: ReturnType<typeof createDemoFeedApplication>,
   source: FeedSourceRecord,
   input: {
     externalId: string;
@@ -346,21 +293,9 @@ function ingestOnce(
 }
 
 /**
- * CORE's deliverable (specs/artifact-positioning A5): a real 成果 — an imported record, two versions — that the Goal
- * hands in through a `goal.output` link to the second version, not a type of its own.
+ * CORE's deliverable (specs/artifact-positioning A5): a real 成果, an imported record of two versions. The Goal hands the second version
+ * in through its own action when its sample is written (`seedDemoGoals`), so the link is Goals' and not written around it here.
  */
 function seedDemoDeliverable(store: LocalProjectDatabase, projectId: string): void {
-  const { artifacts } = openProjectVersionStores(store);
-  const producer = { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version, binding_signature: artifactsManifest.publisher.signature };
-  for (const [version, title, content] of [[1, "生命周期记录已接通", "从约定、报告到收尾形成完整记录"], [2, "可用的生命周期记录", "约定要求已有支持事实，演示收尾"]] as const) {
-    artifacts.commands.registerVersion({ project_id: projectId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
-      artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1, producer, metadata: { origin: "demo-seed", goal_id: "CORE" },
-      content: { kind: "inline", payload: { source: "file", source_id: `生命周期记录.md:v${version}`, source_url: null, title, content: `# ${title}\n\n${content}\n`, format: "markdown", warnings: [] } },
-      origin: { kind: "imported", file_name: "生命周期记录.md" }, title, media_type: "text/markdown", ...(version > 1 ? { supersedes_version: version - 1 } : {}) });
-  }
-  const scope = { kind: "personal" as const, id: projectId };
-  const delivered = { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 };
-  createContextLedger(store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId }).commands.put({ actor_id: DEMO_ACTOR, scope }, {
-    key: `goal.output:CORE:${artifactSubjectId(delivered)}`, type: "goal.output", cause: "goals.deliverable",
-    source: { module: "goals", id: "CORE", version: null, scope }, target: { module: "artifacts", id: delivered.artifact_id, version: delivered.version, scope } });
+  registerDemoDeliverableVersions(store, projectId);
 }

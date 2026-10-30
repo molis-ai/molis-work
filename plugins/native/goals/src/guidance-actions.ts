@@ -1,10 +1,10 @@
-import { guidanceKindSchema, guidanceCommonSchema, projectGuidanceEntrySchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export { projectGuidanceEntrySchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { guidanceKindSchema, projectGuidanceEntrySchema, projectGuidanceRevisionSchema, goalEntryActions } from "./contract/goal-actions.js";
+export { projectGuidanceEntrySchema } from "./contract/goal-actions.js";
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AddProjectGuidanceInput, AddProjectGuidanceResult, UpdateProjectGuidanceInput, UpdateProjectGuidanceResult,
-  ProjectGuidanceView, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
+  ProjectGuidanceView, GoalsCommandApi } from "./contract/goals.js";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, count, boolean, object, array, enumeration } from "./contract/goal-actions.js";
 
 type AddInput = Omit<AddProjectGuidanceInput, "project_id" | "actor_id">;
 type UpdateInput = Omit<UpdateProjectGuidanceInput, "project_id" | "actor_id">;
@@ -12,13 +12,12 @@ export interface GoalsGuidanceActionPorts {
   commands: Pick<GoalsCommandApi, "addProjectGuidance" | "updateProjectGuidance">;
   read(projectId: string): ProjectGuidanceView;
 }
-const kind = guidanceKindSchema, common = guidanceCommonSchema;
+const kind = guidanceKindSchema;
 const entry = projectGuidanceEntrySchema;
-const revision = object({ ...common, revision_id: text, changed_by: text, change_kind: enumeration(["created", "edited", "deactivated", "restored"]) });
+const revision = projectGuidanceRevisionSchema;
 const write = { reason: identifier, confirmation_summary: identifier, user_confirmed: boolean, idempotency_key: identifier };
 export const goalsGuidanceActions = {
-  guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
-    object({}), object({ entries: array(entry), inactive_entries: array(entry), revisions: array(revision), virtual_document: text, runtime_prompt_prefix: text })),
+  guidanceRead: goalEntryActions.guidanceRead,
   guidanceAdd: goalAction<AddInput, AddProjectGuidanceResult>("goals.guidance.add", "新增项目长期说明", "先向用户展示精确分类和原文，说明长期保存原因并获得明确同意，再保存说明。保留去重及原幂等回执，不创建 Goal 或用户决定", "command",
     object({ ...write, kind, content: identifier, source_refs: array(text) }, [...Object.keys(write), "kind", "content"]),
     object({ entry, created: boolean, observed_event_cursor: count, replayed: boolean })),

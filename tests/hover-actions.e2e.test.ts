@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
+import { pluginOnDemandStylesheet, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { HOVER_HIDDEN, HOVER_RULES, hoverFocus, hoverShown, type HoverHidden, type HoverRule } from "./fixtures/hover-audit.js";
 
@@ -169,6 +170,8 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
   const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
     return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const found = new Map<string, string>(), cleared = new Set<string>();
+  const packs = pluginWorkbenchPacks();
+  let missingSheetRejected = false;
   // The workbench (with every plugin's styles), the component board and settings carry the three stylesheets.
   for (const path of ["/__ui/catalog", `/projects/${projectId}/settings`, `/projects/${projectId}/`, ...PLUGINS.map((id) => `/projects/${projectId}/?openPlugin=${id}`)]) {
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
@@ -179,7 +182,49 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
     await prepare(name,isolated ? children[name]! : browser);
     const pages = isolated ? [browser,children[name]!] : [browser];
     // Read the actual owner stylesheet rules; an opaque page cannot access cross-origin CSSOM itself.
-    const css = isolated ? await evaluate<string>(`[...document.styleSheets].flatMap(sheet=>[...sheet.cssRules].map(rule=>rule.cssText)).join('\\n')`) : "";
+    const ownerSheets = `[...document.styleSheets].flatMap(sheet=>[...sheet.cssRules].map(rule=>rule.cssText)).join('\\n')`;
+    const shell = isolated ? await evaluate<string>(ownerSheets) : "";
+    // PG-070: a plugin's own rules are its sheets (/assets/molis-work-plugins/<id>.css), linked only inside its frame; the frame cannot read them
+    // either, so the owner page fetches the ones the frame links and they are audited with the shell's.
+    // PG070-N2-01: the registration determines what must be linked, independently of the frame's current DOM.
+    const required = name && pluginOnDemandStylesheet(name, packs) ? `/assets/molis-work-plugins/${name}.css` : null;
+    const missing = `${name}: missing declared plugin stylesheet ${required}`;
+    const readOwn = async () => {
+      const links = isolated ? await children[name]!.evaluate<string[]>(`[...document.querySelectorAll('link[rel=stylesheet]')].map(link=>link.getAttribute('href')).filter(href=>href&&href.includes('/assets/molis-work-plugins/'))`) : [];
+      if (required) {
+        assert.ok(isolated, `${name}: the declared plugin stylesheet requires its real frame`);
+        assert.ok(links.some(href => new URL(href, origin).pathname === required), missing);
+      }
+      return links;
+    };
+    const own = await readOwn();
+    if (required && !missingSheetRejected) {
+      // PG070-N2-02: remove one real link; shared shell rules must not conceal the missing plugin sheet.
+      const frame = children[name]!, href = own.find(href => new URL(href, origin).pathname === required)!;
+      const ownerRules = await evaluate<{ count: number }>(HOVER_RULES);
+      assert.ok(ownerRules.count > 0, "the shared shell still has actual rules during the negative control");
+      try {
+        const removed = await frame.evaluate<{ before: (string | null)[]; after: (string | null)[]; index: number }>(`(() => {
+          const links = [...document.querySelectorAll('link[rel=stylesheet]')], link = links.find(link => link.getAttribute('href') === ${JSON.stringify(href)});
+          if (!link) throw Error('Missing negative-control link');
+          window.__hoverAuditRemovedSheet = { link, parent: link.parentNode, next: link.nextSibling };
+          const before = links.map(link => link.getAttribute('href')), index = links.indexOf(link);
+          link.remove();
+          return { before, index, after: [...document.querySelectorAll('link[rel=stylesheet]')].map(link => link.getAttribute('href')) };
+        })()`);
+        assert.deepEqual(removed.after, removed.before.filter((_, index) => index !== removed.index), "only the declared link was removed");
+        assert.equal(await evaluate<string>(ownerSheets), shell, "shared shell CSS is unchanged");
+        await assert.rejects(readOwn, { code: "ERR_ASSERTION", message: missing });
+        t.diagnostic(`PG070-N2-02 ${name}: ${missing}; shell rules=${ownerRules.count}; only removed ${href}`);
+      } finally {
+        await frame.evaluate(`(() => { const saved = window.__hoverAuditRemovedSheet;
+          if (saved) { saved.parent.insertBefore(saved.link, saved.next); delete window.__hoverAuditRemovedSheet; } })()`);
+      }
+      assert.deepEqual(await readOwn(), own, "the original stylesheet links pass again after restoration");
+      missingSheetRejected = true;
+    }
+    const plugin = await Promise.all(own.map((href) => evaluate<string>(`fetch(${JSON.stringify(href)}).then(response=>response.text())`)));
+    const css = [shell, ...plugin].join("\n");
     for (const page of pages) {
       if (page !== browser) await page.evaluate(`window.__hoverAuditSheets=[new CSSStyleSheet()];window.__hoverAuditSheets[0].replaceSync(${JSON.stringify(css)})`);
       const audit = page === browser ? HOVER_RULES : HOVER_RULES.replace("document.styleSheets","window.__hoverAuditSheets");
@@ -192,6 +237,7 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
     }
   }
   // SYS-08 gives both column handles real focus-visible states. Image sizing still uses its announced keyboard command.
+  assert.ok(missingSheetRejected, "PG070-N2-02 exercised a declared plugin sheet in a real frame");
   const left = [...found].filter(([selector]) => !cleared.has(selector)).map(([, line]) => line);
   assert.deepEqual(left, [".pages-editor-host .ProseMirror .pages-image-frame:hover .pages-image-resize — no keyboard focus"]);
 });

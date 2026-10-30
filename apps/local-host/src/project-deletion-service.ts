@@ -15,7 +15,8 @@ export interface ProjectDeletionPorts {
 
 /**
  * Deleting a project, for every door: the settings page and the MCP tool run this one service, in the process that has the
- * terminals and the runtime (the resident Host; a process with no Host to forward to has none of either). It refuses while
+ * terminals and the runtime (production stdio forwards through the resident context handler; embedded MCP uses its explicitly
+ * supplied Host). It refuses while
  * one of the project's terminals is alive, lets go of the project's runtime, and only then has the catalog delete: the
  * catalog's receipt (one step for each owner of project data) and its retry stay the catalog's. The caller says who asks;
  * the arguments of a person's or a Runtime's request never do.
@@ -30,7 +31,7 @@ export class ProjectDeletionService {
       // An already deleted project is not in the list: its persisted receipt replays without asking the terminals or the runtime.
       const project = catalog.listProjects().find(item => item.project_id === input.project_id.trim());
       if (project) {
-        if (catalog.listDesktopPanels(project.project_id).some(panel => this.ports.isPanelAlive(panel.panel_id))) {
+        if (catalog.desktopPanels.listIds(project.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
           throw catalogErrors.project_terminal_live(L("请先关闭这个项目中正在运行的终端，再删除项目。"));
         }
         await this.ports.releaseProject(project.database_path);
@@ -46,20 +47,16 @@ export class ProjectDeletionService {
  */
 export function webProjectDeletionPorts(web: {
   isPanelAlive(panelId: string): boolean;
-  feedSchedulers: Map<string, unknown>;
+  projectSchedules: Map<string, unknown>;
   webViewCache: Map<string, unknown>;
   localHost: Pick<MolisWorkLocalHost, "closeProject">;
 }): ProjectDeletionPorts {
   return {
     isPanelAlive: panelId => web.isPanelAlive(panelId),
     async releaseProject(databasePath) {
-      web.feedSchedulers.delete(databasePath);
+      web.projectSchedules.delete(databasePath);
       web.webViewCache.delete(databasePath);
       await web.localHost.closeProject(databasePath);
     },
   };
 }
-
-/** What the resident Web Host runs when a process that only forwards (the stdio MCP) hands it a deletion: this server's own terminals and runtimes. */
-export const webProjectDeletion = (withCatalog: LocalWebCatalogRunner, web: Parameters<typeof webProjectDeletionPorts>[0]): ProjectDeletionService =>
-  new ProjectDeletionService(withCatalog, webProjectDeletionPorts(web));

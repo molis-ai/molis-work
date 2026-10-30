@@ -1,59 +1,32 @@
 import type { ActionSceneBinding, ActionSceneReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
-  AGENT_MCP_DESTINATION_ID,
   FUNCTIONS_DEFAULT_MODEL,
   FUNCTIONS_MAX_SAMPLES,
-  functionOutputKeys,
-  isFunctionDestinationId,
-  type ChoiceCriterion,
-  type FunctionCriteria,
-  type FunctionDraftPatch,
-  type FunctionRecord,
-  type FunctionSample,
-  type FunctionSceneMap,
-  type FunctionActionMap,
-  type FunctionsPreviewRecord,
-  type FunctionsPrimitive,
+  type JudgmentRuleDraftPatch,
+  type JudgmentRuleRecord,
+  type JudgmentRuleSample,
+  type JudgmentRuleSceneMap,
+  type JudgmentRulePreviewRecord,
+  type JudgmentRulePrimitive,
   type JudgmentRecord,
   type JudgmentSubject,
-  type NoulCriteria,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hashFunctionConfig } from "./hash.js";
-import { seedBuiltinFunctions } from "./builtin.js";
-import { functionsErrors, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
-
-interface FunctionRow {
-  id: string;
-  name: string;
-  function_key: string;
-  primitive: string;
-  status: string;
-  version: number | null;
-  model: string;
-  instructions: string;
-  criteria_json: string;
-  scene_id: string | null;
-  scene_version: number | null;
-  scene_provider_id: string | null;
-  subject_kinds_json: string | null;
-  scene_map_json: string | null;
-  action_map_json: string | null;
-  config_hash: string;
-  last_preview_json: string | null;
-  samples_json: string | null;
-  published_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-const DEFAULT_CHOICE: readonly ChoiceCriterion[] = [
-  { key: "yes", description: "" },
-  { key: "no", description: "" },
-];
-const DEFAULT_NOUL: NoulCriteria = { true_description: "", false_description: "" };
-const DEFAULT_SCORE: readonly string[] = ["低", "高"];
+import { seedDeclaredRules, type DeclaredRuleSubject, type DeclaredSceneRule } from "./declared-rules.js";
+import {
+  getActionSceneBinding, latestJudgment, latestSceneJudgments, listJudgments, recordJudgment, setActionSceneBinding,
+  type RecordJudgmentInput,
+} from "./judgments.js";
+import { functionsErrors, assertFunctionKey, suggestFunctionKey } from "./keys.js";
+import {
+  assertAvailableKey, uniqueKey, assertPrimitive, assertReadyToPublish, assertSceneReference, defaultCriteria, defaultName, normalizeActionMap,
+  normalizeCriteria, normalizeDraftInstructions, normalizeName, normalizeSampleInput, normalizeSampleLabel, normalizeSceneId,
+  normalizeSceneMap, normalizeSubjectKinds, pinModel, pruneSceneMap,
+} from "./record-rules.js";
+import { buildRecord, fromRow, insert, type FunctionRow } from "./record-rows.js";
+import { FUNCTIONS_HOME_STORE, FUNCTIONS_STORE_BASELINE } from "./store-schema.js";
 
 /** The next `updated_at` (also the version writes are checked against): always later, even within one millisecond. */
 const laterThan = (previous: string) => new Date(Math.max(Date.now(), Date.parse(previous) + 1)).toISOString();
@@ -65,29 +38,34 @@ export class FunctionsStore {
     this.db.close();
   }
 
-  list(): FunctionRecord[] {
+  /** Writes the rules scenes declare for themselves; one already in the library under the same key stays as it is. */
+  seedDeclared(rules: readonly DeclaredSceneRule[], sceneMap?: (rule: DeclaredRuleSubject) => JudgmentRuleSceneMap): void {
+    seedDeclaredRules(this.db, rules, sceneMap);
+  }
+
+  list(): JudgmentRuleRecord[] {
     const rows = this.db.prepare(
       "SELECT * FROM functions ORDER BY datetime(updated_at) DESC, name COLLATE NOCASE",
     ).all() as unknown as FunctionRow[];
     return rows.map(fromRow);
   }
 
-  get(id: string): FunctionRecord | null {
+  get(id: string): JudgmentRuleRecord | null {
     const row = this.db.prepare("SELECT * FROM functions WHERE id = ?").get(id) as FunctionRow | undefined;
     return row ? fromRow(row) : null;
   }
 
-  getByKey(functionKey: string): FunctionRecord | null {
+  getByKey(functionKey: string): JudgmentRuleRecord | null {
     const row = this.db.prepare("SELECT * FROM functions WHERE function_key = ?").get(functionKey) as FunctionRow | undefined;
     return row ? fromRow(row) : null;
   }
 
-  create(input: { primitive?: FunctionsPrimitive; name?: string; function_key?: string } = {}): FunctionRecord {
+  create(input: { primitive?: JudgmentRulePrimitive; name?: string; function_key?: string } = {}): JudgmentRuleRecord {
     const primitive = assertPrimitive(input.primitive ?? "choice");
     const now = new Date().toISOString();
     const name = normalizeName(input.name ?? defaultName(primitive));
     const function_key = uniqueKey(
-      this,
+      key => this.getByKey(key),
       input.function_key ? assertFunctionKey(input.function_key) : suggestFunctionKey(name, primitive),
     );
     const criteria = defaultCriteria(primitive);
@@ -114,11 +92,11 @@ export class FunctionsStore {
     return record;
   }
 
-  createChoice(input: { name?: string; function_key?: string } = {}): FunctionRecord {
+  createChoice(input: { name?: string; function_key?: string } = {}): JudgmentRuleRecord {
     return this.create({ ...input, primitive: "choice" });
   }
 
-  updateDraft(id: string, patch: FunctionDraftPatch, expectedUpdatedAt?: string): FunctionRecord {
+  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.status === "published") {
       throw functionsErrors.published_immutable("已发布的函数不能再改配置");
@@ -126,7 +104,7 @@ export class FunctionsStore {
     const name = patch.name === undefined ? current.name : normalizeName(patch.name);
     const function_key = patch.function_key === undefined
       ? current.function_key
-      : assertAvailableKey(this, assertFunctionKey(patch.function_key), current.id);
+      : assertAvailableKey(key => this.getByKey(key), assertFunctionKey(patch.function_key), current.id);
     const instructions = patch.instructions === undefined ? current.instructions : normalizeDraftInstructions(patch.instructions);
     const criteria = patch.criteria === undefined
       ? current.criteria
@@ -174,7 +152,7 @@ export class FunctionsStore {
     return this.requireCas(id, written.changes);
   }
 
-  savePreview(id: string, preview: FunctionsPreviewRecord, expectedUpdatedAt?: string): FunctionRecord {
+  savePreview(id: string, preview: JudgmentRulePreviewRecord, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (preview.config_hash !== current.config_hash) {
       throw functionsErrors.stale_preview("预览结果对不上当前配置，请再试一次");
@@ -186,12 +164,12 @@ export class FunctionsStore {
     return this.requireCas(id, written.changes);
   }
 
-  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): FunctionRecord {
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
       throw functionsErrors.invalid(`每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
     }
-    const sample: FunctionSample = {
+    const sample: JudgmentRuleSample = {
       id: crypto.randomUUID(),
       label: normalizeSampleLabel(input.label, current.samples.length),
       input: normalizeSampleInput(input.input),
@@ -199,7 +177,7 @@ export class FunctionsStore {
     return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt ?? current.updated_at);
   }
 
-  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): FunctionRecord {
+  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     const samples = current.samples.filter((item) => item.id !== sampleId);
     if (samples.length === current.samples.length) {
@@ -208,7 +186,7 @@ export class FunctionsStore {
     return this.writeSamples(current, samples, expectedUpdatedAt ?? current.updated_at);
   }
 
-  publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): FunctionRecord {
+  publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.status === "published") return current;
     assertReadyToPublish(current);
@@ -252,20 +230,20 @@ export class FunctionsStore {
     }
   }
 
-  require(id: string): FunctionRecord {
+  require(id: string): JudgmentRuleRecord {
     const record = this.get(id);
     if (!record) throw functionsErrors.not_found("函数不存在");
     return record;
   }
 
-  private requireCas(id: string, changes: number | bigint): FunctionRecord {
+  private requireCas(id: string, changes: number | bigint): JudgmentRuleRecord {
     if (changes !== 1 && changes !== 1n) {
       throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
     }
     return this.require(id);
   }
 
-  requirePublishedByKey(functionKey: string): FunctionRecord {
+  requirePublishedByKey(functionKey: string): JudgmentRuleRecord {
     const record = this.getByKey(functionKey);
     if (!record || record.status !== "published" || record.version == null) {
       throw functionsErrors.not_found("函数不存在");
@@ -273,116 +251,32 @@ export class FunctionsStore {
     return record;
   }
 
+
   getActionSceneBinding(sceneId: string, projectId: string): ActionSceneBinding | null {
-    const row = this.db.prepare("SELECT action_binding_json, binding_revision FROM function_scene_bindings WHERE scene_id = ? AND project_id = ?")
-      .get(sceneId, projectId) as { action_binding_json: string; binding_revision: string } | undefined;
-    return row ? { ...JSON.parse(row.action_binding_json) as ActionSceneBinding, revision: row.binding_revision } : null;
+    return getActionSceneBinding(this.db, sceneId, projectId);
   }
 
   setActionSceneBinding(projectId: string, binding: ActionSceneBinding, expectedRevision?: string | null): ActionSceneBinding {
-    const reference: ActionSceneBinding = { binding_id: binding.binding_id, scene_id: binding.scene_id, scene_version: binding.scene_version,
-      project_id: binding.project_id, function: { capability_id: binding.function.capability_id, version: binding.function.version,
-        ...(binding.function.provider_id ? { provider_id: binding.function.provider_id } : {}) },
-      enabled: binding.enabled, title: binding.title, ...(binding.href ? { href: binding.href } : {}) };
-    const revision = crypto.randomUUID();
-    const at = new Date().toISOString();
-    const json = JSON.stringify(reference);
-    const written = expectedRevision === undefined ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, project_id, action_binding_json, binding_revision, updated_at)
-      VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, project_id) DO UPDATE SET
-      action_binding_json=excluded.action_binding_json, binding_revision=excluded.binding_revision, updated_at=excluded.updated_at`)
-      .run(binding.scene_id, projectId, json, revision, at)
-      : expectedRevision === null ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, project_id, action_binding_json, binding_revision, updated_at)
-        VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, project_id) DO NOTHING`).run(binding.scene_id, projectId, json, revision, at)
-        : this.db.prepare(`UPDATE function_scene_bindings SET action_binding_json = ?, binding_revision = ?, updated_at = ?
-          WHERE scene_id = ? AND project_id = ? AND binding_revision = ?`)
-          .run(json, revision, at, binding.scene_id, projectId, expectedRevision);
-    if (written.changes !== 1 && written.changes !== 1n) throw functionsErrors.conflict("配置已变化，请刷新后再试");
-    return { ...reference, revision };
+    return setActionSceneBinding(this.db, projectId, binding, expectedRevision);
   }
 
-  recordJudgment(input: {
-    function_key: string;
-    function_version: number;
-    subject: JudgmentSubject;
-    scene_id: string | null;
-    outcome: JudgmentRecord["outcome"];
-    suggested_behavior_ids: readonly string[];
-    error_code: string | null;
-    scene_provenance?: JudgmentRecord["scene_provenance"];
-    recommended_actions?: JudgmentRecord["recommended_actions"];
-  }): JudgmentRecord {
-    const record: JudgmentRecord = {
-      judgment_id: crypto.randomUUID(),
-      function_key: input.function_key,
-      function_version: input.function_version,
-      subject: input.subject,
-      scene_id: input.scene_id,
-      outcome: input.outcome,
-      suggested_behavior_ids: [...input.suggested_behavior_ids],
-      error_code: input.error_code,
-      created_at: new Date().toISOString(),
-      ...(input.scene_provenance ? { scene_provenance: input.scene_provenance } : {}),
-      ...(input.recommended_actions?.length ? { recommended_actions: input.recommended_actions } : {}),
-    };
-    this.db.prepare(`
-      INSERT INTO function_judgments (
-        judgment_id, function_key, function_version, subject_kind, subject_id, project_id,
-        scene_id, outcome, suggested_json, error_code, created_at, scene_provenance_json, recommended_actions_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      record.judgment_id,
-      record.function_key,
-      record.function_version,
-      record.subject.kind,
-      record.subject.id,
-      record.subject.project_id ?? "",
-      record.scene_id,
-      record.outcome,
-      JSON.stringify(record.suggested_behavior_ids),
-      record.error_code,
-      record.created_at,
-      record.scene_provenance ? JSON.stringify(record.scene_provenance) : null,
-      record.recommended_actions ? JSON.stringify(record.recommended_actions) : null,
-    );
-    return record;
+  recordJudgment(input: RecordJudgmentInput): JudgmentRecord {
+    return recordJudgment(this.db, input);
   }
 
   listJudgments(): JudgmentRecord[] {
-    const rows = this.db.prepare(
-      "SELECT * FROM function_judgments ORDER BY created_at DESC, rowid DESC",
-    ).all() as Record<string, unknown>[];
-    return rows.map(mapJudgment);
+    return listJudgments(this.db);
   }
 
-  latestSceneJudgments(projectId: string, sceneId: string): JudgmentRecord[] {
-    const rows = this.db.prepare(`
-      SELECT * FROM (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY subject_kind, subject_id ORDER BY created_at DESC, rowid DESC) AS subject_rank
-        FROM function_judgments WHERE project_id = ? AND scene_id = ?
-      ) WHERE subject_rank = 1 ORDER BY created_at DESC
-    `).all(projectId, sceneId) as Record<string, unknown>[];
-    return rows.map(mapJudgment);
+  latestSceneJudgments(projectId: string, sceneId: string, installId: string | null): JudgmentRecord[] {
+    return latestSceneJudgments(this.db, projectId, sceneId, installId);
   }
 
   latestJudgment(kind: JudgmentSubject["kind"], id: string, projectId?: string, sceneId?: string | null): JudgmentRecord | null {
-    const board = projectId ?? "";
-    const row = sceneId
-      ? this.db.prepare(`
-          SELECT * FROM function_judgments
-          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR project_id = ?) AND scene_id = ?
-          ORDER BY created_at DESC, rowid DESC
-          LIMIT 1
-        `).get(kind, id, board, board, sceneId) as Record<string, unknown> | undefined
-      : this.db.prepare(`
-          SELECT * FROM function_judgments
-          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR project_id = ?)
-          ORDER BY created_at DESC, rowid DESC
-          LIMIT 1
-        `).get(kind, id, board, board) as Record<string, unknown> | undefined;
-    return row ? mapJudgment(row) : null;
+    return latestJudgment(this.db, kind, id, projectId, sceneId);
   }
 
-  private writeSamples(current: FunctionRecord, samples: readonly FunctionSample[], expectedUpdatedAt: string): FunctionRecord {
+  private writeSamples(current: JudgmentRuleRecord, samples: readonly JudgmentRuleSample[], expectedUpdatedAt: string): JudgmentRuleRecord {
     const written = this.db.prepare(
       "UPDATE functions SET samples_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
     ).run(JSON.stringify(samples), laterThan(current.updated_at), current.id, expectedUpdatedAt);
@@ -390,547 +284,6 @@ export class FunctionsStore {
   }
 }
 
-/**
- * The Functions store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
- * ones must already be at its version, in the column order existing stores have; registered as `FUNCTIONS_HOME_STORE` (W4-11).
- */
-export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
-  CREATE TABLE functions (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    function_key TEXT NOT NULL UNIQUE,
-    primitive TEXT NOT NULL,
-    status TEXT NOT NULL,
-    version INTEGER,
-    model TEXT NOT NULL,
-    instructions TEXT NOT NULL,
-    criteria_json TEXT NOT NULL,
-    config_hash TEXT NOT NULL,
-    last_preview_json TEXT,
-    samples_json TEXT NOT NULL DEFAULT '[]',
-    published_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    scene_id TEXT,
-    subject_kinds_json TEXT NOT NULL DEFAULT '[]',
-    scene_map_json TEXT NOT NULL DEFAULT '{}',
-    scene_version INTEGER,
-    scene_provider_id TEXT,
-    action_map_json TEXT NOT NULL DEFAULT '{}'
-  );
-  CREATE TABLE function_judgments (
-    judgment_id TEXT PRIMARY KEY,
-    function_key TEXT NOT NULL,
-    function_version INTEGER NOT NULL,
-    subject_kind TEXT NOT NULL,
-    subject_id TEXT NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
-    scene_id TEXT,
-    outcome TEXT NOT NULL,
-    suggested_json TEXT NOT NULL,
-    error_code TEXT,
-    created_at TEXT NOT NULL,
-    scene_provenance_json TEXT,
-    recommended_actions_json TEXT
-  );
-  CREATE INDEX function_judgments_subject_idx
-    ON function_judgments(subject_kind, subject_id, project_id, created_at);
-  CREATE TABLE function_scene_bindings (
-    scene_id TEXT NOT NULL,
-    project_id TEXT NOT NULL,
-    action_binding_json TEXT NOT NULL,
-    binding_revision TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (scene_id, project_id)
-  );
-` };
-
-export const FUNCTIONS_HOME_STORE: HomeStoreDeclaration = { path: "functions", library: { baseline: FUNCTIONS_STORE_BASELINE } };
-/** `builtinSceneMaps`: option targets of built-in rules that only the host can name, written when they are first seeded. */
-export function openFunctionsStore(homeDirectory: string, options: { builtinSceneMaps?: Readonly<Record<string, FunctionSceneMap>> } = {}): FunctionsStore {
-  const db = openBaselineHomeSqlite(homeDirectory, FUNCTIONS_HOME_STORE.path, FUNCTIONS_STORE_BASELINE);
-  seedBuiltinFunctions(db, options.builtinSceneMaps);
-  return new FunctionsStore(db);
-}
-
-export function assertReadyToPublish(record: FunctionRecord): void {
-  normalizeInstructions(record.instructions);
-  normalizeCriteria(record.primitive, record.criteria, true);
-  if (!record.last_preview) {
-    throw functionsErrors.preview_required("发布前需要用当前配置成功试跑一次");
-  }
-  if (record.last_preview.config_hash !== record.config_hash) {
-    throw functionsErrors.stale_preview("配置改过了，请用当前说明再试跑一次");
-  }
-}
-
-export function assertReadyToEvaluate(record: FunctionRecord): void {
-  normalizeInstructions(record.instructions);
-  normalizeCriteria(record.primitive, record.criteria, true);
-}
-
-function pinModel(record: FunctionRecord): string {
-  const resolved = record.last_preview?.model?.trim() ?? "";
-  if (isPinnedJevModel(resolved)) return resolved;
-  return record.model;
-}
-
-function insert(db: DatabaseSync, record: FunctionRecord): void {
-  db.prepare(`
-    INSERT INTO functions (
-      id, name, function_key, primitive, status, version, model, instructions, criteria_json,
-      scene_id, scene_version, scene_provider_id, subject_kinds_json, scene_map_json, action_map_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    record.id,
-    record.name,
-    record.function_key,
-    record.primitive,
-    record.status,
-    record.version,
-    record.model,
-    record.instructions,
-    JSON.stringify(record.criteria),
-    record.scene_id,
-    record.scene_version ?? null,
-    record.scene_provider_id ?? null,
-    JSON.stringify(record.subject_kinds),
-    JSON.stringify(record.scene_map),
-    JSON.stringify(record.action_map ?? {}),
-    record.config_hash,
-    record.last_preview ? JSON.stringify(record.last_preview) : null,
-    JSON.stringify(record.samples),
-    record.published_at,
-    record.created_at,
-    record.updated_at,
-  );
-}
-
-function fromRow(row: FunctionRow): FunctionRecord {
-  const primitive = parsePrimitive(row.primitive);
-  const criteria = parseCriteria(primitive, row.criteria_json);
-  return buildRecord({
-    id: row.id,
-    name: row.name,
-    function_key: row.function_key,
-    primitive,
-    status: row.status === "published" ? "published" : "draft",
-    version: row.version,
-    model: row.model,
-    scene_id: parseSceneId(row.scene_id),
-    scene_version: row.scene_version ?? null,
-    scene_provider_id: row.scene_provider_id ?? null,
-    subject_kinds: parseSubjectKinds(row.subject_kinds_json),
-    scene_map: parseSceneMap(row.scene_map_json),
-    action_map: row.action_map_json ? JSON.parse(row.action_map_json) as FunctionActionMap : {},
-    instructions: row.instructions,
-    criteria,
-    last_preview: parsePreview(row.last_preview_json, primitive),
-    samples: parseSamples(row.samples_json),
-    published_at: row.published_at,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  });
-}
-
-function buildRecord(input: {
-  id: string;
-  name: string;
-  function_key: string;
-  primitive: FunctionsPrimitive;
-  status: FunctionRecord["status"];
-  version: number | null;
-  model: string;
-  instructions: string;
-  criteria: FunctionCriteria;
-  scene_id: string | null;
-  scene_version?: number | null;
-  scene_provider_id?: string | null;
-  subject_kinds: readonly string[];
-  scene_map: FunctionSceneMap;
-  action_map?: FunctionActionMap;
-  last_preview: FunctionsPreviewRecord | null;
-  samples: readonly FunctionSample[];
-  published_at: string | null;
-  created_at: string;
-  updated_at: string;
-}): FunctionRecord {
-  const base = {
-    id: input.id,
-    name: input.name,
-    function_key: input.function_key,
-    status: input.status,
-    version: input.version,
-    model: input.model,
-    instructions: input.instructions,
-    scene_id: input.scene_id,
-    scene_version: input.scene_version ?? null,
-    scene_provider_id: input.scene_provider_id ?? null,
-    subject_kinds: input.subject_kinds,
-    scene_map: input.scene_map,
-    action_map: input.action_map ?? {},
-    config_hash: hashFunctionConfig({
-      primitive: input.primitive,
-      instructions: input.instructions,
-      criteria: input.criteria,
-      model: input.model,
-    }),
-    last_preview: input.last_preview,
-    samples: input.samples,
-    published_at: input.published_at,
-    created_at: input.created_at,
-    updated_at: input.updated_at,
-  };
-  if (input.primitive === "noul") {
-    return { ...base, primitive: "noul", criteria: input.criteria as NoulCriteria };
-  }
-  if (input.primitive === "score") {
-    return { ...base, primitive: "score", criteria: input.criteria as readonly string[] };
-  }
-  return { ...base, primitive: "choice", criteria: input.criteria as readonly ChoiceCriterion[] };
-}
-
-function uniqueKey(store: FunctionsStore, key: string, exceptId?: string): string {
-  let candidate = key;
-  let n = 2;
-  while (keyTaken(store, candidate, exceptId)) {
-    const suffix = `_${n}`;
-    candidate = `${key.slice(0, Math.max(2, 64 - suffix.length))}${suffix}`;
-    n += 1;
-    if (n > 99) throw functionsErrors.key_conflict("函数 key 已被占用");
-  }
-  return candidate;
-}
-
-function assertAvailableKey(store: FunctionsStore, key: string, exceptId?: string): string {
-  if (keyTaken(store, key, exceptId)) throw functionsErrors.key_conflict("函数 key 已被占用");
-  return key;
-}
-
-function keyTaken(store: FunctionsStore, key: string, exceptId?: string): boolean {
-  const row = store.getByKey(key);
-  return Boolean(row && row.id !== exceptId);
-}
-
-function defaultName(primitive: FunctionsPrimitive): string {
-  if (primitive === "noul") return "未命名判断";
-  if (primitive === "score") return "未命名评分";
-  return "未命名函数";
-}
-
-function defaultCriteria(primitive: FunctionsPrimitive): FunctionCriteria {
-  if (primitive === "noul") return DEFAULT_NOUL;
-  if (primitive === "score") return [...DEFAULT_SCORE];
-  return [...DEFAULT_CHOICE];
-}
-
-function assertPrimitive(value: string): FunctionsPrimitive {
-  if (value === "noul" || value === "choice" || value === "score") return value;
-  throw functionsErrors.invalid("判断类型须为 Noul、Choice 或 Score");
-}
-
-function parsePrimitive(value: string): FunctionsPrimitive {
-  if (value === "noul" || value === "score") return value;
-  return "choice";
-}
-
-function parseCriteria(primitive: FunctionsPrimitive, raw: string): FunctionCriteria {
-  try {
-    return normalizeCriteria(primitive, JSON.parse(raw) as FunctionCriteria, false);
-  } catch {
-    return defaultCriteria(primitive);
-  }
-}
-
-function parsePreview(raw: string | null, primitive: FunctionsPrimitive): FunctionsPreviewRecord | null {
-  if (!raw) return null;
-  try {
-    const value = JSON.parse(raw) as Record<string, unknown>;
-    const outcome = value.outcome === "needs_review" ? "needs_review" : "ok";
-    return {
-      input: typeof value.input === "string" ? value.input : "",
-      outcome,
-      primitive: parsePrimitive(typeof value.primitive === "string" ? value.primitive : primitive),
-      choice: typeof value.choice === "string" ? value.choice : null,
-      noul: typeof value.noul === "number" ? value.noul : null,
-      score: typeof value.score === "number" ? value.score : null,
-      legend: Array.isArray(value.legend) ? value.legend.filter((item): item is string => typeof item === "string") : null,
-      probabilities: isRecord(value.probabilities)
-        ? Object.fromEntries(Object.entries(value.probabilities).filter((entry): entry is [string, number] => typeof entry[1] === "number"))
-        : {},
-      confidence: typeof value.confidence === "number" ? value.confidence : null,
-      model: typeof value.model === "string" ? value.model : "",
-      config_hash: typeof value.config_hash === "string" ? value.config_hash : "",
-      at: typeof value.at === "string" ? value.at : "",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseSamples(raw: string | null): FunctionSample[] {
-  if (!raw) return [];
-  try {
-    const value = JSON.parse(raw) as unknown;
-    if (!Array.isArray(value)) return [];
-    return value.flatMap((item) => {
-      if (!item || typeof item !== "object") return [];
-      const row = item as Record<string, unknown>;
-      if (typeof row.id !== "string" || typeof row.input !== "string") return [];
-      return [{
-        id: row.id,
-        label: typeof row.label === "string" ? row.label : "",
-        input: row.input,
-      }];
-    });
-  } catch {
-    return [];
-  }
-}
-
-function parseSceneId(value: string | null | undefined): string | null {
-  if (!value || !isFunctionDestinationId(value)) return null;
-  return value;
-}
-
-function parseSubjectKinds(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    return normalizeSubjectKinds(JSON.parse(raw) as unknown);
-  } catch {
-    return [];
-  }
-}
-
-function parseSceneMap(raw: string | null | undefined): FunctionSceneMap {
-  if (!raw) return {};
-  try {
-    const value = JSON.parse(raw) as unknown;
-    if (!isRecord(value)) return {};
-    const mapped: Record<string, string> = {};
-    for (const [rawKey, rawTarget] of Object.entries(value)) {
-      const key = rawKey.trim();
-      const target = typeof rawTarget === "string" ? rawTarget.trim() : "";
-      if (!key || !target) continue;
-      mapped[key] = target;
-    }
-    return mapped;
-  } catch {
-    return {};
-  }
-}
-
-function assertSceneReference(sceneId: string | null, version: number | null, providerId: string | null): void {
-  if (version === null && providerId === null) return;
-  if (!sceneId || sceneId === AGENT_MCP_DESTINATION_ID || !Number.isSafeInteger(version) || (version ?? 0) < 1 || typeof providerId !== "string" || !providerId.trim() || providerId !== providerId.trim()) {
-    throw functionsErrors.invalid("用途必须同时指定有效场景版本和提供方");
-  }
-}
-
-function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
-  if (value == null || value === "") return null;
-  if (!isFunctionDestinationId(value)) {
-    throw functionsErrors.invalid("这个用法不在可选范围里");
-  }
-  if (primitive === "score" && value !== AGENT_MCP_DESTINATION_ID) {
-    throw functionsErrors.invalid("Score 不能绑 Inbox、首页、Feed。");
-  }
-  return value;
-}
-
-function normalizeSubjectKinds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  const kinds: string[] = [];
-  for (const item of value) {
-    if (typeof item !== "string") continue;
-    const kind = item.trim();
-    if (!kind || seen.has(kind)) continue;
-    seen.add(kind);
-    kinds.push(kind);
-  }
-  return kinds;
-}
-
-function normalizeActionMap(value: FunctionActionMap, sceneId: string | null, primitive: FunctionsPrimitive, criteria: FunctionCriteria): FunctionActionMap {
-  if (sceneId !== AGENT_MCP_DESTINATION_ID) return {};
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw functionsErrors.invalid("推荐能力映射格式无效");
-  const keys = new Set(functionOutputKeys({ primitive, criteria }));
-  const result: Record<string, FunctionActionMap[string]> = {};
-  for (const [key, reference] of Object.entries(value)) {
-    if (!keys.has(key)) continue;
-    if (!reference || typeof reference !== "object" || typeof reference.capability_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.capability_id)
-      || !Number.isSafeInteger(reference.version) || reference.version < 1 || typeof reference.provider_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.provider_id)) {
-      throw functionsErrors.invalid("推荐能力必须包含准确身份、版本和提供方");
-    }
-    result[key] = { capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id };
-  }
-  return result;
-}
-
-function normalizeSceneMap(
-  value: unknown,
-  primitive?: FunctionsPrimitive,
-  criteria?: FunctionCriteria,
-  sceneId?: string | null,
-): FunctionSceneMap {
-  if (value == null) return {};
-  if (!isRecord(value) || Array.isArray(value)) {
-    throw functionsErrors.invalid("映射格式不对");
-  }
-  const allowed = primitive && criteria
-    ? new Set(functionOutputKeys({ primitive, criteria }))
-    : null;
-  const mapped: Record<string, string> = {};
-  for (const [rawKey, rawTarget] of Object.entries(value)) {
-    const key = rawKey.trim();
-    const target = typeof rawTarget === "string" ? rawTarget.trim() : "";
-    if (!key || !target) continue;
-    if (allowed && !allowed.has(key)) continue;
-    mapped[key] = target;
-  }
-  return pruneSceneMap(mapped, primitive, criteria, sceneId);
-}
-
-function pruneSceneMap(
-  value: FunctionSceneMap,
-  primitive?: FunctionsPrimitive,
-  criteria?: FunctionCriteria,
-  sceneId?: string | null,
-): FunctionSceneMap {
-  if (sceneId === AGENT_MCP_DESTINATION_ID || sceneId === "") return {};
-  if (sceneId === null) return {};
-  if (sceneId === undefined) return { ...value };
-  if (!primitive || !criteria) return { ...value };
-  const allowed = new Set(functionOutputKeys({ primitive, criteria }));
-  const mapped: Record<string, string> = {};
-  for (const [key, target] of Object.entries(value)) {
-    if (!allowed.has(key) || !target) continue;
-    mapped[key] = target;
-  }
-  return mapped;
-}
-
-function normalizeName(value: string): string {
-  const name = value.trim();
-  if (!name || name.length > 80) throw functionsErrors.invalid("名称须为 1 到 80 个字");
-  return name;
-}
-
-function normalizeDraftInstructions(value: string): string {
-  const instructions = value.trim();
-  if (instructions.length > 8000) throw functionsErrors.invalid("说明须为 1 到 8000 个字");
-  return instructions;
-}
-
-function normalizeInstructions(value: string): string {
-  const instructions = normalizeDraftInstructions(value);
-  if (!instructions) throw functionsErrors.invalid("说明须为 1 到 8000 个字");
-  return instructions;
-}
-
-function normalizeSampleLabel(value: string | undefined, index: number): string {
-  const label = (value ?? "").trim() || `样例 ${index + 1}`;
-  if (label.length > 40) throw functionsErrors.invalid("样例名称须为 1 到 40 个字");
-  return label;
-}
-
-function normalizeSampleInput(value: string): string {
-  const input = value.trim();
-  if (!input || input.length > 8000) throw functionsErrors.invalid("样例输入须为 1 到 8000 个字");
-  return input;
-}
-
-function normalizeCriteria(primitive: FunctionsPrimitive, value: FunctionCriteria, requireComplete: boolean): FunctionCriteria {
-  if (primitive === "noul") return normalizeNoul(value, requireComplete);
-  if (primitive === "score") return normalizeScore(value, requireComplete);
-  return normalizeChoice(value, requireComplete);
-}
-
-function normalizeChoice(value: FunctionCriteria, requireDescriptions: boolean): ChoiceCriterion[] {
-  if (!Array.isArray(value) || value.some((item) => !item || typeof item !== "object" || Array.isArray(item) || !("key" in item))) {
-    throw functionsErrors.invalid("选项须是列表");
-  }
-  const seen = new Set<string>();
-  const criteria = (value as readonly ChoiceCriterion[]).map((item) => {
-    const key = assertOptionKey(String(item.key ?? "").trim());
-    if (seen.has(key)) throw functionsErrors.invalid(`选项 key 重复：${key}`);
-    seen.add(key);
-    const description = String(item.description ?? "").trim();
-    if (description.length > 500) {
-      throw functionsErrors.invalid("每个选项需要 1 到 500 字的说明");
-    }
-    if (requireDescriptions && !description) {
-      throw functionsErrors.invalid("每个选项需要 1 到 500 字的说明");
-    }
-    return { key, description };
-  });
-  if (criteria.length < 2) throw functionsErrors.invalid("Choice 至少需要两个选项");
-  if (criteria.length > 32) throw functionsErrors.invalid("Choice 最多 32 个选项");
-  return criteria;
-}
-
-function normalizeNoul(value: FunctionCriteria, requireComplete: boolean): NoulCriteria {
-  const row = !Array.isArray(value) && value && typeof value === "object"
-    ? value as { true_description?: unknown; false_description?: unknown }
-    : {};
-  const true_description = String(row.true_description ?? "").trim();
-  const false_description = String(row.false_description ?? "").trim();
-  if (true_description.length > 500 || false_description.length > 500) {
-    throw functionsErrors.invalid("判断标准须为 1 到 500 个字");
-  }
-  if (requireComplete && !true_description && !false_description) {
-    // Noul criteria are optional at TypeSafe; instructions already required.
-  }
-  return { true_description, false_description };
-}
-
-function normalizeScore(value: FunctionCriteria, requireComplete: boolean): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw functionsErrors.invalid("Score 档位须是文字列表");
-  }
-  const levels = (value as readonly string[]).map((item) => item.trim());
-  if (levels.some((item) => item.length > 500)) {
-    throw functionsErrors.invalid("每个档位需要 1 到 500 字的说明");
-  }
-  if (requireComplete && (levels.length < 2 || levels.some((item) => !item))) {
-    throw functionsErrors.invalid("Score 至少需要两个写了说明的档位");
-  }
-  if (!requireComplete && levels.length < 2) {
-    throw functionsErrors.invalid("Score 至少需要两个档位");
-  }
-  if (levels.length > 32) throw functionsErrors.invalid("Score 最多 32 个档位");
-  return levels;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function mapJudgment(row: Record<string, unknown>): JudgmentRecord {
-  let suggested: string[] = [];
-  try {
-    const parsed = JSON.parse(String(row.suggested_json ?? "[]")) as unknown;
-    if (Array.isArray(parsed)) suggested = parsed.filter((item): item is string => typeof item === "string");
-  } catch {
-    suggested = [];
-  }
-  const projectId = String(row.project_id ?? "");
-  return {
-    judgment_id: String(row.judgment_id ?? ""),
-    function_key: String(row.function_key ?? ""),
-    function_version: Number(row.function_version ?? 0),
-    subject: {
-      kind: String(row.subject_kind ?? "mcp_invoke") as JudgmentSubject["kind"],
-      id: String(row.subject_id ?? ""),
-      ...(projectId ? { project_id: projectId } : {}),
-    },
-    scene_id: row.scene_id == null || row.scene_id === "" ? null : String(row.scene_id),
-    outcome: row.outcome === "needs_review" ? "needs_review" : "ok",
-    suggested_behavior_ids: suggested,
-    error_code: row.error_code == null || row.error_code === "" ? null : String(row.error_code),
-    created_at: String(row.created_at ?? ""),
-    ...(row.scene_provenance_json ? { scene_provenance: JSON.parse(String(row.scene_provenance_json)) as JudgmentRecord["scene_provenance"] } : {}),
-    ...(row.recommended_actions_json ? { recommended_actions: JSON.parse(String(row.recommended_actions_json)) as JudgmentRecord["recommended_actions"] } : {}),
-  };
+export function openFunctionsStore(homeDirectory: string): FunctionsStore {
+  return new FunctionsStore(openBaselineHomeSqlite(homeDirectory, FUNCTIONS_HOME_STORE.path, FUNCTIONS_STORE_BASELINE));
 }

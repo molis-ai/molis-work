@@ -2,11 +2,12 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+
+
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 for (const width of [1440, 390]) {
   test(`Inbox ${width}px: select actual material, recover failed generation and edit the persisted Pages result`, { timeout: 90_000 }, async t => {

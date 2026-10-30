@@ -1,6 +1,6 @@
-import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsQueryApi } from "./contract/goals.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GovernanceDecisionApi, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GovernanceDecisionApi, GoalTreeProposalItemRecord, ProposalAffectedObject } from "./contract/governance-collaboration.js";
 import { GoalTreeFactMaterializer } from "./goal-tree-fact-materializer.js";
 import { GoalTreeMaterializationConflicts } from "./goal-tree-materialization-conflicts.js";
 import { goalTreeMaterializationGroups } from "./goal-tree-materialization-order.js";
@@ -16,7 +16,7 @@ export class GoalTreeMaterializationApplication {
 
   preflight(projectId: string, items: GoalTreeProposalItemRecord[], actorId: string, at: string): Map<string, Record<string, unknown>> {
     const conflicts = new Map<string, Record<string, unknown>>();
-    const groups = goalTreeMaterializationGroups(projectId, items);
+    const groups = goalTreeMaterializationGroups(items);
     return this.ports.transactions.previewMaterialization(() => {
       for (const group of groups) {
         for (const item of group) {

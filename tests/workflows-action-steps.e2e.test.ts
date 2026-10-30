@@ -1,15 +1,18 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-workflows';
 import { molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
-import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/content-action-providers.js';
+import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/native-content-permissions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
-import { createLocalFeedApplication, createLocalFeedSourceService, openHostShelfStore } from '@molis-ai/molis-work-app-local-host';
+
+import { openTestShelfStore } from './shelf-direct-actions.js';
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test('real browser creates a Feed → Shelf action workflow, maps fields, and writes the original material', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
@@ -68,7 +71,7 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await b.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
   await waitFor("[...document.querySelectorAll('.wf-vstep .mw-state-ring')].length === 2 && [...document.querySelectorAll('.wf-vstep .mw-state-ring')].every(node => node.dataset.mwState === 'done')");
   assert.equal(await evaluate("document.querySelector('.wf-vlink__label .mw-state-ring')?.dataset.mwState"), 'done');
-  const shelf = openHostShelfStore(b.homeDirectory, { disabled: true });
+  const shelf = openTestShelfStore(b.homeDirectory, { disabled: true });
   const saved = (await shelf.snapshot()).materials.filter(row => row.name.includes('端到端工作流验证'));
   assert.equal(saved.length, 1);
   assert.match(shelf.readFile(saved[0]!.item_id).bytes.toString('utf8'), /这是端到端字段映射的原始正文/);
@@ -126,8 +129,8 @@ test('unknown plugin long results survive a late navigation response and render 
     async start() { return { kind: 'app', actions: [action.handler] }; } });
   const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: b.projectId! });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined,
-    { actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: 'local', grants: [] }).install;
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: 'local', grants: [] }).install;
   await runtime.start(installed.install_id);
   try {
     const actions = bindActionClient(b.localHost!.actionClient(reference), () => ({ actor_id: 'web-user', project_id: b.projectId, audience: 'user',
@@ -161,16 +164,15 @@ test('unknown plugin long results survive a late navigation response and render 
     });
     try {
       await evaluate(`(() => {
-        const original = window.fetch;
+        const original = window.molisWorkRequest;
         window.__workflowOldReadDone = false;
-        window.fetch = async (...args) => {
-          const response = await original(...args);
-          if (String(args[0]).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
-            await response.clone().text();
+        window.molisWorkRequest = Object.assign(async (url, init) => {
+          const answer = await original(url, init);
+          if (String(url).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
             requestAnimationFrame(() => requestAnimationFrame(() => { window.__workflowOldReadDone = true; }));
           }
-          return response;
-        };
+          return answer;
+        }, original);
       })()`);
       await click(`[data-wf-open="${prior.workflow_id}"]`);
       await readingOld.promise;

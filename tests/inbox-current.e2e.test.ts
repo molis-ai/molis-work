@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -5,11 +6,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
-import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Inbox shows and runs an installed plugin judgment, then withdraws advice while preserving its stopped binding and history", { timeout: 90000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
@@ -29,10 +31,12 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     kind: "app", publisher: { publisher_id: "example", signature: "inbox-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:inbox", required: true, reason: "运行插件判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => { assert.ok(_caller.permissions.includes("fixture:inbox")); inputs.push((input as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.verify"] }; } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:inbox"] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:inbox"] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "owner", project_id: projectId, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "fixture:inbox"] };
+  // Inbox is a plugin of the project: its scene is there once the plugin has started, which an action of its own waits for.
+  await localHost.actionClient(reference).invoke(caller, inboxActions.readJudgment, {});
   await localHost.sceneClient(reference).bind(caller, { binding_id: inboxSceneBindingId(projectId), scene_id: inboxNextScene.scene_id, scene_version: 1, project_id: projectId,
     enabled: true, function: { capability_id: definition.capability_id, version: 1 }, title: "Inbox 下一步", href: `/projects/${projectId}/?openPlugin=inbox` });
   const open = async () => {

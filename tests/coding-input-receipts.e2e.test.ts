@@ -25,8 +25,8 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   const bodies: Array<{ messages?: unknown }> = [], held: ServerResponse[] = [], later: ServerResponse[] = [], continued: ServerResponse[] = [];
   // Hold both the interrupted reply and its replacement until the page has acknowledged the interrupt.
   const model = createServer(async (req, res) => {
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(reply(review)); return; }

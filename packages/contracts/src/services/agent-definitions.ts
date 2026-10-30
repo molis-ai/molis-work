@@ -67,12 +67,12 @@ export interface AgentDefinitionRegistration {
   prompts: AgentPromptRegistration[];
   roles: AgentRoleRegistration[];
   /** Methods this owner offers to other Agents for business work, with their bodies (the Manifest's `methods`). */
-  methods?: AgentMethodRegistration[];
+  methods?: AgentSkillRegistration[];
   /** What the Host knows is not registered for this owner, and why (shown in developer diagnostics). */
   notes?: string[];
 }
 
-export interface AgentMethodRegistration {
+export interface AgentSkillRegistration {
   skill_id: string;
   version: number;
   name: string;
@@ -83,7 +83,7 @@ export interface AgentMethodRegistration {
 }
 
 /** A registered method as a round finds it: its owner, identity and when it applies (the body is read by id). */
-export interface AgentMethodView {
+export interface AgentSkillView {
   /** `<owner_id>/<skill_id>`. */
   key: string;
   owner_id: string;

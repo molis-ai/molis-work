@@ -19,7 +19,7 @@ createContextLedger(db, { authorize }) 提供边的查询、写入和删除；cr
 | [src/materialization.ts](src/materialization.ts) | 上下文解析 |
 | [src/repository.ts](src/repository.ts) | 关联持久化 |
 
-可对照现有调用方 [apps/local-host/src/session-registry.ts](../../apps/local-host/src/session-registry.ts) 阅读装配方式。
+可对照现有调用方 [plugins/native/feed/src/runtime-ports.ts](../../plugins/native/feed/src/runtime-ports.ts) 阅读装配方式（它经平台的情境账服务读写，不直接开库）。
 
 ## 接入与边界
 
@@ -36,10 +36,10 @@ pnpm --filter @molis-ai/molis-work-module-context-ledger typecheck
 pnpm --filter @molis-ai/molis-work-module-context-ledger build
 ```
 
-已有行为示例与回归：[context-ledger.test.ts](../../tests/context-ledger.test.ts)、[handoff-ledger.test.ts](../../tests/handoff-ledger.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[context-ledger.test.ts](../../tests/context-ledger.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/context-ledger.test.ts tests/handoff-ledger.test.ts
+node scripts/run-tests.mjs tests/context-ledger.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -56,7 +56,7 @@ node scripts/run-tests.mjs tests/context-ledger.test.ts tests/handoff-ledger.tes
   - 只存引用边，不复制正文、不跨 Store Join。
   - 存在一条边不等于授予内容权限；物化经目标 owner 的查询，owner 可以拒绝。
   - 新 Artifact 引用必须带精确版本；旧引用指向缺失的 Goal 时保留引用，不制造、不猜测。
-- 改动后必跑：`node scripts/run-tests.mjs tests/context-ledger.test.ts tests/context-materialization.test.ts tests/context-owner-isolation.test.ts tests/handoff-ledger.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/context-ledger.test.ts tests/context-materialization.test.ts tests/context-owner-isolation.test.ts`
 - 相关手册：[docs/modules/context-ledger.md](../../docs/modules/context-ledger.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -64,8 +64,5 @@ node scripts/run-tests.mjs tests/context-ledger.test.ts tests/handoff-ledger.tes
 - [职责与接入说明](../../docs/modules/context-ledger.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/context-ledger`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ar2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

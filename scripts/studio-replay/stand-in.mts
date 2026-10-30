@@ -40,9 +40,10 @@ function stream(text: string): string {
 export async function startStandInModel(answers: StandInAnswers): Promise<StandIn> {
   const modes: string[] = [], script = new Map(Object.entries(answers).map(([mode, answer]) => [mode, [answer].flat()]));
   const server: Server = createServer((request, response) => {
-    let body = '';
-    request.on('data', chunk => { body += chunk; });
+    const parts: Buffer[] = [];
+    request.on('data', chunk => { parts.push(Buffer.from(chunk)); });
     request.on('end', () => {
+      const body = Buffer.concat(parts).toString('utf8');
       let mode = '';
       try {
         const messages = (JSON.parse(body) as { messages?: Array<{ role: string; content: unknown }> }).messages ?? [];

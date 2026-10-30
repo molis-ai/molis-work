@@ -1,5 +1,19 @@
 # CLI 与开发
 
+## Home 离线快照
+
+`molis-work home snapshot --to /绝对路径/新目录 --home /原Home --json` 从已存在的 Home 捕获快照；`--home` 省略时沿用产品的 Home 解析。`--to` 必填，目标尚不存在、父目录已存在，并且目标与 Home 不能互相包含。参数重复、未知或缺值直接拒绝。成功 stdout 是 JSON（不加 `--json` 时是路径和数量），失败只向 stderr 写错误并返回 1。
+
+先停止使用该 Home 的 Web/Desktop/Agent，再在离线窗口执行。命令取得与 Host/Agent 相同的存储所有权，不启动业务 Host 或在线暂停；忙时不建立输出。存储集合来自 `homeStores()`，包括实际安装库和项目分区。SQLite 使用 backup API，包含最新已提交 WAL，侧车和所有权锁不复制；未知条目、错版、坏库、链接或未完成维护整次拒绝。
+
+快照只适用于同一台机器、原 canonical Home 路径和原密钥。SDK、构建 run 和退役会话 key 只记录引用和身份摘要，Home master/Keychain 不导出。CLI `.home` 和 Home 内的目录书签由现有 owner 密封；不要把快照当作密钥备份。浏览器登录态不捕获，恢复后需重新登录；系统不接受原书签时须重新选择目录。Home 外 AppData 不读取，受管理程序和可重建缓存需保留或重装。普通文件流式读取；vault、书签等需要 owner 整体处理的单文件最多 32 MiB，CLI 私有状态另遵循其 owner 的 10,000 节点、32 MiB 原文和 128 MiB 密文限额。
+
+输出使用 0700 私有 sibling 暂存和 0600 文件，manifest 保存原 mode、版本、完整性、摘要和依赖。全部校验并刷盘后才发布到新目录，既有目标不覆盖。普通失败或 SIGINT/SIGTERM 清理本次未发布暂存；强制杀进程可能留下 `.molis-home-snapshot-*`。确认对应进程已退出、位置确为本次目标父目录且未发布后，才可删除该残留并重试。报告“已发布，持久化未确认”时保留报告中的目标，核验 manifest 和 payload，不要当作零产物覆盖。
+
+SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和分页，合法空正文与保留密文的墓碑也验证；纯元数据或普通检查点不会要求或生成 key。受管 CLI 恢复仍要求原安装身份及原路径上的实际程序，命令不联网重装或创建替代安装。
+
+完整 `home restore`、统一发布/回滚与重启续写仍在 W5-16 后续，尚缺 Memory owner 的归档重开资格与合法空态受控恢复契约；本快照片不把它们标完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+
 ## 安装代码的开发边界
 
 `pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 70 个 workspace 包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
@@ -33,7 +47,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 ## 项目结构
 
-> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包里 69 个 `partial`、1 个 `contract-only`（contracts）；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
+> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包的成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
 
 ```text
 apps/                        6 个产品入口与 composition root 边界
@@ -52,8 +66,6 @@ apps/mcp/                    平台 MCP schema、协议、项目工具分发；�
 packages/ui-host/            UI Contribution registry、surface render 与 Slot mount 校验
 packages/design-system/      AP3 主题偏好、浏览器视觉基础与分层样式
 plugins/native/feed/         FD4 Feed/Attention/Source UI 和 HTTP route table
-modules/goals/               当前事件、约定/要求、完成状态、图/规划、指导与历史读取
-modules/governance-collaboration/
                              当前用户决定、有限结构提案、来源与历史事实
 tooling/plugin-cli/          Plugin CLI 边界；真实开发工具由 DV3 实现
 scripts/workspace-packages.mjs
@@ -103,7 +115,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 - 根 `pnpm build` 先构建全部 70 个 workspace 包再编译启动器；`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
-- `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
+- 已建的 package 要有真实实现：不得注册假 Provider、假 Store、UI 入口或伪成功 API；还没建的目标只留在 SSOT 的 `absent` 行。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。
 - 巨大单元（超过阈值的文件、类、函数）的 owner、判定与计划见 [巨大单元清单与判定](system/HUGE-CLASS-MIGRATION.md)。
 
@@ -148,12 +160,12 @@ molis-work-mcp
 硬规则：
 
 - **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md)。
-- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（`--plugin-*` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取 `palette.ts` 的 token，不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
+- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取 `palette.ts` 的 token，不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
 - **动效成套，而且要做。** 只用 `--dur-*`（按压 130、状态 250、到达 420）/ `--ease-quint` / `--ease-spring` 和已有位移（分段滑块、目录 yield、底栏菜单升起、`craft-rise` 到达）。状态变了要看得出走过去或到达，不要硬切。hover 是色阶，不是浮起；按下回弹。`prefers-reduced-motion` 去掉位移。不为动而动。
 - **键盘焦点**只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
 - **字与层次。** 系统字体栈，字重只有 400 / 500 / 600（`--weight-body` / `--weight-control` / `--weight-title`），不准全局强制字重。工作都在一张连续白色工作面上，插件不画自己的外框卡片；只有浮起的东西投影。
 
-改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手（真实底栏在 `/__ui/catalog/bar`，组合示例在「组合」一节）。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
+改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手（本机用 `pnpm web` 起宿主，默认地址是 `http://127.0.0.1:4173/__ui/catalog`；真实底栏在 `/__ui/catalog/bar`，组合示例在「组合」一节）。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 
 ## 开发验证
 
@@ -179,8 +191,8 @@ pnpm package:npm
 单独检查某个 package 时使用其正式名称，例如：
 
 ```bash
-pnpm --filter @molis-ai/molis-work-module-goals typecheck
-pnpm --filter @molis-ai/molis-work-module-goals build
+pnpm --filter @molis-ai/molis-work-plugin-goals typecheck
+pnpm --filter @molis-ai/molis-work-plugin-goals build
 pnpm --filter @molis-ai/molis-work-plugin-runtime typecheck
 pnpm --filter @molis-ai/molis-work-integration-github typecheck
 ```

@@ -4,18 +4,20 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
-import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
+import { formActions as actions, formContentActions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null, plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "form-actions-")),
     host = new MolisWorkLocalHost({ homeDirectory: home, completeText, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}) });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: FORM_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
@@ -295,4 +297,44 @@ test("the store itself refuses an answer-file import from anyone but the person 
   const rows = store.listSubmissions(form.id, "p");
   assert.equal(rows.length, 2 + outside.length + 1, "a refused call leaves no answer behind");
   assert.ok(rows.every(row => row.source === "file"), "imported answers are answer files whoever imports them");
+});
+
+test("RAC-1605 RAC-1606: a title and question list a workflow hands over are cut to what a form holds instead of being refused", async t => {
+  // plugins/native/form/README.md:「流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。」
+  const f = await fixture(t);
+  const workflow = bindActionClient(f.client, (): ActionCallContext => ({ ...f.caller, audience: "workflow" }));
+  const lines = Array.from({ length: 60 }, (_, index) => `- 第 ${index + 1} 题？`);
+  lines.splice(2, 0, "- " + "长".repeat(201));
+  const received = await workflow.invoke(formContentActions.receive, { title: "  " + "题".repeat(100) + "  ", body: lines.join("\n"), request_id: "workflow:run-1:1" });
+  assert.equal(received.plugin, "form");
+  const { form } = await f.bound.invoke(actions.get, { id: received.item_id });
+  assert.equal(form.title, "题".repeat(80), "RAC-1605: the title is cut to 80 characters");
+  assert.deepEqual(form.questions.map(question => question.title), Array.from({ length: 40 }, (_, index) => `第 ${index + 1} 题？`),
+    "RAC-1606: the first 40 questions are kept and a line too long to be a question is left out");
+  assert.ok(form.questions.every(question => question.type === "text" && !question.required), "every question is an optional fill-in");
+});
+
+test("RAC-1699: a title and question list a workflow hands over are cut and kept in whole characters, the way the form counts them", async t => {
+  // The form counts characters: 80 for a title (store.ts normalizeTitle), 200 for a question (normalizeQuestions). One 🟢 is one character but two UTF-16 units.
+  // Cut at unit 80, "a" and 100 🟢 would keep 39 and half of the 40th; a line of 200 🟢 is 400 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const f = await fixture(t);
+  const workflow = bindActionClient(f.client, (): ActionCallContext => ({ ...f.caller, audience: "workflow" }));
+  const received = await workflow.invoke(formContentActions.receive, { title: "  a" + wide(100) + "  ",
+    body: ["- " + wide(200), "- " + wide(201), "- 普通题？"].join("\n"), request_id: "workflow:run-2:1" });
+  const { form } = await f.bound.invoke(actions.get, { id: received.item_id });
+  assert.equal(form.title, "a" + wide(79), "a title past 80 characters is cut to 80 whole characters");
+  assert.deepEqual(form.questions.map(question => question.title), [wide(200), "普通题？"], "a line of 200 characters is a question, one of 201 is left out");
+});
+
+test("RAC-1699: an answer file that cannot be read is listed under its name in whole characters, up to the 200 the import counts", async t => {
+  // The action's schema stops a name at 200 characters (actions.ts maxLength), the store cuts what reaches it. A 200-character name made of 🟢 is 399 UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const home = await mkdtemp(join(tmpdir(), "form-import-name-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const form = store.create({ project_id: "p", title: "F" });
+  const result = store.importAnswers(form.id, [{ name: "a" + wide(199), content: "x" }, { name: "b" + wide(250), content: "x" }], "p");
+  assert.equal(result.imported, 0);
+  assert.deepEqual(result.rejected.map(file => file.name), ["a" + wide(199), "b" + wide(199)], "a 200-character name is kept whole, a longer one is cut to 200 whole characters");
+  assert.ok(result.rejected.every(file => file.reason === "文件内容无法读取"), "they are listed because their content cannot be read");
 });

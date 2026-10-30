@@ -12,11 +12,12 @@ import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform
 import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfActions as a, shelfAiPorts, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { createExtractablePdf, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
 import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 type Request = { model: string; messages: any[] };
 async function fixture(run: (f: {
@@ -31,7 +32,8 @@ async function fixture(run: (f: {
   let handler = async (_request: Request): Promise<string> => "# 摘要\n\n交付日期：周五。";
   const requests: Request[] = [];
   const server = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const request = JSON.parse(raw); requests.push(request);
     const text = await handler(request);
     if (res.destroyed) return;
@@ -67,9 +69,10 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   const definitions = agentDefinitionsFor(f.home, builtinRegistrations);
   const prompt = SHELF_INSTRUCTIONS.find(row => row.prompt_id === "shelf.summarize.short")!;
   const key = `${SHELF_PLUGIN_ID}/${prompt.prompt_id}`;
+  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划"});
+  // Shelf's instructions are registered by its running definition (PG-051): the person edits them once it runs.
   const registered = definitions.prompt(key);
   definitions.save(registered.key, "OVERRIDDEN_SHELF: summarize the supplied material.", null, "owner");
-  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划"});
   const outcome = await f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id, option_id: "short" });
   assert.equal(outcome.job.runtime, "prologue"); assert.equal(outcome.job.execution?.state, "completed");
   assert.equal(outcome.job.execution?.configuredModel, "text"); assert.deepEqual(outcome.job.execution?.reportedModels, ["actual-fixture-model"]);
@@ -78,7 +81,7 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   const sent = JSON.stringify(f.requests[0]!.messages);
   assert.match(sent, /OVERRIDDEN_SHELF/); assert.match(sent, /周五交付/); assert.doesNotMatch(sent, /把完整结果写成文件|\/shelf\/files/);
   assert.equal(definitions.uses(registered.key).length, 1);
-  assert.match(openHostShelfStore(f.home).readFile(outcome.result!.item_id).bytes.toString(), /周五/);
+  assert.match(openTestShelfStore(f.home).readFile(outcome.result!.item_id).bytes.toString(), /周五/);
   const saved = JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8"));
   assert.deepEqual(saved.jobs[0].execution, JSON.parse(JSON.stringify(outcome.job.execution)));
 }));
@@ -93,7 +96,7 @@ test("every recipe reaches its registered instruction; JSON alone uses JSON file
     assert.equal(out.job.status, "succeeded");
     if (recipe === "extract_structure") {
       assert.equal(out.result?.name.endsWith(option === "json" ? ".json" : ".md"), true);
-      if (option === "json") assert.deepEqual(JSON.parse(openHostShelfStore(f.home).readFile(out.result!.item_id).bytes.toString()), { amount: 120000 });
+      if (option === "json") assert.deepEqual(JSON.parse(openTestShelfStore(f.home).readFile(out.result!.item_id).bytes.toString()), { amount: 120000 });
     }
   }
   await f.actions.invoke(a.saveSettings, { shortcuts: [{ id: "custom", name: "提炼", prompt: "CUSTOM_USER_TASK", kinds: ["markdown", "text"] }] });
@@ -187,7 +190,7 @@ function fixtureModel(f: { requests: Request[] }, answer: () => string): PluginM
 
 test("partial extraction remains visible on JSON results, and unsupported folder contents never silently disappear", async () => fixture(async f => {
   const materials = { extract: (source: Parameters<typeof extractMaterial>[0], options: Parameters<typeof extractMaterial>[1]) => extractMaterial(source, { ...options, limits: { ...options?.limits, maxCharacters: 5 } }) };
-  const store = openHostShelfStore(f.home, { disabled: true }, materials, shelfAiPorts(fixtureModel(f, () => '{"facts":true}'), materials));
+  const store = openTestShelfStore(f.home, { disabled: true }, materials, shelfAiPorts(fixtureModel(f, () => '{"facts":true}'), materials));
   const pdf = await store.admit({ filename: "partial.pdf", bytes: createExtractablePdf("A long PDF document with important facts.") });
   const out = await store.runJob({ recipe: "extract_structure", item_id: pdf.item_id, option_id: "json" });
   assert.deepEqual(JSON.parse(store.readFile(out.result!.item_id).bytes.toString()), { facts: true });

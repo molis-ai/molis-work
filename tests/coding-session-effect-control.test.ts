@@ -6,7 +6,8 @@ import test from "node:test";
 
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PROJECT_DATABASE, CodingSessionStore, createCodingPlugin, type CodingBeforeEffect } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
@@ -116,12 +117,20 @@ const privateStorage = (): PluginPrivateStorage => {
 };
 
 /** A Coding route over a fresh in-memory library whose every write first runs `onWrite`: the moment between a handler having prepared a write and its commit. */
-function routesOver(services: { capabilities?: PluginCapabilityClient }) {
+function routesOver(services: { agent?: Pick<PluginActionClient, "invoke"> }) {
   const database = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
   const hooks = { onWrite: () => {} };
   const watched: PluginDatabase = { ...database, transaction: (beforeEffect, write) => { hooks.onWrite(); return database.transaction(beforeEffect, write); } };
   const sessions = new CodingSessionStore(watched);
-  const routes = codingFixtureRoutes(startContext({ storage: privateStorage(), ...services }), sessions);
+  // The fixture redeems Coding's own actions; the Agent Host's (R8) answer from `agent`, and one the test does not give answers nothing.
+  const agentHost = services.agent ?? { invoke: async (definition: { capability_id: string }) => { throw new Error(`unexpected action ${definition.capability_id}`); } };
+  const host = { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }, input: never) => {
+    // The project's Runtime pick (BL-372): nothing picked, so the Home default stands.
+    if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return null as never;
+    return agentHost.invoke(definition as never, input);
+  } };
+  const context = startContext({ storage: privateStorage(), actions: host as never });
+  const routes = codingFixtureRoutes(context, sessions);
   return { database, sessions, hooks, call: (id: string, request: Partial<PluginRouteRequest>) => routes.find(route => route.route_id === id)!.handle({ query: {}, ...request } as PluginRouteRequest) };
 }
 
@@ -136,10 +145,10 @@ function callControl() {
 
 const runtimes = () => [{ runtime_id: "prologue", display_name: "prologue", capabilities: {} }];
 /** Capabilities that answer only the runtime directory, the one read the routes below make before they write. */
-const directory = (): PluginCapabilityClient => ({
-  availability: () => ({ available: true }),
+/** The runtime directory as Coding reads it, an Agent Host action (R8 batch 4); any other action is a test error. */
+const directory = (): Pick<PluginActionClient, "invoke"> => ({
   async invoke<Input, Output>(definition: { capability_id: string }): Promise<Output> {
-    if (definition.capability_id !== agent.listRuntimes.capability_id) throw new Error(`unexpected capability ${definition.capability_id}`);
+    if (definition.capability_id !== agent.listRuntimes.capability_id) throw new Error(`unexpected action ${definition.capability_id}`);
     return runtimes() as Output;
   },
 });
@@ -147,7 +156,7 @@ const directory = (): PluginCapabilityClient => ({
 for (const stop of ["cancel", "revoke"] as const) {
   test(`W5-01-CODING-18 a session made, renamed or archived by a call that is ${stop === "cancel" ? "cancelled" : "revoked"} before the commit is not written`, async () => {
     const control = callControl();
-    const h = routesOver({ capabilities: directory() });
+    const h = routesOver({ agent: directory() });
     try {
       // The call stops after the handler has prepared its write and before the write commits.
       h.hooks.onWrite = () => control.stop(stop);
@@ -171,7 +180,7 @@ for (const stop of ["cancel", "revoke"] as const) {
 
   test(`W5-01-CODING-18 a plan saved by a call that is ${stop === "cancel" ? "cancelled" : "revoked"} before the commit is not written`, async () => {
     const control = callControl();
-    const h = routesOver({ capabilities: directory() });
+    const h = routesOver({ agent: directory() });
     try {
       await h.sessions.create(noEffect, { project_id: "board", session_id: "app", title: "计划", runtime_id: "prologue", at: AT });
       await h.sessions.savePlan(noEffect, "board", "app", 0, { ...draft(1), source: { session_id: "app", run_id: "r1", task: "任务", workspace_path: "/work" } });
@@ -193,11 +202,11 @@ for (const stop of ["cancel", "revoke"] as const) {
     // Queries project recovery for the page without committing it. Stop the call while it reads the Runtime;
     // neither that read nor a subsequent current read may write a session or enter a transaction.
     let reading = () => control.stop(stop);
-    const unreadable: PluginCapabilityClient = { availability: () => ({ available: true }), async invoke<Input, Output>(definition: { capability_id: string }): Promise<Output> {
+    const unreadable = { async invoke<Output>(definition: { capability_id: string }): Promise<Output> {
       if (definition.capability_id === agent.readSession.capability_id) { reading(); throw new Error("SESSION_HISTORY_UNAVAILABLE"); }
       return [] as Output;
-    } };
-    const h = routesOver({ capabilities: unreadable });
+    } } as Pick<PluginActionClient, "invoke">;
+    const h = routesOver({ agent: unreadable });
     try {
       await h.sessions.create(noEffect, { project_id: "board", session_id: "app", title: "中断", runtime_id: "prologue", at: AT });
       await h.sessions.setRuntimeSession(noEffect, "board", "app", "sdk", AT);
@@ -213,3 +222,47 @@ for (const stop of ["cancel", "revoke"] as const) {
     } finally { h.database.close(); }
   });
 }
+
+
+test("RAC-189 Coding message cancel and background stop keep the request fence through real Host actions", async t => {
+  const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  const seen: string[] = [];
+  fixture.adapter.messages!.cancel = async () => { seen.push("cancel"); };
+  fixture.adapter.background!.stop = async () => { seen.push("stop"); return true; };
+  const dispatch = (path: string, beforeEffect: () => Promise<void>, signal?: AbortSignal) => fixture.platform.router().dispatch({
+    method: "POST", pathname: `/api/plugins/io.molis.work.coding/sessions/app/${path}`, actor_id: "web-user", body: {},
+    execution: { beforeEffect, assert_authority_current: () => {}, ...(signal ? { signal } : {}) },
+  });
+  for (const [path, method] of [["messages/m1/cancel", "cancel"], ["background/t1/stop", "stop"]]) {
+    seen.length = 0;
+    let checks = 0;
+    const refused = await dispatch(path!, async () => { if (++checks > 1) throw new ActionError("actions.forbidden", "request withdrawn after entry"); });
+    assert.equal(refused?.status, 403, JSON.stringify(refused));
+    assert.equal((refused?.body as { code?: string }).code, "actions.forbidden");
+    assert.ok(checks > 1, "the request was checked again after entering the route");
+    assert.deepEqual(seen, [], "the Runtime must not see a cancelled write");
+    const accepted = await dispatch(path!, async () => {});
+    assert.equal(accepted?.status, 200, JSON.stringify(accepted));
+    assert.deepEqual(seen, [method], "the real Host handler reaches the Runtime for a current request");
+    seen.length = 0;
+    const aborted = new AbortController(); checks = 0;
+    const cancelled = await dispatch(path!, async () => { if (++checks > 1) aborted.abort(new ActionError("actions.forbidden", "request aborted")); }, aborted.signal);
+    assert.equal(cancelled?.status, 403, JSON.stringify(cancelled));
+    assert.equal((cancelled?.body as { code?: string }).code, "actions.forbidden");
+    assert.deepEqual(seen, [], "request cancellation still reaches the action's effect boundary");
+  }
+});
+
+test("RAC-189 Coding message reads also carry their request control into the actual Host action", async t => {
+  const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  await fixture.sessions.setRuntimeSession(noEffect, P, "app", "sdk-app", new Date().toISOString());
+  const seen: string[] = [];
+  fixture.adapter.messages!.read = async () => { seen.push("read"); return []; };
+  const response = await fixture.platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/sessions/app/messages", actor_id: "web-user",
+    execution: { beforeEffect: revoked, assert_authority_current: () => {} } });
+  assert.equal(response?.status, 403, JSON.stringify(response));
+  assert.equal((response?.body as { code?: string }).code, "actions.forbidden");
+  assert.deepEqual(seen, []);
+  assert.equal((await fixture.call("/sessions/app/messages"))?.status, 200);
+  assert.deepEqual(seen, ["read"]);
+});

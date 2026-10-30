@@ -1,14 +1,129 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { checkAssistantStage } from "./fixtures/assistant-stage-checks.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 const side = `document.querySelector('[data-side-body="plugin:pages/comments"] iframe')?.contentDocument`;
+
+test("RAC-916-L1 RAC-916-L2 RAC-916-L3: oversized real Pages offers preserve comments and recover through the frame bridge into an Assistant step", { timeout: 120000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  // Observe the editor handle at the public factory, preserving its real mount, onChange, context and save callbacks.
+  await pluginFrameInitScript(t, browser, `globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){
+    target[key]=host=>{if(key==='pages'&&!host.side){const editor=window.MolisWorkPagesEditor;
+      window.MolisWorkPagesEditor={...editor,mount(...args){return window.racEditor=editor.mount(...args);}};}return factory(host);};return true;
+  }});`);
+  const pages = await pluginFrameBrowser(t, browser, "pages");
+  const comments = await pluginFrameBrowser(t, browser, "pages", '[data-side-body="plugin:pages/comments"] iframe');
+  const store = openPagesStore(homeDirectory);
+  const page = store.create({ project_id: projectId!, title: '完整消息"与草稿', body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "已保存正文" }] }] } });store.close();
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === ${JSON.stringify(page.title)}`);
+  await pages.click('[data-pages-comments-open]');
+  await comments.waitFor(`document.querySelector('[data-comment-title]')?.textContent === ${JSON.stringify(page.title)}`);
+  // Keep the real editor dirty while the real comment HTTP routes remain live. Intercept only explicit Assistant start to avoid a model call.
+  await evaluate(`(() => {
+    const pagePath='/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${page.id}',restores=[];
+    window.racOffers=[];window.racSideOffers=[];window.racStarts=[];window.racCommentPosts=0;window.racHeldSaves=[];
+    addEventListener('molis:assistant-message',event=>window.racOffers.push(event.detail));
+    ${side}.defaultView.addEventListener('molis:assistant-message',event=>window.racSideOffers.push(event.detail));
+    for(const view of [window,${side}.defaultView]){
+      const original=view.fetch.bind(view);restores.push(()=>{view.fetch=original;});
+      view.fetch=(input,init)=>{
+        const path=new URL(input instanceof view.Request?input.url:String(input),location.href).pathname,method=init?.method||input.method||'GET';
+        if(method==='POST'&&path===pagePath)return new Promise((resolve,reject)=>window.racHeldSaves.push(()=>original(input,init).then(resolve,reject)));
+        if(method==='POST'&&path===pagePath+'/comments')window.racCommentPosts++;
+        if(path.endsWith('/api/assistant/threads/start')){window.racStarts.push(JSON.parse(init.body));return Promise.resolve(new Response(JSON.stringify({error:'本次验证停在启动请求'}),{status:503,headers:{'content-type':'application/json'}}));}
+        return original(input,init);
+      };
+    }
+    window.racRestoreFetch=()=>{restores.forEach(restore=>restore());window.racHeldSaves.splice(0).forEach(release=>release());};
+  })()`);
+  await comments.evaluate(`(() => {
+    window.racRaw=[];window.racSizes=[];addEventListener('molis:assistant-message',event=>window.racRaw.push(event.detail));
+    const stringify=JSON.stringify.bind(JSON);JSON.stringify=(value,...rest)=>{const result=stringify(value,...rest);
+      if(value?.purpose==='suggest'&&value.source?.surface==='pages'&&value.thread&&typeof result==='string')window.racSizes.push({message_id:value.message_id,size:result.length,draftLength:value.thread.draft?.text.length||0,commentLength:value.text.length,savedIdLength:value.thread.message_id.length});
+      return result;};
+  })()`);
+  const body = (text: string) => comments.evaluate(`(() => {const input=document.querySelector('[data-comment-draft]');input.value=${JSON.stringify(text)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  const draft = async (text: string) => {
+    await pages.click('[data-pages-editor] .ProseMirror');
+    await pages.evaluate(`(() => {const view=window.racEditor.view;view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,view.state.schema.nodes.paragraph.create(null,view.state.schema.text(${JSON.stringify(text)}))));})()`);
+    await comments.waitFor("!document.querySelector('[data-comment-unsaved]').hidden");
+    await comments.evaluate("(() => {const check=document.querySelector('[data-comment-include-draft]');check.checked=true;check.dispatchEvent(new Event('change',{bubbles:true}));})()");
+    await comments.waitFor("!document.querySelector('[data-comment-send]').disabled");
+  };
+  const pending = () => comments.evaluate<{ body: string; request_id: string; message_id?: string } | null>(`(() => {const saved=JSON.parse(localStorage.getItem('molis.pages.comments:${projectId}'));return saved['${page.id}:'+saved.__active['${page.id}']]||null;})()`);
+  try {
+    await body("普通评论仍只保存");await comments.click('[data-comment-send]');
+    await comments.waitFor("document.querySelector('[data-comment-messages]').textContent.includes('普通评论仍只保存')");
+    assert.deepEqual(await evaluate("[window.racCommentPosts,window.racOffers.length,window.racStarts.length]"), [1, 0, 0]);
+    await comments.click('[data-comment-new]');await comments.click('[data-comment-ai]');
+    await body("正常评论先显示助理下一步");await comments.click('[data-comment-send]');
+    await waitFor("window.racSideOffers.length===1");
+    await waitFor("window.racOffers.length===1", 3000);
+    assert.equal(await evaluate("window.racOffers[0]?.message_id"), await comments.evaluate("window.racRaw[0].message_id"), "the same offer must cross the trusted side owner into the top Assistant");
+    await waitFor("document.querySelectorAll('.mw-ix-step[data-step-offer]').length===1");
+    assert.equal(await evaluate("window.racStarts.length"), 0);
+    await comments.click('[data-comment-new]');await comments.click('[data-comment-ai]');
+    // Keep the advertised 20k context excerpt within its separate 32k bridge cap; the full draft command still carries the escaped tail.
+    const comment = "c".repeat(18996)+'"\n尾';await body(comment);await draft("p".repeat(20000)+'"'.repeat(31000));
+    const request = (await pending())!.request_id;
+    await comments.click('[data-comment-send]');
+    await comments.waitFor("!document.querySelector('[data-comment-error]').hidden && document.querySelector('[data-comment-error]').textContent.includes('评论未发送')");
+    assert.deepEqual(await evaluate("[window.racCommentPosts,window.racOffers.length,window.racStarts.length]"), [2, 1, 0]);
+    assert.equal(await comments.evaluate("window.racSizes.at(-1).draftLength===51000 && window.racSizes.at(-1).size>100000 && window.racSizes.at(-1).savedIdLength===0"), true, "the real pre-save serialized detail includes the complete escaped draft and legal comment");
+    assert.equal((await pending())!.request_id, request);assert.equal((await pending())!.body, comment);
+    assert.equal(await comments.evaluate("document.querySelector('[data-comment-run]').textContent"), "");
+    await draft('恢复后的"草稿');await comments.click('[data-comment-send]');
+    await waitFor("window.racOffers.length===2 && document.querySelectorAll('.mw-ix-step[data-step-offer]').length===1");
+    assert.equal(await evaluate("window.racStarts.length"), 0, "the actual Assistant next step waits for the person");
+    assert.equal(await evaluate("window.racOffers[0].source.plugin_id"), "io.molis.work.pages");
+    assert.equal(await evaluate("window.racOffers[1].text"), comment);
+    assert.equal(await evaluate("window.racOffers[1].thread.draft.text"), '恢复后的"草稿');
+    await comments.waitFor("document.querySelector('[data-comment-run]').textContent.includes('已交给助理')");
+    await comments.click('[data-comment-new]');await comments.click('[data-comment-ai]');await body("边界后的重试评论");
+    const overhead = await comments.evaluate<number>(`(() => {const sample=structuredClone(window.racRaw.at(-1));sample.text='边界后的重试评论';sample.thread.draft.text='';return JSON.stringify(sample).length;})()`);
+    await draft("x".repeat(100001 - overhead));
+    const before = (await pending())!;await comments.click('[data-comment-send]');
+    await comments.waitFor("document.querySelector('[data-comment-error]').textContent.includes('评论已保存，尚未交给助理')");
+    const saved = (await pending())!;
+    assert.equal(await comments.evaluate("window.racSizes.at(-1).size"), 100001, "the actual final post-save detail is one character over the real bridge cap");
+    assert.equal(saved.request_id, before.request_id);assert.ok(saved.message_id);assert.equal(saved.body, before.body);
+    assert.equal(await comments.evaluate("document.querySelector('[data-comment-messages]').textContent.includes('边界后的重试评论')"), true);
+    assert.equal(await comments.evaluate("document.querySelector('[data-comment-run]').textContent"), "");
+    assert.deepEqual(await evaluate("[window.racCommentPosts,window.racOffers.length,window.racStarts.length]"), [4, 2, 0]);
+    await comments.click('[data-comment-send]');
+    await comments.waitFor("!document.querySelector('[data-comment-send]').disabled");
+    assert.equal((await pending())!.message_id, saved.message_id);
+    assert.equal(await evaluate("window.racCommentPosts"), 4);
+    await draft('同一评论恢复的"完整草稿');await comments.click('[data-comment-send]');
+    await waitFor("window.racOffers.length===3 && document.querySelectorAll('.mw-ix-step[data-step-offer]').length===1");
+    assert.deepEqual(await evaluate("[window.racCommentPosts,window.racStarts.length]"), [4, 0]);
+    assert.equal(await evaluate("window.racOffers[2].thread.message_id"), saved.message_id);
+    assert.equal(await evaluate("window.racOffers[2].thread.draft.text"), '同一评论恢复的"完整草稿');
+    await comments.waitFor("document.querySelector('[data-comment-draft]').value==='' && document.querySelector('[data-comment-run]').textContent.includes('已交给助理')");
+    const checked = openPagesStore(homeDirectory);try { assert.equal(checked.comments.list(page.id, projectId!).flatMap(thread => thread.messages).length, 4); } finally { checked.close(); }
+    await browser.click('.mw-ix-step[data-step-offer]:last-child');
+    await waitFor("window.racStarts.length===1");
+    assert.equal(await evaluate("window.racStarts[0].message_id"), saved.message_id);
+    assert.equal(await evaluate("window.racStarts[0].target.provider_id"), "io.molis.work.pages");
+    t.diagnostic(JSON.stringify(await comments.evaluate("({sizes:racSizes,childOffers:racRaw.map(detail=>detail.message_id)})")));
+    t.diagnostic(JSON.stringify(await evaluate("({sideOffers:racSideOffers.map(detail=>({message_id:detail.message_id,source:detail.source})),topOffers:racOffers.map(detail=>detail.message_id),commentPosts:racCommentPosts,starts:racStarts.length})")));
+    t.diagnostic("real Pages comment save → unchanged frame bridge → Assistant next step passed; explicit press reached start, intercepted before a model call");
+  } catch (error) {
+    t.diagnostic(JSON.stringify(await pages.evaluate("({editorTextLength:window.racEditor?.view.state.doc.textContent.length,unsaved:JSON.parse(document.querySelector('[data-assistant-context]')?.dataset.assistantContext||'{}').unsaved})")));
+    t.diagnostic(JSON.stringify(await comments.evaluate("({childOffers:racRaw.map(detail=>({message_id:detail.message_id,size:JSON.stringify(detail).length})),ai:document.querySelector('[data-comment-ai]').getAttribute('aria-pressed'),unsavedHidden:document.querySelector('[data-comment-unsaved]').hidden,error:document.querySelector('[data-comment-error]').textContent,handed:document.querySelector('[data-comment-run]').textContent})")));
+    t.diagnostic(JSON.stringify(await evaluate("({commentPosts:racCommentPosts,sideOffers:racSideOffers.map(detail=>({message_id:detail.message_id,source:detail.source})),topOffers:racOffers.map(detail=>detail.message_id),starts:racStarts.length,steps:document.querySelectorAll('.mw-ix-step[data-step-offer]').length})")));
+    throw error;
+  } finally { await evaluate("window.racRestoreFetch()"); }
+});
 
 // PAS-14: the moved directory view still exposes failure, retries and recovers through the real Pages client.
 async function checkListRecovery(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, pageId: string, pages: Awaited<ReturnType<typeof pluginFrameBrowser>>) {

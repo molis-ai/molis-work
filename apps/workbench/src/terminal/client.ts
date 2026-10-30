@@ -13,8 +13,8 @@ import type { TerminalRequest, TerminalScreens } from "./types.js";
 /** The page's request helper (`packages/ui-host`), installed by the Workbench program before this bundle runs. */
 declare const molisWorkRequest: TerminalRequest;
 
-/** The Goal terminal pane on the Goals page; a page without the pane only gets xterm's styles. */
-export function startGoalTerminalClient() {
+/** The work terminal: the shell's own pane (`[data-tui-pane]`, a tab per panel of the open Goal); a page without the pane only gets xterm's styles. */
+export function startWorkTerminalClient() {
   const style = document.createElement("style");
   style.textContent = String(xtermCss);
   document.head.appendChild(style);

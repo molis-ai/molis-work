@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginActionDirectory, type PluginDatabase, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { WORKFLOWS_ACTION_PERMISSIONS, WORKFLOWS_PLUGIN_ID, createWorkflowsPlugin, workflowsActions, workflowsManifest, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /**
  * Workflows on the Plugin Runtime reaches every station, action step and judgment rule through the action directory (`actions:delegate`) as the
@@ -28,7 +29,11 @@ const NOTE = desk("note", ["workflows:write"]);
 const SETTINGS = desk("settings", ["projects:settings"]);
 /** A permission nobody on the page holds. */
 const ADMIN = desk("admin", ["delegate:admin"]);
-const PROVIDER = "fixture-desk";
+/**
+ * The Host's own provider (`HOST_PROVIDER_ID`), where the person holds what each action asks (PG-007 stage 4): a made-up host provider
+ * would give the person nothing, so the page could not reach NOTE or SETTINGS for a reason this file does not test.
+ */
+const PROVIDER = "platform";
 const ref = (definition: ActionDefinition): ActionReference => ({ capability_id: definition.capability_id, version: definition.version });
 const stepRef = (definition: ActionDefinition) => ({ ...ref(definition), provider_id: PROVIDER });
 const FEED_PERMISSIONS = feedManifest.actions!.flatMap(definition => definition.action.permissions);

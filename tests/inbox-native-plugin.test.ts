@@ -6,18 +6,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  INBOX_NATIVE_PLUGIN_ROUTES,
   INBOX_UI_CONTRIBUTION_ID,
-  InboxPluginRouteTable,
   buildInboxUiEntries,
   createInboxRouteHandlers,
+  inboxManifest,
   inboxUiContribution,
-  type InboxPluginRouteHandler,
   type InboxUiEntry,
   type InboxUiModel,
 } from "@molis-ai/molis-work-plugin-inbox";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 
 const primitives: InboxUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -194,7 +193,7 @@ test("Inbox recommends an action while preserving the person's other choices", (
   });
   const illegal = entry({
     entry_id: "entry-illegal",
-    suggested_behavior_ids: ["invented.behavior", "home.talk"],
+    suggested_behavior_ids: ["invented.behavior", "invented.other"],
   });
   const defaults = host.render({
     contribution_id: INBOX_UI_CONTRIBUTION_ID,
@@ -272,44 +271,27 @@ test("Inbox judgment routes bind and unbind through Host ports", async () => {
       return { function_key: next };
     },
   }) });
-  const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
+  const handlers = createInboxRouteHandlers({
     actions: bindActionClient(service, () => ({ actor_id: "test", project_id: "project-one", audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] })),
     changed() { changed += 1; },
-  }));
-  const listed = await routes.handle({
-    method: "GET",
-    pathname: "/api/inbox/judgment",
-    query: new URLSearchParams(),
-    body: {},
   });
-  assert.equal(listed?.status, 200);
-  assert.equal((listed?.body as { function_key: string | null }).function_key, null);
+  const judgment = (method: "GET" | "POST", payload: Record<string, unknown> = {}) => handlers[method === "GET" ? "inbox.judgment.read" : "inbox.judgment.write"]!({
+    params: {}, request: { method, pathname: "/api/plugins/io.molis.work.inbox/judgment", query: new URLSearchParams(), body: payload },
+  });
+  const listed = await judgment("GET");
+  assert.equal(listed.status, 200);
+  assert.equal((listed.body as { function_key: string | null }).function_key, null);
 
-  const bound = await routes.handle({
-    method: "POST",
-    pathname: "/api/inbox/judgment",
-    query: new URLSearchParams(),
-    body: { function_key: "system_pick_inbox_next" },
-  });
-  assert.equal(bound?.status, 200);
-  assert.equal((bound?.body as { function_key: string }).function_key, "system_pick_inbox_next");
+  const bound = await judgment("POST", { function_key: "system_pick_inbox_next" });
+  assert.equal(bound.status, 200);
+  assert.equal((bound.body as { function_key: string }).function_key, "system_pick_inbox_next");
   assert.equal(changed, 1);
 
-  const reread = await routes.handle({
-    method: "GET",
-    pathname: "/api/inbox/judgment",
-    query: new URLSearchParams(),
-    body: {},
-  });
-  assert.equal((reread?.body as { function_key: string }).function_key, "system_pick_inbox_next");
+  const reread = await judgment("GET");
+  assert.equal((reread.body as { function_key: string }).function_key, "system_pick_inbox_next");
 
-  const unbound = await routes.handle({
-    method: "POST",
-    pathname: "/api/inbox/judgment",
-    query: new URLSearchParams(),
-    body: { function_key: null },
-  });
-  assert.equal((unbound?.body as { function_key: string | null }).function_key, null);
+  const unbound = await judgment("POST", { function_key: null });
+  assert.equal((unbound.body as { function_key: string | null }).function_key, null);
   assert.equal(changed, 2);
 });
 
@@ -318,6 +300,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
     {
       project_id: "p1",
       entry_id: "done-1",
+      owner_plugin_id: null,
       subject_type: "feed_item",
       subject_id: "item-1",
       reason: "manual",
@@ -331,6 +314,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
     {
       project_id: "p1",
       entry_id: "open-1",
+      owner_plugin_id: null,
       subject_type: "feed_item",
       subject_id: "item-1",
       reason: "source_rule",
@@ -356,31 +340,17 @@ test("Inbox projection keeps references and ranks active entries first", () => {
   assert.deepEqual(entries[1]?.suggested_behavior_ids, []);
 });
 
-test("Inbox Plugin route table owns matching while the Host supplies handlers", async () => {
-  let observed: { entryId: string } | null = null;
-  const fallback: InboxPluginRouteHandler = () => ({ status: 204 });
-  const handlers = Object.fromEntries(INBOX_NATIVE_PLUGIN_ROUTES.map((definition) => [
-    definition.route_id,
-    definition.route_id === "inbox.entry.status"
-      ? (({ params }) => {
-          observed = { entryId: params.entry_id! };
-          return { status: 200, body: observed };
-        }) satisfies InboxPluginRouteHandler
-      : fallback,
-  ]));
-  const routes = new InboxPluginRouteTable(handlers);
-  const result = await routes.handle({
-    method: "POST",
-    pathname: "/api/inbox/entries/entry%2Fone/status",
-    query: new URLSearchParams(),
-    body: { status: "done", expected_revision: 1 },
-  });
-  assert.equal(result?.status, 200);
-  assert.deepEqual(observed, { entryId: "entry/one" });
-  assert.equal(await routes.handle({
-    method: "GET",
-    pathname: "/api/feed",
-    query: new URLSearchParams(),
-    body: {},
-  }), null);
+test("Inbox declares its page routes in the Manifest, the Runtime matches them, and each has a handler", async () => {
+  const handlers = createInboxRouteHandlers({ actions: { discover: async () => [], invoke: async () => { throw new Error("unused"); } }, changed() {} });
+  const routes = inboxManifest.routes ?? [];
+  assert.ok(routes.length > 0);
+  assert.deepEqual(routes.filter(route => !handlers[route.route_id]).map(route => route.route_id), []);
+  assert.deepEqual(Object.keys(handlers).filter(id => !routes.some(route => route.route_id === id)), [], "a handler without a declared route is unreachable");
+  const match = pluginRouteMatcher(inboxManifest);
+  const status = match("POST", "/api/plugins/io.molis.work.inbox/entries/entry%2Fone/status");
+  assert.equal(status?.route_id, "inbox.entry.status");
+  assert.deepEqual(status?.params, { entry_id: "entry/one" });
+  assert.equal(match("GET", "/api/plugins/io.molis.work.inbox/entries/entry-1/status"), null, "the status route answers POST only");
+  assert.equal(match("GET", "/api/plugins/io.molis.work.inbox/workbench"), null, "the stage fragment is the shell's, not a route of the plugin");
+  assert.equal(match("GET", "/api/inbox"), null);
 });

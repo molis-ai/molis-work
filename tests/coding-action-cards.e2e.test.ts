@@ -8,6 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
+import { goalsQueryOf } from "./fixtures/goal-application.js";
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -35,8 +36,8 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   const bodies: Body[] = [];
   let suggested = false;
   const model = createServer(async (req, res) => {
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
@@ -62,10 +63,9 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
       models: [{ model_id: "fixture-plain", enabled: true }] });
   }));
-  // The person granted the built-in Agent one action in this project (the capability service's own grant file).
-  await mkdir(join(homeDirectory, "config"), { recursive: true });
-  await writeFile(join(homeDirectory, "config", "mcp-tools.json"), JSON.stringify({ version: 2, action_grants: [{ client_id: "agent:prologue", project_id: projectId,
-    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", permissions: ["goals:write"], enabled: true }] }));
+  // The person's protected settings entry owns the current grant format, permissions and generation.
+  await b.web.post("/api/settings/mcp/actions", { client_id: "agent:prologue", project_id: projectId,
+    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", enabled: true });
   const workspace = join(homeDirectory, "coding-card-fixture");
   await mkdir(workspace, { recursive: true });
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -123,6 +123,6 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   assert.equal(await evaluate<string>(`window.__runs[0].values.title`), "写 1.4 发布说明", "the card ran with the person's change");
   assert.equal(await evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-action="run"]'))`), false, "a card that ran offers no second run");
   await waitFor(`![...document.querySelectorAll('${coding} [data-coding-steps] [data-ix-step-label]')].some(step => step.textContent.includes('写发布说明'))`, 15_000);
-  const goals = b.store.goalsQuery.listGoals(projectId).map(goal => goal.title);
+  const goals = goalsQueryOf(b.store).listGoals(projectId).map(goal => goal.title);
   assert.deepEqual(goals.filter(title => title.includes("发布说明")), ["写 1.4 发布说明"], "the Goal was created once, as the person changed it");
 });

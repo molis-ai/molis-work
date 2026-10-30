@@ -1,4 +1,4 @@
-import type { InteractionValues } from "@molis-ai/molis-work-design-system";
+import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { AssistantStore } from "./assistant-store.js";
 
 /** At most this many half-written answers per work: a round rarely waits on more than one question at a time. */

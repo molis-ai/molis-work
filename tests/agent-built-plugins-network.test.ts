@@ -96,7 +96,9 @@ test('an approved https request goes out with the saved secret, comes back bound
         const pending = guarded.request({ identity: { projectId: 'p', installationId: 'i', pluginId: 'plugin', namespace: 'installed' }, operationId: 'request',
           signal: new AbortController().signal, beforeEffect: async () => { if (!allowed) throw new Error('Original authority revoked'); } },
           { url: 'https://api.weather.example/today', secretRefs: ['weather'] }, { ...approved, secretRefs: ['weather'] });
-        const rejected = assert.rejects(pending, phase === 'secret' ? /Original authority revoked/ : /原调用已取消或授权已失效/);
+        // Either way the call's own recheck refuses it, with the call's own error: once the address is known it runs before the connection
+        // opens (FI-C-02), not inside the socket's lookup.
+        const rejected = assert.rejects(pending, /Original authority revoked/);
         await entered.promise; allowed = false; release.resolve(); await rejected;
         assert.equal(seen.length, 3, `revocation during ${phase} resolution prevents the outgoing request`);
       }

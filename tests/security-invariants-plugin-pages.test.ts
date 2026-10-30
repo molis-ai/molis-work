@@ -80,7 +80,8 @@ test("SYS-15 S-47 closing a page cancels a running command without revoking the 
   const pending = f.request(`/api/plugins/${probe.id}/ask`, { method: "POST", body: {}, headers: { "x-molis-plugin-page": page_id } });
   await entered.promise;
   assert.equal((await f.request(`/api/host/plugin-pages/${page_id}`, { method: "DELETE" })).status, 200);
-  release.resolve(); assert.equal((await pending).status, 403);
+  // The person closing the page is a cancellation (`actions.cancelled`, 499; it was 403 before T-218): the command still writes nothing.
+  release.resolve(); assert.equal((await pending).status, 499);
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
   assert.equal((await f.request(`/api/plugins/${probe.id}/state`)).status, 200);
 });
@@ -171,8 +172,9 @@ test("SYS-15 S-47 a raw route cannot return buffered private content after its p
   const pending = f.request(`/api/plugins/${probe.id}/buffered`, { headers: { "x-molis-plugin-page": page_id } });
   await entered.promise;
   await f.request(`/api/host/plugin-pages/${page_id}`, { method: "DELETE" });
+  // Cancelled by the page closing (499 since T-218, 403 before), and none of the buffered content is sent.
   release.resolve(); const response = await pending;
-  assert.equal(response.status, 403); assert.doesNotMatch(await response.text(), /buffered private content/);
+  assert.equal(response.status, 499); assert.doesNotMatch(await response.text(), /buffered private content/);
 });
 
 test("SYS-15 S-47 page actions use the real definition, declared dependencies and installation grants", async t => {
@@ -294,7 +296,8 @@ test("SYS-15-L4 S-47 closing cleanup runs once, uses its own current authority a
   const pending = f.request(`/api/plugins/${probe.id}/ask`, {method:"POST",body:{},headers:{"x-molis-plugin-page":page}});
   await entered.promise;
   assert.equal((await finish(page, "cleanup")).status, 200);
-  release.resolve(); assert.equal((await pending).status, 403);
+  // Closing cancels the ordinary work (`actions.cancelled`, 499 since T-218): it writes nothing.
+  release.resolve(); assert.equal((await pending).status, 499);
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("note"), "cleanup");
   assert.equal((await finish(page, "duplicate")).status, 200);
@@ -319,7 +322,8 @@ test("SYS-15-L4 S-47 a second close cancels cleanup already waiting before it ca
   const closing = f.request("/api/host/plugin-pages/"+page_id, {method:"DELETE",body:{closing:{reference:{capability_id:probe.ask.capability_id,version:1},input:{}}}});
   await entered.promise;
   assert.equal((await f.request("/api/host/plugin-pages/"+page_id, {method:"DELETE"})).status, 200);
-  release.resolve(); assert.equal((await closing).status, 403);
+  // The second close cancels the waiting cleanup (`actions.cancelled`, 499 since T-218): it writes nothing.
+  release.resolve(); assert.equal((await closing).status, 499);
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
 });
 

@@ -208,3 +208,32 @@ test("RAC-2050 a Home plugin the Supervisor counts as failed while the Runtime s
   assert.deepEqual(recordedStates(home, failed), ["installed"], "which a restart runs");
   assertRevoked(platform, failed, broken);
 });
+
+// RAC-2407 T-172 review / T-275: the list reads fine, but stopping one installation cannot read its record. The failure is one of the
+// aggregate the Home close throws, the other installation still stops kept enabled, and both plugins are revoked. RAC-2180 covers the
+// list itself being unreadable; here only that one record is, read when the close stops it.
+test("RAC-2407 a Home close that cannot read one installation's record still throws it, stops the other kept enabled, and revokes both", { timeout: 60_000 }, async t => {
+  const one = homeProbe("closeone"), two = homeProbe("closetwo");
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [one.definition, two.definition] } });
+  const platform = await host.homePlugins!.ready();
+  const [broken, other] = inCloseOrder(platform, [one, two]), stopsOf = recordStops(platform);
+  // Read the records as the close does, then make the one it will stop unreadable before it gets to it: the list is readable, that record is not.
+  const list = platform.runtime.list.bind(platform.runtime);
+  platform.runtime.list = () => {
+    const records = list();
+    editRecords(home, db => db.prepare("UPDATE plugin_runtime_installs SET record_json = '{' WHERE install_id = ?").run(broken.install));
+    return records;
+  };
+  try {
+    await assert.rejects(host.homePlugins!.close(), error => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /Home 插件关闭失败/);
+      assert.equal(error.errors.length, 1, "one failure: the record read when the close stops that installation; the list itself was read");
+      assert.ok(error.errors.every(item => item instanceof SyntaxError));
+      return true;
+    });
+  } finally { platform.runtime.list = list; }
+  assert.deepEqual(stopsOf(broken, other), [kept(other)], "the other plugin is stopped once and kept enabled; the unreadable one is not stopped");
+  assert.deepEqual(recordedStates(home, other), ["installed"]);
+  assertRevoked(platform, broken, other);
+});

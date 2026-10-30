@@ -240,3 +240,41 @@ test("RAC-2288 ordinary materials well under the budget still generate the docum
   assert.equal(made.document.title, "材料整理");
   assert.equal(f.store.generation("project", "rac-2288")!.status, "completed");
 });
+
+// T-274: the budget in characters, at the boundary, on materials that hold two-unit characters: 175,800 code points pass even
+// though their UTF-16 units are over the budget, and one more code point is refused. 175_800 is the value of the file-internal
+// PAGES_MATERIALS_JSON_MAX_CHARS (plugins/native/pages/src/actions.ts:31), written here because the constant is not exported.
+test("RAC-2405 materials JSON at the code-point budget with two-unit characters is accepted, and one more code point is refused", async t => {
+  const f = await fixture(t), overhead = JSON.stringify([material("")]).length;
+  // A 100,000-character body (the limit the action checks first): mostly `"` (two JSON characters each) and `😀` (two UTF-16 units, one code point).
+  const body = (quotes: number) => "\"".repeat(quotes) + "😀".repeat(1_000) + "a".repeat(100_000 - quotes - 1_000);
+  const quotes = 175_800 - overhead - 100_000;
+  const exact = [material(body(quotes))], over = [material(body(quotes + 1))];
+  const json = JSON.stringify(exact);
+  assert.equal([...json].length, 175_800, "exactly the budget in code points");
+  assert.ok(json.length > 175_800, "and its UTF-16 units are over the budget");
+  const made = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId }, generationInput(2405, exact)) as { document: { title: string } };
+  assert.equal(made.document.title, "材料整理", "the boundary in code points is accepted");
+  assert.equal([...JSON.stringify(over)].length, 175_801, "one more quote is one more code point");
+  await assert.rejects(f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    { ...generationInput(2405, over), request_id: "rac-2405-over", request_hash: "rac-2405-over" }),
+    { code: "pages.invalid", message: /材料过长/ }, "one code point over the budget is refused");
+  assert.equal(f.store.generations("project").length, 1, "the refused one leaves no record");
+});
+
+test("RAC-2405 a completed generation replays without checking the materials the retry carries", async t => {
+  const f = await fixture(t);
+  // A completed record, written the way the store writes one; a prompt for it would carry its own snapshot, but a replay carries none.
+  // Its stored snapshot is over the JSON budget, as a record completed before the budget existed could be: the replay sends no prompt,
+  // so neither that snapshot nor the retry's materials may be length-checked on the way to the stored document.
+  const record = { request_id: "rac-2405-done", request_hash: "rac-2405", project_id: "project", status: "running" as const,
+    document_id: null, error: null, updated_at: new Date().toISOString(), title: "材料整理", instructions: "按要求整理。", inputs: [material("\"".repeat(100_000))] };
+  const document = f.store.completeGeneration(f.store.beginGeneration(record), { type: "doc", content: [] });
+  const stored = f.store.generation("project", record.request_id);
+  const replay = await f.actions.invoke(f.caller, { ...pagesActions.generate, provider_id: pagesId },
+    { request_id: record.request_id, request_hash: record.request_hash, title: "材料整理", instructions: "按要求整理。", inputs: [material("短材料")] }) as { document: { id: string }; replayed: boolean };
+  assert.equal(replay.replayed, true, "the completed generation is replayed");
+  assert.equal(replay.document.id, document.id, "with its own document");
+  assert.equal(f.dispatches(), 0, "no prompt is sent for a replay");
+  assert.deepEqual(f.store.generation("project", record.request_id), stored, "and the completed record is unchanged");
+});

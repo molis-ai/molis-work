@@ -219,6 +219,10 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-273 | Goals 入口门禁 RAC-2297 的夹具补全扩展名、测试改调生产函数 `readEntrySources`（防腐清理，T-259 二审登记；短任务书） | 乙 | 池 | 171 | — | `tests/goals-query-boundaries.test.mjs` |
 | T-274 | `pages.generate` 材料预检：含两单元字的边界用例、completed→null 一支、去掉没人用的 export（防腐清理，T-254 二审登记；短任务书） | 乙 | 池 | 172 | — | `plugins/native/pages/src/actions.ts`（只去 export）、RAC-2286 所在测试文件 |
 | T-275 | 关闭途中记录被删：Host 侧一个用例、Home 侧“关闭失败被抛出”一个用例，只加用例（防腐清理，T-172 二审登记 / MISC T-227 选项 B；短任务书） | 乙 | B | 173 | — | `tests/installed-plugin-host.test.ts`、`tests/home-plugin-close.test.ts` |
+| T-276 | R-73 加固：test-kit README 写明测试 Chrome ≥153，“输入未送达”报错带窗口外框与浏览器版本（先出【方案】；防腐清理，MISC R-73 补充；短任务书） | 乙 | B | 174 | — | `tests/fixtures/plugin-frame-browser.ts`（两处报错）、`packages/test-kit/README.md`（:11 一带） |
+| T-277 | `tests/rename-molis-work.test.ts` 的 Home 断言在 macOS 上取真实路径（同 T-270；先在 macOS 上确认红）（防腐清理，T-270 二审登记；短任务书） | 丙 | B | 175 | T-270（#1555）合入 | `tests/rename-molis-work.test.ts`（:61-63） |
+| T-278 | RUNTIME-MIGRATION.md 三处尾巴：W4-02 条目标已做完、页首“候选仍待合入”、databases.home 来源（防腐清理，T-263 二审登记；短任务书） | 丙 | 池 | 176 | T-263（#1537）合入 | `docs/system/RUNTIME-MIGRATION.md`（:3、:41、:157） |
+| T-279 | BACKLOG 的 BL-901 来源列去掉并不属实的 T-111 #1468（防腐清理，T-258 二审建议；短任务书） | 丙 | 池 | 177 | T-258（#1534）合入 | `specs/BACKLOG.md`（BL-901 一行） |
 | T-236 | 包边界门禁里 Goals、Governance、Artifacts、Runtime Host 几段「必须包含」的检查也先去掉注释、字符串、正则和模板文字再判断，不能再靠一段注释或字符串顶替代码（防腐清理，MISC「T-215 起草」`check-package-boundaries.mjs` 一行；派片，方案自定，RAC-2010～2019） | 甲 | Claude（设备 A） | 148 | — | `scripts/check-package-boundaries.mjs`（Feed 那段 T-215 已收紧，不动）、新增或改动的门禁用例文件（方案里列） |
 | T-237 | 内核 `clip` 截情境请求的标题 120、目标 2000、最近 40 时按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」`contextual.ts:170` 一行；派片，方案自定，共享核心 full=true，RAC-2020～2029） | 甲 | Claude（设备 A） | 149 | — | `packages/kernel/src/contextual.ts`、对应用例文件（方案里列） |
 | T-238 | 沙箱模型请求的数据上限与端口上限对齐：数据加最长指令不再超过端口的上限、被端口拒（防腐清理，MISC「T-185 发布」`plugin-sandbox/src/model.ts` 一行；派片，方案自定，RAC-2030～2039；只许变严，若要放宽沙箱边界先问统筹） | 甲 | Claude（设备 A） | 150 | — | `packages/plugin-sandbox/src/model.ts`、对应用例文件（方案里列） |

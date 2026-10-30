@@ -166,6 +166,17 @@ test("RAC-2173 values at or under a limit are returned as they are, never repair
     const given = "字".repeat(19998) + GREEN;
     assert.equal(quotedOf(given), given, "inside the limit, the text is handed over as it is");
   });
+  // A value that sits exactly on a limit and already ends on half of a pair is still inside it: it is handed over as it is, not
+  // repaired. Only a value over a limit is the cut's to fix.
+  await t.test("a heading of exactly 120 units ending on a half stays as it is", () => {
+    const given = "字".repeat(119) + "\ud83d";
+    const { focus } = focusOf("正文", [given]);
+    assert.equal(String(focus.surroundings!.heading_path![0]), given, "a half the page handed over inside the limit stays");
+  });
+  await t.test("the Assistant's text of exactly 20000 units ending on a half stays as it is", () => {
+    const given = "字".repeat(19999) + "\ud83d";
+    assert.equal(quotedOf(given), given, "a half the page handed over inside the limit stays");
+  });
 });
 
 test("RAC-2174 the copy every plugin frame and side view runs cuts the same way", async t => {

@@ -14,7 +14,7 @@ import { within } from "./copy-tree.js";
 import { beforeShelfEffect } from "./effect.js";
 import { shelfErrors, readShelfCopy } from "./errors.js";
 import { extractionText } from "./extract.js";
-import { classify, safeFilename, safeRelative } from "./item-names.js";
+import { classify, safeFilename, safeFolderName, safeRelative } from "./item-names.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 import { SAMPLE_NAME, shelveItem } from "./shelve.js";
 import { captureWebsite, websiteFilename, WEBSITE_MIME } from "./website.js";
@@ -79,7 +79,7 @@ export class ShelfAdmissions {
    * The directory shows the children inline, never a second file browser.
    */
   async admitFolder(input: ShelfAdmitFolderInput): Promise<ShelfItemRecord> {
-    const folderName = safeFilename(input.name, false);
+    const folderName = safeFolderName(input.name);
     const entries = input.entries
       .map((entry) => ({ ...entry, relative: safeRelative(entry.relative) }))
       .filter((entry) => entry.relative && entry.bytes.byteLength > 0);

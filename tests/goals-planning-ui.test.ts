@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsPlanningRenderer, renderWorkbenchPlanningRequest } from "@molis-ai/molis-work-app-workbench";
 import { matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
-import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-plugin-goals/contract";
 import { L, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { withDesktopQuery } from "@molis-ai/molis-work-app-desktop";

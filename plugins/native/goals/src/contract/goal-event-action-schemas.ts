@@ -1,4 +1,4 @@
-import type { ActionSchema } from "../platform/actions.js";
+import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
   goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
   goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,

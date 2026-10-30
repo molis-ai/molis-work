@@ -6,6 +6,7 @@
 
 ### 升级须知（需要动手）
 
+- **平台合同删去 Goals 的三个子路径**（2026-10-29，PG-111 T-112，[#1527](https://github.com/molis-ai/molis-work/pull/1527)，`specs/repository-anti-corruption/slices/pg111-goals-contracts.md`）：`@molis-ai/molis-work-contracts/modules/goals`、`/modules/goal-actions`、`/modules/governance-collaboration` 不再导出，按包名导入得 `ERR_PACKAGE_PATH_NOT_EXPORTED`。Goals 的类型、动作描述符与 schema 搬进 Goals 插件（`@molis-ai/molis-work-plugin-goals/contract`），只给 Goals 自己和宿主用。别的插件要调 Goals，照 Coding（`plugins/native/coding/src/goals-actions.ts`）的写法按动作 id 与版本调用，用到的字段就地声明；动作的 id、版本、权限与 schema 都不变。`MCP_TOOLS` 改从 `@molis-ai/molis-work-app-local-host` 导出（原来在 `@molis-ai/molis-work-app-mcp`）。
 - **Feed、Inbox 迁到 Plugin Runtime，下列开放给 MCP 的动作权限集合变宽**（2026-10-28，批 C，[#1327](https://github.com/molis-ai/molis-work/pull/1327)，`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`）：动作 id 与版本不变，没有动作少权限或被删。MCP 授权要求权限集合与授权时逐项相同，所以已经授权这些动作的 MCP 客户端会显示「能力所需权限已变化」，要在设置页重新授权；固定了这些动作的工作流绑定，要重新确认。
   - 多要 `attention:write`：`feed.content.receive`、`feed.items.disposition`、`feed.items.inbox`、`feed.items.promote`、`feed.items.restore`、`feed.rules.create`、`feed.rules.evaluate`、`feed.rules.preview-judgment`、`feed.rules.update`、`feed.sources.delete`、`feed.sources.sync`、`inbox.entry.status`。
   - 多要 `evidence:read`：`feed.content.read`、`feed.content.receive`、`feed.home.events`、`feed.items.promote`、`feed.rules.evaluate`、`feed.rules.preview`、`feed.rules.preview-judgment`、`feed.rules.recommendations`、`feed.sources.sync`、`feed.subject.read`。

@@ -1,7 +1,7 @@
-import { assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
+import { MCP_TOOLS, assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MCP_TOOLS, RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { functionsActions } from "@molis-ai/molis-work-module-functions";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";

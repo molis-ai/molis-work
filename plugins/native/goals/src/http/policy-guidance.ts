@@ -4,7 +4,7 @@ import { goalsRoute } from "./failure.js";
 import { goalsActions } from "../actions.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsRoutePorts } from "./types.js";
-import type { GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsCommandApi } from "../contract/goals.js";
 
 /** The project's default rules (`goals.policy-save`) and its guidance: read, add, and edit, stop or restore one. */
 export function goalPolicyGuidanceRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {

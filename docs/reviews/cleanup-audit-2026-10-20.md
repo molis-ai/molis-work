@@ -513,7 +513,7 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `GoalEventSystemOperation` | [`packages/contracts/src/modules/goal-event-state.ts`](../../packages/contracts/src/modules/goal-event-state.ts) | 类型 |
+| `GoalEventSystemOperation` | [`plugins/native/goals/src/contract/goal-event-state.ts`](../../plugins/native/goals/src/contract/goal-event-state.ts)（PG-111 起；原在 `packages/contracts/src/modules/`） | 类型 |
 
 **plugins/native/feed**（1）
 

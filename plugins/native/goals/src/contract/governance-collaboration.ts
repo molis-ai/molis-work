@@ -1,4 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
 import type {
   GoalChangeImpact,
   GoalEventTrustedAuthority,
@@ -8,14 +7,6 @@ import type {
 } from "./goals.js";
 
 export type { GoalEventTrustedAuthority, GoalEventTrustedDecisionRecord, RecordGoalUserDecisionInput };
-
-export const modulesGovernanceCollaborationContract = {
-  contractId: "io.molis.work.module.governance-collaboration.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/modules/governance-collaboration.md",
-} as const satisfies ContractDescriptor;
 
 export interface GoalTreeSemanticReview extends GoalChangeImpact {
   structural_validation: "passed";

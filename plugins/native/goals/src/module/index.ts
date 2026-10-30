@@ -13,7 +13,7 @@ import type {
   GoalsActorWrite,
   GoalPolicy,
   UpdateProjectGuidanceInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import {
   GoalsCommandContext,
@@ -179,7 +179,7 @@ export type {
   GoalsPlanningApi,
   GoalsQueryApi,
   SaveProjectPlanningMethodInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
 export { PersonalPlanningMethods } from "./planning/personal-methods.js";

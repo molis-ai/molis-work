@@ -1,4 +1,4 @@
-import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { findGoalView } from "./proposal-ui-model.js";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 import type { GoalsDecisionView, GoalsDecisionGroup } from "./decision-view.js";

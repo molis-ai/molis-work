@@ -1,5 +1,5 @@
 import { goalErrors } from "../errors.js";
-import type { AddGoalRelationInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { AddGoalRelationInput } from "../../contract/goals.js";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -15,7 +15,7 @@ import type {
   PlanningRelationChange,
   ResolvedPlanningEventAdoption,
   SaveProjectPlanningMethodInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../../contract/goals.js";
 
 import { GoalsCommandContext } from "../command-support.js";
 import {

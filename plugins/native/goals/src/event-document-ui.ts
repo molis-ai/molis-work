@@ -1,4 +1,4 @@
-import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView } from "./contract/goals.js";
 import { renderProgressSource, formatEventTime } from "./event-history-body.js";
 import type { GoalsDocumentContext, GoalsDocumentItem, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { type GoalEventDocumentView } from "./event-document-model.js";

@@ -1,5 +1,5 @@
 import { goalErrors } from "./errors.js";
-import type { GoalInputBindingRecord, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalInputBindingRecord, GoalInputBindingsApi } from "../contract/goals.js";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GoalsSqliteDatabase } from "./repository.js";
 

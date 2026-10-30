@@ -1,6 +1,6 @@
 import { treeErrors } from "./goal-tree-errors.js";
-import type { GoalsCommandApi, GoalsQueryApi, CreateGoalIntentInput, CreateGoalIntentResult } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsCommandApi, GoalsQueryApi, CreateGoalIntentInput, CreateGoalIntentResult } from "./contract/goals.js";
+import type { GoalTreeProposalItemRecord, ProposalAffectedObject } from "./contract/governance-collaboration.js";
 import { GoalTreeInputReader } from "./goal-tree-inputs.js";
 
 /** Convert confirmed proposal payloads; Goals retains rules, events and persistence. */

@@ -9,7 +9,7 @@ import type {
   GoalsQueryApi,
   GoalsQuerySnapshot,
   ProjectGuidanceView,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import {
   GoalsCommandContext,

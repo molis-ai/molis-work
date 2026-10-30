@@ -1,5 +1,5 @@
-import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceQueryApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi } from "./contract/goals.js";
+import type { GovernanceQueryApi } from "./contract/governance-collaboration.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 export interface MolisWorkSnapshotPorts {
  goals: GoalsQueryApi;

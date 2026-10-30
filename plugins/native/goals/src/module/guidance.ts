@@ -3,7 +3,7 @@ import type {
   ProjectGuidanceKind,
   ProjectGuidanceRevisionRecord,
   ProjectGuidanceView,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 const PROJECT_GUIDANCE_KINDS = [
   "context",

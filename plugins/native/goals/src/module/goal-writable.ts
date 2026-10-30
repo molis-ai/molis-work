@@ -1,4 +1,4 @@
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "../contract/goals.js";
 import type { GoalsCommandContext } from "./command-support.js";
 import { goalErrors } from "./errors.js";
 

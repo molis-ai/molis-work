@@ -39,7 +39,7 @@ const ROWS = [
   { check: checkMigratedGoalsCommandOwnership, file: "plugins/native/goals/src/goal-tree-fact-materializer.ts", needle: "this.createIntent(", kind: "code" },
   { check: checkMigratedGoalsCommandOwnership, file: "apps/local-host/src/installer/home-release.ts", needle: "skillMethodsDirectory", kind: "code" },
   { check: checkMigratedGoalsCommandOwnership, file: "tests/goals-query-module.test.ts", needle: "goals.query.readGoal", kind: "code" },
-  { check: checkMigratedGovernanceOwnership, file: "packages/contracts/src/modules/governance-collaboration.ts", needle: "interface GovernanceQueryApi", kind: "code" },
+  { check: checkMigratedGovernanceOwnership, file: "plugins/native/goals/src/contract/governance-collaboration.ts", needle: "interface GovernanceQueryApi", kind: "code" },
   { check: checkArtifactsOwnership, file: "modules/artifacts/src/index.ts", needle: "class ArtifactsModule", kind: "code" },
   { check: checkArtifactsOwnership, file: "modules/artifacts/src/repository.ts", needle: "export const ARTIFACT_TABLES", kind: "code" },
   { check: checkPrivateWorkContextOwnership, file: "modules/private-work-context/src/index.ts", needle: "createRuntimeContextModule", kind: "code" },

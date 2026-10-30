@@ -1,4 +1,4 @@
-import type { GoalEventTimelineItem, GoalEventTimelinePage, GoalHistoryLane } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventTimelineItem, GoalEventTimelinePage, GoalHistoryLane } from "./contract/goals.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import { GOALS_RELATION_LABELS } from "./relation-presentation.js";

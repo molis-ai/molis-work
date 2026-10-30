@@ -1,8 +1,8 @@
 import { defineErrorCodes, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, SaveProjectPlanningMethodInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, SaveProjectPlanningMethodInput } from "./contract/goals.js";
 import { goalAction, goalActor } from "./action-contract.js";
-import { identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { identifier, count, boolean, object, array } from "./contract/goal-actions.js";
+import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./contract/goal-actions.js";
 
 const planningErrors = defineErrorCodes("goals.planning", { method_not_found: "invalid" });
 

@@ -6,7 +6,7 @@ import type {
   GoalEventUnmetReason,
   GoalEventWorkStatus,
   GoalRecord,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import {
   currentActionDecision,
   decisionCommitsToCurrentAgreement,

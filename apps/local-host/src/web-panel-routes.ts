@@ -1,5 +1,4 @@
 import type { DesktopPanelApi, DesktopPanelRecord } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { decodeLocalWebPathPart, respondLocalWebRefusal } from "./web-http.js";
 
 interface PanelSpawnSpec {
@@ -15,7 +14,8 @@ interface PanelHost {
   spawn(panel: DesktopPanelRecord): PanelSpawnSpec;
 }
 
-type PanelGoal = Pick<GoalRecord, "title" | "decomposition_state"> & { event_work?: boolean; event_facts?: string };
+/** The two facts of a Goal the panel routes read: its title, and whether it only holds steps (`closed_compound`). */
+type PanelGoal = { title: string; decomposition_state: string; event_work?: boolean; event_facts?: string };
 
 export interface PanelHttpContext {
   method: string | undefined;

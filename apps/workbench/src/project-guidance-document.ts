@@ -1,6 +1,13 @@
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
+
+/** The fields of a project's guidance this page shows: an entry in force or switched off, and one revision of it. */
+interface GuidanceEntry { guidance_id: string; kind: string; content: string; revision: number; updated_at: string }
+interface GuidanceRevision {
+  kind: string; content: string; revision: number; active: boolean; change_kind: string;
+  changed_by: string; confirmation_summary: string; reason: string; created_at: string;
+}
+interface ProjectGuidanceView { entries: readonly GuidanceEntry[]; inactive_entries: readonly GuidanceEntry[]; revisions: readonly GuidanceRevision[] }
 
 /** The project's guidance page: what is in force by kind, what was switched off, and every revision. */
 export function createProjectGuidanceDocumentRenderer(ports: {

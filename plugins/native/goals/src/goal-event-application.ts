@@ -44,7 +44,7 @@ import {
   type ResumeGoalEventWorkInput,
   type SetGoalEventAgreementInput,
   type SubmitGoalEventClosureInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "./contract/goals.js";
 
 
 const STATE_REPORT_LIMIT = 5;

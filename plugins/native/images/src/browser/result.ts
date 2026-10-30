@@ -1,11 +1,11 @@
-import { button, dateLabel, messageOf, text } from "./dom.js";
+import { button, dateLabel, firstCharacters, messageOf, text } from "./dom.js";
 import { imageUrl, stateOf } from "./list.js";
 import type { GeneratedImage, ImageJob, ImagesPage } from "./types.js";
 
 // Files are named after what was asked for, not the stored image id; several images from one prompt are numbered.
 const fileNameOf = (page: ImagesPage, job: ImageJob, item: GeneratedImage): string => {
   const ext = (/\.[a-z0-9]{2,5}$/i.exec(item.filename || "") || [".png"])[0];
-  const base = String(job.prompt || "").replace(/[\\/:*?"<>|\s]+/g, " ").trim().slice(0, 40) || page.L("images.page.title");
+  const base = firstCharacters(String(job.prompt || "").replace(/[\\/:*?"<>|\s]+/g, " ").trim(), 40) || page.L("images.page.title");
   const index = (job.images || []).findIndex((entry) => entry.id === item.id);
   return base + ((job.images || []).length > 1 && index >= 0 ? ` ${index + 1}` : "") + ext;
 };
@@ -53,7 +53,7 @@ const shelfButton = (page: ImagesPage, job: ImageJob, item: GeneratedImage): HTM
       const shelved = { kind: "shelf_item", id: kept.item_id, project_id: null };
       window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: kept.name, object: shelved,
         open: { surface: "shelf", id: kept.item_id, project_id: null },
-        note: `${L("来自 {source}", { source: `${L("images.page.title")} · ${job.prompt.slice(0, 40)}` })} · ${L("可以在 Shelf 里用于项目")}` } }));
+        note: `${L("来自 {source}", { source: `${L("images.page.title")} · ${firstCharacters(job.prompt, 40)}` })} · ${L("可以在 Shelf 里用于项目")}` } }));
     } catch (error) { page.say(messageOf(error) || L("images.error.shelf"), true); }
     finally { page.life.timeout(() => { keep.disabled = false; }, 1200); }
   });

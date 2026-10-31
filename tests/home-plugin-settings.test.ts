@@ -38,21 +38,44 @@ test("RAC-2601 the Home's installed list says why a package is not running: none
   assert.match(after.recovery_error ?? "", /找不到已安装的插件包/);
 });
 
-test("RAC-2602 the Home's installed list is read after the publishers the person took back are reconciled: the package is switched off, cannot be switched on, and can be taken off", mac, async t => {
+/** A Home package whose publisher the person has taken back, with nothing read in between: the Home's own list is the first to look. */
+async function revokedHomePackage(t: Parameters<typeof openTestHome>[0]) {
   const home = await openTestHome(t);
   const project = await home.createProject("撤销");
   const client = home.host.actionClient(project.reference);
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] };
   const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle: homePackage() }) as { preview_id: string };
   await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
   const list = async () => (await home.web.post<{ plugins: PluginInstalledView[] }>("/api/settings/plugin-permissions/list", {})).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  const offered = async () => (await operationsOf(client, caller)).length;
   assert.equal((await list())?.state, "running");
+  assert.ok(await offered() > 0);
   await home.web.post("/api/settings/plugin-publishers/revoke", { key_id: new HomeConsentLedger(home.home).publishers()[0]!.key_id });
-  // The project's list is not read in between: the Home's own list does the stopping.
+  return { home, list, offered };
+}
+
+test("RAC-2602 the Home's installed list is read after the publishers the person took back are reconciled: the package is switched off before it is listed, without the project's list being read", mac, async t => {
+  const { list, offered } = await revokedHomePackage(t);
   assert.equal((await list())?.state, "disabled");
-  await assert.rejects(home.web.post("/api/settings/plugin-permissions/enable", { plugin_id: PACKAGE_PLUGIN_ID }), (error: { code?: string }) => error.code === "plugin.publisher_revoked");
+  assert.equal(await offered(), 0, "no project is offered its actions");
+});
+
+test("RAC-2602 a Home package of a publisher the person took back cannot be switched on: the answer is plugin.publisher_revoked, not an internal error, and it stays off with no actions offered", mac, async t => {
+  const { home, list, offered } = await revokedHomePackage(t);
+  await list();
+  await assert.rejects(home.web.post("/api/settings/plugin-permissions/enable", { plugin_id: PACKAGE_PLUGIN_ID }), (error: { status?: number; code?: string }) => error.code === "plugin.publisher_revoked" && error.status !== 500);
+  assert.equal((await list())?.state, "disabled");
+  assert.equal(await offered(), 0, "nothing of it was started");
+});
+
+test("RAC-2602 a Home package of a publisher the person took back can still be taken off, its data kept or not, and nothing of it is offered or started on the way", mac, async t => {
+  const { home, list, offered } = await revokedHomePackage(t);
+  await list();
   const removed = await home.web.post<{ plugin_id: string; state: string }>("/api/settings/plugin-permissions/uninstall", { plugin_id: PACKAGE_PLUGIN_ID, keep_data: true });
   assert.deepEqual([removed.plugin_id, removed.state], [PACKAGE_PLUGIN_ID, "uninstalled"]);
   assert.equal(await list(), undefined);
+  assert.equal(await offered(), 0);
+  assert.equal(home.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID), false);
 });
 
 test("RAC-2605 a package installed in the Home is switched off and on and taken off through the Host settings door: the projects lose and regain its actions, the project's door cannot do it, and removing the data removes it", mac, async t => {

@@ -113,7 +113,10 @@ const clip = (line: string) => line.length > LINE_CHARS ? `${cutHead(line, LINE_
 const clipAround = (line: string, at: number) => {
   if (line.length <= LINE_CHARS) return line;
   const start = Math.max(0, Math.min(at - LEAD_CHARS, line.length - LINE_CHARS));
-  return `${start ? "…" : ""}${line.slice(start, start + LINE_CHARS)}${start + LINE_CHARS < line.length ? "…" : ""}`;
+  // Both ends keep whole characters: the start may land on the low half of one, the end on the high half.
+  const head = line.slice(start, start + LINE_CHARS).replace(/^[\uDC00-\uDFFF]/u, "");
+  const kept = head.replace(/[\uD800-\uDBFF]$/u, "");
+  return `${start ? "…" : ""}${kept}${start + LINE_CHARS < line.length ? "…" : ""}`;
 };
 
 /**

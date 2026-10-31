@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
@@ -10,12 +10,14 @@ import { dirname, join, resolve as resolvePath } from "node:path";
 import test, { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import Database from "better-sqlite3";
 import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, ProjectDeletionService, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
 /**
  * Deleting a project is one Host service whichever door asks: the settings page, the MCP tool and the CLI's `demo remove` (when a
@@ -47,8 +49,13 @@ test("the service stops while a terminal of the project is alive, and changes no
   const { directory, home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "有终端的项目", actor_id: "test-user" });
   const other = await catalog.createProject({ display_name: "另一个项目", actor_id: "test-user" });
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "test-user", user_confirmed: true });
-  catalog.openDesktopPanel({ project_id: other.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "test-user", user_confirmed: true });
+  // Two terminal records, one in each project, as `services.terminal` writes them.
+  const record = (projectId: string, panelId: string) => ({ panel_id: panelId, install_id: "fixture-install", project_id: projectId, actor_id: "test-user",
+    key: panelId, subject: "goal-1", runtime: "command", launch_command: "/bin/cat", launch_args: [], title: "cat" });
+  const panel = await catalog.commit(() => {
+    catalog.terminalPanels.insert(record(other.project_id, "plugin-other-terminal"), directory);
+    return catalog.terminalPanels.insert(record(project.project_id, "plugin-live-terminal"), directory);
+  });
   const ports = recordingPorts(panelId => panelId === panel.panel_id);
   const service = new ProjectDeletionService(withMolisWorkProjectCatalog, ports);
 
@@ -56,7 +63,7 @@ test("the service stops while a terminal of the project is alive, and changes no
   assert.deepEqual(ports.released, [], "the runtime is not let go of for a deletion that does not happen");
   assert.equal(existsSync(project.database_path), true);
   assert.equal(catalog.listProjectDeletions().length, 0, "no receipt is written");
-  assert.deepEqual(catalog.listDesktopPanels(project.project_id).map(item => item.panel_id), [panel.panel_id]);
+  assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [panel.panel_id]);
   assert.ok(ports.asked.every(panelId => panelId === panel.panel_id), "only the project's own terminals are asked about");
 });
 
@@ -107,10 +114,19 @@ async function residentHost(t: TestContext, home: string) {
   return { localHost, origin, token, stop };
 }
 
-/** A running Web server (the resident Host) with one live terminal on the project, the way the deletion page test makes it. */
-async function residentHostWithTerminal(t: TestContext, home: string, projectId: string, cwd: string, catalog: Catalog) {
+/** A running Web server (the resident Host) with one live terminal on the project: a Goal's, started by Goals in a folder linked to the project. RAC-2568: the
+ * Host refuses to delete the project while it runs, whichever door asks, and the record goes with the project once it is closed. */
+async function residentHostWithTerminal(t: TestContext, home: string, project: { project_id: string; database_path: string }, directory: string, catalog: Catalog) {
   const { localHost, origin, token, stop } = await residentHost(t, home);
-  const panel = catalog.openDesktopPanel({ project_id: projectId, goal_id: "goal-terminal", runtime_kind: "generic", launch_command: "/bin/cat", cwd, actor_id: "test-user", user_confirmed: true });
+  const folder = join(directory, "workspace");
+  await mkdir(folder, { recursive: true });
+  await linkTerminalFolder(catalog, project.project_id, await realpath(folder));
+  addTerminalGoal(project, "goal-terminal");
+  const opened = await fetch(origin + goalTerminalsPath(project.project_id, "goal-terminal"), { method: "POST",
+    headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
+    body: JSON.stringify({ key: "deletion", command: "/bin/cat" }) });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const panel = { panel_id: (await opened.json() as { panel_id: string }).panel_id };
   const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty");
   t.after(async () => {
     socket.terminate();
@@ -133,12 +149,12 @@ async function residentHostWithTerminal(t: TestContext, home: string, projectId:
     return received;
   };
   await message({ type: "auth", token }, "ready");
-  await message({ type: "spawn", panelId: panel.panel_id, command: "/bin/cat", cwd }, "spawned");
+  assert.equal((await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned")).attached, true, "Goals started it");
   const closeTerminal = async () => {
     socket.send(JSON.stringify({ type: "kill", panelId: panel.panel_id }));
     assert.equal((await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned")).attached, false);
   };
-  return { localHost, origin, token, closeTerminal };
+  return { localHost, origin, token, closeTerminal, panelId: panel.panel_id };
 }
 
 const runtimeHost = (home: string) => ({ homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "deletion-service-session", host_declares_stable: true } });
@@ -148,7 +164,15 @@ const callTool = async (server: LocalMcpServer, name: string, args: Record<strin
 test("the MCP tool asks the resident Host: a live terminal stops it (409), and once it is closed the Host lets go of its runtime and deletes", { timeout: 60_000 }, async t => {
   const { directory, home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "有终端的项目", actor_id: "test-user" });
-  const { localHost, origin, closeTerminal } = await residentHostWithTerminal(t, home, project.project_id, directory, catalog);
+  const { localHost, origin, closeTerminal, panelId } = await residentHostWithTerminal(t, home, project, directory, catalog);
+  // The terminal's own work context is an alias of it; deleting the project takes the alias with it (RAC-2568).
+  const aliases = () => {
+    // The catalog's own SQLite (better-sqlite3), as the Host in this process opens it.
+    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    try { return Number((db.prepare("SELECT COUNT(*) AS count FROM plugin_terminal_panel_aliases WHERE panel_id = ?").get(panelId) as { count: number }).count); }
+    finally { db.close(); }
+  };
+  assert.equal(aliases(), 1);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // The forwarding process assembles protocol metadata without opening a Home or project runtime of its own.
   const mcpHost = createMolisWorkLocalHost({});
@@ -187,7 +211,8 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   assert.equal(isOpen(localHost), false, "the resident Host let go of its runtime");
   assert.equal(residentCloses[0], true, "the resident Host's service let go of the runtime while the project's directory was still in place");
   assert.equal(isOpen(mcpHost), false, "successful forwarding never opened a local project runtime");
-  assert.deepEqual(catalog.listDesktopPanels(project.project_id), []);
+  assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [], "RAC-2568: the project's terminal records went with it");
+  assert.equal(aliases(), 0, "RAC-2568: and the aliases of its work contexts");
 
   const replay = await callTool(mcp, "molis_work_v1_project_delete", request);
   assert.equal(replay.isError, false, replay.content[0]?.text);
@@ -197,7 +222,7 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
 test("the settings page and the MCP tool refuse the same live terminal with the same code", { timeout: 60_000 }, async t => {
   const { directory, home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "有终端的项目", actor_id: "test-user" });
-  const { localHost, origin, token, closeTerminal } = await residentHostWithTerminal(t, home, project.project_id, directory, catalog);
+  const { localHost, origin, token, closeTerminal } = await residentHostWithTerminal(t, home, project, directory, catalog);
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, runtimeHost(home), localHost, origin);
   t.after(() => mcp.close());
   let sequence = 0;
@@ -238,7 +263,7 @@ test("RAC-105-A-09: without a resident the forwarding MCP refuses deletion and p
 test("removing the demo from the settings page is the same service: a live terminal stops it (409), then the Host lets go of the runtime and deletes", { timeout: 60_000 }, async t => {
   const { directory, home, catalog } = await scratchHome(t);
   const demo = (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project;
-  const { localHost, origin, token, closeTerminal } = await residentHostWithTerminal(t, home, demo.project_id, directory, catalog);
+  const { localHost, origin, token, closeTerminal } = await residentHostWithTerminal(t, home, demo, directory, catalog);
   await localHost.withProject(molisWorkHostProjectReference({ databasePath: demo.database_path, projectId: demo.project_id }), () => undefined);
   let sequence = 0;
   const remove = () => fetch(`${origin}/api/settings/demo`, { method: "POST",
@@ -363,7 +388,7 @@ async function demoRemoveCli(home: string, hostUrl: string | null, ...flags: str
 test("the CLI's demo remove asks the resident Host: a live terminal stops it, and once it is closed the Host lets go of the runtime and deletes as the person on this machine", { timeout: 120_000 }, async t => {
   const { directory, home, catalog } = await scratchHome(t);
   const demo = (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project;
-  const { localHost, origin, closeTerminal } = await residentHostWithTerminal(t, home, demo.project_id, directory, catalog);
+  const { localHost, origin, closeTerminal } = await residentHostWithTerminal(t, home, demo, directory, catalog);
   await localHost.withProject(molisWorkHostProjectReference({ databasePath: demo.database_path, projectId: demo.project_id }), () => undefined);
 
   const blocked = await demoRemoveCli(home, origin);

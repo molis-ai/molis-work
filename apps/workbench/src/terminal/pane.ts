@@ -4,6 +4,10 @@ export interface TerminalPaneModel {
   selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
+  /** Where the page reads the prompt that advances the selected Goal, with `:goalId` for its id; given by the surface that owns Goals. */
+  promptRoute: string;
+  /** Where the page lists, opens and closes the selected Goal's terminals, with `:goalId` for its id; given the same way. */
+  terminalsRoute: string;
   text(value: string, vars?: Record<string, string | number>): string;
   icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
 }
@@ -39,7 +43,7 @@ export function renderTerminalPane(model: TerminalPaneModel): string {
     : "";
   return `
       <div class="tui-resizer" role="separator" aria-label="${L("调整终端宽度，双击收起")}" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="720" aria-valuenow="480" tabindex="0" data-tui-resizer></div>
-      <aside class="tui-pane" id="goal-tui-pane" data-tui-pane data-goal-id="${escapeHtml(selectedGoalId)}" data-tui-parent-read-only="${compoundParent}"${compoundParent ? ' data-tui-read-only="true"' : ""} aria-label="${L("终端面板")}">
+      <aside class="tui-pane" id="goal-tui-pane" data-tui-pane data-goal-id="${escapeHtml(selectedGoalId)}" data-tui-prompt-route="${escapeHtml(model.promptRoute)}" data-tui-terminals-route="${escapeHtml(model.terminalsRoute)}" data-tui-parent-read-only="${compoundParent}"${compoundParent ? ' data-tui-read-only="true"' : ""} aria-label="${L("终端面板")}">
         <div class="tui-owner" data-tui-owner>
           <div class="tui-owner-copy">
             <strong data-tui-owner-title>${escapeHtml(selected?.title ?? L("还没有选择 Goal"))}</strong>

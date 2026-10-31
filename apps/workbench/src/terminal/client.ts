@@ -47,7 +47,7 @@ function mountGoalTerminal(pane: HTMLElement) {
     parentReadOnly: guard.readOnly,
     parentReadOnlyMessage: guard.parentReadOnlyMessage,
     canControlPanel,
-    text: L, errorText, route, request,
+    text: L, errorText, route, request, terminalsRoute: () => pane.dataset.tuiTerminalsRoute || "",
     controlToken: () => document.querySelector('meta[name="molis-work-control-token"]')?.getAttribute("content") || "",
     setStatus, setMenuOpen: (open) => menu.setMenuOpen(open),
     renderTabs: () => view.renderTabs(),
@@ -57,7 +57,7 @@ function mountGoalTerminal(pane: HTMLElement) {
   const menu = createTerminalMenu({ els, text: L, route, request, guard, setStatus, openPanel: panelController.openPanel });
   const view = createTerminalView({ els, text: L, screens, guard, goalId, setStatus, panels: () => panelController });
   const prompt = createAdvancePrompt({
-    text: L, route, request, goalId, guard, current: panelController.current,
+    text: L, route, request, goalId, promptRoute: () => pane.dataset.tuiPromptRoute || "", guard, current: panelController.current,
     sendPty: panelController.send, copyBtn: els.copyBtn, showToast: showPageToast,
   });
   const { fillPendingFeedContext } = createTerminalAutofill({

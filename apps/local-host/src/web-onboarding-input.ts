@@ -48,7 +48,7 @@ export function webOnboardingInitializationInput(body: Record<string, unknown>, 
     if (!directoryExists) throw new Error("工作目录不存在或当前不可访问");
   }
   if (runtimeKind) {
-    if (!runtime.isRuntimeKind(runtimeKind) || runtimeKind === "generic") {
+    if (!runtime.isRuntimeKind(runtimeKind)) {
       throw new Error("请选择 Molis Work 支持的 Runtime");
     }
     if (!workspacePath) throw new Error("打开 TUI 前需要选择一个存在的绝对工作目录");

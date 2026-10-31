@@ -1,8 +1,6 @@
-import { desktopAdvancePrompt } from "./advance-prompt.js";
 import { createLocalWebServerFactory } from "@molis-ai/molis-work-app-local-host";
 import { isPtyCommandAvailable } from "@molis-ai/molis-work-service-runtime-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "./project-catalog.js";
-import { desktopLaunchSpec, desktopPanelEnv, isDesktopRuntimeKind } from "./launch.js";
 import { desktopWorkbenchRendererPorts } from "./shell.js";
 import { isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "./shell.js";
 import { renderDesktopCapsuleShell } from "./capsule-shell.js";
@@ -22,7 +20,6 @@ export function createDesktopWebHost(assets: { ptyClientFilePath(): string }) {
     withCatalog: withMolisWorkProjectCatalog,
     openCatalog: openMolisWorkProjectCatalog,
     desktopRenderer: desktopWorkbenchRendererPorts,
-    panel: { panelEnv: desktopPanelEnv, isRuntimeKind: isDesktopRuntimeKind, launchSpec: desktopLaunchSpec, advancePrompt: desktopAdvancePrompt },
     cliAvailability: desktopRuntimeAvailability,
     isDesktopShellRequest, nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
     renderDesktopCapsuleShell, ptyClientFilePath: assets.ptyClientFilePath,

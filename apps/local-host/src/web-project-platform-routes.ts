@@ -275,10 +275,6 @@ const projectAssistant = ({ serverOptions, composition, localHost, agentHost, ag
 export const homeDockRoute: WebRoute<ProjectRuntimeContext> = { id: "home-dock", handle: ({ request, response, url, homeActions, webViewCache, options }) =>
   handleHomeDockJudgmentHttp(request, response, url, { actions: homeActions, invalidateWebView: () => webViewCache.delete(options.databasePath) }) };
 
-/** The desktop app's terminal panels for this project. */
-export const desktopPanelRoute: WebRoute<ProjectRuntimeContext> = { id: "desktop-panel", handle: async ({ request, response, url, serverOptions, options, ptyHost, webUrl, homeActions, composition }) =>
-  Boolean(options.project?.project_id) && await composition.handleDesktopPanelApi(request, response, url, serverOptions, options.project!.project_id, ptyHost, webUrl, homeActions) };
-
 /**
  * The last entry: an address this project does not have. A person (a page request, not an API call) lands in the
  * workbench and is told so there, never on a bare error body.

@@ -199,7 +199,6 @@ export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
-export { createLocalPanelHttp } from "./web-panel.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
@@ -313,6 +312,7 @@ export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
+export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";

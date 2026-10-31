@@ -19,10 +19,10 @@
     },
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
-      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
+      "reason": "项目目录的门面：32 个方法里多数是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
       "size": {
-        "lines": 265,
-        "methods": 40
+        "lines": 208,
+        "methods": 32
       }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {

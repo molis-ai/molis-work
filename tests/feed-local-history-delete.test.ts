@@ -20,7 +20,7 @@ function memorySecrets(): SecretStore {
   return {
     get: (key) => keys.get(key) ?? null, put: (key, value) => { keys.set(key, value); }, delete: (key) => { keys.delete(key); },
     createIfAbsent(key, value) { if (keys.has(key)) return false; keys.set(key, value); return true; }, deleteIfPresent: (key) => keys.delete(key),
-    backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 2 }),
+    backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 1 }),
   };
 }
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, connectorProtocolSecrets, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -135,15 +135,16 @@ test("Images uses the chosen Connector credential for each generation and surviv
 test("Feed switching account creates a separate source and keeps the old history, plan and capture rule", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-connector-source-"));
   const home = join(directory, "home");
-  const databasePath = join(home, "projects", "board.db");
+  const databasePath = join(home, "projects", "board", "molis-work.db");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   try {
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     resetSecretStoreCache();
     mkdirSync(join(home, "projects"), { recursive: true });
     const catalog = new DatabaseSync(join(home, "projects", "catalog.db"));
-    catalog.exec("CREATE TABLE projects (database_path TEXT NOT NULL)");
-    catalog.prepare("INSERT INTO projects (database_path) VALUES (?)").run(databasePath);
+    catalog.exec("CREATE TABLE projects (project_id TEXT NOT NULL)");
+    catalog.prepare("INSERT INTO projects (project_id) VALUES (?)").run("board");
+    mkdirSync(dirname(databasePath), { recursive: true });
     catalog.close();
     seedDemoBoard(databasePath);
     const board = new LocalProjectDatabase(databasePath);

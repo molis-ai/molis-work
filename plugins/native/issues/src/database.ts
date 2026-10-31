@@ -1,7 +1,7 @@
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const ISSUES_DATABASE: PluginDatabaseDeclaration = {
-  store_name: "issues", version: 2, read_permission: "issues:read", write_permission: "issues:write",
+  store_name: "issues", version: 1, read_permission: "issues:read", write_permission: "issues:write",
   schema: `CREATE TABLE issues (
     id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 200),
     type TEXT NOT NULL CHECK(type IN ('bug','experience','feature')), description TEXT NOT NULL CHECK(length(description) <= 100000),

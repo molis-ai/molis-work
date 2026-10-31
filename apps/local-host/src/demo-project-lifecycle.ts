@@ -1,13 +1,12 @@
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { projectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
-import { managedProjectDirectory } from "./project-file-paths.js";
 import { validateManagedProject } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
@@ -48,7 +47,6 @@ export class DemoProjectLifecycle {
     const record = this.projects.lifecycle.prepareRecord({
       project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",
-      projects_directory: this.projectsDirectory,
       data_class: "regenerable_demo",
     });
     const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}`);
@@ -81,7 +79,7 @@ export class DemoProjectLifecycle {
     // a retry can clear it). An owner whose service is another process's for good (the CLI has no Agent runtime or search
     // index of its own) is left to the running Molis Work, and reported: a rebuild never waits for it.
     await this.owners.ready({ leaveElsewhere: true, rebuild: true });
-    const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
+    const projectDirectory = projectDirectoryPath(this.projectsDirectory, project.project_id);
     const stagingDirectory = path.join(this.projectsDirectory, `.resetting-${project.project_id}-${randomUUID()}`);
     const backupDirectory = path.join(this.projectsDirectory, `.reset-backup-${project.project_id}-${randomUUID()}`);
     let previousMoved = false;

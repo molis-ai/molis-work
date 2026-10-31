@@ -41,9 +41,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
-  const found = page ? await registeredPage(host.homePlugins, page[1]!) : {};
-  if (found.failure !== undefined) { sendLocalWebJson(response, 503, { error: found.failure }); return true; }
-  const entry = found.entry;
+  const entry = page ? await registeredPage(host.homePlugins, page[1]!) : undefined;
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
   if (!host.homePlugins.manifest(pluginId)) return false;
@@ -179,15 +177,16 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
 
 /**
  * The registered page for `key`. An installed package's page is registered once the Home has started, so the first request after a start
- * may be that page: a key nothing registers yet waits for the Home and looks again (BL-713).
+ * may be that page: a key nothing registers yet waits for the Home and looks again (BL-713). A Home that did not start registers no
+ * package, so a key nothing registers is not this module's to answer: the page recovery that renders the unavailable Home does (S-34).
  */
-async function registeredPage(homePlugins: HomePluginHost, key: string): Promise<{ entry?: ReturnType<HomePluginHost["registered"]>[number]; failure?: string }> {
+async function registeredPage(homePlugins: HomePluginHost, key: string): Promise<ReturnType<HomePluginHost["registered"]>[number] | undefined> {
   const find = () => homePlugins.registered().find(item => item.key === key);
   const known = find();
-  if (known) return { entry: known };
+  if (known) return known;
   try { await homePlugins.ready(); }
-  catch (error) { return { failure: error instanceof Error ? error.message : String(error) }; }
-  return { entry: find() };
+  catch { return undefined; }
+  return find();
 }
 
 /**

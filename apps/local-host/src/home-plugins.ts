@@ -128,12 +128,13 @@ export class HomePluginHost {
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
   /**
    * The signed packages installed in the Home, as the tool bar offers them: those that run and those that were running and did not come
-   * back (their page says why), by name. A Home that did not start offers none.
+   * back (their page says why), by name. A Home that did not start offers none, nor one whose library cannot be read now.
    */
   async navigation(): Promise<HomePluginNavigationEntry[]> {
-    try { await this.ready(); }
-    catch { return []; /* A Home that did not start has no packages to offer. */ }
-    return (this.installed?.pages() ?? []).map(({ key, manifest }) => {
+    let pages: { key: string; manifest: PluginManifest }[];
+    try { await this.ready(); pages = this.installed?.pages() ?? []; }
+    catch { return []; /* A Home that did not start, or whose library broke since, has no packages to offer. */ }
+    return pages.map(({ key, manifest }) => {
       const icon = manifest.ui?.views?.find(view => view.slot === "stage")?.icon;
       return { plugin_id: key, name: manifest.name, ...icon ? { icon } : {}, surface: this.packageSurface(key) ?? key };
     }).sort((a, b) => a.name.localeCompare(b.name));

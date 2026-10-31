@@ -75,7 +75,7 @@ export interface HomeSceneServices {
   actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
   /** A running Host owns this connection; standalone scene callers use a scoped service. */
   readFunctions?: FunctionsActionPorts["read"];
-  /** The project's plugin manifest, so an unavailable source the project lists is shown instead of taken for one it does not have. */
+  /** Whether the project reaches the plugin behind a provider (`projectPluginJudge`), so an unavailable source the project lists is shown instead of taken for one it does not have. */
   projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>;
 }
 

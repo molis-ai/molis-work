@@ -43,15 +43,17 @@ test("RAC-2437 a Host with no catalog refuses the manifest lookup, and the Home 
     await assert.rejects(bare.projectPluginReach("project-a"), { code: "host.catalog_unavailable" });
   } finally { await bare.close(); }
   const a = reference("project-a");
+  const answering = { ...unavailableView(a.project_id), availability: { available: true } };
   const ports: HomeAggregatePorts = {
     openProjects: () => [a],
     whileOpen: async (_reference, work) => work(),
-    client: () => ({ discover: async () => [], invoke: async () => assert.fail("nothing is invoked") }),
+    client: () => ({ discover: async () => [answering], invoke: async () => ({ project: a.project_id }) }),
     context: async projectReference => context(projectReference.project_id),
     projectPlugins: async () => { throw new ActionError("host.catalog_unavailable", "项目目录尚未就绪，请稍后重试"); },
   };
   const result = await collectHomeAggregate(ports, TYPE, {});
-  assert.deepEqual(result.answers, []);
+  assert.deepEqual(result.answers.map(answer => ({ project: answer.project_id, output: answer.output })), [{ project: a.project_id, output: { project: a.project_id } }],
+    "the failed lookup is reported, but it does not cost the answers other sources can still give");
   assert.deepEqual(result.issues.map(issue => ({ project_id: issue.project_id, source: issue.source, code: issue.code })),
     [{ project_id: a.project_id, source: null, code: "host.catalog_unavailable" }],
     "the refused lookup is what the person sees, not a silently empty Home");

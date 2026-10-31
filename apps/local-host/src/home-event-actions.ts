@@ -16,7 +16,7 @@ export const homeEventActions = {
     output_schema: { type: "object", properties: { target: HOME_OPEN_TARGET_SCHEMA }, required: ["target"], additionalProperties: false } } } as ActionDefinition<HomeEventOpenInput, { target: HomeOpenTarget }>,
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
-/** `projectPlugins` reads the project's plugin manifest: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
+/** `projectPlugins` asks whether the project reaches a provider's plugin: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
 export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>): ActionHandlerBinding[] {
   const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
     assertHomeEventWindow(window);
@@ -42,8 +42,8 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
     for (const source of sources) {
       if (!source.availability.available) {
         if (pinned) throw new ActionError(source.availability.code, source.availability.reason);
-        // A source in this project's plugin manifest that cannot answer (turned off, or refused by policy) is shown; one the project
-        // does not list is not installed here and has nothing to report. Without the manifest, the old rule still turns off silently.
+        // A source behind a plugin this project reaches that cannot answer (turned off, or refused by policy) is shown; one it does
+        // not reach is not installed here and has nothing to report. Without the judgement, the old rule still turns off silently.
         const pluginId = source.provider.plugin_id;
         // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code.
         const judged = projectPlugins && caller.project_id && pluginId !== undefined ? await reachesOf(pluginId) : undefined;

@@ -57,10 +57,19 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
   signal?.throwIfAborted();
   const projects = await Promise.all(ports.openProjects().map(async reference => {
     const project_id = reference.project_id;
+    let catalogIssue: HomeAggregateIssue | null = null;
+    let reaches: (pluginId: string) => boolean | undefined = () => undefined;
     try {
       // The exposure judgement comes from the catalog, which a project's own open window may hold: get it before entering.
-      const reaches = await ports.projectPlugins(reference);
-      return await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
+      reaches = await ports.projectPlugins(reference);
+    } catch (error) {
+      signal?.throwIfAborted();
+      // A catalog failure is that project's issue; it does not cost the answers the other sources can still give. The judgement
+      // stays undefined, so plugin_disabled keeps the old silent rule and unavailable sources with other codes are still shown.
+      catalogIssue = closing(error) ? null : { project_id, source: null, code: codeOf(error) };
+    }
+    try {
+      const result = await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
         const client = ports.client(reference);
         const { caller, views } = await beforeDeadline(signal, async discoverySignal => {
           // Queries and all their nested calls remain read-only; discovery has its own bound too.
@@ -93,6 +102,7 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
         }));
         return { answers: results.flatMap(result => result.answers), issues: results.flatMap(result => result.issues) };
       }) ?? { answers: [], issues: [] };
+      return catalogIssue ? { answers: result.answers, issues: [catalogIssue, ...result.issues] } : result;
     } catch (error) {
       signal?.throwIfAborted();
       return { answers: [], issues: closing(error) ? [] : [{ project_id, source: null, code: codeOf(error) }] };

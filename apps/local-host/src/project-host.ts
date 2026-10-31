@@ -403,7 +403,7 @@ export class MolisWorkLocalHost {
     return this.host.projects();
   }
 
-  /** Does this project reach the plugin behind a provider? The one judgement actions use (`projectReachesPlugin`), by the injected catalog. */
+  /** Does this project reach the plugin behind a provider? The one judgement actions use (`projectPluginJudge`), by the injected catalog. */
   async projectPluginReach(projectId: string): Promise<(pluginId: string) => boolean | undefined> {
     const home = this.personalPlanningHome;
     if (!this.catalogRunner || !home) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");

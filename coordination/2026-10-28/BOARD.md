@@ -11,7 +11,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-加急：T-366 #1695 已合 `f640b5b0f`，同头 Full 16片及汇总成功；T-347 接着同步该修复并结算最终头。
+加急：T-377 修复重复的主区重试/恢复故障，根已核 C1 因果与 A+B 方案并派开发线4实施；T347等后续Full待其采用。T366已完成不重复派。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -155,7 +155,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-205 | RAC-1452 的下界改成「不早于同一时刻起的普通定时器」，不再按 performance.now() 猜毫秒数（防腐清理，统筹 main 红 · run 40850221824） | 丙 | 池 | 0 | — | `packages/test-kit/tests/browser.test.mjs`（只 `:506-568` 那一例；`cdp.ts` 只在本机变异、还原，不入提交） |
 | T-206 | Workflows 的交接模板与动作字段名按整字截，不再留下半个字（防腐清理，MISC「T-189 发布」行） | 乙 | 池 | 105 | T-189（#1471） | `plugins/native/workflows/src/model.ts`（只 `:273` 一行）、`plugins/native/workflows/src/step-runner.ts`（只 `:40` 一行）、`tests/workflows-whole-character-text.test.ts`（新） |
 | T-207 | 六处过时的措辞改成现状：`shared` 已空、BL-802 已做、双实例舞台「在跑」的口径、扩展点清单头（防腐清理，MISC「T-125 二审 建议」「T-191 发布」，T-127 二审建议 2） | 丙 | B | 106 | — | `scripts/gates/README.md`、`tooling/gates/README.md`、`tooling/gates/table-owners.json`（只 `areas` 下 Feed 那条的 `reason`，不改任何 owner 条目）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（只第 3 行）、`specs/dual-instance-plugins/spec.md`（只 §12）、`docs/system/EXTENSION-POINTS.md`（只第 3 行） |
-| T-208 | Images 页面按整字截提示词：下载名、Shelf 来源说明、助理上下文标题不再留下半个字，含两单元字的提示词不再让结果页画不出来（防腐清理，MISC「T-186 发布」） | 乙 | Codex 开发线4；验证线1/二审线3 | #1562 @3b1402546；main/资源收口及独立增量/二审通过 | full=false；Images精确+20B；旧4/4及M2原来源，准确CI待结 | `plugins/native/images/src/browser/dom.ts`、`plugins/native/images/src/browser/result.ts`、`plugins/native/images/src/browser/page.ts`、`tests/images-result-whole-characters.e2e.test.ts`（新）、`scripts/gates/page-assets.mjs`（只 APPROVED_CEILINGS，与 T-176、T-183、T-203 互锁）、`tooling/gates/page-assets.json`（只经 --update --base）；page-assets 两份文件与 T-203 同文件不同资源：可并行，后合者在合并结果上重算放行（统筹 10-30 6516737203） |
+| T-208 | Images 页面按整字截提示词：下载名、Shelf 来源说明、助理上下文标题不再留下半个字，含两单元字的提示词不再让结果页画不出来（防腐清理，MISC「T-186 发布」） | 乙 | Codex 开发线4；验证线1/二审线3 | #1562 @3b1402546；独立增量/二审与准确Verify已通过，当前资源冲突 | full=false；后继资源窗待T249/T351；不重跑旧4/4与M2 | `plugins/native/images/src/browser/dom.ts`、`plugins/native/images/src/browser/result.ts`、`plugins/native/images/src/browser/page.ts`、`tests/images-result-whole-characters.e2e.test.ts`（新）、`scripts/gates/page-assets.mjs`（只 APPROVED_CEILINGS，与 T-176、T-183、T-203 互锁）、`tooling/gates/page-assets.json`（只经 --update --base）；page-assets 两份文件与 T-203 同文件不同资源：可并行，后合者在合并结果上重算放行（统筹 10-30 6516737203） |
 | T-209 | 桌面入口用例的 PTY 夹具读 pid 前先等文件里真有数字，不再读到空串（防腐清理，MISC「T-199 发布」行） | 丙 | 池 | 108 | — | `tests/fixtures/desktop-entry-streams.ts` |
 | T-212 | 图片服务自己查的长度（提示词、请求号、尺寸、宽高比、服务名称、模型名）按字数数，与动作 schema 一致，含两单元字的内容不再被多拒（防腐清理，MISC「T-208 起草」service.ts 一行） | 乙 | 池 | 111 | T-213 | `plugins/native/images/src/service.ts`、`tests/images-service.test.ts` |
 | T-213 | 平台生图端口的提示词与请求字段按字数查，与 Images 动作 schema 一致（防腐清理，T-212 起草时发现；T-212 的平台一半） | 甲 | Claude（设备 A） | 112 | — | `packages/plugin-runtime/src/image-generation.ts`、`tests/plugin-image-generation.test.ts` |
@@ -192,7 +192,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-246 | 开始使用的项目名称长度按字数数，页面输入框与 Host 检查同口径（防腐清理，MISC「T-210 起草」第一行；短任务书） | 乙 | B | 141 | T-214（#1498） | `apps/local-host/src/context-onboarding-service.ts`（只 `:458`、`:567`）、`apps/workbench/src/scripts/context-onboarding.ts`、`tests/context-onboarding.test.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与别的页面脚本任务互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-247 | 合同里的 searchText 截到上限时不留下半个字（防腐清理，MISC「T-208 起草」`search-sources.ts` 一行；短任务书） | 甲 | Claude（设备 A） | 142 | — | `packages/contracts/src/platform/search-sources.ts`、新测试文件 |
 | T-248 | Todo 整理用例里两个读法相同的辅助函数去重成一个（防腐清理，MISC「T-222 二审 建议」；短任务书） | 丙 | 池 | 143 | — | `tests/todo-organize.test.ts` |
-| T-249 | Pages 页面客户端里导入预览、侧栏标签、评论引文与编辑器交给助理的内容按整字截，不再留下半个字（防腐清理，MISC「T-157/T-158 起草」第二组；短任务书） | 乙 | Codex 开发线2接续；原作者署名/证据保留 | #1608 @8a10c262d；根6549850805明确接手，main/资源窗口执行中 | T204已合；一次完整原4例新组合，旧物理入口UNKNOWN保留 | `plugins/native/pages/src/browser/import.ts`、`plugins/native/pages/src/comment-side-client.ts`、`plugins/native/pages/src/comment-editor-client.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-203、T-204 等互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
+| T-249 | Pages 页面客户端里导入预览、侧栏标签、评论引文与编辑器交给助理的内容按整字截，不再留下半个字（防腐清理，MISC「T-157/T-158 起草」第二组；短任务书） | 乙 | Codex 开发线2接续；一审/验证/二审已核 | #1608已合b0567bf54；patch-id同，审计6550159696；自有临时树已清 | full=false；T351资源窗已正式6550160399交接 | `plugins/native/pages/src/browser/import.ts`、`plugins/native/pages/src/comment-side-client.ts`、`plugins/native/pages/src/comment-editor-client.ts`、新浏览器用例文件、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`，与 T-203、T-204 等互锁）、`tooling/gates/page-assets.json`（只经 `--update --base`） |
 | T-250 | 两份 spec 里已经做完的 BL-311、BL-393 改成现状，RCPT-102 的证据句补上超时一支（防腐清理，MISC「T-044 起草」「T-026 二审 给统筹 2」；短任务书） | 丙 | 池 | 145 | — | `specs/post-anticorruption-roadmap/spec.md`（只 `:184`）、`specs/ai-input-receipts/spec.md`（只 `:66`、`:1611`） |
 | T-251 | 生成文稿的字数上限补一个只靠字数判断的用例（100,001 个单字文稿被拒），删掉字数判断就会红（防腐清理，MISC「T-228 二审 建议」；短任务书） | 丙 | 池 | 146 | T-228 | `tests/feed-inbox-pages-loop.test.ts`（只加一个 RAC-2275 用例，T-228 也改它） |
 | T-252 | Pages 生成文稿所选材料的总长上限按字数数，含两单元字的材料不再被多拒（防腐清理，MISC「T-228 二审 建议」；短任务书） | 乙 | 池 | 147 | — | `plugins/native/pages/src/actions.ts`（只 `:301`）、一个 pages 动作测试文件 |
@@ -241,7 +241,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-297 | 连接绑定的插件号、用途号长度判断改按字数 160，不再按 UTF-16 单元数（防腐清理，MISC「T-213 二审 登记」；短任务书） | 丙 | B | 193 | — | `horizontal/connector-host/src/connection-store.ts`、其 bind 既有测试 |
 | T-298 | Coding 着色两种延迟排版情形补成入库浏览器用例，GC 注意事项写进注释（只补用例，需 Chrome ≥153；防腐清理，MISC「T-281 二审 建议」①③；短任务书） | 乙 | 池 | 194 | — | `tests/code-scale.e2e.test.ts` |
 | T-299 | renderPluginRail 的原 JSDoc 迁位 | 丙 | Codex 开发线2；二审线5 | #1671 @6e4cb0ac7；原四项文本验证沿用，增量二审通过；待准确头CI/Full | 正常合main含T355；full=true按6548760051 | `apps/workbench/src/immersive-shell.ts` |
-| T-300 | 孤儿连接更换令牌、移除、重开持久化浏览器证据 | 乙 | Codex 开发线2；验证线5/二审线3增量 | #1598 @c39df41ca；唯一attach可信id适配，新完整2/2，独立增量核收中 | full=false；旧A三轮/旧M原来源，旧BUNKNOWN保留 | `tests/connector-orphan-connection.e2e.test.ts` |
+| T-300 | 孤儿连接更换令牌、移除、重开持久化浏览器证据 | 乙 | Codex 开发线2；验证线5/二审线3 | #1598已合77f4fd172；patch-id同，审计6550081671；自有临时树已清 | full=false；原B导航UNKNOWN保留 | `tests/connector-orphan-connection.e2e.test.ts` |
 | T-301 | ci-timeouts 的作业时限读法认得行尾注释（防腐清理，T-287 二审建议；短任务书） | 丙 | B | 197 | — | `tests/ci-timeouts.test.ts` |
 | T-302 | 文档来源导入从Home集成登记取连接 | 乙 | Codex 统筹；原独立审验线 | 已合 #1605 → ddac3a308；patch-id核同 | full=true，准确Full41234302181成功；自有树/分支已清理 | 已释放 |
 | T-303 | bl530 切片余项与 privileges.md PG-046 行里 BL-740 改成已做（防腐清理，MISC「T-119 二审 建议」①；短任务书） | 丙 | 池 | 199 | — | `specs/repository-anti-corruption/slices/bl530-sandboxed-integrations.md`、`specs/repository-anti-corruption/privileges.md`（第 222 行） |
@@ -279,7 +279,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-336 | BL-121 ②：删掉 `?feed-start=1` 整条链（start 路由、`feed.item.promote` 的 `start_processing`、客户端分支与终端自动填入；`processing` 取值与 DDL 等统筹答；要先于 T-137 落地） | 乙 | A | 已合（10-31，#1644 → `94c49fa1b`） | — | `plugins/native/feed/src/item-route-handlers.ts`、`item-actions.ts`、`goal-promotion.ts`、`apps/workbench/src/terminal/autofill.ts`、`events-secondary.ts`、`initialization.ts` |
 | T-337 | BL-121 ③：紧凑密度子目标缩进的 `.tree-children.tree-children` 改成正常一条规则（缩进不变，加计算样式用例） | 丙 | A | 已合 #1688 → `b9a975578`；patch-id同 | T-336 已合 | 已释放；P2仍在MISC |
 | T-338 | `tests/interaction-no-crosstalk.e2e.test.ts` 夹具次序加固与观察等待超时诊断（按6539144174/6539212534收窄，根因未定）；保留原谓词、拒绝／无写断言与时限，发送状态UNKNOWN | 乙 | Codex 统筹 | 已合（10-31，#1647 → `dc544a397`）；根因UNKNOWN保留 | — | `tests/interaction-no-crosstalk.e2e.test.ts` |
-| T-339 | Feed按被拒kind拒绝捕获，不记artifact_out_failed | 甲 | Codex 开发线4；验证线1核增量 | #1653 @8c85c932c；同头Verify/SI及三层审验齐，正常入队 | full=false；尚未实际采用，patch-id旧新相同 | `plugins/native/feed/src/out-rules.ts`、`tests/feed-inbox-lifecycle.test.ts` |
+| T-339 | Feed按被拒kind拒绝捕获，不记artifact_out_failed | 甲 | Codex 开发线4；验证线1 | #1653已合7579870d5；patch-id同，审计6549974145 | full=false；自有接续树已清，原作者树保留 | `plugins/native/feed/src/out-rules.ts`、`tests/feed-inbox-lifecycle.test.ts` |
 | T-340 | MCP 宿主里裸 `new ActionError` 的 `mcp.*` 码改成 `defineErrorCodes` 声明，抛出处带声明的 kind；同码两种 kind 统一 | 乙 | A | 已合（10-31，#1658 → `7d74dc353`；Codex 统筹） | — | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts` |
 | T-341 | 搜索：读取器报 forbidden 被弃时经 `onError` 留一条记录（只记码） | 乙 | 池 | 已合（10-31，#1648 → `f8aaece61`） | — | `horizontal/search/src/index.ts` |
 | T-342 | 两条弱断言收紧：安装插件关闭顺序数组 deepEqual；去掉 RAC-2420 与已有用例重复的用例 | 丙 | Codex 统筹 | 已合 #1651 c95f6f305 | — | `tests/installed-plugin-host.test.ts`、`tests/security-invariants-oauth-shared-refresh.test.ts` |
@@ -291,7 +291,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-348 | docs/system 等七处小修：ARCHITECTURE／examples／GLOSSARY／roadmap 旧说法，PACKAGE-BOUNDARIES、ci.yml、PARALLEL-DEVELOPMENT 的“约 5 分钟”“每个同时只跑 2 个”“共享核心名单” | 丙 | B | 1.4 | — | `docs/system/*.md`、`specs/post-anticorruption-roadmap/spec.md`、`.github/workflows/ci.yml`（只注释） |
 | T-349 | 四处文档小修：功能盘点 :452、pg031 :29、清理报告“不回改本表”、CHECKLIST／spec N-05／BACKLOG 归属列 | 丙 | 池 | 1.9 | — | `docs/product-operations/research/2026-10-18-功能盘点.md`、`specs/repository-anti-corruption/slices/pg031-goals-imports.md`、`docs/reviews/cleanup-audit-2026-10-20.md` |
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
-| T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4/二审线5 | #1661 @aec1150ca；资源增量/二审闭合，核新CI四文件实际覆盖 | full=false；+146B/171；旧59不冒新组合，旧DOMUNKNOWN保留 | 原产品/测试及两资源门禁文件；只清旧许可和精确+146B |
+| T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4/二审线5 | #1661 @aec1150ca；根6550160399采用下一资源计划，开发线1执行 | full=false；旧同树59/59保留，新组合另核；精确+146B | 原产品/测试及两资源门禁文件；只清旧许可和精确+146B |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
 | T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1，C开发线2 | A已合；B #1682 @81955aa93增量验证/二审沿用，待本头Full；C #1683待B | B旧Full失败保留；C等B后retarget与自身CI/Full | 新函数所在包、各就地截法文件 |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
@@ -316,10 +316,11 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-372 | PG-077/078成果库采用与A7/A8旧等待链文档核收（RAC-2775～2778） | 丙 | Codex 开发线4 | 已合 #1699 → `717d14f2a`；patch-id核同；自有树/分支已清理 | 共享三行由根串行；真实Home验收另账 | 两slice锁已释放 |
 | T-373 | 首页聚合双阶段code-only诊断（RAC-2779～2782；full=true） | 乙 | Codex 开发线1；一审线3/验证线3/二审线4 | #1700 @ba1a7aaed；三阶段/Verify/两片SI通过，已ready；待Full | T319已合；旧作者与新独立closing变异分源 | `apps/local-host/src/home-aggregate.ts`、`tests/home-aggregate.test.ts` |
 | T-374 | 真实Host事项经项目Catalog的listed/bare回归（RAC-2783～2786） | 丙 | Codex 开发线1 | #1703已合973063c79；patch-id同，审计6549696515 | full=false；自有树/本地分支已清，锁释放 | 仅 `tests/home-event-actions.test.ts` |
-| T-377 | 主区失败重试身份与加载时序加急（RAC-2794～2797） | 乙 | Codex 开发线4；一审线1 | 根核书/方案，批准一次有限诊断 | T347重复Full首败；暂不签测试或生产根因 | 原readiness测试及deferred临时hook；不改#1101的goal-browser |
+| T-377 | 主区失败重试身份与加载时序加急（RAC-2794～2797） | 乙 | Codex 开发线4；一审线1 | C1 7/8，确定双notice与后台恢复prepare；根6550121639采用A+B并执行 | 原CI最上游UNKNOWN；三生产/两测试，资源待窗口 | 三生产deferred/documents-state/navigation-feed及readiness/desktop-tui签名单条；资源另窗；不改公共helper |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
-| T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；二审线4审方案 | 修订2强审拒新增生产控制API，按测试进程包装真实factory修订；未实施 | #1701已合解除测试锁；#1672 registry与T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
+| T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
+| T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex 开发线3；独立二审线1 | A–D工程书已接受并保存plans/T144；唯一需求仍accepted slice§7 | WAIT T143采用及共享锁；full=true，未实施 | 详工程PLAN精确路径；不应用受锁主线候选diff |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给Goals并走平台启动终端服务（BL-695/637/508） | 甲 | Codex 开发线1 | 已合 #1643 → `0926d15a9`；patch-id核同；自有树/分支已清理 | 后片T-148已交开发线4 | 已释放 |
 | T-138 | 设置页里，个人空间的插件包说出没能启动的原因和被撤销信任，并能停用、启用、卸载（BL-715；PG-011 余项；RAC-2600～2607；BL-915；full=true；统筹大单） | 甲 | A-Claude | 已合（10-31，#1642 → `126851bb7`） | —（页面字节排在 #1551/#1569/#1594/#1607 后） | `packages/contracts/src/platform/plugin-trust.ts`、`tooling/gates/api/contracts/platform/plugin-trust.txt`、`apps/local-host/src/plugin-installed-view.ts`、`apps/local-host/src/project-plugin-ports.ts`、`apps/local-host/src/plugin-install-service.ts`、`apps/local-host/src/plugin-install-actions.ts`、`apps/local-host/src/plugin-trust-actions.ts`、`apps/local-host/src/plugin-permission-settings-http.ts`、`apps/workbench/src/settings-plugins.ts`、`apps/workbench/src/i18n/plugin-trust-en.ts`、`tests/plugin-trust-view.test.ts`、`tests/security-invariants-plugin-permissions.test.ts`、`tests/security-invariants-plugin-permissions-http.test.ts`、`tests/home-plugin-settings.test.ts`（新）；只改自己那一处：`docs/system/SECURITY-INVARIANTS.md`（只 S-94 行）、`tooling/gates/actions/host-actions.tsv`（只经 `actions:update`）、`tooling/gates/page-assets.json`、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS` 一条） |
@@ -390,3 +391,9 @@ T141修订2与R-A4迁移书分别交强审；W6-06归档路线交独立审书；
 2026-10-31 22:20Z：T374/T367/T368/T204已实际合入并核patch-id、清自有树与本地分支。27个open=19任务号/21任务PR+6其他；T339正常入队未记采用。T143最终H独立36/36和强二审已发布6549731663/6549732476，T362独立50/50及三阶段通过，准确Verify绿。T347新Full失败在RAC1490真实retry点击；main nightly同样首败重试后绿已核原日志，两个取消片系matrix fail-fast。新T377（RAC2794–2797）已审书/方案，开发线4执行一次有限身份/prepare诊断；后续Full暂等这处已知重复故障修复，已有审验不重开。
 
 T208完成资源收尾且独立增量/二审通过，CI待结；T300唯一attach参数适配完成新2/2，独立核收中。T204解除T249前置，根6549850805移交开发线2并给资源窗口，只合main/资源加一次原4例。T141最终测试接线工程书、T144后继书、BL916四资源/后台两书、W6-06与R-A4均为准备；各自准确采用/共享锁等待保留，未把书面通过签成实现或归档。原待领五书均已采用，无必要无锁READY不造数。
+
+2026-10-31 22:45Z：T339/T300已实际采用并核patch-id，自有接续树清理完，原作者树保留；24个open＝16任务号/18任务PR＋6其他。T249新d3b完成资源合流、作者新4/4、独立三阶段与准确Verify/SI/Product，正常入队（6550074692/5322/5933），实际合入另结。T351旧aec的同树CI四完整59/59已核；待T249采用再按已审计划仅收资源。T208当前为资源冲突，不推新代码取消已在跑CI。
+
+T377的C1真实复现同根双notice及refreshBoard→applyUiState→setDesktopWorkSurface重挂载，旧CI最上游仍UNKNOWN；根6550121639批准三生产+两测试的A+B，同书范围已更新。T144修订A–D强二审通过，工程附件待保存，仍WAIT T143和共享锁；T122文档片采用不自动结清原当前组合独立证据，已派验证线3核已有Mac证据及最小补验计划，暂不因重复号调整25～33估算。必要无锁READY不足不造可选任务。
+
+T249于22:44:37Z实际采用b0567bf54并核patch-id faceadfc433a2846136217a62df6ce9efda150eb同；根6550159696留审计，6550160399将资源窗交T351。T141修订2及T144修订一工程计划/独立最终审查已保存到plans，各自WAIT保留，主线candidate不提前应用。

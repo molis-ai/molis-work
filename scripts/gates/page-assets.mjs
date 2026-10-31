@@ -242,14 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-223 (MISC T-184 发布), RAC-2160–2164: on top of T-183's +63 already in main (budget 190623), the plugin-frame bridge cuts the name
-// a plugin page file is saved under by whole characters (200, extension kept) instead of 200 UTF-16 units: +137 B more, measured on
-// this merge result (190623 → 190760). Tried: whole characters without keeping the extension +41 B (does not fix the dropped
-// extension), cutting by units and dropping a dangling half +143 B, an early return for a name that fits +163 B; no new asset.
-// The entries this block inherited from main are used up (their budget already equals their ceiling): T-183's frame +63 and workbench
-// +96, and T-235's ppt.js [27065, 27364]; the entries and their notes are deleted with this change as the convention says.
+// T-115 (PG-060), RAC-2090–2093: the workbench takes Goals' styles and scripts from its registration. workbench.css +24 B: Goals'
+// narrow-screen rules (five of them moved out of the shell's responsive block, whose base rules are Goals') need an `@media` of their
+// own now that they leave the shell's. workbench.js +51 B: Goals' settings scripts run from the registration's `settingsClient`, inside
+// the page bootstrap like every plugin's, where the minifier renames their `L` and `form` against the bootstrap's own. Tried: dropping
+// indentation and joins (the server already strips them), trimming the scripts; the same PR takes 26,294 B off settings.css.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugin-frame.js": [190623, 190760],
+  "/assets/molis-work-workbench.css": [1233233, 1233257],
+  "/assets/molis-work-workbench.js": [1148549, 1148600],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

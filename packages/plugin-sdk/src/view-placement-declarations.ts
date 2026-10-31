@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_ICON_NAMES } from "./ui/icon-names.js";
 
 // The checks for where a view says its plugin is listed, made new and started from (W5-06 2b): its icon, its tab-strip `hue` (PG-075), its rail `group`,
 // what it `creates` and its project home `start`. Only a view that opens its plugin from the rail (`navigator`, `island`) may say
@@ -14,6 +15,25 @@ const words = (value: unknown): value is string => typeof value === "string" && 
 const GROUPS: ReadonlySet<string> = new Set(UI_VIEW_GROUPS);
 const RAILS: ReadonlySet<string> = new Set(UI_VIEW_RAILS);
 const HUES: ReadonlySet<string> = new Set(UI_VIEW_HUES);
+const HAN = /\p{Script=Han}/u;
+const CONTROL = /[\u0000-\u001f\u007f]/u;
+/** The longest English name or title, in Unicode code points: the unit the Host's directory cuts a name to (`apps/workbench/src/plugin-directory.ts`). */
+export const ENGLISH_NAME_LIMIT = 80;
+
+/**
+ * What is wrong with a declared English name (`name_en`, a view's `title_en`; BL-636), or null: one line of text that says what it
+ * shows, so it is exactly what the shell draws. Not blank, no space at either end, no control character (a line break included),
+ * no Han character, at most {@link ENGLISH_NAME_LIMIT} code points. `field` is the name the author wrote.
+ */
+export function englishNameProblem(value: unknown, field: string): string | null {
+  if (typeof value !== "string") return `${field} 必须是文字`;
+  if (value.trim() === "") return `${field} 不能为空`;
+  if (value !== value.trim()) return `${field} 首尾不能有空白`;
+  if (CONTROL.test(value)) return `${field} 不能含控制字符或换行`;
+  if (HAN.test(value)) return `${field} 必须是英文，不能含汉字`;
+  if ([...value].length > ENGLISH_NAME_LIMIT) return `${field} 最多 ${ENGLISH_NAME_LIMIT} 个字符`;
+  return null;
+}
 
 /** The station ids the Manifest's own actions can create (`workflow_content` with the `create` role). */
 export function createStations(parsed: PluginManifest): ReadonlySet<string> {
@@ -39,8 +59,13 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   const problems: string[] = [];
   const id = view.view_id;
   if (view.icon !== undefined && !words(view.icon)) problems.push(`视图 ${id} 的 icon 必须是图标名`);
+  else if (view.icon !== undefined && !(PLUGIN_ICON_NAMES as readonly unknown[]).includes(view.icon)) problems.push(`视图 ${id} 的图标 ${JSON.stringify(view.icon)} 不在平台图标集里`);
   if (view.hue !== undefined && (typeof view.hue !== "string" || !HUES.has(view.hue))) problems.push(`视图 ${id} 的 hue ${String(view.hue)} 不是设计系统的颜色名（${UI_VIEW_HUES.join("、")}）`);
   const opens = view.slot === "navigator" || view.slot === "island";
+  if (view.title_en !== undefined) {
+    const problem = opens ? englishNameProblem(view.title_en, "title_en") : "title_en 只用于 navigator 或 island 视图";
+    if (problem) problems.push(`视图 ${id} 的 ${problem}`);
+  }
   for (const field of ["group", "creates", "start"] as const) {
     if (view[field] !== undefined && !opens) problems.push(`视图 ${id} 的 ${field} 只用于 navigator 或 island 视图`);
   }

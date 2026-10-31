@@ -13,6 +13,8 @@ export interface PluginMarketCard {
   readonly id: ProjectPluginId;
   readonly runtime_id: string;
   readonly label: string;
+  /** The label in the English interface: the market's view title_en (BL-636); absent when it declares none. */
+  readonly label_en?: string;
   readonly glyph: string;
   readonly copy: string;
   readonly personal: boolean;
@@ -45,6 +47,8 @@ export interface RailEntry {
   id: ProjectPluginId;
   surface: string;
   label: string;
+  /** The label in the English interface (BL-636): a navigator or island view's own `title_en`, a stage-only plugin's Manifest `name_en`; absent when its source declares none, and never taken from the other source. */
+  label_en?: string;
   glyph: string;
   /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
   group: UiViewGroup | null;
@@ -114,7 +118,7 @@ export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedDirectoryIds();
  */
 export function builtinPluginDirectory(): PluginDirectory {
   return BUILTIN_PLUGIN_CATALOG.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name,
-    chosen: true, ui: { views: entry.manifest.ui.views ?? [] } }));
+    ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}), chosen: true, ui: { views: entry.manifest.ui.views ?? [] } }));
 }
 
 /**
@@ -143,7 +147,8 @@ function placedViews(directory: PluginDirectory, enabled: readonly ProjectPlugin
 }
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
-  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group,
+  const english = view.slot === "stage" ? view.plugin_title_en : view.title_en;
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, ...(english !== undefined ? { label_en: english } : {}), glyph: view.icon ?? "package", group: view.group,
     // Only a plugin the project chooses can be the backbone, an extend entry or pinned by default, whoever built the directory.
     rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
@@ -153,8 +158,8 @@ export function railEntries(enabled: readonly ProjectPluginId[], directory: Plug
   const views = placedViews(directory, enabled, "navigator"), entries = views.map(railEntry);
   const at = views.findIndex(({ view }) => view.order > ARTIFACT_NAVIGATION.order
     || (view.order === ARTIFACT_NAVIGATION.order && view.plugin_id.localeCompare(ARTIFACTS_PROVIDER_ID) > 0));
-  const { id, surface, label, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
-  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label, glyph, group, rail, pinned_default, chosen });
+  const { id, surface, label, label_en, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
+  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label, label_en, glyph, group, rail, pinned_default, chosen });
   return [...entries, ...stageOnlyViews(directory, enabled).map(railEntry)];
 }
 
@@ -252,6 +257,7 @@ export function pluginMarketCards(options: PluginMarketOptions = {}, directory: 
       id: entry.project_plugin_id,
       runtime_id: entry.manifest.plugin_id,
       label: nav.title ?? entry.manifest.name,
+      ...(nav.title_en !== undefined ? { label_en: nav.title_en } : {}),
       glyph: nav.icon ?? "package",
       copy: entry.manifest.summary,
       personal: marked.get(entry.project_plugin_id)?.personal === true,
@@ -278,20 +284,11 @@ export function pluginStageSummaries(): Record<string, { readonly plugin_id: str
     .map((entry) => [entry.project_plugin_id, { plugin_id: entry.manifest.plugin_id, summary: entry.manifest.summary as string }]));
 }
 
-/**
- * The English interface's names for the built-in plugins whose Manifest name is Chinese (user decision 2026-10-15). The
- * Chinese interface keeps the Manifest name; the plugins already named in English keep theirs in both.
- */
-const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
-  artifacts: "Artifacts", "plugin-builder": "Plugin Studio", images: "Images", lingguang: "Lingguang", todo: "To-do",
-  alchemist: "Alchemist", workflows: "Workflows",
-};
-
-/** A built-in plugin's name in the interface language. */
-export const pluginLabel = (id: string, label: string, english: boolean): string => (english && PLUGIN_ENGLISH_NAMES[id]) || label;
+/** An entry's name in the interface language: its declared English in the English interface, else the name it is written under. */
+export const pluginLabel = (entry: { readonly label: string; readonly label_en?: string }, english: boolean): string => (english && entry.label_en) || entry.label;
 
 /** The rail and island titles of a directory's plugins; the Host passes its own (`builtinMarketDirectory`), a page drawn without one uses the catalog's. */
 export function pluginTabTitles(english = false, market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
   const enabled = market.map((entry) => entry.id);
-  return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
+  return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry, english)]));
 }

@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { link, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { homeStores } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
-import { assertSnapshotRefused, smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
+import { assertSnapshotRefused, smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 
 test("RAC-104-S-01 RAC-106-S-03 RAC-109-S-05: unknown stores, unsupported/corrupt libraries and unfinished maintenance refuse without output", async t => {
   for (const kind of ["unregistered-root", "reserved-nonempty", "unknown-library", "wrong-version", "not-sqlite", "orphan-sidecar", "maintenance", "raw-runtime-backup", "renamed-sdk-key", "renamed-master"] as const) {
@@ -52,7 +53,7 @@ test("S-12 RAC-104-S-04 RAC-109-S-05: links and special source paths never escap
 });
 
 test("S-12 RAC-104-S-04: the original vault backend/key is required and never repaired by snapshot", async t => {
-  for (const kind of ["missing", "wrong", "old-vault", "unprepared-bookmark"] as const) await t.test(kind, async t => {
+  for (const kind of ["missing", "wrong", "unsupported-vault", "unprepared-bookmark"] as const) await t.test(kind, async t => {
     const f = await smallSnapshotHome(t);
     let code = "storage.secrets_snapshot.invalid";
     if (kind === "unprepared-bookmark") await f.file("directory-access/bookmarks.json", JSON.stringify({ documents: { path: f.area, bookmark: "test-only authorization" } }));
@@ -60,27 +61,22 @@ test("S-12 RAC-104-S-04: the original vault backend/key is required and never re
       createLazyFileSecretStore(f.home).put("snapshot-fixture", "test-only-snapshot-value");
       if (kind === "missing") { await rm(join(f.home, "feed", "secrets.key")); code = "storage.secrets_snapshot.key_unavailable"; }
       if (kind === "wrong") { await writeFile(join(f.home, "feed", "secrets.key"), randomBytes(32).toString("base64")); code = "storage.secrets_snapshot.integrity_failed"; }
-      if (kind === "old-vault") await writeFile(join(f.home, "feed", "secrets.json"), JSON.stringify({ version: 1, entries: { fixture: "old plaintext" } }));
+      if (kind === "unsupported-vault") {
+        const file = join(f.home, "feed", "secrets.json"), vault = JSON.parse(await readFile(file, "utf8"));
+        await writeFile(file, JSON.stringify({ ...vault, version: 2 }));
+      }
     }
     await assertSnapshotRefused(f, code);
   });
 });
 
-test("RAC-104-S-01/04 RAC-106-S-03: retired storage is strictly owner/meta v7 and requires its original content key", async t => {
-  for (const kind of ["wrong-version", "wrong-owner", "missing-key", "invalid-key-size"] as const) await t.test(kind, async t => {
-    const f = await smallSnapshotHome(t); await mkdir(join(f.home, "sessions"));
-    const database = new DatabaseSync(join(f.home, "sessions", "sessions.db"));
-    try {
-      database.exec("CREATE TABLE session_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE sessions (id TEXT PRIMARY KEY,title TEXT);");
-      database.prepare("INSERT INTO session_meta VALUES (?,?)").run("owner", kind === "wrong-owner" ? "foreign-owner" : "molis-work-session-registry-v1");
-      database.prepare("INSERT INTO session_meta VALUES (?,?)").run("schema_version", kind === "wrong-version" ? "6" : "7");
-      database.prepare("INSERT INTO sessions VALUES (?,?)").run("kept", "Opaque retired fact");
-    } finally { database.close(); }
-    await f.file("sessions/content/blobs/kept.blob", "Opaque sealed bytes");
-    if (kind !== "missing-key") await f.file("sessions/content/content.key", randomBytes(kind === "invalid-key-size" ? 31 : 32));
-    await assertSnapshotRefused(f, kind === "missing-key" || kind === "invalid-key-size" ? "host.home_snapshot.key_unavailable" : undefined,
-      kind === "wrong-version" || kind === "wrong-owner" ? /owner.*版本不符/u : undefined);
-  });
+test("RAC-2378 an unregistered retired Sessions directory is refused without opening its contents", async t => {
+  const f = await smallSnapshotHome(t);
+  await f.file("sessions/opaque", "Retired data is never opened by the new Home");
+  const before = await snapshotBusinessFingerprint(f.home);
+  await assert.rejects(createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot }), { code: "host.home_snapshot.unknown_data" });
+  assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
+  assert.equal(existsSync(f.snapshot), false);
 });
 
 const readyInstallRecord = (home: string, directory: string, id: string) => JSON.stringify({ id, ready: true, directory: join(home, directory), executable: join(home, directory, "tool"), runtime_path: [], source: { kind: "npm" } });

@@ -107,7 +107,7 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
   for (const id of ["form", "dataset", "ppt"]) {
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
   }
-  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"]).map((entry) => entry.id);
+  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "files"]).map((entry) => entry.id);
   assert.deepEqual(
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],

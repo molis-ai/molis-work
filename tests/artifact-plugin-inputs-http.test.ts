@@ -15,7 +15,7 @@ test("a Coding report in the 成果库 can be given to Shelf's report input and 
   const home = mkdtempSync(join(tmpdir(), "artifact-plugin-inputs-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "端口输入", actor_id: "web-user" });
-  for (const plugin_id of ["coding", "artifacts"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
+  for (const plugin_id of ["coding"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
   catalog.close();
   const prefix = "/projects/" + project.project_id, token = "artifact-plugin-inputs-control-token-123456789";
   const store = new LocalProjectDatabase(project.database_path), app = openProjectVersionStores(store);
@@ -66,7 +66,7 @@ test("a version given to Shelf's report input survives a Host restart, and a sta
   const home = mkdtempSync(join(tmpdir(), "artifact-plugin-inputs-pin-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "端口输入", actor_id: "web-user" });
-  for (const plugin_id of ["coding", "artifacts"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
+  for (const plugin_id of ["coding"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
   catalog.close();
   const prefix = "/projects/" + project.project_id, token = "artifact-plugin-inputs-pin-control-token-123456789";
   const store = new LocalProjectDatabase(project.database_path), app = openProjectVersionStores(store);

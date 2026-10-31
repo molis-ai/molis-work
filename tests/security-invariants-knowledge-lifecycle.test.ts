@@ -36,7 +36,7 @@ async function heldModel(t: TestContext, home: string) {
 
 for (const change of ["exclude", "delete"] as const) {
   test(`SYS-01 SYS-02 real Host and SDK stop queued knowledge after ${change}`, { timeout: 60_000 }, async t => {
-    const home = await openTestHome(t), project = await home.createProject("并发资料", ["artifacts"]);
+    const home = await openTestHome(t), project = await home.createProject("并发资料");
     const prefix = `/projects/${project.project_id}`;
     for (const name of ["A", "B"]) await home.web.post(prefix + "/api/artifacts/import", { source: "file", filename: `${name}.md`, content: `${name} private body` });
     const listed = await untilSetup(async () => {

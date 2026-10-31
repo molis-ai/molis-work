@@ -12,7 +12,6 @@ Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失�
 
 `createPrologueNodeAdapter(options)` 返回可等待的初始化句柄，`await` 仍取得原 adapter；从创建时保留该句柄，其 `close()` 即使初始化拒绝也可继续清理。初始化失败后的清理再次失败会继续占锁，显式重试只处理未完成项，全部成功才归还 borrow/独立 owner。成功 adapter 的 `close()` 复用同一入口；同次并发共享结果，失败后可以明确重试。Local Host composition 在初始化前保存句柄，dispose 总能关闭它；失败后的显式 ready 先完成旧实例清理，再创建新实例，关闭中的实例不登记为可用。回归：`tests/security-invariants-agent-initialization-cleanup.test.ts`。
 
-离线记忆采用的 `openPrologueMemoryAdoption` 使用同一存储 owner 锁，只向显式范围开放 SDK 的 `adoptLegacy` 与整 App `verifyAdoption`，不装 Agent、模型或普通记忆写入口。维护 Runtime 保留 App taxonomy、版本与限额，但只装只读维护配方；不要求安装普通 Runtime 的提炼、召回或晋升实例，也不把维护配方写回正常配置。调用方必须先停所有 owner 并备份，在关闭维护 Runtime 后重新打开正常 Runtime；关闭等待在途页结束，SDK 关闭失败不释放写锁。旧 metadata 无法证明自然场景时保持未分类，不从 kind/namespace 猜测；原引用、版本、期限、来源与已完成候选关联由 SDK 保持。页中的 issues、未决决定、未知归属、取消与未知提交均不是完成；LocalHost 累计整次结果后才提交 ledger4。维护入口不改变正常 Runtime 的授权。真实隔离 Node 回归：`tests/prologue-memory-adoption.test.ts`；SQLite 编排故障回归：`tests/memory-adoption-maintenance.test.ts`。
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 

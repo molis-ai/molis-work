@@ -1,6 +1,8 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿已审定。已落地：A1、A2a（batch-27）、A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）、A3（PG-064、PG-079、PG-077 与第 4 步，#1294，batch-39；§5.1 的 S-69.1、S-70.4 现为 S-81，S-70.2、S-70.3 现为 S-82）、A4（PG-096，#1257，batch-37，RAC-426）、A7 的非目录部分（PG-097 环境变量、符号、`/assets` 路由，#1264 与 #1268，batch-37，RAC-412、427）。未做：A5（提供方换 `system.artifacts`）和 A7 的目录改名都等用户的维护时段（B 类）；A6 等 ac-registry 的 PG-024 与 W5-06 的挂载器；A8 收口在 A5～A7 之后。
+状态：设计稿已审定。已落地：A1、A2a（batch-27）、A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）、A3（PG-064、PG-079、PG-077 与第 4 步，#1294，batch-39；§5.1 的 S-69.1、S-70.4 现为 S-81，S-70.2、S-70.3 现为 S-82）、A4（PG-096，#1257，batch-37，RAC-426）、A7 的非目录部分（PG-097 环境变量、符号、`/assets` 路由，#1264 与 #1268，batch-37，RAC-412、427）。A5、A6 已被 PG-077 的现行方案取代（产品候选 #1552，待批合入与最终验收）；未做的 A7 目录改名仍等用户维护时段（B 类）；A8 收口在 A5～A7 之后。
+
+**A5、A6 已被 PG-077 取代**：现行方案及验收见 [PG-077](pg077-artifacts-provider.md)，保留提供方 id，不执行下文 A5 的换 id/维护计划；A6 的平台面与删插件外壳由产品候选 #1552 实现，待随干净 Home 批合入及最终验收。下文旧 A5/A6 与其对应验收仅保留历史追溯，其它片的范围不变。
 
 A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
 
@@ -254,8 +256,8 @@ RAC-427 的行为证据经现有 `extractUploadedMaterial` 入口实际进入 `e
 | A2 | 代码搬进 `modules/artifacts`：动作处理器、`createPluginArtifactClient`、`plugin-operations`；`plugin-host-services` 与宿主十来个文件停止 import 成果库插件包；提供方先不换 | A1 | `pnpm api:update`；RAC-413～414 |
 | A3 | 类型登记表从 Manifest 生成（碰 `plugin-catalog.ts`）；`consumes.file`；Goals 链接种类；S-69、S-70 | A2；**#1098 合入**；**ac-registry 的 PG-024 片** | `pnpm api:update`；Pages、Goals 的 Manifest；RAC-415～421 |
 | A4 | PG-096：事件前缀规则 | W5-06 链合完 | 独立，可与 A1 并行；RAC-426 |
-| A5 | 提供方换 `system.artifacts` 与维护脚本（C3）；目录条目**不删**，入口照常 | A2、A3；**等用户答完维护时段（B 类）再合，和维护同一时段** | `pnpm actions:update`；RAC-422、423 |
-| A6 | 「成果」入口成平台面，经 W5-06 的通用挂载器挂；5 段客户端模板随平台面发；**同一片**删目录条目与 `BUILTIN_PLUGIN_CATALOG` 里的行（C7）、删插件包 | A5；**W5-06 的挂载器**；**ac-registry 的 PG-024 片** | 页面资源字节不得变大；RAC-424、425 |
+| A5（被 PG-077 取代） | 提供方换 `system.artifacts` 与维护脚本（C3）；目录条目**不删**，入口照常 | A2、A3；**等用户答完维护时段（B 类）再合，和维护同一时段** | `pnpm actions:update`；RAC-422、423 |
+| A6（被 PG-077 取代） | 「成果」入口成平台面，经 W5-06 的通用挂载器挂；5 段客户端模板随平台面发；**同一片**删目录条目与 `BUILTIN_PLUGIN_CATALOG` 里的行（C7）、删插件包 | A5；**W5-06 的挂载器**；**ac-registry 的 PG-024 片** | 页面资源字节不得变大；RAC-424、425 |
 | A7 | PG-097：环境变量改名、符号改名、客户端包路由口径与门禁；真实 Home 目录改名放维护脚本 | W5-06 链合完；环境变量、符号、路由部分可先合；**目录部分等用户答完维护时段（B 类）再合，和维护同一时段** | RAC-412、427、428；可与 A5 合一次维护 |
 | A8 | 文档与门禁收口：SSOT-MATRIX 两行、`privileges.md` 状态、`SECURITY-INVARIANTS.md` 的 S-69/70、门禁名单只减不增 | A5～A7 | RAC-429 |
 

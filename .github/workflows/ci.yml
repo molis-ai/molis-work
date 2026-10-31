@@ -61,7 +61,7 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
         run: node scripts/ci-queue-verified.mjs
 
-  # The blocking checks are jobs that run side by side and all feed `verify`, each about five minutes: `gates` and
+  # The blocking checks are jobs that run side by side and all feed `verify`, each a few minutes (longest successful run, T-128: `gates` 6.8 min, `health-gate-rules` 5.2, `architecture-boundaries` 5.8; `action-contracts` 15.4 was a slow runner in the merge queue): `gates` and
   # `health-gate-rules` need no build (the contracts package alone, for one gate test), `architecture-boundaries` and
   # `action-contracts` each build the workspace and run what needs the build. Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each
   # file with its own MOLIS_WORK_HOME (scripts/run-tests/pool.mjs, docs/system/PARALLEL-DEVELOPMENT.md §5); MOLIS_WORK_TEST_JOBS

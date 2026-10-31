@@ -3,6 +3,7 @@ import {
   SUBJECT_CONTEXT_TYPE,
   SUBJECT_REFERENCE_TYPE,
   isSearchEntriesSource,
+  platformErrorKind,
   retainActionAuthority,
   requireSynchronous,
   SEARCH_ENTRIES_PAGE_LIMIT,
@@ -92,7 +93,9 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
       .map(view => ({ view, valid: true }));
     return { caller: own?.access.caller ?? caller, source, readers };
   });
-  const revokedReader = (error: unknown) => error instanceof ActionError && ["mcp.action_revoked", "actions.forbidden"].includes(error.code);
+  // A reader this caller may not use (any more) is left out of the query: told by the refusal's kind (its own, or the platform table's for a
+  // platform code), never by an owner's code. Anything else its check throws ends the query.
+  const revokedReader = (error: unknown) => error instanceof ActionError && (error.kind ?? platformErrorKind(error.code)) === "forbidden";
   return {
     validate: async () => {
       for (const check of checks) {

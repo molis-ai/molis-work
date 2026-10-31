@@ -1131,10 +1131,12 @@ for (const [order, gonePluginId, keptPluginId] of [
     assert.deepEqual(installed.installations().map(entry => entry.state), ['running', 'running'], 'both installations run before the close');
     assert.ok(platform.runtime.contribution(gone.installId), 'the installation whose record goes has a contribution before the close');
     assert.ok(platform.runtime.contribution(kept.install_id), 'the installation that stays keeps its contribution before the close');
-    // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, ascending. `order` decides which of the
-    // two goes; comparing the whole array also fails when the close order is empty (an indexOf would see -1 === -1).
+    // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, in the order this case built them.
+    // The expected array is written per case rather than sorted, so swapping the two fixture ids for the two orders also breaks the
+    // labels; comparing the whole array still fails when the close order is empty (an indexOf would see -1 === -1).
     const closeOrder = platform.supervisor.enabledPluginIds();
-    assert.deepEqual(closeOrder, [fixture.release.pluginId, gone.pluginId].sort(), `the close order is exactly both plugin ids, ascending (the ${order} one goes)`);
+    const expectedOrder = order === 'first' ? [gone.pluginId, fixture.release.pluginId] : [fixture.release.pluginId, gone.pluginId];
+    assert.deepEqual(closeOrder, expectedOrder, `the close order is exactly both plugin ids, ascending (the ${order} one goes)`);
     saved = await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('SELECT * FROM plugin_runtime_installs WHERE install_id = ?').get(gone.installId) as Record<string, unknown> | undefined);
     assert.ok(saved, 'the second record exists before the close');
     await rig.host.withProject(fixture.ref, runtime => { runtime.store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(gone.installId); });

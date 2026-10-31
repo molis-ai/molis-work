@@ -11,7 +11,7 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, homeIntegrationRegistry, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { artifactsActions, artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
+import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 
@@ -617,7 +617,7 @@ test("RAC-2426 the document import reads the Home registry's document_import int
     process.env.MOLIS_WORK_HOME = otherHome;
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await catalog.createProject({ display_name: "Registry imports", actor_id: "fixture-user" });
-    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "fixture-user" });
+    // PG-077: Artifacts is a platform provider; the project needs no plugin opt-in.
     catalog.close();
     host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));

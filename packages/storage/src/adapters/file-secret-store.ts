@@ -6,7 +6,7 @@
  *  2. darwin + keychain available → master key in Keychain, ciphertext in secrets.json
  *  3. otherwise → install key file (0600) + AES-GCM secrets.json
  *
- * Only the current AES-GCM format (file version 2) is read; an older file is refused rather than upgraded
+ * Only the current AES-GCM format (file version 1) is read; an older file is refused rather than upgraded
  * (repository-anti-corruption §9.5 #4: the real Home held no v0.3 envelope on 2026-10-04).
  */
 import fs from "node:fs";
@@ -59,7 +59,7 @@ export interface SecretStoreBackendInfo {
   formatVersion: number;
 }
 
-const FORMAT_VERSION = 2;
+const FORMAT_VERSION = 1;
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
@@ -415,7 +415,7 @@ const snapshotErrors = defineErrorCodes("storage.secrets_snapshot", {
 });
 
 export interface SealedSecretsSnapshotInspection {
-  version: 2;
+  version: 1;
   backend: SecretStoreBackendKind;
   entries: number;
   key_reference: { location: string; sha256: string } | null;

@@ -19,7 +19,7 @@ test("S-39 PMAT-48 an import downloads the speech model only on a person's expli
   const home = await mkdtemp(join(tmpdir(), "import-model-"));
   const project = await withCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "资料", actor_id: "owner" });
-    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "artifacts", actor_id: "owner" });
+    assert.throws(() => catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "artifacts", actor_id: "owner" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     return created;
   });
   // The helper records each download permission it is given; without one it answers as the real helper does when the model is missing.

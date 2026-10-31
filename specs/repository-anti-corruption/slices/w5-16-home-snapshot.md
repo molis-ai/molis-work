@@ -88,7 +88,7 @@ storage 只负责严格文件技术、SQLite backup/完整性；registry、编�
 | --- | --- | --- |
 | RAC-109-S-06 | 普通文件与 SQL 文件的静态不合法是 invalid，复制中变化是 conflict；原版本、取消和 I/O 含义保持 | 生产 storage 公开口和 `createHomeSnapshot`，真实链接、CHECK/外键坏数据、完整性查询函数缺失、外键声明不合法、坏 SQLite b-tree 页、缺 metadata 表/列、错 schema、实际读写/backup 边界改源；无成功目录、普通失败无暂存，源除测试明确注入的改动外不写 |
 | RAC-109-S-07 | 实际 Home CLI 的 JSON 失败保留稳定 code/kind，普通文件、SQL 和 metadata 均能区分 invalid 与 conflict，无正文泄露 | 真实子进程运行生产 `runLocalCli`，实际源文件和库故障，核退出码、stderr JSON、空 stdout、源字节及临时输出 |
-| RAC-104-S-08 | SC-4 退役库仅为备份集：备份链只读 meta 与完整性；正确、错 owner、错版本都不查业务行、不写源库 | 生产 `readSqliteSnapshotMetadata` 及持锁完整备份；记录真实连接上的 SQL/只读资格并逐条检查允许的元数据/PRAGMA，源文件集合、字节、权限与时间不变，正确库备份可读，错误库不发布 |
+| RAC-104-S-08 | 原SC-4退役目录备份reader已随2026-10-30用户决定取消，登记/reader/旧声明夹具/专门演练删除；现行源码禁止重新登记它，未知旧目录不被打开 | `tests/sessions-offline.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts`（RAC-2378）；当前库的完整性/元数据/源零写仍由现行快照拒绝用例覆盖 |
 
 文件边界是 storage 的 `snapshot-files.ts` / `snapshot-sqlite.ts`、Host 的 `home-snapshot.ts` / `cli-home.ts`，直接回归/夹具与必要 README/本段；FIX8 在源码定型后串行做格式。先整体构建冻结父并保存新增回归红，再最小实现、整体 build、README 必需与直接回归、boundary、`health --base origin/main`、test-imports 和推前 fresh-fetch secrets。原始命令/日志、固定父/头与构建指纹交 REVIEW/TEST；shared-core full 只交 Claude 统一排期，不将作者 PASS 当作 full、合入或本人验收。
 
@@ -204,7 +204,7 @@ REVIEW 6383768725 与独立 TEST 6383805807 发现两个当前验收必须修的
 
 一次性维护先完整核旧条目、路径、文本编码与已有 vault/原钥匙，拒绝未知文件、链接和损坏数据；list 不写 Home。apply 先把备份条目原件与原 vault 密文保存在 Home 外新建私有目录，不复制任何 master。写 `runtime-config-backups/.maintenance.json` 后才调用现有 owner 密封正文、在原路径原子安装引用；全体正文、权限和密文依赖核对并刷盘后才解除标记。发布中断或 I/O 失败保留标记、原件和已写的密文/引用，明确报未完成与恢复位置，不假称跨文件整笔回滚；正常 Runtime 备份读取/捕获在标记期间拒绝。保持宿主停止，按外部原件恢复旧条目和原 vault 后重试，或完整核对现行结果后解除标记。旧 raw、当前引用、失败/杀进程、原件恢复及完成后无原文的证据都只用临时 Home。
 
-维护入口是临时夹具 `tests/fixtures/runtime-config-backup-maintenance.mjs`，先 `list --home <离线副本> --json`，再 `apply --home <离线副本> --backup <Home外全新私有目录> --json`。输出只含数量/状态与恢复位置，不含正文。真实 Home 的 list 必须在副本运行；apply 还需当次已授权停机窗口及 `--maintenance-window`，本任务不运行。失败后保持停止，按 marker 的 backup 逐文件恢复 `.bak` 原字节/权限及原 vault 密文；`vault_existed=false` 时核对后移除本次新 vault，保留所有原 key。仅清理 marker.pid 对应、已确认进程停止后的原子临时文件（`.<basename>.<pid>.<time>.tmp`），不能按全局模式清理。确认原件已完整恢复后才移除 marker 并重试。外部旧原文按敏感维护材料保留在新快照范围之外；真实维护完成后删除夹具与演练。
+原Runtime配置备份转换已于2026-10-30取消，夹具与演练删除；当前备份仍由owner密封、核同Home原key并按当前描述符恢复，旧原文格式拒绝，不产生替代key。旧Home整体搬开后新建，真实操作等用户另说“开始”。
 
 storage 提供 SecretStore owner 的只读快照预检入口：输入明确 Home 与快照中的 v2 密文，严格核格式、后端及每个条目的认证；按快照的后端读取同 Home 已有 master，返回非敏感依赖引用与数量，不返回主密钥或正文。Runtime 备份 owner 的明确读取共用同一只读校验，按已核归属的引用取得单条正文，避免普通 `get()` 的进程缓存掩盖原 key 已丢失；该读取不扩大到检测和一般返回。不初始化带锁库的 store，不创建目录/锁/新 key，不因现 Home 密文已损坏而放弃可用快照。空 vault 不建立密钥依赖；有密文时缺 key、错 key、错后端和损坏密文均拒绝，原 Home 的文件与字节不变。现有加解密与 master 选择仍由原 owner 持有。
 
@@ -280,7 +280,7 @@ S-12 同行补 B2b 的密钥引用、用途隔离、Home/owner/安装/来源绑�
 | `logs`、`backups` | local-host；installer 的预留备份目录 | 日志不备份；`backups` 没有现行写者，空目录可省，未知非空内容必须拒绝分类，不能默认为缓存 |
 | `sessions` | apps/local-host，SC-4 退役登记 | 仅持离线 lease 的通用快照技术读取 SQLite、核 owner/meta 版本 7 与完整性；不读 Session 业务表、不恢复业务 reader。密封 blob 同点复制，`content.key` 仅原 Home 依赖，不导出/替换 |
 | `plugin-runtime`、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`context-onboarding`、`plugin-originals` | local-host 各当前库声明 | 普通事实、授权/声明与配置；平台凭据为引用，库按各 owner 当前基线备份 |
-| `connectors` | connector connection/protocol owner，现基线 2 | 凭据为 `credential_ref`，依赖 vault；受管 CLI 的 `installation_id` 与 runtime 安装状态同点保存 |
+| `connectors` | connector connection/protocol owner，现基线 1 | 凭据为 `credential_ref`，依赖 vault；受管 CLI 的 `installation_id` 与 runtime 安装状态同点保存 |
 | `runtime` | connector-tool-install/runtime/cli-launch | 安装所有权与固定版本记录正常备份；私有 `.home` 由 B2b 密封，包、共享运行时和已证缓存/临时排除 |
 | `alchemist` | 各项目 studio/search owner | 普通分区库与密封 search-content；证据密钥引用经 vault，同点备份引用、索引及正文 |
 | `functions`、`characters` | 各 Module 当前库声明 | 普通方法/人物事实；Functions 输入 API Key 由现有连接服务消费，不在方法配置重复持久化 |
@@ -321,7 +321,7 @@ Web 生命周期的实际依赖包括 `web-server-close.ts`、`web-storage-resou
 
 Host 关闭保留原 Home 绑定立即撤下、Alchemist 立即进入 closing 的时点，与原其余资源关闭链并行等待，仍在等模型的前台轮次不能趁关闭等待迟到提交。全部实际关闭均成功后才关闭 Catalog 并释放 lease；不将所有 owner 或 Memory/SDK 一并并行，也不改变记忆先于 SDK 的原业务顺序。既有 Alchemist close/close-late-failure 拒绝断言保持。
 
-早取锁会使原来空的 Home 多出技术目录，因此 `memory/memory-adoption.ts` 的 fresh 判定接收同一个 opaque owner：只有 Home 仅含 `agent-runtime`、且 storage 在 live proof 下核实其中仅有锁/侧车，才仍按新 Home 初始化。已有 SDK、未知文件、ledger、marker 与 prefs 的采用/完整性拒绝保持；不把布尔值或请求字段当作证明，也不读锁原件的字节。与 Memory Draft #1101 `e3d0d4523154f4313b97e5c0c588de36713bf888` 后续合并时保留其独立 profile 校验、`projectDeletionPending`、project deletion 返回端口及 Session pending/live 检查；本片不采用该未接受候选。
+早取锁会使原来空的 Home 多出技术目录，因此 `memory/memory-initialization.ts` 的 fresh 判定接收同一个 opaque owner：只有 Home 仅含 `agent-runtime`、且 storage 在 live proof 下核实其中仅有锁/侧车，才仍按新 Home 初始化。已有 SDK、未知文件、账本版本和完整 prefs 的拒绝保持；2026-10-30 干净重建后不再保留采用标记前置；不把布尔值或请求字段当作证明，也不读锁原件的字节。与 Memory Draft #1101 `e3d0d4523154f4313b97e5c0c588de36713bf888` 后续合并时保留其独立 profile 校验、`projectDeletionPending`、project deletion 返回端口及 Session pending/live 检查；本片不采用该未接受候选。
 
 `system-agent-service.ts` 外层关闭仍按原顺序撤下绑定、关闭记忆、关闭 SDK；只缓存同一关闭尝试，并记录已经完成的记忆关闭，防止 SDK 关闭失败后重复关闭 ledger。context 输入中的身份拒绝仍由原 handlers 决定；resident 在 handler 请求 scope 之后才关联协议 Session 的面板别名，不能让输入伪造 actor 的失败调用先写别名。
 

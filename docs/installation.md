@@ -30,7 +30,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 从仓库本地安装请使用 `pnpm install:local`；这个唯一入口会先重新构建，再安装当前内容。直接对带 `src/` 的仓库执行 `molis-work install --source ...` 时，安装器会核对构建指纹，源码与 `dist` 不一致就停止，不会悄悄复制旧构建。release 同时记录内容摘要：版本相同但程序或 Skill 内容变化时会原子刷新，内容完全相同才返回“已经是最新状态”；刷新失败会恢复上一份 release，项目数据不参与替换。
 
-项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、DB 位置、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；不复制 Goal 事实，也不依赖 Git。当前已实现的 MCP 项目连接不保存目录默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
+项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；项目库位置从 Home 与 project_id 推导（catalog1），不复制 Goal 事实，也不依赖 Git。当前已实现的 MCP 项目连接不保存目录默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
 
 2026-10-28 的 [Sessions 需求](../specs/sessions-rebuild/spec.md)另已确定发现会话的归属目标：已明确且唯一的目录／仓库关系自动归入项目，不明确或多候选由 AI 建议、用户确认，不自动新建项目。该能力尚未实现，本页安装及 MCP 接入步骤仍描述当前行为；自动归属不替代实际访问与执行的有效授权。
 

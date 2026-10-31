@@ -28,7 +28,7 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 不写项目数据库，不发布 Artifact。原件的路径只在平台那里：放入文件的请求经 `claimOriginal` 登记，Module 不存也不读路径；任务开始前和每次写入前经 `materials.readOriginal` 按 item 重新比对 Hash，原件不进入 Prompt 或 API 展示。
 
-目录只读当前版本 2 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。
+目录只读当前版本1 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。
 
 网页材料通过 Host 注入的 `ShelfMaterialPorts.readWebsite` 读取，Module 只保存标题、链接和产品 Markdown。纯 Module 调用未注入时只保留链接，不隐式联网；抓取失败同样保留链接并注明没有正文。异步入库传递 `ShelfExecutionControl`，取消/撤权不入库，剪贴板在最终写入前重新核对来源。HTML 通用解析不由 Shelf 导出。
 

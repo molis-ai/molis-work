@@ -69,7 +69,7 @@ test("RAC-1040 the Host registers the 成果库 as a platform provider under its
   assert.equal(own.length, 17);
   for (const row of own) {
     assert.equal(row.provider.kind, "system"); assert.equal(row.provider.plugin_id, undefined); assert.equal(row.provider.plugin_install_id, undefined);
-    assert.equal(row.provider.project_id, projectId); assert.equal(row.provider.words_of, "io.molis.work.artifacts");
+    assert.equal(row.provider.project_id, projectId); assert.equal("words_of" in row.provider, false, "platform text uses the Workbench dictionary");
   }
   assert.equal(ARTIFACTS_PROVIDER_ID, "io.molis.work.artifacts", "the id is the one grants and workflow references already name");
 });
@@ -85,7 +85,7 @@ test("RAC-1043 the person at this computer holds the 成果库's permissions ove
   assert.ok(!localOwnerPermissionsOver("io.molis.work.artifacts.x", ARTIFACT_ACTION_PERMISSIONS).length, "a nested id is not the provider's");
 });
 
-test("RAC-1045 an install that is not of the Host's build cannot take the 成果库's id or nest under it, whichever its trust", async () => {
+test("RAC-2343 RAC-1045 an install that is not of the Host's build cannot take the 成果库's id or nest under it, whichever its trust", async () => {
   assert.ok(HOST_PLUGIN_IDS.has(ARTIFACTS_PROVIDER_ID), "the id stays reserved by the Host's build");
   const manifest = (pluginId: string, signature: string): PluginManifest => ({ schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Squatter",
     kind: "app", publisher: { publisher_id: "squatter", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],

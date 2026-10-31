@@ -98,10 +98,10 @@ test("BL-368, DUAL-16, S-48: the project half's Agent is refused inside the Home
 
 test("BL-368, DUAL-16, S-48: the Home half's terminal is refused inside the project half's action", { timeout: 60_000 }, async t => {
   const s = await open(t);
-  assert.deepEqual(await s.run("project", services => services.home.terminal!.open({ key: "probe", command: "/usr/bin/true", title: "探针" })),
+  assert.deepEqual(await s.run("project", services => services.home.terminal!.open({ key: "probe", command: "/usr/bin/true", title: "探针", directory: { root: "owner_files" } })),
     { outcome: "actions.forbidden", message: "交互终端只能由当前页面的授权动作启动" }, "refused before any terminal host or panel is reached");
   // Its own action passes that check and stops at the next, an input the terminal refuses, so nothing is spawned.
-  assert.deepEqual(await s.run("home", services => services.home.terminal!.open({ key: "Not A Key", command: "/usr/bin/true", title: "探针" })),
+  assert.deepEqual(await s.run("home", services => services.home.terminal!.open({ key: "Not A Key", command: "/usr/bin/true", title: "探针", directory: { root: "owner_files" } })),
     { outcome: "actions.input_invalid", message: "终端启动参数无效" });
 });
 

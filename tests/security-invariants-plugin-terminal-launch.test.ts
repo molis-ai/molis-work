@@ -81,12 +81,17 @@ async function open(t: TestContext, probes: readonly Probe[]) {
 }
 type Served = Awaited<ReturnType<typeof open>>;
 
-/** A folder outside the Home linked to the project as its workspace, with a sub-folder, a file and a link that leaves it. */
+/**
+ * A folder outside the Home linked to the project as its workspace, with a sub-folder, a file, a link that leaves it, and a folder named
+ * `trail ` (ending in a space) beside a link `trail` that leaves it. (The catalog trims a linked folder's path, so the workspace's own name
+ * never ends in a space.)
+ */
 async function linkWorkspace(t: TestContext, f: Served, project: Project) {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "terminal-workspace-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
   await mkdir(join(folder, "sub")); await writeFile(join(folder, "file.txt"), "not a folder");
   await symlink(tmpdir(), join(folder, "outside"));
+  await mkdir(join(folder, "trail ")); await symlink(tmpdir(), join(folder, "trail"));
   const workspace = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => {
     await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: folder, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
     return catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
@@ -347,6 +352,8 @@ test("RAC-2554 S-103 the folder must be in the project's own linked workspace (w
     ["missing", { root: "workspace", workspace_id, path: "missing" }, "actions.input_invalid"],
     ["no owner files", { root: "owner_files" }, "actions.forbidden"],
     ["no workspace:read", { root: "workspace", workspace_id }, "plugin.grant_denied", reader],
+    // The terminal host trims the folder it is given: `trail ` would run in `trail`, a link out of the root.
+    ["trailing space", { root: "workspace", workspace_id, path: "trail " }, "actions.input_invalid"],
   ];
   for (const [key, directory, code, who = probe] of cases) {
     const marker = f.marker();
@@ -361,7 +368,7 @@ test("RAC-2554 S-103 the folder must be in the project's own linked workspace (w
 test("RAC-2555 S-103 the input is the five keys and nothing else, bounded; the identity is the call's", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchinput");
   const f = await open(t, [probe]), project = await f.project("输入不对");
-  const { workspace_id } = await linkWorkspace(t, f, project);
+  const { folder, workspace_id } = await linkWorkspace(t, f, project);
   const { install } = await grantInProject(f, project, probe);
   const directory = { root: "workspace", workspace_id };
   const base = (key: string, marker: string) => launch(f, key, marker, directory);
@@ -369,6 +376,10 @@ test("RAC-2555 S-103 the input is the five keys and nothing else, bounded; the i
     ...["cwd", "project_id", "actor_id", "install_id", "env"].map((extra): [string, (input: ReturnType<typeof base>) => unknown] => [`extra-${extra.replace("_", "-")}`, input => ({ ...input, [extra]: extra === "env" ? { PATH: "/" } : "/" })]),
     ["relative-command", input => ({ ...input, command: "term" })],
     ["nul-command", input => ({ ...input, command: f.program + "\0" })],
+    // The terminal host trims the program it is given.
+    ["spaced-command", input => ({ ...input, command: f.program + " " })],
+    ["newline-command", input => ({ ...input, command: f.program + "\n" })],
+    ["sparse-args", input => ({ ...input, args: new Array(3) })],
     ["many-args", input => ({ ...input, args: Array.from({ length: 33 }, () => input.args[0]) })],
     ["nul-arg", input => ({ ...input, args: [input.args[0] + "\0"] })],
     ["number-arg", input => ({ ...input, args: [1] })],
@@ -384,6 +395,16 @@ test("RAC-2555 S-103 the input is the five keys and nothing else, bounded; the i
     const marker = f.marker();
     const answer = await run(f, probe, "project", "run", own => opened(own, change(base(key, marker))), { project });
     await refused(f, answer, "actions.input_invalid", marker, panelOf(install.install_id, project.project_id, key), key);
+  }
+  // The arguments are read once, by index, into the copy that is checked and started: an iterator or a getter that answers differently later
+  // changes nothing (an iterator here yields 1000 arguments with NUL; a getter answers NUL on its second read).
+  const iterated = (marker: string) => Object.assign([marker], { *[Symbol.iterator]() { for (let index = 0; index < 1000; index++) yield "\0bad"; } });
+  const changing = (marker: string) => { let reads = 0; const args: string[] = []; Object.defineProperty(args, 0, { enumerable: true, get: () => reads++ ? "\0bad" : marker }); return args; };
+  for (const [key, args] of [["iterated-args", iterated], ["changing-args", changing]] as const) {
+    const marker = f.marker();
+    const answer = await run(f, probe, "project", "run", own => opened(own, { ...base(key, marker), args: args(marker) }), { project });
+    assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
+    assert.equal(await ranIn(marker), folder, `${key}: started with the checked arguments`);
   }
   // Two people, the same key: two panels. The person is the call's, never the input's.
   const person = await f.host.localPersonContext(project.reference), panels: string[] = [];
@@ -418,7 +439,10 @@ test("RAC-2556 S-103 revoking terminal:run or workspace:read, or cancelling the 
     const invalidated = invalidation === "cancel" ? (controller.abort(), Promise.resolve()) : platform.runtime.regrant(install.install_id, invalidation, false);
     held.release.resolve();
     const answer = await pending; await invalidated;
-    assert.notEqual(answer.outcome, "ok", `${invalidation}: ${JSON.stringify(answer)}`);
+    // A revocation stops the instance after revoking its grant (regrant), so the check that answers is the instance's; a cancellation answers
+    // with the call's own abort. The checks between the awaits are defence in depth: this proves one of them refuses before the spawn.
+    assert.deepEqual(answer, invalidation === "cancel" ? { outcome: String(DOMException.ABORT_ERR), message: "This operation was aborted" }
+      : { outcome: "actions.forbidden", message: "此插件实例已停止，请重新打开" }, invalidation);
     await nothingRan(f, marker, panelOf(install.install_id, project.project_id, key), invalidation);
   }
 });

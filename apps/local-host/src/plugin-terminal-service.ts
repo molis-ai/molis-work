@@ -60,9 +60,16 @@ function terminalRequest(input: unknown): TerminalRequest {
   const text = (value: unknown, limit = TEXT_LIMIT): value is string => typeof value === "string" && value.length <= limit && !value.includes("\0");
   if (!plain(input) || Object.keys(input).some(key => !INPUT_KEYS.has(key))) throw invalid();
   const { key, title, command, args = [], directory } = input as Record<string, unknown>;
+  // The terminal host trims the program it is given, so one that changes when trimmed is not the program checked here.
   if (typeof key !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(key) || !text(title, 120) || !title.trim()
-    || !text(command) || !isAbsolute(command)) throw invalid();
-  if (!Array.isArray(args) || args.length > ARGS_LIMIT || !args.every(arg => text(arg))) throw invalid();
+    || !text(command) || !isAbsolute(command) || command !== command.trim()) throw invalid();
+  // Read once, by index, into a plain array: that copy is what is checked and what starts (a hole, an iterator or a getter changes nothing).
+  if (!Array.isArray(args)) throw invalid();
+  const length = args.length;
+  if (length > ARGS_LIMIT) throw invalid();
+  const list: unknown[] = [];
+  for (let index = 0; index < length; index++) list.push(args[index]);
+  if (!list.every(arg => text(arg))) throw invalid();
   if (!plain(directory)) throw invalid();
   const { root, workspace_id, path } = directory as Record<string, unknown>;
   const keys = root === "workspace" ? ["root", "workspace_id", "path"] : root === "owner_files" ? ["root", "path"] : [];
@@ -72,7 +79,7 @@ function terminalRequest(input: unknown): TerminalRequest {
     || path.split("/").some(segment => segment === "" || segment === "." || segment === ".."))) throw invalid();
   const folder: PluginTerminalDirectory = root === "workspace"
     ? { root, workspace_id: workspace_id as string, ...(path === undefined ? {} : { path }) } : { root: "owner_files", ...(path === undefined ? {} : { path }) };
-  return Object.freeze({ key, title, command, args: Object.freeze([...args] as string[]), directory: Object.freeze(folder) });
+  return Object.freeze({ key, title, command, args: Object.freeze(list as string[]), directory: Object.freeze(folder) });
 }
 
 const plain = (value: unknown): value is Record<string, unknown> =>
@@ -108,6 +115,8 @@ async function terminalDirectory(home: string, directory: PluginTerminalDirector
   const target = await realpath(join(root, directory.path ?? ".")).catch(missing); check();
   const inside = relative(root, target);
   if (inside === ".." || inside.startsWith("../") || isAbsolute(inside)) throw new ActionError("actions.forbidden", "工作目录不在允许的根里");
+  // The terminal host trims the folder it is given: `<root>/sub ` would run in `<root>/sub`, which may be a link out of the root.
+  if (target !== target.trim()) throw new ActionError("actions.input_invalid", "终端工作目录的名字不能以空白开头或结尾");
   const folder = await stat(target).catch(missing); check();
   if (!folder.isDirectory()) throw new ActionError("actions.input_invalid", "终端工作目录不是目录");
   return target;

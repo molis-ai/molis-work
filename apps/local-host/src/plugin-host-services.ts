@@ -75,7 +75,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
   let terminal: ReturnType<typeof pluginTerminalFor>;
-  const dispose = () => { active = false; stopped = true; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; stopped = true; terminal?.dispose(); withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
@@ -115,7 +115,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
-      revoke: () => { active = false; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); }, dispose };
+      revoke: () => { active = false; terminal?.dispose(); withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;

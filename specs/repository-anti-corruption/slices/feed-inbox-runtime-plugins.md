@@ -532,7 +532,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | FI-C-04（业务 P1-2） | hydrate按正文引用 owner 读取；research引用沿研究库已有body/preview/provenance，只有证据库引用交 evidence 客户端。真实Runtime研究库同步后公开条目/snapshot/content/subject与规则的下一次读有效；取消与撤权不能被吞。 |
 | FI-C-05（业务 P1-3） | caller最后一次认权 await 后，在同步事务体核本次固定来源版本/配置/生命周期，再写材料、游标、投递和成功/失败终态。公开源、研究库、Listener adapter、账号源与scheduler均守住；自己已提交的版本按各步骤实际预期推进。确定性交错改配置/暂停/删除后旧结果不落库。 |
 | FI-C-06（业务 P1-4） | release每批不超过5000、forget每批不超过1000；真实清理失败保来源及引用/operation IDs供幂等重试，删除事件仅成功删除提交一次。台账创建即完整，无 `complete_since`／`isComplete`／`markComplete`（T-345，RAC-2718），正文与异常失败分开；共享引用不误删，不假称跨Home/项目原子回滚。 |
-| FI-C-07（有效 P2恢复） | 启动补hold同样分批，Home暂不可用后有限重试并保留恢复依据；后续连接变化/重启能继续，而非吞异常后永久缺登记。缺完整标记仍保正文。 |
+| FI-C-07（有效 P2恢复） | 启动补hold同样分批，Home暂不可用后有限重试并保留恢复依据；后续连接变化/重启能继续，而非吞异常后永久缺登记。 |
 
 实现顺序：先保完整来源、按 owner 合并当前 A+B，再修既有绑定失效及透传控制，再补业务权限/引用 owner/最终事务版本与可重试清理，最后完成 FI7 真实入口和共用生成物。保持同步事务前缀与 await 后显式 commit；Goal动作已提交而Feed后续被取消时，重试不能重复创建Goal/输入。允许路径限既有 FI 相关 Host、contracts/SDK/Runtime、connector/transport/OAuth、Feed/Inbox消费者、对应测试与现有规格；不新建协调框架、schema迁移或兼容旁路。
 

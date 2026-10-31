@@ -107,7 +107,7 @@ test("RAC-2431 section titles and grep context lines keep whole characters, neve
   assert.equal(hit?.before[0], "y".repeat(399) + "…", "a grep context line excerpt keeps whole characters and still says it was cut");
 });
 
-test("RAC-2451 a grep line's excerpt keeps whole characters at both ends, even when the cut lands inside one", () => {
+test("RAC-2701 a grep line's excerpt keeps whole characters at both ends, even when the cut lands inside one", () => {
   const wide = "🙂"; // one character, two UTF-16 units
   // The match sits at index 300, so the excerpt starts at 180: line[179] and line[180] are the two units of one 🙂.
   const startingInside = "x".repeat(179) + wide + "y".repeat(119) + "needle" + "z".repeat(400);
@@ -123,7 +123,7 @@ test("RAC-2451 a grep line's excerpt keeps whole characters at both ends, even w
   assert.ok(second!.text.isWellFormed(), "no lone half at the end either");
 });
 
-test("RAC-2452 a card's hint keeps whole characters, never the high half of one", async t => {
+test("RAC-2702 a card's hint keeps whole characters, never the high half of one", async t => {
   const f = await fixture(t);
   const brief = "x".repeat(159) + "🙂"; // 160 characters, 161 units: the 160-unit hint ends on the high half
   f.cards.put({ project_id: "a", subject: { kind: "page", id: "p1" },

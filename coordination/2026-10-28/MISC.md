@@ -131,7 +131,7 @@
 | interaction-no-crosstalk 首败根因未定（统筹答 T-338，10-31） | `tests/interaction-no-crosstalk.e2e.test.ts:162`、`:350` | 两套环境（设备 B 本机与 CI／另一候选）各在不同等待点首败，根因未定；10-31 T-116 Full41222632669的合成树ac6d29249再次在原:162等question_drafts超时，此树尚无T-338诊断，不能据此定因；T-338 已合 #1647 → `dc544a397`，只交付加固＋失败时报告可观测事实的诊断，发送状态恒UNKNOWN；不承诺单靠日志即可判定根因，不再要求对旧状态先红。**不派书，待新证据**（诊断输出出现后再定） | 统筹 2026-10-31 |
 | T-329 二审 建议（#1631，6539202372；建议 1 已随 T-361 #1689 合入） | `horizontal/knowledge/src/locate.ts:67`、`:78` | `slice(0, REASON_CHARS)` 仍按单元截、可能留半个字；超出 T-329 任务书范围。并入下一次改 locate.ts 的整字截书；RAC-2446 另可加 `Object.keys(parsed)` 之类便宜断言（同码内容不同的发送也能红）。乙 | 派单线 2026-10-31 |
 | `tests/plugin-permission-switch.e2e.test.ts` 设备 B 首跑 Node 原生崩溃（#1642 头 7b42e43e6，6539215303，统筹 10-31） | `tests/plugin-permission-switch.e2e.test.ts` | 设备 B 本机首跑时 Node 进程原生崩溃，阶段与根因 UNKNOWN；组合 Full 41162657586 里同文件 1/1 过。**不派书，待新证据**（再出现时贴崩溃输出与阶段） | 统筹 2026-10-31 |
-| T-134 二审 建议（#1649，6539563614；10-31 已合 `daa8fd23c`；① 已发 T-367，② 等 #1677/#1675 释放 connection-store.ts） | `tests/security-invariants-*connector*`（RAC-2520 事务用例）、`horizontal/connector-host/src/connection-declarers.ts` | ① RAC-2520 第四条（TRIGGER 让钉插入失败）顺手断言令牌的 secrets 引用也被删除；② `inConnectorTransaction` 不属于声明者模块，挪到连接库所在文件（行为不变）。丙档 |
+| T-134 二审 建议（#1649，6539563614；10-31 已合 `daa8fd23c`；① T-367/#1704独立审验通过待CI/合入，② 等 #1677/#1675 释放 connection-store.ts） | `tests/security-invariants-*connector*`（RAC-2520 事务用例）、`horizontal/connector-host/src/connection-declarers.ts` | ① RAC-2520 第四条（TRIGGER 让钉插入失败）顺手断言令牌的 secrets 引用也被删除；② `inConnectorTransaction` 不属于声明者模块，挪到连接库所在文件（行为不变）。丙档 |
 | T-351 统筹答（#1332，10-31）／T-347 统筹答 | `plugins/native/alchemist` 的 `research_runs`／`exploration_runs` 等 error 详情；`packages/storage/src/adapters/file-secret-store.ts` | ① Alchemist 超长材料要给页面“超出的字数”，需给 run 表加 error 详情列（直接改 v1 DDL，不写维护），页面与 `lens-job-handler` 配合；T-351 只做“材料太长”。乙；② 密钥库“结构合法但解不开”的条目（错密钥／截断密文）读仍返回 null、快照 `integrity_failed`，T-347 不动，另议是否一起 fail closed。乙 | 派单线 2026-10-31 |
 | T-323 二审 建议（#1660，6539805824） | `tests/security-invariants-plugin-pages.test.ts`（RAC-2442） | 每个页面只挂一个在途请求，“每个请求各取一次 `reason()`”没被钉住：把所有请求共用同一个错误对象的变异不会红。多挂一个请求，断言都是 cancelled 且不是同一个对象；测试名补 `SYS-15 S-47` 与同文件 RAC-1809～1811 一致（动 SI 表要统筹确认）。丙，并入下一次改该文件的书 | 派单线 2026-10-31 |
 | T-147 二审 建议（#1666，6540051821；前置已合；② T-364已合#1697，①仍等#1654放锁） | `docs/system/EXTENSION-POINTS.md:37`、`:59`、`:75`、`:238`、`:242`、`:250`、`:251`、`:275`～`:280`；`tests/builtin-plugin-assembly-gate.test.ts`（`artifact` 例外的理由） | ① EXTENSION-POINTS 里其余写「外加 2」的几处与 `:20` 的终态说法自相矛盾，按 T-147 的终态措辞改齐；② `NATIVE_PLUGIN_HTTP_FILES` 里 `artifact` 理由引的 BL-926 没有断言那一行还开着，补同 RAC-2650 的出处检查（BL-926 关掉后这一项应随文件改名一起消失）。丙档 |
@@ -159,7 +159,7 @@
 | T-361 二审 建议（#1689，6544996540；已合） | `tests/security-invariants-knowledge-lifecycle.test.ts` | 顶层 question/pieces 键已钉住；pieces/sections 内部键全集属于可选后续，只在今后调整发送结构时一并核。将 extra 放在首位会红在请求识别而非新断言，是定位局限；无需为此另开单。 | Codex 统筹 2026-10-31 |
 | T-356 二审 建议（#1685，6545805352；已合） | `tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` | 两条 code 断言可补 RAC-2731 注释映射，保留原 RAC-2415/2417；随下次改对应测试时做，不单开功能单。正文的范围外错误类型推断已纠正。 | Codex 统筹 2026-10-31 |
 
-| T-340 二审 建议 1/6（#1658，6543825026；已合；无目录分支已发 T-368，连接变化分支已预留 T-369/WAIT #1654） | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts`、`tests/mcp-error-kinds.test.ts` | 两个抛出处换成别的 raiser 时现有测试不红；补真实调用断言，另核六种 changed-kind 不经 HTTP 出口的证据。只新增有效边界覆盖，不把源码追踪当传输实跑。 | Codex 统筹 2026-10-31 |
+| T-340 二审 建议 1/6（#1658，6543825026；已合；无目录分支T-368/#1705独立审验通过待CI/合入，连接变化分支已预留 T-369/WAIT #1654） | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts`、`tests/mcp-error-kinds.test.ts` | 两个抛出处换成别的 raiser 时现有测试不红；补真实调用断言，另核六种 changed-kind 不经 HTTP 出口的证据。只新增有效边界覆盖，不把源码追踪当传输实跑。 | Codex 统筹 2026-10-31 |
 | T-340 二审 建议 2/3/4（#1658，6543825026；已合） | `tests/mcp-error-kinds.test.ts`、`apps/local-host/src/mcp-action-grants.ts`、PR 正文 | 测试标题/注释应区分4个 changed +1个 unchanged（并入 T-368）；删除过时JSDoc及冗余 errors 别名，沿下一次相关文件改动处理。正文批准号应为6541001955，apps/mcp共7处，进程内状态变化6码；文案不需要另造代码头。 | Codex 统筹 2026-10-31 |
 | T-340 二审 建议 5（#1658，6543825026；已合） | `mcp.grant_unavailable` 动态码 | 保留当前随 discovery 状态带 kind 的行为；后续需要统一声明时先给具体合同方案，不在T-340外无证据改语义。 | Codex 统筹 2026-10-31 |
 
@@ -171,10 +171,10 @@
 
 | T-360 二审建议（#1691，6546559960） | `tests/pages-materials-prompt-budget.test.ts` | 测试注释补 current default instruction 限定，与已修正文一致；下次修改该文件时带上，不单开单，不声称任意未来指令长度都满足预算。 | Codex 统筹 |
 
-| T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374，待领；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |
+| T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374/#1703，独立审验通过待CI/合入；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |
 
 | T-347 修复二审后续 | `deleteSecretEntriesWithPrefix` | 本单获批之外的前缀删除入口仍未校验留存坏条目；若要统一坏条目保证，另定删除/恢复合同。与结构合法认证失败延期同属后续，不扩大当前T-347。 | Codex 统筹 |
-| W6-03静态走查两处文档矛盾 | ARCHITECTURE §5、PLUGIN-PLATFORM W2-09 | 已进T-376 #1702 @7a1f75b4c，独立审验中：Artifacts平台事实归属、显式consumes跨插件动作消费；只改两处文案，不签W6-03/RAC-11动态验收。 | Codex 统筹 |
+| W6-03静态走查两处文档矛盾 | ARCHITECTURE §5、PLUGIN-PLATFORM W2-09 | 已进T-376 #1702 @7a1f75b4c，独立审验/Verify通过，正常入队：Artifacts平台事实归属、显式consumes跨插件动作消费；只改两处文案，不签W6-03/RAC-11动态验收。 | Codex 统筹 |
 
 ## 2026-10-31 21:00Z 主线差集核收
 

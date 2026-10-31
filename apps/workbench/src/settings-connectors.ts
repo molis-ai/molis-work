@@ -1,7 +1,7 @@
 import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./functions/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
+import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
@@ -84,11 +84,15 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
   // A package writes the card's words: the card shows them within its limits, cut in whole characters.
   const name = connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS);
   const purpose = connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS);
+  // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
+  // the card shows no source line at all rather than a trust label it cannot back.
+  const source = card.declared_by === null ? L("Molis Work（内置）")
+    : card.declared_by ? connectorCardText(card.declared_by.title, CONNECTOR_SOURCE_MAX_CHARS) : undefined;
   return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
     ${renderConnectorMark(card.connector_id, escapeHtml)}
     <span class="settings-connector-card__body">
       <span class="settings-connector-card__title"><strong>${escapeHtml(name)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
-      <span class="settings-connector-card__copy settings-connector-card__source" data-connector-source>${escapeHtml(L("来自 {package}", { package: card.declared_by?.title ?? L("Molis Work（内置）") }))}</span>
+      ${source === undefined ? "" : `<span class="settings-connector-card__copy settings-connector-card__source" data-connector-source>${escapeHtml(L("来自 {package}", { package: source }))}</span>`}
       <span class="settings-connector-card__copy">${escapeHtml(purpose)}</span>
     </span>
   </button>`;

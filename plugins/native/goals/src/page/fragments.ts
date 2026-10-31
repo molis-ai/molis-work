@@ -1,5 +1,5 @@
 import { findGoalsFragmentItem, goalsReadCollection, type GoalsFragmentItem, type GoalsPageCollections,
-  type GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+  type GoalDocumentCollection } from "../document-routes.js";
 
 interface FragmentView<TItem extends GoalsFragmentItem> extends GoalsPageCollections<TItem> {
   route_prefix: string;
@@ -12,7 +12,7 @@ export interface GoalsFragmentRenderers<TItem extends GoalsFragmentItem, TView e
 }
 
 /** Compose owner output; no templates, event ledger algorithm, HTTP or permission decisions. */
-export function createWorkbenchGoalsFragmentRenderer<TItem extends GoalsFragmentItem, TView extends FragmentView<TItem>>(
+export function createGoalsFragmentRenderer<TItem extends GoalsFragmentItem, TView extends FragmentView<TItem>>(
   owners: GoalsFragmentRenderers<TItem, TView>,
 ) {
   const prefix = (html: string, view: TView) => owners.prefixLinks(html, view.route_prefix);

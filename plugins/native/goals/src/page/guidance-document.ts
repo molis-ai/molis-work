@@ -1,5 +1,5 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderHint } from "@molis-ai/molis-work-design-system";
+import type { GoalsHintOptions } from "./ports.js";
 
 /** The fields of a project's guidance this page shows: an entry in force or switched off, and one revision of it. */
 interface GuidanceEntry { guidance_id: string; kind: string; content: string; revision: number; updated_at: string }
@@ -15,8 +15,9 @@ export function createProjectGuidanceDocumentRenderer(ports: {
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
   icon(name: PluginIconName): string;
+  renderHint(options: GoalsHintOptions): string;
 }) {
-  const { L, escapeHtml, formatDate, icon } = ports;
+  const { L, escapeHtml, formatDate, icon, renderHint } = ports;
 
   function renderProjectGuidanceDocument(guidance: ProjectGuidanceView): string {
     const kindMeta: Record<string, { label: string; description: string }> = {

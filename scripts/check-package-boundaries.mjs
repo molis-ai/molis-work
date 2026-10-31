@@ -1560,9 +1560,9 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, leg
   if (mentionsWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
     errors.push("apps/workbench: retired goalsLegacyProposalUiContribution must stay unregistered");
   }
-  // W5-06: the shell builds the proposal renderer from the plugin's own surface map; each method mounts a declared surface.
-  if (!matchesInCode(proposalMount, /createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u)) {
-    errors.push("apps/workbench: proposal renderers must mount the native contributions");
+  // W5-06 / T-116: Goals builds the proposal renderer from its own surface map; each method mounts a declared surface (`proposalMount` is the Goals page's factories).
+  if (!matchesInCode(proposalMount, /surfaceRenderers<[^>]+>\(mount, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u)) {
+    errors.push("plugins/native/goals: proposal renderers must mount the native contributions");
   }
   void legacyMount;
   // The client script is a browser script written in a template string, so its calls are template text: `hasInText`, not `hasInCode`.
@@ -1571,13 +1571,13 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, leg
   return errors;
 }
 
-/** `checkProposalUiOwnership` on the tree: the four Workbench files and the registration files it reads. */
+/** `checkProposalUiOwnership` on the tree: three Workbench files, the Goals page's factories and the registration files it reads. */
 export function checkProposalUiOwnershipInTree(repositoryRoot) {
   const read = file => fs.readFileSync(path.join(repositoryRoot, file), "utf8");
   const [renderer, workbench, proposalMount, clientDispatch] = [
     "apps/workbench/src/renderer.ts",
     "apps/workbench/src/index.ts",
-    "apps/workbench/src/ui-composition.ts",
+    "plugins/native/goals/src/page/factories.ts",
     "apps/workbench/src/scripts/client/events-accessibility.ts",
   ].map(file => read(file) + (file === "apps/workbench/src/index.ts" ? read("apps/workbench/src/ui-composition.ts") : ""));
   return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,

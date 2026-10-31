@@ -4,8 +4,7 @@ import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome } from "./fixtures/test-home.js";
 import { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsFragmentRenderer, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
-  type GoalsReadRenderers } from "@molis-ai/molis-work-app-workbench";
+import { createGoalsFragmentRenderer, renderGoalsReadRoute, renderGoalsReadRequest, renderGoalsPageRequest, type GoalsReadRenderers } from "@molis-ai/molis-work-plugin-goals/page";
 
 test("fragment composition selects the correct owner and preserves collection restrictions, context and prefix behavior", () => {
   const goal = (goal_id: string, archived_at: string | null = null, trashed_at: string | null = null) =>
@@ -14,7 +13,7 @@ test("fragment composition selects the correct owner and preserves collection re
   const view = { goals: [current, goal("stale", "date")], archived_goals: [archived], trashed_goals: [trash], route_prefix: "/projects/project%2Fid" };
   const calls: { owner: string; args: unknown[] }[] = [];
   const render = (owner: string) => (...args: unknown[]) => { calls.push({ owner, args }); return owner; };
-  const fragments = createWorkbenchGoalsFragmentRenderer<typeof current, typeof view>({
+  const fragments = createGoalsFragmentRenderer<typeof current, typeof view>({
     document: render("document"), trash: render("trash"), momentum: render("momentum"),
     prefixLinks: (html, prefix) => { calls.push({ owner: "prefix", args: [html, prefix] }); return prefix + html; },
   });
@@ -39,7 +38,7 @@ test("Workbench request dispatch rejects invalid requests before reading views o
   const view = { goals: [{ goal: { goal_id: "current" } }], archived_goals: [{ goal: { goal_id: "archived" } }],
     trashed_goals: [{ goal: { goal_id: "trash" } }] };
   let reads = 0, renders = 0;
-  const request = (method: string, path: string) => renderWorkbenchGoalsPageRequest(method, path,
+  const request = (method: string, path: string) => renderGoalsPageRequest(method, path,
     () => { reads++; return view; },
     async (input, selection) => { assert.equal(input, view); renders++; return JSON.stringify(selection); });
   // "/decisions" was a Goal-era page of its own (the Inbox opened as a page); it is not a route any more.
@@ -67,14 +66,14 @@ test("Workbench request dispatch rejects invalid requests before reading views o
   assert.deepEqual(await request("GET", "/trash/goals/current"), { status: 404, error: "找不到这个 Goal: current" });
   let ownerLoads = 0;
   const owners = () => { ownerLoads++; throw new Error("Owner load"); };
-  assert.equal(renderWorkbenchGoalsReadRequest("POST", "/api/goals/current/document", new URLSearchParams(), owners), null);
-  assert.equal(renderWorkbenchGoalsReadRequest("GET", "/api/board", new URLSearchParams(), owners), null);
-  assert.deepEqual(renderWorkbenchGoalsReadRequest("GET", "/api/goals/%/document", new URLSearchParams(), owners),
+  assert.equal(renderGoalsReadRequest("POST", "/api/goals/current/document", new URLSearchParams(), owners), null);
+  assert.equal(renderGoalsReadRequest("GET", "/api/board", new URLSearchParams(), owners), null);
+  assert.deepEqual(renderGoalsReadRequest("GET", "/api/goals/%/document", new URLSearchParams(), owners),
     { status: 404, error: "Goal 内容不存在" });
-  assert.deepEqual(renderWorkbenchGoalsReadRequest("GET", "/api/board/refresh", new URLSearchParams("view=bad"), owners),
+  assert.deepEqual(renderGoalsReadRequest("GET", "/api/board/refresh", new URLSearchParams("view=bad"), owners),
     { status: 400, error: "Goal 正文集合无效" });
   assert.equal(ownerLoads, 0);
-  assert.throws(() => renderWorkbenchGoalsReadRequest("GET", "/api/board/refresh", new URLSearchParams(), owners), /Owner load/);
+  assert.throws(() => renderGoalsReadRequest("GET", "/api/board/refresh", new URLSearchParams(), owners), /Owner load/);
   assert.equal(ownerLoads, 1, "Recognized requests propagate provider failures to the existing HTTP error boundary");
 });
 
@@ -103,11 +102,11 @@ test("Workbench routes call only the selected owner with exact inputs and retain
   ];
   for (const [route, name, args] of cases) {
     calls.length = 0;
-    assert.deepEqual(renderWorkbenchGoalsReadRoute(route, renderers), { status: 200, html: "<section>" + name + "</section>" });
+    assert.deepEqual(renderGoalsReadRoute(route, renderers), { status: 200, html: "<section>" + name + "</section>" });
     assert.deepEqual(calls, [{ owner: name, args }]);
   }
-  assert.deepEqual(renderWorkbenchGoalsReadRoute({ kind: "refresh", collection: "current" }, { ...renderers, refresh: () => "" }), { status: 200, html: "" });
-  assert.deepEqual(renderWorkbenchGoalsReadRoute({ kind: "document", collection: "current", goal_id: "missing" }, { ...renderers, document: () => "" }), { status: 404, error: "找不到这个 Goal: missing" });
+  assert.deepEqual(renderGoalsReadRoute({ kind: "refresh", collection: "current" }, { ...renderers, refresh: () => "" }), { status: 200, html: "" });
+  assert.deepEqual(renderGoalsReadRoute({ kind: "document", collection: "current", goal_id: "missing" }, { ...renderers, document: () => "" }), { status: 404, error: "找不到这个 Goal: missing" });
 });
 
 test("Goal document HTTP routes retain bad-encoding, collection, offset, missing-content and response-header behavior", async t => {

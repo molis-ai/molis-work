@@ -17,10 +17,7 @@ const exportDeclarations = entry.statements.filter(ts.isExportDeclaration);
 
 /** What `./ui-composition.js` gives out: the names that have a user outside it, each named here. */
 const UI_COMPOSITION_NAMES = [
-  "artifactWorkbench", "createArtifactReferenceRenderer", "createWorkbenchGoalsContextRenderer", "createWorkbenchGoalsDialogsRenderer",
-  "createWorkbenchGoalsDocumentRenderer", "createWorkbenchGoalsFactorsRenderer", "createWorkbenchGoalsMomentumRenderer",
-  "createWorkbenchGoalsPlanningRenderer", "createWorkbenchGoalsPolicyRenderer", "createWorkbenchGoalsRelationRenderer",
-  "createWorkbenchGoalsStatusRenderer", "createWorkbenchGoalsTreeRenderer", "createWorkbenchUiHost", "renderPluginSettingsContribution",
+  "artifactWorkbench", "createArtifactReferenceRenderer", "createWorkbenchUiHost", "renderPluginSettingsContribution",
   "renderWorkbenchDocument", "WORKBENCH_UI_SLOTS",
 ];
 
@@ -76,8 +73,7 @@ test("RAC-711 the names ui-composition, i18n and capsule-view give out are liste
 
 /** Names the entry gives out with no importer outside the workbench, each with why it stays. */
 const KEPT_WITHOUT_IMPORTER: Readonly<Record<string, string>> = {
-  ...Object.fromEntries(["createWorkbenchGoalsPageRenderer", "WorkbenchShellPageView", "WorkbenchShellPageOwners", "WorkbenchPlanningPageOwners",
-    "GoalsFragmentRenderers", "WorkbenchGoalPageSelection"].map(name => [name, "Goals' interface adapters, removed when Goals S11 moves them out"])),
+  ...Object.fromEntries(["createWorkbenchGoalsPageRenderer", "WorkbenchShellPageView", "WorkbenchShellPageOwners"].map(name => [name, "Goals' interface adapters, removed when Goals S11 moves them out"])),
   ...Object.fromEntries(["CapsuleGoalItem", "CapsuleSnapshot", "CapsuleState", "CapsuleStateKind", "CapsuleTab", "CapsuleTabKind", "ChooserArrival",
     "ProjectSettingsFoldId", "SideViewDocumentInput"].map(name => [name, "types the Host's declarations name without importing (TS2742 without)"])),
 };

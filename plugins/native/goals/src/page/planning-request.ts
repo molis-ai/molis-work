@@ -1,16 +1,16 @@
-import { matchGoalsPlanningRoute, selectGoalsPlanningPageMethod, type GoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { PlanningMethodPack } from "../contract/goals.js";
+import { matchGoalsPlanningRoute, selectGoalsPlanningPageMethod, type GoalsPlanningRoute } from "../planning-routes.js";
 
-export interface WorkbenchPlanningPageOwners {
+export interface GoalsPlanningPageOwners {
   methods: readonly PlanningMethodPack[];
   library(): string;
   method(value: PlanningMethodPack | null, mode: "detail" | "edit" | "new"): string;
 }
 
 /** HTTP-neutral read composition; Host supplies scoped methods and mounted UI owners. */
-export function renderWorkbenchPlanningRequest(
+export function renderPlanningRequest(
   method: string | undefined, pathname: string, scope: "personal" | "project",
-  load: (route: GoalsPlanningRoute) => WorkbenchPlanningPageOwners,
+  load: (route: GoalsPlanningRoute) => GoalsPlanningPageOwners,
   translate: (text: string) => string,
 ): { status: 200; html: string } | { status: 404; error: string } | null {
   if (method !== "GET") return null;

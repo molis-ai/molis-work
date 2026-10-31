@@ -56,7 +56,8 @@ const pages: Record<string, Draw> = {
 
 // A page is 0.1 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is its SHA-256 and length, not the text. A
 // mismatch writes what was drawn to the temp directory; the recorded text comes from running this file with MOLIS_WORK_GOLDEN_RECORD=1
-// on the commit before the change (adding MOLIS_WORK_GOLDEN_DUMP=1 writes every page to the temp directory for a diff).
+// on the commit before the change (adding MOLIS_WORK_GOLDEN_DUMP=1 writes every page to the temp directory for a diff). Build the whole
+// workspace first: a page carries every plugin's client scripts and dictionaries, so a stale dist records a page nobody is served.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

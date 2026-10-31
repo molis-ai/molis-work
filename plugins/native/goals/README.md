@@ -20,6 +20,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 | [src/goal-query-application.ts](src/goal-query-application.ts) | 目标读取 |
 | [src/goal-tree-decision.ts](src/goal-tree-decision.ts) | 目标树确认 |
 | [src/document-collection.ts](src/document-collection.ts) | 文档列表投影 |
+| [src/page/index.ts](src/page/index.ts) | Goals 页面的绘制（子路径 `./page`，T-116）：Goal 文档、三种片段、设置与规划页、终端面板、舞台与外壳页眉；工作台只经 `createGoalsPage(ports)` 交出 Goals 不拥有的部分（挂载、翻译、日期、成果引用、终端面板），不再持有 Goals 的渲染器 |
 | [src/http/index.ts](src/http/index.ts) | 页面操作的路由处理 `goalsRoutes`：[src/manifest.ts](src/manifest.ts) 的 `routes` 每声明一条，这里一个处理（PG094-09）；页面经插件前缀 `/api/plugins/io.molis.work.goals/<路径>` 调它们，Runtime 分发核对安装授权（S-15），宿主不再有旧地址 `/api/<路径>` 的改写 |
 
 可对照现有调用方 [src/plugin.ts](src/plugin.ts) 阅读装配方式。

@@ -133,7 +133,7 @@
 | interaction-no-crosstalk 首败根因未定（统筹答 T-338，10-31） | `tests/interaction-no-crosstalk.e2e.test.ts:162`、`:350` | 两套环境（设备 B 本机与 CI／另一候选）各在不同等待点首败，根因未定；T-338 只做加固＋失败时打四种原因的诊断，不再要求对旧状态先红。**不派书，待新证据**（诊断输出出现后再定） | 统筹 2026-10-31 |
 | T-329 二审 建议（#1631，6539202372；建议 1 已随 T-361 #1689 合入） | `horizontal/knowledge/src/locate.ts:67`、`:78` | `slice(0, REASON_CHARS)` 仍按单元截、可能留半个字；超出 T-329 任务书范围。并入下一次改 locate.ts 的整字截书；RAC-2446 另可加 `Object.keys(parsed)` 之类便宜断言（同码内容不同的发送也能红）。乙 | 派单线 2026-10-31 |
 | `tests/plugin-permission-switch.e2e.test.ts` 设备 B 首跑 Node 原生崩溃（#1642 头 7b42e43e6，6539215303，统筹 10-31） | `tests/plugin-permission-switch.e2e.test.ts` | 设备 B 本机首跑时 Node 进程原生崩溃，阶段与根因 UNKNOWN；组合 Full 41162657586 里同文件 1/1 过。**不派书，待新证据**（再出现时贴崩溃输出与阶段） | 统筹 2026-10-31 |
-| T-134 二审 建议（#1649，6539563614；10-31 已合 `daa8fd23c`，待起草并核文件锁） | `tests/security-invariants-*connector*`（RAC-2520 事务用例）、`horizontal/connector-host/src/connection-declarers.ts` | ① RAC-2520 第四条（TRIGGER 让钉插入失败）顺手断言令牌的 secrets 引用也被删除；② `inConnectorTransaction` 不属于声明者模块，挪到连接库所在文件（行为不变）。丙档 |
+| T-134 二审 建议（#1649，6539563614；10-31 已合 `daa8fd23c`；① 已发 T-367，② 等 #1677/#1675 释放 connection-store.ts） | `tests/security-invariants-*connector*`（RAC-2520 事务用例）、`horizontal/connector-host/src/connection-declarers.ts` | ① RAC-2520 第四条（TRIGGER 让钉插入失败）顺手断言令牌的 secrets 引用也被删除；② `inConnectorTransaction` 不属于声明者模块，挪到连接库所在文件（行为不变）。丙档 |
 | T-351 统筹答（#1332，10-31）／T-347 统筹答 | `plugins/native/alchemist` 的 `research_runs`／`exploration_runs` 等 error 详情；`packages/storage/src/adapters/file-secret-store.ts` | ① Alchemist 超长材料要给页面“超出的字数”，需给 run 表加 error 详情列（直接改 v1 DDL，不写维护），页面与 `lens-job-handler` 配合；T-351 只做“材料太长”。乙；② 密钥库“结构合法但解不开”的条目（错密钥／截断密文）读仍返回 null、快照 `integrity_failed`，T-347 不动，另议是否一起 fail closed。乙 | 派单线 2026-10-31 |
 | T-323 二审 建议（#1660，6539805824） | `tests/security-invariants-plugin-pages.test.ts`（RAC-2442） | 每个页面只挂一个在途请求，“每个请求各取一次 `reason()`”没被钉住：把所有请求共用同一个错误对象的变异不会红。多挂一个请求，断言都是 cancelled 且不是同一个对象；测试名补 `SYS-15 S-47` 与同文件 RAC-1809～1811 一致（动 SI 表要统筹确认）。丙，并入下一次改该文件的书 | 派单线 2026-10-31 |
 | T-401 二审 建议（#1652，6539980667；**等 #1652 合入后才可写**） | `apps/local-host/src/home-plugin-http.ts`（`registeredPage`） | Home 启动失败时，`registeredPage` 对没登记的键回 JSON 503，不再落到后面的路由（根 `/plugins/<unknown>`、`/side/…` 受影响）；改成未登记时返回空、照旧往下走，补一条 Home 起不来时的用例。丙档 |
@@ -171,3 +171,5 @@
 | T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确，等 #1693 合入后起草 | Codex 统筹 |
 
 | T-347 Full 与 main 夜间重复失败（已进 T-366；#1665 6545882401） | `plugins/native/alchemist/src/client.ts` 及定向浏览器回归 | 缺模型后真实 run 已终态，页面旧进度未收敛；先用真实响应制造确定性交错再最小修复，不第三次盲重跑，不回滚 T-347 安全语义；RAC-2752～2757 | Codex 开发线 2 |
+
+| T-354 增量一审建议（#1692，`6c05703c8`） | PR 正文“用例 1” | 用新增的 `colouredOnReturn === colouredBefore` 解释无同步首片，并补作者同步首片变异；不再仅以 queued/syncFrames 旁证。文案在当前 PR 修正，不新增代码头。 | Codex 统筹 |

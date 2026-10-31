@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { pluginInstallActions, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
-import { mac, operate, operationsOf, person, ref } from "./fixtures/home-sandbox.js";
+import { SECOND_PLUGIN_ID, mac, operate, operationsOf, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // BL-714 (PG-011, S-66, S-91; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §2): a package installed in the Home
@@ -46,8 +46,8 @@ async function modelHome(t: TestContext) {
   const project = await home.createProject("Model");
   const client = home.host.actionClient(project.reference);
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] };
-  const install = async (pluginId = PACKAGE_PLUGIN_ID, scope: "home" | "project" = "home", capabilities?: string[]) => {
-    const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle: askingPackage(pluginId, scope, capabilities) }) as { preview_id: string };
+  const install = async (pluginId = PACKAGE_PLUGIN_ID, scope: "home" | "project" = "home", capabilities?: string[], prompts?: Array<{ id: string; body: string }>) => {
+    const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle: askingPackage(pluginId, scope, capabilities, prompts) }) as { preview_id: string };
     await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
     return scope === "home" ? home.host.homePlugins!.installation(pluginId)!.install_id : pluginId;
   };
@@ -57,7 +57,7 @@ async function modelHome(t: TestContext) {
 }
 
 /** A signed package for the Home whose `notes.ask` asks the model with one of the instructions it registered, as an author writes it. */
-function askingPackage(pluginId: string, scope: "home" | "project" = "home", capabilities = ["model.generate"]) {
+function askingPackage(pluginId: string, scope: "home" | "project" = "home", capabilities = ["model.generate"], prompts = [{ id: "summary", body: "Summarize the notes." }]) {
   return signedPackage(newPublisher(), (files, manifest) => {
     if (scope === "home") manifest.runtime = { scope: "home" };
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
@@ -65,7 +65,7 @@ function askingPackage(pluginId: string, scope: "home" | "project" = "home", cap
       output: { type: "string" }, errors: [], effects: { capabilities }, examples: [{ input: { prompt: "summary" }, output: "GENERATED" }] });
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
     files[SANDBOX_PACKAGE_FILES.entrypoint] += "operations['notes.ask'] = async (input, sdk) => (await sdk.capability.call(input.via ?? 'model.generate', { prompt: input.prompt, input: 'the notes' })).text;\n";
-    files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "summary", title: "Summary", purpose: "Summarize the notes", body: "Summarize the notes." }]);
+    files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify(prompts.map(prompt => ({ id: prompt.id, title: prompt.id, purpose: "Ask the model", body: prompt.body })));
   }, { pluginId });
 }
 
@@ -91,6 +91,19 @@ test("RAC-2610 the Home's instance is not offered by its own id, to an operation
   await h.install("io.molis.work.example.projectbound", "project", ["model.generate.home"]);
   await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.projectbound"), unavailable, "a package of a project names the Home's instance");
   assert.equal(h.systems.length, before, "nothing was sent to the model");
+});
+
+test("RAC-2611 each installation asks with the instructions it registered itself: a sibling's same-named instruction is the sibling's text, and one only the sibling registered is refused", mac, async t => {
+  const h = await modelHome(t);
+  await h.install(PACKAGE_PLUGIN_ID, "home", undefined, [{ id: "summary", body: "FIRST_SUMMARY" }, { id: "only-first", body: "FIRST_ONLY" }]);
+  await h.install(SECOND_PLUGIN_ID, "home", undefined, [{ id: "summary", body: "SECOND_SUMMARY" }]);
+  assert.equal(await h.ask("summary"), "GENERATED");
+  assert.match(h.systems.at(-1)!, /FIRST_SUMMARY/);
+  assert.equal(await h.ask("summary", undefined, SECOND_PLUGIN_ID), "GENERATED");
+  assert.match(h.systems.at(-1)!, /SECOND_SUMMARY/); assert.doesNotMatch(h.systems.at(-1)!, /FIRST_/);
+  const before = h.systems.length;
+  await assert.rejects(h.ask("only-first", undefined, SECOND_PLUGIN_ID), /没有声明的模型要求/);
+  assert.equal(h.systems.length, before, "the model was not reached");
 });
 
 test("RAC-2612 a package that asks with an instruction it did not register is refused, and the model is not reached", mac, async t => {

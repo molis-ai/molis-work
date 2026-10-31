@@ -95,6 +95,7 @@ test("RAC-2533: Notion connects through the generic flow: read, refreshed and ch
   const read = await resolveApiConnection(f.home, started.connection_id, connectorControl(), "notion");
   assert.equal(read.token, "access-1");
   assert.equal(read.authExtras?.account_id, "ws-1", "the account is the workspace");
+  assert.equal(read.authExtras?.auth_method, "oauth", "the provider's 401 → refresh → retry path is keyed on it");
   // A refresh asked for rotates the refresh token and writes it back to this connection.
   const refreshed = await resolveApiConnection(f.home, started.connection_id, connectorControl(), "notion", true);
   assert.equal(refreshed.token, "access-2");
@@ -138,7 +139,7 @@ test("RAC-2534: Notion's return address names localhost on the same port, and th
     const again = await startApiOAuth(f.home, { ...CLIENT, origin: f.origin });
     const refused = await f.getAt(host, `${ALIAS}?state=${stateOf(again.authorization_url)}&code=c`);
     if (consumes) { assert.equal(refused.status, 302, host); assert.match(refused.location ?? "", /^\/settings\/connectors\?connection_error=failed(&connector=notion)?$/u, host); }
-    else assert.ok(refused.status >= 400 || /^\/settings\/connectors\?connection_error=failed/u.test(refused.location ?? ""), `${host} is refused (${refused.status} ${refused.location})`);
+    else assert.deepEqual([refused.status, refused.location], [302, "/settings/connectors?connection_error=failed"], `${host}: a Host that is not this machine's fails before the record is read`);
     assert.equal(withConnectorConnections(f.home, store => store.list()).length, connected, `${host} connected nothing`);
     const replay = await f.getAt(f.localhost, `${ALIAS}?state=${stateOf(again.authorization_url)}&code=c`);
     if (consumes) {

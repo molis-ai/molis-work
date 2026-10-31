@@ -20,7 +20,7 @@
   - 原来用 Notion 自己的授权流程建立的连接（凭据是 `connector-connection:<id>:access`，不是 `connector-protocol:`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；点“重新授权”只会得到“请新增一条连接”。请新增一条 Notion 连接，成果库导入每次选连接，之后选新的；新连接可用后删掉旧连接。用个人访问令牌（PAT）建的 Notion 连接不受影响。
   - Notion 判断“重新授权是同一个账号”仍按工作区（`workspace_id`），换了工作区被拒；授权时的 `owner=user` 参数、Basic 认证与 JSON 体的令牌请求不变。
   - 平台自己的 Notion 客户端环境变量改名，不留旧名：`MOLIS_WORK_NOTION_CLIENT_ID`、`MOLIS_WORK_NOTION_CLIENT_SECRET` → `MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_ID`、`MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_SECRET`。设置页里存过的 Notion Client ID / Secret（`connector:notion:client_id`、`connector:notion:client_secret`）不再被读，要在新增连接时重新填，或由部署配置上面两个变量。
-  - Notion 在控制台登记过的本机回调 `http://localhost:<端口>/api/settings/connectors/notion/oauth/callback` 继续有效：它是平台回调别名表里 Notion 的一项，声明了主机名 `localhost`（Notion 不收数字 IP），只有 `localhost` 与 `127.0.0.1`、同端口同协议才视为同一来源，别的服务没有这条放宽。
+  - Notion 在控制台登记过的本机回调 `http://localhost:<端口>/api/settings/connectors/notion/oauth/callback` 继续有效：它是平台回调别名表里 Notion 的一项，声明了主机名 `localhost`（Notion 不收数字 IP），只有 `localhost` 与 `127.0.0.1`、`[::1]`、同端口同协议才视为同一来源，别的服务没有这条放宽。
   - 设置页的 `POST /api/settings/connectors/notion/oauth/start` 本机路由删除，统一走 `methods/oauth/start`；连接卡片 JSON 里的 `notion_oauth_configured` 字段删除，`ConnectorMethodOption.oauth` 多一个可选的 `callback_host`。
 - **Gmail 并进通用 OAuth 流程：旧 Gmail 连接要新增一条，环境变量改名**（2026-10-29，W5-11 第 6 片，T-064，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.4、§10 Q2、Q5、Q6，S-101、RAC-2476～2486）：
   - 原来用 Gmail 自己的授权流程建立的连接（设置里显示“账号授权”、凭据是 `connector-connection:<id>:access`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；点“重新授权”只会得到“请新增一条连接”。请新增一条 Gmail 连接，在 Feed 来源详情的“使用的账号连接”里换到新连接（换连接会建出独立的新来源、暂停旧来源，原消息保留），新连接可用后删掉旧连接。

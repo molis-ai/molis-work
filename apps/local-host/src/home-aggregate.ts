@@ -37,8 +37,8 @@ export interface HomeAggregatePorts {
   client(reference: LocalHostProjectReference): ActionClient;
   /** The person's context in that project; the grants in it are that project's installations' own. */
   context(reference: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext>;
-  /** The project's plugin manifest: what "turned off" is read against, so a listed plugin that cannot answer is not taken for one that is not installed. Undefined when this Host has no catalog to ask. */
-  projectPlugins(reference: LocalHostProjectReference): Promise<readonly string[] | undefined>;
+  /** The project's plugin manifest: what "turned off" is read against, so a listed plugin that cannot answer is not taken for one that is not installed. A Host with no catalog rejects (`host.catalog_unavailable`), which the aggregate records as that project's issue. */
+  projectPlugins(reference: LocalHostProjectReference): Promise<readonly string[]>;
 }
 
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
@@ -58,9 +58,10 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
   const projects = await Promise.all(ports.openProjects().map(async reference => {
     const project_id = reference.project_id;
     try {
+      // The manifest lives in the catalog, which a project's own open window may hold: read it before entering.
+      const plugins = await ports.projectPlugins(reference);
       return await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
         const client = ports.client(reference);
-        const plugins = await ports.projectPlugins(reference);
         const { caller, views } = await beforeDeadline(signal, async discoverySignal => {
           // Queries and all their nested calls remain read-only; discovery has its own bound too.
           const caller: ActionCallContext = { ...await ports.context(reference, discoverySignal), query_only: true, signal: discoverySignal };
@@ -75,9 +76,8 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
           if (!view.availability.available) {
             const pluginId = view.provider.plugin_id;
             // Not in this project's plugin manifest is not installed here, so it has nothing to report; listed but unavailable (turned
-            // off, or refused by policy) is what the person needs to see. A platform provider has no plugin, and a Host with no catalog
-            // has no manifest to read, so both keep the old rule.
-            const listed = plugins === undefined || pluginId === undefined
+            // off, or refused by policy) is what the person needs to see. A platform provider has no plugin and keeps the old rule.
+            const listed = pluginId === undefined
               ? view.availability.code !== "actions.plugin_disabled"
               : plugins.includes(pluginId);
             return listed ? { answers: [], issues: [{ project_id, source, code: view.availability.code }] } : empty;

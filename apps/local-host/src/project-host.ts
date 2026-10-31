@@ -117,6 +117,13 @@ export function molisWorkHostProjectReference(input: {
 /**
  * The project composition owner: one database and application per Host runtime.
  */
+/** The events read has no per-project issue slot that fits a catalog failure: a Host without a catalog keeps the old turn-off rule. */
+const pluginsOrUndefined = (lookup: Promise<readonly string[]>): Promise<readonly string[] | undefined> =>
+  lookup.catch(error => {
+    if (error instanceof ActionError && error.code === "host.catalog_unavailable") return undefined;
+    throw error;
+  });
+
 export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private personalPlanningHome?: string;
@@ -174,7 +181,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read,
-                projectPlugins: projectId => this.projectPluginIds(projectId) }, (judgment, caller) => {
+                projectPlugins: projectId => pluginsOrUndefined(this.projectPluginIds(projectId)) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
@@ -402,10 +409,11 @@ export class MolisWorkLocalHost {
     return this.host.projects();
   }
 
-  /** The project's plugin manifest, by the one catalog the platform injected; undefined when this Host has no catalog to ask. */
-  async projectPluginIds(projectId: string): Promise<readonly string[] | undefined> {
+  /** The project's plugin manifest, by the one catalog the platform injected; a Host without a catalog refuses rather than guesses. */
+  async projectPluginIds(projectId: string): Promise<readonly string[]> {
     const home = this.personalPlanningHome;
-    return this.catalogRunner && home ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjectPlugins(projectId)) : undefined;
+    if (!this.catalogRunner || !home) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");
+    return this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjectPlugins(projectId));
   }
 
   status(): LocalHostStatus {

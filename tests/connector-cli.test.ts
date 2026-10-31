@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "../apps/local-host/dist/connector-cli.js";
+import { cliAvailability, ConnectorCliError, connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "../apps/local-host/dist/connector-cli.js";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withConnectorConnections, connectorRecordActions, connectorCliActions, CONNECTOR_RECORDS_READ, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -188,6 +188,24 @@ test("RAC-2415 a service id that names a prototype member is no CLI this Host kn
     return { code: error.code, message: error.message };
   };
   const missing = await refusal("no-such-service");
+  assert.equal(missing.code, "connector.connection.invalid", "an unconfigured CLI is refused by the setup rules, not by what the prototype answered");
   assert.deepEqual(await refusal("constructor"), missing);
   assert.deepEqual(await refusal("__proto__"), missing);
+});
+
+// RAC-2730: the CLIs the Host knows are the table's own keys, never a name from Object.prototype; the old lookup answered `Object` for
+// "constructor" and the status entry then failed with a TypeError instead of "no configured CLI".
+test("RAC-2730 a service id that names a prototype member is not a configured CLI", () => {
+  const refusal = (service: string): unknown => {
+    try { cliAvailability(service); return null; } catch (error) { return error; }
+  };
+  const missing = refusal("no-such-service");
+  assert.ok(missing instanceof ConnectorCliError, "an unregistered service is refused by the CLI table");
+  assert.equal(missing.message, "此服务没有已配置的官方 CLI");
+  for (const service of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    const error = refusal(service);
+    assert.ok(error instanceof ConnectorCliError,
+      `${service} is refused as a missing CLI, not ${error instanceof Error ? error.constructor.name : String(error)}`);
+    assert.equal(error.message, missing.message, `${service} gets the same answer as a service that is not configured`);
+  }
 });

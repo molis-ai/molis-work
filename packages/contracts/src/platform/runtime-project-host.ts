@@ -16,7 +16,7 @@ export interface MolisWorkRuntimeContextHost {
   nativeRuntimeSessionId?: string | null;
   /** The work entry the host declared (`MOLIS_WORK_WORK_CONTEXT_ID`: a desktop panel, an integration check); the Session is routed by it. */
   hostWorkContextId?: string | null;
-  goalId?: string | null;
+  focusId?: string | null;
   /**
    * Host-only non-authoritative hints for a fresh Session. They may rank
    * projects, but never establish a binding and are never supplied by a

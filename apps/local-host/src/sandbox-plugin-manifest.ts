@@ -6,6 +6,7 @@
 import { PLUGIN_PROJECTS_EXIST_PERMISSION, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
+import type { PluginIconName } from '@molis-ai/molis-work-plugin-sdk/ui';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
@@ -56,6 +57,8 @@ export interface SandboxManifestInput {
    * writes it; the studio's own plugins are always a project's. Whether the Home takes it is the install's to decide (S-80), not the form's.
    */
   runtime?: PluginManifest['runtime'];
+  /** The icon of the plugin's page in the navigation; absent means the Host's default. */
+  icon?: PluginIconName;
   /** Validated contract effects; the Manifest's optional permission rows are derived from them (`sandboxDerivedPermissions`). */
   effects?: DerivedEffects;
 }
@@ -72,7 +75,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId }] },
+    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
   };
 }
 

@@ -242,12 +242,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-234 (MISC T-086 起草), RAC-2215–2218: the Form answer box is cut at 4000 characters by an input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a two-unit character at 2000), and says the limit through the plugin's own dictionary;
-// +544 B on this one asset, over three small functions (the message, the slot lookup and the cap). Tried: inline bilingual text was
-// +616 B and the answer asked for the dictionary; no new asset, no new image.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/form.js": [29708, 30252],
+  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
+  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
+  // T-354 一审 P1 keeps the shortcut but asks first that what is rendered is not a skipped subtree (`checkVisibility`, style only) and
+  // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
+  // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
+  "/assets/molis-work-plugins/coding.js": [289876, 290029],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

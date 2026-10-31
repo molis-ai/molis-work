@@ -108,7 +108,7 @@ export interface RuntimeSessionHostSignals {
     molis_work_session_id: string | null;
     native_runtime_session_id: string | null;
     surface_id: string | null;
-    goal_id: string | null;
+    focus_id: string | null;
     runtime_context: RuntimeWorkContext;
     project_suggestion_clues: RuntimeProjectSuggestionClue[];
 }

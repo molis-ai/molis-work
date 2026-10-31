@@ -242,14 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-138 (BL-715), RAC-2606: the 插件 page's rows for the Home's own packages say why a package is not running and that its publisher was
-// taken back, and carry the same switch-off, switch-on and uninstall buttons a project's rows have, sent to the Host settings door: +445 B
-// in molis-work-workbench.js (1148388 → 1148833), measured on this merge result. It grows because two lines of text, the Home door's act
-// (`homeAct`) and the two English strings are new; the buttons are the project rows' own `controls` with an `act` parameter, not a second
-// copy, which was the smallest way tried. No new asset. The entries T-223 and T-115 left (molis-work-plugin-frame.js; molis-work-workbench.css
-// and the workbench.js one) are used up (their budgets already equal their ceilings) and are deleted with this change as the convention says.
+// T-290, RAC-2412: the settings shell keeps only the address parameters and fragments the settings page being opened reads. Tried: the
+// declarations as "each page's defaults plus the extra variables it reads" (not one full list per page, not a packed encoding, for
+// readability), and one small filter helper injected into the shell and the Home dialog; the review re-audit added provider/new and
+// connected/connection_error and the own-key lookup (+64 B), so this one asset is +1,346 B in all; the increment review then corrected
+// the access page's own parameters (client/client_custom instead of format, +14 B): +1,360 B in all; no new asset. With T-183 and T-115 landed the
+// workbench baseline is 1148388, so this entry's merge-base number is that landed value and the increment is still +1,343; the T-203, T-235, T-183 and T-223 entries are consumed (their budgets already equal their ceilings) and are deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148388, 1148833],
+  "/assets/molis-work-workbench.js": [1148833, 1150176],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

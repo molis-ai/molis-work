@@ -278,7 +278,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-335 | T-294 二审登记：`tests/whole-units.test.ts` 补两个 `cutHead` 变异用例（超限而切口不在字中间、恰好等于上限的落单高位） | 丙 | 池 | 已合（10-31，#1634 → `2b9eaefba`） | — | `tests/whole-units.test.ts` |
 | T-336 | BL-121 ②：删掉 `?feed-start=1` 整条链（start 路由、`feed.item.promote` 的 `start_processing`、客户端分支与终端自动填入；`processing` 取值与 DDL 等统筹答；要先于 T-137 落地） | 乙 | A | 已合（10-31，#1644 → `94c49fa1b`） | — | `plugins/native/feed/src/item-route-handlers.ts`、`item-actions.ts`、`goal-promotion.ts`、`apps/workbench/src/terminal/autofill.ts`、`events-secondary.ts`、`initialization.ts` |
 | T-337 | BL-121 ③：紧凑密度子目标缩进的 `.tree-children.tree-children` 改成正常一条规则（缩进不变，加计算样式用例） | 丙 | A | 0.6 | T-336 | `packages/design-system/src/styles/momentum.ts`、`specs/BACKLOG.md` |
-| T-338 | `tests/interaction-no-crosstalk.e2e.test.ts` 跨项目用例在设备 B 本机首败（新 session 路径等不到 `window.__sent`，干净基线同败、CI 过）：先诊断是没发出、没记下还是夹具环境，再修；保留拒绝／无写断言与原时限 | 乙 | B | 0.7 | — | `tests/interaction-no-crosstalk.e2e.test.ts` |
+| T-338 | `tests/interaction-no-crosstalk.e2e.test.ts` 夹具次序加固与观察等待超时诊断（按6539144174/6539212534收窄，根因未定）；保留原谓词、拒绝／无写断言与时限，发送状态UNKNOWN | 乙 | B | 0.7 | — | `tests/interaction-no-crosstalk.e2e.test.ts` |
 | T-339 | Feed `throwIfCallRefused` 改按被拒的 kind 认：撤权（`mcp.*_revoked`、`assistant.action_revoked`）的捕获不再记成 `artifact_out_failed` | 甲 | A | 0.8 | — | `plugins/native/feed/src/out-rules.ts` |
 | T-340 | MCP 宿主里裸 `new ActionError` 的 `mcp.*` 码改成 `defineErrorCodes` 声明，抛出处带声明的 kind；同码两种 kind 统一 | 乙 | A | 已合（10-31，#1658 → `7d74dc353`；Codex 统筹） | — | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts` |
 | T-341 | 搜索：读取器报 forbidden 被弃时经 `onError` 留一条记录（只记码） | 乙 | 池 | 已合（10-31，#1648 → `f8aaece61`） | — | `horizontal/search/src/index.ts` |
@@ -300,13 +300,13 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-357 | 插件英文名的测试要证明它说的事：RAC-1727 调生产函数并补变异，RAC-1729 真比版本 | 乙 | B | 2.4 | — | `tests/plugin-english-name-declaration.test.ts` |
 | T-358 | services.projects 读项目目录库失败时转 `actions.unavailable`，不把原始错误交给插件 | 乙 | B | 2.5 | — | `apps/local-host/src/plugin-projects-service.ts` |
 | T-359 | 搜索读取器被弃的记录：钉住 details／cause 不外带（两个现在不红的变异），注明 plugin_id 展开写法 | 乙 | B | 2.6 | — | `horizontal/search/src/index.ts`、`tests/system-search.test.ts` |
-| T-360 | Pages 材料 JSON 预算 175,800 与 Host 提示上限的关系由端到端用例钉在 Host 真常量上 | 乙 | B | 2.7 | — | Pages 材料预算用例（`git grep -ln RAC-2286 -- tests`） |
+| T-360 | 当前默认指令下的 Pages 材料预算，经 Host 真实校验与模型桩调用次数证明边界 | 乙 | Codex 统筹 | 已合 #1691 378687f6a | — | `tests/pages-materials-prompt-budget.test.ts` |
 | T-361 | 两处测试小补：RAC-2446 钉发出数据的键只有 question／pieces；RAC-2706 注释改准 | 丙 | B | 已合（10-31，#1689 → `f8de25546`；Codex 统筹） | — | `tests/security-invariants-knowledge-lifecycle.test.ts`、`tests/artifact-links.test.ts` |
 | T-362 | 插件的设置页在 Manifest 里声明自己认哪些地址参数（查询参数与 hash），外壳按声明过滤（改合同） | 乙 | A | 2.9 | — | `packages/contracts/src/platform/ui.ts`、`apps/workbench/src/settings-address-params.ts`、`apps/workbench/src/scripts/client/settings-directory.ts`、`tests/security-invariants-plugin-pages.test.ts` |
 | T-363 | BACKLOG 七行（BL-090／092／094／095／096／099／114）对着 main 核一遍，做完的删行，没做完的只写没做的 | 丙 | A | 3.0 | — | `specs/BACKLOG.md`（这七行） |
 | T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 待分配 | 待领 | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |
 | T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | 待领 | T-318 已合 | `tests/project-rows-deletion.test.ts` |
-| T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | #1695 待独立审验 | 无；T-347 等本单落地 | `plugins/native/alchemist/src/client.ts`、`tests/alchemist-workbench.e2e.test.ts`、边界测试或独立 terminal-refresh 测试二选一、Alchemist README；不动 #1661 的 client-views；资源文件由统筹串行 |
+| T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | #1695 一审通过，独立验证／二审及Full在途 | 无；T-347 等本单落地 | `plugins/native/alchemist/src/client.ts`、`tests/alchemist-workbench.e2e.test.ts`、边界测试或独立 terminal-refresh 测试二选一、Alchemist README；不动 #1661 的 client-views；资源文件由统筹串行 |
 | T-367 | 连接事务失败后的真实 secret 清理与恢复证据（T-134 建议①；RAC-2758～2760） | 丙 | Codex 待分配 | 待领 | T-134 已合；建议②仍等 #1677/#1675 | `tests/connector-connection-declarers.test.ts` |
 | T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 待分配 | 待领（核证／文档版） | T-119/T-120/T-134 已合；源码修复另核锁 | 文档状态段，详见 `tasks/T-122.md`；生产只读 |
 | T-368 | MCP 无目录真实权限拒绝及精确 raiser 变异（RAC-2761～2763） | 丙 | Codex 待分配 | 待领 | 无；领取前重核文件锁 | `tests/mcp-error-kinds.test.ts` |

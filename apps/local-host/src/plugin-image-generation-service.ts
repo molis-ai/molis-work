@@ -18,7 +18,7 @@ export function pluginImageGenerationFor(home: PluginPlatformHome | null | undef
 }
 
 /** Connector owner manages bindings; agent-host owns every actual model dispatch. */
-function createPluginImageGenerationPort(home: string, namespace: string): PluginImageGenerationPort {
+export function createPluginImageGenerationPort(home: string, namespace: string): PluginImageGenerationPort {
   return {
     connections: () => imageConnectionViews(home),
     inspect: target => imageConnectionSnapshot(home, namespace, target),

@@ -1,6 +1,6 @@
 import type { InstructedPrompt, InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
-import { PLUGIN_MODEL_LIMITS, type PluginModelAvailability, type PluginModelClient, type PluginModelRequest, type PluginModelResult, type PluginModelSelection } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { SandboxEffects, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { PLUGIN_MODEL_LIMITS, type PluginModelAvailability, type PluginModelClient, type PluginModelConfigurationClient, type PluginModelConfigurationView, type PluginModelRequest, type PluginModelResult, type PluginModelSelection } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { SandboxEffects, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult, SandboxModelSelection, SandboxModelSettingsView } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { plainJson } from './materials.js';
 import { SandboxError } from './schema.js';
 
@@ -33,6 +33,32 @@ export interface SandboxModel {
   readonly instructions: readonly InstructionPrompt[];
 }
 
+/**
+ * The package's own model settings (`sdk.model.settings`, BL-491), built by the Host for the activation: it shows the enabled providers and
+ * chooses among them. The view it returns is already the sandbox's (no endpoint, connection or credential), and `save` takes the two names of
+ * a choice and nothing else, so no address and no account can be named through it.
+ */
+export interface SandboxModelSettings {
+  read(): Promise<SandboxModelSettingsView>;
+  save(selection: SandboxModelSelection): Promise<SandboxModelSettingsView>;
+}
+
+/** What a package may see of the Host's settings: the providers by name and their models, never an endpoint, an API format or a connection. */
+function settingsView(view: PluginModelConfigurationView): SandboxModelSettingsView {
+  const pick = (selection: { provider_id: string; model_id: string }): SandboxModelSelection => ({ provider_id: selection.provider_id, model_id: selection.model_id });
+  return { configured: view.configured, source: view.source, ...(view.selection ? { selection: pick(view.selection) } : {}), ...(view.effective_selection ? { effective_selection: pick(view.effective_selection) } : {}),
+    providers: view.providers.map(provider => ({ provider_id: provider.provider_id, name: provider.name, enabled: provider.enabled, has_credential: provider.has_credential,
+      models: provider.models.map(model => ({ model_id: model.model_id, display_name: model.display_name ?? model.model_id, enabled: model.enabled })) })) };
+}
+
+/** The Host's `model.configuration` reduced to what the channel carries: `save` passes the two names of a choice and nothing else, so no address or account can be named through it. */
+export function sandboxModelSettings(configuration: PluginModelConfigurationClient): SandboxModelSettings {
+  return Object.freeze<SandboxModelSettings>({
+    read: async () => settingsView(await configuration.read()),
+    save: async selection => settingsView(await configuration.save({ provider_id: selection.provider_id, model_id: selection.model_id })),
+  });
+}
+
 export function sandboxModel(client: PluginModelClient, instructions: readonly InstructionPrompt[]): SandboxModel {
   return Object.freeze<SandboxModel>({
     client: Object.freeze<SandboxModel['client']>({ choices: () => client.choices(), availability: selection => client.availability(selection), complete: (prompt, request) => client.complete(prompt, request) }),
@@ -53,6 +79,15 @@ export function modelSelection(value: SandboxJson | undefined): PluginModelSelec
   if (typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => key !== 'provider_id' && key !== 'model_id')) throw invalid('A model selection is { provider_id, model_id }');
   return { provider_id: name(value.provider_id, 'provider_id'), model_id: name(value.model_id, 'model_id') };
 }
+
+/** A choice to save: both names, and nothing else. */
+export function settingsSelection(value: SandboxJson | undefined): SandboxModelSelection {
+  const selection = modelSelection(value);
+  if (!selection) throw invalid('Saving model settings takes { provider_id, model_id }');
+  return selection;
+}
+
+export const settingsJson = (view: SandboxModelSettingsView): SandboxJson => plainJson(view);
 
 function instruction(known: readonly InstructionPrompt[], id: unknown, what: string): InstructionPrompt {
   if (typeof id !== 'string' || !INSTRUCTION_ID.test(id)) throw invalid(`${what} is the id of an instruction the package registered`);

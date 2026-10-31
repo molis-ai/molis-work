@@ -3,6 +3,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { reservedHomeName } from "./sandbox-home-names.js";
 import { describeSqliteBaseline, describeSqliteSchema, snapshotFileStat, openBaselineHomeSqlite, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/repository-anti-corruption/slices/pg022-manifest-declarations.md).
@@ -77,6 +78,7 @@ const INSTALLER_DIRECTORIES: readonly string[] = ["config", "bin", "releases"];
 
 /** Who holds a top-level name of the Home: a registered store, a store registered inside it, or the installer. */
 function holderOf(name: string, reserved: HomeStoreRegistry): string | undefined {
+  if (reservedHomeName(name)) return "平台为沙箱插件的图片连接和模型设置保留的名字前缀";
   const store = reserved.get(name) ?? reserved.stores.find(candidate => candidate.path.startsWith(`${name}/`));
   if (store) return `${store.owner} 的 ${store.path}`;
   return INSTALLER_DIRECTORIES.includes(name) ? "安装器的目录" : undefined;

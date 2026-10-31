@@ -406,6 +406,14 @@ export class ConnectorConnectionStore {
   }
 }
 
+/**
+ * Every binding under one plugin name of one scope, such as the image namespace the Host derives for a sandboxed installation (BL-491); the accounts stay.
+ * A function over the connection, not a method, so the store stays inside its size limit.
+ */
+export function forgetPluginBindings(db: DatabaseSync, scopeId: string, pluginId: string, onBindingChange?: (binding: ConnectorBindingKey) => void): number {
+  return forgetBindings(db, { where: "scope_id = ? AND plugin_id = ?", parameters: [scopeId, pluginId] }, onBindingChange);
+}
+
 /** Deletes the bindings `match` selects and tells `onBindingChange` about each one that went. */
 function forgetBindings(db: DatabaseSync, match: { readonly where: string; readonly parameters: readonly (string | number)[] } | null,
   onBindingChange?: (binding: ConnectorBindingKey) => void): number {

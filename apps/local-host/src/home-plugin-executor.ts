@@ -27,6 +27,8 @@ import { pluginInstallationsFor, type InstallationDirectoryClient } from "./plug
 import { pluginEvidenceCollectorFor } from "./plugin-evidence-collector.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+import { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
+import { withSandboxModelSettings } from "./sandbox-model-settings.js";
 import { pluginLocalToolsFor } from "./plugin-local-tools-service.js";
 import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
@@ -133,8 +135,10 @@ export class HomePluginExecutor implements PluginExecutor {
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
       const authorized = { ...context, requireGrant: authorize };
-      const model = pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置"));
-      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
+      // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
+      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);
+      const imageGeneration = sandboxImageGenerationFor(home, definition, authorized, assertActive)
+        ?? pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const localTools = pluginLocalToolsFor(definition, authorized, assertActive);
       const projects = pluginProjectsFor(definition, authorized, this.options.home, assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
@@ -205,7 +209,10 @@ export class HomePluginExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
-    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+    if (record.execution === "sandbox" && !record.retain_private_data) {
+      removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+      forgetSandboxImageBindings(this.options.home, record.plugin_id);
+    }
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   prepareReinstall(record: PluginInstanceRecord): void {

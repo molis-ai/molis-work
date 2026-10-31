@@ -10,6 +10,7 @@ import { ActionError, type ActionAvailability, type ActionDefinition, type Actio
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { runInPluginAction, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
+import { sandboxOperationPermissions } from '../sandbox-plugin-manifest.js';
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
 
@@ -35,6 +36,8 @@ export function exposedOperationCosts(releases: readonly PublishedOperations[], 
       visited.add(key); visiting.add(key);
       const operation = operations.get(key)!;
       if (operation.effects.networkDomains?.length) costs.push('unknown');
+      // The person's model or image account is spent by these, whatever else the operation reaches (BL-491).
+      if (operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate')) costs.push('metered');
       for (const id of operation.effects.capabilities ?? []) {
         const entry = dependencies.get(id);
         if (!entry || entry.installed === false) { costs.push('unknown'); continue; }
@@ -54,6 +57,20 @@ export interface InstalledPluginActions {
   readonly release: AgentRelease;
   refresh(costs: ReadonlyMap<string, Cost>): boolean;
   dispose(): void;
+}
+
+/**
+ * What the Runtime's scope of a call carries. The registered action stays `permissions: []`, so no caller has to hold the model or image permissions the
+ * plugin's own code spends (`permissions` is what a caller must hold, not what the provider may use). The scope's copies name the permissions the operation's
+ * contract effects derive (`sandboxOperationPermissions`), and the Runtime's clients still ask the Manifest's declaration and the person's grant each time
+ * (BL-491, RAC-2628).
+ */
+function scoped(definition: ActionDefinition, operation: PublishedOperations['design']['contract']['operations'][number], caller: ActionExecutionContext,
+  plugin: PluginInstance): { install_id: string; installation_generation: string; definition: ActionDefinition; caller: ActionExecutionContext } {
+  const permissions = sandboxOperationPermissions(operation.effects);
+  if (!permissions.length) return { install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller };
+  return { install_id: plugin.install_id, installation_generation: plugin.installation_generation,
+    definition: { ...definition, action: { ...definition.action, permissions } }, caller: { ...caller, permissions: [...new Set([...caller.permissions, ...permissions])] } };
 }
 
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: () => ActionAvailability, plugin?: PluginInstance): InstalledPluginActions {
@@ -103,7 +120,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
           // The target owns the private write; its Runtime scope retains the original caller checks.
           handlers: [{ ...handlers[index]!, handle: (caller, input) => {
             const execute = () => handlers[index]!.handle(caller, input);
-            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller }, execute) : execute();
+            return plugin ? runInPluginAction(scoped(definition, release.design.contract.operations[index]!, caller, plugin), execute) : execute();
           } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { cost, dispose: unregister }); changed = true;
       });

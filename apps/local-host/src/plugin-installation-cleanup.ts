@@ -4,6 +4,7 @@ import { forgetInstallationBindings, forgetInstallationProjectBindings, installa
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { hostLog } from "./host-log.js";
 import { installedIdentities, pluginHeldElsewhere, type InstallScope } from "./plugin-holders.js";
+import { forgetSandboxImageBindings } from "./sandbox-image-generation.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 
 /**
@@ -73,7 +74,10 @@ function forgetInstallationRules(home: string, record: PluginInstanceRecord, pro
 /** The synchronous install boundary: verify the KV owner is available before touching files, then finish the person's non-retaining cleanup. */
 export function discardInstallationOwnerData(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord, deleteInstallationData?: (installId: string) => void): void {
   if (!record.retain_private_data && !deleteInstallationData) throw pluginErrors.state_invalid("Plugin 的宿主没有本安装的 KV 数据清理能力，暂不能重装");
-  if (record.execution === "sandbox") removeSandboxOwnerFiles(scope, record.install_id);
+  if (record.execution === "sandbox") {
+    removeSandboxOwnerFiles(scope, record.install_id);
+    if (scope.home && scope.project_id === null) forgetSandboxImageBindings(scope.home.directory, record.plugin_id);
+  }
   if (!record.retain_private_data) deleteInstallationData?.(record.install_id);
   forgetInstallationRecords(scope, record, true);
 }

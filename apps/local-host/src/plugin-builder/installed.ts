@@ -3,7 +3,7 @@
  * uninstall; this definition only proxies to the plugin's sandboxed process. The plugin's code never runs in the
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
-import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginDefinition, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
@@ -43,6 +43,8 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
     execution: 'sandbox',
     async start(context) {
       context.requireGrant('storage:private');
+      // A package's model settings and image connections belong to the person's Home (BL-491): a project's instance of it is refused, as it is for a Home library.
+      if (context.project_id && (approved.modelSettings?.length || approved.imageGeneration?.length)) throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const services = sandboxServicesFor(context.services, host);
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };

@@ -5,7 +5,8 @@ import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
 import { documentBatchJson, extractionJson, materialLocalUrl, materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, originalPart, originalRecordKey, plainJson, sourceContentJson } from './materials.js';
-import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, type SandboxModel } from './model.js';
+import { imageGenerationCall, type SandboxImageGeneration } from './image.js';
+import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, settingsJson, settingsSelection, type SandboxModel, type SandboxModelSettings } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
@@ -40,10 +41,14 @@ export interface SandboxServices {
   ownerFiles?: SandboxOwnerFiles;
   /** The activation's `services.model` without its `configuration`, with the instructions the package registered (S-66, PG-017 P1). */
   model?: SandboxModel;
+  /** The package's own model settings, chosen among what the person enabled (BL-491): the Host builds them for a Home package that asked for `effects.modelSettings`. */
+  modelSettings?: SandboxModelSettings;
+  /** The activation's `services.imageGeneration`: connections only at the address the person pinned them to (BL-491). */
+  imageGeneration?: SandboxImageGeneration;
   /** The activation's `services.background` reduced to `start`, and the lane its runs go to (PG-017 P3): the executions are the broker's, so they end with it. */
   background?: SandboxBackground;
 }
-interface DispatchGuards {
+export interface DispatchGuards {
   permit(key: keyof SandboxEffects, value: string): void;
   count(n: number): void;
   string(index: number, max?: number): string;
@@ -174,6 +179,15 @@ export class SandboxBroker {
     // over. Here: the declared and approved effect, a command for anything that spends the model, and a request that names an instruction the package
     // registered instead of carrying text.
     const model = this.services.model;
+    if (method === 'model.settings.read') { permit('modelSettings', 'read'); count(0); return this.services.modelSettings ? settingsJson(await this.services.modelSettings.read()) : missing(); }
+    if (method === 'model.settings.save') {
+      permit('modelSettings', 'save'); count(1);
+      if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot save model settings');
+      const selection = settingsSelection(args[0]);
+      if (!this.services.modelSettings) return missing();
+      await context.beforeEffect?.();
+      return settingsJson(await this.services.modelSettings.save(selection));
+    }
     if (method === 'model.choices') { permit('model', 'read'); count(0); return model ? choicesJson(model.client.choices()) : missing(); }
     if (method === 'model.availability') {
       permit('model', 'read'); count(1);
@@ -299,6 +313,7 @@ export class SandboxBroker {
       return plainJson(await this.services.projects!.exist(ids, { signal: context.signal }));
     }
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
+    if (method.startsWith('imageGeneration.')) return imageGenerationCall(this.services.imageGeneration, context, operation, method, args, guards);
     if (method.startsWith('background.')) return this.dispatchBackground(operation, method, args, guards);
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.

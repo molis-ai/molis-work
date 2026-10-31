@@ -22,6 +22,12 @@ export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, typ
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
+export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";
+export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
+export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
+export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
+export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "./plugin-builder/exposed-actions.js";
+export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
@@ -117,7 +123,7 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
-export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+export { sandboxDerivedPermissions, sandboxOperationPermissions, sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";

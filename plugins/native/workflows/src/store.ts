@@ -15,7 +15,7 @@ import {
 } from "./model.js";
 import { workflowsErrors } from "./error.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
-import { cutCharacters as firstCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 export { WORKFLOWS_DATABASE };
 
 interface WorkflowRow {
@@ -212,7 +212,7 @@ function chainJson(chain: WorkflowChain): string {
 }
 
 function normalizeTitle(value: string): string {
-  const title = firstCharacters(value.replace(/\s+/g, " ").trim(), 120);
+  const title = cutCharacters(value.replace(/\s+/g, " ").trim(), 120);
   return title || "未命名流程";
 }
 

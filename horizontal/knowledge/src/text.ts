@@ -1,5 +1,5 @@
 import type { KnowledgeSection } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutHead, cutTail } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** A section as the text has it; its note, if any, comes from the card. `own` is its text before its first subsection. */
 type TextSection = Omit<KnowledgeSection, "summary"> & { own: number };
@@ -114,8 +114,7 @@ const clipAround = (line: string, at: number) => {
   if (line.length <= LINE_CHARS) return line;
   const start = Math.max(0, Math.min(at - LEAD_CHARS, line.length - LINE_CHARS));
   // Both ends keep whole characters: the start may land on the low half of one, the end on the high half.
-  const head = line.slice(start, start + LINE_CHARS).replace(/^[\uDC00-\uDFFF]/u, "");
-  const kept = head.replace(/[\uD800-\uDBFF]$/u, "");
+  const piece = cutHead(line, start + LINE_CHARS), kept = cutTail(piece, piece.length - start);
   return `${start ? "…" : ""}${kept}${start + LINE_CHARS < line.length ? "…" : ""}`;
 };
 

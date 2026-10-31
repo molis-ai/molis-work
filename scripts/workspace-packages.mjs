@@ -363,6 +363,9 @@ export const WORKSPACE_PACKAGES = [
       "artifacts.version-repository.v1",
       "artifacts.opaque-content.v1",
       "artifacts.compatibility.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("modules/shelf", "@molis-ai/molis-work-contracts/platform/package", {

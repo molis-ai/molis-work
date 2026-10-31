@@ -102,7 +102,7 @@ assertHomeScopeAllowed(manifest, trust, execution)
 ### 3.8 不做
 
 - 项目范围动作对 Home 沙箱包可达（BL-710）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §8）。
-- 签名包的就地升级与回滚（BL-711，同 T2-FIX-05 的原因）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §3）。
+- 签名包的就地升级（BL-711，同 T2-FIX-05 的原因；回滚不做，用户 2026-10-30 定）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §3）。
 - 创作台生成的（`unsigned`）插件装进 Home（BL-712；创作台随 BL-377 重做，那时再定）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §4）。
 - Home 级沙箱包的页面进入工作台导航的位置与图标设计（BL-713，界面归插件内容的挂载点，不在这一片）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §5）。
 - `local_tools`（BL-626）、项目库、双实例。

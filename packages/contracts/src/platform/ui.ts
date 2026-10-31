@@ -241,6 +241,12 @@ export interface UiViewDeclaration {
   readonly view_id: string;
   readonly slot: UiViewSlot;
   readonly title: string;
+  /**
+   * `navigator` and `island` views only: the title in the English interface (BL-636), one line of English of at most 80 characters.
+   * Left out, the English interface shows `title`; the Chinese interface always does. A view that opens nothing from the rail has
+   * no title the shell draws, so a `side`, `settings` or `stage` view that declares it is refused.
+   */
+  readonly title_en?: string;
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**

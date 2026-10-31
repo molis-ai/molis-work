@@ -34,7 +34,7 @@ function directoryPlugins(directory: PluginDirectory, enabled: readonly string[]
   return railEntries(enabled, directory).map(entry => ({
     id: entry.id,
     surface: entry.surface,
-    label: pluginLabel(entry.id, entry.label, inEnglish),
+    label: pluginLabel(entry, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
     rail: entry.rail,
@@ -72,7 +72,7 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
   return islandEntries(enabled, directory).map(entry => ({
     id: entry.id,
     surface: entry.surface,
-    label: pluginLabel(entry.id, entry.label, inEnglish),
+    label: pluginLabel(entry, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
     rail: entry.rail,
@@ -345,10 +345,10 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options
   const marks = new Map(directory.map(entry => [entry.id, entry]));
   const companionsOf = (id: string): readonly string[] => marks.get(id)?.companions ?? [];
   const related = (ids: readonly string[]) => ids.filter(id => cardIds.has(id));
-  const rows = cards.map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => {
+  const rows = cards.map(card => ({ ...card, label: pluginLabel(card, english(primitives)) })).map(plugin => {
     const needs = related(companionsOf(plugin.id).filter(id => id !== plugin.id));
     const neededBy = dependentPlugins(plugin.id, cardIds, companionsOf);
-    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`;
+    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${escapeHtml(plugin.label)}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`;
   }).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>

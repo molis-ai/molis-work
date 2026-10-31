@@ -1,5 +1,5 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { cutHead } from "../whole-units.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** What a draft is made from, and for which creation entry. Plain data: building it reads nothing and writes nothing. */
 export interface DraftTarget {

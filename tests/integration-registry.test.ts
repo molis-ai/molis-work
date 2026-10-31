@@ -316,7 +316,7 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   const registry = new IntegrationRegistry();
   let asked = 0;
   assert.throws(() => registry.assertFree(carrying), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
-  await assert.rejects(registry.attach(carrying, () => { asked += 1; return null; }, () => true), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
+  await assert.rejects(registry.attach(carrying, "install-carrier", () => { asked += 1; return null; }, () => true), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
   assert.equal(asked, 0, "the package's instance is never asked for a contribution");
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "asana"), false);
   assert.equal(registry.integration("oauth-carrier"), undefined);
@@ -332,4 +332,67 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   assert.equal(owner?.publisher_id, "io.example");
   assert.ok(owner?.install_id);
   assert.deepEqual(owner?.method, flow);
+});
+
+// RAC-2447 (T-330, T-302 二审登记): two plugins cannot claim the same document source. The first holder keeps it, the refused one records
+// nothing, and the document import table (what `documentImports()` reads from `listIntegrations`) is unchanged.
+test("RAC-2447 a document_import source already held by another plugin is refused, and the holder keeps it", async () => {
+  const registry = new IntegrationRegistry();
+  const first = fixturePlugin("io.molis.work.example.docs", [service("docs-service")], [
+    { integration_id: "docs-notes", kind: "document_import", service_id: "docs-service", document_source: "notes", connection_methods: ["token"] },
+  ]);
+  await registry.enable(first);
+  const documents = () => Object.fromEntries(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source, entry.declaration.service_id]));
+  assert.deepEqual(documents(), { notes: "docs-service" });
+  const rival = fixturePlugin("io.molis.work.example.docs-rival", [service("rival-docs-service")], [
+    { integration_id: "rival-notes", kind: "document_import", service_id: "rival-docs-service", document_source: "notes", connection_methods: ["token"] },
+  ]);
+  await assert.rejects(registry.enable(rival), (error: unknown) => {
+    assert.equal((error as { code?: string }).code, "plugin.integration_declaration_conflict");
+    assert.match((error as Error).message, /notes/u);
+    assert.match((error as Error).message, /io\.molis\.work\.example\.docs/u);
+    return true;
+  });
+  assert.deepEqual(documents(), { notes: "docs-service" }, "the refused plugin records nothing and the first source stays");
+  assert.equal(registry.integration("rival-notes"), undefined);
+  // The same refusal on the signed-package path.
+  await assert.rejects(registry.attach(rival.manifest, "fixture-docs-rival-install", () => null, () => true), { code: "plugin.integration_declaration_conflict" });
+  assert.deepEqual(documents(), { notes: "docs-service" });
+});
+
+// RAC-2448 (T-330): a plugin declaring its own source again is not a conflict; `release` frees it for another plugin; and one Manifest
+// cannot write the same document_source in two integrations.
+test("RAC-2448 a plugin's own source is not a conflict, release frees it, and one Manifest declares a source once", async () => {
+  const registry = new IntegrationRegistry();
+  const packaged = manifestOf("io.molis.work.example.packaged", [service("packaged-service")], [
+    { integration_id: "packaged-notes", kind: "document_import", service_id: "packaged-service", document_source: "packaged", connection_methods: ["token"] },
+  ]);
+  await registry.attach(packaged, "fixture-docs-packaged-install", () => null, () => true);
+  registry.assertFree(packaged);
+  assert.throws(() => registry.assertFree(manifestOf("io.molis.work.example.same", [service("same-service")], [
+    { integration_id: "same-one", kind: "document_import", service_id: "same-service", document_source: "notes", connection_methods: ["token"] },
+    { integration_id: "same-two", kind: "document_import", service_id: "same-service", document_source: "notes", connection_methods: ["token"] },
+  ])), { code: "plugin.integration_declaration_conflict" });
+  await registry.detach("io.molis.work.example.packaged");
+  const second = fixturePlugin("io.molis.work.example.after", [service("after-service")], [
+    { integration_id: "after-packaged", kind: "document_import", service_id: "after-service", document_source: "packaged", connection_methods: ["token"] },
+  ]);
+  await registry.enable(second);
+  assert.deepEqual(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source, entry.plugin_id]),
+    [["packaged", "io.molis.work.example.after"]]);
+});
+
+// T-134 (BL-530 前置): a connection made for a package's service is pinned to the package that declared it. The registry names it from
+// what the Home attached, the install id included; a service the Host's build or the platform declares is pinned to nothing.
+test("RAC-2521 connectionDeclarer names the attached package and the install the Home gave it; a built or platform service has none, and none after detach", async () => {
+  const registry = new IntegrationRegistry({ platform: [service("host-card")] });
+  await registry.enable(fixturePlugin("io.molis.work.example.built", [service("built")], []));
+  const packaged = manifestOf("io.molis.work.example.packaged", [service("packaged")], [{ integration_id: "packaged", kind: "source", service_id: "packaged" }]);
+  assert.equal(await registry.attach(packaged, "install-from-home-record", () => null, () => true), true);
+  assert.deepEqual(registry.connectionDeclarer("packaged"), { plugin_id: "io.molis.work.example.packaged", install_id: "install-from-home-record", plugin_title: "io.molis.work.example.packaged" });
+  assert.equal(registry.connectionDeclarer("built"), undefined, "the Host's build declares it: nothing to pin");
+  assert.equal(registry.connectionDeclarer("host-card"), undefined, "the platform declares it: nothing to pin");
+  assert.equal(registry.connectionDeclarer("nobody"), undefined);
+  await registry.detach("io.molis.work.example.packaged");
+  assert.equal(registry.connectionDeclarer("packaged"), undefined, "a detached package declares nothing");
 });

@@ -7,6 +7,8 @@ export interface AdvancePromptOptions {
   route(path: string): string;
   request: TerminalRequest;
   goalId(): string;
+  /** The prompt's route with `:goalId` for the Goal's id, as the pane was given it: this client names no plugin. */
+  promptRoute(): string;
   guard: TerminalGuard;
   current(): PanelRecord | null;
   sendPty(message: Record<string, unknown>): Promise<void>;
@@ -14,20 +16,20 @@ export interface AdvancePromptOptions {
   showToast(message: string, error?: boolean): void;
 }
 
-/** The "advance this Goal" prompt: read from the Host, typed into the live panel (never sent unless asked), or copied. */
+/** The "advance this Goal" prompt: read from the route the pane names, typed into the live panel (never sent unless asked), or copied. */
 export function createAdvancePrompt(options: AdvancePromptOptions) {
-  const { text: L, route, goalId, guard } = options;
+  const { text: L, route, goalId, promptRoute, guard } = options;
   let promptCache = "";
 
   const loadAdvancePrompt = async (requestedGoalId?: string) => {
-    const id = requestedGoalId || goalId();
-    if (!id) throw new Error(L("打开失败"));
+    const id = requestedGoalId || goalId(), path = promptRoute();
+    if (!id || !path) throw new Error(L("打开失败"));
     if (guard.readOnly()) throw new Error(guard.parentReadOnlyMessage());
     if (requestedGoalId && requestedGoalId !== goalId()) {
       throw new Error(L("当前页面已经切到另一条 Goal，请回到终端所属的 Goal 再操作。"));
     }
     const payload = await options.request<{ prompt?: string } | null>(
-      route(`/api/goals/${encodeURIComponent(id)}/advance-prompt`),
+      route(path.replace(":goalId", encodeURIComponent(id))),
       { fallback: L("打开失败") },
     );
     const text = payload?.prompt || promptCache;

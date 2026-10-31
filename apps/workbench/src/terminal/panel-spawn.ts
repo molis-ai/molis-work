@@ -28,7 +28,7 @@ const spawnMessage = (panel: PanelRecord, mode: SpawnMode, size: { cols: number;
     cwd: spawn?.cwd ?? panel.cwd,
     env: spawn?.env ?? {
       MOLIS_WORK_PANEL_ID: panel.panel_id,
-      MOLIS_WORK_GOAL_ID: panel.goal_id,
+      MOLIS_WORK_FOCUS_ID: panel.goal_id,
       MOLIS_WORK_WORK_CONTEXT_ID: panel.work_context_id,
       MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
       MOLIS_WORK_RUNTIME_ID: panel.runtime_kind,

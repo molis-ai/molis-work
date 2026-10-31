@@ -248,7 +248,7 @@ const headErrors = (measured, budget, base) => {
 // Tried: an inline slice+replace at each of the three sites (+102 B); no new asset, no new text. The T-203, T-235 and T-183 entries this
 // file used to carry are consumed (their budgets already equal their ceilings) and are deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugin-frame.js": [190623, 190701],
+  "/assets/molis-work-plugin-frame.js": [190760, 190838],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

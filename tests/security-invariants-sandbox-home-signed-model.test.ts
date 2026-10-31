@@ -197,13 +197,16 @@ test("BL-491 RAC-2654 a package that asks for model settings or image generation
   const r = await rig(t);
   await assert.rejects(r.install(bundle("project")), /安装没有完成/u);
   // The install error does not carry the cause, so the guard itself is asked: a project's instance of a package with either effect never starts, and says why.
-  const contract = { operations: [{ id: "draw", kind: "command" as const, effects: { imageGeneration: ["read"] as Array<"read"> }, input: { type: "null" }, output: { type: "null" } }] };
-  const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
-  const definition = sandboxedPluginDefinition(release, { imageGeneration: ["read"] }, []);
   const context = { project_id: "p", install_id: "refusal", installation_generation: "1", requireGrant: () => {} } as Partial<PluginStartContext> as PluginStartContext;
-  await assert.rejects(definition.start(context), (error: { code?: string; message?: string }) => error.code === "plugin.declaration_invalid" && /模型设置和图片生成只给装在 Home 里的插件/u.test(error.message ?? ""));
-  // The same package without those two effects installs in the project: the refusal is theirs.
-  await r.install(bundle("project", { storage: ["read", "write"], model: ["invoke"] }, "io.molis.work.example.control"));
+  for (const effects of [{ imageGeneration: ["read"] }, { modelSettings: ["read"] }] satisfies SandboxEffects[]) {
+    const contract = { operations: [{ id: "draw", kind: "command" as const, effects, input: { type: "null" }, output: { type: "null" } }] };
+    const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
+    await assert.rejects(sandboxedPluginDefinition(release, effects, []).start(context), (error: { code?: string; message?: string }) =>
+      error.code === "plugin.declaration_invalid" && /模型设置和图片生成只给装在 Home 里的插件/u.test(error.message ?? ""), JSON.stringify(effects));
+  }
+  // The same package without those two effects, and with the rest of them (the model and the approved domain), installs in the project: the refusal is theirs.
+  const { modelSettings: _settings, imageGeneration: _images, ...rest } = EFFECTS;
+  await r.install(bundle("project", rest, "io.molis.work.example.control"));
   assert.equal(r.h.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID), false);
 });
 

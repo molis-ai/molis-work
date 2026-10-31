@@ -111,15 +111,19 @@ test("BL-491 RAC-2632 the Host's client binds and generates only through a conne
   assert.equal(tables(), before);
   // Bound by something other than the package (the person's own use of the namespace), a generate still needs the pin to match the call's origin.
   withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(INSTALL), slotId: "main", serviceId: "image-api", connectionId: elsewhere }));
-  const request = { slot_id: "main", base_url: r.url, expected_revision: "unused", protocol: "openai-images" as const, model: "fixture", prompt: "一只猫" };
-  await assert.rejects(r.inAction(image => image.generate(request)), notAuthorized, "generate: pinned elsewhere");
+  // Each generate carries the revision the connection really has (asked first), so the only thing that can refuse it is the pin rule.
+  const generate = async () => r.inAction(async image => {
+    const state = await image.inspect({ slot_id: "main", base_url: r.url });
+    return image.generate({ slot_id: "main", base_url: r.url, expected_revision: state.revision, protocol: "openai-images", model: "fixture", prompt: "一只猫" });
+  });
+  await assert.rejects(generate(), notAuthorized, "generate: pinned elsewhere");
   // Bound by the person's own use of the namespace to a connection nobody has used yet: generate must not be the first use, whatever address it names.
   withConnectorConnections(r.home, store => store.unbind("home", sandboxImageNamespace(INSTALL), "main"));
   withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(INSTALL), slotId: "main", serviceId: "image-api", connectionId: never }));
-  await assert.rejects(r.inAction(image => image.generate(request)), notAuthorized, "generate: bound to a connection that was never pinned");
+  await assert.rejects(generate(), notAuthorized, "generate: bound to a connection that was never pinned");
   assert.equal(r.targetOf(never), null, "generate did not pin it");
   withConnectorConnections(r.home, store => store.unbind("home", sandboxImageNamespace(INSTALL), "main"));
-  await assert.rejects(r.inAction(image => image.generate(request)), notAuthorized, "generate: nothing bound");
+  await assert.rejects(generate(), notAuthorized, "generate: nothing bound");
   assert.equal(tables(), before, "no refusal pinned, bound or moved a connection");
   assert.deepEqual(r.requests, [], "nothing was sent to the provider");
 });

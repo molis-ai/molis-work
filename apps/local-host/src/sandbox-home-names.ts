@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 
 // The names a sandboxed package's model settings and image connections live under (BL-491). The package never writes them: the Host derives them from the
-// installation id (the one key every piece of a package's data has: its files, its model choice and these), 32 hex digits of its SHA-256 (128 bits), so two installations never share one and a package cannot choose one. A library of an installed plugin may not
-// be named with a reserved prefix (`reservedHomeName`, used by the ledger's `holderOf` for both opening a library and listing the ledger), so no package
+// installation id (the one key every piece of a package's data has: its files, its model choice and these), 32 hex digits of its SHA-256 (128 bits), so two
+// installations never share one and a package cannot choose one. A library of an installed plugin may not be named with a reserved prefix
+// (`reservedHomeName`, used by the ledger's `holderOf` for both opening a library and listing the ledger), so no package
 // can squat a name the platform derives for another.
 
 /** The namespace the person's image connections of this plugin are bound under (`connectors.db`, scope `home`). */

@@ -39,7 +39,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
     const item = first.feed.commands.ingest({ project_id: "project", source_id: "source", source_kind: "github",
       source_label: "GitHub", external_id: "issue", title: "Original issue", summary: "Original summary",
       occurred_at: "2026-09-05T00:00:00Z", attention: { reason: "source_rule", detail: {} } }).item;
-    const linked = first.feed.commands.linkGoal("project", item.item_id, "goal", "processing");
+    const linked = first.feed.commands.linkGoal("project", item.item_id, "goal", "promoted");
     const scope = { kind: "personal" as const, id: "project" };
     first.ledger.commands.put({ actor_id: "user", scope }, { key: "output", type: "goal.output", cause: "confirmed",
       source: { module: "goals", id: "goal", version: null, scope },

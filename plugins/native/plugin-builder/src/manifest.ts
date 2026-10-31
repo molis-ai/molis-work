@@ -5,10 +5,10 @@ export const BUILDER_PLUGIN_ID='io.molis.work.plugin-builder';
 export const BUILDER_PROJECT_PLUGIN_ID='plugin-builder';
 export const BUILDER_UI_ID='io.molis.work.plugin-builder.ui.v1';
 export const builderManifest:PluginManifest={
- schema_version:2,host_api_version:2,plugin_id:BUILDER_PLUGIN_ID,version:'0.3.0',name:'插件创作工作台',summary:'用自然语言设计、构建并使用自己的插件。',kind:'app',
+ schema_version:2,host_api_version:2,plugin_id:BUILDER_PLUGIN_ID,version:'0.3.0',name:'插件创作工作台',name_en:'Plugin Studio',summary:'用自然语言设计、构建并使用自己的插件。',kind:'app',
  publisher:{publisher_id:'molis',signature:'official-plugin-builder-binding'},entrypoints:[{deployment:'local',entrypoint:'./index.js'}],
  permissions:[{permission:'storage:private',required:true,reason:'保存创作草稿、已发布定义和隔离的试用数据'}],
  capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectSettingsCapabilities.workspaces].map(x=>x.capability_id)},
  artifacts:{produces:[],consumes:[]},
- ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',contribution_id:BUILDER_UI_ID,icon:'wand',hue:'indigo',order:57,rail:'extend'}]},
+ ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',title_en:'Plugin Studio',contribution_id:BUILDER_UI_ID,icon:'wand',hue:'indigo',order:57,rail:'extend'}]},
 };

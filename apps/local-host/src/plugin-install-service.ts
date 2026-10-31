@@ -45,6 +45,8 @@ export interface PluginInstallPorts {
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
   homeInstalled?(): Promise<InstalledPluginEntry[]>;
   homeRegrant?(installId: string, permission: string, granted: boolean): Promise<void>;
+  /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
+  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
   now?(): string;
 }
 
@@ -183,6 +185,13 @@ export class PluginInstallService {
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
   async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, who: { project_id: string }): Promise<string> {
     return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data });
+  }
+
+  /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
+  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }): Promise<string> {
+    const { homeControl } = this.ports;
+    if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
+    return homeControl(input.plugin_id, action, { keep_data: input.keep_data });
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }

@@ -105,6 +105,8 @@ export interface PluginInstalledView {
   readonly permissions: readonly PluginInstalledPermissionView[];
   readonly jobs: readonly PluginJobView[];
   readonly consents: readonly PluginConsentRecord[];
+  /** Why the Host's plugin host could not start this installation when it last tried (its kept package missing, its start failing); null when nothing is wrong with it. The `state` is the record's own. */
+  readonly recovery_error: string | null;
 }
 
 /** A background job a Manifest declares (`background.jobs`). */

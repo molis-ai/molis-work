@@ -91,7 +91,7 @@ test("native event providers project original Feed, Inbox and source state", asy
         preview: "附件预览", content_hash: null, content_ref: retained.contentRef, content_available: true, content_type: "text/markdown",
         character_count: retainedText.length, captured_at: now.toISOString(), provenance: {}, selected_for_context: true } }).item;
     const goal = boardSnapshot(runtime.store, reference.project_id).goals[0]!;
-    feed.linkGoal(reference.project_id, ordinary.item_id, goal.goal_id, "processing");
+    feed.linkGoal(reference.project_id, ordinary.item_id, goal.goal_id, "promoted");
     const activeEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, active.item_id, "manual").entry;
     const doneEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, done.item_id, "manual").entry;
     feed.setInboxEntryStatus(reference.project_id, doneEntry.entry_id, "done", doneEntry.revision); await feed.flushPendingJudgments();

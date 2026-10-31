@@ -26,7 +26,7 @@
 
 - 管理 MCP 的工具表是静态的，列工具时还没有调用上下文，要的是说明和输入 schema，不只是 id；
 - 每次调用前先查目录，多一次读，取消也要多管一段（batch-28 的红就出在这里，见 BL-501 spec）；
-- 已有先例：`goalPluginActions`（插件受众的五个动作：list、contract、state、progress、receipt）。它原来在 `packages/contracts/src/modules/goal-actions.ts`，T-112 第二本（#1527，`ac5735fb2`）已把它搬进 Goals 插件 `plugins/native/goals/src/contract/goal-actions.ts`，现在只有 Goals 自己的两个动作注册文件（`plugins/native/goals/src/actions.ts`、`event-command-actions.ts`）引用它；Coding 改用自己的 `plugins/native/coding/src/goals-actions.ts`，按 capability id 声明这五个动作。`packages/contracts` 里已没有 `goalPluginActions` 或 `goalAction`。
+- 已有先例：`goalPluginActions`（插件受众的五个动作：list、contract、state、progress、receipt）。它原来在 `packages/contracts/src/modules/goal-actions.ts`，T-112 第二本（#1527，`ac5735fb2`）已把它搬进 Goals 插件 `plugins/native/goals/src/contract/goal-actions.ts`，现在生产代码里只有 Goals 自己的两个动作注册文件（`plugins/native/goals/src/actions.ts`、`event-command-actions.ts`）引用它；Coding 改用自己的 `plugins/native/coding/src/goals-actions.ts`，按 capability id 声明这五个动作。`packages/contracts` 里已没有 `goalPluginActions` 或 `goalAction`。
 
 具体：
 

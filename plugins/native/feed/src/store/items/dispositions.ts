@@ -37,11 +37,7 @@ export class FeedDispositions {
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
       `, disposition, at, projectId, itemId);
-      settleActiveAttention(this.attention, projectId, itemId, disposition === "processing"
-        ? "in_progress"
-        : disposition === "archived"
-          ? "dismissed"
-          : "done");
+      settleActiveAttention(this.attention, projectId, itemId, disposition === "archived" ? "dismissed" : "done");
       this.records.appendEvent(
         projectId,
         itemId,
@@ -108,7 +104,7 @@ export class FeedDispositions {
     projectId: string,
     itemId: string,
     goalId: string,
-    disposition: "promoted" | "processing",
+    disposition: "promoted",
   ): FeedItemRecord {
     return this.records.db.transaction(() => {
       const current = this.records.get(projectId, itemId);
@@ -123,13 +119,13 @@ export class FeedDispositions {
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
       `, disposition, at, projectId, itemId);
-      settleActiveAttention(this.attention, projectId, itemId, disposition === "processing" ? "in_progress" : "done");
+      settleActiveAttention(this.attention, projectId, itemId, "done");
       this.records.appendEvent(
         projectId,
         itemId,
-        disposition === "processing" ? "feed_item.processing" : "feed_item.promoted",
-        disposition === "processing" ? "feed_item.processing_started" : "feed_item.promoted",
-        disposition === "processing" ? "用户从 Feed Item 开始处理" : "用户把 Feed Item 升格为 Goal",
+        "feed_item.promoted",
+        "feed_item.promoted",
+        "用户把 Feed Item 升格为 Goal",
         { goal_id: goalId },
         at,
       );

@@ -4,7 +4,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@mol
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginInstallActions, pluginInstallProvider, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginControlActions, pluginInstallActions, pluginInstallProvider, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 
 // PG-002, S-94 (docs/system/SECURITY-INVARIANTS.md): `plugins.permissions.set@1` is the person's own act in a project's settings. RAC-946 only the
@@ -26,7 +26,8 @@ function fixture() {
   manifest.permissions = [...manifest.permissions, { permission: NETWORK, required: false, reason: "查询天气" }];
   const calls: unknown[][] = [];
   const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, installInProject: async () => undefined, installInHome: async () => undefined,
-    installed: async () => [{ record: record(["storage:private"]), manifest }], regrant: async (...args) => { calls.push(args); } });
+    installed: async () => [{ record: record(["storage:private"]), manifest }], regrant: async (...args) => { calls.push(args); },
+    homeControl: async (...args) => { calls.push(args); return "disabled"; } });
   const actions = new ActionService();
   actions.registerProvider(pluginInstallProvider(service));
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: "project-one", permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
@@ -119,4 +120,33 @@ test("RAC-957 S-94 the Home's own switch is the person's alone and needs the Hos
   // The project door does not take a Home call, and the Home door's action is not the project's.
   await assert.rejects(actions.invoke(home({ user_action: text }), { capability_id: pluginInstallActions.setPermission.capability_id, version: 1 }, input), error => error instanceof ActionError, "the project action wants a project");
   assert.deepEqual(calls, [], "nothing reached the Runtime");
+});
+
+test("RAC-2603 S-94 switching a Home package off or on, or taking it off, is the person's alone and needs the Host settings door's credential: no other audience, no other door's text, no project, no input that names who or where", async () => {
+  const { actions, calls, caller } = fixture();
+  const text = { source: "web", conversation_ref: "web:settings:home-plugin-permissions", message_ref: "web:request:forged" };
+  const home = (extra: Partial<ActionCallContext> = {}) => caller({ project_id: null, ...extra });
+  for (const name of ["homeDisable", "homeEnable", "homeUninstall"] as const) {
+    const target = { capability_id: pluginControlActions[name].capability_id, version: 1 };
+    const input = { plugin_id: PACKAGE_PLUGIN_ID, ...(name === "homeUninstall" ? { keep_data: true } : {}) };
+    assert.equal((await actions.discover(home())).some(view => view.capability_id === target.capability_id), true, `${name}: the person sees it`);
+    for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
+      assert.deepEqual((await actions.discover(home({ audience }))).filter(view => view.capability_id === target.capability_id), [], `${name}: ${audience} does not see it`);
+      await assert.rejects(actions.invoke(home({ audience, user_action: text }), target, input), error => error instanceof ActionError, `${name}: ${audience} cannot call it`);
+    }
+    const cases: Array<[string, Partial<ActionCallContext>]> = [
+      ["no user_action", {}],
+      ["the credential's text written by hand", { user_action: text }],
+      ["the same text, frozen", { user_action: Object.freeze({ ...text }) }],
+      ["the project door's text", { user_action: { source: "web", conversation_ref: "web:settings:plugin-permissions", message_ref: "web:request:1" } }],
+      ["the Home consent door's text", { user_action: { source: "web", conversation_ref: "web:settings:plugin-consents", message_ref: "web:request:1" } }],
+      ["a call made on the person's behalf", { delegated_by: "io.molis.work.example", user_action: text }],
+    ];
+    for (const [label, extra] of cases) await assert.rejects(actions.invoke(home(extra), target, input), refused("actions.forbidden"), `${name}: ${label}`);
+    await assert.rejects(actions.invoke(caller({ user_action: text }), target, input), error => error instanceof ActionError, `${name}: a call inside a project is another scope`);
+    for (const extra of [{ project_id: "project-two" }, { user_action: text }, { actor_id: LOCAL_PERSON_ACTOR_ID }]) {
+      await assert.rejects(actions.invoke(home(), target, { ...input, ...extra }), refused("actions.input_invalid"), `${name}: ${JSON.stringify(extra)}`);
+    }
+  }
+  assert.deepEqual(calls, [], "nothing reached the Home's plugin host");
 });

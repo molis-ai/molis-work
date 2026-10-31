@@ -144,8 +144,15 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   assert.equal((await read('/bootstrap')).directions.length,3);
   await click('[data-alc-action="new"]');await fill('description','浏览器验收缺模型也保存方向');await click('[data-alc-submit]');
   // The run is recorded as failed for want of a model; the card then says so once, with the way to settings: not its status, its waiting label or its internal code (E-7).
-  for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
-  await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);
+  // RAC-2756: reaching the backend wait limit must fail at the backend assertion, before diagnosing the child DOM.
+  let pendingNew=await read('/bootstrap');
+  for(let n=0;n<100&&pendingNew.explorations[0]?.status!=='failed';n++){await new Promise(r=>setTimeout(r,100));pendingNew=await read('/bootstrap');}
+  assert.equal(pendingNew.explorations[0]?.status,'failed','the new direction run reaches its real backend terminal state');
+  const terminalUi=async()=>{
+    try{await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);}
+    catch(error){const state=await evaluate(`(()=>{const root=document.querySelector(${text(root)}),el=document.querySelector(${text(content)});return {object:JSON.parse(root.dataset.assistantContext).object?.id,hints:(el?.innerText||'').split('还没有可用模型').length-1,progress:el?.querySelectorAll('.alc-progress').length}})()`);throw new Error('RAC-2756 terminal child DOM: '+JSON.stringify(state),{cause:error});}
+  };
+  await terminalUi();
   const card=async()=>evaluate<string>(`document.querySelector(${text(content)}).innerText`);
   // J5C-01/J5C-03: the real page keeps one actionable hint and hides its machine code.
   const noModelCard=async()=>{const shown=await card();assert.match(shown,/还没有可用模型/);assert.match(shown,/打开模型设置/);assert.doesNotMatch(shown,/alchemist\.runtime_not_configured|等待执行|失败|这次炼化未完成/);assert.equal(shown.split('还没有可用模型').length-1,1,'the hint is shown once');};
@@ -155,7 +162,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   let retried=await read('/bootstrap');
   for(let n=0;n<100&&(retried.explorations[0]?.id===saved.explorations[0].id||retried.explorations[0]?.status!=='failed');n++){await new Promise(r=>setTimeout(r,100));retried=await read('/bootstrap');}
   assert.notEqual(retried.explorations[0]?.id,saved.explorations[0].id,'the retry creates its own run');assert.equal(retried.explorations[0]?.status,'failed');
-  await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);await noModelCard();
+  await terminalUi();await noModelCard();
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');
   const screenshotDirectory = process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS ?? specEvidenceDirectory('specs/archive/alchemist-plugin/verification');

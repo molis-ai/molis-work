@@ -14,9 +14,9 @@ const MODEL_READ = "model:read", MODEL_INVOKE = "model:invoke";
 /** The folder inside an installation's folder that holds the choice; a declared files folder cannot be named like this (it starts with a letter or digit). */
 export const SANDBOX_MODEL_SETTINGS_FOLDER = ".model-settings";
 
-export function sandboxModelDeclaration(pluginId: string, installId: string): ConsumerModelConfigurationDeclaration {
+export function sandboxModelDeclaration(installId: string): ConsumerModelConfigurationDeclaration {
   return { preference: { store_name: join("plugin-files", installId, SANDBOX_MODEL_SETTINGS_FOLDER), file_name: "preference.json" },
-    custom_provider: { provider_id: sandboxProviderId(pluginId), display_name: "沙箱插件专用" } };
+    custom_provider: { provider_id: sandboxProviderId(installId), display_name: "沙箱插件专用" } };
 }
 
 /** The two names of a choice, and nothing else: an address, a connection, an API format, an unknown member or the reserved provider id is refused before anything is read or written. */
@@ -40,7 +40,7 @@ export function withSandboxModelSettings(model: PluginModelClient | undefined, h
   if (!model || !home || definition.execution !== "sandbox") return model;
   const declared = new Set(definition.manifest.permissions.map(entry => entry.permission));
   if (!declared.has(MODEL_READ) && !declared.has(MODEL_INVOKE)) return model;
-  const declaration = sandboxModelDeclaration(definition.manifest.plugin_id, context.install_id);
+  const declaration = sandboxModelDeclaration(context.install_id);
   const port = createConsumerModelConfiguration(home.directory, declaration);
   const permit = (permission: string) => { assertActive(); if (!declared.has(permission)) throw modelConfigurationInvalid("清单没有声明模型设置需要的权限"); context.requireGrant(permission); };
   const configuration: PluginModelConfigurationClient = Object.freeze({

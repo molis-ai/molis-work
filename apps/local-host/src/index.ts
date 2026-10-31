@@ -23,6 +23,8 @@ export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";
+export { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+export { pluginModelFor } from "./plugin-model-service.js";
 export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
 export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
 export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";

@@ -59,27 +59,13 @@ export interface InstalledPluginActions {
   dispose(): void;
 }
 
-/**
- * What the Runtime's scope of a call carries. The registered action stays `permissions: []`, so no caller has to hold the model or image permissions the
- * plugin's own code spends (`permissions` is what a caller must hold, not what the provider may use). The scope's copies name the permissions the operation's
- * contract effects derive (`sandboxOperationPermissions`), and the Runtime's clients still ask the Manifest's declaration and the person's grant each time
- * (BL-491, RAC-2628).
- */
-function scoped(definition: ActionDefinition, operation: PublishedOperations['design']['contract']['operations'][number], caller: ActionExecutionContext,
-  plugin: PluginInstance): { install_id: string; installation_generation: string; definition: ActionDefinition; caller: ActionExecutionContext } {
-  const permissions = sandboxOperationPermissions(operation.effects);
-  if (!permissions.length) return { install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller };
-  return { install_id: plugin.install_id, installation_generation: plugin.installation_generation,
-    definition: { ...definition, action: { ...definition.action, permissions } }, caller: { ...caller, permissions: [...new Set([...caller.permissions, ...permissions])] } };
-}
-
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: () => ActionAvailability, plugin?: PluginInstance): InstalledPluginActions {
   const providerId = 'plugin:' + release.pluginId, title = release.design.title;
   const definitions: ActionDefinition[] = release.design.contract.operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version, provider_id: providerId,
     operation: operation.kind === 'query' ? 'query' : 'command',
     action: { local_id: operation.id, title: title + ' · ' + (operation.description || operation.id), description: '插件「' + title + '」的功能：' + (operation.description || operation.id),
-      kind: operation.kind === 'query' ? 'query' : 'operation', scope: actions.project_id === null ? 'home' : 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
+      kind: operation.kind === 'query' ? 'query' : 'operation', scope: actions.project_id === null ? 'home' : 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: sandboxOperationPermissions(operation.effects), subject_kinds: [],
       input_schema: operation.input as unknown as ActionSchema, output_schema: operation.output as unknown as ActionSchema },
   }));
   const handlers: ActionHandlerBinding[] = release.design.contract.operations.map(operation => ({
@@ -120,7 +106,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
           // The target owns the private write; its Runtime scope retains the original caller checks.
           handlers: [{ ...handlers[index]!, handle: (caller, input) => {
             const execute = () => handlers[index]!.handle(caller, input);
-            return plugin ? runInPluginAction(scoped(definition, release.design.contract.operations[index]!, caller, plugin), execute) : execute();
+            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller }, execute) : execute();
           } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { cost, dispose: unregister }); changed = true;
       });

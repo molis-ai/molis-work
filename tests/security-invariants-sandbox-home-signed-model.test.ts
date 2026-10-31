@@ -3,11 +3,12 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { sandboxDerivedPermissions, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SANDBOX_PACKAGE_FILES, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { effectsFromContract } from "@molis-ai/molis-work-plugin-sandbox";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
@@ -67,7 +68,7 @@ async function rig(t: test.TestContext) {
     return created.connection_id;
   };
   const projectClient = h.host.actionClient(project.reference), client = h.host.homeActionClient();
-  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] };
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [...ALL] };
   const install = async (which = bundle("home")) => {
     const preview = await projectClient.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle: which }) as { preview_id: string; effects: SandboxEffects; preview: { permissions: Array<{ permission: string }> } };
     await projectClient.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
@@ -77,6 +78,7 @@ async function rig(t: test.TestContext) {
     const record = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!, platform = await h.host.homePlugins!.ready();
     // The person approves each optional row the Manifest derived.
     for (const permission of ALL) await platform.runtime.regrant(record.install_id, permission, true);
+    installation = record.install_id;
     return record.install_id;
   };
   const ask = async (command: Record<string, unknown>) => {
@@ -85,7 +87,8 @@ async function rig(t: test.TestContext) {
     const [row] = await operate(client, caller, views, "notes.list", {}) as Array<{ text: string }>;
     return JSON.parse(row!.text) as unknown;
   };
-  const binding = () => withConnectorConnections(h.home, store => store.binding("home", sandboxImageNamespace(PACKAGE_PLUGIN_ID), "main")?.connection_id ?? null);
+  let installation = "";
+  const binding = () => withConnectorConnections(h.home, store => store.binding("home", sandboxImageNamespace(installation), "main")?.connection_id ?? null);
   const origin = (id: string) => withConnectorConnections(h.home, store => store.targetOrigin(id));
   const uninstall = (keep_data: boolean) => h.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data });
   return { h, install, approve, ask, account, binding, origin, uninstall };
@@ -139,7 +142,7 @@ test("BL-491 RAC-2630 a package cannot save an address, a connection, a format, 
   await r.install();
   const installId = await r.approve();
   const preference = join(r.h.home, "plugin-files", installId, ".model-settings", "preference.json");
-  const reserved = sandboxProviderId(PACKAGE_PLUGIN_ID);
+  const reserved = sandboxProviderId(installId);
   for (const choice of [{ provider_id: "fixture", model_id: "model", base_url: "https://evil.example/v1" }, { provider_id: "fixture", model_id: "model", connection_id: "c" },
     { provider_id: "fixture", model_id: "model", api_format: "openai-chat-completions" }, { provider_id: "fixture", model_id: "model", surprise: 1 }, { provider_id: reserved, model_id: "model" },
     { provider_id: "fixture", model_id: 7 }, { provider_id: "nobody", model_id: "model" }, { provider_id: "fixture", model_id: "not-enabled" }]) {
@@ -193,6 +196,12 @@ test("BL-491 RAC-2635 an uninstall that keeps the data keeps the model choice an
 test("BL-491 RAC-2654 a package that asks for model settings or image generation is refused in a project: they are the Home's", mac, async t => {
   const r = await rig(t);
   await assert.rejects(r.install(bundle("project")), /安装没有完成/u);
+  // The install error does not carry the cause, so the guard itself is asked: a project's instance of a package with either effect never starts, and says why.
+  const contract = { operations: [{ id: "draw", kind: "command" as const, effects: { imageGeneration: ["read"] as Array<"read"> }, input: { type: "null" }, output: { type: "null" } }] };
+  const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
+  const definition = sandboxedPluginDefinition(release, { imageGeneration: ["read"] }, []);
+  const context = { project_id: "p", install_id: "refusal", installation_generation: "1", requireGrant: () => {} } as Partial<PluginStartContext> as PluginStartContext;
+  await assert.rejects(definition.start(context), (error: { code?: string; message?: string }) => error.code === "plugin.declaration_invalid" && /模型设置和图片生成只给装在 Home 里的插件/u.test(error.message ?? ""));
   // The same package without those two effects installs in the project: the refusal is theirs.
   await r.install(bundle("project", { storage: ["read", "write"], model: ["invoke"] }, "io.molis.work.example.control"));
   assert.equal(r.h.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID), false);

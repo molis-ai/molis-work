@@ -76,7 +76,7 @@ export function discardInstallationOwnerData(scope: SandboxOwnerFilesScope, reco
   if (!record.retain_private_data && !deleteInstallationData) throw pluginErrors.state_invalid("Plugin 的宿主没有本安装的 KV 数据清理能力，暂不能重装");
   if (record.execution === "sandbox") {
     removeSandboxOwnerFiles(scope, record.install_id);
-    if (scope.home && scope.project_id === null) forgetSandboxImageBindings(scope.home.directory, record.plugin_id);
+    if (scope.home && scope.project_id === null) forgetSandboxImageBindings(scope.home.directory, record.install_id);
   }
   if (!record.retain_private_data) deleteInstallationData?.(record.install_id);
   forgetInstallationRecords(scope, record, true);

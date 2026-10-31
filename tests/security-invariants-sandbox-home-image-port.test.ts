@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginImageGenerationClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { MolisWorkLocalHost, forgetSandboxImageBindings, homeStores, installedLibrarySnapshots, openSandboxHomeLibrary, reservedHomeName, sandboxDerivedPermissions, sandboxImageGenerationFor,
+import { MolisWorkLocalHost, forgetSandboxImageBindings, homeStores, pluginImageGenerationFor, pluginModelFor, installedLibrarySnapshots, openSandboxHomeLibrary, reservedHomeName, sandboxDerivedPermissions, sandboxImageGenerationFor,
   sandboxImageNamespace, sandboxModelDeclaration, sandboxPluginManifest, sandboxProviderId, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runInPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
@@ -19,27 +19,27 @@ import { IMAGE_PNG } from "./fixtures/images-runtime.js";
 // used it at, and a package can neither be the first to use it nor move it. The broker's half is tests/security-invariants-sandbox-model-image-broker.test.ts; real packages in real
 // processes are tests/security-invariants-sandbox-home-signed-model.test.ts.
 
-const PLUGIN = "io.molis.work.example.imageport", OTHER = "io.molis.work.example.imageother";
+const PLUGIN = "io.molis.work.example.imageport", OTHER = "io.molis.work.example.imageother", INSTALL = "image-port", OTHER_INSTALL = "image-other";
 const refused = (code: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === code;
 
-test("BL-491 RAC-2631 the derived names are 32 hex digits of the plugin id, differ per plugin and per installation, and no library or ledger row may take them", async t => {
-  assert.match(sandboxImageNamespace(PLUGIN), /^imageconn-[0-9a-f]{32}$/u);
-  assert.match(sandboxProviderId(PLUGIN), /^sbx-[0-9a-f]{32}$/u);
-  assert.equal(sandboxImageNamespace(PLUGIN), sandboxImageNamespace(PLUGIN));
-  assert.notEqual(sandboxImageNamespace(PLUGIN), sandboxImageNamespace(OTHER));
-  assert.notEqual(sandboxProviderId(PLUGIN), sandboxProviderId(OTHER));
-  const first = sandboxModelDeclaration(PLUGIN, "install-one"), second = sandboxModelDeclaration(PLUGIN, "install-two");
+test("BL-491 RAC-2631 the derived names are 32 hex digits of the installation id, differ per installation, and no library or ledger row may take them", async t => {
+  assert.match(sandboxImageNamespace(INSTALL), /^imageconn-[0-9a-f]{32}$/u);
+  assert.match(sandboxProviderId(INSTALL), /^sbx-[0-9a-f]{32}$/u);
+  assert.equal(sandboxImageNamespace(INSTALL), sandboxImageNamespace(INSTALL));
+  assert.notEqual(sandboxImageNamespace(INSTALL), sandboxImageNamespace(OTHER_INSTALL));
+  assert.notEqual(sandboxProviderId(INSTALL), sandboxProviderId(OTHER_INSTALL));
+  const first = sandboxModelDeclaration("install-one"), second = sandboxModelDeclaration("install-two");
   assert.notEqual(first.preference.store_name, second.preference.store_name, "another installation reads another choice");
   assert.equal(first.preference.store_name, join("plugin-files", "install-one", ".model-settings"));
-  assert.equal(first.custom_provider.provider_id, sandboxProviderId(PLUGIN));
-  assert.equal(reservedHomeName(sandboxImageNamespace(PLUGIN)) && reservedHomeName(sandboxProviderId(PLUGIN)) && !reservedHomeName("notes"), true);
+  assert.equal(first.custom_provider.provider_id, sandboxProviderId("install-one"), "the choice and the provider id are keyed by the same installation id");
+  assert.equal(reservedHomeName(sandboxImageNamespace(INSTALL)) && reservedHomeName(sandboxProviderId(INSTALL)) && !reservedHomeName("notes"), true);
 
   // The path that opens a library: the ledger's `holderOf` refuses the reserved prefixes.
   const home = await mkdtemp(join(tmpdir(), "sandbox-names-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const declaration = (store_name: string): HomePluginDatabaseDeclaration => ({ store_name, version: 1, read_permission: "names:read", write_permission: "names:write", schema: "CREATE TABLE names_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" });
   const owner = { plugin_id: PLUGIN, publisher_signature: "probe-names" }, instance = { install_id: "names", installation_generation: "1" };
-  for (const name of [sandboxImageNamespace(OTHER), sandboxProviderId(OTHER), "imageconn-mine", "sbx-mine"]) {
+  for (const name of [sandboxImageNamespace(OTHER_INSTALL), sandboxProviderId(OTHER_INSTALL), "imageconn-mine", "sbx-mine"]) {
     assert.throws(() => openSandboxHomeLibrary(home, owner, declaration(name), homeStores(), () => {}, instance), refused("plugin.home_database.object_taken"), name);
   }
   // The path that lists them: a ledger row that holds a reserved name makes the whole ledger unreadable, as any other held name does.
@@ -47,8 +47,19 @@ test("BL-491 RAC-2631 the derived names are 32 hex digits of the plugin id, diff
   library.close();
   assert.deepEqual(installedLibrarySnapshots(home, homeStores()).map(row => row.store_name), ["names-notes"]);
   const ledger = new DatabaseSync(join(home, "plugin-libraries", "plugin-libraries.db"));
-  try { ledger.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, '2026-10-24T00:00:00.000Z')").run(OTHER, "x", sandboxImageNamespace(OTHER), "0".repeat(64)); } finally { ledger.close(); }
+  try { ledger.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, '2026-10-24T00:00:00.000Z')").run(OTHER, "x", sandboxImageNamespace(OTHER_INSTALL), "0".repeat(64)); } finally { ledger.close(); }
   assert.throws(() => installedLibrarySnapshots(home, homeStores()), refused("plugin.home_database.shape_mismatch"));
+});
+
+test("BL-491 RAC-2631 a declaration that names the provider id or the image store the Host derives for a package is refused where it is used", () => {
+  const manifest = sandboxPluginManifest({ pluginId: OTHER, version: "1.0.0", name: "declares", publisher: { publisher_id: "example", signature: "probe-declares" }, presentation: false, runtime: { scope: "home" }, effects: { model: ["invoke"] } });
+  const definition: PluginDefinition = { manifest, async start() { return { kind: "app", views: [], actions: [] }; } };
+  const context: PluginStartContext = { install_id: "declares", installation_generation: "1", plugin_id: OTHER, version: "1.0.0", deployment: "local", grants: [], requireGrant: () => {} };
+  const home = { directory: tmpdir() };
+  assert.throws(() => pluginModelFor(home, definition, context, () => {}, { preference: { store_name: "declares-model", file_name: "preference.json" }, custom_provider: { provider_id: sandboxProviderId(OTHER_INSTALL), display_name: "x" } }),
+    refused("host.model_configuration_invalid"), "the provider id of a package's own provider");
+  assert.throws(() => pluginImageGenerationFor(home, definition, context, { store_name: sandboxImageNamespace(OTHER_INSTALL), read_permission: "a:read", write_permission: "a:write", generate_permission: "a:generate" }, () => {}),
+    refused("host.image_target_invalid"), "the namespace of a package's image slots");
 });
 
 /** A Home with an inference owner and a provider on this machine, and the image client the Host builds for a sandboxed package that asked for generation. */
@@ -78,7 +89,7 @@ async function rig(t: test.TestContext) {
     return created.connection_id;
   };
   const targetOf = (id: string) => withConnectorConnections(home, store => store.targetOrigin(id));
-  const bound = () => withConnectorConnections(home, store => store.binding("home", sandboxImageNamespace(PLUGIN), "main")?.connection_id ?? null);
+  const bound = () => withConnectorConnections(home, store => store.binding("home", sandboxImageNamespace(INSTALL), "main")?.connection_id ?? null);
   /** One call inside the plugin's own concurrent command, as the Runtime's scope of an installed operation names it. */
   const inAction = <T>(work: (image: PluginImageGenerationClient) => Promise<T>, permissions: readonly string[] = grants.filter(item => item !== "storage:private")): Promise<T> => {
     const action: ActionDefinition<null, null> = { capability_id: "generated.imageport.draw", version: 1, operation: "command", action: { title: "draw", description: "probe", kind: "operation", scope: "home",
@@ -99,10 +110,15 @@ test("BL-491 RAC-2632 the Host's client binds and generates only through a conne
   await assert.rejects(r.inAction(image => image.bind({ slot_id: "main", base_url: r.url }, elsewhere)), notAuthorized, "bind: pinned elsewhere");
   assert.equal(tables(), before);
   // Bound by something other than the package (the person's own use of the namespace), a generate still needs the pin to match the call's origin.
-  withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(PLUGIN), slotId: "main", serviceId: "image-api", connectionId: elsewhere }));
+  withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(INSTALL), slotId: "main", serviceId: "image-api", connectionId: elsewhere }));
   const request = { slot_id: "main", base_url: r.url, expected_revision: "unused", protocol: "openai-images" as const, model: "fixture", prompt: "一只猫" };
   await assert.rejects(r.inAction(image => image.generate(request)), notAuthorized, "generate: pinned elsewhere");
-  withConnectorConnections(r.home, store => store.unbind("home", sandboxImageNamespace(PLUGIN), "main"));
+  // Bound by the person's own use of the namespace to a connection nobody has used yet: generate must not be the first use, whatever address it names.
+  withConnectorConnections(r.home, store => store.unbind("home", sandboxImageNamespace(INSTALL), "main"));
+  withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(INSTALL), slotId: "main", serviceId: "image-api", connectionId: never }));
+  await assert.rejects(r.inAction(image => image.generate(request)), notAuthorized, "generate: bound to a connection that was never pinned");
+  assert.equal(r.targetOf(never), null, "generate did not pin it");
+  withConnectorConnections(r.home, store => store.unbind("home", sandboxImageNamespace(INSTALL), "main"));
   await assert.rejects(r.inAction(image => image.generate(request)), notAuthorized, "generate: nothing bound");
   assert.equal(tables(), before, "no refusal pinned, bound or moved a connection");
   assert.deepEqual(r.requests, [], "nothing was sent to the provider");
@@ -132,14 +148,14 @@ test("BL-491 RAC-2635 forgetting a package's image slots unbinds them all and ke
   const pinned = r.account("pinned", r.origin);
   await r.inAction(image => image.bind({ slot_id: "main", base_url: r.url }, pinned));
   await r.inAction(image => image.bind({ slot_id: "second", base_url: r.url }, pinned));
-  withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(OTHER), slotId: "main", serviceId: "image-api", connectionId: pinned }));
-  forgetSandboxImageBindings(r.home, PLUGIN);
+  withConnectorConnections(r.home, store => store.bind({ scopeId: "home", pluginId: sandboxImageNamespace(OTHER_INSTALL), slotId: "main", serviceId: "image-api", connectionId: pinned }));
+  forgetSandboxImageBindings(r.home, INSTALL);
   assert.equal(r.bound(), null);
-  assert.equal(withConnectorConnections(r.home, store => store.binding("home", sandboxImageNamespace(PLUGIN), "second")), null);
-  assert.equal(withConnectorConnections(r.home, store => store.binding("home", sandboxImageNamespace(OTHER), "main")?.connection_id ?? null), pinned, "another plugin's slot is not touched");
+  assert.equal(withConnectorConnections(r.home, store => store.binding("home", sandboxImageNamespace(INSTALL), "second")), null);
+  assert.equal(withConnectorConnections(r.home, store => store.binding("home", sandboxImageNamespace(OTHER_INSTALL), "main")?.connection_id ?? null), pinned, "another plugin's slot is not touched");
   assert.equal(r.targetOf(pinned), r.origin, "the account is the person's");
   const empty = await mkdtemp(join(tmpdir(), "sandbox-no-connectors-"));
   t.after(() => rm(empty, { recursive: true, force: true }));
-  forgetSandboxImageBindings(empty, PLUGIN);
+  forgetSandboxImageBindings(empty, INSTALL);
   assert.equal(existsSync(join(empty, "connectors")), false, "a Home that never had connectors gets none made");
 });

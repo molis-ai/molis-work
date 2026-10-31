@@ -211,7 +211,7 @@ export class HomePluginExecutor implements PluginExecutor {
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
     if (record.execution === "sandbox" && !record.retain_private_data) {
       removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
-      forgetSandboxImageBindings(this.options.home, record.plugin_id);
+      forgetSandboxImageBindings(this.options.home, record.install_id);
     }
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }

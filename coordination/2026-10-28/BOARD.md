@@ -282,7 +282,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-339 | Feed `throwIfCallRefused` 改按被拒的 kind 认：撤权（`mcp.*_revoked`、`assistant.action_revoked`）的捕获不再记成 `artifact_out_failed` | 甲 | A | 0.8 | — | `plugins/native/feed/src/out-rules.ts` |
 | T-340 | MCP 宿主里裸 `new ActionError` 的 `mcp.*` 码改成 `defineErrorCodes` 声明，抛出处带声明的 kind；同码两种 kind 统一 | 乙 | A | 已合（10-31，#1658 → `7d74dc353`；Codex 统筹） | — | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts` |
 | T-341 | 搜索：读取器报 forbidden 被弃时经 `onError` 留一条记录（只记码） | 乙 | 池 | 已合（10-31，#1648 → `f8aaece61`） | — | `horizontal/search/src/index.ts` |
-| T-342 | 两条弱断言收紧：安装插件关闭顺序数组 deepEqual；去掉 RAC-2420 与已有用例重复的用例 | 丙 | A | 1.6 | — | `tests/installed-plugin-host.test.ts`、`tests/security-invariants-oauth-shared-refresh.test.ts` |
+| T-342 | 两条弱断言收紧：安装插件关闭顺序数组 deepEqual；去掉 RAC-2420 与已有用例重复的用例 | 丙 | Codex 统筹 | 已合 #1651 c95f6f305 | — | `tests/installed-plugin-host.test.ts`、`tests/security-invariants-oauth-shared-refresh.test.ts` |
 | T-343 | 两处文档状态句改成现状：bl588 状态句的 BL-739、privileges PG-026-S1 行里已删的维护脚本 | 丙 | B | 已合（10-31，#1650 → `9e7d0533b`） | — | `specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`、`specs/repository-anti-corruption/privileges.md` |
 | T-344 | server 包两处收口：加入邀请只接受 64 位十六进制；补 WAL 下错版本的基线用例 | 乙 | B | 已合（10-31，#1657 → `bc986379c`） | — | `server/src/im/writes.ts`、`tests/server-database-baseline.test.ts` |
 | T-345 | Feed 内容台账：删掉“等维护读完每个项目”的分支，新 Home 台账一开始即完整 | 乙 | 池 | 1.7 | — | `plugins/native/feed/src/home-plugin.ts`、`content-ledger.ts` |
@@ -309,6 +309,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | 开发中 | 无；T-347 等本单落地 | `plugins/native/alchemist/src/client.ts`、`tests/alchemist-workbench.e2e.test.ts`、边界测试或独立 terminal-refresh 测试二选一、Alchemist README；不动 #1661 的 client-views；资源文件由统筹串行 |
 | T-367 | 连接事务失败后的真实 secret 清理与恢复证据（T-134 建议①；RAC-2758～2760） | 丙 | Codex 待分配 | 待领 | T-134 已合；建议②仍等 #1677/#1675 | `tests/connector-connection-declarers.test.ts` |
 | T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 待分配 | 待领（核证／文档版） | T-119/T-120/T-134 已合；源码修复另核锁 | 文档状态段，详见 `tasks/T-122.md`；生产只读 |
+| T-368 | MCP 无目录真实权限拒绝及精确 raiser 变异（RAC-2761～2763） | 丙 | Codex 待分配 | 待领 | 无；领取前重核文件锁 | `tests/mcp-error-kinds.test.ts` |
+| T-369 | alias 等待中换连接的真实拒绝（RAC-2764～2766） | 丙 | Codex 待分配 | WAIT，不计待领 | 等 #1654/T-148 新 aliasTerminalSession 合同落 main 后重核 | 仅新增 `tests/mcp-connection-change-refusal.test.ts`；不改 #1654 生产文件 |
 | T-141 | Home 签名包原地升级、初装／升级 origins 实际设置预览（RAC-2615～2619） | 甲 | Codex 待分配 | 书已审定，等文件锁 | T-134/T-140 已合；#1652 必改与 #1672/#1693 条件路径锁 | 详见 `tasks/T-141.md`；共享 SI／slice 由统筹串行 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给 Goals、走启动终端服务，删工作台面板路由与 control token 的启动通道（BL-695 · BL-637 · BL-508；RAC-2560～2569；四项已定（用户 10-31），叠在 T-136 上开发） | 甲 | A-Claude | 统筹定 | T-136；T-115～T-118 链合入 | 由【方案】定（候选见书 §4） |

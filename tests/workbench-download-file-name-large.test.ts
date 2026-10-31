@@ -8,7 +8,7 @@
 // two-unit character such as an emoji is one), and a cut keeps the extension. The source runs bundled, on a small page port that
 // records the `download` attribute of the link the shell clicks.
 import assert from "node:assert/strict";
-import test, { type TestContext } from "node:test";
+import test from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { buildSync } from "esbuild";

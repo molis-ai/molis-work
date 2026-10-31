@@ -57,7 +57,8 @@ test("RAC-2380 a preexisting empty server file initializes the complete current 
 
 // RAC-2717: the same refusal on a database in WAL mode, with its WAL file holding pages: the database and its WAL keep the same bytes.
 // -shm is SQLite's shared-memory lock state (a WAL database's read-only inspection may touch its lock bytes), so it is checked as
-// present but not byte-compared: it is not business data and no schema is ever opened from it.
+// present but not byte-compared: it is not business data and no schema is ever opened from it. 统筹答 T-344/T-345/T-347/T-351
+// (https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6539755773) 定：-shm 锁字节不是数据、不进验收，本用例不断言其字节不变。
 test("RAC-2717 a server database at another version in WAL mode is refused with its database and WAL left byte-identical", () => {
   const directory = mkdtempSync(join(tmpdir(), "server-database-wal-"));
   try {

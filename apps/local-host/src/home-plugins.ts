@@ -1,6 +1,5 @@
 import type { HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
 import { renderHomePackageDocument } from "./home-package-page.js";
-import { installedStageSurface } from "./installed-stage-section.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
@@ -139,10 +138,13 @@ export class HomePluginHost {
       return { plugin_id: key, name: manifest.name, ...icon ? { icon } : {}, surface: this.packageSurface(key) ?? key };
     }).sort((a, b) => a.name.localeCompare(b.name));
   }
-  /** The id of a running installed package's stage in the workbench; none for what is not such a package, is not running, or did not come back. */
+  /**
+   * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the
+   * switcher and the tab strip find the plugin's name and icon by the stage's id as they do for every other Home plugin. None for what is not
+   * such a package, is not running, or did not come back.
+   */
   packageSurface(pluginId: string): string | undefined {
-    const release = this.installed?.releaseFor(pluginId);
-    return release && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? installedStageSurface(release) : undefined;
+    return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
   }
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
   packageDocument(pluginId: string, controlToken: string): string | undefined {

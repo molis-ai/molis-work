@@ -69,3 +69,18 @@ test("RAC-2520 removing a connection keeps its pin with the record, and the tabl
   const rows = db.prepare("SELECT connection_id, plugin_id, install_id, plugin_title FROM connector_connection_declarers").all();
   assert.deepEqual(rows.map(row => ({ ...row })), [{ connection_id: made.connection_id, ...declarer }], "the soft-deleted record keeps its pin");
 });
+
+test("RAC-2520 a connection and its pin are written in one transaction: when the pin cannot be written no connection is left behind", async t => {
+  const directory = await home(t);
+  withConnectorConnections(directory, () => undefined);
+  const db = new DatabaseSync(homeSqlitePath(directory, "connectors"));
+  t.after(() => { if (db.isOpen) db.close(); });
+  // The connection row goes in first; a refusal on the pin's insert must take it back out.
+  db.exec("CREATE TRIGGER refuse_pin BEFORE INSERT ON connector_connection_declarers BEGIN SELECT RAISE(ABORT, 'pin refused'); END");
+  assert.throws(() => withConnectorConnections(directory, store =>
+    store.createToken({ serviceId: "example-feed", displayName: "Probe account", token: probeToken(6) }, declarer)), /pin refused/);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM connector_connections").get() as { n: number }).n, 0, "no connection without its pin");
+  db.exec("DROP TRIGGER refuse_pin");
+  const made = withConnectorConnections(directory, store => store.createToken({ serviceId: "example-feed", displayName: "Probe account", token: probeToken(7) }, declarer));
+  withConnectorConnections(directory, store => assert.deepEqual(store.declarers.get(made.connection_id), declarer, "the same write works once the pin can be written"));
+});

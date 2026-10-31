@@ -68,7 +68,7 @@ async function standIn(t: TestContext, hosts: readonly string[]) {
   return { seen, testServer, lookup };
 }
 
-test("T-134 RAC-2522: pasting a credential for a package's service pins the connection to the package declaring it now; a built-in service pins nothing", async t => {
+test("S-104 RAC-2522: pasting a credential for a package's service pins the connection to the package declaring it now; a built-in service pins nothing", async t => {
   const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe");
   await attach(home, a);
   const id = await paste(home, SERVICE, "Probe account");
@@ -82,7 +82,7 @@ test("T-134 RAC-2522: pasting a credential for a package's service pins the conn
   assert.equal(builtinList.connections.some(row => "declared_by" in row), false);
 });
 
-test("T-134 RAC-2522: a new token for a connection that is already made does not move its pin to the package that declares the service now", async t => {
+test("S-104 RAC-2522: a new token for a connection that is already made does not move its pin to the package that declares the service now", async t => {
   const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe"), b = pack("io.molis.work.example.feedprobe", "Feed probe");
   await attach(home, a);
   const id = await paste(home, SERVICE, "Probe account");
@@ -94,7 +94,7 @@ test("T-134 RAC-2522: a new token for a connection that is already made does not
   assert.equal(pinOf(home, id)?.install_id, a.install_id, "it stays the first package's");
 });
 
-test("T-134 RAC-2523: a connection made through a prepared setup page is pinned like a pasted one", async t => {
+test("S-104 RAC-2523: a connection made through a prepared setup page is pinned like a pasted one", async t => {
   const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe");
   await attach(home, a);
   const prepared = await home.host.homeActionClient().invoke(caller, connectorSetupAction,
@@ -103,7 +103,25 @@ test("T-134 RAC-2523: a connection made through a prepared setup page is pinned 
   assert.deepEqual(pinOf(home, id), { plugin_id: a.manifest.plugin_id, install_id: a.install_id, plugin_title: "Feed probe" });
 });
 
-test("T-134 RAC-2524: a package of another publisher that declares the same service later gets nothing of the first package's connection, and no request leaves", async t => {
+test("S-104 RAC-2522: a package detached while its service's connection is being made still leaves that connection pinned to it", async t => {
+  const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe");
+  await attach(home, a);
+  const registry = await homeIntegrationRegistry(home.home);
+  // The package goes the moment the services are listed for the card, which is where the paste POST finds out whose service this is.
+  const listed = registry.connectionServices.bind(registry);
+  let detached = false;
+  registry.connectionServices = () => {
+    const services = listed();
+    if (!detached) { detached = true; void registry.detach(a.manifest.plugin_id); }
+    return services;
+  };
+  t.after(() => { registry.connectionServices = listed; });
+  const id = await paste(home, SERVICE, "Probe account");
+  assert.equal(detached, true, "the package was detached in the middle of making the connection");
+  assert.deepEqual(pinOf(home, id), { plugin_id: a.manifest.plugin_id, install_id: a.install_id, plugin_title: "Feed probe" }, "the card and the pin come from one reading of the registry");
+});
+
+test("S-104 RAC-2524: a package of another publisher that declares the same service later gets nothing of the first package's connection, and no request leaves", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
   const a = pack("io.molis.work.example.feedprobe", "Feed probe");
@@ -128,7 +146,7 @@ test("T-134 RAC-2524: a package of another publisher that declares the same serv
   }
 });
 
-test("T-134 RAC-2524: a package's connection of a kind that sends no bearer is refused for the package too, and nothing is sent", async t => {
+test("S-104 RAC-2524: a package's connection of a kind that sends no bearer is refused for the package too, and nothing is sent", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
   const a = pack("io.molis.work.example.feedprobe", "Feed probe");
@@ -142,7 +160,7 @@ test("T-134 RAC-2524: a package's connection of a kind that sends no bearer is r
   assert.equal(seen.length, 0);
 });
 
-test("T-134 RAC-2525: the same publisher's package installed again is the same installation, and its connection works as before", async t => {
+test("S-104 RAC-2525: the same publisher's package installed again is the same installation, and its connection works as before", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
   const publisher = newPublisher(), a = pack("io.molis.work.example.feedprobe", "Feed probe", publisher);
@@ -159,7 +177,7 @@ test("T-134 RAC-2525: the same publisher's package installed again is the same i
 
 // A service in the platform's request table can be bound to an installation's slot. No package declares one of those today, so the pin here is
 // written on the store directly: the rule is that a pinned connection never serves a slot of another installation.
-test("T-134 RAC-2526: a slot of another installation is refused a pinned connection, and nothing is sent", async t => {
+test("S-104 RAC-2526: a slot of another installation is refused a pinned connection, and nothing is sent", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.github.com"]);
   const home = await openTestHome(t), port = createPluginConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
   const owner = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-slot-owner", plugin_title: "Feed probe" };
@@ -177,7 +195,7 @@ test("T-134 RAC-2526: a slot of another installation is refused a pinned connect
   assert.equal(port.describe(target(owner.install_id)).state, "connected");
 });
 
-test("T-134 RAC-2527: describing a call's connection as another installation says it is not there, without its name", async t => {
+test("S-104 RAC-2527: describing a call's connection as another installation says it is not there, without its name", async t => {
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home);
   const a = pack("io.molis.work.example.feedprobe", "Feed probe"), b = pack("io.molis.work.example.impostor", "Impostor");
   await attach(home, a);
@@ -187,7 +205,7 @@ test("T-134 RAC-2527: describing a call's connection as another installation say
   assert.deepEqual(port.describe(callAs(b, null)), { bound: false });
 });
 
-test("T-134 RAC-2529: a built-in service's connections are pinned to nothing and keep the rule they had: any installation may use one as before", async t => {
+test("S-104 RAC-2529: a built-in service's connections are pinned to nothing and keep the rule they had: any installation may use one as before", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.github.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
   const github = await paste(home, "github", "GitHub account"), model = await paste(home, "model-api", "Model account");

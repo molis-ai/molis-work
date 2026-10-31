@@ -167,10 +167,10 @@
 - **预览列出来源**：输出多一个可选的 `origins`。原片在 `plugins.install.preview@2` 上实现；2026-10-26 Root 收口按实际 main 的合同变化统一升为 `@3`，与 BL-628 的 `runtime_scope` 同一合同，动作快照及调用方同步，不保留旧版。
 - 测试：`tests/sandbox-integration-home.test.ts`（RAC-894、RAC-897 两条、RAC-898、RAC-1000、RAC-1001、RAC-1002，跑真沙箱，要 macOS）；第一部分的 `tests/sandbox-integration.test.ts` 改了「运行范围是 Home」「一个来源」两处拒绝。`PluginInstallService.preview` 改成异步，`tests/security-invariants-plugin-install.test.ts`、`tests/plugin-trust-view.test.ts` 跟着 `await`，断言不变。
 
-### 7.2 连接绑定声明者（T-134，采用前置，S-105）
+### 7.2 连接绑定声明者（T-134，采用前置，S-104）
 
 - **问题**：连接只按 `service_id` 存，卸载包 A 后连接留着；另一个发布者的包 B 声明同一个 `service_id` 后，来源上选这条 `connection_id`，代理就会把 A 时期存的令牌发往 B 写的来源地址，中间没有人工步骤。
-- **钉**：为包声明的服务新建连接时，同一次写入里在连接库的 `connector_connection_declarers` 记下声明者：插件 ID、安装 ID（`install_id`，即插件 ID 加验过签名的发布者）和显示名。声明者读自 Home 的集成登记（`IntegrationRegistry.connectionDeclarer`，`attach` 由 Home 的安装记录给 `install_id`），不读请求体。只在新建时写、写了不能改（换令牌不动它）；宿主自带插件和平台的服务不钉。连接库直接写进现行版本 1 的结构，不写迁移，已有连接不补钉（干净重建口径下，包的服务现在没有连接）。
+- **钉**：为包声明的服务新建连接时，同一次写入里在连接库的 `connector_connection_declarers` 记下声明者：插件 ID、安装 ID（`install_id`，即插件 ID 加验过签名的发布者）和显示名。声明者读自 Home 的集成登记（`IntegrationRegistry.connectionDeclarer`，`attach` 由 Home 的安装记录给 `install_id`），不读请求体；服务卡片与声明者取自登记的同一次读取、中间没有 `await`，否则包在两次读取之间被卸载，连接就会不带钉建出来（二审，RAC-2522 的第三条）。只在新建时写、写了不能改（换令牌不动它）；宿主自带插件和平台的服务不钉。连接库直接写进现行版本 1 的结构，不写迁移，已有连接不补钉（干净重建口径下，包的服务现在没有连接）。
 - **拒绝**：`createCallConnectionsPort` 与 `createPluginConnectionsPort` 共用的 `usableConnection` 多收调用方的 `install_id`（来源路径取运行上下文 `context.install_id` 经 `CallConnection.install_id`，槽路径取 `target.install_id`），连接钉着别的安装就以 `connector.plugin_requests.connection_unavailable` 拒，在读令牌、发请求之前；`describe` 对这种情况答 `disconnected`、不给名字。同一发布者重装（`install_id` 相同）照用。
 - **设置页**：连接行多一行「建于 · 包名」（`ConnectorConnectionView.declared_by`，只有插件 ID 与名字，不带 `install_id`）。
 - 测试：`tests/connector-connection-declarers.test.ts`（RAC-2520）、`tests/integration-registry.test.ts`（RAC-2521）、`tests/security-invariants-connection-declarer.test.ts`（RAC-2522～2527、2529）、`tests/connector-method-directory.test.ts`（RAC-2528）。

@@ -3,19 +3,9 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import type { ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
-
-/**
- * The signed package that declares a service now, as a connection made for that service is pinned to it (T-134): its plugin id, the
- * installation it runs as (`install_id` is the plugin id and its verified signature, so another publisher's package of the same id has
- * another one) and its title, shown on the connection.
- */
-export interface ConnectionDeclarer {
-  readonly plugin_id: string;
-  readonly install_id: string;
-  readonly plugin_title: string;
-}
 
 export interface OAuthServiceOwner {
   readonly plugin_id: string;
@@ -41,7 +31,7 @@ export class IntegrationRegistry {
   private readonly declarations: IntegrationDeclarations;
   private readonly installs = new Map<string, string>();
   /** The packages the Home attached: the installation each runs as, and what its running instance contributes now (null while it is not running). */
-  private readonly attached = new Map<string, { declarer: ConnectionDeclarer; contribution: () => PluginContribution | null }>();
+  private readonly attached = new Map<string, { declarer: ConnectorConnectionDeclarer; contribution: () => PluginContribution | null }>();
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(options: { platform?: readonly PluginConnectionServiceDeclaration[]; now?: () => Date } = {}) {
@@ -139,7 +129,7 @@ export class IntegrationRegistry {
    * The attached package that declares a service now, which a connection made for it is pinned to (T-134). A service the Host's build or
    * the platform declares has none: its connections are pinned to nothing and stay usable as they are.
    */
-  connectionDeclarer(serviceId: string): ConnectionDeclarer | undefined {
+  connectionDeclarer(serviceId: string): ConnectorConnectionDeclarer | undefined {
     const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
     return service ? this.attached.get(service.owner)?.declarer : undefined;
   }

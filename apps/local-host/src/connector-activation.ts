@@ -1,20 +1,20 @@
 import { cleanupConnectorInstallation } from "./connector-tool-cleanup.js";
 import type { LocalMcpConfiguration } from "./connector-local-mcp.js";
-import { normalizeConnectorTokenInput } from "@molis-ai/molis-work-service-connector-host";
+import { normalizeConnectorTokenInput, type ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { connectionChanged } from "./connection-change-events.js";
 import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
-import type { ConnectionDeclarer, OAuthServiceOwner } from "./integration-registry.js";
+import type { OAuthServiceOwner } from "./integration-registry.js";
 
 type Input<K extends "createToken" | "upsertOAuth" | "saveProtocol" | "saveCli"> = Parameters<ConnectorConnectionStore[K]>[0];
 type Target = { connectionId: string; expectedRevision?: string };
 /** Private completion material. Stored only in the encrypted authorization record; never an action input or output. */
 export type ConnectorActivation =
   /** `declarer`: the signed package that declared the service when this was prepared, which a new connection is pinned to (T-134). */
-  | { kind: "token"; input: Input<"createToken">; target?: Target; declarer?: ConnectionDeclarer }
+  | { kind: "token"; input: Input<"createToken">; target?: Target; declarer?: ConnectorConnectionDeclarer }
   | { kind: "oauth"; input: Input<"upsertOAuth">; target: Target; credentials: Record<string, string | null>; protocol?: ConnectorProtocolConfiguration;
     /** The generic flow's pins (W5-11 §3.2), judged again before a held result takes effect; never saved with the connection. */
     declaration?: { plugin: Omit<OAuthServiceOwner, "method">; fingerprint: string } }

@@ -17,7 +17,6 @@ export interface TerminalPanelsOptions {
   setMenuOpen(open: boolean): void;
   renderTabs(): void;
   showTerminal(panelId: string | null): void;
-  afterOpened(): Promise<void>;
 }
 
 type PanelAnswer = { panel?: PanelRecord; spawn?: PanelRecord["spawn"] };
@@ -137,7 +136,6 @@ async function loadPanels(ctx: PanelContext) {
     if (panel.status === "open") await spawnQuietly(ctx, panel, "attach");
   }
   options.showTerminal(state.activeId);
-  await options.afterOpened();
 }
 
 async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
@@ -172,8 +170,7 @@ async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
   try {
     await ctx.spawner.spawnPanel(record);
     options.showTerminal(state.activeId);
-    await options.afterOpened();
-  } catch (error) {
+    } catch (error) {
     options.setStatus(options.errorText(error), "error");
     options.showTerminal(state.activeId);
   }

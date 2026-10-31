@@ -276,15 +276,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
     }
-    const feedStartRequested = new URLSearchParams(location.search).get("feed-start") === "1";
-    if (feedStartRequested && selected && tuiPane) {
-      goalWorkspaceMode = "runtime";
-      setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goals", false, false);
-      setWorkspaceMode("runtime", false);
-      setMobileView("tui");
-      saveUiState();
-    }
     const initialHashTargetId = decodeURIComponent(location.hash.slice(1));
     if (!restoredUi && initialHashTargetId) void revealDeepLinkFromId(initialHashTargetId);
     try {

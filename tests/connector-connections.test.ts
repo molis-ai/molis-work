@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, connectorProtocolSecrets, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
@@ -17,6 +17,7 @@ import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
@@ -206,7 +207,7 @@ test("Feed switching account creates a separate source and keeps the old history
   }
 });
 
-test("managed Gmail OAuth creates a named connection and refuses reauthorizing it as another mailbox", async t => {
+test("managed Gmail OAuth creates a named connection and refuses reauthorizing it as another Google account", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-managed-gmail-"));
   const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
   process.env.MOLIS_WORK_HOME = home;
@@ -218,21 +219,21 @@ test("managed Gmail OAuth creates a named connection and refuses reauthorizing i
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   let mailbox = "a@example.com";
-  const actualFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+  // Gmail signs in through the generic flow (W5-11 slice 6): its requests leave by the Host's own sender, and the account is Google's `sub`.
+  oauthNetwork(t, async url => {
     if (url === "https://oauth2.googleapis.com/token") return Response.json({ access_token: mailbox.startsWith("a") ? "access-token-a" : "access-token-b", refresh_token: "refresh-token", expires_in: 3600 });
-    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: mailbox });
-    return actualFetch(input, init);
+    assert.equal(url, "https://openidconnect.googleapis.com/v1/userinfo");
+    return Response.json({ sub: `sub-${mailbox}`, email: mailbox });
   });
   const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken,
     "x-molis-work-idempotency-key": crypto.randomUUID() });
   async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/gmail/oauth/start`, { method: "POST", headers: headers(),
-      body: JSON.stringify({ client_id: "test-client-id", redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`,
-        manage_connection: true, display_name: "工作 Gmail", ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    const response = await fetch(`${origin}/api/settings/connectors/methods/oauth/start`, { method: "POST", headers: headers(),
+      body: JSON.stringify({ service_id: "gmail", client_id: "test-client-id", client_secret: "test-client-secret", redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`,
+        display_name: "工作 Gmail", ...(connectionId ? { connection_id: connectionId } : {}) }) });
     assert.equal(response.status, 200);
-    return response.json() as Promise<{ state: string; connection_id: string }>;
+    const started = await response.json() as { authorization_url: string; connection_id: string };
+    return { state: new URL(started.authorization_url).searchParams.get("state")!, connection_id: started.connection_id };
   }
   try {
     const first = await start();
@@ -362,24 +363,29 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
   let hold = false, generation = 0, reached!: () => void, release!: () => void;
   let entered: Promise<void>, waiting: Promise<void>;
   function block() { hold = true; entered = new Promise<void>(resolve => { reached = resolve; }); waiting = new Promise<void>(resolve => { release = resolve; }); }
-  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+  // Gmail signs in through the generic flow (W5-11 slice 6), whose requests leave by the Host's own sender; Notion's flow is still its own.
+  const generic = service === "gmail";
+  const issue = async () => {
+    const issued = ++generation; if (hold) { reached(); await waiting; }
+    return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
+  };
+  if (generic) oauthNetwork(t, async url => url === "https://oauth2.googleapis.com/token" ? issue()
+    : (assert.equal(url, "https://openidconnect.googleapis.com/v1/userinfo"), Response.json({ sub: "work-sub", email: "work@example.test" })));
+  else t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") {
-      const issued = ++generation; if (hold) { reached(); await waiting; }
-      return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600,
-        workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
-    }
-    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: "work@example.test" });
+    if (url === "https://api.notion.com/v1/oauth/token") return issue();
     return actualFetch(input, init);
   });
+  const secret = (id: string, kind: "access" | "refresh") => generic ? connectorProtocolSecrets(home, id).get(kind === "refresh" ? "oauth" : kind) ?? null
+    : runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${id}:${kind}`));
   const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/${service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
-      client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work", manage_connection: true,
-      redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`, ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    const response = await fetch(`${origin}/api/settings/connectors/${generic ? "methods" : service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
+      ...(generic ? { service_id: service } : { manage_connection: true }), client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work",
+      ...(generic ? {} : { redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback` }), ...(connectionId ? { connection_id: connectionId } : {}) }) });
     assert.equal(response.status, 200);
-    const result = await response.json() as { authorizationUrl: string; authorization_id: string; connection_id: string };
-    const consent = new URL(result.authorizationUrl), redirect = new URL(consent.searchParams.get("redirect_uri")!);
+    const result = await response.json() as { authorizationUrl?: string; authorization_url?: string; authorization_id: string; connection_id: string };
+    const consent = new URL((generic ? result.authorization_url : result.authorizationUrl)!), redirect = new URL(consent.searchParams.get("redirect_uri")!);
     return { ...result, callback: redirect.href + `?state=${consent.searchParams.get("state")}&code=fixture-code` };
   }
   const complete = (attempt: Awaited<ReturnType<typeof start>>) => fetch(attempt.callback, { redirect: "manual" });
@@ -396,12 +402,12 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
     const response = complete(reauth); await entered!;
     assert.equal((await cancel(reauth)).status, "cancelled"); release(); await response;
     assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connection_id, service)), "fixture-access-1");
-    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${first.connection_id}:refresh`)), "fixture-refresh-1");
+    assert.equal(secret(first.connection_id, "refresh"), "fixture-refresh-1");
     const beforeReplay = generation; await complete(reauth); assert.equal(generation, beforeReplay);
     const fresh = await start(); block();
     const freshResponse = complete(fresh); await entered!; await cancel(fresh); release(); await freshResponse;
     assert.equal(withConnectorConnections(home, store => store.get(fresh.connection_id)), null);
-    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${fresh.connection_id}:access`)), null);
+    assert.equal(secret(fresh.connection_id, "access"), null);
     for (const phase of ["consent", "exchange"]) {
       hold = false;
       const stale = await start(first.connection_id);
@@ -412,12 +418,12 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
       const accepted = await complete(newer);
       assert.match(accepted.headers.get("location") ?? "", /connected=/);
       const current = withConnectorConnections(home, store => store.require(first.connection_id));
-      const credentials = runWithMolisWorkHome(home, () => ["access", "refresh"].map(kind => createFileSecretStore().get(`connector-connection:${first.connection_id}:${kind}`)));
+      const credentials = (["access", "refresh"] as const).map(kind => secret(first.connection_id, kind));
       release();
       const rejected = await (staleResponse ?? complete(stale));
       assert.match(rejected.headers.get("location") ?? "", /connection_error=failed/, `${phase}: stale authorization must be rejected`);
       assert.deepEqual(withConnectorConnections(home, store => store.require(first.connection_id)), current);
-      assert.deepEqual(runWithMolisWorkHome(home, () => ["access", "refresh"].map(kind => createFileSecretStore().get(`connector-connection:${first.connection_id}:${kind}`))), credentials);
+      assert.deepEqual((["access", "refresh"] as const).map(kind => secret(first.connection_id, kind)), credentials);
     }
   } finally {
     release?.(); await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();

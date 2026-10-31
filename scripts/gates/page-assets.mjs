@@ -242,10 +242,6 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-234 (MISC T-086 起草), RAC-2215–2218: the Form answer box is cut at 4000 characters by an input handler instead of by a maxlength
-// attribute (which counts UTF-16 units and stopped a two-unit character at 2000), and says the limit through the plugin's own dictionary;
-// +544 B on this one asset, over three small functions (the message, the slot lookup and the cap). Tried: inline bilingual text was
-// +616 B and the answer asked for the dictionary; no new asset, no new image.
 // T-351 (RAC-2723): the Alchemist research page says "material too long" for a lens job refused because the prompt's data position is
 // over, telling it apart from the generic runtime failure; +146 B on this one asset. Tried: no new asset, one localized sentence with its
 // English pair, no count text (the character excess needs a dedicated error-detail field and is a separate change). Approved [52556, 52702] (the measured bytes, no slack).

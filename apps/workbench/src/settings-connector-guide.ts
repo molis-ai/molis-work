@@ -21,9 +21,8 @@ export function connectorCardText(text: string, max: number): string {
 }
 
 export function readyAccountLogin(card: ConnectorSettingsCardView): boolean {
-  return Boolean(card.connector_id === "gmail" ? card.gmail_oauth_configured
-    : card.connector_id === "notion" ? card.notion_oauth_configured
-      : card.connector_id === "github" && card.github_client_id_configured);
+  return Boolean(card.connector_id === "notion" ? card.notion_oauth_configured
+    : card.connector_id === "github" && card.github_client_id_configured);
 }
 
 export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMethodOption | undefined {
@@ -128,7 +127,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
     const ready = dedicated || Boolean(option.login_ready);
     const provider = card.connector_id === "gmail" ? "Google" : card.title;
     const config = `<ol class="settings-connector-steps"><li><strong>${L("打开官方后台，准备应用")}</strong>${officialLinks(option.links, p)}<p>${L("没有开发者权限时，请让应用管理员完成这一步，或选择下方其他连接方式。")}</p></li>
-      <li><strong>${L("登记回调地址")}</strong><p>${L("将下面的地址添加到应用的允许回调地址中。")}</p><div class="settings-connector-copy"><code data-oauth-callback${ready ? ` data-account-callback="${e(card.connector_id)}"` : ""}></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制")}</button></div></li>
+      <li><strong>${L("登记回调地址")}</strong><p>${L("将下面的地址添加到应用的允许回调地址中。")}</p><div class="settings-connector-copy"><code data-oauth-callback${option.oauth.callback_path ? ` data-callback-path="${e(option.oauth.callback_path)}"` : ""}${ready ? ` data-account-callback="${e(card.connector_id)}"` : ""}></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制")}</button></div></li>
       <li><strong>${L("填写应用信息")}</strong>${field("client_id", "应用 Client ID", "", false, "", !ready)}${field("client_secret", option.oauth.client_secret_required ? "应用 Client Secret" : "Client Secret（可选）", "", true, "", !ready && option.oauth.client_secret_required)}${option.oauth.fields.map(f => field(`setting:${f.key}`, f.label, "", false, f.placeholder, !ready && f.required)).join("")}</li></ol>`;
     body = `<p>${L(ready ? "将在浏览器打开官方登录页。选择账号并确认权限后，回到这里即可继续。" : "首次连接需要服务商的应用配置。准备完成后，即可在官方页面登录授权。")}</p>
       ${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}

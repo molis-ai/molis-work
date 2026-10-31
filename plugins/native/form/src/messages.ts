@@ -32,7 +32,7 @@ export const FORM_MESSAGES = {
   "form.fill.submit": { zh: "提交", en: "Submit" },
   "form.fill.missing-required": { zh: "还有必填题没填", en: "A required question is still empty" },
   "form.fill.failed": { zh: "提交失败", en: "Submission failed" },
-  "form.fill.too-long": { zh: "每题回答最多 {count} 个字：{title}", en: "Keep each answer within {count} characters: {title}" },
+  "form.fill.too-long": { zh: "每题回答最多 {count} 个字：{title}", en: "Keep each answer within {count} {count|character|characters}: {title}" },
   "form.fixed.unfinished": { zh: "固定版本未存完", en: "Fixed version not finished" },
   "form.fixed.label": { zh: "固定版本", en: "Fixed version" },
   "form.fixed.resume": { zh: "继续保存上次固定版本", en: "Finish saving the last fixed version" },

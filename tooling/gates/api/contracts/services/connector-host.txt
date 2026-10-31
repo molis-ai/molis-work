@@ -343,6 +343,7 @@ export interface ConnectorMethodOption {
             required?: boolean;
         }[];
         readonly note?: string;
+        readonly callback_path?: string;
     };
     readonly cli?: {
         readonly binary: string;

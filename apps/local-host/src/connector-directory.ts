@@ -1,7 +1,6 @@
 import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
-import { gmailOAuthConfigured } from "./gmail-oauth.js";
 import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
 import { notionOAuthConfigured } from "./notion-oauth.js";
 import { connectorMethodsOf } from "./host-connector-methods.js";
@@ -74,16 +73,24 @@ function githubClientIdConfigured(): boolean {
 }
 
 /**
+ * Whether the product can sign in to the service by its declared `oauth` method: a broker, or a client the declaration accepts.
+ * Read from this Home's registry, so a service an installed package declares is answered the same way as a built-in one.
+ */
+export async function connectorLoginReady(home: string, serviceId: string): Promise<boolean> {
+  const entry = (await homeConnectorDirectory(home)).find(row => row.connector_id === serviceId);
+  return Boolean(entry?.method_options?.some(method => method.kind === "oauth" && method.login_ready));
+}
+
+/**
  * The services a connection can be made to in this Home, with whether their OAuth apps are configured; accounts are the connections
  * themselves. Read again on each listing: whether the product's client is configured may have changed.
  */
 export async function listConnectorSettingsCards(home: string) {
   return (await homeConnectorDirectory(home)).map((entry) => entry.availability === "placeholder"
-    ? { ...entry, github_client_id_configured: false, gmail_oauth_configured: false }
+    ? { ...entry, github_client_id_configured: false }
     : {
       ...entry,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
-      gmail_oauth_configured: entry.auth_kind === "gmail" ? gmailOAuthConfigured() : false,
       notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,
     });
 }

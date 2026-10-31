@@ -171,5 +171,3 @@
 | T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确，等 #1693 合入后起草 | Codex 统筹 |
 
 | T-347 Full 与 main 夜间重复失败（已进 T-366；#1665 6545882401） | `plugins/native/alchemist/src/client.ts` 及定向浏览器回归 | 缺模型后真实 run 已终态，页面旧进度未收敛；先用真实响应制造确定性交错再最小修复，不第三次盲重跑，不回滚 T-347 安全语义；RAC-2752～2757 | Codex 开发线 2 |
-
-| T-354 增量一审建议（#1692，`6c05703c8`） | PR 正文“用例 1” | 用新增的 `colouredOnReturn === colouredBefore` 解释无同步首片，并补作者同步首片变异；不再仅以 queued/syncFrames 旁证。文案在当前 PR 修正，不新增代码头。 | Codex 统筹 |

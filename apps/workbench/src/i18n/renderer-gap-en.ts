@@ -300,7 +300,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "GitHub 授权码已过期，请重新开始。": "The GitHub authorization code has expired. Start again.",
   "GitHub 账号已连接。": "GitHub account connected.",
   "授权未完成，请重新开始。": "Authorization didn't finish. Start again.",
-  "在 GitHub 输入设备码：{code}": "Enter this device code on GitHub: {code}",
+  "在 {name} 输入设备码：{code}": "Enter this device code on {name}: {code}",
   "正在准备官方授权…": "Preparing official authorization…",
   "浏览器拦截了新窗口。点击“重新打开官方授权页”继续登录。": "The browser blocked the new window. Select “Reopen the official authorization page” to continue signing in.",
   "工具已连接，可以查看可用工具。": "Tools connected. You can now view the available tools.",

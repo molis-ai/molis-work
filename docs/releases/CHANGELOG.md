@@ -14,6 +14,18 @@
 
 - **按问题选资料分节（`knowledge.locate`）升到 @3，输出多一个 `omitted`**（2026-10-30，T-132）：分节树太长时只把放得下的整节交给模型，`omitted` 是没给模型看的节数。固定了 `knowledge.locate@2` 的工作流步骤会报错并保留原引用，要在工作流里重选这个动作；直接调用（Agent、MCP、插件）不用改，只是多读到一个字段。
 - **「被谁引用」（`artifacts.links@1`）的输出按声明链接的插件分组**（2026-10-30，BL-646 T-113，`specs/repository-anti-corruption/slices/ac-artifacts.md` §3.5）：输出的 `goals`（`goal_id`、四值 `role`）换成 `plugins`（每组 `plugin_id`、`plugin_title` 与对象的 `id`、`title`、`role: input|output`、`proposal`、`open`）。直接读这个动作输出的调用方（工作流步骤、MCP 客户端、脚本）照新形状改；开发 Home 里固定了 `artifacts.links@1` 的工作流会读到新形状。MCP 客户端要看到 Goal 标题，需同时被授予 `goals.artifacts.link_subjects@1`（原先是 `goals.directory.read`），否则只看到 id。声明了 Manifest `artifacts.links` 的插件，要用 plugin SDK 导出的 `defineArtifactLinkSubjectsAction` 声明一个按 id 说出自己对象名字的动作，否则成果库只显示对象 id。
+- **GitHub 并进声明式 OAuth：设备授权成为平台的一种 grant，旧 GitHub 设备授权连接要新增一条，环境变量与路由改名，`ConnectorAuthKind` 收窄**（2026-10-31，W5-11 第 8 片，T-066，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.5，S-109、RAC-2540～2549）：
+  - 原来用 GitHub 设备授权建立的连接（凭据不是 `connector-protocol:`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；请新增一条 GitHub 连接，Feed 来源用到旧连接的，在来源详情的“使用的账号连接”里换。个人访问令牌（PAT）连接不受影响。
+  - 路由：`/api/settings/connectors/github/device/start`、`…/device/poll`、`…/github/client` 删除，改用通用的 `/api/settings/connectors/methods/device/start`、`…/device/poll`（输入多一个 `service_id`）。
+  - 平台自己的 GitHub 客户端环境变量改名，不留旧名：`MOLIS_WORK_GITHUB_CLIENT_ID`、`GITHUB_CLIENT_ID` → `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`（设备授权不需要密钥）。设置页里存过的 `connector:github:client_id` 不再被读，`github_client_id_configured` 字段删除，是否能一键登录改读各 OAuth 方法的 `login_ready` 与 `oauth.device.login_ready`。
+  - `ConnectorAuthKind` 从 `oauth | github | gmail | notion | feishu | token | none` 收窄为 `oauth | feishu | token | none`：GitHub、Gmail、Notion 的 Manifest 都写 `auth_kind: "oauth"`（内置 Manifest 不升版本）。读 `auth_kind` 的调用方不再能靠它区分这三个服务，要区分就用 `service_id`；`ConnectorMethodOption.oauth` 多一个可选的 `device: { login_ready }`。
+  - 一个服务的 `auth.methods` 里 `oauth` 现在可以按 grant 各写一个（`authorization_code` 与 `device`），不再按种类一刻只许一个。
+- **Notion 并进通用 OAuth 流程：旧 Notion 授权连接要新增一条，环境变量改名**（2026-10-30，W5-11 第 7 片，T-065，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.4、§10 Q2、Q5，S-101、RAC-2533～2539）：
+  - 原来用 Notion 自己的授权流程建立的连接（凭据是 `connector-connection:<id>:access`，不是 `connector-protocol:`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；点“重新授权”只会得到“请新增一条连接”。请新增一条 Notion 连接，成果库导入每次选连接，之后选新的；新连接可用后删掉旧连接。用个人访问令牌（PAT）建的 Notion 连接不受影响。
+  - Notion 判断“重新授权是同一个账号”仍按工作区（`workspace_id`），换了工作区被拒；授权时的 `owner=user` 参数、Basic 认证与 JSON 体的令牌请求不变。
+  - 平台自己的 Notion 客户端环境变量改名，不留旧名：`MOLIS_WORK_NOTION_CLIENT_ID`、`MOLIS_WORK_NOTION_CLIENT_SECRET` → `MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_ID`、`MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_SECRET`。设置页里存过的 Notion Client ID / Secret（`connector:notion:client_id`、`connector:notion:client_secret`）不再被读，要在新增连接时重新填，或由部署配置上面两个变量。
+  - Notion 在控制台登记过的本机回调 `http://localhost:<端口>/api/settings/connectors/notion/oauth/callback` 继续有效：它是平台回调别名表里 Notion 的一项，声明了主机名 `localhost`（Notion 不收数字 IP），只有 `localhost` 与 `127.0.0.1`、`[::1]`、同端口同协议才视为同一来源，别的服务没有这条放宽。
+  - 设置页的 `POST /api/settings/connectors/notion/oauth/start` 本机路由删除，统一走 `methods/oauth/start`；连接卡片 JSON 里的 `notion_oauth_configured` 字段删除，`ConnectorMethodOption.oauth` 多一个可选的 `callback_host`。
 - **Gmail 并进通用 OAuth 流程：旧 Gmail 连接要新增一条，环境变量改名**（2026-10-29，W5-11 第 6 片，T-064，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.4、§10 Q2、Q5、Q6，S-101、RAC-2476～2486）：
   - 原来用 Gmail 自己的授权流程建立的连接（设置里显示“账号授权”、凭据是 `connector-connection:<id>:access`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；点“重新授权”只会得到“请新增一条连接”。请新增一条 Gmail 连接，在 Feed 来源详情的“使用的账号连接”里换到新连接（换连接会建出独立的新来源、暂停旧来源，原消息保留），新连接可用后删掉旧连接。
   - Gmail 判断“重新授权是同一个账号”改按 Google 的 `sub`（不再按邮箱）；授权多要 `openid email` 两个 scope。

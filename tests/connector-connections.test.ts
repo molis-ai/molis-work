@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, connectorProtocolSecrets, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -264,63 +265,6 @@ test("managed Gmail OAuth creates a named connection and refuses reauthorizing i
   }
 });
 
-test("managed Notion OAuth keeps workspace identity and the selected connection name", async t => {
-  const home = mkdtempSync(join(tmpdir(), "molis-managed-notion-"));
-  const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
-  process.env.MOLIS_WORK_HOME = home;
-  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  resetSecretStoreCache();
-  const controlToken = "managed-notion-test-control-token";
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address(); assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
-  let workspace = "workspace-a";
-  const actualFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input) === "https://api.notion.com/v1/oauth/token") {
-      return Response.json({ access_token: `notion-token-${workspace}`, refresh_token: "notion-refresh-token",
-        workspace_id: workspace, workspace_name: workspace, bot_id: "bot-1" });
-    }
-    return actualFetch(input, init);
-  });
-  const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken,
-    "x-molis-work-idempotency-key": crypto.randomUUID() });
-  async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/notion/oauth/start`, { method: "POST", headers: headers(),
-      body: JSON.stringify({ client_id: "notion-test-client", client_secret: "notion-test-secret", manage_connection: true,
-        display_name: "Notion 工作区", ...(connectionId ? { connection_id: connectionId } : {}) }) });
-    assert.equal(response.status, 200);
-    const started = await response.json() as { authorizationUrl: string; connection_id: string };
-    return { connectionId: started.connection_id, state: new URL(started.authorizationUrl).searchParams.get("state")! };
-  }
-  async function callback(state: string) {
-    return fetch(`http://localhost:${address.port}/api/settings/connectors/notion/oauth/callback?state=${state}&code=code`);
-  }
-  try {
-    const first = await start();
-    const completed = await callback(first.state);
-    assert.equal(completed.status, 200);
-    assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connectionId, "notion")), "notion-token-workspace-a");
-    const saved = withConnectorConnections(home, store => store.require(first.connectionId));
-    assert.equal(saved.display_name, "Notion 工作区");
-    assert.equal(saved.account_label, "workspace-a");
-    workspace = "workspace-b";
-    const second = await start(first.connectionId);
-    const mismatch = await callback(second.state);
-    assert.equal(mismatch.status, 200);
-    assert.match(mismatch.url, /connector=notion/);
-    assert.match(mismatch.url, /connection_error=failed/);
-    assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connectionId, "notion")), "notion-token-workspace-a");
-  } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
-    resetSecretStoreCache();
-    if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
-    if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
-    rmSync(home, { recursive: true, force: true });
-  }
-});
-
 // CONERR-01 / CONERR-02: real HTTP classification preserves authorization and masks private connection failures.
 test("MCP settings keep authorization at 401 and missing connections as safe provider failures", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-mcp-refusal-"));
@@ -359,36 +303,34 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
-  const actualFetch = globalThis.fetch;
   let hold = false, generation = 0, reached!: () => void, release!: () => void;
   let entered: Promise<void>, waiting: Promise<void>;
   function block() { hold = true; entered = new Promise<void>(resolve => { reached = resolve; }); waiting = new Promise<void>(resolve => { release = resolve; }); }
-  // Gmail signs in through the generic flow (W5-11 slice 6), whose requests leave by the Host's own sender; Notion's flow is still its own.
-  const generic = service === "gmail";
+  // Both sign in through the generic flow (W5-11 slices 6, 7), whose requests leave by the Host's own sender.
   const issue = async () => {
     const issued = ++generation; if (hold) { reached(); await waiting; }
     return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
   };
-  if (generic) oauthNetwork(t, async url => url === "https://oauth2.googleapis.com/token" ? issue()
+  oauthNetwork(t, async url => url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token" ? issue()
+    : url === "https://api.notion.com/v1/users/me" ? Response.json({ object: "user", id: "bot", type: "bot", bot: { workspace_name: "Work" } })
     : (assert.equal(url, "https://openidconnect.googleapis.com/v1/userinfo"), Response.json({ sub: "work-sub", email: "work@example.test" })));
-  else t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    if (url === "https://api.notion.com/v1/oauth/token") return issue();
-    return actualFetch(input, init);
-  });
-  const secret = (id: string, kind: "access" | "refresh") => generic ? connectorProtocolSecrets(home, id).get(kind === "refresh" ? "oauth" : kind) ?? null
-    : runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${id}:${kind}`));
+  const secret = (id: string, kind: "access" | "refresh") => connectorProtocolSecrets(home, id).get(kind === "refresh" ? "oauth" : kind) ?? null;
   const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/${generic ? "methods" : service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
-      ...(generic ? { service_id: service } : { manage_connection: true }), client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work",
-      ...(generic ? {} : { redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback` }), ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    const response = await fetch(`${origin}/api/settings/connectors/methods/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
+      service_id: service, client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work", ...(connectionId ? { connection_id: connectionId } : {}) }) });
     assert.equal(response.status, 200);
-    const result = await response.json() as { authorizationUrl?: string; authorization_url?: string; authorization_id: string; connection_id: string };
-    const consent = new URL((generic ? result.authorization_url : result.authorizationUrl)!), redirect = new URL(consent.searchParams.get("redirect_uri")!);
+    const result = await response.json() as { authorization_url: string; authorization_id: string; connection_id: string };
+    const consent = new URL(result.authorization_url), redirect = new URL(consent.searchParams.get("redirect_uri")!);
     return { ...result, callback: redirect.href + `?state=${consent.searchParams.get("state")}&code=fixture-code` };
   }
-  const complete = (attempt: Awaited<ReturnType<typeof start>>) => fetch(attempt.callback, { redirect: "manual" });
+  // The provider sends the browser to the address the redirect names (Notion's is `localhost`); the test Host listens on 127.0.0.1 only, so the request goes there with that Host.
+  const complete = (attempt: Awaited<ReturnType<typeof start>>) => new Promise<Response>((resolve, reject) => {
+    const url = new URL(attempt.callback);
+    httpRequest({ host: "127.0.0.1", port: address.port, path: url.pathname + url.search, method: "GET", headers: { host: url.host } }, response => {
+      response.resume(); response.on("end", () => resolve(new Response(null, { status: response.statusCode ?? 0, headers: response.headers.location ? { location: response.headers.location } : {} })));
+    }).on("error", reject).end();
+  });
   const cancel = async (attempt: Awaited<ReturnType<typeof start>>) => {
     const response = await fetch(`${origin}/api/settings/connectors/authorizations/${attempt.authorization_id}`, { method: "DELETE", headers: headers() });
     assert.equal(response.status, 200); return response.json() as Promise<{ status: string }>;

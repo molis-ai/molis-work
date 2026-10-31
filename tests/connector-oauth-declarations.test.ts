@@ -454,3 +454,28 @@ test("RAC-1080 RAC-1082 the Host's source has no OAuth table, only the interpret
     assert.doesNotMatch(read(name), /catalogWhoami|["']@molis-ai\/molis-work-integration-|["']@molis-ai\/molis-work-plugin-(?!sdk["'/])/u, name);
   }
 });
+
+// W5-11 slice 8 (RAC-2547): a service may declare one `oauth` method per grant, and `auth_kind` no longer names a service.
+const device = (extra: Partial<PluginOAuthMethodDeclaration> = {}): PluginOAuthMethodDeclaration => ({
+  kind: "oauth", grant: "device", device_authorization_url: "https://auth.example.com/device/code", token_url: "https://auth.example.com/token",
+  scopes: ["read"], identity: { url: "{service}/v1/me", account_id: [[], ["identity:/id"]], label: ["identity:/name"] }, ...extra,
+});
+const withMethods = (methods: unknown[], authKind = "oauth"): PluginManifest => {
+  const base = manifest("slack", method()), service = base.connection_services![0]!;
+  return Object.assign({}, base, { connection_services: [{ ...service, auth_kind: authKind, auth: { methods } }] });
+};
+
+test("RAC-2547 a service declares one oauth method per grant: the same grant twice is refused, each grant once passes", () => {
+  assert.ok(parsePluginManifest(withMethods([method(), device()])), "the web flow and the device grant side by side");
+  assert.ok(parsePluginManifest(withMethods([device(), method()])), "in either order");
+  assert.throws(() => parsePluginManifest(withMethods([method(), method({ scopes: ["write"] })])), { code: "plugin.declaration_invalid", message: /接入方式重复：oauth/u });
+  assert.throws(() => parsePluginManifest(withMethods([device(), device({ scopes: ["write"] })])), { code: "plugin.declaration_invalid", message: /接入方式重复：oauth（device）/u });
+  assert.throws(() => parsePluginManifest(withMethods([method(), { kind: "token", label: "Token" }, { kind: "token", label: "Token again" }])), { code: "plugin.declaration_invalid", message: /接入方式重复：token/u }, "every other kind is still once");
+});
+
+test("RAC-2547 auth_kind is oauth, feishu, token or none: the per-service values of the dedicated flows are refused", () => {
+  for (const kind of ["oauth", "feishu", "token", "none"]) assert.ok(parsePluginManifest(withMethods([method()], kind)), kind);
+  for (const kind of ["github", "gmail", "notion", "slack", ""]) {
+    assert.throws(() => parsePluginManifest(withMethods([method()], kind)), { code: "plugin.declaration_invalid", message: /auth_kind 不合法/u }, kind);
+  }
+});

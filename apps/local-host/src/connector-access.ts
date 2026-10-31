@@ -2,13 +2,12 @@ import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/servic
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorAccountControl, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { CatalogLiveError, catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
+import { catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccount, resolveApiOAuthToken } from "./connector-api-oauth.js";
 import type { OAuthNetwork } from "./connector-oauth-send.js";
-import { clearRefreshRefused, markRefreshRefused, tokenEndpointRefused } from "./connector-refresh-refusals.js";
-import { resolveUsableNotionToken } from "./notion-oauth.js";
+import { clearRefreshRefused, markRefreshRefused } from "./connector-refresh-refusals.js";
 import { replacedOAuthShape, REPLACED_OAUTH_NOTE } from "./connector-oauth-shape.js";
 import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
@@ -71,12 +70,6 @@ export async function resolveApiConnection(home: string, id: string, control: Co
       const token = await refreshing(() => resolveApiOAuthToken(home, id, control, refresh, undefined, undefined, network),
         error => error instanceof ApiOAuthError && error.refused);
       return { connection, token, authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
-    }
-    if (connection.auth_method === "oauth" && connection.service_id === "notion" && connection.refresh_ref) {
-      const token = await refreshing(() => resolveUsableNotionToken(id, control, refresh),
-        error => error instanceof CatalogLiveError && error.kind === "needs_auth" && tokenEndpointRefused(error.status));
-      if (!token) throw new Error("Notion 连接需要重新授权");
-      return { connection, token, authExtras: undefined, fetchImpl: undefined };
     }
     if (forceRefresh === "if_available") return null;
     const token = connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;

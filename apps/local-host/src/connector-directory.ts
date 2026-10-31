@@ -1,8 +1,5 @@
 import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
-import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
-import { notionOAuthConfigured } from "./notion-oauth.js";
 import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
@@ -65,13 +62,6 @@ export async function homeConnectorDirectory(home: string): Promise<readonly Con
   return connectorDirectory(await homeIntegrationRegistry(home));
 }
 
-function githubClientIdConfigured(): boolean {
-  try {
-    if (peekSealedEntry(GITHUB_CLIENT_ID_REF)) return true;
-  } catch { /* store unavailable → fall through to env */ }
-  return Boolean(readProductEnv("GITHUB_CLIENT_ID"));
-}
-
 /**
  * Whether the product can sign in to the service by its declared `oauth` method: a broker, or a client the declaration accepts.
  * Read from this Home's registry, so a service an installed package declares is answered the same way as a built-in one.
@@ -86,11 +76,5 @@ export async function connectorLoginReady(home: string, serviceId: string): Prom
  * themselves. Read again on each listing: whether the product's client is configured may have changed.
  */
 export async function listConnectorSettingsCards(home: string) {
-  return (await homeConnectorDirectory(home)).map((entry) => entry.availability === "placeholder"
-    ? { ...entry, github_client_id_configured: false }
-    : {
-      ...entry,
-      github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
-      notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,
-    });
+  return homeConnectorDirectory(home);
 }

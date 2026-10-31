@@ -60,6 +60,10 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 插件要在这台电脑上找命令行工具（例如终端 Agent），在 Manifest 里声明 `local_tools`（PG-112）：`tools` 写工具 id 和文件名（裸名字，不含路径），`directories` 写 `PATH` 之外也找的目录（`~/…` 或绝对路径），人在设置里自己选的路径要问就加 `custom_executables: true`；再声明 `local-tools:read` 权限。得到 `services.localTools`：`find()` 回每个工具的可执行文件路径（找不到是 null），`isExecutable(path)` 只回是或否，`refresh()` 清缓存。宿主只做文件系统查询，**不起进程**；插件包里不读 `process.env`、不 import `child_process`。只给 Home 实例；沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`）。隔离试用与测试用 `MOLIS_WORK_LOCAL_TOOLS=off` 或 `MOLIS_WORK_LOCAL_TOOLS_PATH=<目录>` 钉死。
 
+### 启动终端
+
+插件要在这台电脑上起一个交互终端（例如在工作目录里跑终端 Agent），在 Manifest 里声明 `terminal:run` 权限（S-103）。得到 `services.terminal.open({ key, title, command, args?, directory })`，Home 实例和项目实例都有：`command` 是后端选的程序的绝对路径（常和 `services.localTools.find()` 一起用），`args` 至多 32 项；`directory` 是 `{ root: "workspace", workspace_id, path? }`（本次调用所在项目已关联的工作目录，另要 `workspace:read`）或 `{ root: "owner_files", path? }`（本插件声明的主人文件目录），`path` 是根下用 `/` 分隔的相对路径；程序和解析后的目录首尾都不能有空白（终端宿主会 trim 它们）。只能在本插件自己的、受众为 `user`、声明了 `terminal:run` 的 command 里调；安装、项目、人都取自这次调用，输入里多一个键就整个拒。回的只有面板号：同一项目里同一个人、同一个 `key` 再开，就是附着同一个在跑的进程；页面用页面终端（`molisPageTerminal`）附着、写入、改大小、结束。停用、撤权、卸载、项目实例停止时，这次激活起的进程全部结束。沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`，BL-910）。
+
 插件自己存了项目 id（例如副本的出处）、要知道那个项目还在不在，在 Manifest 里声明 `projects:exist` 权限（双实例插件的权限都要写 `required: true`；没问到就当「不知道」，不要当「已删除」），得到 `services.projects.exist(ids)`：只回你传进来的 id 的 `{id: boolean}`，不列项目、不返回名字（S-96，BL-680）；Home 实例和项目实例都有。沙箱操作声明 `effects.projects: ["exist"]`，由已校验合同派生这一项可选 Manifest 权限；操作效果批准与当前安装的 `projects:exist` 授权都要满足，仍走同一个客户端。
 
 ### 问题卡、操作卡与下一步行

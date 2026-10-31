@@ -281,6 +281,7 @@
 | BL-916 | PG-017 已给的服务（S-64、S-66、S-91、S-93）真实签名包够不着：`sandbox-package.ts` 只认固定的 Manifest 形状（`sandboxPluginManifest`），包写不了 `model:invoke`、`databases.home`、`owner_files`、`network:*` 等声明，这些服务只在探针定义的测试里用得上 | [pg011-pg017-remaining §1](repository-anti-corruption/slices/pg011-pg017-remaining.md) | 已知缺口 | 包格式改成「固定部分 + 名单内的块」；T-143、T-144 只解决 model、agent、methods 三项（模型一项由 T-143 带用例 RAC-2628）；**之后仍待**：`homeDatabase`、`connections`、`materials`、`ownerFiles`、`background`，需要固定 Manifest 能声明它们（稿第 1 节、第 11 节 R3）；格式按稿第 10 节 D6 | T-143、T-144 | 中 | 统筹大单（T-143） |
 | BL-819 | 项目里读个人方法遇到 Home 的 Goals 读坏时，报的话不对：`PersonalMethodsSnapshot.run`（`plugins/native/goals/src/runtime-ports.ts:110-112`）把读个人方法时所有非取消的失败都换成 `goals.planning.personal_unavailable`「读不到个人规划方法：Home 的 Goals 没有回应」，T-050 之后个人方法包读坏会走到这里，用户看到的是没有回应，实际是库里一行坏了；要定是原样透出 `goals.storage.record_unreadable`，还是在 `personal_unavailable` 里带上原因（Home 真的没回应时的码与断言不动） | T-050 派单 | 已知缺口 | 要先定透出口径；这是项目侧报错的合同，不在 T-050 | 无 | 低 | 未分配 |
 | BL-821 | Goals 的「记录读不出来」错误不带列名、表名、行号：`goals.storage.record_unreadable` 只写固定文案，排查时看不出是哪一行；要带位置得给两处 `parseJson` 加参数、改二十多处调用 | T-025 派单 | 已知缺口 | 要改 `parseJson` 全部调用的签名，还要定这些位置给不给用户看，任务书明确这次不做 | 无 | 低 | 未分配 |
+| BL-910 | 沙箱包的交互终端：平台的 `services.terminal`（S-103）只给宿主自己运行的插件，沙箱包声明 `terminal:run`（必需，或人批准的可选）在启动时以 `sandbox.service_not_given` 拒（`SANDBOX_NOT_GIVEN` 的 `terminal` 行）。终端进程跑在沙箱之外、带人的全部权限，沙箱包拿到它就等于出了沙箱；要给须另有设计（例如只许签名包里声明、随包校验的程序），先问用户 | [platform-terminal-launch §3](repository-anti-corruption/slices/platform-terminal-launch.md)；T-136 统筹裁 ④ | 待你决定 | 要先有设计，并由用户定给不给 | 无 | 低 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

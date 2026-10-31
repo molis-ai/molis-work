@@ -32,11 +32,11 @@
   "length": 6
  },
  "document-trash.en": {
-  "sha256": "edee7f379eb100d8ad7673d397a1219d44aa436f71247f7bc932fd91c601bec7",
+  "sha256": "f92f279136328cdbb2231702046f341ed0734a5663b4451db7ee684b59878a9a",
   "length": 5587
  },
  "document-trash.zh": {
-  "sha256": "9ce92a79ceeb68a4fbed5d3d767d236aa7393031fc5f1152102fd8aa6d8fada0",
+  "sha256": "93c246931141b75a5a93361e4b3513f9bdcdccf79ab09a2740798a57073deef0",
   "length": 5154
  },
  "momentum-archive.en": {
@@ -120,11 +120,11 @@
   "length": 251276
  },
  "page-trash.en": {
-  "sha256": "cb551f18305215915275e66c706371e568f40afca4ce25e15e222d95aee640e7",
+  "sha256": "4c073025b3f736d07ec353d9a79162074db0a808de0964335499938e015ceea3",
   "length": 272890
  },
  "page-trash.zh": {
-  "sha256": "187ad5bbc652d0d5cf445b18573f7dea9b29a9e2f9e847d3de23a1c1d6886eb8",
+  "sha256": "c142899d2bee7900c9ec750dbbbc46a19744b72c733c1e6de3647f18f7a15b18",
   "length": 262981
  },
  "planning-library-personal.en": {
@@ -160,12 +160,12 @@
   "length": 19288
  },
  "planning-method-new.en": {
-  "sha256": "4d32c338db6b6a7b2f4fd42d26276a2cfaeb5414bdcc3932efc276b3aeeab54a",
-  "length": 12262
+  "sha256": "3908a658625a83597f271df9aec50bdce062898d0fed551493ff402fe550e70f",
+  "length": 12268
  },
  "planning-method-new.zh": {
-  "sha256": "654cfb03b6201592f30d5c911aaac5ec95d8050c79006308181664eaba529b95",
-  "length": 10100
+  "sha256": "eb432503f2efb579a69493fc10f64455e2f65ce8302da146994b8c1617dfee74",
+  "length": 10106
  },
  "refresh-archive.en": {
   "sha256": "695dc421bcac166a561ac950cea6a2b75f8b3b20a0e79f347ff4dc3c62df3b27",
@@ -192,11 +192,11 @@
   "length": 180036
  },
  "refresh-trash.en": {
-  "sha256": "03baafce467a98f2c54d824e0b737a5c3198f368b68cfd02cf17ddbc0bf658ca",
+  "sha256": "ce54c23d49323445836bc4abea197267f2a9c5fec86fe4dbe497686af8862155",
   "length": 167602
  },
  "refresh-trash.zh": {
-  "sha256": "807bf142d4ca17441bf768ec54c783d261e5b53f7765f05bd50bec8592e084cc",
+  "sha256": "e53abff55fbb3ed90d706ccbcb38a7d8f6b4f108f68acc6a46b502251d7dd036",
   "length": 165260
  },
  "settings-general-embedded.en": {

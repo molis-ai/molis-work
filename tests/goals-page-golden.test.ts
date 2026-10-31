@@ -15,6 +15,7 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // (times and ids fixed), so the pages have a Goal tree with children, a decision waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
 const record = process.env.MOLIS_WORK_GOLDEN_RECORD === "1";const TOKEN = "golden-control-token";
+const NOW = Date.parse("2026-10-30T09:00:00.000Z"); // The instant held by the view fixture.
 const PROJECT = { project_id: "golden", display_name: "Golden project" };
 
 const baseView = JSON.parse(readFileSync(new URL("view.json", GOLDEN), "utf8")) as MolisWorkWebView;
@@ -59,15 +60,18 @@ const pages: Record<string, Draw> = {
 // icon sprite and the plugin directory (`data-plugin-directory`) are the shell's and the plugins' bytes, they change with those owners and
 // are held by the page-assets budget. What Goals itself puts into the page IS in the hash, JSON data included: the `molis-work-data` block
 // the page's scripts read (about 57 KB a page) and `data-project-guidance-json`. A mismatch writes what
-// was drawn to the temp directory; the recorded hashes come from running this file with MOLIS_WORK_GOLDEN_RECORD=1 on the commit before
-// the change. MOLIS_WORK_GOLDEN_DUMP=1 writes every whole page (scripts and styles included) to the temp directory, in either mode, so a
-// change that must not alter a byte is proved by a diff of the two directories against a baseline built from a clean checkout. Build the
-// whole workspace first: a stale dist draws a page nobody is served.
+// was drawn to the temp directory. Each draw fixes Date.now and the default time zone: the new method id and the trash dates stay in
+// the output and the hash. The clock mock and time zone are restored after each test; the generated method id is no longer masked.
+// To re-record: in a clean checkout of the pre-change baseline, copy this test and fixtures/goals-page-golden/view.json into tests/,
+// keeping their relative paths. Build that whole workspace first (MOLIS_HELPER_SIGNING_IDENTITY=- pnpm build); stale dist is not evidence.
+// Then run MOLIS_WORK_GOLDEN_RECORD=1 MOLIS_WORK_GOLDEN_DUMP=1 node scripts/run-tests.mjs --jobs 1 tests/goals-page-golden.test.ts.
+// Copy only the resulting golden.json back to the candidate, build it, then run the same complete test with MOLIS_WORK_GOLDEN_DUMP=1 and MOLIS_WORK_GOLDEN_RECORD unset.
+// Use separate TMPDIR directories for those two runs: compare their goals-golden-recorded and goals-golden-drawn directories with
+// diff -rq (66 full HTML files, including scripts, styles and JSON). On this machine, wrap builds in the build slot and all test runs
+// in the browser slot using scripts/machine-slot.mjs; set TMPDIR inside the slot so both checkouts share the machine's slot directory.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));
-// Drawn from the clock: a new method's id.
-const settled = (html: string): string => html.replace(/custom-method-[0-9a-z]+/g, "custom-method-ID");
 const dataBlock = /type="application\/json"/;
 const markup = (html: string): string => html
   .replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g, (script, attributes: string) => dataBlock.test(attributes) && !attributes.includes("data-plugin-directory") ? script : "<script></script>")
@@ -76,8 +80,12 @@ const markup = (html: string): string => html
 const drawn: Record<string, string> = {};
 
 for (const locale of ["zh", "en"] as const) for (const [name, draw] of Object.entries(pages)) {
-  test(`RAC-2680: Goals ${name} in ${locale} is the recorded markup, byte for byte`, () => {
-    const whole = settled(runWithLocale(locale, draw));
+  test(`RAC-2680: Goals ${name} in ${locale} is the recorded markup, byte for byte`, (t) => {
+    const timeZone = process.env.TZ;
+    t.after(() => { if (timeZone === undefined) delete process.env.TZ; else process.env.TZ = timeZone; });
+    process.env.TZ = "UTC";
+    t.mock.method(Date, "now", () => NOW);
+    const whole = runWithLocale(locale, draw);
     const html = markup(whole);
     const key = `${name}.${locale}`;
     drawn[key] = whole;

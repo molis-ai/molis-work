@@ -173,6 +173,8 @@ export interface PluginTerminalPanel {
   readonly title: string;
   /** The recipe id, or `command` for a program the plugin chose. */
   readonly runtime: string;
+  /** The program it was opened with, as `open` takes it: what starts it again under the same key. */
+  readonly program: PluginTerminalProgram;
   readonly subject: string | null;
   readonly running: boolean;
   readonly created_at: string;

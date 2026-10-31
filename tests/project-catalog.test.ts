@@ -851,7 +851,7 @@ test("project deletion needs separate confirmation and records an idempotent rec
   });
 });
 
-test("opening a desktop TUI panel binds that work context to the Goal and aliases a later host session", async () => {
+test("a plugin terminal record binds its work context to the project and aliases a later host session", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home", ".molis-work");
     const workspace = join(directory, "repo");
@@ -859,63 +859,23 @@ test("opening a desktop TUI panel binds that work context to the Goal and aliase
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const project = await catalog.createProject({ display_name: "桌面项目", actor_id: "user" });
-      assert.throws(
-        () => catalog.openDesktopPanel({
-          project_id: project.project_id,
-          goal_id: "leaf-goal",
-          runtime_kind: "codex",
-          launch_command: "codex",
-          actor_id: "user",
-          user_confirmed: false,
-        }),
-        (error: unknown) =>
-          error instanceof ActionError && error.code === "catalog.panel_confirmation_required",
-      );
-
-      const panel = catalog.openDesktopPanel({
-        project_id: project.project_id,
-        goal_id: "leaf-goal",
-        runtime_kind: "codex",
-        launch_command: "codex",
-        cwd: workspace,
-        actor_id: "user",
-        user_confirmed: true,
-      });
-      assert.equal(panel.goal_id, "leaf-goal");
+      const owner = { install_id: "fixture-install", project_id: project.project_id, actor_id: "user" };
+      const panel = await catalog.commit(() => catalog.terminalPanels.insert({ ...owner, panel_id: "plugin-catalog-terminal", key: "main", subject: "leaf-goal",
+        runtime: "codex", launch_command: "codex", launch_args: [], title: "Codex" }, workspace));
+      assert.equal(panel.subject, "leaf-goal");
       assert.equal(panel.project_id, project.project_id);
-      assert.equal(catalog.listDesktopPanels(project.project_id, "leaf-goal").length, 1);
-      assert.equal(catalog.listDesktopPanels(project.project_id, "other-goal").length, 0);
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", panel.work_context_id)).status,
-        "bound",
-      );
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", panel.work_context_id)).project?.project_id,
-        project.project_id,
-      );
+      assert.equal(catalog.terminalPanels.list(owner, "leaf-goal").length, 1);
+      assert.equal(catalog.terminalPanels.list(owner, "other-goal").length, 0);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id)).status, "bound");
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id)).project?.project_id, project.project_id);
 
-      const aliased = catalog.aliasDesktopPanelSession({
-        panel_id: panel.panel_id,
-        runtime_id: "codex",
-        host_session_id: "codex-thread-99",
-        actor_id: "desktop-panel",
-      });
+      const aliased = await catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel.panel_id, runtime_id: "codex", host_session_id: "codex-thread-99" }));
       assert.equal(aliased.host_session_id, "codex-thread-99");
-      assert.equal(
-        catalog.findDesktopPanelByWorkContext("codex", "codex-thread-99")?.panel_id,
-        panel.panel_id,
-      );
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", "codex-thread-99")).project?.project_id,
-        project.project_id,
-      );
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", "codex-thread-99")).project?.project_id, project.project_id);
 
-      catalog.closeDesktopPanel(panel.panel_id, "user");
-      assert.equal(catalog.listDesktopPanels(project.project_id, "leaf-goal").length, 0);
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", panel.work_context_id)).status,
-        "bound",
-      );
+      await catalog.commit(() => catalog.terminalPanels.remove(aliased));
+      assert.equal(catalog.terminalPanels.list(owner, "leaf-goal").length, 0);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id)).status, "bound");
     } finally {
       catalog.close();
     }

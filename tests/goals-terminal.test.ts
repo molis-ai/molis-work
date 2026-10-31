@@ -116,7 +116,7 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   const listed = await json(await api("/LEAF/terminals"));
   assert.equal(listed.status, 200);
   assert.deepEqual((listed.body.panels as Array<Record<string, unknown>>).map(({ created_at: _created, ...row }) => row),
-    [{ key: opened.body.key, panel_id: panelId, title: "Codex", runtime: "codex", running: true }]);
+    [{ key: opened.body.key, panel_id: panelId, title: "Codex", runtime: "codex", program: { runtime: "codex" }, running: true }]);
   assert.equal(listed.body.read_only, false);
   assert.deepEqual((await json(await api("/CHILD/terminals"))).body.panels, [], "another Goal's terminals are its own");
   const again = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", key: opened.body.key } }));

@@ -19,7 +19,7 @@ export type { ManageMolisWorkDemoProjectInput } from "./project-catalog-contract
 export type { MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { assertCurrentCatalog, assertOwnedCatalog, initializeCatalog } from "./catalog-schema.js";
 import { PluginTerminalPanels } from "./plugin-terminal-panels.js";
-import { catalogErrors, catalogFailure } from "./project-catalog-contract.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -27,14 +27,6 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import {
-  type DesktopPanelCatalogApi,
-  type DesktopPanelContextPort,
-  type DesktopPanelErrorCode,
-  type AliasDesktopPanelSessionInput,
-  type DesktopPanelRecord,
-  type OpenDesktopPanelInput,
-} from "@molis-ai/molis-work-contracts/platform/app-host";
 import type {
   AddProjectPluginInput,
   ProjectPluginId,
@@ -111,10 +103,6 @@ export type MolisWorkProjectSuggestion = import("@molis-ai/molis-work-contracts/
 
 export type MolisWorkRuntimeContextBinding = RuntimeContextBindingRecord;
 
-export type MolisWorkDesktopPanelRecord = DesktopPanelRecord;
-export type OpenMolisWorkDesktopPanelInput = OpenDesktopPanelInput;
-export type AliasMolisWorkDesktopPanelSessionInput = AliasDesktopPanelSessionInput;
-
 export type MolisWorkRuntimeContextBindingEvent = RuntimeContextBindingEventRecord;
 
 export type MolisWorkProjectConnection = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectConnection;
@@ -144,10 +132,6 @@ export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-cont
 
 export interface LocalCatalogPlatform {
   createPanelSchema(db: SqliteDatabase): void;
-  createPanels(db: SqliteDatabase, ports: {
-    context: DesktopPanelContextPort;
-    errorFactory(code: DesktopPanelErrorCode, message: string): Error;
-  }): DesktopPanelCatalogApi;
 }
 
 /** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
@@ -182,7 +166,6 @@ export class MolisWorkProjectCatalog {
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
-  readonly desktopPanels: DesktopPanelCatalogApi;
   /** The terminals plugins start through `services.terminal`. */
   readonly terminalPanels: PluginTerminalPanels;
   readonly models: ModelProviderStore;
@@ -193,7 +176,6 @@ export class MolisWorkProjectCatalog {
     private readonly storage: LocalSqliteStorage,
     homeDirectory: string,
     ledger: ContextLedgerApi,
-    platform: LocalCatalogPlatform,
   ) {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
@@ -213,7 +195,7 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
-      removePanels: projectId => { this.desktopPanels.deleteForProject(projectId); this.terminalPanels.deleteForProject(projectId); },
+      removePanels: projectId => this.terminalPanels.deleteForProject(projectId),
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
@@ -223,14 +205,9 @@ export class MolisWorkProjectCatalog {
       contextBindingValidation,
       this.commit, projectDeletedHooksFor(homeDirectory),
     );
-    // Both kinds of terminal record bind a runtime's work context and journal into the project the same way.
-    const terminals = { bind: terminalContextBinder(this.runtimeContexts),
-      appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) };
-    this.desktopPanels = platform.createPanels(db, {
-      errorFactory: catalogFailure,
-      context: { assertProject: (projectId) => { this.getProject(projectId); }, ...terminals },
-    });
-    this.terminalPanels = new PluginTerminalPanels(db, terminals);
+    // A terminal record binds a runtime's work context and journals into the project.
+    this.terminalPanels = new PluginTerminalPanels(db, { bind: terminalContextBinder(this.runtimeContexts),
+      appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) });
   }
 
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
@@ -244,7 +221,7 @@ export class MolisWorkProjectCatalog {
           initializeSchema: false,
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
-        return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
+        return new MolisWorkProjectCatalog(storage, homeDirectory, ledger);
       }
       const catalog = db.transaction(() => {
         // The async existence check can predate another connection's initialization.
@@ -259,7 +236,7 @@ export class MolisWorkProjectCatalog {
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
         if (!initialized) initializeCatalog(storage, platform.createPanelSchema);
-        return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
+        return new MolisWorkProjectCatalog(storage, homeDirectory, ledger);
       }).immediate();
       return catalog;
     } catch (error) {
@@ -319,41 +296,6 @@ export class MolisWorkProjectCatalog {
     context?: RuntimeWorkContext,
   ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
   listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
-
-  openDesktopPanel(input: OpenMolisWorkDesktopPanelInput): MolisWorkDesktopPanelRecord {
-    return this.desktopPanels.open(input);
-  }
-
-  listDesktopPanels(projectId: string, goalId?: string): MolisWorkDesktopPanelRecord[] {
-    return this.desktopPanels.list(projectId, goalId);
-  }
-
-  getDesktopPanel(panelId: string): MolisWorkDesktopPanelRecord {
-    return this.desktopPanels.get(panelId);
-  }
-
-  markDesktopPanelExited(panelId: string): MolisWorkDesktopPanelRecord {
-    return this.desktopPanels.markExited(panelId);
-  }
-
-  markDesktopPanelOpen(panelId: string): MolisWorkDesktopPanelRecord {
-    return this.desktopPanels.markOpen(panelId);
-  }
-
-  closeDesktopPanel(panelId: string, actorId: string): void {
-    this.desktopPanels.close(panelId, actorId);
-  }
-
-  aliasDesktopPanelSession(input: AliasMolisWorkDesktopPanelSessionInput): MolisWorkDesktopPanelRecord {
-    return this.desktopPanels.aliasSession(input);
-  }
-
-  findDesktopPanelByWorkContext(
-    runtimeId: string,
-    workContextId: string,
-  ): MolisWorkDesktopPanelRecord | null {
-    return this.desktopPanels.findByWorkContext(runtimeId, workContextId);
-  }
 
   preferredWorkspacePath(projectId: string): string | null {
     return this.projects.query.preferredWorkspacePath(projectId);

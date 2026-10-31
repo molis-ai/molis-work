@@ -99,6 +99,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       check();
       return Object.freeze(rows.map(row => Object.freeze<PluginTerminalPanel>({
         key: row.key, panelId: row.panel_id, title: row.title, runtime: row.runtime, subject: row.subject, running: host.alive(row.panel_id),
+        program: Object.freeze(row.runtime === "command" ? { command: row.launch_command, args: Object.freeze([...row.launch_args]) } : { runtime: row.runtime }),
         created_at: row.created_at,
       })));
     },

@@ -536,14 +536,15 @@ test("RAC-2569 S-103 a terminal's record is its installation's, project's and pe
   const homeInstall = (await grantInHome(f, home)).install;
   const person = await f.host.localPersonContext(project.reference), stranger = { ...person, actor_id: "second-person" };
   const panelId = panelOf(install.install_id, project.project_id, "mine");
-  const opening = await run(f, probe, "project", "run", own => opened(own, { ...launch(f, "mine", f.marker(), { root: "workspace", workspace_id }), subject: "s1" }), { project });
+  const mine = f.marker();
+  const opening = await run(f, probe, "project", "run", own => opened(own, { ...launch(f, "mine", mine, { root: "workspace", workspace_id }), subject: "s1" }), { project });
   assert.equal(opening.outcome, "ok", opening.message);
   const list = (who: Probe, input?: { subject?: string }, caller = person) => run(f, who, "project", "query", own => own.terminal!.list(input), { project, caller });
   const close = (who: Probe, caller = person) => run(f, who, "project", "run", own => own.terminal!.close({ key: "mine" }), { project, caller });
   const listed = await list(probe, { subject: "s1" });
   assert.equal(listed.outcome, "ok", listed.message);
   assert.deepEqual((listed.value as Array<Record<string, unknown>>).map(({ created_at: _created, ...row }) => row),
-    [{ key: "mine", panelId, title: "探针", runtime: "command", subject: "s1", running: true }]);
+    [{ key: "mine", panelId, title: "探针", runtime: "command", program: { command: f.program, args: [mine] }, subject: "s1", running: true }]);
   assert.deepEqual((await list(probe, { subject: "s2" })).value, [], "another subject");
   assert.deepEqual((await list(probe, undefined, stranger)).value, [], "another person lists nothing");
   assert.deepEqual((await list(other)).value, [], "another installation lists nothing");

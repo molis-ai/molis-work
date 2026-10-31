@@ -195,7 +195,6 @@ export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
-export { createLocalPanelHttp } from "./web-panel.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";

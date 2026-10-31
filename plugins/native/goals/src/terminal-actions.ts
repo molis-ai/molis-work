@@ -14,7 +14,9 @@ const terminalErrors = defineErrorCodes("goals.terminal", {
 /** A terminal's key: what `services.terminal` accepts, so a Goal page names its tabs without asking the platform. */
 const key = { type: "string", pattern: "^[a-z][a-z0-9-]{0,63}$" };
 const goal = { goal_id: identifier };
-const panel = object({ key: text, panel_id: text, title: text, runtime: text, running: boolean, created_at: text });
+const program = { anyOf: [object({ runtime: text }), object({ command: text, args: array(text) })] };
+const panel = object({ key: text, panel_id: text, title: text, runtime: text, program, running: boolean, created_at: text });
+type PanelRow = { key: string; panel_id: string; title: string; runtime: string; program: PluginTerminalProgram; running: boolean; created_at: string };
 
 /** The person's own page only: an Agent, workflow, MCP client or another plugin does not start, close or read a Goal's terminals. */
 function terminalAction<Input, Output>(id: string, title: string, description: string, operation: "query" | "command",
@@ -26,7 +28,7 @@ function terminalAction<Input, Output>(id: string, title: string, description: s
 
 type OpenInput = { goal_id: string; key?: string; runtime?: string; command?: string; args?: string[]; workspace_id?: string };
 export const goalsTerminalActions = {
-  list: terminalAction<{ goal_id: string }, { panels: Array<{ key: string; panel_id: string; title: string; runtime: string; running: boolean; created_at: string }>; read_only: boolean }>(
+  list: terminalAction<{ goal_id: string }, { panels: PanelRow[]; read_only: boolean }>(
     "goals.terminal.list", "读取目标的工作终端", "列出本人在这个目标上打开过的工作终端与它们是否在运行；上层目标的终端只读", "query",
     ["goals:read", "terminal:run"], object(goal), object({ panels: array(panel), read_only: boolean })),
   open: terminalAction<OpenInput, { panel_id: string; key: string; started: boolean }>(
@@ -71,7 +73,9 @@ export function createGoalsTerminalActionHandlers(ports: GoalsTerminalPorts): Ac
       const { goal_id } = input as { goal_id: string };
       const { parent } = readGoal(goal_id);
       const panels = await terminal().list({ subject: goal_id });
-      return { panels: panels.map(row => ({ key: row.key, panel_id: row.panelId, title: row.title, runtime: row.runtime, running: row.running, created_at: row.created_at })),
+      return { panels: panels.map((row): PanelRow => ({ key: row.key, panel_id: row.panelId, title: row.title, runtime: row.runtime,
+        program: "runtime" in row.program ? { runtime: row.program.runtime } : { command: row.program.command, args: [...row.program.args ?? []] },
+        running: row.running, created_at: row.created_at })),
         read_only: parent };
     } },
     { ...goalsTerminalActions.open, handle: async (_caller, input) => {

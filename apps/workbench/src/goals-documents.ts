@@ -123,6 +123,7 @@ export function createWorkbenchGoalsDocuments(ports: {
       }),
       cliAvailability,
       promptRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/advance-prompt",
+      terminalsRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/terminals",
       text: L,
       icon,
     });

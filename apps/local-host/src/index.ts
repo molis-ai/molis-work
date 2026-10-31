@@ -143,7 +143,7 @@ export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtoco
 export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthClientAuth, oauthContextValue, oauthDeviceRequest, oauthEndpoint, oauthEndpointFingerprint, oauthExpiry, oauthKept, oauthMethodOption, oauthPinnedTenant, oauthScope, oauthSecretRequired, oauthTenantOrigin, oauthTokenRequest, resolveOAuthSettings } from "./connector-oauth-declarations.js";
 export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
-export { startDeviceOAuth, pollDeviceOAuth } from "./connector-device-oauth.js";
+export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } from "./connector-device-oauth.js";
 
 
 export { createGithubConnector } from "./github-connector.js";

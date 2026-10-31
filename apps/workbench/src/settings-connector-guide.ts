@@ -132,7 +132,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
       ${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}
       ${ready ? `<details class="settings-connector-help"><summary>${L("使用其他应用配置")}</summary>${config}</details>` : config}
       <details class="settings-connector-help"><summary>${L("高级：使用已注册的 HTTPS 回调")}</summary>${field("redirect_uri", "HTTPS 回调地址（可选）")}<p>${L("仅在服务不接受本机回调时使用。授权后将完整返回地址粘贴到这里。")}</p></details>
-      <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="oauth"${dedicated ? " data-device-login" : ""}>${e(L("前往 {name} 登录", { name: provider }))}</button>${manualReturn}`;
+      <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="oauth"${dedicated ? ` data-device-login="${e(provider)}"` : ""}>${e(L("前往 {name} 登录", { name: provider }))}</button>${manualReturn}`;
   } else if (option.mcp) {
     const custom = card.connector_id === "mcp-bearer";
     const manual = custom || !option.login_ready && (option.mcp.client_registration === "manual" || ["feishu", "lark"].includes(card.connector_id));

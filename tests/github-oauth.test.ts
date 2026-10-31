@@ -7,19 +7,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
-import { connectorProtocolSecrets, withConnectorProtocols, handleLocalConnectorsSettingsHttp, listConnectorConnectionViews, pollDeviceOAuth, resolveApiConnection, startApiOAuth, startDeviceOAuth,
+import { DatabaseSync } from "node:sqlite";
+import { connectorProtocolSecrets, withConnectorProtocols, handleLocalConnectorsSettingsHttp, listConnectorConnectionViews, pollDeviceOAuth, registerConnectorDevicePolling, resolveApiConnection, startApiOAuth, startDeviceOAuth,
   withConnectorConnections, type OAuthOwners } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 // W5-11 slice 8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.5 "GitHub"): GitHub signs in through the
 // generic OAuth flow by what its declaration says: the web flow for a client of the person's own, the device grant (RFC 8628) for the
-// product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-104).
+// product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-109).
 // - RAC-2540: GitHub connects by the device grant: the page gets a user code and an address, never the device code; the connection is the generic shape.
 // - RAC-2541: the verification address must be https, without an account, port or fragment, and the origin the request went to, compared as parsed origins.
 // - RAC-2542: polling is rate-limited per authorization: early polls send nothing, `slow_down` moves only that authorization's interval.
 // - RAC-2543: an authorization that ends without a token (expired, denied, any other answer) writes only its status and keeps nothing.
 // - RAC-2544: the declaring plugin and its method are judged before every request and again before the connection is committed.
-// - RAC-2545: a token is claimed once; a cancelled authorization sends nothing and a late token is refused.
+// - RAC-2545: a token is claimed once; a state the Host never issued, or issued for another origin, reads nothing (the cancellations are in connector-setup.test.ts).
 // - RAC-2546: the product client comes from the new variable names only; the old names and the saved client are not read.
 // - RAC-2547: a GitHub connection of the dedicated flow's shape says reauth_required and nothing is sent for it; each grant reads its own method.
 // - RAC-2548: the verification address is compared as an origin, not as text.
@@ -65,16 +66,25 @@ function clock(t: TestContext) {
 /** GitHub, as far as the flow talks to it: the device code request, the token endpoint and the account. */
 function github(t: TestContext) {
   const sent: Array<{ url: string; method: string; headers: Record<string, string>; body: string }> = [];
-  const options: { verification?: string; complete?: string; userCode?: string; interval?: number; polls: Array<Record<string, unknown>> } = { polls: [] };
+  const options: { verification?: string; complete?: string; userCode?: string; interval?: number; polls: Array<Record<string, unknown>>; user: { id: number; login: string };
+    /** Decides one token poll: a promise to hold it, an error to fail it, or nothing to take the next of `polls`. */
+    tokenPoll?: (body: string) => Promise<unknown> | Error | Response | undefined; deviceCodes: number } = { polls: [], user: { id: 12, login: "octo" }, deviceCodes: 0 };
   oauthNetwork(t, async (url, init) => {
     sent.push({ url, method: init.method, headers: init.headers, body: init.body });
     if (url === CODE_URL) {
-      return Response.json({ device_code: "private-device-code", user_code: options.userCode ?? "ABCD-EFGH", verification_uri: options.verification ?? "https://github.com/login/device",
+      options.deviceCodes += 1;
+      return Response.json({ device_code: options.deviceCodes === 1 ? "private-device-code" : `private-device-code-${options.deviceCodes}`, user_code: options.userCode ?? "ABCD-EFGH", verification_uri: options.verification ?? "https://github.com/login/device",
         ...(options.complete ? { verification_uri_complete: options.complete } : {}), expires_in: 900, interval: options.interval ?? 5 });
     }
-    if (url === TOKEN_URL) return Response.json(options.polls.shift() ?? { error: "authorization_pending" });
+    if (url === TOKEN_URL) {
+      const decided = options.tokenPoll?.(init.body);
+      if (decided instanceof Error) throw decided;
+      if (decided instanceof Response) return decided;
+      if (decided) await decided;
+      return Response.json(options.polls.shift() ?? { error: "authorization_pending" });
+    }
     assert.equal(url, USER_URL, "no other request");
-    return Response.json({ id: 12, login: "octo" });
+    return Response.json(options.user);
   });
   return { sent, options, of: (url: string) => sent.filter(request => request.url === url) };
 }
@@ -115,11 +125,13 @@ test("RAC-2540: GitHub connects by the device grant: the page gets a user code a
 test("RAC-2541: a verification address that is not https, carries an account, port or fragment, or names another origin ends the authorization before anything is stored", async t => {
   const home = homeOf(t), remote = github(t);
   for (const address of ["http://github.com/login/device", "https://user:pass@github.com/login/device", "https://github.com:8443/login/device", "https://github.com/login/device#x",
-    "https://evil.example/login/device", "https://github.com.evil.example/login/device", "https://gist.github.com/login/device", "not a url", ""]) {
+    "https://evil.example/login/device", "https://github.com.evil.example/login/device", "https://gist.github.com/login/device", "not a url", "", `https://github.com/login/device?x=${"a".repeat(2100)}`]) {
     remote.options.verification = address;
     await assert.rejects(startDeviceOAuth(home, START), address);
     remote.options.verification = undefined;
   }
+  remote.options.complete = `https://github.com/login/device?user_code=${"A".repeat(2100)}`;
+  await assert.rejects(startDeviceOAuth(home, START), /验证地址/u, "the address with the code filled in is bounded too");
   remote.options.complete = "https://evil.example/login/device?user_code=ABCD-EFGH";
   await assert.rejects(startDeviceOAuth(home, START), /验证地址/u, "the address with the code filled in is judged as strictly");
   remote.options.complete = undefined;
@@ -150,7 +162,7 @@ test("RAC-2542: each authorization keeps its own interval: early polls send noth
 });
 
 test("RAC-2543: an authorization that ends without a token writes only its status and keeps no device code", async t => {
-  for (const [answer, status] of [[{ error: "expired_token" }, "expired"], [{ error: "access_denied" }, "cancelled"], [{ error: "incorrect_client_credentials" }, "failed"], [{}, "failed"]] as const) {
+  for (const [answer, status] of [[{ error: "expired_token" }, "expired"], [{ error: "access_denied" }, "cancelled"], [{ error: "incorrect_client_credentials" }, "failed"]] as const) {
     const home = homeOf(t), time = clock(t), remote = github(t);
     const started = await startDeviceOAuth(home, START);
     const secrets = sessionSecrets(home, started.state);
@@ -163,6 +175,113 @@ test("RAC-2543: an authorization that ends without a token writes only its statu
     await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }), "the record is gone");
     assert.equal(remote.of(USER_URL).length, 0);
   }
+});
+
+const settle = () => new Promise<void>(resolve => setImmediate(resolve));
+const connectionState = (home: string, id: string) => JSON.stringify([withConnectorConnections(home, store => store.require(id)), withConnectorProtocols(home, store => store.get(id)),
+  connectorProtocolSecrets(home, id).get("access"), connectorProtocolSecrets(home, id).get("oauth")]);
+
+test("RAC-2542: two polls arriving together send one request: the second reads the interval the first set, inside the queue", async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  const started = await startDeviceOAuth(home, START);
+  time.advance(6);
+  const release = Promise.withResolvers<void>();
+  remote.options.tokenPoll = () => release.promise;
+  const polls = [pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }), pollDeviceOAuth(home, { origin: ORIGIN, state: started.state })];
+  await settle(); await settle();
+  release.resolve();
+  assert.deepEqual(await Promise.all(polls), [{ status: "pending" }, { status: "pending" }]);
+  assert.equal(remote.of(TOKEN_URL).length, 1, "the poll that waited behind the other did not ask again");
+});
+
+test("RAC-2542: a service whose token endpoint hangs holds up only its own authorization: the poller starts every authorization and waits for none", async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  let tick: (() => unknown) | undefined;
+  registerConnectorDevicePolling(home, { every: (task: { run: () => unknown }) => { tick = task.run; } } as never);
+  const hung = await startDeviceOAuth(home, START), live = await startDeviceOAuth(home, { ...START, displayName: "Live" });
+  const release = Promise.withResolvers<void>();
+  remote.options.tokenPoll = body => (/device_code=private-device-code(&|$)/u.test(body) ? release.promise : undefined);
+  remote.options.polls = [tokenAnswer];
+  time.advance(6);
+  await tick!();
+  for (let attempt = 0; attempt < 50 && withConnectorConnections(home, store => store.list()).length === 0; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  const connections = withConnectorConnections(home, store => store.list());
+  assert.deepEqual(connections.map(row => row.connection_id), [live.connection_id], "the other authorization finished while the first one's request was still out");
+  assert.equal(remote.of(TOKEN_URL).length, 2);
+  // The tick while the hung one is still in flight does not ask it again.
+  time.advance(60); await tick!(); await settle();
+  assert.equal(remote.of(TOKEN_URL).filter(request => /device_code=private-device-code(&|$)/u.test(request.body)).length, 1);
+  release.resolve(); await settle();
+  assert.notEqual(hung.connection_id, live.connection_id);
+});
+
+test("RAC-2543: a request that cannot be made or answered is tried again after a longer wait, until the service says otherwise", async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  const started = await startDeviceOAuth(home, START);
+  const poll = () => pollDeviceOAuth(home, { origin: ORIGIN, state: started.state });
+  time.advance(6); remote.options.tokenPoll = () => new Error("offline");
+  assert.deepEqual(await poll(), { status: "pending" }, "no connection is not an end");
+  time.advance(6);
+  assert.deepEqual(await poll(), { status: "pending" });
+  assert.equal(remote.of(TOKEN_URL).length, 1, "the wait after a failure is longer than the first interval");
+  time.advance(5); remote.options.tokenPoll = () => new Response("<html>bad gateway</html>", { status: 502 });
+  assert.deepEqual(await poll(), { status: "pending" }, "an answer with no error code in it is not an end");
+  time.advance(16); remote.options.tokenPoll = undefined; remote.options.polls = [tokenAnswer];
+  assert.deepEqual(await poll(), { status: "authorized", connection_id: started.connection_id });
+  // Only the service's own error code ends it.
+  const second = await startDeviceOAuth(home, { ...START, displayName: "Second" });
+  time.advance(30); remote.options.polls = [{ error: "expired_token" }];
+  assert.deepEqual(await pollDeviceOAuth(home, { origin: ORIGIN, state: second.state }), { status: "expired" });
+});
+
+test("RAC-2541: a device code is stored only after the authorization is recorded: when recording fails nothing is left", async t => {
+  const home = homeOf(t); github(t);
+  let recorded = "";
+  const prepare = DatabaseSync.prototype.prepare;
+  t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+    const statement = prepare.call(this, sql);
+    if (!/INSERT INTO connector_authorization_sessions/u.test(sql)) return statement;
+    return new Proxy(statement, { get(target, property) {
+      if (property === "run") return (...parameters: unknown[]) => { recorded = String(parameters[3]); throw new Error("disk full"); };
+      const value = Reflect.get(target, property); return typeof value === "function" ? value.bind(target) : value;
+    } });
+  } as never);
+  await assert.rejects(startDeviceOAuth(home, START));
+  const { sessionId } = JSON.parse(recorded) as { sessionId: string };
+  assert.ok(sessionId, "the attempt got as far as recording");
+  assert.ok(!connectorProtocolSecrets(home, sessionId).get("device"), "no device code was left under a session nobody can reach");
+  assert.ok(!connectorProtocolSecrets(home, sessionId).get("client"));
+});
+
+test("RAC-2544: a reauthorization of a device connection is the same account: another account is refused with nothing changed, and an old-shape connection must be added anew", async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  const first = await startDeviceOAuth(home, START);
+  time.advance(6); remote.options.polls = [tokenAnswer];
+  await pollDeviceOAuth(home, { origin: ORIGIN, state: first.state });
+  const connection = first.connection_id;
+  // The same account (its login renamed) reauthorizes the connection in place.
+  remote.options.user = { id: 12, login: "octo-renamed" };
+  const same = await startDeviceOAuth(home, { ...START, connectionId: connection });
+  assert.equal(same.connection_id, connection);
+  time.advance(6); remote.options.polls = [{ ...tokenAnswer, access_token: "access-2" }];
+  assert.deepEqual(await pollDeviceOAuth(home, { origin: ORIGIN, state: same.state }), { status: "authorized", connection_id: connection });
+  assert.equal(connectorProtocolSecrets(home, connection).get("access"), "access-2");
+  assert.equal(withConnectorConnections(home, store => store.require(connection)).account_label, "octo-renamed");
+  // Another account: refused, and the connection, its tokens and its protocol configuration are as they were.
+  remote.options.user = { id: 99, login: "someone-else" };
+  const before = connectionState(home, connection);
+  const other = await startDeviceOAuth(home, { ...START, connectionId: connection });
+  time.advance(6); remote.options.polls = [{ ...tokenAnswer, access_token: "access-3" }];
+  await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: other.state }), /新增一条连接/u);
+  assert.equal(connectionState(home, connection), before);
+  // A connection of the old device flow's shape has no account to compare: it is not reauthorized, the person adds a new one.
+  const old = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Old device", token: "old-device-token", authMethod: "oauth" }));
+  const oldBefore = JSON.stringify(withConnectorConnections(home, store => store.require(old.connection_id)));
+  remote.options.user = { id: 12, login: "octo" };
+  const again = await startDeviceOAuth(home, { ...START, connectionId: old.connection_id });
+  time.advance(6); remote.options.polls = [tokenAnswer];
+  await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: again.state }), /新增一条连接/u);
+  assert.equal(JSON.stringify(withConnectorConnections(home, store => store.require(old.connection_id))), oldBefore);
 });
 
 test("RAC-2544: the declaring plugin and its method are judged before every request and again before the connection is committed", async t => {
@@ -194,7 +313,7 @@ test("RAC-2544: the declaring plugin and its method are judged before every requ
   assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
 });
 
-test("RAC-2545: a token is claimed once, a cancelled authorization sends nothing, and a late token is refused", async t => {
+test("RAC-2545: a token is claimed once, and a state the Host never issued, or issued for another origin, reads nothing", async t => {
   const home = homeOf(t), time = clock(t), remote = github(t);
   const started = await startDeviceOAuth(home, START);
   time.advance(6); remote.options.polls = [tokenAnswer];
@@ -266,8 +385,12 @@ test("RAC-2549: the Host, the catalog and the workbench hold no GitHub-only OAut
   for (const gone of ["github-oauth.ts", "connector-github-device.ts"]) assert.equal(existsSync(new URL(gone, host)), false, gone);
   assert.equal(existsSync(new URL("oauth.ts", github)), false);
   assert.equal(existsSync(new URL("../tests/github-device-flow.test.ts", import.meta.url)), false);
-  const own = /OWN_FLOW|startGithubConnection|pollGithubConnection|storeGithubClientId|githubClientId|github_client_id_configured|connector:github:client_id|MOLIS_WORK_GITHUB_CLIENT_ID|GITHUB_CLIENT_ID|github\/device\/(start|poll)|github\/client/u;
-  for (const dir of [host, github, catalog, workbench]) for (const name of readdirSync(dir).filter(file => file.endsWith(".ts"))) assert.doesNotMatch(readFileSync(new URL(name, dir), "utf8"), own, name);
+  const own = /在 GitHub 输入设备码|OWN_FLOW|startGithubConnection|pollGithubConnection|storeGithubClientId|githubClientId|github_client_id_configured|connector:github:client_id|MOLIS_WORK_GITHUB_CLIENT_ID|GITHUB_CLIENT_ID|github\/device\/(start|poll)|github\/client/u;
+  const sources = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+    entry.isDirectory() ? sources(new URL(`${entry.name}/`, dir)) : entry.name.endsWith(".ts") ? [new URL(entry.name, dir)] : []);
+  const scanned = [host, github, catalog, workbench].flatMap(sources);
+  assert.ok(scanned.some(file => file.pathname.endsWith("/apps/workbench/src/scripts/connectors-settings.ts")), "the page script that runs the device flow is scanned");
+  for (const file of scanned) assert.doesNotMatch(readFileSync(file, "utf8"), own, file.pathname);
   // The auth kinds are the four the Host reads, not one per service.
   assert.doesNotMatch(readFileSync(new URL("../packages/contracts/src/services/connector-host.ts", import.meta.url), "utf8"), /ConnectorAuthKind =[^;]*"(github|gmail|notion)"/u);
 });

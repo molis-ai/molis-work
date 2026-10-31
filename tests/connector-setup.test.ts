@@ -196,6 +196,22 @@ test("S-37 ASC-35 ASC-36: cancelling a device request after its token poll start
 });
 
 
+test("S-37 ASC-35 ASC-36: cancelling a device request before its first poll: the poll sends nothing and writes nothing", async t => {
+  const home = await openTestHome(t), request = await prepare(home, "github", "oauth");
+  let requests = 0;
+  oauthNetwork(t, async url => {
+    if (url === "https://github.com/login/device/code") return Response.json({ device_code: "fixture-private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
+    requests++; return Response.json({ access_token: "fixture-late-device" });
+  });
+  const started = await home.web.post<{ state: string }>("/api/settings/connectors/methods/device/start", { service_id: "github", client_id: "fixture-app", display_name: "Work", setup_id: request.authorization_id });
+  await cancel(home, request.authorization_id);
+  const now = Date.now(); t.mock.method(Date, "now", () => now + 6000);
+  await assert.rejects(home.web.post("/api/settings/connectors/methods/device/poll", { state: started.state }), { status: 400 });
+  assert.equal(requests, 0, "a cancelled authorization is not asked again");
+  assert.equal((await status(home, request.authorization_id)).status, "cancelled");
+  assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
+});
+
 test("S-37 ASC-03 ASC-19: prepared reauthorization pins the original connection and revision, never overwriting a later change", async t => {
   const home = await openTestHome(t);
   const replace = (id: string, token: string, setup_id: string) => fetch(home.origin + "/api/settings/connectors/connections/" + id, {

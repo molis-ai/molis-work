@@ -471,18 +471,23 @@
 - **留给后面的**：`ConnectorAuthKind` 里的按服务取值（`github`、`gmail`、`notion`）随第 8 片收窄；Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 不在本片也不在第 8 片，留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/notion-oauth.test.ts`（RAC-2533～2539，其中 RAC-2538 是原 `connector-oauth-choice.test.ts` “FI-C-02 … Notion” 一组搬过来，断言不放宽）；`connector-oauth-choice`、`security-invariants-oauth-shared-refresh`、`connector-connections`、`connector-setup`、`security-invariants-connector-intent`、`connector-method-directory`、`security-invariants-oauth-non-protocol` 里的 Notion 专门流程用例改成通用流程上的同一组。
 
-**第 8 片落地的写法**（2026-10-31，T-066，分支 `task/T066-ca`，叠在第 7 片（#1669）上，方案经统筹核准：issue #1332 评论 6540397434；S 号暂定 S-104）
+**第 8 片落地的写法**（2026-10-31，T-066，分支 `task/T066-ca`，叠在第 7 片（#1669）上，方案经统筹核准：issue #1332 评论 6540397434；S 号暂定 S-109）
 
 - **设备授权是平台的 grant**：新 `connector-device-oauth.ts`：`startDeviceOAuth`、`pollDeviceOAuth`、`registerConnectorDevicePolling`。路由是通用的 `methods/device/start`、`methods/device/poll`；GitHub 的 `github/device/*`、`github/client` 路由与 `github-oauth.ts`、`connector-github-device.ts`、github 包的 `oauth.ts` 删除。`device_code` 存在记录的 `device` 秘密里（`clear()` 一并清掉），页面拿到 `user_code`、验证地址和 state。
 - **提交只有一份**：回调的收尾抽成 `commitApiOAuth`（令牌检查、账号、第 9、8 条、凭据、本人意图确认、返回页），回调与设备授权共用；回调的用例一条没放宽。
 - **每条记录各自限速**：`nextPollAt`、`interval` 在 `DeviceConfiguration` 里；间隔没到回 `pending` 不发请求；一次 poll 不论成败都把下一次推后一个间隔；`slow_down` 只加这一条记录的间隔（+5 秒，上限 60 秒）。
+- **队列里重读、轮询各自启动**（#1672 二审）：`pollDeviceOAuth` 在连接的队列里面重新读记录与 `nextPollAt`，两路同时 poll 在间隔内只发一次；`registerConnectorDevicePolling` 对每条授权各自启动、不整轮等待（在途的记在 `inFlight`），一个服务的端点挂 25 秒只拖住它自己的授权。
+- **网络抖动不结束授权**：取不到应答、超时、没有错误码的应答（HTTP 5xx 的网页）按 `slow_down` 的退避（+5 秒，上限 60 秒）继续试，直到授权过期；只有服务明确的错误码（`expired_token`、`access_denied`、其他 `error`）才终止；声明、取消等检查的拒绝照旧终止。
+- **`device_code` 在授权记录写成功之后才存**（放进同一个 try），记录失败不留孤立的秘密；`verification_uri` 与 `_complete` 封顶 2048 字符。
+- **设置页的名字**：设备码提示改成“在 {name} 输入设备码”，名字来自按钮上的 `data-device-login="<服务名>"`（请求页用卡片标题），通用脚本里不再写死 GitHub。
 - **验证地址按 origin 全等**：`verificationAddress` 用解析后的 `URL.origin` 与设备授权请求地址的 origin 比；https、不带账号密码、端口、片段；`verification_uri_complete` 同样判。`user_code` 只收字母数字空格连字符。
 - **按 grant 取方法**：`oauthOwner(服务, grant)` 取对应的 `oauth` 方法；`OAuthConfiguration.grant` 存在记录里，之后的刷新与绑定检查用同一个方法。SDK 的重复检查改为 `oauth` 按 grant 各一个（GitHub 同时声明 `authorization_code` 与 `device`）。
 - **`OWN_FLOW` 删光，`ConnectorAuthKind` 收窄**为 `oauth | feishu | token | none`；GitHub、Gmail、Notion 的 Manifest 都写 `auth_kind: "oauth"`。旧形状（`auth_method: "oauth"` 而凭据不是 `connector-protocol:`）对所有服务一律 `reauth_required`，不再有按服务的例外。
 - **环境变量与设置页**：产品客户端只认 `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`；`github_client_id_configured` 与 `connector:github:client_id` 不再读。设置页的主按钮在 `oauth.device.login_ready` 时走设备授权，自带应用仍走网页授权码。
 - **没碰的**：Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/github-oauth.test.ts`（RAC-2540～2549）；`connector-setup`、`security-invariants-connector-intent`、`security-invariants-connector-scope` 里的 GitHub 设备授权用例改走通用路由与 `oauthNetwork`；`connector-method-directory`、`connector-oauth-choice`、`connectors-settings-behaviors`、`plugin-global-settings` 的 `auth_kind` 与按钮断言随之更新；`tests/github-device-flow.test.ts` 删除（内容并入上面几份）。
-- **变异记录**（每条改源码、重建、跑 `github-oauth` 与 `connector-setup`，再还原重建）：①去掉 origin 全等 → RAC-2541、2548 红；②再去掉端口检查 → 同；③去掉“间隔没到不发请求” → RAC-2540、2542 红；④`slow_down` 不加间隔 → 同；⑤去掉设备授权的声明复查（请求前） → RAC-2544 红；⑥`oauthOwner` 不看 grant → 两个设备授权用例（`connector-setup`）和 `github-oauth` 的 7 条红；⑦不检查 `user_code` → RAC-2541 红。三条没有红，因为另一层已经守住同一件事：令牌领取与记录丢弃（授权结束时 `finishConnectorAuthorization` 已清掉待完成记录与秘密、之后的 poll 过不了“仍在等待”）、请求前推后 `nextPollAt`（失败的 poll 本身结束授权）。
+- **和方案不一样的**：方案里的 RAC-2549 是设置页设备授权的 UI 动线，实际落地的是源码扫描（递归扫 Host、GitHub 包、catalog、工作台，含页面脚本目录）加一条不开浏览器的断言：卡片按钮带 `data-device-login="GitHub"`，页面脚本从它走 `methods/device/start`（`tests/connector-method-directory.test.ts`）。设备授权的整条 UI 动线没有现成的浏览器用例（设备码要在 GitHub 的页面输入，浏览器用例里没有 GitHub），由 `tests/connector-setup.test.ts`「ASC-18 ASC-36: GitHub device authorization finishes on the restarted Host」从路由开始走到连接建立覆盖。
+- **变异记录**：见下面“第 8 片变异表”。
 
 ### 2.7 `auth_kind` 收窄
 

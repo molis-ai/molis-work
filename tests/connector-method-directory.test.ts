@@ -113,6 +113,13 @@ test("onboarding prefers ready account login and keeps developer configuration o
     const html = renderConnectorSetup(ready, p);
     // Gmail and Notion sign in through the generic flow: the same start button, with no dedicated-login marker of their own.
     assert.equal(html.includes("data-device-login"), service === "github", service);
+    // The device button names the service the code is typed at, and the page script starts the device flow from it, never the web one.
+    if (service === "github") {
+      assert.match(html, /data-device-login="GitHub"/u);
+      assert.match(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /'deviceLogin' in button\.dataset[^;]*deviceFlow\(area, body, popup, button\.dataset\.deviceLogin\)/u);
+      assert.match(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /api\('methods\/device\/start', body\)/u);
+      assert.doesNotMatch(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /输入设备码[^)]*GitHub/u, "no service is written into the generic script");
+    }
     assert.ok(html.includes("data-protocol-start=\"oauth\""), service);
     assert.match(html, /<details class="settings-connector-help"><summary>使用其他应用配置/);
     const primary = html.split('<details class="settings-connector-alternatives">')[0]!;

@@ -92,6 +92,17 @@ test("a bound account lends its token to api.github.com and to nothing else, and
   assert.equal(port.read().selectedConnectionId, null);
 });
 
+test("a bound GitHub connection of the old device flow's shape (reauth_required) falls back to anonymous: its token is never lent", async t => {
+  const directory = await home();
+  const old = connect(directory, "old-device", "old-device-token", "oauth");
+  const sent = recordNetwork(t);
+  const port = alchemistPulseGithub(directory);
+  port.select(old.connection_id);
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.authorization, null, "a connection that needs reauthorizing lends nothing, and the pulse still searches");
+});
+
 test("the picker lists only token and OAuth GitHub accounts with their state, never a credential, and refuses anything the Host cannot send a token for", async t => {
   const directory = await home();
   const usable = connect(directory, "usable", "usable-token-value");

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ApiOAuthError, assertStillDeclared, commitApiOAuth, declared, declaredMethod, localOrigin, methodFingerprint, object, registryOwners, sender, serialized,
@@ -14,7 +15,7 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 
 // The device authorization grant of the generic OAuth flow (RFC 8628, W5-11 §2.5). The service's declaration says where to ask for the
 // code and where to poll; the platform does the rest: it keeps the device code, rate-limits the polling itself, and judges the
-// declaring plugin and the authorization on every poll, the way a callback does (S-101, S-104). The page gets the user code, the
+// declaring plugin and the authorization on every poll, the way a callback does (S-101, S-109). The page gets the user code, the
 // address to type it at and a state to poll with, never the device code.
 
 /** A pending device authorization: the OAuth configuration of a callback flow plus what polling needs. */
@@ -26,6 +27,7 @@ interface DeviceConfiguration extends OAuthConfiguration {
 }
 const MIN_INTERVAL_SECONDS = 5, MAX_INTERVAL_SECONDS = 60, SLOW_DOWN_SECONDS = 5, MAX_EXPIRES_SECONDS = 600;
 const USER_CODE = /^[A-Za-z0-9][A-Za-z0-9 -]{0,63}$/u;
+const MAX_ADDRESS_LENGTH = 2048;
 
 /**
  * The address the person types the code at: https, no account or port, and exactly the origin the device authorization request went
@@ -33,6 +35,7 @@ const USER_CODE = /^[A-Za-z0-9][A-Za-z0-9 -]{0,63}$/u;
  */
 function verificationAddress(raw: unknown, requestUrl: string): string {
   const value = text(raw);
+  if (value.length > MAX_ADDRESS_LENGTH) throw new ApiOAuthError("授权服务返回的验证地址无效");
   let url: URL;
   try { url = new URL(value); } catch { throw new ApiOAuthError("授权服务返回的验证地址无效"); }
   if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash || url.origin !== new URL(requestUrl).origin) {
@@ -92,10 +95,10 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
     plugin: { plugin_id: owner!.plugin_id, install_id: owner!.install_id, publisher_id: owner!.publisher_id }, fingerprint: methodFingerprint(owner!),
     interval: interval * 1000, nextPollAt: Date.now() + interval * 1000 };
   const secrets = connectorProtocolSecrets(home, sessionId);
-  secrets.put("client", JSON.stringify({ clientSecret: "" }));
-  secrets.put("device", deviceCode);
   const state = withConnectorProtocols(home, store => store.begin(origin, configuration));
   try {
+    secrets.put("client", JSON.stringify({ clientSecret: "" }));
+    secrets.put("device", deviceCode);
     const authorizationId = beginConnectorAuthorization(home, state, configuration.connectionId, input.serviceId, Date.now(), input.setupId);
     saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: complete ?? verification, user_code: userCode, device_state: state, origin });
     return { state, authorization_id: authorizationId, connection_id: configuration.connectionId, user_code: userCode, verification_uri: complete ?? verification,
@@ -105,20 +108,33 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
 
 /**
  * One poll. The service is asked only once the authorization's own interval has passed; a poll that comes early answers `pending` and
- * sends nothing. Before every request and again before the connection is committed the authorization is judged as a callback is:
- * still pending, the declaring plugin and its method unchanged. A final answer other than a token ends the authorization and writes
- * only its status.
+ * sends nothing. The record is read again inside the connection's queue, so a poll that waited behind another one sees the interval that
+ * one set. Before every request and again before the connection is committed the authorization is judged as a callback is: still
+ * pending, the declaring plugin and its method unchanged. Only an explicit error code from the service ends the authorization with a
+ * status; a request that cannot be made or answered (no connection, a timeout, an answer with no code in it) is tried again after a
+ * longer wait, until the authorization expires (RFC 8628 §3.5).
  */
 export async function pollDeviceOAuth(home: string, input: { origin: string; state: string }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
   const origin = localOrigin(input.origin), state = input.state;
-  const config = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin)).configuration;
-  if (config.protocol !== "oauth" || config.grant !== "device") throw new ApiOAuthError("设备授权方式不匹配，请重新开始");
-  const secrets = connectorProtocolSecrets(home, config.sessionId);
+  const read = () => {
+    const config = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin)).configuration;
+    if (config.protocol !== "oauth" || config.grant !== "device") throw new ApiOAuthError("设备授权方式不匹配，请重新开始");
+    return config;
+  };
+  const first = read();
+  const secrets = connectorProtocolSecrets(home, first.sessionId);
   let terminal = false;
   try {
-    return await serialized(home, config.connectionId, async () => {
+    return await serialized(home, first.connectionId, async () => {
+      const config = read();
       assertConnectorAuthorizationPending(home, state);
       if (Date.now() < config.nextPollAt) return { status: "pending" as const };
+      const later = () => {
+        config.interval = Math.min(MAX_INTERVAL_SECONDS * 1000, config.interval + SLOW_DOWN_SECONDS * 1000);
+        config.nextPollAt = Date.now() + config.interval;
+        withConnectorProtocols(home, store => store.update(state, config));
+        return { status: "pending" as const };
+      };
       // Whatever the service answers, nobody asks it again before the interval has run: a poll that fails keeps the record from being hit twice.
       config.nextPollAt = Date.now() + config.interval;
       withConnectorProtocols(home, store => store.update(state, config));
@@ -128,18 +144,20 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
       if (!deviceCode) throw new ApiOAuthError("设备授权已失效，请重新开始", config.serviceId);
       const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
       const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
-      const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: AbortSignal.timeout(25_000) });
-      const tokens = object(await response.json().catch(() => undefined));
+      let tokens: Json;
+      try {
+        const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: AbortSignal.timeout(25_000) });
+        tokens = object(await response.json().catch(() => undefined));
+      } catch (error) {
+        // The checks that run around the request refuse with the flow's own errors; anything else is the network.
+        if (error instanceof ApiOAuthError || error instanceof ActionError) throw error;
+        return later();
+      }
       assertConnectorAuthorizationPending(home, state);
       if (!text(tokens.access_token)) {
         const reason = text(tokens.error);
-        if (reason === "authorization_pending") return { status: "pending" as const };
-        if (reason === "slow_down") {
-          config.interval = Math.min(MAX_INTERVAL_SECONDS * 1000, config.interval + SLOW_DOWN_SECONDS * 1000);
-          config.nextPollAt = Date.now() + config.interval;
-          withConnectorProtocols(home, store => store.update(state, config));
-          return { status: "pending" as const };
-        }
+        if (!reason || reason === "authorization_pending") return { status: "pending" as const };
+        if (reason === "slow_down") return later();
         terminal = true;
         const status = reason === "expired_token" ? "expired" as const : reason === "access_denied" ? "cancelled" as const : "failed" as const;
         finishConnectorAuthorization(home, state, status);
@@ -153,19 +171,27 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
   } catch (error) {
     terminal = true;
     finishConnectorAuthorization(home, state, "failed");
-    throw error instanceof ApiOAuthError ? error : new ApiOAuthError("设备授权未完成，请重新准备接入", config.serviceId);
+    throw error instanceof ApiOAuthError ? error : new ApiOAuthError("设备授权未完成，请重新准备接入", first.serviceId);
   } finally { if (terminal) { withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); } }
 }
 
-/** Device polling is protocol work on the Host's timer registry, independent of any open page or model; it covers every service that declares the grant. */
+/**
+ * Device polling is protocol work on the Host's timer registry, independent of any open page or model; it covers every service that
+ * declares the grant. Each authorization polls on its own: a tick starts the ones not already in flight and does not wait for them, so
+ * a service whose endpoint hangs holds up only its own authorization.
+ */
 export function registerConnectorDevicePolling(home: string, periodic: PeriodicTasks): void {
+  const inFlight = new Set<string>();
   periodic.every({ id: "connector-device-authorization", title: "完成设备登录授权", owner: "connectors", intervalMs: 2000,
     run: () => runWithMolisWorkHome(home, async () => {
       expireConnectorAuthorizations(home);
-      await Promise.allSettled(pendingConnectorAuthorizations(home).map(async request => {
+      for (const request of pendingConnectorAuthorizations(home)) {
         const ui = readConnectorAuthorizationPresentation(home, request.id);
-        if (ui?.device_state && ui.origin) await pollDeviceOAuth(home, { state: ui.device_state, origin: ui.origin });
-      }));
+        if (!ui?.device_state || !ui.origin || inFlight.has(ui.device_state)) continue;
+        const { device_state: state, origin } = ui;
+        inFlight.add(state);
+        void runWithMolisWorkHome(home, () => pollDeviceOAuth(home, { state, origin })).catch(() => undefined).finally(() => inFlight.delete(state));
+      }
     }),
   });
 }

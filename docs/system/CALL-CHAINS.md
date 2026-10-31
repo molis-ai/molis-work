@@ -114,7 +114,7 @@
 
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
-| 构建期内置插件（Goals、Pages、Todo、Feed 等，名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
+| 构建期内置插件（只剩用户批过的两个例外 Alchemist、插件创作台，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
 | Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 

@@ -37,11 +37,11 @@ const consentRow = {
 };
 const installedView = {
   type: "object", additionalProperties: false,
-  required: ["install_id", "plugin_id", "name", "version", "state", "trust", "publisher_signature", "publisher_label", "manifest_available", "permissions", "jobs", "consents"],
+  required: ["install_id", "plugin_id", "name", "version", "state", "trust", "publisher_signature", "publisher_label", "manifest_available", "permissions", "jobs", "consents", "recovery_error"],
   properties: { install_id: text, plugin_id: text, name: text, version: text, state: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text,
     publisher_label: { type: ["string", "null"] }, manifest_available: { type: "boolean" }, permissions: { type: "array", items: installedPermissionView },
     jobs: { type: "array", items: { type: "object", additionalProperties: false, required: ["job_id", "reason", "permissions"], properties: { job_id: text, reason: text, permissions: { type: "array", items: text } } } },
-    consents: { type: "array", items: consentRow } },
+    consents: { type: "array", items: consentRow }, recovery_error: { type: ["string", "null"] } },
 };
 
 export const pluginInstallActions = {
@@ -84,13 +84,13 @@ export const pluginInstallActions = {
     title: "开关个人空间里插件的一项可选权限", description: "本人在宿主设置里，为运行在个人空间（所有项目共用）的一个插件打开或关掉它的一项可选权限（必需的关不掉，没声明的开不了）。关掉的权限马上收回：插件会被停下、换上新的授权再启动，正在做的事走到下一次写入就被拒、不留业务记录；打开则在重启后生效。只有宿主设置入口能调，Agent、MCP、工作流和插件都调不到。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     ...permissionSwitch } } as PermissionSwitch,
-  homeInstalled: { capability_id: "plugins.home.installed.list", version: 1, operation: "query", action: { ...metadata, scope: "home",
-    title: "查看个人空间里的插件", description: "列出运行在个人空间（所有项目共用）的插件：谁签的名、信任到哪一级、它要了哪些权限（含现在开着没有）、它在后台常做的事和本人给过的同意。",
+  homeInstalled: { capability_id: "plugins.home.installed.list", version: 2, operation: "query", action: { ...metadata, scope: "home",
+    title: "查看个人空间里的插件", description: "列出运行在个人空间（所有项目共用）的插件：谁签的名、信任到哪一级、它要了哪些权限（含现在开着没有）、它在后台常做的事和本人给过的同意，以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
-  installed: { capability_id: "plugins.installed.list", version: 2, operation: "query", action: { ...metadata, scope: "project",
-    title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的）。",
+  installed: { capability_id: "plugins.installed.list", version: 3, operation: "query", action: { ...metadata, scope: "project",
+    title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的），以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
@@ -99,11 +99,13 @@ export const pluginInstallActions = {
 const controlOutput = { type: "object", additionalProperties: false, required: ["plugin_id", "state"], properties: { plugin_id: text, state: text } };
 const controlInput = { plugin_id: { type: "string", minLength: 1, maxLength: 200 } };
 const controlled = (title: string, description: string) => ({ ...metadata, scope: "project", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
+const homeControlled = (title: string, description: string) => ({ ...metadata, scope: "home", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
 
 /**
  * What the person does with a plugin installed from a signed package once it is installed (ac-trust BL-623): switch it off, switch it on,
  * take it off. Upgrading is installing a newer package of the same plugin and publisher (`preview`, then `confirm`). Each is the person's act
- * in a project, like the install: `user` audience and the protected entry's `user_action`.
+ * in a project, like the install: `user` audience and the protected entry's `user_action`. The same three for a package installed in the Home are the
+ * Host settings door's (BL-715), with no project.
  */
 export const pluginControlActions = {
   disable: { capability_id: "plugins.installed.disable", version: 1, operation: "command", action: { ...controlled("停用签名包装的插件",
@@ -114,6 +116,16 @@ export const pluginControlActions = {
     input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
   uninstall: { capability_id: "plugins.installed.uninstall", version: 1, operation: "command", action: { ...controlled("卸载签名包装的插件",
     "把这个项目里一个从签名的包装进来的插件卸载：`keep_data` 为真时它的数据留下（以后重装可以接上），为假时数据一并删除，也删除它存的密钥。有常开同意的插件不能卸载。发布者已被撤销信任的插件可以卸载。"),
+    input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
+  // The same three for a signed package installed in the Home (BL-715): the person's act in the Host settings, no project in the call.
+  homeDisable: { capability_id: "plugins.home.installed.disable", version: 1, operation: "command", action: { ...homeControlled("停用个人空间里签名包装的插件",
+    "停用运行在个人空间（所有项目共用）的一个从签名的包装进来的插件：它的动作在每个项目里都停止提供，数据保留，之后可以再启用或卸载。有常开同意的插件不能停用。"),
+    input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
+  homeEnable: { capability_id: "plugins.home.installed.enable", version: 1, operation: "command", action: { ...homeControlled("启用个人空间里签名包装的插件",
+    "启用个人空间里一个停用了的、从签名的包装进来的插件。发布者已被撤销信任的插件不能启用，只能卸载。"),
+    input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
+  homeUninstall: { capability_id: "plugins.home.installed.uninstall", version: 1, operation: "command", action: { ...homeControlled("卸载个人空间里签名包装的插件",
+    "把个人空间里一个从签名的包装进来的插件卸载，每个项目都不再有它：`keep_data` 为真时它的数据留下（以后重装可以接上），为假时数据一并删除，也删除它存的密钥。有常开同意的插件不能卸载。发布者已被撤销信任的插件可以卸载。"),
     input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
 };
 
@@ -143,6 +155,13 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
       return { plugin_id, state: await service.control(action, { plugin_id, keep_data: keep_data === true }, who) };
     } })),
+    ...([["homeDisable", "disable"], ["homeEnable", "enable"], ["homeUninstall", "uninstall"]] as const).map(([name, action]): ActionHandlerBinding => ({ capability_id: pluginControlActions[name].capability_id, version: 1, handle: async (caller, input) => {
+      // Only the Host settings door's credential for the Home's own plugins (S-94), asked before the Home's plugin host is touched.
+      assertHomePluginPermissionSettingsEntry(caller);
+      await caller.beforeEffect();
+      const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
+      return { plugin_id, state: await service.controlHome(action, { plugin_id, keep_data: keep_data === true }) };
+    } })),
     { capability_id: pluginInstallActions.setPermission.capability_id, version: 1, handle: async (caller, input) => {
       assertPluginPermissionSettingsEntry(caller);
       await caller.beforeEffect();
@@ -155,7 +174,7 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };
       return await service.setHomePermission(install_id, permission, granted);
     } },
-    { capability_id: pluginInstallActions.homeInstalled.capability_id, version: 1, handle: async () => ({ plugins: await service.homeInstalled() }) },
+    { capability_id: pluginInstallActions.homeInstalled.capability_id, version: pluginInstallActions.homeInstalled.version, handle: async () => ({ plugins: await service.homeInstalled() }) },
     { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version, handle: async caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
       return { plugins: await service.installed(caller.project_id) };

@@ -55,6 +55,9 @@ function register(service: ActionService, state: Source, provider: { provider_id
   // A second provider in the same project needs its own capability ids: the registry holds one provider per (id, version, project).
   const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, kinds, "笔记", ["notes:read"]) : entries;
   const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, "note", "笔记", ["notes:read"]) : reader;
+  // RAC-2738: the spread comes after the default, so a caller that passes `plugin_id: undefined` explicitly overrides `"notes"` with
+  // undefined instead of keeping it. That is how the tests write a provider without its own plugin id, and why the discarded reader's
+  // `where` falls back to the provider id. Not a bug — keep this order if the helper changes.
   return service.registerProvider({
     provider: { title: "笔记插件", kind: "plugin", plugin_id: provider.plugin_id ?? "notes", ...provider },
     availability: () => state.availability,
@@ -569,3 +572,24 @@ for (const where of ["validate_authority", "assert_authority_current"] as const)
     }
   });
 }
+
+// RAC-2737: the trace carries the code only. A discarded reader's own details, cause, kind and message must not reach the outlet: the
+// record is exactly the plain error shape, so its own property names are the assertion that pins what is absent.
+test("RAC-2737 a discarded reader's record carries the code only, never the details or cause it was refused with", async t => {
+  const records: Array<{ error: unknown; where: string }> = [];
+  const f = await fixture(t, { onError: (error, where) => { records.push({ error, where }); } });
+  register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]),
+    { provider_id: "notes", project_id: "a", plugin_id: "io.molis.work.notes" });
+  const original = new ActionError("fixture.reader_withheld", "不再交给这个调用者",
+    { kind: "forbidden", details: { ids: ["a1"] }, cause: new Error("the notes store broke") });
+  await ask(f, readerRefusing("validate_authority", original), "合同");
+  assert.equal(records.length, 1, "one trace for the one discarded reader");
+  const record = records[0]!;
+  assert.ok(record.error instanceof ActionError, "the record carries the error's code");
+  assert.equal(record.error.code, "fixture.reader_withheld");
+  assert.equal(record.error.message, "");
+  assert.deepEqual(Object.getOwnPropertyNames(record.error).sort(), ["code", "message", "name", "stack"],
+    "only the plain error shape: no details, cause or kind from the refusal");
+  assert.equal("details" in record.error, false, "the refusal's details are not carried");
+  assert.equal("cause" in record.error, false, "the refusal's cause is not carried");
+});

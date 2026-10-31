@@ -14,7 +14,9 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
-import { selectionPorts, FRAME_QUERY } from '../plugin-builder-surface.js';
+import { selectionPorts } from '../plugin-builder-surface.js';
+import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
+import type { InstalledRelease } from '../installed-release.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { generatedPluginManifest } from './installed.js';
@@ -154,11 +156,25 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
   return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
-    const surface = 'app-' + release.buildId, label = release.design.title;
+    const surface = installedStageSurface(release), label = release.design.title;
     const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
-    return [{ pluginId: item.plugin_id, surface, label, directory, stage: '<section class="desktop-work-surface pb-surface" data-work-surface="' + surface + '" data-work-surface-label="' + escapeHtml(label) + '" data-installed-plugin="' + escapeHtml(item.plugin_id) + '" hidden>'
-      + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id + '?' + FRAME_QUERY) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>' }];
+    return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix }) }];
   });
+}
+
+/**
+ * The page a signed package installed in the Home draws its stage with, framed by the workbench (`?frame=workbench`): the same
+ * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
+ * route. The page is opened under the person's authority over the package's Home activation, with no project (BL-713, S-15).
+ */
+export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string }): string {
+  const { release } = input, pluginId = release.pluginId;
+  const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
+    connected: release.design.contract.operations.map(item => item.id) };
+  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title,
+    html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: '', route_prefix: '', control_token: input.controlToken,
+    page: { mode: 'installed', plugin_id: pluginId, call: '/api/plugins/' + pluginId + '/call', view },
+    authorization: pluginPagesFor(input.home).open(pluginId, null, input.actorId) });
 }
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */

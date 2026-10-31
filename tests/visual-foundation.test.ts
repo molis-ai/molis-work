@@ -143,8 +143,9 @@ test("visual foundation keeps Standard and Compact as local presentation choices
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-row \{/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /data-board-view="decisions"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-row \{\s*min-height: 27px;/);
-  // BL-121 3: the compact child indent stays. The doubled class keeps the specificity that beats goal-canvas.ts's flat stage list; if the indent is dropped on purpose, change both.
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children\.tree-children \{\s*margin-left: 8px;\s*padding-left: 4px;/);
+  // BL-121 3 (T-337): the compact child indent stays, as an intentional behaviour. `:not(:empty)` is the explicit
+  // specificity that still beats goal-canvas.ts's flat stage list (0,4,2 against 0,4,1); if the indent is dropped on purpose, change both.
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children:not\(:empty\) \{\s*margin-left: 8px;\s*padding-left: 4px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node \{\s*min-height: 25px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-document \{\s*width: min\(100%, 1120px\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-desktop-shell="true"[^}]+\.goal-document \{\s*padding: 12px 16px 32px;/); // spec → 第三轮 · 视觉精修: spacing scale

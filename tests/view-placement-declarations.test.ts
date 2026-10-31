@@ -151,6 +151,44 @@ for (const value of [false, null, "true", 1, {}, []]) {
   });
 }
 
+// T-362 (RAC-2745): a settings view may declare the address parameters it reads. The SDK keeps the lists explicit and bounded and
+// refuses a declaration the shell could not honour: the defaults and the shell's entry parameters stay the shell's, and bad names,
+// too many, or a repeat are refused (BL-543).
+const ADDRESS = (over: Part = {}) => placed({ slot: "settings", settings_data: { action: "notes.snapshot" }, settings_address: over },
+  [...CREATES, readAction()]);
+const ADDRESS_VALUE = (value: unknown) => placed({ slot: "settings", settings_data: { action: "notes.snapshot" }, settings_address: value },
+  [...CREATES, readAction()]);
+const ADDRESS_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
+  { rule: "a settings view declaring query names and fragments", manifest: ADDRESS({ query: ["tab", "filter"], hash: ["#section", "#top"] }), expected: "" },
+  { rule: "a settings view declaring only query names", manifest: ADDRESS({ query: ["tab"] }), expected: "" },
+  { rule: "a settings view declaring only fragments", manifest: ADDRESS({ hash: ["#section"] }), expected: "" },
+  { rule: "a settings view declaring none", manifest: placed({ slot: "settings" }), expected: "" },
+  { rule: "a settings view declaring an empty list", manifest: ADDRESS({ query: [] }), expected: "" },
+  { rule: "settings_address on a navigator view", manifest: placed({ settings_address: { query: ["tab"] } }), expected: "视图 main 的 settings_address 只用于 settings 视图" },
+  { rule: "settings_address that is not an object", manifest: ADDRESS_VALUE("tab"), expected: "视图 main 的 settings_address 必须是对象" },
+  { rule: "settings_address with an unknown key", manifest: ADDRESS({ tab: ["x"] }), expected: "视图 main 的 settings_address 只能写 query 与 hash" },
+  { rule: "query that is not an array", manifest: ADDRESS({ query: "tab" }), expected: "视图 main 的 settings_address.query 必须是参数名数组" },
+  { rule: "query with a non-string name", manifest: ADDRESS({ query: ["tab", 7] }), expected: "视图 main 的 settings_address.query 必须是参数名数组" },
+  { rule: "query with a name outside the pattern", manifest: ADDRESS({ query: ["tab!"] }), expected: "视图 main 的 settings_address.query 的参数名 tab! 不合法（[A-Za-z0-9_-]{1,32}）" },
+  { rule: "query with a name too long", manifest: ADDRESS({ query: ["x".repeat(33)] }), expected: `视图 main 的 settings_address.query 的参数名 ${"x".repeat(33)} 不合法（[A-Za-z0-9_-]{1,32}）` },
+  { rule: "query with more than 8 names", manifest: ADDRESS({ query: ["a", "b", "c", "d", "e", "f", "g", "h", "i"] }), expected: "视图 main 的 settings_address.query 最多 8 个参数名" },
+  { rule: "query repeating a name", manifest: ADDRESS({ query: ["tab", "tab"] }), expected: "视图 main 的 settings_address.query 重复声明了 tab" },
+  { rule: "query naming project", manifest: ADDRESS({ query: ["project"] }), expected: "视图 main 的 settings_address.query 不能声明 project（外壳的默认或入口参数）" },
+  { rule: "query naming desktop", manifest: ADDRESS({ query: ["desktop"] }), expected: "视图 main 的 settings_address.query 不能声明 desktop（外壳的默认或入口参数）" },
+  { rule: "query naming settings", manifest: ADDRESS({ query: ["settings"] }), expected: "视图 main 的 settings_address.query 不能声明 settings（外壳的默认或入口参数）" },
+  { rule: "hash that is not an array", manifest: ADDRESS({ hash: "#section" }), expected: "视图 main 的 settings_address.hash 必须是片段数组" },
+  { rule: "hash with a fragment not starting with #", manifest: ADDRESS({ hash: ["section"] }), expected: "视图 main 的 settings_address.hash 的片段 section 不合法（以 # 起头，[A-Za-z0-9][A-Za-z0-9._~-]{0,31}）" },
+  { rule: "hash with a fragment that is only #", manifest: ADDRESS({ hash: ["#"] }), expected: "视图 main 的 settings_address.hash 的片段 # 不合法（以 # 起头，[A-Za-z0-9][A-Za-z0-9._~-]{0,31}）" },
+  { rule: "hash with more than 8 fragments", manifest: ADDRESS({ hash: ["#a", "#b", "#c", "#d", "#e", "#f", "#g", "#h", "#i"] }), expected: "视图 main 的 settings_address.hash 最多 8 个片段" },
+  { rule: "hash repeating a fragment", manifest: ADDRESS({ hash: ["#section", "#section"] }), expected: "视图 main 的 settings_address.hash 重复声明了 #section" },
+];
+
+for (const { rule, manifest, expected } of ADDRESS_RULES) {
+  test(`RAC-2745 settings address: ${rule}`, () => {
+    assert.equal(manifestProblems(manifest), expected);
+  });
+}
+
 test("RAC-75 W5-06-PLACE-01 every bundled Manifest's placement declarations pass", () => {
   for (const entry of BUILTIN_PLUGIN_CATALOG) assert.equal(manifestProblems(entry.manifest), "", entry.project_plugin_id);
 });

@@ -36,7 +36,7 @@ import {
   isHostGlobalSettingsSection,
 } from "../apps/workbench/dist/plugin-settings-catalog.js";
 import { renderAppearanceSettingsDocument } from "../apps/workbench/dist/settings-appearance.js";
-import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
+import { renderSettingsDirectorySection, renderSettingsNav } from "../apps/workbench/dist/settings-directory.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
@@ -359,6 +359,19 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
     }),
     (error: unknown) => error instanceof ActionError && error.code === "ui_host.slot_incompatible",
   );
+});
+
+// T-362 (RAC-2743, BL-543): a plugin settings page's declared address parameters are rendered on its directory row, which is where the
+// shell's filter reads them; a row that declares none carries neither attribute.
+test("T-362 a plugin settings row carries the address parameters its Manifest declares", () => {
+  const primitives = { ...directoryPrimitives };
+  const rendered = renderSettingsNav(primitives, [{ group: "", sections: [
+    { id: "roles", label: "角色", icon: "user" as const, addressQuery: "tab filter", addressHash: "#section" },
+    { id: "plain", label: "普通", icon: "user" as const, addressQuery: "", addressHash: "" },
+  ] }], "appearance", "系统设置", "settings");
+  assert.match(rendered, /data-settings-section="roles"[^>]*data-settings-address-query="tab filter"[^>]*data-settings-address-hash="#section"/);
+  assert.match(rendered, /data-settings-section="plain"(?![^>]*data-settings-address-query)/);
+  assert.doesNotMatch(rendered, /data-settings-section="plain"[^>]*data-settings-address-hash/);
 });
 
 test("workbench settings directory and standalone settings list the same grouped categories", () => {

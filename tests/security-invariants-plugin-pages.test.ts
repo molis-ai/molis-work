@@ -426,13 +426,15 @@ type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
 
 /** A settings-directory shell over a page mock: the address it sends to the settings page after a page hands one over. */
-function openSettingsAddress(href: string, pluginSections: readonly string[] = [], via: "event" | "link" = "event"): string {
+function openSettingsAddress(href: string, pluginSections: readonly (string | { id: string; query?: string; hash?: string })[] = [], via: "event" | "link" = "event"): string {
   const listeners = new Map<string, Listener[]>();
   const opened: string[] = [];
   const document = {
     querySelector: (selector: string) => selector.includes("data-directory-panel") || selector.includes("data-work-surface") ? panel() : null,
     querySelectorAll: (selector: string) => selector.includes("[data-settings-section]")
-      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...pluginSections].map((id) => ({ dataset: { settingsSection: id } }))
+      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...pluginSections].map((entry) => typeof entry === "string"
+        ? { dataset: { settingsSection: entry } }
+        : { dataset: { settingsSection: entry.id, settingsAddressQuery: entry.query, settingsAddressHash: entry.hash } })
       : [],
     createElement: () => panel(),
     adoptNode: (node: unknown) => node,
@@ -575,4 +577,23 @@ test("RAC-2412 S-47 both scripts carry the one declaration table", () => {
   assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ID_HASH_SECTION"), PROJECT_ID_HASH_SECTION);
   assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_QUERY_EXTRAS"), JSON.parse(JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)));
   assert.equal(injectedString(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+});
+
+// RAC-2743 (T-362, BL-543): a plugin settings page keeps the query parameters and fragments its Manifest declares (rendered on its
+// settings-directory row as data-settings-address-*), keeps the defaults every page is rendered with, and still drops what it did not
+// declare. RAC-2744: a page that declares nothing keeps the defaults only, as before.
+test("RAC-2743 S-47 a plugin settings page keeps what its Manifest declares, and RAC-2744 a page without declarations keeps the defaults", () => {
+  const declared = [{ id: "roles", query: "tab filter", hash: "#section #members" }];
+  assert.equal(openSettingsAddress("/settings/roles?tab=members&filter=active&evil=1#section", declared),
+    "/settings/roles?tab=members&filter=active#section", "the declared query names and fragment stay; the undeclared one goes");
+  assert.equal(openSettingsAddress("/settings/roles?project=p1&desktop=1&tab=members&evil=1#members", declared),
+    "/settings/roles?project=p1&desktop=1&tab=members#members", "the defaults stay beside the declared names");
+  assert.equal(openSettingsAddress("/settings/roles?tab=members#other", declared),
+    "/settings/roles?tab=members", "a fragment the page did not declare is dropped");
+  assert.equal(openSettingsAddress("/settings/plain?tab=members&evil=1#section", ["plain"]),
+    "/settings/plain", "a page that declares nothing keeps no parameter, as before");
+  assert.equal(openSettingsAddress("/settings/plain?project=p1&tab=members#section", ["plain"]),
+    "/settings/plain?project=p1", "a page that declares nothing keeps the defaults only, as before");
+  assert.equal(openSettingsAddress("/settings/plain?tab=members#section", [{ id: "plain", query: "", hash: "" }]),
+    "/settings/plain", "an empty declaration is the same as none");
 });

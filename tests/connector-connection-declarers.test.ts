@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, homeSqlitePath, peekSealedEntry, readSecretsFileMeta, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 // RAC-2520 (BL-530 precondition, T-134): the connections library keeps, per connection, the signed package it was made for: the plugin id,
 // the installation it ran as (the plugin id and its verified signature) and its title. The pin is written once, with the connection, and
@@ -72,6 +72,15 @@ test("RAC-2520 removing a connection keeps its pin with the record, and the tabl
 
 test("RAC-2520 a connection and its pin are written in one transaction: when the pin cannot be written no connection is left behind", async t => {
   const directory = await home(t);
+  // RAC-2758/2759/2760: the real file-backed vault is an external effect of the SQLite transaction.
+  const sentinelRef = "fixture-connection-rollback-sentinel", sentinelValue = probeToken(8);
+  const secrets = () => runWithMolisWorkHome(directory, () => ({ meta: readSecretsFileMeta(),
+    sealed: peekSealedEntry(sentinelRef), value: createFileSecretStore().get(sentinelRef) }));
+  runWithMolisWorkHome(directory, () => createFileSecretStore().put(sentinelRef, sentinelValue));
+  const before = secrets();
+  assert.equal(before.meta.backend, "aes-gcm-file");
+  assert.ok(before.sealed);
+  assert.equal(before.value, sentinelValue);
   withConnectorConnections(directory, () => undefined);
   const db = new DatabaseSync(homeSqlitePath(directory, "connectors"));
   t.after(() => { if (db.isOpen) db.close(); });
@@ -80,7 +89,16 @@ test("RAC-2520 a connection and its pin are written in one transaction: when the
   assert.throws(() => withConnectorConnections(directory, store =>
     store.createToken({ serviceId: "example-feed", displayName: "Probe account", token: probeToken(6) }, declarer)), /pin refused/);
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM connector_connections").get() as { n: number }).n, 0, "no connection without its pin");
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM connector_connection_declarers").get() as { n: number }).n, 0, "no pin from the rolled-back transaction");
+  assert.equal(secrets().meta.entryCount, before.meta.entryCount, "RAC-2758 a refused pin leaves no credential in the persistent vault");
+  assert.deepEqual(secrets(), before, "the sentinel's reference, sealed value and plaintext survive compensation");
   db.exec("DROP TRIGGER refuse_pin");
   const made = withConnectorConnections(directory, store => store.createToken({ serviceId: "example-feed", displayName: "Probe account", token: probeToken(7) }, declarer));
   withConnectorConnections(directory, store => assert.deepEqual(store.declarers.get(made.connection_id), declarer, "the same write works once the pin can be written"));
+  assert.ok(made.credential_ref);
+  assert.ok(runWithMolisWorkHome(directory, () => peekSealedEntry(made.credential_ref!)), "RAC-2759 the successful connection has a sealed credential");
+  assert.equal(withConnectorConnections(directory, store => store.resolveToken(made.connection_id, "example-feed")), probeToken(7));
+  const after = secrets();
+  assert.equal(after.meta.entryCount, before.meta.entryCount + 1, "only the successful connection adds a credential");
+  assert.deepEqual({ sealed: after.sealed, value: after.value }, { sealed: before.sealed, value: before.value }, "the successful write preserves the sentinel");
 });

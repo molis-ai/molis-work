@@ -51,9 +51,10 @@ test("RAC-2739/RAC-2740 the worst materials JSON Pages can accept builds a promp
   assert.ok(dataChars <= MODEL_DATA_MAX_CHARS, `the worst data (${dataChars}) stays under the Host's public data limit (${MODEL_DATA_MAX_CHARS})`);
   assert.ok(fullChars > dataChars, "the instruction adds to what the Host counts");
   // The Host's own port is the check for its own limit: a prompt its limit refuses would fail with the length message before the model.
+  let inferenceCalls = 0;
   const port = hostTextGeneration({ env: { MOLIS_WORK_TEXT_API_KEY: "test-key", MOLIS_WORK_TEXT_BASE_URL: "https://model.invalid",
     MOLIS_WORK_TEXT_MODEL: "test-model", MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages" },
-    resolveInference: async () => { throw new Error("the stub model was reached"); } });
+    resolveInference: async () => { inferenceCalls += 1; throw new Error("the stub model was reached"); } });
   assert.ok(port, "the Host offers its text port");
   await assert.rejects(port(composeInstructedPrompt(prompt.instruction.body, prompt.data)), (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
@@ -61,6 +62,7 @@ test("RAC-2739/RAC-2740 the worst materials JSON Pages can accept builds a promp
     assert.match(message, /模型请求失败|模型请求超时|stub model was reached/u, "the worst prompt passed the Host's length check and only the stub model failed");
     return true;
   });
+  assert.equal(inferenceCalls, 1, "the Host reached the injected resolveInference stub exactly once");
 });
 
 test("RAC-2739/RAC-2740 one more character of materials JSON is refused before the request is taken", async t => {

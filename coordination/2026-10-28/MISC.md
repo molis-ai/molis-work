@@ -99,7 +99,7 @@
 | T-400 二审 建议（6537141182）**已随 T-340 #1658 合入** | `apps/local-host/src/mcp-*.ts` 里仍用裸 `new ActionError` 的 `mcp.tool_disabled`、`mcp.context_changed`、`mcp.context_host_missing`、`mcp.grant_*` | 抛出时不带 kind，与上一行「`mcp.authority_denied`/`mcp.tool_unknown` 同码两种 kind」合成一单：都改成 `defineErrorCodes` 声明，补「抛出处带声明的 kind」用例。乙，等 T-400 合入 | 统筹 2026-10-31 |
 | T-136 二审 建议（6537161974；`plugin-projects-service.ts` 一半已进 T-358，`plugin-terminal-service.ts` 一半等 #1654、#1643 合入） | `apps/local-host/src/plugin-terminal-service.ts:97`；`plugin-projects-service.ts` 同写法 | 读项目目录库时抛出的非 `ActionError` 原样交给插件，可能带出本机路径等内部信息。两处都改成转 `actions.unavailable`，原错误只进宿主日志，并补用例。乙，等 T-136 合入 | 统筹 2026-10-31 |
 | 干净 Home 批第六片 发现（统筹 10-30，答 6529603751）**已进 T-347** | `parseSecretsFile` 与普通 get/put（运行时配置密钥库） | 同号 v1 里非 sealV2 的条目：parseSecretsFile 只校验条目是字符串，get 对 openV2 失败返回 null，put 只验新写条目、不先拒绝其它坏条目；快照预检已拒绝（批内负例）。要让「读、写、快照三者都拒绝」须改现行读写语义：先写先红用例，再定 get 抛错还是返回 null。乙，等干净 Home 批合入 | 统筹 2026-10-30 |
-| T-126 二审 建议（6527902402；RAC-1727／1729 两条测试已进 T-357，另两件与 `plugin_title` 仍各成一行） | `tests/`（RAC-1727、RAC-1729）；侧栏 side 视图标题、运行中第三方插件的标签标题；`artifact-type-registry.ts` 等处的 `plugin_title` | RAC-1727 三处证明不了用例名：内联标题那条在测试里重写了 `i18n.ts:157` 的表达式，`renderPluginDirectoryData` 那条是空断言，市场 `<h2>` 新补的转义没有测试——改成调生产函数并补变异，或删掉。RAC-1729 用例名写「no version moved」却没比版本。统筹批复里另开的两件（side 视图标题、第三方插件标签标题的英文名）和英文界面里仍是中文的 `plugin_title`，各成一行。乙，等 T-126 合入 | 统筹 2026-10-30 |
+| T-126 二审 建议（6527902402；RAC-1727/1729已由T357 #1684合入f61a6e07d） | 侧栏 side 视图标题、运行中第三方插件标签标题；artifact-type-registry.ts 等 plugin_title | 只余侧栏/第三方标签英文名及英文界面plugin_title，各按既有后续行承接；已完成的测试断言不再派。 | Codex 统筹 |
 | T-234 二审 建议（6527918244）；T-246 二审登记 | 各个按字数封顶的输入框：Pages 评论框（T-203）、问卷回答（T-234）、PPT 大纲（T-235）、开始使用的项目名（T-246）、Pages 页面客户端（T-249，如有输入框）、新建 Goal 标题（T-285） | 在 `input` 事件里改写 `.value` 时没有 `isComposing` 防护，拼音组词到上限附近会被打断（原来的 maxlength 不会）。统一改成：组词中不封顶，`compositionend` 后再封一次；同一个小函数各处复用（与 MISC「整字截收成一份」相关）。每处补用例（CDP `Input.imeSetComposition`）。页面资源会小涨，统筹一次性放行。乙，等上述各单都合入 | 统筹 2026-10-30 |
 | T-282 二审 建议（6527942118）**已进 T-351** | `plugins/native/alchemist/src/lens-job-handler.ts:180-189` | Alchemist 任务把没认出的错误一律归成 `alchemist.research_runtime_failed`／`job_execution_failed`，`alchemist.prompt_too_long`（带超出字数）到不了用户。按码分出「材料太长」并把超出的字数给页面；补用例。乙，等 T-282 合入 | 统筹 2026-10-30 |
 | T-304 二审 建议（6527958467） | `tests/affected-tests.test.ts`（RAC-2427）、PR 模板 :47、`scripts/affected-tests/select.mjs:333` | 名单只查「规则 → 文档」一个方向，文档多写一个规则里没有的名字仍绿；整行子串匹配可被说明文字蒙过；`:1213` 写死规则内容；PR 模板与 `select.mjs:333` 两处同名单没钉住。改成两向逐项比对、按格解析，并把另两处也纳入。丙，T-304 已合入，已进 T-327（派单线 10-30） | 统筹 2026-10-30 |
@@ -165,7 +165,6 @@
 
 | T-366 一审建议（#1695，6546934234） | `tests/alchemist-terminal-refresh.e2e.test.ts:190–201` | 未接受旧queued任务的有界观察窗后，再断言同一job的accepted仍false与continue入口仍在；当前生产只重排读取、未新增accept/continue，不挡本单。并入下次改此回归文件的书 | Codex 统筹 |
 | T-319 增量二审建议（#1662，6546161968） | `apps/local-host/src/home-aggregate.ts` | 目录查询与后续项目阶段均失败时保留两阶段诊断，并补双重失败用例；当前仍有错误可见，不挡本单；#1662 已合入 `45be6f2e1`；已进T-373 #1700，由开发线1交审验；关闭项目的静默规则保留 | Codex 统筹 |
-| T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确；#1693已合 `dc75e22bb`；已进T-375 #1701 @7e5a140cc；两个真实生产负例和holder值投影已实现，独立审验中 | Codex 统筹 |
 
 | T-347 Full 与 main 夜间重复失败（T-366已合；#1665 6545882401） | `plugins/native/alchemist/src/client.ts` 及定向浏览器回归 | 缺模型终态刷新修复已随T-366 #1695 → `f640b5b0f`采用，因果变异/恢复及同头Full通过；T-347已同步并补封条结构P1，剩最终头CI/Full，不第三次盲重跑，不回滚T-347安全语义；RAC-2752～2757 | Codex 开发线 2 |
 
@@ -174,10 +173,11 @@
 | T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374/#1703，独立审验通过待CI/合入；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |
 
 | T-347 修复二审后续 | `deleteSecretEntriesWithPrefix` | 本单获批之外的前缀删除入口仍未校验留存坏条目；若要统一坏条目保证，另定删除/恢复合同。与结构合法认证失败延期同属后续，不扩大当前T-347。 | Codex 统筹 |
-| W6-03静态走查两处文档矛盾 | ARCHITECTURE §5、PLUGIN-PLATFORM W2-09 | 已进T-376 #1702 @7a1f75b4c，独立审验/Verify通过，正常入队：Artifacts平台事实归属、显式consumes跨插件动作消费；只改两处文案，不签W6-03/RAC-11动态验收。 | Codex 统筹 |
 
 ## 2026-10-31 21:00Z 主线差集核收
 
 - T370修订2：type-only误算运行时值、SDK self误算对外引用及root/other分组已修；原两条独立线核收通过。只采用冻结B/M中间点，原失败与上升数字保留；持久材料由根串行收录，最终单头W6-04仍待。
 - W5-16：可独立派发B2b补实现差集0；完整restore及共享发布/回滚/续写缺口仍在，等Memory恢复资格/合法空态合同，不另造CLI恢复器。静态差集核对不是当前头动态或真实Home验收。
 - T146旧测试末尾空白P2非阻塞，按6548918185保留事实，不为其换已排CI头；视觉与旧浏览器UNKNOWN未结。
+
+2026-10-31 22:20Z接续：T347 Full重复RAC1490点击故障已由T377加急承接（RAC2794–2797）；证据包括main nightly首败，不以顶层绿抹去，不另重复起草。T204已采用解除T249前置，根6549850805明确接手/资源窗口。T374/T367/T368采用后原测试补证行不再另派；不新增当前可选工作填待领数。

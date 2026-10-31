@@ -96,9 +96,9 @@ export class LocalMcpServer {
     }
     this.linkPanelSession = createRuntimePanelSessionLinker({
       withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => operation({
-        aliasPanelSession: (input) => catalog.desktopPanels.aliasSession(input),
+        aliasTerminalSession: async (input) => { await catalog.commit(() => { catalog.terminalPanels.aliasSession(input); }); },
       })),
-      isMissingPanel: (error) => error instanceof ActionError && error.code === "catalog.panel_not_found",
+      isMissingPanel: (error) => error instanceof ActionError && error.code === "actions.missing",
     });
   }
 

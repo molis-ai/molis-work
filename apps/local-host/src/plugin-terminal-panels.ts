@@ -126,7 +126,7 @@ export class PluginTerminalPanels {
    * The runtime reported its own session for a terminal: keep it, so the terminal resumes it when it starts again, and answer to it as a
    * work context of the same project.
    */
-  aliasSession(input: { panel_id: string; runtime_id: string; host_session_id: string; actor_id: string }): PluginTerminalPanelRecord {
+  aliasSession(input: { panel_id: string; runtime_id: string; host_session_id: string }): PluginTerminalPanelRecord {
     const current = this.get(input.panel_id.trim());
     if (!current) throw new ActionError("actions.missing", "找不到这个终端面板");
     const session = input.host_session_id.trim(), runtime = input.runtime_id.trim();
@@ -135,7 +135,8 @@ export class PluginTerminalPanels {
     this.addAlias(current.panel_id, runtime, session, now);
     if (current.host_session_id !== session) this.db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ?, updated_at = ? WHERE panel_id = ?")
       .run(session, now, current.panel_id);
-    if (current.project_id) this.ports.bind({ runtime_id: runtime, stable_work_context_id: session, project_id: current.project_id, actor_id: input.actor_id });
+    // The session is the person's who opened the terminal, as its own work context is.
+    if (current.project_id) this.ports.bind({ runtime_id: runtime, stable_work_context_id: session, project_id: current.project_id, actor_id: current.actor_id });
     return { ...current, host_session_id: session, updated_at: current.host_session_id === session ? current.updated_at : now };
   }
 

@@ -132,7 +132,11 @@ export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
 export { connectorSetupIntentAction } from "./connector-setup-intent.js";
 export { connectorAuthorizationStatus, holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
-export { startApiOAuth, completeApiOAuth, type OAuthOwners } from "./connector-api-oauth.js";
+export { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, type OAuthOwners } from "./connector-api-oauth.js";
+export { resolveApiConnection } from "./connector-access.js";
+export { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
+export { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
+export { startSharedRefresh } from "./connector-shared-refresh.js";
 export { publicOAuthFetch } from "./connector-oauth-send.js";
 export { readConnectorAccount } from "./connector-account-actions.js";
 export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
@@ -141,14 +145,13 @@ export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
 
-export * from "./gmail-oauth.js";
 
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
-export { connectorDirectory } from "./connector-directory.js";
+export { connectorDirectory, connectorLoginReady } from "./connector-directory.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
@@ -238,7 +241,7 @@ export { LocalActionGatewayClient } from "./action-gateway.js";
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
 // Home stores' one current schema each (repository-anti-corruption §4.1); compared with the stores' fixtures by tests/home-store-baselines.test.ts.
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
-export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
+export { CONTEXT_ONBOARDING_BASELINE, withContextJourneys } from "./context-onboarding-store.js";
 // An onboarding round run with the caller's own ports (a stub model), for checking the page while it organizes.
 export { startContextJourney, waitContextJourney } from "./context-onboarding-service.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";

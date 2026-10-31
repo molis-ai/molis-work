@@ -19,7 +19,7 @@ import {
   type KnowledgeSearchRequest,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeReader, locateSections, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeLocateDraft,
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeLocateData, knowledgeReader, locateSections, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeLocateDraft,
   type KnowledgeLocator, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
 import type { SearchService } from "@molis-ai/molis-work-service-search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
@@ -85,7 +85,7 @@ export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator |
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
   return async input => {
-    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, JSON.stringify(input)), KNOWLEDGE_LOCATE.prompt_id), {
+    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id), {
       structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 2000 });
     const draft = result.structured as KnowledgeLocateDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的选节结果");

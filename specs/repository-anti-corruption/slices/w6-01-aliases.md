@@ -11,7 +11,7 @@ W6-01 的原文（`roadmap-2026-10-07.md` 第 92 行、`docs/system/RUNTIME-MIGR
 | `apps/local-host/src/native-plugin-api.ts` | 别名表只剩 functions 两条（`functions`、`io.molis.work.functions` → `/api/functions`）；其余短名随 `personal` 桥在 #1168 删了。生产代码里没有任何调用方打 `/api/plugins/functions…`：Functions 的客户端（`apps/workbench/src/functions/*`、Feed 规则编辑）都打 `/api/functions…`；只有 `functions-http.ts` 的一次改写、两条测试和一份预览脚本在用。**本片已删。** |
 | `/api/functions…`（含 `/api/functions/settings`） | 不是插件短名：Functions 是 `modules/functions` 加宿主的 `functions-http/`（平台子系统，不在目录里）。路径不动。`/api/functions/by-key/*` 两条路由（`functions.describe`、`functions.invoke` 的 HTTP 入口）**已删**（BL-081 ②，用户 2026-10-26 弹窗决定），3 个用例改走动作入口。 |
 | `apps/local-host/src/*-native-plugin-http.ts` | 四份：`alchemist`（54 行，宿主显式直连 `/api/alchemist`）、`artifact`（254 行，`/api/artifacts…`）、`feed`（92 行，`/api/feed…`）、`inbox`（66 行，`/api/inbox…`）。加通用的 `native-plugin-http.ts`（JSON 分发工具，Functions 和知识库路由也用，不是插件文件）。 |
-| `tests/builtin-plugin-assembly-gate.test.ts` | `BUILD_TIME_ASSEMBLED` 六个：alchemist、artifacts、feed、goals、inbox、plugin-builder；`NATIVE_PLUGIN_HTTP_FILES` 四个（上表）；`HAND_STARTED` 一个（Files，BL-616）；混合名单只剩 Coding。 |
+| `tests/builtin-plugin-assembly-gate.test.ts` | `BUILD_TIME_ASSEMBLED` 六个：alchemist、artifacts、feed、goals、inbox、plugin-builder；`NATIVE_PLUGIN_HTTP_FILES` 四个（上表）；`HAND_STARTED` 一个（Files，BL-616；T-135 已删整个名单）；混合名单只剩 Coding。 |
 | AGENTS.md 硬约束（装配一条） | 现文已经写「新的内置插件只走 Plugin Runtime…两者之外不再新增 `<插件>-native-plugin-http.ts`」，末句「现存的旧路径插件名单冻结…只许减少」要等名单变成「只剩批过的例外」才能改成终态。 |
 
 ## 2. 名单里每一项的去向
@@ -23,7 +23,7 @@ W6-01 的原文（`roadmap-2026-10-07.md` 第 92 行、`docs/system/RUNTIME-MIGR
 | artifacts（`BUILD_TIME_ASSEMBLED`、`/api/artifacts…`） | 成果库去插件身份（ac-artifacts A5、A6）：A5 换提供方要等维护时段，A6 把「成果」做成平台面并删目录条目与插件包 | ac-artifacts 线（A5 → A6） | 移出 `BUILD_TIME_ASSEMBLED`；`artifact-native-plugin-http.ts` 在 A6 里要么搬成平台的路由文件（不再以插件命名，也就不在 `NATIVE_PLUGIN_HTTP_FILES`），要么删；A6 的设计稿没写这一份文件的去向，A6 开工时要定 |
 | alchemist（名单、`/api/alchemist`） | 用户 2026-10-18/10-23 定：不迁、本轮不删、绕过，以后重做（BL-376） | 用户已批的例外 | 留着，作为「批过的例外」写明出处 |
 | plugin-builder（名单） | 同上（BL-377，插件创作台） | 用户已批的例外 | 同上 |
-| Files（`HAND_STARTED`） | 工厂要宿主端口（BL-616） | 端口成为平台服务（PG-005、X-5） | 不属 W6-01，名单本来就只许减少 |
+| Files（`HAND_STARTED`） | 工厂要宿主端口（BL-616） | 端口成为平台服务（PG-005、X-5） | 不属 W6-01，名单本来就只许减少；T-135 已做（Files 改写 `project_runtime`） |
 
 ## 3. 分片
 

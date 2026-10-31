@@ -58,7 +58,7 @@ export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
 export { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
-export { locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
+export { knowledgeLocateData, locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
 
 /**
  * One caller's way into its project: the client of that project and the caller's own trusted context. `beforeEffect` is the

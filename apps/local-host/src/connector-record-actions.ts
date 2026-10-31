@@ -12,7 +12,7 @@ const errors = defineErrorCodes("connector.records", { unsupported: "unavailable
 
 /** Capability projection and execution use the same existing read adapter declaration. */
 export const supportsConnectorRecords = (connection: Pick<ConnectorConnectionRecord, "auth_method" | "service_id">): boolean =>
-  connection.auth_method === "cli" ? Boolean(CONNECTOR_CLIS[connection.service_id]?.read)
+  connection.auth_method === "cli" ? Boolean(Object.hasOwn(CONNECTOR_CLIS, connection.service_id) ? CONNECTOR_CLIS[connection.service_id]?.read : undefined)
     : ["token", "oauth"].includes(connection.auth_method) && (["github", "gmail"].includes(connection.service_id)
       || isCatalogConnectorId(connection.service_id) && getCatalogSpec(connection.service_id).feed_available !== false);
 

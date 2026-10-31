@@ -140,9 +140,9 @@ export interface PluginRegistration {
   };
   /**
    * Each project's instance, which the Host's project supervisor starts from this declaration (PG-067). Trusted, as above. A plugin
-   * whose library is the Manifest's `databases.home` runs only where the project has a Home. A factory that needs ports from the
-   * Host is not declared here; it stays in apps/local-host/src/project-plugins.ts (only Files, BL-616). A dual-instance plugin
-   * declares this and `runtime` (Shelf).
+   * whose library is the Manifest's `databases.home` runs only where the project has a Home. The factory takes nothing from the Host:
+   * what a project instance needs from it is a platform service or an action its Manifest declares (BL-616). A dual-instance
+   * plugin declares this and `runtime` (Shelf).
    */
   readonly project_runtime?: {
     readonly create: () => PluginDefinition;

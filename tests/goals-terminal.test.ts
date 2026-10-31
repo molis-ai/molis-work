@@ -144,7 +144,8 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   assert.equal((await api("/PARENT/advance-prompt")).status, 409);
   const foreign = await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", workspace_id: other.workspace_id } });
   assert.equal(foreign.status, 403, await foreign.clone().text());
-  for (const body of [{}, { runtime: "codex", command: "sh" }, { runtime: "codex", args: [] }, { runtime: "nope" }, { command: "sh", cwd: "/" }]) {
+  for (const body of [{}, { runtime: "codex", command: "sh" }, { runtime: "codex", args: [] }, { runtime: "nope" }, { command: "sh", cwd: "/" },
+    { command: "sh", resume_session_id: "s-1" }, { runtime: "codex", resume_session_id: "s-1 rm" }, { runtime: "codex", resume_session_id: "s-1;rm" }]) {
     assert.equal((await api("/LEAF/terminals", { method: "POST", body })).status, 400, JSON.stringify(body));
   }
   assert.equal((await logged(2)).length, 2, "nothing else ran");
@@ -175,7 +176,7 @@ test("RAC-2563 the four Goals terminal actions are the person's only: an Agent, 
   assert.equal(await runs(), before, "nothing ran");
 });
 
-test("RAC-2565 a terminal whose runtime reported its session starts again with the recipe's resume arguments; another program under the same key is a conflict", { timeout: 60_000 }, async t => {
+test("RAC-2565 a terminal whose runtime reported its session starts again with the recipe's resume arguments, one opened with resume_session_id resumes it from the first start; another program or session under the same key is a conflict", { timeout: 60_000 }, async t => {
   const { f, folder, project, api } = await served(t);
   const before = await runs();
   const opened = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", key: "main" } }));
@@ -199,6 +200,11 @@ test("RAC-2565 a terminal whose runtime reported its session starts again with t
   const conflict = await api("/LEAF/terminals", { method: "POST", body: { command: "sh", key: "main" } });
   assert.equal(conflict.status, 409);
   assert.match(await conflict.text(), /actions\.conflict/);
+  const otherSession = await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", key: "main", resume_session_id: "sess-7" } });
+  assert.equal(otherSession.status, 409, "the recorded session is the one it resumes");
   assert.equal((await logged(before + 2)).length, before + 2, "nothing else ran");
+  const named = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", key: "named", resume_session_id: "sess-7" } }));
+  assert.equal(named.status, 200, JSON.stringify(named.body));
+  assert.equal((await logged(before + 3)).at(-1), `${folder}|resume sess-7|LEAF|codex`, "the first start resumes the named session");
   page.close();
 });

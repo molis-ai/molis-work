@@ -14,6 +14,8 @@ const terminalErrors = defineErrorCodes("goals.terminal", {
 /** A terminal's key: what `services.terminal` accepts, so a Goal page names its tabs without asking the platform. */
 const key = { type: "string", pattern: "^[a-z][a-z0-9-]{0,63}$" };
 const goal = { goal_id: identifier };
+/** A runtime session to resume: what `services.terminal` takes as the program's `session`. */
+const session = { type: "string", pattern: "^[A-Za-z0-9._:-]{1,128}$" };
 const program = { anyOf: [object({ runtime: text }), object({ command: text, args: array(text) })] };
 const panel = object({ key: text, panel_id: text, title: text, runtime: text, program, running: boolean, created_at: text });
 type PanelRow = { key: string; panel_id: string; title: string; runtime: string; program: PluginTerminalProgram; running: boolean; created_at: string };
@@ -26,15 +28,15 @@ function terminalAction<Input, Output>(id: string, title: string, description: s
     subject_kinds: ["goal"], input_schema: input, output_schema: output } };
 }
 
-type OpenInput = { goal_id: string; key?: string; runtime?: string; command?: string; args?: string[]; workspace_id?: string };
+type OpenInput = { goal_id: string; key?: string; runtime?: string; resume_session_id?: string; command?: string; args?: string[]; workspace_id?: string };
 export const goalsTerminalActions = {
   list: terminalAction<{ goal_id: string }, { panels: PanelRow[]; read_only: boolean }>(
     "goals.terminal.list", "读取目标的工作终端", "列出本人在这个目标上打开过的工作终端与它们是否在运行；上层目标的终端只读", "query",
     ["goals:read", "terminal:run"], object(goal), object({ panels: array(panel), read_only: boolean })),
   open: terminalAction<OpenInput, { panel_id: string; key: string; started: boolean }>(
-    "goals.terminal.open", "打开目标的工作终端", "在项目已关联的工作目录里为这个目标打开终端：runtime 是平台认识的编程 Agent，或给出 command 与参数；同一个 key 在运行时直接接上，停了就用原来的程序重开", "command",
+    "goals.terminal.open", "打开目标的工作终端", "在项目已关联的工作目录里为这个目标打开终端：runtime 是平台认识的编程 Agent（可用 resume_session_id 接着它原来的会话），或给出 command 与参数；同一个 key 在运行时直接接上，停了就用原来的程序重开", "command",
     ["goals:write", "terminal:run", "workspace:read"],
-    object({ ...goal, key, runtime: identifier, command: identifier, args: array(text), workspace_id: identifier }, ["goal_id"]),
+    object({ ...goal, key, runtime: identifier, resume_session_id: session, command: identifier, args: array(text), workspace_id: identifier }, ["goal_id"]),
     object({ panel_id: text, key: text, started: boolean })),
   close: terminalAction<{ goal_id: string; key: string }, { closed: true }>(
     "goals.terminal.close", "关闭目标的工作终端", "结束这个目标上的一个工作终端并忘掉它", "command",
@@ -83,7 +85,9 @@ export function createGoalsTerminalActionHandlers(ports: GoalsTerminalPorts): Ac
       if (readGoal(request.goal_id).parent) throw terminalErrors.read_only("这条上层 Goal 由子 Goal 共同完成，不能直接开终端。请选择一个具体的子 Goal。");
       if ((request.runtime === undefined) === (request.command === undefined) || (request.runtime !== undefined && request.args !== undefined))
         throw new ActionError("actions.input_invalid", "请给出 runtime，或者给出 command 与参数，二选一");
-      const program: PluginTerminalProgram = request.runtime !== undefined ? { runtime: request.runtime }
+      if (request.command !== undefined && request.resume_session_id !== undefined) throw new ActionError("actions.input_invalid", "只有 runtime 能接着原来的会话");
+      const program: PluginTerminalProgram = request.runtime !== undefined
+        ? { runtime: request.runtime, ...(request.resume_session_id === undefined ? {} : { session: request.resume_session_id }) }
         : { command: request.command!, ...(request.args === undefined ? {} : { args: request.args }) };
       const tab = request.key ?? `t${randomBytes(6).toString("hex")}`;
       const opened = await terminal().open({ key: tab, program, subject: request.goal_id,

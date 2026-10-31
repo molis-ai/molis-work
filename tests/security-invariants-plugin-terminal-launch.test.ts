@@ -499,7 +499,7 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
   assert.deepEqual(started, [], "no sandboxed package's code ran");
 });
 
-test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the preferred one", { timeout: 60_000 }, async t => {
+test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the preferred one; a runtime resumes the session it names as one argument, and a session with a space or `;`, or with a command, is refused", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchprogram");
   const f = await open(t, [probe]), project = await f.project("程序");
   const { folder, workspace_id } = await linkWorkspace(t, f, project);
@@ -529,6 +529,30 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
   assert.deepEqual(Object.keys(env).filter(name => name.startsWith("MOLIS_WORK_")).sort(), ["MOLIS_WORK_FOCUS_ID", "MOLIS_WORK_HOME", "MOLIS_WORK_MCP_AUDIENCE",
     "MOLIS_WORK_PANEL_ID", "MOLIS_WORK_RUNTIME_ID", "MOLIS_WORK_WEB_URL", "MOLIS_WORK_WORK_CONTEXT_ID", "MOLIS_WORK_WORK_CONTEXT_STABLE"],
   "the Molis Work variables are exactly the platform's set: none of the Host process's own reach the terminal");
+  // A runtime recipe is looked up on the platform's PATH, whose first entry is `~/.local/bin`: for these cases HOME is a folder with a `codex`
+  // there that writes its arguments to its first marker. A session goes to the recipe's resume arguments as one argument, never to a shell.
+  const runtimeHome = join(f.home, "runtime-home"), resumed = join(runtimeHome, "codex.args"), previousHome = process.env.HOME;
+  await mkdir(join(runtimeHome, ".local", "bin"), { recursive: true });
+  await writeFile(join(runtimeHome, ".local", "bin", "codex"), `#!/bin/sh\nprintf '%s\\n' "$*" > '${resumed}'\nexec /bin/cat\n`, { mode: 0o700 });
+  process.env.HOME = runtimeHome;
+  try {
+    const commandMarker = f.marker();
+    for (const [key, program, marker] of [["spaced-session", { runtime: "codex", session: "s-1 rm" }, resumed], ["semicolon-session", { runtime: "codex", session: "s-1;rm" }, resumed],
+      ["long-session", { runtime: "codex", session: "s".repeat(129) }, resumed], ["command-session", { command: f.program, args: [commandMarker], session: "s-1" }, commandMarker]] as const) {
+      const answer = await run(f, probe, "project", "run", own => opened(own, { key, program, directory }), { project });
+      await refused(f, answer, "actions.input_invalid", marker, panelOf(install.install_id, project.project_id, key), key);
+    }
+    const session = "019a.b_c:D-2";
+    const started = await run(f, probe, "project", "run", own => opened(own, { key: "resumed", program: { runtime: "codex", session }, directory }), { project });
+    assert.equal(started.outcome, "ok", started.message);
+    assert.equal(await ranIn(resumed), `resume ${session}`, "the first start resumes the session it names");
+    const recorded = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog =>
+      catalog.terminalPanels.get(panelOf(install.install_id, project.project_id, "resumed"))?.host_session_id);
+    assert.equal(recorded, session, "the session is the terminal's, so it resumes it when it starts again");
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+  }
 });
 
 test("RAC-2569 S-103 a terminal's record is its installation's, project's and person's: nobody else lists or closes it; a Home call's record has no project", { timeout: 60_000 }, async t => {

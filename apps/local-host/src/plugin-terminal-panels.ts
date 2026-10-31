@@ -92,19 +92,22 @@ export class PluginTerminalPanels {
       .map(row => row.panel_id);
   }
 
-  /** Records a new terminal, with its own work context as an alias; in a project, binds that context and journals the opening. */
-  insert(input: Omit<PluginTerminalPanelRecord, "tab_index" | "created_at" | "updated_at" | "host_session_id">, cwd: string): PluginTerminalPanelRecord {
+  /**
+   * Records a new terminal, with its own work context as an alias; in a project, binds that context and journals the opening. A runtime
+   * session it starts by resuming is kept as its session; it answers to it once the runtime reports it.
+   */
+  insert(input: Omit<PluginTerminalPanelRecord, "tab_index" | "created_at" | "updated_at" | "host_session_id"> & { host_session_id?: string | null }, cwd: string): PluginTerminalPanelRecord {
     const now = this.now();
     const { tab_index } = this.db.prepare(`
       SELECT COALESCE(MAX(tab_index), -1) + 1 AS tab_index FROM plugin_terminal_panels
       WHERE install_id = ? AND project_id IS ? AND actor_id = ? AND subject IS ?
     `).get(input.install_id, input.project_id, input.actor_id, input.subject) as { tab_index: number };
-    const row: PluginTerminalPanelRecord = { ...input, host_session_id: null, tab_index: Number(tab_index), created_at: now, updated_at: now };
+    const row: PluginTerminalPanelRecord = { ...input, host_session_id: input.host_session_id ?? null, tab_index: Number(tab_index), created_at: now, updated_at: now };
     this.db.prepare(`
       INSERT INTO plugin_terminal_panels (panel_id, install_id, project_id, actor_id, key, subject, runtime, launch_command, launch_args, title,
         host_session_id, tab_index, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(row.panel_id, row.install_id, row.project_id, row.actor_id, row.key, row.subject, row.runtime, row.launch_command,
-      JSON.stringify(row.launch_args), row.title, null, row.tab_index, now, now);
+      JSON.stringify(row.launch_args), row.title, row.host_session_id, row.tab_index, now, now);
     this.addAlias(row.panel_id, row.runtime, row.panel_id, now);
     if (row.project_id) {
       this.ports.bind({ runtime_id: row.runtime, stable_work_context_id: row.panel_id, project_id: row.project_id, actor_id: row.actor_id, cwd });

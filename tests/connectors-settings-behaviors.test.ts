@@ -22,7 +22,7 @@ import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-wo
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/dist/connector-account-actions.js";
-import { listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
+import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
@@ -231,6 +231,12 @@ test("RAC-2418: a package's long connector name and summary are cut to whole cha
   }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
   const search = /data-connector-search="([^"]*)"/.exec(filtered)?.[1] ?? "";
   assert.equal(search.includes("tail-name"), true, "the search attribute keeps the name past the 120th character");
+  // The description's own tail stays searchable as well: the filter reads the full text, not the cut the card shows.
+  const searchedSummary = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: "Short name.", summary: `${wide(420)}tail-summary`, availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const summarySearch = /data-connector-search="([^"]*)"/.exec(searchedSummary)?.[1] ?? "";
+  assert.equal(summarySearch.includes("tail-summary"), true, "the search attribute keeps the description past the 400th character");
   assert.doesNotMatch(html, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
 });
 
@@ -256,6 +262,49 @@ test("RAC-2419: a card names the package that declared it, and the package name 
   assert.match(html, /来自 Molis Work（内置）/, "the platform's own cards say so too, no exception for built-ins");
   assert.match(html, /来自 &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/, "the package name is escaped");
   assert.doesNotMatch(html, /<img src=x onerror=/, "no markup of a package name reaches the page");
+});
+
+test("RAC-2440: a card's source line cuts a package name to whole characters", () => {
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  // 5,000 characters, 7,500 UTF-16 units: alternating a two-unit emoji and a one-unit Han character. A cut by units at the 119-unit point
+  // would give 79 original characters plus 「…」 (80 characters) — well formed, but one character short, which the exact 120-character
+  // assertion refuses; the cut must count characters, not units.
+  const title = "🙂汉".repeat(2_500);
+  const html = renderConnectorsSettings({ connectors: [{ connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+    declared_by: { plugin_id: "io.example.package", title } }] }, primitives);
+  const shown = /data-connector-source>来自 ([^<]*)</u.exec(html)?.[1];
+  assert.ok(shown, "the source line is there");
+  const expected = [...title].slice(0, 119).join("") + "…";
+  assert.equal(shown, expected, "the package name is cut to 120 whole characters, the last one an ellipsis");
+  assert.equal([...shown].length, 120);
+  assert.ok(shown.isWellFormed(), "no half of a two-unit character is left over");
+});
+
+test("RAC-2441: a card without a declaring package shows no source line, while null still reads as the platform's own", () => {
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  const base = { connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [] } as const;
+  const unknown = renderConnectorsSettings({ connectors: [{ ...base }] }, primitives);
+  assert.doesNotMatch(unknown, /data-connector-source/u, "an unknown declaring package leaves no source line at all");
+  assert.doesNotMatch(unknown, /Molis Work（内置）/u, "unknown is not the platform's own");
+  const platform = renderConnectorsSettings({ connectors: [{ ...base, declared_by: null }] }, primitives);
+  assert.match(platform, /data-connector-source>来自 Molis Work（内置）</u, "null is the platform's own");
+  const named = renderConnectorsSettings({ connectors: [{ ...base, declared_by: { plugin_id: "io.example.package", title: "Example Package" } }] }, primitives);
+  assert.match(named, /data-connector-source>来自 Example Package</u, "a package's card names it");
+  // The directory's own fallback, exercised through the production function: a package whose Manifest gives it no name shows its owner id,
+  // so the source line still says where the card comes from instead of reading as the platform's own.
+  const declarations = {
+    connectionServices: () => [{ declaration: { service_id: "unnamed", title: "Unnamed", group_id: "work", summary: "Short.", auth_kind: "token", auth: { methods: [] }, capabilities: [] }, owner: "io.example.unnamed" }],
+    hasSource: () => false,
+    integration: () => undefined,
+    listIntegrations: () => [],
+    pluginName: () => undefined,
+  };
+  assert.deepEqual(connectorDirectory(declarations)[0]?.declared_by, { plugin_id: "io.example.unnamed", title: "io.example.unnamed" },
+    "a package with no Manifest name shows its owner id in the source line");
 });
 
 test("every connector detail exposes official https setup links", () => {

@@ -109,13 +109,6 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
     whileOpen: (reference, work) => open(reference.project_id) ? host.withProject(reference, work) : Promise.resolve(undefined),
     client: reference => host.actionClient(reference),
     context: (reference, signal) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, signal),
-    projectPlugins: async reference => {
-      try { return await host.projectPluginIds(reference.project_id); }
-      catch (error) {
-        // A Host built without the platform's catalog (a standalone or test Host) has no manifest: keep the old rule, do not fail the read.
-        if (error instanceof ActionError && error.code === "host.catalog_unavailable") return undefined;
-        throw error;
-      }
-    },
+    projectPlugins: reference => host.projectPluginIds(reference.project_id),
   };
 }

@@ -174,14 +174,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read,
-                projectPlugins: async projectId => {
-                  try { return await this.projectPluginIds(projectId); }
-                  catch (error) {
-                    // No catalog in this Host (a standalone or test one) means no manifest to read: keep the old turn-off rule.
-                    if (error instanceof ActionError && error.code === "host.catalog_unavailable") return undefined;
-                    throw error;
-                  }
-                } }, (judgment, caller) => {
+                projectPlugins: projectId => this.projectPluginIds(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
@@ -409,11 +402,10 @@ export class MolisWorkLocalHost {
     return this.host.projects();
   }
 
-  /** The project's plugin manifest, by the one catalog the platform injected; a Home without one refuses rather than guessing. */
-  async projectPluginIds(projectId: string): Promise<readonly string[]> {
+  /** The project's plugin manifest, by the one catalog the platform injected; undefined when this Host has no catalog to ask. */
+  async projectPluginIds(projectId: string): Promise<readonly string[] | undefined> {
     const home = this.personalPlanningHome;
-    if (!this.catalogRunner || !home) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");
-    return this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjectPlugins(projectId));
+    return this.catalogRunner && home ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjectPlugins(projectId)) : undefined;
   }
 
   status(): LocalHostStatus {

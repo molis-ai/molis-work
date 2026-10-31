@@ -17,7 +17,8 @@ import {
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
-import { UiHost, createSurfaceRenderer, createSurfaceRenderers, type UiSurfaceCallModel } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "@molis-ai/molis-work-plugin-goals/page";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -115,7 +116,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
 });
 
 test("W5-06 UI Host mounts a surface in the slot its contribution declares, and only in a slot this host offers", () => {
-  const contribution: OwnedUiContribution<UiSurfaceCallModel<{ tag: string }>> = {
+  const contribution: OwnedUiContribution<SurfaceCallModel<{ tag: string }>> = {
     descriptor: {
       contribution_id: "io.molis.work.test.declared.v1",
       plugin_id: "io.molis.work.test",
@@ -152,10 +153,12 @@ test("W5-06 UI Host mounts a surface in the slot its contribution declares, and 
     (error) => error instanceof ActionError && error.code === "ui_host.contribution_not_found",
   );
 
-  // A renderer built from a method→surface map hands each call to the declared surface as { kind, args, primitives }.
-  const renderer = createSurfaceRenderers<{ renderPanel(value: string, count: number): string }, { tag: string }>(host, id, { renderPanel: "panel" })({ tag: "em" });
+  // A renderer built from a method→surface map hands each call to the declared surface as { kind, args, primitives }. The builder is the
+  // Goals page's (the one such builder); the mount it is given is the UiHost's `mountDeclared`, as the workbench gives it.
+  const mount = (contributionId: string, surface: string, model: unknown): string => host.mountDeclared({ contribution_id: contributionId, surface, model }).html;
+  const renderer = surfaceRenderers<{ renderPanel: (value: string, count: number) => string }, { tag: string }>(mount, id, { renderPanel: "panel" })({ tag: "em" });
   assert.equal(renderer.renderPanel("x", 2), '<em data-surface="panel">panel:x,2</em>');
-  const render = createSurfaceRenderer<(value: string) => string, { tag: string }>(host, id, "panel")({ tag: "b" });
+  const render = surfaceRenderer<(value: string) => string, { tag: string }>(mount, id, "panel")({ tag: "b" });
   assert.equal(render("y"), '<b data-surface="panel">panel:y</b>');
 });
 

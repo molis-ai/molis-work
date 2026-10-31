@@ -1,16 +1,9 @@
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
-export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
-export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
-export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
-export {
-  renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
-  type GoalsReadRenderers, type WorkbenchGoalPageSelection,
-} from "./goals-document-routes.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
@@ -34,16 +27,6 @@ export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, 
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
-  createWorkbenchGoalsContextRenderer,
-  createWorkbenchGoalsDialogsRenderer,
-  createWorkbenchGoalsDocumentRenderer,
-  createWorkbenchGoalsFactorsRenderer,
-  createWorkbenchGoalsMomentumRenderer,
-  createWorkbenchGoalsPlanningRenderer,
-  createWorkbenchGoalsPolicyRenderer,
-  createWorkbenchGoalsRelationRenderer,
-  createWorkbenchGoalsStatusRenderer,
-  createWorkbenchGoalsTreeRenderer,
   createWorkbenchUiHost,
   renderPluginSettingsContribution,
   renderWorkbenchDocument,

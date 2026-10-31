@@ -33,8 +33,6 @@ const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step
  * `timeout-minutes:` line must be a plain number — a comment after it is fine — and at least the floor; a line that is there but not a
  * plain number fails instead of reading as "no limit". Returns whether the block has such a line at all.
  */
-/** The blocking jobs that carry a job-level limit in `text`: the ones the floor can check (a job without one falls back to the default). */
-const limitedBlockingJobs = (text: string): string[] => blockingJobs(text).filter((name) => assertBlockingJobLimit(name, jobBlock(name, text)));
 const assertBlockingJobLimit = (name: string, block: string): boolean => {
   const line = /^    timeout-minutes:(.*)$/m.exec(block)?.[1];
   if (line === undefined) return false;
@@ -43,6 +41,9 @@ const assertBlockingJobLimit = (name: string, block: string): boolean => {
   assert.ok(Number(plain![1]) >= BLOCKING_FLOOR, `${name}: a blocking job with a limit gets ${BLOCKING_FLOOR} minutes or more, so a slow runner does not fail a merge group`);
   return true;
 };
+
+/** The blocking jobs that carry a job-level limit in `text`: the ones the floor can check (a job without one falls back to the default). */
+const limitedBlockingJobs = (text: string): string[] => blockingJobs(text).filter((name) => assertBlockingJobLimit(name, jobBlock(name, text)));
 
 test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit of at least 1.8 times their longest run, a blocking job at 30 minutes or more, and none above an hour", () => {
   for (const [name, { limit, longest, blocking }] of Object.entries(JOBS)) {

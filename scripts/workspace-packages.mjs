@@ -140,7 +140,6 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "desktop.shell.v1",
       "desktop.runtime-launch.v1",
-      "desktop.advance-prompt.v1",
       "desktop.panels.v1",
       "desktop.capsule-shell.v1"
     ],

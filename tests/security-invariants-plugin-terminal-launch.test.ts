@@ -38,15 +38,16 @@ type Project = Awaited<ReturnType<Fixture["project"]>>;
  */
 function launchProbe(name: string, options: { terminal?: boolean; ownerFiles?: boolean; halves?: readonly Where[] } = {}) {
   const id = `io.molis.work.example.${name}`, halves = options.halves ?? ["project"];
-  const declared = options.terminal === false ? [] : [TERMINAL];
+  const files = { read: `${name}:files-read`, write: `${name}:files-write` };
+  // An action that starts a terminal in the owner files also makes the folder it starts in.
+  const declared = [...(options.terminal === false ? [] : [TERMINAL]), ...(options.ownerFiles ? [files.read, files.write] : [])];
   const define = (where: Where, suffix: string, operation: "command" | "query", audiences: ActionDefinition["action"]["audiences"], permissions: string[]): ActionDefinition =>
     ({ capability_id: `${name}.${where}-${suffix}`, version: 1, operation, action: { title: `${where} ${suffix}`, description: "启动终端探针", kind: operation === "query" ? "query" : "operation",
       scope: where, audiences, permissions, ...(operation === "command" ? { scheduling: "concurrent" as const } : {}), subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
   const actionsOf = (where: Where) => ({ run: define(where, "run", "command", ["user"], declared), undeclared: define(where, "undeclared", "command", ["user"], []),
     query: define(where, "query", "query", ["user"], declared), others: define(where, "others", "command", ["agent", "workflow", "mcp", "plugin"], declared) });
   const actions = Object.fromEntries(halves.map(where => [where, actionsOf(where)])) as Record<Where, ReturnType<typeof actionsOf>>;
-  const files = { read: `${name}:files-read`, write: `${name}:files-write` };
-  const required = options.ownerFiles ? [files.read, files.write] : [];
+  const required = options.ownerFiles ? ["storage:private", files.read, files.write] : [];
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `launch-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [...required.map(permission => ({ permission, required: true, reason: "启动终端探针" })),
@@ -211,7 +212,7 @@ async function pageSocket(t: TestContext, f: Served, pluginId: string, project: 
   return { send, wait, close: () => socket.terminate() };
 }
 
-const launch = (f: Served, key: string, marker: string, directory: unknown) => ({ key, title: "探针", command: f.program, args: [marker], directory });
+const launch = (f: Served, key: string, marker: string, directory: unknown) => ({ key, title: "探针", program: { command: f.program, args: [marker] }, directory });
 const opened = (own: PluginHostServices, input: unknown) => own.terminal!.open(input as Parameters<NonNullable<PluginHostServices["terminal"]>["open"]>[0]);
 
 test("RAC-2550 S-103 a project plugin starts its terminal in a folder of the project's linked workspace; only its own page in this project attaches", { timeout: 60_000 }, async t => {
@@ -365,31 +366,40 @@ test("RAC-2554 S-103 the folder must be in the project's own linked workspace (w
   await refused(f, answer, "actions.forbidden", marker, panelOf(homeInstall.install_id, null, "homeless"), "a Home call has no project, so no workspace");
 });
 
-test("RAC-2555 S-103 the input is the five keys and nothing else, bounded; the identity is the call's", { timeout: 60_000 }, async t => {
+test("RAC-2555 S-103 the input is the five keys and nothing else, bounded, the program one of two shapes; the identity is the call's", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchinput");
   const f = await open(t, [probe]), project = await f.project("输入不对");
   const { folder, workspace_id } = await linkWorkspace(t, f, project);
   const { install } = await grantInProject(f, project, probe);
   const directory = { root: "workspace", workspace_id };
   const base = (key: string, marker: string) => launch(f, key, marker, directory);
-  const cases: Array<[string, (input: ReturnType<typeof base>) => unknown]> = [
-    ...["cwd", "project_id", "actor_id", "install_id", "env"].map((extra): [string, (input: ReturnType<typeof base>) => unknown] => [`extra-${extra.replace("_", "-")}`, input => ({ ...input, [extra]: extra === "env" ? { PATH: "/" } : "/" })]),
-    ["relative-command", input => ({ ...input, command: "term" })],
-    ["nul-command", input => ({ ...input, command: f.program + "\0" })],
+  type Input = ReturnType<typeof base>;
+  const program = (input: Input, change: Record<string, unknown>) => ({ ...input, program: { ...input.program, ...change } });
+  const cases: Array<[string, (input: Input) => unknown]> = [
+    ...["cwd", "project_id", "actor_id", "install_id", "env", "command", "args"].map((extra): [string, (input: Input) => unknown] => [`extra-${extra.replace("_", "-")}`, input => ({ ...input, [extra]: extra === "env" ? { PATH: "/" } : "/" })]),
+    ["relative-command", input => program(input, { command: "./term" })],
+    ["nul-command", input => program(input, { command: f.program + "\0" })],
     // The terminal host trims the program it is given.
-    ["spaced-command", input => ({ ...input, command: f.program + " " })],
-    ["newline-command", input => ({ ...input, command: f.program + "\n" })],
-    ["sparse-args", input => ({ ...input, args: new Array(3) })],
+    ["spaced-command", input => program(input, { command: f.program + " " })],
+    ["newline-command", input => program(input, { command: f.program + "\n" })],
+    ["sparse-args", input => program(input, { args: new Array(3) })],
     // A Proxy passes Array.isArray; its length answers 0 once, then 40, each index a valid argument.
     ["proxy-length", input => {
       let reads = 0;
-      return { ...input, args: new Proxy([input.args[0]], { get: (target, name) => name === "length" ? { valueOf: () => reads++ ? 40 : 0 }
-        : typeof name === "string" && /^\d+$/u.test(name) ? input.args[0] : Reflect.get(target, name) }) };
+      return program(input, { args: new Proxy([input.program.args[0]], { get: (target, name) => name === "length" ? { valueOf: () => reads++ ? 40 : 0 }
+        : typeof name === "string" && /^\d+$/u.test(name) ? input.program.args[0] : Reflect.get(target, name) }) });
     }],
-    ["many-args", input => ({ ...input, args: Array.from({ length: 33 }, () => input.args[0]) })],
-    ["nul-arg", input => ({ ...input, args: [input.args[0] + "\0"] })],
-    ["number-arg", input => ({ ...input, args: [1] })],
-    ["long-arg", input => ({ ...input, args: ["a".repeat(4097)] })],
+    ["many-args", input => program(input, { args: Array.from({ length: 33 }, () => input.program.args[0]) })],
+    ["nul-arg", input => program(input, { args: [input.program.args[0] + "\0"] })],
+    ["number-arg", input => program(input, { args: [1] })],
+    ["long-arg", input => program(input, { args: ["a".repeat(4097)] })],
+    ["no-program", ({ program: _program, ...input }) => input],
+    ["both-programs", input => program(input, { runtime: "codex" })],
+    ["program-extra-key", input => program(input, { cwd: "/" })],
+    ["unknown-runtime", input => ({ ...input, program: { runtime: "nope" } })],
+    ["runtime-args", input => ({ ...input, program: { runtime: "codex", args: [] } })],
+    ["long-subject", input => ({ ...input, subject: "s".repeat(201) })],
+    ["empty-subject", input => ({ ...input, subject: "" })],
     ["Bad-Key", input => input],
     ["empty-title", input => ({ ...input, title: " " })],
     ["long-title", input => ({ ...input, title: "题".repeat(121) })],
@@ -408,7 +418,7 @@ test("RAC-2555 S-103 the input is the five keys and nothing else, bounded; the i
   const changing = (marker: string) => { let reads = 0; const args: string[] = []; Object.defineProperty(args, 0, { enumerable: true, get: () => reads++ ? "\0bad" : marker }); return args; };
   for (const [key, args] of [["iterated-args", iterated], ["changing-args", changing]] as const) {
     const marker = f.marker();
-    const answer = await run(f, probe, "project", "run", own => opened(own, { ...base(key, marker), args: args(marker) }), { project });
+    const answer = await run(f, probe, "project", "run", own => opened(own, { ...base(key, marker), program: { command: f.program, args: args(marker) } }), { project });
     assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
     assert.equal(await ranIn(marker), folder, `${key}: started with the checked arguments`);
   }
@@ -487,4 +497,72 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
     }
   }
   assert.deepEqual(started, [], "no sandboxed package's code ran");
+});
+
+test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the preferred one", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchprogram");
+  const f = await open(t, [probe]), project = await f.project("程序");
+  const { folder, workspace_id } = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const directory = { root: "workspace", workspace_id };
+  for (const [key, command, code] of [["semicolon", "a;b", "actions.input_invalid"], ["climbing", "../x", "actions.input_invalid"], ["relative-path", "x/y", "actions.input_invalid"],
+    ["dot", ".", "actions.input_invalid"], ["dot-dot", "..", "actions.input_invalid"], ["spaced-name", "a b", "actions.input_invalid"],
+    ["missing-name", "molis-work-no-such-command", "actions.unavailable"]] as const) {
+    const marker = f.marker();
+    const answer = await run(f, probe, "project", "run", own => opened(own, { key, title: "探针", program: { command, args: [marker] }, directory }), { project });
+    await refused(f, answer, code, marker, panelOf(install.install_id, project.project_id, key), key);
+  }
+  const marker = f.marker();
+  const answer = await run(f, probe, "project", "run", own => opened(own, { key: "named", program: { command: "sh", args: ["-c", `pwd -P > '${marker}.cwd'; env > '${marker}'; exec /bin/cat`] },
+    subject: "S-1", directory: { root: "workspace" } }), { project });
+  assert.equal(answer.outcome, "ok", answer.message);
+  const panelId = panelOf(install.install_id, project.project_id, "named");
+  assert.deepEqual(answer.value, { panelId, started: true });
+  const env = Object.fromEntries((await ranIn(marker)).split("\n").map(line => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
+  assert.equal((await readFile(`${marker}.cwd`, "utf8")).trim(), folder, "the project's preferred linked workspace");
+  assert.deepEqual({ MOLIS_WORK_HOME: env.MOLIS_WORK_HOME, MOLIS_WORK_MCP_AUDIENCE: env.MOLIS_WORK_MCP_AUDIENCE, MOLIS_WORK_RUNTIME_ID: env.MOLIS_WORK_RUNTIME_ID,
+    MOLIS_WORK_WORK_CONTEXT_ID: env.MOLIS_WORK_WORK_CONTEXT_ID, MOLIS_WORK_WORK_CONTEXT_STABLE: env.MOLIS_WORK_WORK_CONTEXT_STABLE, MOLIS_WORK_PANEL_ID: env.MOLIS_WORK_PANEL_ID,
+    MOLIS_WORK_FOCUS_ID: env.MOLIS_WORK_FOCUS_ID, MOLIS_WORK_WEB_URL: env.MOLIS_WORK_WEB_URL, TERM: env.TERM, COLORTERM: env.COLORTERM }, {
+    MOLIS_WORK_HOME: f.home, MOLIS_WORK_MCP_AUDIENCE: "runtime", MOLIS_WORK_RUNTIME_ID: "command", MOLIS_WORK_WORK_CONTEXT_ID: panelId,
+    MOLIS_WORK_WORK_CONTEXT_STABLE: "true", MOLIS_WORK_PANEL_ID: panelId, MOLIS_WORK_FOCUS_ID: "S-1", MOLIS_WORK_WEB_URL: f.origin, TERM: "xterm-256color", COLORTERM: "truecolor" });
+  assert.equal(env.MOLIS_WORK_GOAL_ID, undefined, "the retired name is not set");
+});
+
+test("RAC-2569 S-103 a terminal's record is its installation's, project's and person's: nobody else lists or closes it; a Home call's record has no project", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchowners"), other = launchProbe("launchownersother"), home = launchProbe("launchownershome", { halves: ["home"], ownerFiles: true });
+  const f = await open(t, [probe, other, home]), project = await f.project("记录归属");
+  const { workspace_id } = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe); await grantInProject(f, project, other);
+  const homeInstall = (await grantInHome(f, home)).install;
+  const person = await f.host.localPersonContext(project.reference), stranger = { ...person, actor_id: "second-person" };
+  const panelId = panelOf(install.install_id, project.project_id, "mine");
+  const opening = await run(f, probe, "project", "run", own => opened(own, { ...launch(f, "mine", f.marker(), { root: "workspace", workspace_id }), subject: "s1" }), { project });
+  assert.equal(opening.outcome, "ok", opening.message);
+  const list = (who: Probe, input?: { subject?: string }, caller = person) => run(f, who, "project", "query", own => own.terminal!.list(input), { project, caller });
+  const close = (who: Probe, caller = person) => run(f, who, "project", "run", own => own.terminal!.close({ key: "mine" }), { project, caller });
+  const listed = await list(probe, { subject: "s1" });
+  assert.equal(listed.outcome, "ok", listed.message);
+  assert.deepEqual((listed.value as Array<Record<string, unknown>>).map(({ created_at: _created, ...row }) => row),
+    [{ key: "mine", panelId, title: "探针", runtime: "command", subject: "s1", running: true }]);
+  assert.deepEqual((await list(probe, { subject: "s2" })).value, [], "another subject");
+  assert.deepEqual((await list(probe, undefined, stranger)).value, [], "another person lists nothing");
+  assert.deepEqual((await list(other)).value, [], "another installation lists nothing");
+  for (const [answer, why] of [[await close(probe, stranger), "another person"], [await close(other), "another installation"]] as const) {
+    assert.equal(answer.outcome, "actions.missing", `${why}: ${answer.message}`);
+    assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, `${why}: the terminal still runs`);
+  }
+  assert.equal((await close(probe)).outcome, "ok");
+  await until(async () => (await panelState(f, panelId)).attached === false, "closing ends the terminal");
+  assert.deepEqual((await list(probe)).value, [], "closing forgets it");
+  // The owner files exist once written: the Home probe makes its folder first, as Shelf opens its store before its terminal.
+  const homeAnswer = await run(f, home, "home", "run", async own => {
+    await own.ownerFiles!.write(writer => writer.mkdir("notes"));
+    return opened(own, launch(f, "home", f.marker(), { root: "owner_files", path: "notes" }));
+  });
+  assert.equal(homeAnswer.outcome, "ok", homeAnswer.message);
+  const homePanel = panelOf(homeInstall.install_id, null, "home");
+  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => {
+    assert.equal(catalog.terminalPanels.get(homePanel)?.project_id, null, "a Home call's record has no project");
+    assert.equal(catalog.terminalPanels.listIds(project.project_id).includes(homePanel), false, "a project does not count a Home terminal");
+  });
 });

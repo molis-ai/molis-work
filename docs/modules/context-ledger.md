@@ -24,7 +24,7 @@ Session/Project/workspace 关联也通过同库 Ledger API 保存；本地应用
 
 Goal 输入确认中的可解析 Feed 来源保存为 `goal.input` 边，Goals 只保存 edge key、确认状态和摘要，公开读取再还原 locator；原始来源不随 Feed 当前关联变更而改变。URL 与不可解析 locator 保留，不凭空转换成 Artifact。写入与 Goals 共用原子事务。
 
-`ContextMaterializationApi.rebuild` 已用于 Runtime advance-prompt 的 Feed 上下文：从 Goal incoming `feed.goal` 边取引用，经 owner Query 获取内容，Native Feed 选择原来排序下的 Item 并格式化、脱敏。Ledger 不拥有其正文。遍历支持缺失/拒绝/暂不可用/版本过期状态，循环去重、范围拒绝和对象数预算；失败不会留一份可被误用的部分缓存，下次调用从 owner 重新读取。返回值只是临时 projection，长期结果仍必须进 Artifact。
+`ContextMaterializationApi.rebuild` 已用于 Goals 推进提示（`goals.terminal.prompt`）的 Feed 上下文：从 Goal incoming `feed.goal` 边取引用，经 owner Query 获取内容，Native Feed 选择原来排序下的 Item 并格式化、脱敏。Ledger 不拥有其正文。遍历支持缺失/拒绝/暂不可用/版本过期状态，循环去重、范围拒绝和对象数预算；失败不会留一份可被误用的部分缓存，下次调用从 owner 重新读取。返回值只是临时 projection，长期结果仍必须进 Artifact。
 
 Handoff 的来源 Goal 与目标 Project / workspace 已迁入 Ledger；新 prepare 记录实际 Goal revision，历史版本不猜测。加密正文、来源/目标 Session、发送与重试状态仍是 Work 内部事实；持久化私人恢复包不等于自动发布 Artifact（总 spec §20.11 / §20.13）。
 

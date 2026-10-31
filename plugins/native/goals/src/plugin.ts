@@ -2,7 +2,8 @@ import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createGoalsActionHandlers } from "./actions.js";
+import { createGoalsActionHandlers, goalsActions } from "./actions.js";
+import { createGoalsTerminalActionHandlers, goalsTerminalActions } from "./terminal-actions.js";
 import { readMolisWorkSnapshot } from "./snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
 import { GOALS_CATCH_UP_JOB, goalsManifest } from "./manifest.js";
@@ -17,9 +18,12 @@ import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: 1 } as const;
+/** Feed's text still linked to a Goal (optional: Feed may not be installed), asked as the caller through the action directory. */
+const FEED_LINKED_CONTEXT = { capability_id: "feed.goals.context", version: 1 } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
-  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin"]);
+  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin",
+  ...Object.values(goalsTerminalActions).map(definition => definition.capability_id)]);
 
 /** What of the call's authority another plugin's action is run under (the directory runs it as this caller, never as Goals). */
 function controlOf(caller: ActionExecutionContext): PluginExecutionControl {
@@ -98,6 +102,25 @@ export function createGoalsPlugin(): PluginDefinition {
         listGoalTreeProposals: query => application.goalTree.listGoalTreeProposals(query),
         checkGoalTreeProposal: input => application.goalTreeCheck.checkGoalTreeProposal(input),
         decideGoalTreeProposal: input => application.goalTreeDecision.decideGoalTreeProposal(input) } });
+    handlers.push(...createGoalsTerminalActionHandlers({ terminal: services.terminal,
+      goal: goalId => window.read(() => {
+        try {
+          const record = application.goalQueries.getGoal(projectId, goalId), state = application.goalEvents.readState(projectId, goalId);
+          return { record, state: state.owner ? state : null };
+        } catch (error) {
+          if (error instanceof ActionError && error.code === "goals.not_found") return null;
+          throw error;
+        }
+      }),
+      guidancePrefix: async caller => (await actions.invoke(goalsActions.guidanceRead, {}, controlOf(caller))).runtime_prompt_prefix,
+      linkedFeedContext: async (caller, goalId) => {
+        try { return (await directory.invoke<{ source_context: string } | null>(FEED_LINKED_CONTEXT, { goal_id: goalId }, controlOf(caller)))?.source_context; }
+        catch (error) {
+          // Feed not in this project, off, or not granted to this person: the prompt goes without it.
+          if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.dependency_missing"].includes(error.code)) return undefined;
+          throw error;
+        }
+      } }));
 
     // The person's methods are the plugin's own data, in its other instance: asked as the plugin (its own action), never as the caller,
     // whose grants (an agent's, say) need not reach a Home-wide action.

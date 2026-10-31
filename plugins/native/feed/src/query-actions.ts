@@ -25,7 +25,9 @@ const linkedContext = define<{ goal_id: string; item_id?: string }, { source_con
 
 export const feedQueryActions = {
   connectionUsages: defineConnectorUsagesAction("feed.connection.usages", "Feed 来源使用的连接", ["feed:read"], "project"),
-  linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
+  // Also `workflow`: Goals asks for it through its action directory as the person (the prompt of a Goal's terminal, T-137), and a
+  // delegated call is made under that audience; the Goal is still read as the caller first, with the caller's own permissions.
+  linkedContext: { ...linkedContext, action: { ...linkedContext.action, audiences: ["user", "workflow"], permissions: ["feed:read", "goals:read"],
     required_actions: [{ capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" }] } },
   snapshot: define<{ include_contents?: boolean }, FeedDirectorySnapshot>("feed.snapshot", "读取 Feed 面板",
     "读取当前项目的来源、消息与拉取记录；默认省略正文，Inbox 事项由 Inbox 自己授权读取",

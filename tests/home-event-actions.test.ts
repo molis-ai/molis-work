@@ -190,3 +190,53 @@ test("RAC-2438 an unavailable source the project's plugin manifest lists is repo
   assert.deepEqual(failed.events, []);
   assert.deepEqual(failed.issues, ["首页事项：项目的插件清单读取失败（host.catalog_unavailable）"]);
 });
+
+// RAC-2783–2786: exercise the real Host/Catalog -> home-actions -> home.events.read wiring, not an injected lookup.
+test("RAC-2783/RAC-2784 real Host event reads use the project's actual plugin catalog", async t => {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
+  const { withMolisWorkProjectCatalog: withCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const home = await mkdtemp(join(tmpdir(), "t374-home-events-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const stops: Array<() => void> = [];
+  const calls: Record<string, number> = {};
+  const title = "事项目录接线证据";
+  try {
+    host.configurePersonalPlanning(home, withCatalog);
+    const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog =>
+      catalog.createProject({ display_name: displayName, actor_id: "owner" }));
+    const listed = await create("列出 Feed 的项目"), bare = await create("没有列出 Feed 的项目");
+    await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listed.project_id, plugin_id: "feed", actor_id: "owner" }));
+    const ref = (project: { project_id: string; database_path: string }) =>
+      molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+    for (const project of [bare, listed]) {
+      const reference = ref(project);
+      await host.withProject(reference, async () => {});
+      calls[project.project_id] = 0;
+      const query = defineHomeEventsAction(`fixture.t374.${project.project_id}.events`, ["unknown-note"], title, ["notes:read"]);
+      stops.push(host.actionRegistry(reference).registerProvider({
+        provider: { provider_id: `t374.${project.project_id}`, title, kind: "plugin", plugin_id: "io.molis.work.feed", project_id: project.project_id },
+        availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "测试策略拒绝" }),
+        definitions: [query], handlers: [{ ...query, handle: () => {
+          calls[project.project_id] += 1;
+          return assert.fail("an unavailable event provider must not execute");
+        } }],
+      }));
+    }
+    const read = async (project: typeof bare) => await host.actionClient(ref(project)).invoke(
+      { ...caller, project_id: project.project_id }, homeEventActions.events, window) as HomeEventsResult;
+    // Read BOTH paths before assertions; the negative control must run even when listed fails in the wiring mutant.
+    const bareResult = await read(bare), listedResult = await read(listed);
+    const ownIssues = (result: HomeEventsResult) => result.issues.filter(issue => issue.startsWith(`${title}：`));
+    assert.deepEqual(ownIssues(bareResult), [], "RAC-2784 bare stays silent");
+    assert.equal(calls[bare.project_id], 0);
+    t.diagnostic("RAC-2784 bare read and silence/handler assertions passed before listed assertions");
+    assert.equal(calls[listed.project_id], 0);
+    assert.deepEqual(ownIssues(listedResult), ["事项目录接线证据：测试策略拒绝"], "RAC-2783 listed refusal is shown through real Host wiring");
+  } finally {
+    try { for (const stop of stops) stop(); }
+    finally { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } }
+  }
+});

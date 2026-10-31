@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cutHead, cutTail } from "@molis-ai/molis-work-app-local-host";
+import { cutHead, cutTail } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 // T-294: one place in the Host cuts text by UTF-16 units and drops the half a cut between a character's two units leaves. A character
 // such as 😀 takes two units: a cut between them leaves a lone half (a high one at the end of the head, a low one at the start of the tail).

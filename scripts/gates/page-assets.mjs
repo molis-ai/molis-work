@@ -248,10 +248,9 @@ const headErrors = (measured, budget, base) => {
 // +616 B and the answer asked for the dictionary; no new asset, no new image.
 // T-351 (RAC-2723): the Alchemist research page says "material too long" for a lens job refused because the prompt's data position is
 // over, telling it apart from the generic runtime failure; +146 B on this one asset. Tried: no new asset, one localized sentence with its
-// English pair, no count text (the character excess needs a dedicated error-detail field and is a separate change). Approved [52556, 52874].
+// English pair, no count text (the character excess needs a dedicated error-detail field and is a separate change). Approved [52556, 52702] (the measured bytes, no slack).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/alchemist.js": [52556, 52874],
-  "/assets/molis-work-plugins/form.js": [29708, 30252],
+  "/assets/molis-work-plugins/alchemist.js": [52556, 52702],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

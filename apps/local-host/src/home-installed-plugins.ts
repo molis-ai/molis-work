@@ -11,11 +11,13 @@ import type { CallConnectionsPort, SqlitePluginPrivateStorage } from '@molis-ai/
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
-import { sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
+import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
-import { capabilityCatalog, catalogCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { configuredModelChoices } from './configured-models.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { generatedRegistration, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
@@ -106,6 +108,17 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     return catalogPending;
   };
   const secrets = pluginSecrets(home, HOME_INSTALL_SCOPE, storage);
+  // The `model.generate` capability a package's `prompts.json` is for (BL-714): the Home's own registration of the platform capability,
+  // answering only this Home's installations, with the instructions the package registered under the Home.
+  const generate = createPluginModelGeneration({ homeDirectory: home,
+    declaredPrompts: async (pluginId, caller) => {
+      if (isClosed() || caller?.project_id !== null || !caller.plugin_install_id) throw staleInstallation('模型调用缺少个人空间的执行身份');
+      const record = recordFor(pluginId), installed = releaseFor(pluginId);
+      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw staleInstallation('模型调用的安装执行身份已失效');
+      return { kind: 'installed', registration: generatedRegistration(installed, [installed], 'enabled', installedVersion(installed)) };
+    },
+    selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(home)[0] ?? null; } });
+  const disposePlatform = registerPlatformCapabilities(actions, { generate });
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   // Only the Home's own actions are in this catalog: the caller has no project, so an action of a project is not offered to it.
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
@@ -144,7 +157,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
     forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, promptScope(installId)); forgetDefinitions(pluginId); } });
-  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); };
+  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
 
   try {
     // One package that cannot start leaves its reason with its installation and starts nothing else less: the built-in plugins and the other packages go on.

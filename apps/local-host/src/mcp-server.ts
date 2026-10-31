@@ -1,4 +1,5 @@
 import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
+import { mcpErrors } from "./mcp-errors.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ensureSystemAgentService } from "./system-agent-service.js";
 import { projectActionAvailability } from "./project-action-availability.js";
@@ -43,7 +44,7 @@ export class LocalMcpServer {
   get runtimeContextHost(): MolisWorkRuntimeContextHost | null { return this.currentRuntimeHost; }
   set runtimeContextHost(value: MolisWorkRuntimeContextHost | null) {
     if (value !== this.currentRuntimeHost) {
-      this.transportLifetime.abort(new ActionError("mcp.context_changed", "MCP 调用主体已变化"));
+      this.transportLifetime.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
       this.transportLifetime = new AbortController();
       this.currentRuntimeHost = value ? frozenRuntimeHost(value) : null;
     }
@@ -143,7 +144,7 @@ export class LocalMcpServer {
     const checkContext = () => { signal.throwIfAborted();
       if (this.runtimeConnection !== connection || this.currentActions().context.actor_id !== current.context.actor_id
         || (sessionCall && sessionActor(sessionCall) !== auditActor))
-        throw new ActionError("mcp.context_changed", "调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
+        throw mcpErrors.context_changed("调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
     };
     const home = this.runtimeContextHost?.homeDirectory;
     if (this.actionServiceUrl) {
@@ -243,10 +244,10 @@ export class LocalMcpServer {
     else if (!managementTool) await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
     const entry = findAssembledMcpTool(catalog, name);
     if (!entry) {
-      throw new ActionError("mcp.tool_unknown", `未知 MCP 方法：${name}`);
+      throw mcpErrors.tool_unknown(`未知 MCP 方法：${name}`);
     }
     if (entry.source === "action") {
-      if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");
+      if (this.runtimeConnection !== connection) throw mcpErrors.context_changed("客户端项目连接已变化，请重新发现能力");
       // Every Runtime call carries its Session when there is one (a receipt query finds the write it made); an action whose
       // records are authored by a Session is refused at dispatch for a call without one, wrapped or not.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
@@ -270,13 +271,13 @@ export class LocalMcpServer {
   private async forwardContext(operation: "tool" | "restore" | "alias", context: McpToolCallContext,
     tool?: { name: string; arguments: Record<string, unknown> }): Promise<string | null> {
     const host = this.runtimeContextHost;
-    if (!host) throw new ActionError("mcp.context_host_missing", "MCP 宿主没有提供 Runtime 标识");
+    if (!host) throw mcpErrors.context_host_missing("MCP 宿主没有提供 Runtime 标识");
     const signal = mcpRequestSignal(this.transportLifetime.signal, this.connectionState.signal);
     if (!host.homeDirectory) throw new ActionError("actions.home_required", "MCP 自动启动需要明确的 Runtime Home");
     await ensureMcpRequestResident(this.ensureResident, host.homeDirectory, this.actionServiceUrl!, signal); signal.throwIfAborted();
     const cacheContext = operation === "restore" ? host.runtimeContext : requireMcpRuntimeContextHost({ runtimeContextHost: host }, context).runtimeContext;
     return forwardMcpContext({ url: this.actionServiceUrl!, host, context, operation, tool, signal,
-      checkCurrent: () => { signal.throwIfAborted(); if (this.runtimeContextHost !== host) throw new ActionError("mcp.context_changed", "MCP 调用主体已变化"); },
+      checkCurrent: () => { signal.throwIfAborted(); if (this.runtimeContextHost !== host) throw mcpErrors.context_changed("MCP 调用主体已变化"); },
       updateCache: (update: ContextCacheUpdate) => {
         if (update.kind === "clear") this.connectionState.clear(update.clearRefresh);
         else if (update.kind === "accept") this.connectionState.accept(update.connection, cacheContext);

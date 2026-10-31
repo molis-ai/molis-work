@@ -262,7 +262,7 @@ test("RAC-2705 a workflow caller reads 「被谁引用」 named by the declaring
 
 // RAC-2706 (T-113 二审增量 ②): the Host's half when a declaring Plugin cannot name its objects. Answers are not failures; anything
 // else is one line with the plugin, never the request's content (ids, titles) or the error's text. `logLinkSubjectsFailure` is not a
-// public entry of the Host, so this goes through the exported port that calls it, as the workflow caller.
+// public entry of the Host, so this goes through the exported port that calls it.
 test("RAC-2706 a refused read is not logged; any other failure writes one line with the plugin and none of the content", async () => {
   const entries: HostLogEntry[] = [];
   const restore = captureHostLog(entries);

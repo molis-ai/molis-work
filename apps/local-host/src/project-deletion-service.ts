@@ -31,7 +31,8 @@ export class ProjectDeletionService {
       // An already deleted project is not in the list: its persisted receipt replays without asking the terminals or the runtime.
       const project = catalog.listProjects().find(item => item.project_id === input.project_id.trim());
       if (project) {
-        if (catalog.desktopPanels.listIds(project.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
+        const panels = [...catalog.desktopPanels.listIds(project.project_id), ...catalog.terminalPanels.listIds(project.project_id)];
+        if (panels.some(panelId => this.ports.isPanelAlive(panelId))) {
           throw catalogErrors.project_terminal_live(L("请先关闭这个项目中正在运行的终端，再删除项目。"));
         }
         await this.ports.releaseProject(project.database_path);

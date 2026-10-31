@@ -176,18 +176,21 @@ test("RAC-1726 the workbench keeps no table of English plugin names by plugin id
   }
 });
 
-test("RAC-1727 a publisher's English is escaped where it is written and the inline title data cannot close its script", () => {
-  const evil = `<img src=x onerror="alert(1)">`;
+const HOSTILE_ENGLISH = `<img src=x onerror="alert(1)">`;
+
+test("RAC-1727/RAC-2732 the rail escapes publisher English and inline directory data carries ids without publisher text", () => {
+  const evil = HOSTILE_ENGLISH;
   const manifest = base(LEDGER, "记账本", { name_en: "Ledger Book" }, uiOf(LEDGER, [view(LEDGER, "nav", "navigator", "记账", { title_en: "Ledger" })]));
   const [entry] = runningPluginDirectory(sourceOf([parsed(manifest)]));
   const hostile = { ...entry!, name_en: evil, ui: { views: entry!.ui.views.map(item => ({ ...item, title_en: evil })) } };
   const html = renderPluginRail(primitives("en"), [], pluginDirectoryFor([hostile]));
   assert.doesNotMatch(html, /<img src=x/u);
   assert.match(tile(html, LEDGER), /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/u);
+  // RAC-2732-2: the inline directory data carries keys, capabilities and colours only — never the publisher's text.
   const data = renderPluginDirectoryData(sanitizePluginDirectory([hostile]));
-  assert.doesNotMatch(data, /<img/u, "the inline JSON writes < as \\u003c");
-  const titles = JSON.stringify(pluginTabTitles(true, pluginDirectoryFor([hostile]))).replaceAll("<", "\\u003c");
-  assert.doesNotMatch(titles, /</u);
+  assert.ok(data.includes(`"id":"${hostile.id}"`), "the entry is in the inline directory data by key");
+  assert.doesNotMatch(data, /记账本|\\u003cimg|<img|Ledger Book/u, "the inline directory data carries no publisher text to escape");
+
 });
 
 test("RAC-1728 the name and the body are two places: 成果 is Artifacts as a name and still Results in the body; 待办 is Todo in both", () => {
@@ -198,6 +201,9 @@ test("RAC-1728 the name and the body are two places: 成果 is Artifacts as a na
   assert.equal(EN["待办"], "Todo", "the to-do is one word in the name and in the body");
 });
 
-test("RAC-1729 the built-in Manifests still pass the platform's Manifest check, and no version moved", () => {
-  for (const entry of BUILTIN_PLUGIN_CATALOG) assert.doesNotThrow(() => parsePluginManifest(JSON.parse(JSON.stringify(entry.manifest))), entry.project_plugin_id);
+test("RAC-1729/RAC-2733 the built-in Manifests still pass the platform's Manifest check, and every version survives the round trip", () => {
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    const roundTrip = parsePluginManifest(JSON.parse(JSON.stringify(entry.manifest)));
+    assert.equal(roundTrip.version, entry.manifest.version, `${entry.project_plugin_id} keeps its version`);
+  }
 });

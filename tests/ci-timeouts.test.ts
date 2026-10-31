@@ -4,7 +4,7 @@
 // gets less than 1.8 times its longest successful run, measured on the completed runs from 2026-10-28 13:06Z to 2026-10-29 (the table).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { jobBlock, workflow } from "./fixtures/ci-workflow.js";
+import { blockingJobs, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 /** The least a blocking job may be given, in minutes. */
 const BLOCKING_FLOOR = 30;
@@ -35,6 +35,26 @@ test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invaria
   assert.equal(jobTimeout("queue-check"), "5");
   assert.equal(jobTimeout("test-selection"), "5");
   assert.equal(jobTimeout("product-subset"), "35");
+});
+
+test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or more, and the table's blocking jobs are the verify needs it records", () => {
+  const blocking = blockingJobs();
+  // `queue-check` is among verify's needs only to let a push already verified by the merge queue pass (T-129): it decides no merge,
+  // and its 5-minute limit is the intentional exception.
+  assert.ok(!blocking.includes("queue-check"), "queue-check is not a blocking job");
+  assert.equal(jobTimeout("queue-check"), "5", "queue-check keeps its intentional 5-minute limit");
+  // `secret-scan`, `native-checks` and `shell-checks` are verify's needs without a job-level limit, so they fall back to the six-hour
+  // default if they hang; giving them a limit is a workflow change of its own, and a job without one is skipped here.
+  const limited = blocking.filter((name) => jobTimeout(name) !== undefined);
+  for (const name of limited) assert.ok(Number(jobTimeout(name)) >= BLOCKING_FLOOR,
+    `${name}: a blocking job with a limit gets ${BLOCKING_FLOOR} minutes or more, so a slow runner does not fail a merge group`);
+  // The table marks what blocks a merge and `verify` is what decides it: neither may drift from the other, or a new blocking job would
+  // go unchecked, and a job the table calls blocking but verify does not need would hold a merge group for nothing.
+  const tableBlocking = Object.entries(JOBS).filter(([, job]) => job.blocking).map(([name]) => name).sort();
+  assert.deepEqual(tableBlocking, blocking.filter((name) => Object.hasOwn(JOBS, name)).sort(),
+    "the table's blocking jobs are exactly verify's needs that the table records");
+  // A blocking job that gains a limit must enter the table, or its number is never checked.
+  for (const name of limited) assert.ok(Object.hasOwn(JOBS, name), `${name}: a blocking job with a limit is in the JOBS table, so its limit is checked`);
 });
 
 test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, except the Linux probe's, which another change is editing", () => {

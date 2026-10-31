@@ -1,4 +1,4 @@
-import { ActionError, bindActionClient, type ActionCallContext, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -90,13 +90,33 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
  */
 export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[], entry: LocalWebEntry & { readonly signal?: AbortSignal } = {}): BoundActionClient {
+  return boundLocalWebClient(host, reference, builtinPermissions, entry, caller => caller);
+}
+
+/**
+ * The person's client for one action a page reads by itself (a plugin's declared stage data, T-133): the same snapshot as
+ * `bindLocalWebActions`, narrowed to that action. Its call carries only the permissions the action declares, of those the person's
+ * local authority reaches, and reaches no other action; the installation's grants, its generation and its running state are checked
+ * as for any local call (`validate_authority`, and the dispatcher's own checks).
+ */
+export function bindLocalWebAction(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
+  definition: ActionDefinition, entry: LocalWebEntry & { readonly signal?: AbortSignal } = {}): BoundActionClient {
+  const declared = definition.action.permissions;
+  const same = (action: ActionReference) => action.capability_id === definition.capability_id && action.version === definition.version;
+  return boundLocalWebClient(host, reference, declared, entry, caller => ({ ...caller,
+    permissions: caller.permissions.filter(permission => declared.includes(permission)),
+    allowed_actions: (caller.allowed_actions ?? []).filter(same) }));
+}
+
+function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, builtinPermissions: readonly string[],
+  entry: LocalWebEntry & { readonly signal?: AbortSignal }, narrow: (caller: ActionCallContext) => ActionCallContext): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
   // A bound client serves one request: its calls share one authority snapshot instead of inspecting the whole directory per call.
   // A grant revoked meanwhile is still refused, because every call re-reads its owner (validate_authority) and the dispatcher re-checks availability.
   let context: Promise<ActionCallContext> | undefined;
   // Provenance belongs to this authenticated entry; it grants no permissions and never comes from an action input.
   const asEntry = (caller: ActionCallContext): ActionCallContext => entry.user_action ? { ...caller, actor_kind: "user", user_action: entry.user_action() } : caller;
-  const current = () => context ??= localWebActionContext(host, reference, builtinPermissions, entry.signal, entry).catch(error => { context = undefined; throw error; });
+  const current = () => context ??= localWebActionContext(host, reference, builtinPermissions, entry.signal, entry).then(narrow).catch(error => { context = undefined; throw error; });
   return {
     // What is available can depend on where the act came from (a tree decision needs the page's own provenance), so a discovery carries it too.
     discover: async () => client.discover(asEntry(await current())),

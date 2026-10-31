@@ -9,9 +9,10 @@ import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 // a participant that passed its check may lose its authority while another's check is awaited, or while the caller awaits its own.
 
 /**
- * What the answer of a sent refresh may write: `deliver`, everything as usual, to the participants still current; `write_back`, only the
- * rotated credentials of the connection, every participant having cancelled (the user's decision of 2026-10-27, "只存新令牌");
- * `discard`, nothing, a participant having left because its call lost its authority (`cancelledBy` says which is which).
+ * What the answer of a sent refresh may write: `deliver`, everything as usual, while at least one participant is still current; `write_back`,
+ * only the rotated credentials of the connection, every participant having left by cancellation (the user's decision of 2026-10-27,
+ * "只存新令牌"); `discard`, nothing, no participant current and at least one having left because its call lost its authority
+ * (`cancelledBy` says which is which; a cancellation and a lost authority together are `discard`).
  */
 export type SharedRefreshOutcome = "deliver" | "write_back" | "discard";
 

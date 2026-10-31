@@ -17,7 +17,7 @@ import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, mode
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
-import { createStations, englishNameProblem, settingsReadActions, viewPlacementProblems } from "./view-placement-declarations.js";
+import { createStations, englishNameProblem, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -303,6 +303,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     }
     problems.push(...viewPlacementProblems(view, stations, readables));
   }
+  problems.push(...stageDataPlacementProblems(views));
   return problems;
 }
 

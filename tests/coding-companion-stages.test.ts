@@ -156,13 +156,13 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   const importers = (pluginName: string) => readdirSync(dir).filter(file => file.endsWith(".ts"))
     .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}(/registration)?"`).test(readFileSync(join(dir, file), "utf8")));
   // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
-  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Files is the one factory that
-  // needs Host ports, so `project-plugins.ts` also imports it (BL-616).
+  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package, Files included since its
+  // factory takes nothing from the Host (BL-616, RAC-2530).
   const registry = "plugin-registry.generated.ts";
   assert.deepEqual(importers("git"), [registry]);
   assert.deepEqual(importers("diff"), [registry]);
   assert.deepEqual(importers("text-stats"), [registry]);
-  assert.deepEqual(importers("files"), [registry, "project-plugins.ts"]);
+  assert.deepEqual(importers("files"), [registry]);
   assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*create\(\)/s, "the supervisor starts the companions from their registrations' project_runtime");
   // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
   // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).

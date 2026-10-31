@@ -444,11 +444,9 @@
       "project",
       "projects",
       "route_prefix",
-      "schedule_jobs",
-      "schedule_operations",
-      "schedule_tasks",
       "shown_plugins",
       "snapshot",
+      "stage_data",
       "trashed_goals",
       "unavailable_plugin_stages"
     ]
@@ -904,11 +902,9 @@
       "project",
       "projects",
       "route_prefix",
-      "schedule_jobs",
-      "schedule_operations",
-      "schedule_tasks",
       "shown_plugins",
       "snapshot",
+      "stage_data",
       "trashed_goals",
       "unavailable_plugin_stages"
     ]

@@ -242,15 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
-// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
-// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
-// T-229 (MISC, T-190's review), RAC-2190–2191: a note row's preview drops a character cut in half, and the import dialog counts
-// characters instead of UTF-16 units, +106 B on this one asset (first +36 B; the counting loop T-229's review asked for, no array of a
-// whole file, adds the rest). Tried: the shorter form of both writes, a shared cut helper (longer), no new asset.
-// 统筹答 T-229 (2026-10-29, issue 1332 comment 6507055134) approved [76760, 76866]: the extra 70 B is what the review's iterator count costs.
+// T-223 (MISC T-184 发布), RAC-2160–2164: on top of T-183's +63 already in main (budget 190623), the plugin-frame bridge cuts the name
+// a plugin page file is saved under by whole characters (200, extension kept) instead of 200 UTF-16 units: +137 B more, measured on
+// this merge result (190623 → 190760). Tried: whole characters without keeping the extension +41 B (does not fix the dropped
+// extension), cutting by units and dropping a dangling half +143 B, an early return for a name that fits +163 B; no new asset.
+// The entries this block inherited from main are used up (their budget already equals their ceiling): T-183's frame +63 and workbench
+// +96, and T-235's ppt.js [27065, 27364]; the entries and their notes are deleted with this change as the convention says.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/jelly.js": [76760, 76866],
+  "/assets/molis-work-plugin-frame.js": [190623, 190760],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

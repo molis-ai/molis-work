@@ -68,6 +68,8 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 `settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
 
+舞台要自己的数据时，在打开舞台的那个 view（有 `stage` view 就是它，否则是第一个 `navigator` view）上写 `stage_data: { action: "<本 Manifest 里只读、面向 user、只有一个版本的查询>" }`，规则与 `settings_data` 相同，写在别的 view 上或指向别人的动作，Manifest 当场被拒。宿主按页面上的这个人、只带这个动作自己声明的权限调用它（不带输入），结果放在 `StagePageModel.data` 里，连同 `route_prefix`、`shown_plugins` 和 `primitives`（`escape`、`text`、`icon`、`formatDate`）交给舞台的 `workbench` surface；插件不在、未启用或被拒时没有 `data`，按空的舞台画。页面整页画一次，`GET /api/stage/<project_plugin_id>` 原地重画一次，都走同一条路，宿主里没有按插件名的分支（T-133，Schedule 是第一个这样画的）。**目前这条路只对内置目录兑现**，已安装插件的舞台仍由运行中的实例按原来的通用模型画。
+
 设置页实际需要平台的 Agent 运行时列表时，在同一个 `settings` view 声明 `settings_runtimes: true`（例如 Coding）。不声明时宿主不查询，`context.runtimes` 是未请求的空集合；声明后查询失败会走原 HTTP 错误链，不会伪装成「没有运行时」。这个声明独立于 `settings_data`，值只许 `true`，其他槽不能使用。现有内置设置接线范围同上，未扩为已安装 Runtime 插件的动态设置支持。
 
 不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。

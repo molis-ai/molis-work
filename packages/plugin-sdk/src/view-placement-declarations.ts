@@ -5,7 +5,8 @@ import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, type UiViewDeclaration } f
 // The checks for where a view says its plugin is listed, made new and started from (W5-06 2b): its icon, its tab-strip `hue` (PG-075), its rail `group`,
 // what it `creates` and its project home `start`. Only a view that opens its plugin from the rail (`navigator`, `island`) may say
 // the last three; its rail place (`rail`) and Dock default (`pinned_default`) are a `navigator` view's alone, and the read action
-// that gives a settings page its data (`settings_data`) a `settings` view's (W5-02 PR-D).
+// that gives a settings page its data (`settings_data`) a `settings` view's (W5-02 PR-D), and the one that gives a stage its data
+// (`stage_data`) the view's that opens the stage, under the same rule (T-133).
 // Returns every problem and never throws, appended after the older view checks.
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -84,6 +85,12 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
     if (!isObject(data) || !words(data.action)) problems.push(`视图 ${id} 的 settings_data 必须写明 action`);
     else if (!readables.has(data.action)) problems.push(`视图 ${id} 的 settings_data 指向 ${data.action}，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作`);
   }
+  const stage: unknown = view.stage_data;
+  if (stage !== undefined) {
+    if (view.slot !== "stage" && view.slot !== "navigator") problems.push(`视图 ${id} 的 stage_data 只用于打开舞台的视图（stage 或 navigator）`);
+    if (!isObject(stage) || !words(stage.action)) problems.push(`视图 ${id} 的 stage_data 必须写明 action`);
+    else if (!readables.has(stage.action)) problems.push(`视图 ${id} 的 stage_data 指向 ${stage.action}，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作`);
+  }
   const creates: unknown = view.creates;
   if (creates !== undefined) {
     if (!isObject(creates) || !words(creates.station) || !words(creates.title)) problems.push(`视图 ${id} 的 creates 必须写明 station 与 title`);
@@ -95,4 +102,14 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
     else if (start.icon !== undefined && !words(start.icon)) problems.push(`视图 ${id} 的 start.icon 必须是图标名`);
   }
   return problems;
+}
+
+/**
+ * A stage's data is the view's that opens the stage: the `stage` view, else the first `navigator` view, as the workbench opens it. Any
+ * other view that says `stage_data` would never be read, so the Manifest is refused instead (T-133).
+ */
+export function stageDataPlacementProblems(views: readonly UiViewDeclaration[]): string[] {
+  const opening = views.find(view => view.slot === "stage") ?? views.find(view => view.slot === "navigator");
+  return views.filter(view => view.stage_data !== undefined && view !== opening && (view.slot === "stage" || view.slot === "navigator"))
+    .map(view => `视图 ${view.view_id} 的 stage_data 只用于打开舞台的视图（${opening?.view_id ?? "无"}）`);
 }

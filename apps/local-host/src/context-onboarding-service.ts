@@ -10,7 +10,7 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-module-artifacts";
-import { cutHead } from "./whole-units.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";

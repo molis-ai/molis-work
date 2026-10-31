@@ -15,7 +15,7 @@ interface PanelHost {
 }
 
 /** The two facts of a Goal the panel routes read: its title, and whether it only holds steps (`closed_compound`). */
-type PanelGoal = { title: string; decomposition_state: string; event_work?: boolean; event_facts?: string };
+type PanelGoal = { title: string; decomposition_state: string; event_work?: boolean };
 
 export interface PanelHttpContext {
   method: string | undefined;
@@ -26,13 +26,10 @@ export interface PanelHttpContext {
   respond(status: number, value: unknown): void;
   withHost<T>(operation: (host: PanelHost) => Promise<T>): Promise<T>;
   readGoal(goalId: string): PanelGoal | Promise<PanelGoal>;
-  readLinkedFeedContext(goalId: string): Promise<{ source_context: string } | null> | { source_context: string } | null;
-  projectGuidance(): string | Promise<string>;
   isRuntimeKind(kind: string): boolean;
   launchSpec(input: { runtime_kind: string; command?: string; args?: unknown; resume_session_id?: string | null }): {
     runtime_kind: string; command: string; args: string[]; title: string;
   };
-  advancePrompt(input: { goal_id: string; title: string; source_context?: string; project_guidance_prefix?: string; onboarding?: boolean; current_facts?: string }): string;
   kill(panelId: string): void;
 }
 
@@ -40,7 +37,6 @@ type PanelHandler = (context: PanelHttpContext, host: PanelHost, id: string) => 
 
 const PANEL_PATHS = [
   ["goal-panels", /^\/api\/goals\/([^/]+)\/panels$/],
-  ["advance-prompt", /^\/api\/goals\/([^/]+)\/advance-prompt$/],
   ["panel", /^\/api\/panels\/([^/]+)$/],
   ["panel-exited", /^\/api\/panels\/([^/]+)\/exited$/],
   ["panel-reopen", /^\/api\/panels\/([^/]+)\/reopen$/],
@@ -55,28 +51,6 @@ function ownedPanel(context: PanelHttpContext, host: PanelHost, panelId: string)
   if (panel.project_id === context.projectId) return panel;
   context.respond(404, { error: "找不到这个终端面板" });
   return null;
-}
-
-async function readAdvancePrompt(context: PanelHttpContext, _host: PanelHost, goalId: string) {
-  const { url, respond, text: L } = context;
-  const contract = await context.readGoal(goalId);
-  if (isParentGoal(contract)) {
-    respond(409, { error: L("这条上层 Goal 由子 Goal 共同完成，不能直接推进。请选择一个具体的子 Goal。") });
-    return;
-  }
-  const linkedFeedItem = await context.readLinkedFeedContext(goalId);
-  respond(200, {
-    goal_id: goalId,
-    title: contract.title,
-    prompt: context.advancePrompt({
-      goal_id: goalId,
-      title: contract.title,
-      source_context: linkedFeedItem ? linkedFeedItem.source_context : undefined,
-      project_guidance_prefix: await context.projectGuidance(),
-      onboarding: url.searchParams.get("onboarding") === "1",
-      current_facts: contract.event_facts,
-    }),
-  });
 }
 
 async function listGoalPanels(context: PanelHttpContext, host: PanelHost, goalId: string) {
@@ -155,7 +129,6 @@ async function reopenPanel(context: PanelHttpContext, host: PanelHost, panelId: 
 }
 
 const PANEL_HANDLERS: Record<string, PanelHandler> = {
-  "GET advance-prompt": readAdvancePrompt,
   "GET goal-panels": listGoalPanels,
   "POST goal-panels": openGoalPanel,
   "DELETE panel": closePanel,
@@ -164,7 +137,7 @@ const PANEL_HANDLERS: Record<string, PanelHandler> = {
 };
 
 /**
- * The Goal terminal's panels and its advance prompt; transport auth and resource lifetime stay with the caller. A refusal answers by its
+ * The Goal terminal's panels; transport auth and resource lifetime stay with the caller. A refusal answers by its
  * kind and with its code: a path part that is not valid encoding and a custom terminal without a command are invalid (400) like any
  * other mistake of the caller; only a failure with no code of ours goes on to the Host's unhandled answer.
  */

@@ -74,15 +74,21 @@ export class PluginPageAuthority {
   /** Ends the page and its requests, for `reason`: a withdrawal unless the caller says the person left it (`left`). */
   close(id: string, reason: () => ActionError = refused): void {
     const page = this.pages.get(id);
+    // Take each request's reason while the page still has the state it reads: `left` looks at `activations`, and a page without an
+    // install_id loses its activation right below, so taking the reason after the deletes would report the person's own leave as a
+    // withdrawal. Each request still takes its own reason, never a shared error object.
+    const requests = page ? [...page.requests] : [];
+    const reasons = requests.map(() => reason());
     this.pages.delete(id);
     if (page && page.activation.install_id === null) this.activations.delete(page.activation);
-    for (const request of page?.requests ?? []) request.abort(reason());
+    requests.forEach((request, index) => request.abort(reasons[index]));
   }
 
   /**
    * Why a page's requests end when the person leaves it (closes the page, or its HTTP request ends): a cancellation while the page still
    * has its authority, a withdrawal once it has lost it. A refresh shared by its requests keeps the rotated tokens only for a cancellation
-   * (S-95, T-218).
+   * (S-95, T-218). `close` takes this reason before it removes the page and its activation, so a page without an install_id still ends the
+   * person's own leave as a cancellation.
    */
   private left(page: Page): ActionError {
     if (!this.activations.has(page.activation)) return refused();

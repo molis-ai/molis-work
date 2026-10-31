@@ -88,11 +88,11 @@ test("context_resolve restores Host focus outside the discovery window and write
     const runtimeHost: {
       homeDirectory: string;
       runtimeContext: { runtime_id: string; stable_work_context_id: string; host_declares_stable: boolean };
-      goalId?: string;
+      focusId?: string;
     } = {
       homeDirectory: directory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "focus-session", host_declares_stable: true },
-      goalId: "FOCUS-HOST",
+      focusId: "FOCUS-HOST",
     };
     catalog.bindRuntimeContext({
       context: runtimeHost.runtimeContext, project_id: project.project_id,
@@ -118,12 +118,12 @@ test("context_resolve restores Host focus outside the discovery window and write
     assert.equal(result.resume.focus.source, "host_focus");
     // Sessions are retired (BL-177): the context no longer reads or reports a Session.
     assert.equal(Object.hasOwn(result, "session_registry"), false);
-    runtimeHost.goalId = undefined;
-    assert.equal(runtime.runtimeContextHost?.goalId, "FOCUS-HOST", "mutating a constructor input cannot change live transport metadata");
+    runtimeHost.focusId = undefined;
+    assert.equal(runtime.runtimeContextHost?.focusId, "FOCUS-HOST", "mutating a constructor input cannot change live transport metadata");
     runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
     assert.equal(result.resume.focus.source, "project_recovery_order");
-    runtimeHost.goalId = "DOES-NOT-EXIST";
+    runtimeHost.focusId = "DOES-NOT-EXIST";
     runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
     assert.equal(result.resume.focus.source, "project_recovery_order");
@@ -131,7 +131,7 @@ test("context_resolve restores Host focus outside the discovery window and write
     await served.close();
     await host.close();
     host = createMolisWorkLocalHost({ homeDirectory: directory });
-    runtimeHost.goalId = "FOCUS-HOST";
+    runtimeHost.focusId = "FOCUS-HOST";
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");

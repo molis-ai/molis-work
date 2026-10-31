@@ -242,5 +242,5 @@ test("RAC-1754: the Host, the integrations and the Runtime name no Feed contract
   // The Host files that assembled or read Feed before T-110; the integrations and the platform packages name none.
   assert.deepEqual(naming.sort(), ["apps/local-host/src/demo-feed-library.ts", "apps/local-host/src/demo-plugin-seed.ts", "apps/local-host/src/index.ts",
     "apps/local-host/src/native-content-permissions.ts", "apps/local-host/src/plugin-registry.generated.ts", "apps/local-host/src/source-pull-runtime.ts",
-    "apps/local-host/src/source-vocabulary.ts", "apps/local-host/src/web-panel.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-view.ts"]);
+    "apps/local-host/src/source-vocabulary.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-view.ts"]);
 });

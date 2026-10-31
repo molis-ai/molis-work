@@ -195,10 +195,10 @@ export class FormStore {
       for (const file of files) {
         const name = [...String(file.name ?? "")].slice(0, 200).join("") || "答卷";
         try {
-          // The store's own size guard, in UTF-16 units; the import action's schema counts code points instead (content.maxLength 400,000,
-          // Ajv), so the two layers are not the same count. As a sample: a file of 40 questions whose answers are 4000 汉字 each has about
-          // 160,000 units in the answers, stays under this 400,000-unit guard, and is over 400,000 bytes of UTF-8 — and still imports.
-          if (file.content.length > 400_000) throw formErrors.invalid("文件过大，不像一份答卷");
+          // The store's own size guard counts UTF-8 bytes, the size the file has on disk; the import action's schema counts code points
+          // instead (content.maxLength 400,000, Ajv), so that layer is a little looser. A file of 40 questions whose answers are 4000
+          // 汉字 each has about 480,000 bytes, so this guard refuses it as too large rather than reading it.
+          if (Buffer.byteLength(file.content) > 400_000) throw formErrors.invalid("文件过大，不像一份答卷");
           const parsed = JSON.parse(file.content) as Record<string, unknown>;
           if (parsed.format !== FORM_ANSWER_FORMAT) throw formErrors.invalid("不是 Molis 问卷答卷文件");
           if (parsed.form_id !== form.id) throw formErrors.invalid("这份答卷属于另一份问卷");

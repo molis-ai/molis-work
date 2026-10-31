@@ -237,7 +237,7 @@ it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy w
       MOLIS_WORK_SESSION_ID: "session-molis-work",
       CODEX_THREAD_ID: "thread-native",
       MOLIS_WORK_PANEL_ID: "panel-surface",
-      MOLIS_WORK_GOAL_ID: "goal-current",
+      MOLIS_WORK_FOCUS_ID: "goal-current",
       MOLIS_WORK_WORK_CONTEXT_ID: "host-work-context",
       MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
       PWD: "/tmp/molis-work-session-identities",
@@ -246,7 +246,7 @@ it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy w
     assert.equal(host.molisWorkSessionId, "session-molis-work");
     assert.equal(host.nativeRuntimeSessionId, "thread-native");
     assert.equal(host.panelId, "panel-surface");
-    assert.equal(host.goalId, "goal-current");
+    assert.equal(host.focusId, "goal-current");
     assert.equal(host.hostWorkContextId, "host-work-context");
     assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });

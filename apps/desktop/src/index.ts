@@ -1,5 +1,4 @@
 /** Molis Work Desktop product shell and native bridge public entrypoint. */
-export * from "./advance-prompt.js";
 export * from "./capsule-shell.js";
 export * from "./launch.js";
 export * from "./panels.js";

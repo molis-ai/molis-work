@@ -242,14 +242,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-249, RAC-2265–2269: five Pages client cuts keep whole characters; the draft keeps the Assistant's 100,000-unit bound.
-// Approved by 6526056404 / 6527233585: editor +342 B, pages +104 B. T-204 landed in main 86570ac44; these are the
-// measured post-merge sizes against that exact base. Consumed T-354 and T-204 ceilings are removed.
-// Tried: share the two small functions in existing browser/dom.ts; firstCharacters stops at the limit, cutUnits drops
-// only a trailing high surrogate. No new asset, full-text expansion, page text or dictionary changes.
+// T-351 (RAC-2723): the Alchemist research page says "material too long" for a lens job refused because the prompt's data position is
+// over, telling it apart from the generic runtime failure; +146 B on this one asset. Tried: no new asset, one localized sentence with its
+// English pair, no count text (the character excess needs a dedicated error-detail field and is a separate change). Approved [52556, 52702] (the measured bytes, no slack).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [708084, 708426],
-  "/assets/molis-work-plugins/pages.js": [39026, 39130],
+  "/assets/molis-work-plugins/alchemist.js": [52556, 52702],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

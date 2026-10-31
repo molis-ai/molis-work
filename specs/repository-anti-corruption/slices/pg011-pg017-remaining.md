@@ -109,12 +109,12 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### 做完是什么
 
-- Home 实例用另一个能力 id `model.generate.home@1` 注册，provider 是 `plugin-platform.home`，`scope: "home"`；输入输出 schema、执行策略与说明取项目一半的同一份定义（`studioCapability("model.generate")`），不另抄。包里的调用不变：包写 `sdk.capability.call('model.generate', …)`，Home 的目录（`capabilityCatalog`）把这一条以包用的名字 `model.generate` 给出，另带 `registered_id: "model.generate.home"`，`catalogCapabilities.call` 按 `registered_id` 发动作。作者不知道有两个 id；包自己写 `model.generate.home` 在目录里找不到。
-- 这个入口只认本 Home 实例的执行身份（调用者有 `plugin_install_id`、`project_id` 为空、安装属于这个 Home）。指令只能按包自己登记的 id 点名（与 `createPluginModelPort` 的规则相同）。
+- Home 实例用另一个能力 id `model.generate.home@1` 注册，provider 是 `plugin-platform.home`，`scope: "home"`；输入输出 schema、执行策略与说明取项目一半的同一份定义（`studioCapability("model.generate")`），不另抄。包里的调用不变：包写 `sdk.capability.call('model.generate', …)`，Home 的目录（`capabilityCatalog`）把这一条以包用的名字 `model.generate` 给出，另带 `registered_id: "model.generate.home"`，`catalogCapabilities.call` 按 `registered_id` 发动作。作者不知道有两个 id；包自己写 `model.generate.home` 在目录里找不到。**别名只在没有项目的目录里起**：不带项目的条目在每个项目的目录里都看得见，所以项目的目录（`capabilityCatalog`，有项目时）把 Home 一半整条拿掉，Home 一半登记时带 `availability`，有项目的调用者一律 `actions.scope_mismatch`。（与统筹答 T-140 的一点偏离：选 id 放在 Home 实例的目录视图，不放在 `plugin-model-service.ts` 一侧——包声明的依赖检查、费用、权限和调用五处都按包用的名字在目录里查，只在调用一处换 id 会让依赖检查找不到；注册表、动作目录、快照里始终是真名 `model.generate.home`。二审 6538985936 的必修 1 就出在这条别名没分范围。）
+- 这个入口只认本 Home 实例的执行身份（调用者有 `plugin_install_id`、`project_id` 为空、安装属于这个 Home），分三层拦：动作服务的 `availability` 按范围拒有项目的调用者、项目的目录不列它、处理器核身份（网关 S-15 之后的一道）。指令只能按包自己登记的 id 点名（与 `createPluginModelPort` 的规则相同）。
 - 计量与模型设置读 Home 的。它只读已有的模型设置与计量，不新建表，所以预计不用等干净重建批（#1578、#1549、#1588、#1587、#1589、#1591、#1593、#1552）。开发单开工时若发现要动 Home 插件库的 DDL，就等批落地（#1588 把 `home-plugin-store.ts` 的基线改成 v1）。
-- 快照多一行 `model.generate.home@1 via plugin-platform.home`（`scope` 一列为 `home`），跑 `pnpm actions:update`。对调用方：新 id 只给 Home 实例，只有平台目录用到，没有别的入口提到它。
-- 可检验（经包自己的代码走真实 Host、沙箱和模型替身。Host 的网关本来就拒绝伪造的插件身份、装错的安装身份在那里被拒，S-15，所以 Home 一半自己的身份检查是网关后面的第二道，没有外部入口能单独碰到它）：
-  - RAC-2610：Home 的 id 不对包开放：包（Home 的和项目的各一例）的操作依赖 `model.generate.home` 时，调用被拒，目录里没有这个名字，模型没被问；
+- 快照多一行 `model.generate.home@1 via plugin-platform.home`（`scope` 一列为 `home`），跑 `pnpm actions:update`。对调用方：新 id `model.generate.home@1` 在动作目录里以真名出现（项目的目录里也看得见，显示为不可用）；包作者继续写 `model.generate`；没有 Manifest、MCP 工具、工作流步骤或 Skill 提到它。
+- 可检验（经包自己的代码和 Host 的目录走真实 Host、沙箱和模型替身；伪造的插件身份在网关 S-15 就被拒，到不了处理器，所以处理器自己的身份检查不单独钉，钉的是走得到的三层）：
+  - RAC-2610（三例）：项目调用者调 Home 的 id 被拒——项目的目录里 `model.generate.home` 显示为不可用（`actions.scope_mismatch`），项目的包依赖它时调用被拒，模型没被问；Home 实例到不了项目一半——Home 的目录里只有 Home 的这一条，Home 包点名 `model.generate.home` 同样被拒；项目里装的包按 `model.generate` 问模型照常调通，用项目登记的指令（二审必修 1 的回归）；原写的「Home 实例调项目的 id 被拒」在别名设计下就是第二例：Home 实例用 `model.generate` 到的是 Home 一半，项目一半不在它的目录里；
   - RAC-2611：每个安装用自己登记的指令：两个 Home 包有同名指令时各自用各自的正文，只有另一个包登记的 id 被拒；
   - RAC-2612：点名未登记的指令被拒，模型没被问；
   - RAC-2613：停用后包的操作不再被提供，模型没被问，启用后恢复；

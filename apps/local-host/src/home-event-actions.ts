@@ -16,10 +16,12 @@ export const homeEventActions = {
     output_schema: { type: "object", properties: { target: HOME_OPEN_TARGET_SCHEMA }, required: ["target"], additionalProperties: false } } } as ActionDefinition<HomeEventOpenInput, { target: HomeOpenTarget }>,
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
-export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference): ActionHandlerBinding[] {
+/** `projectPlugins` reads the project's plugin manifest: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
+export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<readonly string[] | undefined>): ActionHandlerBinding[] {
   const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
     assertHomeEventWindow(window);
     const directory = await client.discover(caller);
+    const plugins = projectPlugins && caller.project_id ? await projectPlugins(caller.project_id) : undefined;
     const sources = directory.filter(view => view.action.input_type === HOME_EVENTS_INPUT_TYPE && view.action.output_type === HOME_EVENTS_OUTPUT_TYPE
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
@@ -27,8 +29,13 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
     for (const source of sources) {
       if (!source.availability.available) {
         if (pinned) throw new ActionError(source.availability.code, source.availability.reason);
-        // A plugin the person turned off in this project has nothing to report; anything else that stops a source is shown.
-        if (source.availability.code !== "actions.plugin_disabled") issues.push(source.action.title + "：" + source.availability.reason);
+        // A source in this project's plugin manifest that cannot answer (turned off, or refused by policy) is shown; one the project
+        // does not list is not installed here and has nothing to report. Without the manifest, the old rule still turns off silently.
+        const pluginId = source.provider.plugin_id;
+        const listed = plugins === undefined
+          ? source.availability.code !== "actions.plugin_disabled"
+          : pluginId === undefined ? source.availability.code !== "actions.plugin_disabled" : plugins.includes(pluginId);
+        if (listed) issues.push(source.action.title + "：" + source.availability.reason);
         continue;
       }
       const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };

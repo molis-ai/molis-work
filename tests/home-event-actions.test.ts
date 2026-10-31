@@ -166,3 +166,23 @@ test("a recommendation read that fails never hides the events and leaves its cod
     [["warn", "home", "recommendations_failed", { name: "ActionError", code: "test.judgment_down" }, { capability: "test.home.recommendations@1" }]]);
   assert.ok(!JSON.stringify(log).includes("笔记正文"), "the failure's message stays out of the log");
 });
+
+// T-319 (R-63, RAC-2438): "turned off" used to be read as "not installed in this project"; the project's plugin manifest says which.
+// A source the project lists but cannot use (policy refused it, or it is off) is shown as an issue; one the project does not list
+// has nothing to report.
+test("RAC-2438 an unavailable source the project's plugin manifest lists is reported, and one it does not list stays silent", async () => {
+  const read = async (projectId: string, listed: readonly string[]): Promise<HomeEventsResult> => {
+    const service = new ActionService();
+    service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: projectId }, definitions: Object.values(homeEventActions),
+      handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }, async () => listed) });
+    const query = defineHomeEventsAction(`${projectId}.off.notes.events`, ["unknown-note"], "停用插件事项", ["notes:read"]);
+    service.registerProvider({ provider: { provider_id: `${projectId}.off.plugin`, title: "停用插件事项", kind: "plugin", plugin_id: "off.notes", project_id: projectId },
+      availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" }),
+      definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "停用插件事项", icon: "note" }, events: [original] }) }] });
+    return await service.invoke({ ...caller, project_id: projectId }, homeEventActions.events, window) as HomeEventsResult;
+  };
+  const unlisted = await read("manifest-without", []);
+  const listed = await read("manifest-with", ["off.notes"]);
+  assert.deepEqual(unlisted, { events: [], issues: [] }, "a project that does not list the plugin hears nothing about it");
+  assert.deepEqual(listed.issues, ["停用插件事项：此项目未启用该插件"], "a listed plugin that cannot answer is shown");
+});

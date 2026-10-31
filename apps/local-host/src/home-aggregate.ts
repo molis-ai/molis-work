@@ -37,6 +37,8 @@ export interface HomeAggregatePorts {
   client(reference: LocalHostProjectReference): ActionClient;
   /** The person's context in that project; the grants in it are that project's installations' own. */
   context(reference: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext>;
+  /** The project's plugin manifest: what "turned off" is read against, so a listed plugin that cannot answer is not taken for one that is not installed. Undefined when this Host has no catalog to ask. */
+  projectPlugins(reference: LocalHostProjectReference): Promise<readonly string[] | undefined>;
 }
 
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
@@ -58,6 +60,7 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
     try {
       return await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
         const client = ports.client(reference);
+        const plugins = await ports.projectPlugins(reference);
         const { caller, views } = await beforeDeadline(signal, async discoverySignal => {
           // Queries and all their nested calls remain read-only; discovery has its own bound too.
           const caller: ActionCallContext = { ...await ports.context(reference, discoverySignal), query_only: true, signal: discoverySignal };
@@ -69,7 +72,16 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
           if (view.action.output_type !== outputType || !isHomeAggregateQuery(view)) return empty;
           const source = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
           if (caller.allowed_actions && !caller.allowed_actions.some(allowed => same(allowed, source))) return empty;
-          if (!view.availability.available) return { answers: [], issues: view.availability.code === "actions.plugin_disabled" ? [] : [{ project_id, source, code: view.availability.code }] };
+          if (!view.availability.available) {
+            const pluginId = view.provider.plugin_id;
+            // Not in this project's plugin manifest is not installed here, so it has nothing to report; listed but unavailable (turned
+            // off, or refused by policy) is what the person needs to see. A platform provider has no plugin, and a Host with no catalog
+            // has no manifest to read, so both keep the old rule.
+            const listed = plugins === undefined || pluginId === undefined
+              ? view.availability.code !== "actions.plugin_disabled"
+              : plugins.includes(pluginId);
+            return listed ? { answers: [], issues: [{ project_id, source, code: view.availability.code }] } : empty;
+          }
           try {
             const output = await beforeDeadline(signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input)) as Output;
             return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, output }], issues: [] };
@@ -97,5 +109,13 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
     whileOpen: (reference, work) => open(reference.project_id) ? host.withProject(reference, work) : Promise.resolve(undefined),
     client: reference => host.actionClient(reference),
     context: (reference, signal) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, signal),
+    projectPlugins: async reference => {
+      try { return await host.projectPluginIds(reference.project_id); }
+      catch (error) {
+        // A Host built without the platform's catalog (a standalone or test Host) has no manifest: keep the old rule, do not fail the read.
+        if (error instanceof ActionError && error.code === "host.catalog_unavailable") return undefined;
+        throw error;
+      }
+    },
   };
 }

@@ -154,8 +154,8 @@ copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", 
 summary.append(copy); const mark = $("[data-plugin-trust-chevron]"); if (mark) summary.append(mark.content.cloneNode(true));
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
-if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 body.append(consents(plugin)); if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);

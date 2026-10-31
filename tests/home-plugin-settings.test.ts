@@ -56,7 +56,9 @@ async function revokedHomePackage(t: Parameters<typeof openTestHome>[0]) {
 
 test("RAC-2602 the Home's installed list is read after the publishers the person took back are reconciled: the package is switched off before it is listed, without the project's list being read", mac, async t => {
   const { list, offered } = await revokedHomePackage(t);
-  assert.equal((await list())?.state, "disabled");
+  const row = await list();
+  assert.equal(row?.state, "disabled");
+  assert.match(row?.recovery_error ?? "", /发布者已被你撤销信任/, "the reason the list gives is the Host's own sentence about the publisher, which the page draws alone for a revoked publisher (RAC-2606)");
   assert.equal(await offered(), 0, "no project is offered its actions");
 });
 

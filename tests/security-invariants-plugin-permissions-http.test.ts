@@ -194,7 +194,7 @@ test("RAC-2604 S-94 the Host settings door's disable, enable and uninstall are g
   }
 });
 
-test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and uninstall to the Host settings door, a project row's to the project's route, and draws the recovery error and the revoked publisher with textContent", { timeout }, async t => {
+test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and uninstall to the Host settings door, a project row's to the project's route, and draws the recovery error and the revoked publisher with textContent, a revoked publisher's row with its one sentence", { timeout }, async t => {
   const f = await setup(t);
   const html = await (await f.request(f.prefix + "/settings/plugins")).text();
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
@@ -204,8 +204,11 @@ test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and unin
   assert.match(script, /body\.append\(controls\(plugin, revoked, act\)\)/, "the row hands its act to the buttons");
   assert.match(script, /el\("span", "settings-form-error", L\("没能启动：\{error\}"/, "the recovery error is drawn by el");
   assert.match(script, /el\("span", "settings-muted", L\("发布者的信任已撤销：它不再运行，只能卸载"\)\)/, "so is the revoked publisher");
-  // The part of the page program that draws the rows and their buttons: from the buttons to the end of the list's loader.
-  const from = script.indexOf("const controls = "), rows = script.slice(from, script.indexOf("const preview = ", from));
-  assert.ok(rows.includes("const load = "), "the slice holds the rows and the loader");
-  assert.doesNotMatch(rows, /innerHTML/);
+  // A publisher taken back stops the package and the Host puts its own sentence into recovery_error: the row says the revoked sentence only, not it twice and not "没能启动".
+  assert.match(script, /if \(revoked && revoked\.has\(plugin\.publisher_signature\)\) body\.append\([^\n]*\);\s*else if \(plugin\.recovery_error\) body\.append\(el\("span", "settings-form-error"/, "the revoked sentence is chosen first, the recovery error only when the publisher stands");
+  // The page's script carries the shared workbench code too, which writes markup elsewhere; this program is the one that draws the rows: from its binder (found by the flag only it sets) to the end of its closure.
+  const begin = script.lastIndexOf("const bind = (root) => {", script.indexOf("root.dataset.pluginTrustBound"));
+  const program = script.slice(begin, script.indexOf("})();", script.indexOf("molisWorkBindPluginTrustSettings(document)", begin)));
+  assert.ok(program.includes("const controls = ") && program.includes("const load = "), "the slice holds the rows, their buttons and the loader");
+  assert.doesNotMatch(program, /innerHTML/);
 });

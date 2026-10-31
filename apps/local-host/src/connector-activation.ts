@@ -57,7 +57,9 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
     if (completion.kind === "oauth") return store.upsertOAuth(completion.input);
     if (completion.kind === "mcp") return store.saveProtocol(completion.input);
     if (completion.kind === "cli") return store.saveCli({ ...completion.input, expectedRevisions: new Map(completion.revisions) });
-    if (!completion.target) return store.createToken(completion.input);
+    // A package's service: the connection and its pin to the package that declared the service are written together (T-134). A new token for
+    // a connection that is already made (`target`) never moves the pin.
+    if (!completion.target) return store.createToken(completion.input, completion.declarer);
     const current = store.require(completion.target.connectionId, completion.input.serviceId);
     if (completion.input.accountLabel && current.account_label && completion.input.accountLabel !== current.account_label) throw connectorErrors["connector.connection.invalid"]("授权账号与原连接不同，请新增连接");
     if (completion.input.displayName !== current.display_name) store.rename(current.connection_id, completion.input.displayName);

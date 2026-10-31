@@ -98,7 +98,13 @@ function removeNamedFiles(home: string, ownerFiles: PluginOwnerFilesDeclaration,
     }
     if (!fresh.stat?.isFile() || fresh.path !== target.path) continue;
     let parent: string;
-    try { parent = realpathSync(dirname(target.path)); } catch { continue; }
+    try { parent = realpathSync(dirname(target.path)); }
+    catch (error) {
+      // The directory can be gone while this runs (the name is then no longer the plugin's and is left, like a missing file); any other
+      // failure to look (EACCES, EIO, …) must not become a silent skip — the rows roll back so the next attempt finds the file again.
+      if (ownerFileHasCode(error, "ENOENT")) continue;
+      throw error;
+    }
     if (parent !== join(realpathSync(home), ownerFiles.store_name, directory)) continue;
     rmSync(target.path, { force: true });
   }

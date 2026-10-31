@@ -516,3 +516,43 @@ test("RAC-2436 S-86 a plain file in the declared directory still goes, and a nam
   assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true, "a file already gone is no error");
   assert.equal(existsSync(join(assets, "plain.png")), false, "a plain file in the declared directory is still removed");
 });
+
+test("RAC-2435 S-86 a failure to re-read the parent's real path is not a skip: the rows roll back and a retry removes the file", async t => {
+  // The re-check has two parts: the second inspect and reading the parent's real path. A directory that is gone is a name no longer the
+  // plugin's (it is left, like a missing file); any other failure to look (EACCES here) is a real error: the removal throws, the rows of
+  // the transaction roll back with it, the file stays, and a retry with the fault gone removes both.
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name,
+      api_format, model, prompt, size, aspect_ratio, status, images_json, error, created_at) VALUES ('job-pa', 'pa', 'request-pa', 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(JSON.stringify([{ filename: "plain.png", mime_type: "image/png" }]));
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  writeFileSync(join(assets, "plain.png"), "png");
+  const realRealpath = fs.realpathSync;
+  let fault = true;
+  const observer = t.mock.method(fs, "realpathSync", (...args: Parameters<typeof realRealpath>) => {
+    if (fault && String(args[0]) === assets) throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    return realRealpath(...args);
+  });
+  const rows = () => {
+    const current = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return current.prepare("SELECT count(*) AS n FROM jobs WHERE project_id = ?").get("pa")?.n; } finally { current.close(); }
+  };
+  try {
+    syncBuiltinESMExports();
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pa"), { code: "EACCES" });
+    assert.ok(existsSync(join(assets, "plain.png")), "the file stays when the re-check cannot look at its parent");
+    assert.equal(rows(), 1, "the row rolls back with the failed removal, so the next attempt can find the file again");
+    fault = false;
+    assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+    assert.equal(existsSync(join(assets, "plain.png")), false, "with the fault gone the retry removes the file");
+    assert.equal(rows(), 0, "and the row goes with it");
+  } finally {
+    observer.mock.restore();
+    syncBuiltinESMExports();
+  }
+});

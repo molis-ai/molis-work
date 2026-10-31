@@ -106,6 +106,16 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     // are what makes that ordering safe (installing before them lets the child's own assignment take the observer off the page).
     assert.equal(await evaluate<boolean>("String(window.fetch).includes('__sent')"), true, "the request observer is the page's fetch");
   };
+  /** Waits for this session's draft save to reach the observer; on timeout says the four things (root cause is still unknown). */
+  const waitDraftSave = async (session: string, what: string) => {
+    const started = Date.now();
+    try { await waitFor(`${savedDraftKeys(session)}.length > 0`, 10_000); return; }
+    catch (error) {
+      const raw = await evaluate<string>(`JSON.stringify({ sent: window.__sent || [], api: performance.getEntriesByType('resource').filter(one => String(one.name).includes('/api/')).length })`).catch(() => "{\"sent\":[],\"api\":0}");
+      const state = JSON.parse(raw) as { sent: Array<{ url: string; method: string; body: string }>; api: number };
+      assert.fail(`${what} did not reach the request observer: ${draftWaitDiagnostics({ sent: state.sent, apiResources: state.api, session, elapsedMs: Date.now() - started })}`);
+    }
+  };
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
     await click(`${coding} [data-coding-new]`);
@@ -127,7 +137,7 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     await b.click(`[data-tab-id="${tab.id}"]`);
     await waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && Boolean(document.querySelector('${coding} [data-coding-question][data-ix-question]'))`, 15_000);
   };
-  return { ...b, ...child, ownerEvaluate: b.evaluate, coding, fill, heard, prompts, enter, ask, show };
+  return { ...b, ...child, ownerEvaluate: b.evaluate, coding, fill, heard, prompts, enter, ask, show, waitDraftSave };
 }
 
 /** The tool results a model request carries: what the round heard back from its questions. */
@@ -153,21 +163,51 @@ const picked = (coding: string) => `[...document.querySelectorAll(${JSON.stringi
 const savedDraftKeys = (session: string) => `window.__sent.filter(one => one.method === 'PATCH' && one.url.endsWith('/sessions/' + ${JSON.stringify(session)}) && one.body.includes('question_drafts'))
   .flatMap(one => Object.keys(JSON.parse(one.body).question_drafts || {}))`;
 
+/**
+ * T-338 (加固与诊断，根因未定): what a first failure of the draft-save wait must show, so the next one is read from the log without
+ * reproducing: whether any request was sent, what `__sent` recorded (URL shapes), which shape was expected, and how long it waited.
+ */
+function draftWaitDiagnostics(state: { readonly sent: ReadonlyArray<{ url: string; method: string; body: string }>; readonly apiResources: number;
+  readonly session: string; readonly elapsedMs: number }): string {
+  const shape = (one: { url: string; method: string; body: string }) => one.method + " " + one.url.replace(/[0-9a-f-]{8,}/gu, "<id>").slice(0, 120);
+  const shapes = state.sent.map(shape);
+  const recorded = state.sent.filter(one => one.method === "PATCH" && one.url.endsWith("/sessions/" + state.session) && one.body.includes("question_drafts"));
+  return [
+    `request sent: ${state.sent.length > 0 ? "yes" : "no"} (${state.sent.length} recorded, ${state.apiResources} /api/ resources)`,
+    `__sent recorded the expected draft save: ${recorded.length > 0 ? "yes" : "no"}`,
+    `url shapes: ${shapes.length ? shapes.join(" | ") : "none"} (expected PATCH .../sessions/${state.session} with question_drafts)`,
+    `waited: ${state.elapsedMs} ms`,
+  ].join("; ");
+}
+
 const LOGIN: Asked = { task: "甲会话：登录和导出都坏了", done: "甲：好的，先修导出。",
   ask: { why: "甲：先确认要修哪一处。", questions: [{ prompt: "先修哪一个？", options: [{ label: "登录" }, { label: "导出" }] }] } };
 const REPORT: Asked = { task: "乙会话：报表要改版", done: "乙：好的，先改日报。",
   ask: { why: "乙：先确认改哪张表。", questions: [{ prompt: "先改哪张？", options: [{ label: "日报" }, { label: "周报" }] }] } };
 
+test("RAC-2710 a draft-wait timeout diagnostic names the four possibilities, so a first failure is read from the log", () => {
+  const detail = draftWaitDiagnostics({ sent: [{ url: "http://127.0.0.1/api/projects/p1/sessions/s1", method: "PATCH", body: JSON.stringify({ question_drafts: {} }) }],
+    apiResources: 3, session: "s1", elapsedMs: 10_001 });
+  assert.match(detail, /request sent: yes/u);
+  assert.match(detail, /__sent recorded the expected draft save: yes/u);
+  assert.match(detail, /url shapes: PATCH http:\/\/127\.0\.0\.1\/api\/projects\/p1\/sessions\/s1 \(expected/u);
+  assert.match(detail, /waited: 10001 ms/u);
+  const nothing = draftWaitDiagnostics({ sent: [], apiResources: 0, session: "s1", elapsedMs: 10_000 });
+  assert.match(nothing, /request sent: no \(0 recorded, 0 \/api\/ resources\)/u);
+  assert.match(nothing, /__sent recorded the expected draft save: no/u);
+  assert.match(nothing, /url shapes: none/u);
+});
+
 test("AC-05: a question's draft and answer stay in the session it was asked in; switching sessions carries none to the other", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, [LOGIN, REPORT]); if (!opened) return;
-  const { click, evaluate, waitFor, coding, heard, prompts, enter, ask, show, projectId } = opened;
+  const { click, evaluate, waitFor, coding, heard, prompts, enter, ask, show, projectId, waitDraftSave } = opened;
   await enter(projectId!);
 
   const first = await ask(LOGIN.task);
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
   // RAC-2710 (T-338): after the pick, this session's draft save must reach the observer installed over the child's fetch bridge; a
   // missed record here is what the ordering in enter() exists to prevent.
-  await waitFor(`${savedDraftKeys(first)}.length > 0`, 10_000);
+  await waitDraftSave(first, "the first session's draft save");
   const firstKey = (await evaluate<string[]>(savedDraftKeys(first)))[0]!;
 
   const second = await ask(REPORT.task);
@@ -176,7 +216,7 @@ test("AC-05: a question's draft and answer stay in the session it was asked in; 
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(card(coding))}).querySelector('h3').textContent`), /乙/, "the card shown is the second session's own question");
   assert.deepEqual(await evaluate<string[]>(picked(coding)), [], "the first session's pick is not on the second session's card");
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`);
-  await waitFor(`${savedDraftKeys(second)}.length > 0`, 10_000);
+  await waitDraftSave(second, "the second session's draft save");
   assert.ok(!(await evaluate<string[]>(savedDraftKeys(second))).includes(firstKey), "no draft of the first session's question is saved with the second session");
 
   await show(first);

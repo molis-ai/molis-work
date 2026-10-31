@@ -95,5 +95,5 @@ export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assista
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
-
+export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";

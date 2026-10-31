@@ -28,7 +28,7 @@ import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connec
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, gmail_oauth_configured, notion_oauth_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";
@@ -343,7 +343,7 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
     connector_connections: [{ connection_id: "33333333-3333-4333-8333-333333333333", service_id: "gmail", display_name: "工作邮箱", account_label: "work@example.com", auth_method: "oauth", source: "managed", state: "connected" }],
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
-      .map((row) => ({ ...row, gmail_oauth_configured: true })),
+      .map((row) => ({ ...row, method_options: row.method_options?.map((method) => method.kind === "oauth" ? { ...method, login_ready: true } : method) })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
@@ -352,7 +352,8 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
   assert.match(html, /data-connection-reauthorize="33333333-3333-4333-8333-333333333333"/);
   // RING-05: the saved credentials retain their original claim beside the shared mark.
   assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
-  assert.match(html, /data-account-login="gmail"/);
+  assert.match(html, /data-protocol-start="oauth"/);
+  assert.doesNotMatch(html, /data-account-login="gmail"/, "Gmail signs in through the generic flow, not a dedicated login");
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
   assert.match(html, /data-connection-manage="disable"/);
   assert.match(html, /data-connection-manage="remove"/);
@@ -361,7 +362,7 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
   const manualTokenHtml = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
-      .map((row) => ({ ...row, gmail_oauth_configured: false })),
+      .map((row) => ({ ...row, method_options: row.method_options?.map((method) => method.kind === "oauth" ? { ...method, login_ready: false } : method) })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),

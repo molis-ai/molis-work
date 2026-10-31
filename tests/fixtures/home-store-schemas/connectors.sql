@@ -23,6 +23,14 @@ CREATE TABLE connector_connection_targets (
         FOREIGN KEY(connection_id) REFERENCES connector_connections(connection_id)
       );
 
+CREATE TABLE connector_connection_declarers (
+        connection_id TEXT PRIMARY KEY,
+        plugin_id TEXT NOT NULL,
+        install_id TEXT NOT NULL,
+        plugin_title TEXT NOT NULL,
+        FOREIGN KEY(connection_id) REFERENCES connector_connections(connection_id)
+      );
+
 CREATE TABLE connector_connections (
         connection_id TEXT PRIMARY KEY,
         service_id TEXT NOT NULL,

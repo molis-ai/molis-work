@@ -316,7 +316,7 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   const registry = new IntegrationRegistry();
   let asked = 0;
   assert.throws(() => registry.assertFree(carrying), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
-  await assert.rejects(registry.attach(carrying, () => { asked += 1; return null; }, () => true), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
+  await assert.rejects(registry.attach(carrying, "install-carrier", () => { asked += 1; return null; }, () => true), { code: "plugin.declaration_invalid", message: /asana.*宿主构建的插件/u });
   assert.equal(asked, 0, "the package's instance is never asked for a contribution");
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "asana"), false);
   assert.equal(registry.integration("oauth-carrier"), undefined);
@@ -332,4 +332,19 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   assert.equal(owner?.publisher_id, "io.example");
   assert.ok(owner?.install_id);
   assert.deepEqual(owner?.method, flow);
+});
+
+// T-134 (BL-530 前置): a connection made for a package's service is pinned to the package that declared it. The registry names it from
+// what the Home attached, the install id included; a service the Host's build or the platform declares is pinned to nothing.
+test("RAC-2521 connectionDeclarer names the attached package and the install the Home gave it; a built or platform service has none, and none after detach", async () => {
+  const registry = new IntegrationRegistry({ platform: [service("host-card")] });
+  await registry.enable(fixturePlugin("io.molis.work.example.built", [service("built")], []));
+  const packaged = manifestOf("io.molis.work.example.packaged", [service("packaged")], [{ integration_id: "packaged", kind: "source", service_id: "packaged" }]);
+  assert.equal(await registry.attach(packaged, "install-from-home-record", () => null, () => true), true);
+  assert.deepEqual(registry.connectionDeclarer("packaged"), { plugin_id: "io.molis.work.example.packaged", install_id: "install-from-home-record", plugin_title: "io.molis.work.example.packaged" });
+  assert.equal(registry.connectionDeclarer("built"), undefined, "the Host's build declares it: nothing to pin");
+  assert.equal(registry.connectionDeclarer("host-card"), undefined, "the platform declares it: nothing to pin");
+  assert.equal(registry.connectionDeclarer("nobody"), undefined);
+  await registry.detach("io.molis.work.example.packaged");
+  assert.equal(registry.connectionDeclarer("packaged"), undefined, "a detached package declares nothing");
 });

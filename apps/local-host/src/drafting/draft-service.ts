@@ -2,7 +2,7 @@ import type { ContextualDraft } from "@molis-ai/molis-work-contracts/services/co
 import { assertActionInput, compileActionSchema } from "@molis-ai/molis-work-kernel";
 import type { HostTextRequestOptions } from "../host-complete-text.js";
 import { draftData, type DraftMaterial, type DraftScreen, type DraftTarget } from "./draft-data.js";
-import { cutHead } from "../whole-units.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { fillableFields, materialValue, requiredFields, type Fillable } from "./fields.js";
 
 /**

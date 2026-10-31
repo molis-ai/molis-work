@@ -1158,6 +1158,8 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.match(page, /data-feed-entry-id="feed-item-test"[^>]*data-feed-entry-read="unread"/);
     assert.match(page, /data-feed-type-filter/);
     assert.match(page, /data-feed-time-filter/);
+    // The visible status filter offers the current dispositions only: the removed processing one is gone from the rendered page.
+    assert.doesNotMatch(page, /data-feed-filter-value="processing"/u, "the status filter no longer offers the removed processing disposition");
 
     const read = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/read`, {
       method: "POST",

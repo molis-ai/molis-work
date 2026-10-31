@@ -95,10 +95,6 @@ const markerOf = (account: ConnectorConnectionRecord): string => [account.connec
 
 function bindingOf(account: ConnectorConnectionRecord, source_id: string, settings: Readonly<Record<string, string>> | undefined): IntegrationBinding {
   const config: Record<string, unknown> = Object.fromEntries(Object.entries(settings ?? {}).filter(([key]) => !RESERVED.has(key)));
-  // Gmail reads its three token references from the account the person bound, as the source row's configuration used to carry them.
-  if (account.service_id === "gmail" && account.credential_ref && account.refresh_ref && account.expires_ref) {
-    config.token_refs = { access: account.credential_ref, refresh: account.refresh_ref, expiresAt: account.expires_ref };
-  }
   return { source_id, connection_id: account.connection_id, credential_ref: account.credential_ref, config };
 }
 

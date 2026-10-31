@@ -1,8 +1,6 @@
-import { GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_TREE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { pluginPageClients } from "../../plugin-workbench.js";
+
+const GOALS_PAGE = pluginPageClients("goals");
 /** AP3 Workbench client segment: refresh-decisions. */
 export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       setMobileView(restoredMobileView);
@@ -47,7 +45,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     let documentReplaceGeneration = 0;
-    const { loadGoalDocument } = (${GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT})({
+    const { loadGoalDocument } = (${GOALS_PAGE.goalsDocument})({
       documentPane, documentCollection, route, translate: LFor("io.molis.work.goals"), isAbortError,
       showError: (message) => showToast(message, true),
       afterReplace: () => {
@@ -65,7 +63,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const { selectGoal, handleGoalPopState, handleGoalHashChange } =
-      (${GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT})({
+      (${GOALS_PAGE.goalsNavigation})({
         trashView, archiveView, documentPane,
         getSelected: () => selected, getActiveGoalId: () => state.active_goal_id,
         navigateToGoal: (goalId) => location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(goalId)))),
@@ -76,11 +74,11 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     const { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses,
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
       handleTreeStatusChange, handleTreeDisclosureClick,
-      handleTreeKeyboard } = (${GOALS_TREE_CLIENT_FACTORY_SCRIPT})({
+      handleTreeKeyboard } = (${GOALS_PAGE.goalsTree})({
         treeFilter, treeFilterTrigger, treeScroll, globalSearch, translate: LFor("io.molis.work.goals"),
         updateGraphVisibility, queueSave, saveUiState,
       });
-    const { prepareGoalRefresh } = (${GOALS_REFRESH_CLIENT_FACTORY_SCRIPT})({
+    const { prepareGoalRefresh } = (${GOALS_PAGE.goalsRefresh})({
       treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: LFor("io.molis.work.goals"),
     });
     const searchInteractionActive = () => globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
@@ -288,7 +286,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       receipt.focus({ preventScroll: true });
     };
 
-    const { handleGoalProposalSubmit, requireDecisionText, humanDecisionError } = (${GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT})({
+    const { handleGoalProposalSubmit, requireDecisionText, humanDecisionError } = (${GOALS_PAGE.goalsProposal})({
       translate: LFor("io.molis.work.goals"), route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
     });
 

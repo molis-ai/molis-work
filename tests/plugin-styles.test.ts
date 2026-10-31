@@ -36,7 +36,7 @@ const packs = pluginWorkbenchPacks();
 const framed = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && pack.clientFactory);
 
 test("RAC-757 a framed plugin's sheet is split with nothing lost; a plugin the shell draws keeps its whole sheet in the shared one", () => {
-  const shared = pluginWorkbenchStyles(packs);
+  const shared = pluginWorkbenchStyles(packs, "beneath-shell") + pluginWorkbenchStyles(packs);
   let moved = 0;
   for (const pack of packs.filter((one) => one.stylesheet)) {
     const id = pack.project_plugin_id, own = pluginOnDemandStylesheet(id, packs);

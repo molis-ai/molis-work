@@ -304,7 +304,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-361 | 两处测试小补：RAC-2446 钉发出数据的键只有 question／pieces；RAC-2706 注释改准 | 丙 | B | 已合（10-31，#1689 → `f8de25546`；Codex 统筹） | — | `tests/security-invariants-knowledge-lifecycle.test.ts`、`tests/artifact-links.test.ts` |
 | T-362 | 插件的设置页在 Manifest 里声明自己认哪些地址参数（查询参数与 hash），外壳按声明过滤（改合同） | 乙 | A | 2.9 | — | `packages/contracts/src/platform/ui.ts`、`apps/workbench/src/settings-address-params.ts`、`apps/workbench/src/scripts/client/settings-directory.ts`、`tests/security-invariants-plugin-pages.test.ts` |
 | T-363 | BACKLOG 七行（BL-090／092／094／095／096／099／114）对着 main 核一遍，做完的删行，没做完的只写没做的 | 丙 | A | 3.0 | — | `specs/BACKLOG.md`（这七行） |
-| T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 开发线 4 | 已领，开发线4实施 | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |
+| T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 开发线 4 | 已开 #1697 @7ad5a4f7c；作者10/10及3负例，待独立审验/CI | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |
 | T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | WAIT，不计待领 | 唯一测试被 #1101 锁；不碰保护分支 | `tests/project-rows-deletion.test.ts` |
 | T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | 已合 #1695 → `f640b5b0f`；patch-id同 | 同头审验/Verify/SI/Full全部通过 | 已释放；未接受queued观察窗P2仍在MISC |
 | T-367 | 连接事务失败后的真实 secret 清理与恢复证据（T-134 建议①；RAC-2758～2760） | 丙 | Codex 待分配 | 待领 | T-134 已合；建议②仍等 #1677/#1675 | `tests/connector-connection-declarers.test.ts` |
@@ -312,6 +312,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-368 | MCP 无目录真实权限拒绝及精确 raiser 变异（RAC-2761～2763） | 丙 | Codex 待分配 | 待领 | 无；领取前重核文件锁 | `tests/mcp-error-kinds.test.ts` |
 | T-369 | alias 等待中换连接的真实拒绝（RAC-2764～2766） | 丙 | Codex 待分配 | WAIT，不计待领 | 等 #1654/T-148 新 aliasTerminalSession 合同落 main 后重核 | 仅新增 `tests/mcp-connection-change-refusal.test.ts`；不改 #1654 生产文件 |
 | T-370 | W6-04 可重复首尾度量的方法准备与新序列中间点（RAC-2767～2770）；不签最终W6-04 | 丙 | Codex 开发线 3 | 已领，开发线3先交METHOD | 无实现前置；METHOD先独立核对再量两端 | 只写自有测量脚本／证据候选；共享spec由统筹串行 |
+| T-371 | PG-111 Feed合同主线采用文档核收；总表候选交根，不结清全W5（RAC-2771～2774） | 丙 | Codex 待分配 | 待领 | T-110/T-112已采用；无真实Home前置 | 仅 `specs/repository-anti-corruption/slices/pg111-feed-contracts.md` 必要状态/证据段 |
+| T-372 | PG-077/078成果库平台采用文档核收；作废旧A7维护/A8等待（RAC-2775～2778） | 丙 | Codex 待分配 | 待领 | #1633已采用，#1552关闭未合；真实Home验收另账 | 仅 `specs/repository-anti-corruption/slices/pg077-artifacts-provider.md`、`ac-artifacts.md` 必要状态/证据段 |
 | T-141 | Home 签名包原地升级、初装／升级 origins 实际设置预览（RAC-2615～2619） | 甲 | Codex 待分配 | 书已审定，等文件锁 | T-134/T-140 已合；#1652 必改与 #1672/#1693 条件路径锁 | 详见 `tasks/T-141.md`；共享 SI／slice 由统筹串行 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给 Goals、走启动终端服务，删工作台面板路由与 control token 的启动通道（BL-695 · BL-637 · BL-508；RAC-2560～2569；四项已定（用户 10-31），叠在 T-136 上开发） | 甲 | A-Claude | 统筹定 | T-136；T-115～T-118 链合入 | 由【方案】定（候选见书 §4） |

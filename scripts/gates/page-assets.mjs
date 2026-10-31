@@ -249,7 +249,7 @@ const headErrors = (measured, budget, base) => {
 // indentation and joins (the server already strips them), trimming the scripts; the same PR takes 26,294 B off settings.css.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.css": [1233233, 1233257],
-  "/assets/molis-work-workbench.js": [1148549, 1148600],
+  "/assets/molis-work-workbench.js": [1148409, 1148460],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

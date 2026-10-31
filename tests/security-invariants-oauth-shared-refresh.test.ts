@@ -594,4 +594,3 @@ test("S-95 RAC-2462 a sandboxed integration's request ended by the broker carrie
     assert.equal(reason, stopped, lost ? "a call no longer current still carries the broker's reason" : "a current call ended by the broker is not a cancellation");
   }
 });
-

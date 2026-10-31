@@ -252,6 +252,9 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [190760, 190838],
   "/assets/molis-work-workbench.js": [1148277, 1150072],
+  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
+  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
+  "/assets/molis-work-plugins/coding.js": [289876, 289917],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

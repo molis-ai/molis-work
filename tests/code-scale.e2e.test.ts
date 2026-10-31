@@ -287,3 +287,35 @@ test("SYS-49 RAC-2423: a large block in a content-visibility:auto subtree is col
   assert.ok(shown.steps.length >= 8, `coloured over ${shown.steps.length} frames after scrolled near`);
   assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
 });
+
+// RAC-2729 (T-354) ②: a block that was already laid out and grows past the slice is coloured in the next frame, without asking a layout
+// observer; its colouring frames stay a frame's work (the 50 ms bound the other large-block cases use).
+test("SYS-49 RAC-2729: a laid-out block grown past the slice colours the next frame without a layout observer", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
+    const expected = new Map(); window.matchesColour = (code, text) => {
+      if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, 'ts')));
+      return JSON.stringify(colourParts(code)) === expected.get(text); };
+    window.observerRefs = []; const Native = window.ResizeObserver;
+    window.ResizeObserver = class Tracking extends Native { constructor(changed) { super(changed); observerRefs.push(new WeakRef(this)); } };
+    window.frames = []; const nativeFrame = window.requestAnimationFrame.bind(window);
+    window.paint = (() => { const requestAnimationFrame = (step) => nativeFrame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); queueMicrotask(() => frames.push(performance.now() - start)); });
+      return (${createCodingCodePaint.toString()})(tokensOf, ${growCodeTokens.toString()}, hint => hint); })();
+    window.small = ${JSON.stringify("const stable = 1;\nconst value = compute(1);\n")};
+    window.big = small + ${JSON.stringify(textOf(60_000))};`);
+  const grown = await evaluate<{ observers: number; reads: boolean }>(`(() => {
+    const pre = document.body.appendChild(document.createElement('pre')), code = pre.appendChild(document.createElement('code')); window.code = code;
+    paint.paintInto(code, small, 'ts'); const before = observerRefs.length; paint.paintInto(code, big, 'ts');
+    return { observers: observerRefs.length - before, reads: code.textContent === big }; })()`);
+  t.diagnostic("RAC-2729 grown: " + JSON.stringify(grown));
+  assert.equal(grown.observers, 0, "a block that was already laid out needs no layout observer for its longer text");
+  assert.equal(grown.reads, true, "the longer text reads at once");
+  await waitFor("matchesColour(code, big)", 30_000);
+  const frames = await evaluate<number[]>("frames.slice()");
+  t.diagnostic("RAC-2729 grown frames: " + JSON.stringify({ frames: frames.length, longest: Math.max(...frames) }));
+  assert.ok(frames.length >= 2, `coloured over ${frames.length} frames`);
+  assert.ok(Math.max(...frames) < 50, `each colouring frame stays a frame's work: the longest ${Math.max(...frames).toFixed(1)} ms`);
+});

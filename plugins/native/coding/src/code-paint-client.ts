@@ -132,7 +132,8 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
       job.state = next;
       if (job.at < job.text.length || !job.framed) requestAnimationFrame(() => step()); else slicing.delete(target);
     };
-    if (text.length <= SLICE) step(true); else (job.waiting = new ResizeObserver((entries) => { if (!entries.some(entry => entry.contentRect.height)) return; job.waiting?.disconnect(); if (slicing.get(target) === job) requestAnimationFrame(() => step()); })).observe(job.regions[0]!.node); return true;
+    // RAC-2729 ②: a block already laid out needs no layout observer for its longer text (T-354 measured: the waiting path itself keeps neither observer nor DOM, so only this shortcut is added).
+    if (text.length <= SLICE) step(true); else if (before?.framed) requestAnimationFrame(() => step()); else (job.waiting = new ResizeObserver((entries) => { if (!entries.some(entry => entry.contentRect.height)) return; job.waiting?.disconnect(); if (slicing.get(target) === job) requestAnimationFrame(() => step()); })).observe(job.regions[0]!.node); return true;
   };
   const blockLanguage = (code: PaintElement, text: string) => languageOf([...code.classList].find(name => name.startsWith("language-")) || "")
     || (/^\s*[[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : "");

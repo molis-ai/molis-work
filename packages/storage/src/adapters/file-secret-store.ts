@@ -577,6 +577,14 @@ function assertSealedV2(sealed: string): void {
   throw new Error("secret not AES-GCM sealed");
 }
 
+/**
+ * Every entry already in the file must still be a sealV2 envelope before the file is written back. `exceptRef` is the entry being
+ * deleted: deleting the bad entry itself is how a vault with one gets clean again, so that one is not checked.
+ */
+function assertSealedEntries(file: SecretsFileV2, exceptRef?: string): void {
+  for (const [ref, sealed] of Object.entries(file.entries)) if (ref !== exceptRef) assertSealedV2(sealed);
+}
+
 /** Per data-dir store instances so put/get share one master resolution. */
 const storeCache = new Map<string, SecretStore>();
 // A cancelled, denied, timed-out or invalid Keychain read must not open another
@@ -596,6 +604,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     put(authRef, plaintext) {
       withSecretsLock(() => {
         const file = loadFile();
+        assertSealedEntries(file);
         const sealed = sealV2(plaintext, master.key);
         assertSealedV2(sealed);
         file.entries[authRef] = sealed;
@@ -608,11 +617,13 @@ function buildStore(master: ResolvedMaster): SecretStore {
       const file = loadFile();
       const sealed = file.entries[authRef];
       if (!sealed) return null;
+      assertSealedV2(sealed);
       return openV2(sealed, master.key);
     },
     delete(authRef) {
       withSecretsLock(() => {
         const file = loadFile();
+        assertSealedEntries(file, authRef);
         delete file.entries[authRef];
         file.backend = master.kind;
         saveFile(file);
@@ -621,6 +632,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     createIfAbsent(authRef, plaintext) {
       return withSecretsLock(() => {
         const file = loadFile();
+        assertSealedEntries(file);
         if (Object.hasOwn(file.entries, authRef)) return false;
         const sealed = sealV2(plaintext, master.key);
         assertSealedV2(sealed);
@@ -634,6 +646,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     deleteIfPresent(authRef) {
       return withSecretsLock(() => {
         const file = loadFile();
+        assertSealedEntries(file);
         if (!Object.hasOwn(file.entries, authRef)) return false;
         delete file.entries[authRef];
         file.backend = master.kind;

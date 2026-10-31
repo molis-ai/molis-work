@@ -148,6 +148,11 @@ export class IntegrationRegistry {
     return this.declarations.connectionServices();
   }
 
+  /** The name a declaring plugin's Manifest gives it, for the cards that say where a service comes from. */
+  pluginName(pluginId: string): string | undefined {
+    return this.declarations.pluginName(pluginId);
+  }
+
   hasSource(serviceId: string): boolean {
     return this.declarations.hasSource(serviceId);
   }

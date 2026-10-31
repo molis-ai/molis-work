@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -134,15 +134,16 @@ test("Images uses the chosen Connector credential for each generation and surviv
 test("Feed switching account creates a separate source and keeps the old history, plan and capture rule", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-connector-source-"));
   const home = join(directory, "home");
-  const databasePath = join(home, "projects", "board.db");
+  const databasePath = join(home, "projects", "board", "molis-work.db");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   try {
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     resetSecretStoreCache();
     mkdirSync(join(home, "projects"), { recursive: true });
     const catalog = new DatabaseSync(join(home, "projects", "catalog.db"));
-    catalog.exec("CREATE TABLE projects (database_path TEXT NOT NULL)");
-    catalog.prepare("INSERT INTO projects (database_path) VALUES (?)").run(databasePath);
+    catalog.exec("CREATE TABLE projects (project_id TEXT NOT NULL)");
+    catalog.prepare("INSERT INTO projects (project_id) VALUES (?)").run("board");
+    mkdirSync(dirname(databasePath), { recursive: true });
     catalog.close();
     seedDemoBoard(databasePath);
     const board = new LocalProjectDatabase(databasePath);
@@ -424,4 +425,34 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
     if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+// RAC-2421: the port admits a usage id by characters (81–128 wide characters, up to 256 UTF-16 units), so the connection binding has
+// to count the same way; 100 😀 is 100 characters but 200 UTF-16 units, and the old check refused it before anything was written.
+test("RAC-2421 a binding counts its usage and plugin ids in characters, not UTF-16 units", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(CONNECTOR_CONNECTIONS_SCHEMA);
+  const values = new Map<string, string>();
+  const store = new ConnectorConnectionStore(db, {
+    get: (ref) => values.get(ref) ?? null,
+    put: (ref, value) => { values.set(ref, value); },
+    delete: (ref) => { values.delete(ref); },
+  }, () => new Date("2026-10-16T09:00:00.000Z"));
+  try {
+    const connection = store.createToken({ serviceId: "gmail", displayName: "工作邮箱", token: "gmail-work-token" });
+    const wide = "😀".repeat(100);
+    assert.equal(wide.length, 200, "100 characters, 200 UTF-16 units");
+    store.bind({ scopeId: "project-a", pluginId: "feed", slotId: wide, serviceId: "gmail", connectionId: connection.connection_id });
+    assert.equal(store.binding("project-a", "feed", wide)?.connection_id, connection.connection_id, "the id the port admitted reads back");
+    store.unbind("project-a", "feed", wide);
+    assert.equal(store.binding("project-a", "feed", wide), null);
+    // The plugin id is counted the same way.
+    store.bind({ scopeId: "project-a", pluginId: wide, slotId: "inbox", serviceId: "gmail", connectionId: connection.connection_id });
+    assert.equal(store.binding("project-a", wide, "inbox")?.connection_id, connection.connection_id);
+    // A 161st character is refused, and the old 160-unit boundary keeps working for ASCII ids.
+    assert.throws(() => store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "😀".repeat(161), serviceId: "gmail", connectionId: connection.connection_id }), { code: "connector.connection.invalid" });
+    store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "a".repeat(160), serviceId: "gmail", connectionId: connection.connection_id });
+    assert.equal(store.binding("project-a", "feed", "a".repeat(160))?.connection_id, connection.connection_id);
+    assert.throws(() => store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "a".repeat(161), serviceId: "gmail", connectionId: connection.connection_id }), { code: "connector.connection.invalid" });
+  } finally { db.close(); }
 });

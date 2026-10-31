@@ -8,7 +8,7 @@ import { mcpBackgroundAuthority } from "./mcp-background-authority.js";
 /** Shared by direct MCP and its authenticated local transport. Neither grants itself authority. */
 export async function authorizeMcpActions(host: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, caller: ActionCallContext, home: string | undefined,
   reference?: LocalHostProjectReference, checkTransport?: () => void | Promise<void>, assertTransportCurrent?: () => void, backgroundHostCurrent?: () => void) {
-  const preference = home ? await readMcpToolPreference(home) : { version: 3 as const, action_grants: [] };
+  const preference = home ? await readMcpToolPreference(home) : { version: 1 as const, action_grants: [] };
   const catalog = await host.inspectActions(caller, reference);
   let currentCatalog = catalog;
   // An external Runtime with no stable Session says so on its context; dispatch then refuses every action that declares

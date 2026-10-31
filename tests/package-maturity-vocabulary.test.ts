@@ -29,13 +29,16 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
       /^apps\/desktop: package maturity must be one of production\/experimental\/slice, got /u);
   }
   // S11 moved the two production Modules (Goals and Governance) into their plugin; FI-5 merged four production packages (the Feed, Sources
-  // and Signals Modules, the listener host) into the Feed plugin; re-measured distribution, 2026-10-28.
+  // and Signals Modules, the listener host) into the Feed plugin. PG-077 removes the Artifact plugin shell; its existing platform
+  // Module remains production. Re-measured distribution, 2026-10-30.
   const counts = {};
   for (const item of WORKSPACE_PACKAGES) {
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
-  assert.deepEqual(counts, { production: 48, experimental: 2, slice: 14 });
+  assert.deepEqual(counts, { production: 47, experimental: 2, slice: 14 });
+  assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "modules/artifacts").map(item => item.maturity), ["production"]);
+  assert.equal(WORKSPACE_PACKAGES.some(item => item.path === "plugins/native/artifacts"), false, "only the retired shell disappears");
 });
 
 const manifestOf = (packagePath: string) =>
@@ -89,6 +92,43 @@ test("W5-15-06 W5-15-07 W5-15-08 src entries and READMEs no longer carry the ret
     const readme = readmeOf(item.path);
     for (const line of ["Status: `", "- Status: `", "Contract entrypoint:", "- Contract entrypoint:", "Migration Goals:", "- Migration Goals:"]) {
       assert.ok(!readme.includes(line), `${item.path}/README.md still carries ${line}`);
+    }
+  }
+});
+
+// RAC-2434: examples/ is not a workspace package — its probe becomes a built-in only in a test's copy of the repository — so W5-15's
+// cleanup skipped it. Every directory under examples/ that has a package.json is held to the same vocabulary and block shape; reading
+// the directory (not a fixed list) also covers a second example, and a part an example does not have (plugin-sample has no
+// src/index.ts) is skipped rather than asserted about.
+const EXAMPLE_DIRECTORY = new URL("../examples/", import.meta.url);
+const EXAMPLE_PACKAGES = fs.readdirSync(EXAMPLE_DIRECTORY, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && fs.existsSync(new URL(`${entry.name}/package.json`, EXAMPLE_DIRECTORY)))
+  .map((entry) => `examples/${entry.name}`);
+
+test("RAC-2434 examples packages carry no retired package metadata, and their built-in block stays narrow", () => {
+  assert.ok(EXAMPLE_PACKAGES.length > 0, "examples/ has at least one package to read");
+  for (const packagePath of EXAMPLE_PACKAGES) {
+    const source = new URL(`../${packagePath}/src/index.ts`, import.meta.url);
+    if (fs.existsSync(source)) {
+      for (const retired of ["packageDescriptor", "MolisWorkPackageDescriptor", "migrationGoals", "legacySources"]) {
+        assert.ok(!fs.readFileSync(source, "utf8").includes(retired), `${packagePath}/src/index.ts still names ${retired}`);
+      }
+    }
+    const manifest = JSON.stringify(manifestOf(packagePath));
+    for (const retired of ["migrationGoals", "legacySources"]) {
+      assert.ok(!manifest.includes(retired), `${packagePath}/package.json still carries ${retired}`);
+    }
+    const block = manifestOf(packagePath)["molis-work"];
+    if (block !== undefined) {
+      for (const key of Object.keys(block)) assert.ok(PLUGIN_BLOCK_KEYS.includes(key), `${packagePath}: ${key} is not a built-in block key`);
+      assert.ok(PACKAGE_MATURITY.includes(String(block.maturity)), `${packagePath}: ${String(block.maturity)} is not a maturity word`);
+    }
+    const readme = new URL(`../${packagePath}/README.md`, import.meta.url);
+    if (fs.existsSync(readme)) {
+      const text = fs.readFileSync(readme, "utf8");
+      for (const line of ["Status: `", "- Status: `", "Contract entrypoint:", "- Contract entrypoint:", "Migration Goals:", "- Migration Goals:"]) {
+        assert.ok(!text.includes(line), `${packagePath}/README.md still carries ${line}`);
+      }
     }
   }
 });

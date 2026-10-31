@@ -17,7 +17,8 @@ import { prepareAttach, runAttach, type ConfirmReferences } from "./contextual-a
 import { chosenCandidate, intakeKey } from "./contextual-choice.js";
 import { createChosen, undoCreated } from "./contextual-create.js";
 import { draftRequest } from "./contextual-draft.js";
-import { contextualErrors, cutHead, invalid, readJudgeRequest, readString } from "./contextual-request.js";
+import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
+import { cutHead } from "../whole-units.js";
 import { fragmentOffersInput, prepareSubjectOffer, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 

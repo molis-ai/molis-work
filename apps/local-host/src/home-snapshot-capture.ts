@@ -19,18 +19,9 @@ function dependencies() {
   }, all: () => [...items.values()].sort((a, b) => a.location.localeCompare(b.location)) };
 }
 
-function assertRetainedKey(inventory: SnapshotStoreInventory): void {
-  const paths = inventory.files.map(file => file.relative), retained = inventory.store.snapshot.retained;
-  const required = retained && paths.some(file => file.startsWith(retained.content.directory + "/")) ? [retained.content.dependency] : [];
-  for (const path of required) if (!inventory.files.some(file => file.relative === path && file.disposition.kind === "key")) {
-    throw homeSnapshotErrors.key_unavailable(`缺少同 Home 原密钥，不会生成替代值: ${inventory.store.path}/${path}`);
-  }
-}
-
 export async function captureSnapshotStore(home: string, stage: string, inventory: SnapshotStoreInventory, control: CaptureControl): Promise<HomeSnapshotStoreManifest> {
   const base = { path: inventory.store.path, owner: inventory.store.owner, state: inventory.state, exclusions: inventory.exclusions };
   if (inventory.state !== "captured") return { ...base, entries: [], dependencies: [] };
-  assertRetainedKey(inventory);
   // Authenticate the actual private payload before paying for its durability; rejected ciphertext is discarded.
   const deferFlush = inventory.store.snapshot.inspect !== undefined;
   const keys = dependencies(), entries: HomeSnapshotStoreManifest["entries"][number][] = [];

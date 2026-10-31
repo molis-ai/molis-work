@@ -1,3 +1,4 @@
+import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../functions/en.js";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
@@ -17,6 +18,7 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  ...ARTIFACT_EN,
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
   ...SHARED_WORDS_EN,
@@ -32,6 +34,8 @@ export const EN: Record<string, string> = {
   "可在应用内连接": "Connect in Molis Work",
   "可在此粘贴凭据": "Paste credential here",
   "Molis Work 尚未接入": "Not yet integrated in Molis Work",
+  "来自 {package}": "From {package}",
+  "Molis Work（内置）": "Molis Work (built in)",
   "更多官方配置入口": "More official setup links",
   "步骤回报与验收": "Step reports and acceptance",
   "模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。": "A model report is not user acceptance. Review the actual actions and results in the original run before assessing.",
@@ -3088,7 +3092,6 @@ Object.assign(EN, {
   "没有已完成或已忽略的事项": "No completed or ignored items",
   "完成或忽略的事项会留在这里，原对象不会被删除。": "Completed or ignored items stay here. The original object is not deleted.",
 });
-
 Object.assign(EN, {
   "未命名消息": "Untitled message",
   "可以重新打开，原消息仍保留在 Feed。": "You can reopen it; the original message remains in Feed.",
@@ -3261,5 +3264,4 @@ Object.assign(EN, {
   "打开工作区": "Open workspace",
   "在关系画布中定位": "Locate on the relation canvas",
 });
-
 Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

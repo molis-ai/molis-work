@@ -6,7 +6,7 @@ import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, openBasel
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
-  version: 3,
+  version: 1,
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 
@@ -15,7 +15,7 @@ const homeStoreRefusal = Symbol("Home plugin store refusal");
 const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
-const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源"));
+const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"));
 // The shape the baseline describes never changes: built once (it runs the whole baseline in a scratch database). The store's own shape is read every time.
 let baselineShape: string | undefined;
 const expectedHomeStoreShape = () => baselineShape ??= JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE));

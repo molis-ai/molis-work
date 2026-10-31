@@ -610,6 +610,13 @@ test("RAC-2401 only a source change under packages/plugin-runtime recommends the
   assert.deepEqual(rulesOf(select(["packages/plugin-runtime/src/main.ts"])), ["shared-core"]);
 });
 
+// RAC-2403: docs/system/PARALLEL-DEVELOPMENT.md:66 and the PR template count horizontal/agent-host as shared core too — it is the
+// one place model calls go through, the only package that depends on @prologue/sdk — so a source change there recommends the full suite.
+test("RAC-2403 only a source change under horizontal/agent-host recommends the full suite", () => {
+  workspacePackage("horizontal/agent-host", "@molis-ai/molis-work-service-agent-host");
+  assert.deepEqual(rulesOf(select(["horizontal/agent-host/src/main.ts"])), ["shared-core"]);
+});
+
 test("the assembly of the host recommends the full suite", () => {
   assert.deepEqual(rulesOf(select(["apps/local-host/src/web-request.ts"])), ["assembly"]);
 });
@@ -1187,6 +1194,26 @@ test("every path the rules name exists in this repository, so a rename cannot le
   assert.ok(files.has(I18N_TEST), I18N_TEST);
 });
 
+// RAC-2427: docs/system/PARALLEL-DEVELOPMENT.md section 6 names the shared core in two places — the must-run table row and the
+// full-suite condition bullet — and both must carry every package FULL_REGRESSION.corePackages counts (plus the modules/ prefix),
+// so a package added to the rule without the documents (horizontal/agent-host was) fails here instead of drifting again.
+test("RAC-2427 the shared-core lists in PARALLEL-DEVELOPMENT.md name every package FULL_REGRESSION.corePackages counts", () => {
+  const guide = readFileSync(path.join(realRoot, "docs/system/PARALLEL-DEVELOPMENT.md"), "utf8").split("\n");
+  const mustRun = guide.find((line) => line.startsWith("| 共享核心（"));
+  const condition = guide.find((line) => line.startsWith("- 改了 contracts、kernel、plugin-sdk、plugin-runtime"));
+  assert.ok(mustRun, "section 6's must-run table has the shared-core row");
+  assert.ok(condition, "section 6's full-suite condition names the shared-core packages");
+  // The rule names workspace paths; the documents name the same packages without their area, and the modules/ prefix as "modules".
+  const DOCUMENTED: Record<string, string> = {
+    "packages/contracts": "contracts", "packages/kernel": "kernel", "packages/plugin-sdk": "plugin-sdk",
+    "packages/plugin-runtime": "plugin-runtime", "horizontal/agent-host": "horizontal/agent-host",
+  };
+  const documented = [...FULL_REGRESSION.corePackages.map((entry: string) => DOCUMENTED[entry] ?? entry),
+    ...FULL_REGRESSION.corePackagePrefixes.map((prefix: string) => prefix.replace(/\/$/u, ""))];
+  assert.ok(documented.includes("horizontal/agent-host"), "agent-host is shared core, as T-271 added it to the rule");
+  for (const line of [mustRun!, condition!]) for (const name of documented) assert.ok(line.includes(name), `${name} is missing from: ${line}`);
+});
+
 test("in this repository, a change to a package selects every test its README lists as must-run, and each of them exists", () => {
   const files = listFiles(realRoot), packages = discoverPackages(realRoot, files), index = buildTestIndex(realRoot, files, packages);
   assert.ok(packages.length >= 60, `${packages.length} packages`);
@@ -1222,6 +1249,7 @@ test("in this repository: shared core recommends the full suite, a document alon
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-runtime/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("horizontal/agent-host/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));

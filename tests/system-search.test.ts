@@ -4,6 +4,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
@@ -99,10 +100,14 @@ async function fixture(t: import("node:test").TestContext, options: { freshMs?: 
     home, actions,
     get search() { return search; },
     tick(ms: number) { now += ms; },
-    async reopen(damage: "none" | "remove" | "corrupt" = "none") {
+    async reopen(damage: "none" | "remove" | "corrupt" | "version" = "none") {
       await search.close(); index.close();
-      if (damage !== "none") for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
+      if (damage === "remove" || damage === "corrupt") for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
       if (damage === "corrupt") writeFileSync(homeSqlitePath(home, "search"), Buffer.alloc(8192, 0x5a));
+      if (damage === "version") {
+        const db = new DatabaseSync(homeSqlitePath(home, "search"));
+        try { db.exec("UPDATE search_meta SET value = '2' WHERE key = 'schema'"); } finally { db.close(); }
+      }
       index = openTextSearchIndex({ homeDirectory: home }); search = make();
     },
   };
@@ -422,7 +427,7 @@ test("disable, re-enable and uninstall follow the plugin's lifecycle", async t =
   assert.deepEqual(ids(await ask(f, owner("a"), "灵光")), []);
 });
 
-test("restart keeps the index; a deleted or corrupt index file is rebuilt with the same results", async t => {
+test("RAC-2370 restart keeps the index; a missing, corrupt or wrong-version cache rebuilds the same results", async t => {
   const f = await fixture(t);
   const notes = source(Array.from({ length: 1200 }, (_, index) => ({ id: `n${index}`, title: `记录 ${index}`, body: index % 100 === 0 ? `关键词 甲乙丙 ${index}` : `普通内容 ${index}`, version: 1 })));
   register(f.actions, notes, { provider_id: "notes-a", project_id: "a" });
@@ -437,6 +442,14 @@ test("restart keeps the index; a deleted or corrupt index file is rebuilt with t
   assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
   await f.reopen("corrupt");
   assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
+  await f.reopen("version");
+  assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
+  const current = new DatabaseSync(homeSqlitePath(f.home, "search"), { readOnly: true });
+  try {
+    assert.equal(current.prepare("SELECT value FROM search_meta WHERE key = 'schema'").get()!.value, "1");
+    assert.equal(current.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
+    assert.deepEqual(current.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally { current.close(); }
   const rebuilt = await f.search.rebuild({ client: f.actions, caller: owner("a") }, { scope: "project" });
   assert.equal(rebuilt.cleared, 1200);
   assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);

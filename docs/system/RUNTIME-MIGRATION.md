@@ -1,6 +1,6 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main，Cognia、Images、Jelly、PPT、Dataset 候选仍待各自正式合入，不能用本地名单代替 main 状态。第 2.1 节的目录条目以 2026-10-18 为准（名字与库的来源见该节首的说明），其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节；CHR-1 已于 2026-10-22 做完，见该节进度）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。
+状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main；截至 2026-10-30 的 main：Cognia、Images、Jelly、PPT、Dataset 已进 Plugin Runtime（各自 `src/registration.ts` 的 `runtime`/`project_runtime`：Cognia、Images、Jelly 由 Home 监督器启动，PPT、Dataset 由项目监督器启动；这些登记分别在 #840（2026-10-20）与 batch-39（#1307，2026-10-25）进 main）。第 2.1 节的目录条目以 2026-10-18 为准（名字与库的来源见该节首的说明），其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节；CHR-1 已于 2026-10-22 做完，见该节进度）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
@@ -38,7 +38,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ### 2.1 26 个目录条目
 
-名字以 2026-10-18 为准，W4-11（#542）之后库来自 Manifest 的 `databases.home`。
+名字以 2026-10-18 为准，W4-11（#542）登记库；2026-10-24 起（PG-022 P1，#1222）库由 Manifest 的 `databases.home` 声明，删项目时库里的行另由其 `project_rows` 声明（PG-024，第 10 节第 5 项）。
 
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
@@ -154,7 +154,7 @@ Form 同时是浏览器代码打包与类型检查的样板：客户端改成带
 ### 4.4 其他前置切片
 
 - **W4-01 探针插件夹具**：用一个声明式的探针插件走完安装、发现、调用（含 `/api/plugins/<id>/`）、升级、停用、卸载，证明平台本身通了，再迁真实插件。
-- **W4-02 `methods` 随 Runtime 生效**（2026-10-08 决定）：今天只有目录条目里的 `methods` 在宿主启动时登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 的 `builtinRegistrations`），`packages/plugin-runtime`、`installed-plugin-host.ts` 和 `plugin-builder/` 里没有登记 `methods` 的代码。迁来的插件保留目录条目（第 6 节第 5 项），它们的 `methods` 仍由 `builtinRegistrations` 登记；W4-02 让登记跟着安装的生命周期走（启动时登记，停用、卸载、升级时收回），迁移 PR 要加一个用例：停用迁来的插件后，它的方法不再出现在 Agent 定义里。W4-02 的设计要避免对「既有目录条目又有 Runtime 安装」的内置插件登记两次。
+- **W4-02 `methods` 随 Runtime 生效**（2026-10-08 决定）：**已做完（#562，2026-10-15）**。W4-02 之前只有目录条目里的 `methods` 在宿主启动时登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 的 `builtinRegistrations`），`packages/plugin-runtime`、`installed-plugin-host.ts` 和 `plugin-builder/` 里没有登记 `methods` 的代码。迁来的插件保留目录条目（第 6 节第 5 项），它们的 `methods` 仍由 `builtinRegistrations` 登记；W4-02 让登记跟着安装的生命周期走（启动时登记，停用、卸载、升级时收回），已由 #562 实现（见第 5 节顺序图下的一行；实现与测试见 `specs/repository-anti-corruption/spec.md` 的 W4-02 条、`tests/plugin-methods-runtime.test.ts`），迁移 PR 要加一个用例：停用迁来的插件后，它的方法不再出现在 Agent 定义里。该设计要避免对「既有目录条目又有 Runtime 安装」的内置插件登记两次。
 - **W4-11 Home 库统一登记表**：**已做完（#542，2026-10-15）**。插件的库由插件声明、宿主库集中列出；卸载、维护、基线读它。「项目已删」步骤（4.2 末项）原计划也登记在这里，实际没有：沿用目录条目的 `project_data`，后改为 Manifest 的 `databases.home.project_rows`（第 10 节第 5 项）。
 
 ## 5. 顺序
@@ -251,7 +251,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 - **引用不变（已定）**：4.2 的提供方身份已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），迁来的插件存量的 MCP 授权、工作流步骤、判断规则的场景提供方和代码里写死的 `provider_id` 都不用改写。要改写存量引用的只有已在 Runtime 上的 7 个插件（维护七，[CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节）：开发机的真实 Home 已于 2026-10-11 核对，没有要改写的记录，没写真库；别的 Home 照那一节的做法，先问用户、先备份、在拷贝上列出与演练、逐项核对，工具从 Git 历史取。
 - **删除项目的路径会变**：迁移不改变「项目已删」步骤清什么，但改变它怎么被调用（4.2 末项）。迁移之后第一次在真实 Home 上删项目会走新路径，所以每一族迁完，要在 Home 的拷贝上演练一次：删一个有各插件数据的项目，核对删除收据里每个插件一步，再逐库核对数据没了、别的项目的还在。
 - **Characters 的安装记录**：并进宿主时删掉各项目库里的 `io.molis.work.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。（CHR-1 没有做这一步，2026-10-22：它是 `docs/releases/CHECKLIST.md` 里的维护项。）
-- **项目库 v8**：L1b 让项目库升到 v8（`project_root`、插件的表进账本），有 v7 项目库的 Home 先做维护八（`docs/releases/CHECKLIST.md` 4.3），也不在迁移 PR 里做；脚本与演练是 `tests/fixtures/project-maintenance-v8.sql`、`tests/project-maintenance-v8.test.ts`。
+- **项目库当前起点1**：L1b的project_root和插件表账本结构保持。2026-10-30用户取消旧版本项目维护；旧Home整体搬开后新建，旧升级SQL/夹具/演练删除，等全部代码就绪后用户另说“开始”。
 - 迁移完成后，`uninstall --purge` 列表（Home 存储登记 `homeStores()`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。
 
 ## 8. 门禁怎么随迁移收紧

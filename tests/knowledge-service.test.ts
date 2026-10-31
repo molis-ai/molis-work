@@ -96,6 +96,16 @@ test("PMAT-45 grep shows a long line around its match, not only its first 400 ch
   assert.equal(grepLines("短行里的 MW-0042", ["MW-0042"], 0, 5).hits[0]?.text, "短行里的 MW-0042");
 });
 
+test("RAC-2431 section titles and grep context lines keep whole characters, never leaving half of one", () => {
+  // One 🙂 (U+1F642) is one character and two UTF-16 units: a cut of 59 whole characters lands on the first unit of the next one.
+  const wide = "🙂", head = "x".repeat(59);
+  assert.equal(outlineOf("# " + head + wide + "尾\n正文")[0]!.title, head, "a Markdown heading's title keeps whole characters");
+  assert.equal(outlineOf(head + wide + "尾")[0]!.title, head, "a heading-less section's first line keeps whole characters");
+  const line = "y".repeat(399) + wide + "z";
+  const [hit] = grepLines(line + "\n尾行标记\n", ["尾行标记"], 1, 5).hits;
+  assert.equal(hit?.before[0], "y".repeat(399) + "…", "a grep context line excerpt keeps whole characters and still says it was cut");
+});
+
 test("PMAT-06 PMAT-09 read returns the owner's original text of one section, with what is left", async t => {
   const f = await fixture(t);
   f.pages.set("p1", { id: "p1", title: "试用说明", body: HANDBOOK, version: 4 });

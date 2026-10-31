@@ -102,7 +102,7 @@ test("a Host that gives no readiness check answers the way other missing host po
 
 test("the create dialog carries two hidden hints, one per missing thing, and nothing in it blocks creating", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
-  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
+  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", shown_plugins: ["schedule"], data: { jobs: [], tasks: [] }, primitives: p } });
   const dialog = html.slice(html.indexOf("data-schedule-create-dialog"), html.indexOf("</dialog>", html.indexOf("data-schedule-create-dialog")));
   for (const kind of ["model", "workspace"]) {
     const hint = new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>`).exec(dialog)?.[0];
@@ -119,7 +119,7 @@ test("the create dialog carries two hidden hints, one per missing thing, and not
 
 test("each hint says where to fix it with a plain link: the model settings, and the project's workspace settings", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
-  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
+  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", shown_plugins: ["schedule"], data: { jobs: [], tasks: [] }, primitives: p } });
   const hint = (kind: string) => new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>([\\s\\S]*?)</div>`).exec(html)?.[1] ?? "";
   assert.match(hint("model"), /<a href="\/settings\/models"[^>]*>打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
   assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces"[^>]*>打开工作目录设置<\/a>/, "the workspace is bound in this project's settings");

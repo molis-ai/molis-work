@@ -9,7 +9,7 @@ import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactLinkSubjectsPort, artifactProducerSources, captureHostLog, type ArtifactProducerSource, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
-import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactBrowserUiContribution } from "@molis-ai/molis-work-app-workbench";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the objects that use a version, by how. An Agent's proposal to use a version
@@ -204,7 +204,7 @@ test("RAC-2089 a refusal (forbidden, not found, an MCP client not granted the ac
   try {
     const failing = (error: unknown) => artifactLinkSubjectsPort({ invoke: async () => { throw error; } } as never, declarer)("example.notes", ["N1"], caller);
     for (const refusal of [new ActionError("actions.forbidden", "not yours"), new ActionError("actions.subject_unavailable", "gone", { kind: "not_found" }),
-      new ActionError("mcp.action_revoked", "this client was not granted it")]) {
+      new ActionError("mcp.action_revoked", "this client was not granted it", { kind: "forbidden" })]) {
       assert.deepEqual([...await failing(refusal)], []);
     }
     assert.deepEqual(entries, [], "refusals write nothing");
@@ -213,4 +213,17 @@ test("RAC-2089 a refusal (forbidden, not found, an MCP client not granted the ac
   assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
     [["warn", "artifacts", "link_subjects_failed", { name: "Error" }, { plugin_id: "example.notes" }]]);
   assert.doesNotMatch(JSON.stringify(entries), /secret body text/u, "the failure's text is not written");
+});
+
+test("RAC-2493 a refusal is told by its kind, not by its code: the same code without a kind is a failure like any other", async () => {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    const failing = (error: unknown) => artifactLinkSubjectsPort({ invoke: async () => { throw error; } } as never, declarer)("example.notes", ["N1"], caller);
+    assert.deepEqual([...await failing(new ActionError("mcp.action_revoked", "not granted", { kind: "forbidden" }))], []);
+    assert.deepEqual(entries, [], "a refusal writes nothing");
+    assert.deepEqual([...await failing(new ActionError("mcp.action_revoked", "not granted"))], []);
+  } finally { restore(); }
+  assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
+    [["warn", "artifacts", "link_subjects_failed", { name: "ActionError", code: "mcp.action_revoked" }, { plugin_id: "example.notes" }]]);
 });

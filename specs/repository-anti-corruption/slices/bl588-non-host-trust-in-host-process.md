@@ -1,6 +1,6 @@
 # BL-588：非 `host` 等级不在宿主进程里跑（设计稿）
 
-状态：设计经统筹 2026-10-26 裁定（#1311 评论 6410517262：D1 选 O2，D2 选 B，D4 做，D5 扩 S-75 ⑥，错误码用专用的 `plugin.in_process_denied`）；S1～S4 与 S5 的文档部分已实现（防腐线 ac-clients-1 片，分支 `claude/bl588-non-host-trust-design`，没开 PR，BL-735～738 已做完删行）；S5 的真实 Home 核对被权限拦下，留作 BL-739，见 §3.5 与 §6 D3。号段 RAC-990～999、BL-735～739；不占新的 S 号，扩 S-75。
+状态：设计经统筹 2026-10-26 裁定（#1311 评论 6410517262：D1 选 O2，D2 选 B，D4 做，D5 扩 S-75 ⑥，错误码用专用的 `plugin.in_process_denied`）；S1～S4 与 S5 的文档部分已实现（防腐线 ac-clients-1 片，分支 `claude/bl588-non-host-trust-design`，没开 PR，BL-735～738 已做完删行）；S5 的真实 Home 核对随干净重建取消（T-321 6529444914），见 §3.5 与 §6 D3。号段 RAC-990～999、BL-735～739；不占新的 S 号，扩 S-75。
 
 接 `specs/repository-anti-corruption/slices/ac-trust-install.md` §2 的 C1 与 RAC-383：T1 只落了一个方向（`host` 等级不得配沙箱定义）；另一个方向（非 `host` 等级不得在宿主进程里跑）和「映射不了沙箱形态的 Manifest 安装时拒绝」留给了 T2，即本条。
 

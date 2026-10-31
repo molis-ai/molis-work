@@ -176,7 +176,7 @@ test("RAC-1085 a sent refresh every caller cancelled still ends, keeps only the 
   } finally { net.releaseAll(); }
 });
 
-test("RAC-1085 a call that lost its authority while its refresh was out keeps nothing of the answer, even with another caller cancelled", { timeout: 30_000 }, async t => {
+test("RAC-1085 RAC-2420 a call that lost its authority while its refresh was out keeps nothing of the answer, even with another caller cancelled", { timeout: 30_000 }, async t => {
   for (const alongside of [false, true]) await t.test(alongside ? "with a cancelled caller" : "alone", async t => {
     const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
     const before = { stored: stored(), protocol: protocol() }, lost = call(), other = call();

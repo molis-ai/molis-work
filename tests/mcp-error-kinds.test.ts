@@ -18,7 +18,7 @@ const DECLARED: Readonly<Record<McpErrorReason, string>> = {
   unexpected_field: "invalid", startup_entry_missing: "unavailable", startup_failed: "unavailable",
   grant_invalid: "invalid", grant_scope: "invalid", grant_missing: "invalid", grant_requires: "invalid",
   context_host_missing: "invalid", runtime_identity_missing: "invalid",
-  context_changed: "conflict", context_refresh_required: "conflict", tool_disabled: "unavailable", connection_incomplete: "unavailable",
+  context_changed: "invalid", context_refresh_required: "conflict", tool_disabled: "unavailable", connection_incomplete: "unavailable",
   not_found: "not_found", path_required: "invalid", url_invalid: "invalid", runtime_decide_unsupported: "invalid",
 };
 const CALL_CONTEXT = { runtimeSessionId: null, runtimeSessionIdSource: null };
@@ -111,7 +111,7 @@ test("RAC-2713 the five codes whose kind changed carry it where the error leaves
   // not_found 404 fallback before) only where the JSON-RPC text carries no status at all. The abort reason used by
   // mcp-server.ts:47 is re-thrown unchanged by `throwIfAborted`, so its kind is the declared one too.
   const changed: [McpErrorReason, string, number][] = [
-    ["context_changed", "conflict", 409],
+    ["context_changed", "invalid", 400],
     ["context_refresh_required", "conflict", 409],
     ["tool_disabled", "unavailable", 503],
     ["connection_incomplete", "unavailable", 503],
@@ -126,7 +126,7 @@ test("RAC-2713 the five codes whose kind changed carry it where the error leaves
   }
   const controller = new AbortController();
   controller.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
-  assert.equal(kindOf(() => controller.signal.throwIfAborted()), "conflict", "the abort reason keeps its declared kind");
+  assert.equal(kindOf(() => controller.signal.throwIfAborted()), "invalid", "the abort reason keeps its declared kind");
   // Real throw sites for two more of the five: a known method the project turned off, and a runtime call with no project connection.
   const turnedOff = kindOfError(() => assertMcpToolAllowed(RUNTIME_STATE as never, "test.turned.off", CALL_CONTEXT,
     { entries: [], known_names: new Set(["test.turned.off"]), home_scoped_names: new Set() } as never));

@@ -1,3 +1,5 @@
+import type { HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
+import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
@@ -82,12 +84,14 @@ export class HomePluginHost {
     }
   }
   /**
-   * The plugins registered in the Home, as its pages and routes find them (#679, S-31): the start list's entries, then the Host's
-   * fixtures. A shipped plugin is keyed by its project key; any other by its plugin id, which has a dot where a project key has none.
+   * The plugins registered in the Home, as its pages and routes find them (#679, S-31): the start list's entries, the Host's
+   * fixtures, then the signed packages installed in the Home that draw a stage (BL-713). A shipped plugin is keyed by its project
+   * key; any other by its plugin id, which has a dot where a project key has none.
    */
   registered(): readonly { readonly key: string; readonly manifest: PluginManifest }[] {
     return [...this.options.entries.map(entry => ({ key: entry.key ?? entry.manifest.plugin_id, manifest: entry.manifest })),
-      ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => ({ key: entry.definition.manifest.plugin_id, manifest: entry.definition.manifest }))];
+      ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => ({ key: entry.definition.manifest.plugin_id, manifest: entry.definition.manifest })),
+      ...this.installed?.pages() ?? []];
   }
   /**
    * The registered Home plugins outside the start list that have no project half, by plugin id: personal plugins of every project
@@ -122,6 +126,31 @@ export class HomePluginHost {
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
+  /**
+   * The signed packages installed in the Home, as the tool bar offers them: those that run and those that were running and did not come
+   * back (their page says why), by name. A Home that did not start offers none.
+   */
+  async navigation(): Promise<HomePluginNavigationEntry[]> {
+    try { await this.ready(); }
+    catch { return []; /* A Home that did not start has no packages to offer. */ }
+    return (this.installed?.pages() ?? []).map(({ key, manifest }) => {
+      const icon = manifest.ui?.views?.find(view => view.slot === "stage")?.icon;
+      return { plugin_id: key, name: manifest.name, ...icon ? { icon } : {}, surface: this.packageSurface(key) ?? key };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  /**
+   * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the
+   * switcher and the tab strip find the plugin's name and icon by the stage's id as they do for every other Home plugin. None for what is not
+   * such a package, is not running, or did not come back.
+   */
+  packageSurface(pluginId: string): string | undefined {
+    return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
+  }
+  /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
+  packageDocument(pluginId: string, controlToken: string): string | undefined {
+    const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
+    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken }) : undefined;
+  }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }

@@ -291,7 +291,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-348 | docs/system 等七处小修：ARCHITECTURE／examples／GLOSSARY／roadmap 旧说法，PACKAGE-BOUNDARIES、ci.yml、PARALLEL-DEVELOPMENT 的“约 5 分钟”“每个同时只跑 2 个”“共享核心名单” | 丙 | B | 1.4 | — | `docs/system/*.md`、`specs/post-anticorruption-roadmap/spec.md`、`.github/workflows/ci.yml`（只注释） |
 | T-349 | 四处文档小修：功能盘点 :452、pg031 :29、清理报告“不回改本表”、CHECKLIST／spec N-05／BACKLOG 归属列 | 丙 | 池 | 1.9 | — | `docs/product-operations/research/2026-10-18-功能盘点.md`、`specs/repository-anti-corruption/slices/pg031-goals-imports.md`、`docs/reviews/cleanup-audit-2026-10-20.md` |
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
-| T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4；原二审线5交线4接资源增量 | #1661 @6af29cd30；资源增量二审6550284825通过，Verify绿，新CI四文件/SI核收中 | full=false；作者served48项/7468956B、预算171通过；旧59分源保留 | 原产品/测试及两资源门禁文件；只清旧许可和精确+146B |
+| T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4；原二审线5交线4接资源增量 | #1661 @6af29cd30；三阶段及准确Verify/SI/Product通过，6550413011/6550432616核收后已入队 | full=false；当前CI四完整59/59独立核原件，原Mac/DOM UNKNOWN保留；实际采用另结 | 原产品/测试及两资源门禁文件；只清旧许可和精确+146B |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
 | T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1，C开发线2 | A已合；B #1682 @81955aa93增量验证/二审沿用，待本头Full；C #1683待B | B旧Full失败保留；C等B后retarget与自身CI/Full | 新函数所在包、各就地截法文件 |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
@@ -308,7 +308,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | WAIT，不计待领 | 唯一测试被 #1101 锁；不碰保护分支 | `tests/project-rows-deletion.test.ts` |
 | T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | 已合 #1695 → `f640b5b0f`；patch-id同 | 同头审验/Verify/SI/Full全部通过 | 已释放；未接受queued观察窗P2仍在MISC |
 | T-367 | 连接事务失败后的真实secret清理与恢复证据（RAC-2758～2760） | 丙 | Codex 开发线4 | #1704已合3740f3510；patch-id同，审计6549697899 | full=false；自有树/本地分支已清，锁释放 | `tests/connector-connection-declarers.test.ts` |
-| T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 起草线原书；验证线3/二审线4；补证文档开发线1 | 原文档#1696已合；77f4fd17独立三完整23/23已返回并由根核原件 | 零skip/retry，二审核收及两文档状态补证待结；origins DOM/升级归T141 | 无源码修改；真签包/本机TLS临时凭据，真实Home/Keychain禁止；不结清整条PG046 |
+| T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 起草线原书；验证线3/二审线4；补证文档开发线1 | 原#1696已合；77头独立23/23及工程二审核收；两文档#1706@0b92852f4已开 | 两文档独立验证/二审通过，准确CI及采用待结；origins DOM/升级仍归T141 | 无源码修改；真签包/本机TLS临时凭据，真实Home/Keychain禁止；不结清整条PG046 |
 | T-368 | MCP无目录真实权限拒绝及精确raiser变异（RAC-2761～2763） | 丙 | Codex 二审线5临时开发；审验另人 | #1705已合df8de564f；patch-id同，审计6549770784 | full=false；自有树/本地分支已清，不扩签传输/handler | `tests/mcp-error-kinds.test.ts` |
 | T-369 | alias 等待中换连接的真实拒绝（RAC-2764～2766） | 丙 | Codex 待分配 | WAIT，不计待领 | 等 #1654/T-148 新 aliasTerminalSession 合同落 main 后重核 | 仅新增 `tests/mcp-connection-change-refusal.test.ts`；不改 #1654 生产文件 |
 | T-370 | W6-04可比度量方法与中间点（RAC-2767～2770） | 丙 | Codex 开发线3；验证线1/二审线1 | 修订2独立数据核收和二审通过；持久材料见evidence/T-370/ | 仅冻结B/M中间点，最终W6-04单头仍未完成 | 自有测量脚本/证据；共享spec根串行 |
@@ -352,7 +352,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | 连接器尾巴 T-119～T-122（BL-740、`integration-providers.ts`、FI-7b、BL-530 批 B；T-120 已合（#1670 → `3ff024329`，10-31 Codex 核 main 祖先；旧“没合入”已过时）——前置 T-064 已合入（a095d2115），统筹 10-31 07:15Z 派给 t227-ca（先出【方案】，RAC 从 2660 起）；T-121（FI-7b）统筹 10-31 08:00Z 派给 t112-ca，【方案】已批（6540998211：usages 走平台、update@2 删 @1、connector 类记 BL-917、POST 严格形状），开发中；T-122（BL-530 批 B）配置／队列已随 #1295 采用；本轮任务书已审定，可领核证／文档版，origins 实际设置预览归 T-141；T-119 统筹 10-30 06:20Z 派给 t247-ca，RAC-2466～2475；T-063 已合入，T-218 同时派给 t227-ca，RAC-2458～2465） | Claude（设备 A） | 同上 |
 | 零碎甲行 T-182（MISC:23 删项目留下空目录记录，统筹 10-30 派给 t280-ca，RAC-2453～2457）；T-123（#1544；MISC:10；T-036 已合入 main `1fb5cf413`，可开工；统筹 10-30 04:00Z 派给 t280-ca，RAC-2450～2452）、T-124（MISC:18，等 T-042）；只出方案 T-125（BL-802）、T-126（BL-636；用户 10-29 已裁 6485212213，按裁定「T-113 之后单独开」：#1536 已合（ea05b7690），统筹 10-30 08:10Z 派回 t-125-t-126 会话，开工前先按评审五线 6485394676 收敛 RAC-1722 与 view-registry 投影） | Claude（设备 A） | 同上；T-125、T-126 用户裁完才写代码 |
 | 双实例页面归属 T-127（改成「哪一半有舞台视图就由哪一半画」，先出【方案】，含半边停着时的判据） | Claude（设备 A） | `apps/local-host/src/home-plugin-http.ts`、`apps/local-host/src/project-plugin-stages.ts`，其余在【方案】里报 |
-| PG-011／017 余下几片（pg011-pg017-remaining 总表） | T-143（BL-491）统筹 10-31 08:00Z 派给 t-125-t-126，【方案】08:03Z 已批（6540977249：A/B/C 照推荐，派生名 32 位、无 .owner，沙箱不许首次钉住连接地址），开发中；T-141（BL-711）前置T-134/T-140/T-401/T-330已合；最小完整升级仍等#1672 registry锁，签名包执行归属另核，可先做全范围方案；T-144（BL-493，S-105）等 T-143；T-145（BL-710，S-106）等 T-141（T-134 已合）；T-149（BL-712）等 BL-377、BL-589 | Claude（设备 A） | 每片开工时在 #1332 的【方案】里报 |
+| PG-011／017 余下几片（pg011-pg017-remaining 总表） | T-143（BL-491）统筹 10-31 08:00Z 派给 t-125-t-126，【方案】08:03Z 已批（6540977249：A/B/C 照推荐，派生名 32 位、无 .owner，沙箱不许首次钉住连接地址），开发中；T-141（BL-711）前置T-134/T-140/T-401/T-330已合；最小完整升级仍等#1672 registry锁，签名包执行归属另核，可先做全范围方案；T-144（BL-493，S-105）等 T-143；T-145（BL-710，S-106）等 T-141（T-134 已合）；T-149（BL-712）不等BL-377重做；与BL-589共用签包，独立工程方案正补，等安装/SDK锁 | Claude（设备 A） | 每片开工时在 #1332 的【方案】里报 |
 
 ## 2026-10-31 16:40Z 接续
 
@@ -401,3 +401,5 @@ T249于22:44:37Z实际采用b0567bf54并核patch-id faceadfc433a2846136217a62df6
 2026-10-31 23:01Z接续：T351新6af29完成T249后的资源同步，根6550274251/6550284825核作者原件与指定增量二审，准确Verify已绿，验证线4继续核四完整业务文件及SI终态，不把旧59重记新头。T377本地61e4ba44的A+B及两个有效负例已由根/一审核，67/67与恢复9/9保作者来源；根6550267772按重复main Full故障人工条件裁full=true，资源顺序T351实际采用→T377→T208。T208资源后继明确交开发线2准备，原开发线4专注T377。
 
 T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔离系统Home/file/adhoc环境按三完整文件顺序执行，首败停后续；不改变生产代码、不将#1696文档采用写成Mac运行已过。T145工程准备交开发线3，T117/T149准备由起草线接续；各自WAIT仍在，不新增可选项凑READY。
+
+2026-10-31 23:18Z：T351已在队列position1，T122补证#1706已开且审验完成，均待实际采用。根接受[T117工程书](plans/T117/PLAN.md)及[独立审查](plans/T117/REVIEW.md)，执行归开发线2，保持WAIT完整T116 PR1/T402与最终锁。根接受[W4-01工程书](plans/W4-01/PLAN.md)的A/B/C修订及两冻结简报；项目签名升级已在main，不误等Home后继，真实模型执行/隔离配置仍WAIT，未生成或安装。

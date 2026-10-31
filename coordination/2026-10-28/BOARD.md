@@ -408,3 +408,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-10-31 23:33Z：T351实际采用a1117b3ba、整树与patch-id已核同，资源窗已交T377；原作者树清理委派被自动审批拒绝，已单独询问具体删除，未执行，不影响其余主线。T377最终95ea9f1f6已开#1707，精确+219B/171预算及原五blob沿用已核，最终九例独立验证与CI进行中，full=true。T122准确Verify绿后正常入队，未先扣实际采用。
 
 根接受[T145最终工程书](plans/T145/PLAN.md)及其[增量审查](plans/T145/REVIEW-INCREMENT.md)：现行schema版本1、真实项目入口接线、同账本批准集合，补齐两份安装列表输出合同；[accepted §8候选](plans/T145/accepted-section8.patch)未应用，仍WAIT T141/T143与共享锁。W6-03[六类静态路线报告](plans/W6-03/STATIC-WALK.md)已核，仅静态不签RAC11动态；两文档差异由T378候选审书，计已有W6范围。T149工程三项补充为实际effects调用者、发布CAS/持续授权/中断恢复和Home范围真实检查，原工程线修订中，无新产品取舍。
+
+2026-10-31 23:43Z：根全文核[T149/BL589修订工程书](plans/T149/ENGINEERING.md)与[三项增量复核](plans/T149/ENGINEERING-REVIEW-INCREMENT.md)后采纳为WAIT：删除真实workflow的effects重复算法；发布绑定scope/revision/持续authority并同CAS核资格、正常中断可重试；Home目标先进入真实检查/试用，不借项目旧绿。T141/T143采用与共享锁未释放，无新产品取舍/实施/运行结论。T122自建临时树与本地分支已正常清理，T351原作者树仍保持待具体确认。T377 Full41253219144已在跑；T116 PR1a当前冲突最小准备交开发线4只读，暂不写分支。

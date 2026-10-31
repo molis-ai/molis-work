@@ -1,0 +1,285 @@
+{
+  "method": "W6-04-v2",
+  "inputs": {
+    "baseline": "fccb2a3003de86af556f0030923f9e76ddf369c7",
+    "intermediate": "b9a9755786f3d29774bf706f1f68c3ce4bf8bfb8",
+    "typescript": "5.9.3",
+    "node": "v24.14.0",
+    "coordination": "cf2a623d6fad2b075f6af1b8c988e68f89a9b842",
+    "stage": "measurement-v2-revision-2"
+  },
+  "gitMode": "frozen objects, no checkout",
+  "typescript": "5.9.3",
+  "node": "v24.14.0",
+  "results": {
+    "B": {
+      "ref": "fccb2a3003de86af556f0030923f9e76ddf369c7",
+      "units": {
+        "files": 1827,
+        "fileOver800": 37,
+        "fileOver1000": 25,
+        "classes": 385,
+        "classOver300": 43,
+        "classOver25": 25,
+        "classUnion": 48,
+        "functions": 22294,
+        "functionOver150": 98,
+        "functionOver300": 22,
+        "auxOver150": 2,
+        "registration": {
+          "unregistered": 183
+        }
+      },
+      "boundaries": {
+        "internal": {
+          "occurrences": 1054,
+          "files": 361,
+          "byMode": {
+            "dist": 36,
+            "src": 1018
+          },
+          "byTarget": {
+            "apps/desktop": 6,
+            "apps/local-host": 747,
+            "apps/server": 3,
+            "apps/workbench": 87,
+            "horizontal/agent-host": 26,
+            "modules/artifacts": 1,
+            "modules/context-ledger": 1,
+            "modules/functions": 1,
+            "modules/private-work-context": 1,
+            "modules/shelf": 2,
+            "packages/contracts": 11,
+            "packages/design-system": 12,
+            "packages/im-ui": 4,
+            "packages/kernel": 4,
+            "packages/plugin-sandbox": 4,
+            "packages/plugin-sdk": 22,
+            "packages/storage": 1,
+            "plugins/native/alchemist": 5,
+            "plugins/native/artifacts": 4,
+            "plugins/native/characters": 1,
+            "plugins/native/coding": 4,
+            "plugins/native/cognia": 3,
+            "plugins/native/diff": 1,
+            "plugins/native/goals": 2,
+            "plugins/native/images": 4,
+            "plugins/native/inbox": 3,
+            "plugins/native/jelly": 8,
+            "plugins/native/lingguang": 1,
+            "plugins/native/pages": 24,
+            "plugins/native/plugin-builder": 37,
+            "plugins/native/shelf": 7,
+            "plugins/native/text-stats": 1,
+            "plugins/native/work": 2,
+            "plugins/official-integrations/catalog": 6,
+            "server": 8
+          },
+          "byType": {
+            "false": 1013,
+            "true": 41
+          }
+        },
+        "runtimeSplitProcesses": 198,
+        "cross": {
+          "occurrences": 7150,
+          "ownerEdges": 294,
+          "bySourceSet": {
+            "extra": 4,
+            "main": 7146
+          },
+          "upward": 8,
+          "pluginPeers": 0,
+          "core": 0,
+          "sameLayer": 72
+        }
+      },
+      "exports": {
+        "lines": 223,
+        "star": 12,
+        "explicitValue": 167,
+        "explicitType": 84,
+        "resolvedValue": 240,
+        "resolvedTypeOnly": 138
+      },
+      "contracts": {
+        "functionsWithBody": 379,
+        "classes": 14,
+        "namespaces": 0,
+        "enums": 0,
+        "callNewInitializers": 163,
+        "topLevelExecutable": 0,
+        "runtimeUniqueOrigins": 503,
+        "publicValueNames": 666
+      },
+      "pr": {
+        "n": 70,
+        "files": {
+          "n": 70,
+          "median": 6,
+          "p90": 98,
+          "max": 615
+        },
+        "packages": {
+          "n": 70,
+          "median": 1,
+          "p90": 15,
+          "max": 69
+        },
+        "earliest": "2026-09-28T21:30:35+08:00",
+        "latest": "2026-10-02T14:44:44+08:00",
+        "visited": 70,
+        "excluded": 0
+      },
+      "hotspots": {
+        "anyFixedCount": 30,
+        "denominator": 70
+      },
+      "unknowns": {
+        "parseDiagnostics": 0,
+        "unresolvedImports": 0,
+        "externalImports": 4371,
+        "nonliteralImports": 12
+      }
+    },
+    "M": {
+      "ref": "b9a9755786f3d29774bf706f1f68c3ce4bf8bfb8",
+      "units": {
+        "files": 3227,
+        "fileOver800": 5,
+        "fileOver1000": 4,
+        "classes": 350,
+        "classOver300": 10,
+        "classOver25": 9,
+        "classUnion": 13,
+        "functions": 35806,
+        "functionOver150": 22,
+        "functionOver300": 1,
+        "auxOver150": 0,
+        "registration": {
+          "registered": 38,
+          "unregistered": 2
+        }
+      },
+      "boundaries": {
+        "internal": {
+          "occurrences": 416,
+          "files": 205,
+          "byMode": {
+            "dist": 284,
+            "src": 132
+          },
+          "byTarget": {
+            "apps/desktop": 2,
+            "apps/local-host": 286,
+            "apps/server": 3,
+            "apps/workbench": 79,
+            "horizontal/agent-host": 14,
+            "modules/shelf": 1,
+            "packages/contracts": 3,
+            "packages/design-system": 3,
+            "packages/im-ui": 4,
+            "packages/kernel": 1,
+            "plugins/native/alchemist": 2,
+            "plugins/native/coding": 3,
+            "plugins/native/goals": 2,
+            "plugins/native/images": 1,
+            "plugins/native/inbox": 1,
+            "plugins/native/jelly": 1,
+            "plugins/native/lingguang": 1,
+            "plugins/native/pages": 6,
+            "plugins/native/plugin-builder": 2,
+            "server": 1
+          },
+          "byType": {
+            "false": 401,
+            "true": 15
+          }
+        },
+        "runtimeSplitProcesses": 0,
+        "cross": {
+          "occurrences": 14379,
+          "ownerEdges": 269,
+          "bySourceSet": {
+            "extra": 5,
+            "main": 14374
+          },
+          "upward": 35,
+          "pluginPeers": 0,
+          "core": 0,
+          "sameLayer": 92
+        }
+      },
+      "exports": {
+        "lines": 321,
+        "star": 8,
+        "explicitValue": 390,
+        "explicitType": 147,
+        "resolvedValue": 431,
+        "resolvedTypeOnly": 191
+      },
+      "contracts": {
+        "functionsWithBody": 341,
+        "classes": 3,
+        "namespaces": 0,
+        "enums": 0,
+        "callNewInitializers": 126,
+        "topLevelExecutable": 0,
+        "runtimeUniqueOrigins": 576,
+        "publicValueNames": 793
+      },
+      "pr": {
+        "n": 70,
+        "files": {
+          "n": 70,
+          "median": 4,
+          "p90": 19,
+          "max": 313
+        },
+        "packages": {
+          "n": 70,
+          "median": 1,
+          "p90": 3,
+          "max": 21
+        },
+        "earliest": "2026-10-30T18:30:18Z",
+        "latest": "2026-10-31T18:41:29Z",
+        "visited": 70,
+        "excluded": 0
+      },
+      "hotspots": {
+        "anyFixedCount": 7,
+        "denominator": 70
+      },
+      "unknowns": {
+        "parseDiagnostics": 0,
+        "unresolvedImports": 0,
+        "externalImports": 9108,
+        "nonliteralImports": 43
+      }
+    }
+  },
+  "adoption": {
+    "status": "frozen-intermediate-accepted-by-root-after-both-revision2-reviews",
+    "verification": "/private/tmp/w6-04-data-verify/REVISION2.md",
+    "secondReview": "/private/tmp/w6-04-data-second/REVISION2.md",
+    "rawResults": [
+      "/private/tmp/w6-04-measurement/revision-2/run-1",
+      "/private/tmp/w6-04-measurement/revision-2/run-2"
+    ],
+    "repetition": {
+      "jsonFiles": 21,
+      "byteIdentical": true
+    },
+    "finalEndpointSigned": false
+  },
+  "packagingValidation": {
+    "status": "passed",
+    "evidence": "/private/tmp/t370-persist/load-check.json",
+    "mainModuleLinked": true,
+    "mainEvaluated": false,
+    "fullMeasurementRun": false,
+    "executableBytesUnchanged": true,
+    "localDependencyLinkRemovedAfterCheck": true
+  }
+}

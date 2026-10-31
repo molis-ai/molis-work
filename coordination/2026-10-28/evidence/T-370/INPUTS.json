@@ -1,0 +1,8 @@
+{
+  "baseline": "fccb2a3003de86af556f0030923f9e76ddf369c7",
+  "intermediate": "b9a9755786f3d29774bf706f1f68c3ce4bf8bfb8",
+  "typescript": "5.9.3",
+  "node": "v24.14.0",
+  "coordination": "cf2a623d6fad2b075f6af1b8c988e68f89a9b842",
+  "stage": "measurement-v2-revision-2"
+}

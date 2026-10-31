@@ -165,7 +165,7 @@
 
 | T-366 一审建议（#1695，6546934234） | `tests/alchemist-terminal-refresh.e2e.test.ts:190–201` | 未接受旧queued任务的有界观察窗后，再断言同一job的accepted仍false与continue入口仍在；当前生产只重排读取、未新增accept/continue，不挡本单。并入下次改此回归文件的书 | Codex 统筹 |
 | T-319 增量二审建议（#1662，6546161968） | `apps/local-host/src/home-aggregate.ts` | 目录查询与后续项目阶段均失败时保留两阶段诊断，并补双重失败用例；当前仍有错误可见，不挡本单；#1662 已合入 `45be6f2e1`；已进T-373 #1700，由开发线1交审验；关闭项目的静默规则保留 | Codex 统筹 |
-| T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确；#1693已合 `dc75e22bb`；已进T-375，两个生产负例及holder独立值投影已写书，待领 | Codex 统筹 |
+| T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确；#1693已合 `dc75e22bb`；已进T-375 #1701 @7e5a140cc；两个真实生产负例和holder值投影已实现，独立审验中 | Codex 统筹 |
 
 | T-347 Full 与 main 夜间重复失败（T-366已合；#1665 6545882401） | `plugins/native/alchemist/src/client.ts` 及定向浏览器回归 | 缺模型终态刷新修复已随T-366 #1695 → `f640b5b0f`采用，因果变异/恢复及同头Full通过；T-347已同步并补封条结构P1，剩最终头CI/Full，不第三次盲重跑，不回滚T-347安全语义；RAC-2752～2757 | Codex 开发线 2 |
 
@@ -174,4 +174,10 @@
 | T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374，待领；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |
 
 | T-347 修复二审后续 | `deleteSecretEntriesWithPrefix` | 本单获批之外的前缀删除入口仍未校验留存坏条目；若要统一坏条目保证，另定删除/恢复合同。与结构合法认证失败延期同属后续，不扩大当前T-347。 | Codex 统筹 |
-| W6-03静态走查两处文档矛盾 | ARCHITECTURE §5、PLUGIN-PLATFORM W2-09 | 已进T-376：Artifacts平台事实归属、显式consumes跨插件动作消费；只改两处文案，不签W6-03/RAC-11动态验收。 | Codex 统筹 |
+| W6-03静态走查两处文档矛盾 | ARCHITECTURE §5、PLUGIN-PLATFORM W2-09 | 已进T-376 #1702 @7a1f75b4c，独立审验中：Artifacts平台事实归属、显式consumes跨插件动作消费；只改两处文案，不签W6-03/RAC-11动态验收。 | Codex 统筹 |
+
+## 2026-10-31 21:00Z 主线差集核收
+
+- T370修订2：type-only误算运行时值、SDK self误算对外引用及root/other分组已修；原两条独立线核收通过。只采用冻结B/M中间点，原失败与上升数字保留；持久材料由根串行收录，最终单头W6-04仍待。
+- W5-16：可独立派发B2b补实现差集0；完整restore及共享发布/回滚/续写缺口仍在，等Memory恢复资格/合法空态合同，不另造CLI恢复器。静态差集核对不是当前头动态或真实Home验收。
+- T146旧测试末尾空白P2非阻塞，按6548918185保留事实，不为其换已排CI头；视觉与旧浏览器UNKNOWN未结。

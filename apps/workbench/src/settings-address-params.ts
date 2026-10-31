@@ -12,7 +12,7 @@
  */
 
 /** The query selectors every settings page of a kind is rendered with; a page's own entries add what it also reads. */
-export const SETTINGS_ADDRESS_DEFAULTS = { global: "project desktop", project: "desktop", plugin: "project desktop" } as const;
+export const SETTINGS_ADDRESS_DEFAULTS = { global: "project desktop", project: "desktop" } as const;
 
 /** Global settings pages that read more than the defaults, by the section the workbench opens (`settings-sections.ts`). */
 export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
@@ -37,9 +37,14 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
 };
 
 /** Project settings pages that read more than the defaults, by the section the workbench opens. */
-export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = { guidance: "draft", planning: "project" };
+export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = { planning: "project" };
 
-/** The fragments settings pages read today, by section; any other fragment is dropped. */
+/**
+ * The fragments settings pages read today, by section; any other fragment is dropped. `prompts` also reads `#diagnostics`
+ * (`settings-prompts.ts`), but today the only sender is the diagnostics page's own link inside the settings shell, where the
+ * address is not filtered; a page handing `/settings/prompts#diagnostics` over would lose it. Not declared: the answer only
+ * admits the three places, and a page link to it is not a thing that exists.
+ */
 export const SETTINGS_ADDRESS_HASHES: Readonly<Record<string, string>> = { diagnostics: "#agent-diagnostics", assistant: "#contributions" };
 
 /** The projects page reads the picked project's id from the fragment (`#<project_id>`); it is a field, not one more fragment name. */

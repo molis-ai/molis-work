@@ -417,6 +417,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       return;
     }
+    // A link clicked outside the settings shell is treated like a page address too: its address is filtered before opening, so a
+    // link that is not in the shell cannot carry parameters or fragments the target page does not read.
     const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     if (openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
       event.preventDefault();

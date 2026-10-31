@@ -517,6 +517,16 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
   // A plugin section may be named like an Object property: only the table's own keys count, so it gets the plugin defaults and no hash.
   assert.equal(openSettingsAddress("/settings/constructor?project=p1&desktop=1&function=not-declared#frag", ["constructor"]),
     "/settings/constructor?project=p1&desktop=1", "a plugin section named constructor keeps project and desktop, drops an undeclared parameter and the fragment");
+  // Projects reads the picked project's id from the fragment; only a project-id-shaped value is kept, and the page's own project
+  // parameter stays while an undeclared one does not.
+  assert.equal(openSettingsAddress("/settings/projects?project=p1&x=1#p1.2_x~y-3"),
+    "/settings/projects?project=p1#p1.2_x~y-3", "the projects page keeps the picked project's id in the fragment and drops x");
+  for (const bad of ["#.hidden", "#bad id", "#a/b", "#%2e", `#${"x".repeat(201)}`]) {
+    assert.equal(openSettingsAddress(`/settings/projects?project=p1${bad}`), "/settings/projects?project=p1",
+      `the projects page drops a fragment that is not a project id: ${bad.slice(0, 20)}`);
+  }
+  assert.equal(openSettingsAddress("/settings/assistant#contributions"),
+    "/settings/assistant#contributions", "the assistant page keeps its declared contributions fragment");
 });
 
 test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {

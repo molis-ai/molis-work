@@ -54,22 +54,35 @@ const pages: Record<string, Draw> = {
   ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, () => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section, section)])),
 };
 
-// A page is 0.1 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is its SHA-256 and length, not the text. A
-// mismatch writes what was drawn to the temp directory; the recorded text comes from running this file with MOLIS_WORK_GOLDEN_RECORD=1
-// on the commit before the change (adding MOLIS_WORK_GOLDEN_DUMP=1 writes every page to the temp directory for a diff). Build the whole
-// workspace first: a page carries every plugin's client scripts and dictionaries, so a stale dist records a page nobody is served.
+// A page is 0.4 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is a SHA-256 and a length, not the text, and of
+// the markup only: the scripts, the styles and the icon sprite in a page are other owners' bytes (each plugin's client script and
+// dictionary, the shell's sheets and icons), they change with those owners and are held by the page-assets budget. A mismatch writes what
+// was drawn to the temp directory; the recorded hashes come from running this file with MOLIS_WORK_GOLDEN_RECORD=1 on the commit before
+// the change. MOLIS_WORK_GOLDEN_DUMP=1 writes every whole page (scripts and styles included) to the temp directory, in either mode, so a
+// change that must not alter a byte is proved by a diff of the two directories against a baseline built from a clean checkout. Build the
+// whole workspace first: a stale dist draws a page nobody is served.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));
 // Drawn from the clock: a new method's id.
 const settled = (html: string): string => html.replace(/custom-method-[0-9a-z]+/g, "custom-method-ID");
+const markup = (html: string): string => html
+  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "<script></script>")
+  .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, "<style></style>")
+  .replace(/<svg class="icon-sprite"[^>]*>[\s\S]*?<\/svg>/, '<svg class="icon-sprite"></svg>');
 const drawn: Record<string, string> = {};
 
 for (const locale of ["zh", "en"] as const) for (const [name, draw] of Object.entries(pages)) {
-  test(`RAC-2680: Goals ${name} in ${locale} is the recorded page, byte for byte`, () => {
-    const html = settled(runWithLocale(locale, draw));
+  test(`RAC-2680: Goals ${name} in ${locale} is the recorded markup, byte for byte`, () => {
+    const whole = settled(runWithLocale(locale, draw));
+    const html = markup(whole);
     const key = `${name}.${locale}`;
-    drawn[key] = html;
+    drawn[key] = whole;
+    if (process.env.MOLIS_WORK_GOLDEN_DUMP === "1") {
+      const dumped = join(tmpdir(), record ? "goals-golden-recorded" : "goals-golden-drawn");
+      mkdirSync(dumped, { recursive: true });
+      writeFileSync(join(dumped, `${key}.html`), whole);
+    }
     const actual: Recorded = { sha256: createHash("sha256").update(html).digest("hex"), length: html.length };
     if (record) { recorded[key] = actual; return; }
     if (actual.sha256 !== recorded[key]?.sha256) {
@@ -91,9 +104,4 @@ test("RAC-2680: the recorded pages differ by locale and name the Goals the view 
 
 test("RAC-2680: recording writes the hashes", { skip: !record }, () => {
   writeFileSync(RECORDED, `${JSON.stringify(Object.fromEntries(Object.entries(recorded).sort(([a], [b]) => a.localeCompare(b))), null, 1)}\n`);
-  if (process.env.MOLIS_WORK_GOLDEN_DUMP === "1") {
-    const out = join(tmpdir(), "goals-golden-recorded");
-    mkdirSync(out, { recursive: true });
-    for (const [key, html] of Object.entries(drawn)) writeFileSync(join(out, `${key}.html`), html);
-  }
 });

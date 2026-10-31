@@ -75,7 +75,7 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 ## UI
 
 - `ui.contributions`：contribution id 列表。
-- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（Host 图标名）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
+- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（限平台图标集，集合外的名字 Manifest 读取即被拒）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
 - **槽（合同五选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）、`side` 侧栏里的一个标签（见 [ui.md](ui.md#侧栏标签side)）。不要发明第六个。
 - 没有 `ui.commands`：界面命令没有一处调用，已取消（BL-363），Manifest 写了会被拒。
 - 贡献 descriptor 的 HTML Slot：`workbench.directory` / `workbench.main` / `workbench.overlay` / `workbench.settings` / `workbench.side`。`settings-page` 只能挂 settings。

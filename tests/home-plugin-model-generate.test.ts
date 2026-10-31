@@ -79,18 +79,49 @@ test("RAC-2614 a package installed in the Home asks the model by the name it alw
   assert.match(h.systems[0]!, /Summarize the notes\./, "with the instruction the package registered under the Home");
 });
 
-test("RAC-2610 the Home's instance is not offered by its own id, to an operation of a package of the Home or of a project; the model is not reached", mac, async t => {
+/** What a plugin sees of the platform's model entries in a directory: the Home's (no project) or a project's. */
+async function modelEntries(h: Awaited<ReturnType<typeof modelHome>>, scope: "home" | "project") {
+  const caller: ActionCallContext = { actor_id: "plugin:probe", audience: "plugin", project_id: scope === "project" ? h.project.project_id : null, permissions: [] };
+  const views = await h.home.host.inspectActions(caller, scope === "project" ? h.project.reference : undefined);
+  return views.filter(view => view.capability_id === "model.generate" || view.capability_id === "model.generate.home")
+    .map(view => ({ id: view.capability_id, provider: view.provider.provider_id, available: view.availability.available, code: view.availability.available ? undefined : view.availability.code }));
+}
+
+test("RAC-2610 a project caller cannot reach the Home's instance: the action service refuses it by scope, the project's directory lists only the project's own, and a project package that names the Home's id is refused with the model not asked", mac, async t => {
   const h = await modelHome(t);
   await h.install();
   await h.ask("summary");
   const before = h.systems.length;
+  // The Home's entry is in every project's directory (an entry without a project is), and it answers only the Home's own callers.
+  assert.deepEqual((await modelEntries(h, "project")).sort((a, b) => a.id.localeCompare(b.id)), [
+    { id: "model.generate", provider: "plugin-platform", available: true, code: undefined },
+    { id: "model.generate.home", provider: "plugin-platform.home", available: false, code: "actions.scope_mismatch" }]);
+  // The project's catalog, which a package's operations are checked against, does not list the Home's entry under any name.
   const unavailable = /这项功能依赖的能力当前不可用：model\.generate\.home/;
-  // An operation that depends on the id the instance is registered under: the Home's catalog gives the instance the name packages use.
-  await h.install("io.molis.work.example.homebound", "home", ["model.generate.home"]);
-  await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.homebound"), unavailable, "a package of the Home names the id the instance is registered under");
   await h.install("io.molis.work.example.projectbound", "project", ["model.generate.home"]);
-  await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.projectbound"), unavailable, "a package of a project names the Home's instance");
+  await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.projectbound"), unavailable, "a package of a project names the Home's id");
   assert.equal(h.systems.length, before, "nothing was sent to the model");
+});
+
+test("RAC-2610 the Home's instance has no project half: a Home package that names the Home's id is refused, and the Home's directory holds the Home's entry alone", mac, async t => {
+  const h = await modelHome(t);
+  await h.install();
+  await h.ask("summary");
+  const before = h.systems.length;
+  assert.deepEqual(await modelEntries(h, "home"), [{ id: "model.generate.home", provider: "plugin-platform.home", available: true, code: undefined }],
+    "the Home's directory has the Home's entry and not the project's");
+  // The package calls the name it always used; the Home's catalog gives it the Home's instance under that name and under no other.
+  await h.install("io.molis.work.example.homebound", "home", ["model.generate.home"]);
+  await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.homebound"), /这项功能依赖的能力当前不可用：model\.generate\.home/, "a package of the Home names the id the instance is registered under");
+  assert.equal(h.systems.length, before, "nothing was sent to the model");
+});
+
+test("RAC-2610 a package installed in a project asks the project's instance: the model is asked once, with the instruction the package registered in the project", mac, async t => {
+  const h = await modelHome(t);
+  const pluginId = await h.install("io.molis.work.example.projectasks", "project", undefined, [{ id: "summary", body: "PROJECT_SUMMARY" }]);
+  assert.equal(await h.ask("summary", undefined, pluginId), "GENERATED");
+  assert.equal(h.systems.length, 1, "one request reached the model");
+  assert.match(h.systems[0]!, /PROJECT_SUMMARY/, "with the project's registration");
 });
 
 test("RAC-2611 each installation asks with the instructions it registered itself: a sibling's same-named instruction is the sibling's text, and one only the sibling registered is refused", mac, async t => {

@@ -118,7 +118,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       return { kind: 'installed', registration: generatedRegistration(installed, [installed], 'enabled', installedVersion(installed)) };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(home)[0] ?? null; } });
-  const disposePlatform = registerPlatformCapabilities(actions, { generate });
+  let disposePlatform = () => {};
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   // Only the Home's own actions are in this catalog: the caller has no project, so an action of a project is not offered to it.
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
@@ -160,6 +160,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
 
   try {
+    // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).
+    disposePlatform = registerPlatformCapabilities(actions, { generate });
     // One package that cannot start leaves its reason with its installation and starts nothing else less: the built-in plugins and the other packages go on.
     for (const record of records()) {
       try {

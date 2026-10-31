@@ -6,7 +6,7 @@
  *
  * This layer adds stand-ins for checks and trials and consent text; execution policy belongs to each provider.
  */
-import type { ActionCallContext, ActionClient, ActionExecutionPolicy, ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema, ActionView } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { ActionAvailability, ActionCallContext, ActionClient, ActionExecutionPolicy, ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema, ActionView } from '@molis-ai/molis-work-contracts/platform/actions';
 import { actionEffect } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
@@ -23,8 +23,10 @@ export const PLATFORM_PROVIDER_ID = 'plugin-platform';
 export const HOME_PLATFORM_PROVIDER_ID = 'plugin-platform.home';
 /**
  * The id plugins call the model by, and the one the Home's instance is registered under. The registry holds one entry per id and version
- * (a project's entries and an entry without a project cannot share them), so the Home's instance has an id of its own; the Home's catalog
- * shows it to plugins under the name they call (`CatalogCapability.registered_id`), so a package never knows there are two.
+ * (a project's entries and an entry without a project cannot share them), so the Home's instance has an id of its own. The registry and
+ * the action directory show it by that id. The Home instance's own catalog (`capabilityCatalog` with no project) gives it to the packages
+ * installed there under the name they call (`CatalogCapability.registered_id`), so a package never knows there are two; a project's
+ * catalog does not list it at all, and its action answers only a caller that has no project.
  */
 export const MODEL_GENERATE_ID = 'model.generate';
 export const HOME_MODEL_GENERATE_ID = 'model.generate.home';
@@ -70,7 +72,10 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
   const definitions = [define('read', 'concurrent')];
   const handlers: ActionHandlerBinding[] = [
     { capability_id: registeredId, version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
-      () => context.beforeEffect(), { project_id: context.project_id, plugin_install_id: context.plugin_install_id }) },
+      () => context.beforeEffect(), { project_id: context.project_id, plugin_install_id: context.plugin_install_id }),
+      // Visible to every project's callers (an entry without a project is), answered only for the Home's own: a project's package asks the project's.
+      ...home ? { availability: (context: ActionCallContext): ActionAvailability => context.project_id === null ? { available: true }
+        : { available: false, code: 'actions.scope_mismatch', reason: '个人空间的模型入口只对装在个人空间里的插件开放' } } : {} },
   ];
   return actions.registry.registerProvider({ provider: { provider_id: providerId, title: home ? '插件平台（个人空间）' : '插件平台', kind: 'system', ...(home ? {} : { project_id: actions.project_id! }) }, definitions, handlers });
 }
@@ -85,10 +90,12 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
   // unavailable says why for real: its plugin is not enabled here, or it only answers its own installation.
   const list = async (audience: 'plugin' | 'agent') => { const first = await ask(audience, []), needed = [...new Set(first.flatMap(view => view.action.permissions))];
     return needed.length ? ask(audience, needed) : first; };
-  const [offered, agents] = await Promise.all([list('plugin'), list('agent')]), key = (view: ActionView) => view.capability_id + '@' + view.version + '@' + view.provider.provider_id;
+  // An entry without a project is in every project's directory: the Home instance's model entry is not a project's to be offered.
+  const here = (views: ActionView[]) => actions.project_id === null ? views : views.filter(view => view.provider.provider_id !== HOME_PLATFORM_PROVIDER_ID);
+  const [offered, agents] = await Promise.all([list('plugin').then(here), list('agent').then(here)]), key = (view: ActionView) => view.capability_id + '@' + view.version + '@' + view.provider.provider_id;
   const offeredKeys = new Set(offered.map(key));
   const entry = (view: ActionView, reachable: boolean): CatalogCapability => {
-    const platform = isPlatformProvider(view.provider.provider_id), calledAs = platform && view.capability_id === HOME_MODEL_GENERATE_ID ? MODEL_GENERATE_ID : view.capability_id;
+    const platform = isPlatformProvider(view.provider.provider_id), calledAs = actions.project_id === null && platform && view.capability_id === HOME_MODEL_GENERATE_ID ? MODEL_GENERATE_ID : view.capability_id;
     const effect = actionEffect(view.action, calledAs), known = studioCapability(calledAs);
     // Enabling its plugin is the person's choice and the studio asks for it. Any other refusal (an action that only
     // answers its own installation, say) stands: the board does not offer what would fail when called.

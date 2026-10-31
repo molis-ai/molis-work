@@ -414,20 +414,38 @@ test("RAC-2724: a prompt over twice the limit is refused by unit count, without 
   // The port's own promptTooLong has the same fast path: a prompt whose UTF-16 length already exceeds twice the limit cannot be within
   // the limit in characters either, so it is refused on the unit count without spreading the whole string into code points.
   const f = await configuredAi(t);
-  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => textInference(async input => ({ state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 },
-    value: '{"reply":"ok"}', configuredModel: input.model, reportedModels: [], usage: [] })) });
+  let inferenceCalls = 0;
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => textInference(async input => {
+    inferenceCalls += 1;
+    return { state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, value: '{"reply":"ok"}', configuredModel: input.model, reportedModels: [], usage: [] };
+  }) });
   const schema = { type: "object", properties: { reply: { type: "string" } } };
   const prefix = alchemistPromptText("检查长度", schema, "").length;
   const userPrompt = "😀".repeat(ALCHEMIST_PROMPT_MAX_CHARS + 10);
   const prompt = alchemistPromptText("检查长度", schema, userPrompt);
   assert.ok(prompt.length > 2 * ALCHEMIST_PROMPT_MAX_CHARS, "the test input is over twice the limit in UTF-16 units");
-  await assert.rejects(port.generate({ operationId: "over-twice", purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt, jsonSchema: schema }),
-    (error: unknown) => {
-      assert.equal((error as { code?: string }).code, "alchemist.prompt_too_long");
-      assert.equal((error as { kind?: string }).kind, "invalid");
-      assert.match((error as Error).message, /至少多 \d+ 个 UTF-16 单元/u, "the fast path says it is at least the unit excess over the limit, without counting characters");
-      return true;
-    });
+  // The fast path must not build a code-point array of the huge string. The observer replaces the string iterator with a counter: spreading
+  // the prompt (what the slow path does) must be counted (a positive control for the observer), and the production call must count zero.
+  const iterator = String.prototype[Symbol.iterator];
+  let observed = 0;
+  const counting = function* counting(this: string) { for (let index = 0; index < this.length; index += 1) { observed += 1; yield this[index]!; } };
+  Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, writable: true, value: counting });
+  try {
+    assert.equal([...prompt].length, prompt.length, "the observer's expansion gives the same characters as before");
+    assert.ok(observed > 0, "the observer counts the expansion the slow path would do (positive control)");
+    observed = 0;
+    await assert.rejects(port.generate({ operationId: "over-twice", purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt, jsonSchema: schema }),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, "alchemist.prompt_too_long");
+        assert.equal((error as { kind?: string }).kind, "invalid");
+        assert.match((error as Error).message, /至少多 \d+ 个 UTF-16 单元/u, "the fast path says it is at least the unit excess over the limit, without counting characters");
+        return true;
+      });
+    assert.equal(observed, 0, "the fast path expands no character of the over-twice prompt");
+    assert.equal(inferenceCalls, 0, "the refused prompt never reaches the model");
+  } finally {
+    Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, writable: true, value: iterator });
+  }
   assert.ok(prompt.length > prefix, "the prefix is part of the prompt");
 });
 

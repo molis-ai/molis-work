@@ -24,6 +24,8 @@ export interface SandboxManifestInput {
    * writes it; the studio's own plugins are always a project's. Whether the Home takes it is the install's to decide (S-80), not the form's.
    */
   runtime?: PluginManifest['runtime'];
+  /** The icon of the plugin's page in the navigation, a name of the platform's icon set (the Manifest reader refuses any other); absent means the Host's default. */
+  icon?: string;
   /** Validated contract effects; only the supported project-id lookup derives an additional optional Manifest permission. */
   effects?: Pick<SandboxEffects, 'projects'>;
 }
@@ -41,7 +43,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId }] },
+    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
   };
 }
 

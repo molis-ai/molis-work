@@ -317,7 +317,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-373 | 首页聚合双阶段code-only诊断（RAC-2779～2782；full=true） | 乙 | Codex 开发线1；一审线3/验证线3/二审线4 | #1700 @ba1a7aaed；三阶段/Verify/两片SI通过，已ready；待Full | T319已合；旧作者与新独立closing变异分源 | `apps/local-host/src/home-aggregate.ts`、`tests/home-aggregate.test.ts` |
 | T-374 | 真实Host事项经项目Catalog的listed/bare回归（RAC-2783～2786） | 丙 | Codex 开发线1 | #1703已合973063c79；patch-id同，审计6549696515 | full=false；自有树/本地分支已清，锁释放 | 仅 `tests/home-event-actions.test.ts` |
 | T-377 | 主区失败重试身份与加载时序加急（RAC-2794～2797） | 乙 | Codex 开发线4；一审线1/验证线5/二审线5 | #1707 @95ea9f1f6；五blob保持原61e4，正常合main及+219B资源二审6550601434通过 | full=true；最终H独立9/9及Verify已通过，6550653477已排Full；SI/Product终态待核，旧67/A-B保原来源 | 原三生产/两测试及精确资源窗口；T208等本单实际采用；无公共helper改动 |
-| T-378 | W6-03历史扩展步骤与本次Full授权两文档澄清（RAC-2798～2799） | 甲 | Codex 开发线3；验证线1；二审线4 | 已审书并派实施，先本地diff/静态核验 | full=false；原通用Full规则不改，W6动态/RAC11不签完成 | EXTENSION-POINTS §3.1；PARALLEL本次覆盖说明/短引用；根显式分段交接，保留#1654 §3.5和#1673长段 |
+| T-378 | W6-03历史扩展步骤与本次Full授权两文档澄清（RAC-2798～2799） | 甲 | Codex 开发线3；验证线1；二审线4 | #1708 @adf31b2a2；两文档独立验证6550755974/二审6550756558通过，CI待结 | full=false；原通用Full规则不改，W6动态/RAC11不签完成 | EXTENSION-POINTS §3.1；PARALLEL本次覆盖说明/短引用；根显式分段交接，保留#1654 §3.5和#1673长段 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
@@ -410,3 +410,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 根接受[T145最终工程书](plans/T145/PLAN.md)及其[增量审查](plans/T145/REVIEW-INCREMENT.md)：现行schema版本1、真实项目入口接线、同账本批准集合，补齐两份安装列表输出合同；[accepted §8候选](plans/T145/accepted-section8.patch)未应用，仍WAIT T141/T143与共享锁。W6-03[六类静态路线报告](plans/W6-03/STATIC-WALK.md)已核，仅静态不签RAC11动态；两文档差异由T378候选审书，计已有W6范围。T149工程三项补充为实际effects调用者、发布CAS/持续授权/中断恢复和Home范围真实检查，原工程线修订中，无新产品取舍。
 
 2026-10-31 23:43Z：根全文核[T149/BL589修订工程书](plans/T149/ENGINEERING.md)与[三项增量复核](plans/T149/ENGINEERING-REVIEW-INCREMENT.md)后采纳为WAIT：删除真实workflow的effects重复算法；发布绑定scope/revision/持续authority并同CAS核资格、正常中断可重试；Home目标先进入真实检查/试用，不借项目旧绿。T141/T143采用与共享锁未释放，无新产品取舍/实施/运行结论。T122自建临时树与本地分支已正常清理，T351原作者树仍保持待具体确认。T377 Full41253219144已在跑；T116 PR1a当前冲突最小准备交开发线4只读，暂不写分支。
+
+2026-10-31 23:50Z：T378准确adf31b2a2仅两文档已普通推送并开#1708，根核独立验证/二审、health与secrets原件后发审验记录，full=false，未提前计采用。T116 [当前同步准备](plans/T116-current-sync/PLAN.md)已核：两文本冲突、必填promptRoute及主线金样漂移；保留原H/B独立金样与挂载负例，等T377实际采用后冻结最终M交唯一writer。T362冲突准备交开发线1只读。T067/068独立评审指出MCP声明来源/产品客户端接缝，根裁定保持当前外部包不收带数据MCP的准入并补完整来源检查，起草线修订中；无新实现/信任开放。

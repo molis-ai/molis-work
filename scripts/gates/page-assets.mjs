@@ -249,6 +249,11 @@ const APPROVED_CEILINGS = {
   // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
   // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
   "/assets/molis-work-plugins/coding.js": [289876, 290029],
+  // T-204: whole-character Pages excerpts and export names, +80 B / +198 B; approved by 6542200551.
+  // Tried inline regexes: +64 B / +450 B; the shared local helper saves 252 B in the editor.
+  // Recomputed after main sync: preserve the current merge-base and freeze each at its measured size.
+  "/assets/molis-work-plugins/pages.js": [38946, 39026],
+  "/assets/molis-work-pages-editor.js": [707886, 708084],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

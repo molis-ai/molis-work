@@ -25,8 +25,13 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
   };
   const render = () => {
     const node = root.querySelector('[data-home-offers]'), state = currentState(); if (!node || !state) return;
-    if (!state.offers.length && !state.issues.length && !state.loading && !state.busy && !state.pending && !state.error && !state.result) { node.replaceChildren(); rendered.delete(node); return; }
     const recommended = current()?.suggested_behavior_ids || [];
+    // R-65: without an automatic judgment result the panel says what automatic judgment can see; a result shows itself by its offers.
+    const hint = recommended.length ? '' : '<p class="home-offers-note">' + L('自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断') + '</p>';
+    if (!state.offers.length && !state.issues.length && !state.loading && !state.busy && !state.pending && !state.error && !state.result) {
+      if (hint) { node.innerHTML = hint; rendered.set(node, { html: hint, key: state.key }); } else { node.replaceChildren(); rendered.delete(node); }
+      return;
+    }
     const offers = state.offers.map((offer, index) => ({ offer, index })).sort((a,b) => Number(recommended.includes(b.offer.recommendation_key)) - Number(recommended.includes(a.offer.recommendation_key)));
     const html = '<div class="home-offers-controls">' + offers.map(({offer,index}) => {
       return '<button type="button" class="mw-btn mw-btn--secondary" data-home-offer="' + index + '"' + (state.busy || state.loading || state.pending || !offer.availability.available ? ' disabled' : '') + '>' + esc(offer.title) + '</button>';
@@ -37,7 +42,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       [...state.issues, ...state.offers.filter(o => !o.availability.available).map(o => o.title + '：' + o.availability.reason)].map(message => '<p class="home-offers-note">' + esc(message) + '</p>').join('') +
       (state.error ? '<p role="alert">' + esc(typeof state.error==='string'?state.error:molisWorkRequest.text(state.error)) + '</p>' : '') +
       (state.result ? '<details class="home-offers-result"><summary>' + esc(state.result.title) + ' · ' + L('查看结果') + '</summary><pre>' + esc(JSON.stringify(state.result.result, null, 2)) + '</pre></details>' : '') +
-      (!state.busy && (state.error || state.pending || state.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + L('重新读取事项') + '</button>' : '');
+      (!state.busy && (state.error || state.pending || state.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + L('重新读取事项') + '</button>' : '') + hint;
     if (rendered.get(node)?.html !== html || rendered.get(node)?.key !== state.key) {
       const keepResultOpen = rendered.get(node)?.key === state.key && node.querySelector('.home-offers-result')?.open;
       node.innerHTML = html; rendered.set(node, { html, key: state.key });

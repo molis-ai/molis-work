@@ -24,7 +24,9 @@ const PANE_PART = String.raw`  const L = host.translate;
   const panes = host.paneMessages;
   const post=(path,body,signal,page)=>molisWorkRequest(host.route(path),{body,signal,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
-  const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
+  // Cut to at most n UTF-16 units (the Host counts units too) without ending on half of a two-unit character; inside the limit as it is.
+  const cutWhole = (s, n) => s.length <= n ? s : s.slice(0, n).replace(/[\ud800-\udbff]$/u, "");
+  const quoted = (focus) => cutWhole(focus.targets.map((target) => target.text).join("\n\n"), 20000);
   // What is in hand, for the Assistant's strip: the passage and the object it is from, never words written for the person.
   const inHand = (focus) => ({ new: true, source: { surface: focus.plugin_id, title: focus.object.title || "" }, object: focus.object,
     materials: [{ title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
@@ -76,7 +78,7 @@ const PANE_PART = String.raw`  const L = host.translate;
         if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
         const level = Number(heading.tagName.slice(1));
         while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
-        stack.push({ level, text: heading.textContent.trim().slice(0, 120) });
+        stack.push({ level, text: cutWhole(heading.textContent.trim(), 120) });
       });
       return stack.map((item) => item.text).filter(Boolean).slice(-6);
     };
@@ -99,7 +101,7 @@ const PANE_PART = String.raw`  const L = host.translate;
       const parts = sel.toString().split(/\n+/).map((part) => part.trim()).filter(Boolean);
       if (!parts.length) return null;
       const role = roleOf(sel.anchorNode);
-      const clip = (text) => text.length > 2000 ? { text: text.slice(0, 2000), truncated: true } : { text };
+      const clip = (text) => text.length > 2000 ? { text: cutWhole(text, 2000), truncated: true } : { text };
       const scale = parts.length > 1 ? "blocks" : isWord(parts[0]) ? "word" : "range";
       const targets = parts.slice(0, 8).map((part) => ({ kind: "text_range", role: parts.length > 1 ? "paragraph" : role, ...clip(part) }));
       const heading_path = headingPath(root, sel.getRangeAt(0).startContainer);

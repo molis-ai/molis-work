@@ -148,3 +148,39 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     assert.equal(await evaluate("Object.keys(sessionStorage).some(key=>key.startsWith('molis.home-action:'))"), false);
   } finally { releaseOffers(); await runtime.stop(installed.install_id); }
 });
+
+test("RAC-2439: the Home next-step panel explains automatic judgment when it has no result", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
+  assert.ok(localHost); assert.ok(projectId);
+  const feed = createLocalFeedApplication(store.db);
+  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "rac-2439" }).source;
+  const item = feed.ingestItem({ source, externalId: "rac-2439-item", title: "没有自动判断结果的材料", summary: "首页下一步的空状态", body: "检查自动判断的说明", occurredAt: new Date().toISOString(), attention: false }).item;
+  await feed.flushPendingJudgments();
+  const row = `[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`;
+  const chinese = "自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断";
+  const english = "Automatic judgment only considers the actions Feed has been granted; grant more in permissions or judge manually if you need them.";
+  const panel = () => evaluate<string>("document.querySelector('[data-home-offers]')?.textContent || ''");
+  const openEvent = async () => {
+    await waitFor(`!!document.querySelector(${JSON.stringify(row)})`, 12000);
+    await click(row);
+    await waitFor("!!document.querySelector('[data-home-offer]')", 12000);
+  };
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await openEvent();
+  assert.ok((await panel()).includes(chinese), "without an automatic judgment result the panel says what automatic judgment sees");
+  await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
+  await reloadPage();
+  await openEvent();
+  assert.ok((await panel()).includes(english), "the same sentence is shown in English");
+  assert.equal((await panel()).includes(chinese), false, "the Chinese sentence is translated on the English page");
+  // A result: the events response carries a suggestion for the Feed event, so the panel has an automatic judgment result.
+  const suggestion = "offer." + "0".repeat(58);
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: "(function(){var previous=window.fetch;window.fetch=async function(url,options){var response=await previous(url,options);if(!String(url).endsWith('/api/home/events'))return response;var data=await response.clone().json();data.events=(data.events||[]).map(function(event){return Object.assign({},event,{suggested_behavior_ids:event.subject&&event.subject.kind==='feed_item'?['" + suggestion + "']:event.suggested_behavior_ids})});return new Response(JSON.stringify(data),{status:response.status,headers:new Headers(response.headers)})}})()" }, sessionId);
+  await reloadPage();
+  await openEvent();
+  assert.equal((await panel()).includes(english), false, "with an automatic judgment result the panel does not show the sentence");
+  assert.equal((await panel()).includes(chinese), false);
+  assert.equal(await evaluate("document.querySelectorAll('[data-home-offer]').length > 0"), true, "the result's offers are still listed");
+});

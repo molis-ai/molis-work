@@ -73,6 +73,10 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
     ["GET", "/goals/goal%201/artifact-inputs", "goals.artifact-inputs-read", goal],
     ["POST", "/goals/goal%201/artifact-inputs", "goals.artifact-inputs-write", goal],
     ["POST", "/goals/goal%201/inputs", "goals.inputs", goal],
+    ["GET", "/goals/goal%201/terminals", "goals.terminal-list", goal],
+    ["POST", "/goals/goal%201/terminals", "goals.terminal-open", goal],
+    ["DELETE", "/goals/goal%201/terminals/k-1", "goals.terminal-close", { ...goal, key: "k-1" }],
+    ["GET", "/goals/goal%201/advance-prompt", "goals.advance-prompt", goal],
   ];
   assert.equal(cases.length, goalsManifest.routes?.length);
   for (const [method, rest, route_id, params] of cases) {

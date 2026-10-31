@@ -137,6 +137,14 @@ P1～P3 在闸没开时不改任何外部可见的行为，可以先做；P4 单
 | RAC-971 | 清理：不保留数据的卸载后，私有存储、批准记录、提示词登记都没有；保留数据的卸载后私有存储在、重装找回同一个安装 ID；发布者固定与保留的包文件不受卸载影响。同上 |
 | RAC-972 | 删项目对 Home 包无副作用：Home 包的数据与实例不因删项目而变，别的项目仍然可达。同上 |
 | RAC-973 | 项目侧行为不变：P1 的收窄不改变项目里已装沙箱包的任何既有断言（`installed-plugin-*`、`plugin-sandbox*`、`security-invariants-plugin-install*`、`plugin-runtime*` 等原样过）。 |
+| RAC-2600 | 设置页的已安装视图（BL-715，T-138）：`installedPluginViews` 给每行必有的 `recovery_error`，条目带恢复错误时就是它，不带时为 `null`，其余字段不变。`tests/plugin-trust-view.test.ts` |
+| RAC-2601 | 个人空间列表带恢复错误：运行中的 Home 包 `recovery_error` 为 `null`；删掉它保存的包再开宿主，仍被列出、`state` 照旧、`recovery_error` 含「找不到已安装的插件包」。`tests/home-plugin-settings.test.ts` |
+| RAC-2602 | 个人空间列表先对账撤销：撤销发布者后，只读个人空间列表就看到包是 `disabled`；经个人空间入口启用被 `plugin.publisher_revoked` 拒，保留数据卸载成功。`tests/home-plugin-settings.test.ts` |
+| RAC-2603 | 个人空间入口的停用、启用、卸载三个动作只给本人，要宿主设置入口的第三份凭据：别的受众、别的入口的凭据文字、手写同文、代人调用、项目内调用都被拒，输入里写 `project_id`、`user_action`、`actor_id` 被 schema 拒，都没走到 `homeControl`（S-94）。`tests/security-invariants-plugin-permissions.test.ts` |
+| RAC-2604 | 三条 HTTP 路径 `/api/settings/plugin-permissions/{disable,enable,uninstall}`：没有令牌、别的来源、GET、插件页面都被拒，体里多写身份是 `actions.input_invalid`；对不是装进来的包（宿主随带的）是 `plugin.state_invalid` 且仍在运行；项目入口也够不着（S-94）。`tests/security-invariants-plugin-permissions-http.test.ts` |
+| RAC-2605 | 经个人空间入口停用、启用、卸载一个 Home 包：停用后各项目看不到它的动作，启用后回来，删数据卸载后列表没有它、`hasPackage` 为假、私有数据没了；此前经项目入口停用被 `plugin.state_invalid` 拒、它仍在运行。`tests/home-plugin-settings.test.ts` |
+| RAC-2606 | 页面脚本：Home 行用 `installed(plugin, homeSend, revoked, homeAct)`，`homeAct` 发往 `/api/settings/plugin-permissions/` 加步骤名；项目行的按钮仍默认发往项目路由；恢复错误与撤销提示用 `el(…)` 画，脚本里没有 `innerHTML`。`tests/security-invariants-plugin-permissions-http.test.ts` |
+| RAC-2607 | 项目列表带恢复错误：项目里的签名包删掉保存的包再开宿主，`plugins.installed.list@3` 仍列出它、`recovery_error` 非空，正常运行的为 `null`。`tests/home-plugin-settings.test.ts` |
 
 ## 6. 裁定（2026-10-26：D1 经用户弹窗确认，D2～D8 统筹按推荐采纳；D6 的 S-80 行写「用户 2026-10-26 弹窗决定」）
 

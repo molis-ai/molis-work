@@ -170,6 +170,11 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
 
   return {
     lifecycle, recordFor, releaseFor, records, recoveryErrors, close,
+    /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
+    packageOf: (pluginId: string): InstalledRelease | undefined => {
+      const record = recordFor(pluginId);
+      return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
+    },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
     installPackage: (release: InstalledRelease, input: { consent: true }) => {
       assertHomePackageAllowed(release.packaged!.manifest);

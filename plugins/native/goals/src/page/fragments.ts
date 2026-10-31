@@ -5,10 +5,10 @@ interface FragmentView<TItem extends GoalsFragmentItem> extends GoalsPageCollect
   route_prefix: string;
 }
 export interface GoalsFragmentRenderers<TItem extends GoalsFragmentItem, TView extends FragmentView<TItem>> {
-  document(item: TItem, view: TView): string;
-  trash(item: TItem): string;
-  momentum(view: TView, goalId: string, items: readonly TItem[]): string;
-  prefixLinks(html: string, routePrefix: string): string;
+  document: (item: TItem, view: TView) => string;
+  trash: (item: TItem) => string;
+  momentum: (view: TView, goalId: string, items: readonly TItem[]) => string;
+  prefixLinks: (html: string, routePrefix: string) => string;
 }
 
 /** Compose owner output; no templates, event ledger algorithm, HTTP or permission decisions. */

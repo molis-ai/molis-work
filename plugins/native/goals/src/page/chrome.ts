@@ -2,9 +2,9 @@ import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** What the Goal chrome writes with: the page's words, its escaping and its icons. */
 export interface GoalChromePrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
-  escapeHtml(value: unknown): string;
-  icon(name: PluginIconName): string;
+  L: (text: string, values?: Record<string, string | number>) => string;
+  escapeHtml: (value: unknown) => string;
+  icon: (name: PluginIconName) => string;
 }
 
 export function renderImmersiveGoalHeader(title: string, primitives: GoalChromePrimitives): string {

@@ -17,8 +17,8 @@ export interface GoalsTerminalPaneModel {
   selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
-  text(value: string, vars?: Record<string, string | number>): string;
-  icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
+  text: (value: string, vars?: Record<string, string | number>) => string;
+  icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
 
 /** Mounts one surface of a registered contribution where the contribution declares it, and returns what it draws. */
@@ -29,22 +29,25 @@ export type MountSurface = (contributionId: string, surface: string, model: unkn
  * contribution is mounted, and the four things the shell or another plugin draws (an Artifacts reference, the kinds the page's
  * plugins can make new, the terminal pane, the design system's hint). `TView` is the page view the workbench holds; Goals reads
  * the part of it that `GoalsPageView` names and hands the rest back untouched.
+ *
+ * Every port is a property with a function type, never a method: a method's parameters are checked both ways, so a port whose model gains
+ * a required field on the shell's side would still compile here with the field left out; a property's are checked one way, so it does not.
  */
 export interface GoalsPagePorts<TView> {
   mount: MountSurface;
   L: GoalsTranslate;
   /** The words of Goals itself (its Manifest dictionary), for what Goals draws. */
   goalsL: GoalsTranslate;
-  currentLocale(): "zh" | "en";
-  listJoin(values: readonly string[]): string;
-  formatDate(value: string | null | undefined): string;
-  renderList(values: string[], empty: string): string;
-  prefixLocalLinks(html: string, routePrefix: string, desktopShell?: boolean): string;
+  currentLocale: () => "zh" | "en";
+  listJoin: (values: readonly string[]) => string;
+  formatDate: (value: string | null | undefined) => string;
+  renderList: (values: string[], empty: string) => string;
+  prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
   /** An Artifacts reference, as a chip. */
-  renderReference(value: string, label?: string): string;
+  renderReference: (value: string, label?: string) => string;
   /** The kinds a Goal's inputs offer to make new, from the plugins the page shows. */
-  creatableKinds(view: TView): readonly GoalInputsCreatableKind[];
-  inPluginWords<T>(pluginId: string, run: () => T): T;
-  renderTerminalPane(model: GoalsTerminalPaneModel): string;
-  renderHint(options: GoalsHintOptions): string;
+  creatableKinds: (view: TView) => readonly GoalInputsCreatableKind[];
+  inPluginWords: <T>(pluginId: string, run: () => T) => T;
+  renderTerminalPane: (model: GoalsTerminalPaneModel) => string;
+  renderHint: (options: GoalsHintOptions) => string;
 }

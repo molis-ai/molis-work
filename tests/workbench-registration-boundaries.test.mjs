@@ -11,12 +11,13 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("DD2 UI guard rejects restored root implementations, bypassed mounts and legacy client handlers", () => {
-  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "plugins/native/goals/src/page/factories.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
+  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "plugins/native/goals/src/page/factories.ts", "plugins/native/goals/src/page/surfaces.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
     .map(file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8")
       + (file === "apps/workbench/src/index.ts" ? readFileSync(new URL("../apps/workbench/src/ui-composition.ts", import.meta.url), "utf8") : ""));
-  sources.splice(3, 0, "");
   sources.push(readFileSync(new URL("../apps/workbench/src/plugin-workbench.ts", import.meta.url), "utf8"));
   sources.push(builtinCatalogText(root));
+  const pageDirectory = new URL("../plugins/native/goals/src/page/", import.meta.url);
+  sources.push(readdirSync(pageDirectory).filter(name => name.endsWith(".ts")).map(name => readFileSync(new URL(name, pageDirectory), "utf8")).join("\n"));
   assert.deepEqual(checkProposalUiOwnership(...sources), []);
   for (const name of ["renderGoalTreeProposalDecision", "renderContractProposal", "recentDecisionResults"]) {
     const changed = [...sources]; changed[0] += `\nfunction ${name}(view) { return oldRenderer(view); }`;
@@ -28,6 +29,15 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   assert.match(checkProposalUiOwnership(...bypassed).join("\n"), /must mount/);
   const legacy = [...sources]; legacy[4] += '\nconst goalTreeDecisionForm = form.closest("[data-goal-tree-decision-form]");';
   assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals client factory/);
+  // The chain from the Goals page to the registered contribution is pinned at each link (T-116 review): swapping any one is refused.
+  const otherMount = [...sources]; otherMount[0] = otherMount[0].replace("mount: renderWorkbenchContribution", "mount: mountSomethingElse");
+  assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /created with mount: renderWorkbenchContribution/);
+  const notDeclared = [...sources]; notDeclared[1] = notDeclared[1].replace("workbenchUiHost.mountDeclared(", "workbenchUiHost.render(");
+  assert.match(checkProposalUiOwnership(...notDeclared).join("\n"), /workbenchUiHost\.mountDeclared/);
+  const ownMount = [...sources]; ownMount[3] = ownMount[3].replace("return mount(contributionId, surface, model)", "return ownMount(contributionId, surface, model)");
+  assert.match(checkProposalUiOwnership(...ownMount).join("\n"), /mounted with the mount the shell gave it/);
+  const redrawn = [...sources]; redrawn[7] += "\nfunction renderContractProposal(view) { return oldRenderer(view); }";
+  assert.match(checkProposalUiOwnership(...redrawn).join("\n"), /plugins\/native\/goals\/src\/page: DD2 renderContractProposal/);
 });
 
 test("Workbench registration guard follows the pack registry and rejects broken wiring", () => {

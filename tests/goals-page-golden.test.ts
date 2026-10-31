@@ -55,8 +55,10 @@ const pages: Record<string, Draw> = {
 };
 
 // A page is 0.4 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is a SHA-256 and a length, not the text, and of
-// the markup only: the scripts, the styles and the icon sprite in a page are other owners' bytes (each plugin's client script and
-// dictionary, the shell's sheets and icons), they change with those owners and are held by the page-assets budget. A mismatch writes what
+// the page without what other owners wrote into it: the executable scripts (each plugin's client script and dictionary), the styles, the
+// icon sprite and the plugin directory (`data-plugin-directory`) are the shell's and the plugins' bytes, they change with those owners and
+// are held by the page-assets budget. What Goals itself puts into the page IS in the hash, JSON data included: the `molis-work-data` block
+// the page's scripts read (about 57 KB a page) and `data-project-guidance-json`. A mismatch writes what
 // was drawn to the temp directory; the recorded hashes come from running this file with MOLIS_WORK_GOLDEN_RECORD=1 on the commit before
 // the change. MOLIS_WORK_GOLDEN_DUMP=1 writes every whole page (scripts and styles included) to the temp directory, in either mode, so a
 // change that must not alter a byte is proved by a diff of the two directories against a baseline built from a clean checkout. Build the
@@ -66,8 +68,9 @@ interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));
 // Drawn from the clock: a new method's id.
 const settled = (html: string): string => html.replace(/custom-method-[0-9a-z]+/g, "custom-method-ID");
+const dataBlock = /type="application\/json"/;
 const markup = (html: string): string => html
-  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "<script></script>")
+  .replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g, (script, attributes: string) => dataBlock.test(attributes) && !attributes.includes("data-plugin-directory") ? script : "<script></script>")
   .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, "<style></style>")
   .replace(/<svg class="icon-sprite"[^>]*>[\s\S]*?<\/svg>/, '<svg class="icon-sprite"></svg>');
 const drawn: Record<string, string> = {};

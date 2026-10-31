@@ -42,9 +42,9 @@ export async function renderGoalsPageRequest<TView extends GoalsPageCollections>
 
 /** Host supplies owner renderers; this composition has no Store, HTML templates or HTTP objects. */
 export interface GoalsReadRenderers {
-  refresh(goalId: string | undefined, collection: GoalDocumentCollection): string;
-  momentum(goalId: string, collection: "current" | "archive"): string | null;
-  document(goalId: string, collection: GoalDocumentCollection): string | null;
+  refresh: (goalId: string | undefined, collection: GoalDocumentCollection) => string;
+  momentum: (goalId: string, collection: "current" | "archive") => string | null;
+  document: (goalId: string, collection: GoalDocumentCollection) => string | null;
 }
 export function renderGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsReadRenderers): { status: 200; html: string } | { status: 404; error: string } {
   let html: string | null;

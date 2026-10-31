@@ -4,8 +4,8 @@ import { goalsPlanningRouteOf, selectGoalsPlanningPageMethod, type GoalsPlanning
 
 export interface GoalsPlanningPageOwners {
   methods: readonly PlanningMethodPack[];
-  library(): string;
-  method(value: PlanningMethodPack | null, mode: "detail" | "edit" | "new"): string;
+  library: () => string;
+  method: (value: PlanningMethodPack | null, mode: "detail" | "edit" | "new") => string;
 }
 
 /** The Host could not read the methods the page needs; the person is told, and the page is not drawn. */

@@ -11,11 +11,11 @@ interface ProjectGuidanceView { entries: readonly GuidanceEntry[]; inactive_entr
 
 /** The project's guidance page: what is in force by kind, what was switched off, and every revision. */
 export function createProjectGuidanceDocumentRenderer(ports: {
-  L(text: string, values?: Record<string, string | number>): string;
-  escapeHtml(value: unknown): string;
-  formatDate(value: string | null | undefined): string;
-  icon(name: PluginIconName): string;
-  renderHint(options: GoalsHintOptions): string;
+  L: (text: string, values?: Record<string, string | number>) => string;
+  escapeHtml: (value: unknown) => string;
+  formatDate: (value: string | null | undefined) => string;
+  icon: (name: PluginIconName) => string;
+  renderHint: (options: GoalsHintOptions) => string;
 }) {
   const { L, escapeHtml, formatDate, icon, renderHint } = ports;
 

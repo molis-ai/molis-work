@@ -1,7 +1,7 @@
 import type { MountSurface } from "./ports.js";
 
 /** What a surface receives: its own name as `kind`, the arguments the caller passed and the primitives the page supplies. */
-interface SurfaceCallModel<TPrimitives> {
+export interface SurfaceCallModel<TPrimitives = unknown> {
   readonly kind: string;
   readonly args: readonly unknown[];
   readonly primitives: TPrimitives;
@@ -11,7 +11,7 @@ type SurfaceMethod = (...args: never[]) => string;
 
 /**
  * One contribution's declared surfaces as a renderer with one method per surface: each method mounts its surface where the
- * contribution declares it (the same call the shell's `createSurfaceRenderers` made before Goals drew its own page).
+ * contribution declares it. The one builder of this kind: the UiHost has none (T-116).
  */
 export function surfaceRenderers<TRenderer extends Record<keyof TRenderer, SurfaceMethod>, TPrimitives>(
   mount: MountSurface, contributionId: string, surfaces: { readonly [K in keyof TRenderer]: string },

@@ -60,14 +60,18 @@ test("RAC-2479: a Gmail connection of the dedicated flow's shape is reauth_requi
   assert.equal(f.everything(), before, "reading it changes nothing, and does not fall into the token branch");
 });
 
-test("RAC-2479: only the non-protocol shape is marked: a token connection, and a GitHub connection until its own slice, are read as before", async t => {
+test("RAC-2479: only the non-protocol shape is marked: a pasted token connection is read as before, whichever service it is for", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-oauth-nonprotocol-")); t.after(() => rmSync(home, { recursive: true, force: true }));
   silent(t);
   const token = withConnectorConnections(home, store => store.createToken({ serviceId: "gmail", displayName: "Gmail token", token: "pasted-token", authMethod: "token" }));
-  const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-access", authMethod: "oauth" }));
+  const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-access", authMethod: "token" }));
   assert.deepEqual(listConnectorConnectionViews(home).map(view => view.state), ["connected", "connected"]);
   assert.equal((await resolveApiConnection(home, token.connection_id, connectorControl(), "gmail")).token, "pasted-token");
   assert.equal((await resolveApiConnection(home, github.connection_id, connectorControl(), "github")).token, "github-access");
+  // GitHub's device authorization was the last dedicated flow (W5-11 slice 8): its connection has the shape marked too, with no exception left.
+  const device = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub device", token: "device-access", authMethod: "oauth" }));
+  assert.equal(listConnectorConnectionViews(home, "github").find(view => (view as { connection_id: string }).connection_id === device.connection_id)?.state, "reauth_required");
+  assert.equal(await resolveApiConnection(home, device.connection_id, connectorControl(), "github", "if_available"), null);
 });
 
 test("RAC-2480: reconnecting a non-protocol Gmail connection ends with \"add a new connection\" and writes only the consumed state, whatever account comes back", async t => {

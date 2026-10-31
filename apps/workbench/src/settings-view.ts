@@ -89,6 +89,5 @@ export interface ConnectorSettingsCardView {
   readonly method_options?: readonly ConnectorMethodOption[];
   /** The plugin that declared the card (its id and the name its Manifest gives it); null when the platform declares the service. */
   readonly declared_by?: { readonly plugin_id: string; readonly title: string } | null;
-  github_client_id_configured?: boolean;
 }
 

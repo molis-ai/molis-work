@@ -59,7 +59,8 @@ test("nothing is bound: the pulse sends no credential, whatever GitHub accounts 
 test("a bound account lends its token to api.github.com and to nothing else, and a renewed, replaced or disconnected token applies to the next request", async t => {
   const directory = await home();
   const first = connect(directory, "first", "first-token");
-  const second = connect(directory, "second", "second-token", "oauth");
+  // A GitHub connection of the old device flow (a token under `auth_method: "oauth"`) needs reauthorizing since W5-11 slice 8, so it lends nothing.
+  const second = connect(directory, "second", "second-token");
   const sent = recordNetwork(t);
   const port = alchemistPulseGithub(directory);
 

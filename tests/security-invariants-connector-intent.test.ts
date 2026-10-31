@@ -167,18 +167,17 @@ test("S-37 ASC-34: malformed held credentials are rejected before any completion
 
 test("S-37 ASC-34: a held GitHub device result stays private until the same session retains it", async t => {
   const home = await openTestHome(t), request = await prepare(home, "github", "oauth");
-  const realFetch = globalThis.fetch; let polls = 0;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+  let polls = 0;
+  oauthNetwork(t, async url => {
     if (url === "https://github.com/login/device/code") return Response.json({ device_code: "fixture-device-private", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
     if (url === "https://github.com/login/oauth/access_token") { polls++; return Response.json({ access_token: "fixture-held-device-access" }); }
-    if (url === "https://api.github.com/user") return Response.json({ id: 12, login: "device-account" });
-    return realFetch(input, init);
+    assert.equal(url, "https://api.github.com/user");
+    return Response.json({ id: 12, login: "device-account" });
   });
-  const start = await home.web.post<{ state: string }>("/api/settings/connectors/github/device/start", { client_id: "fixture-app", display_name: "Intent account", setup_id: request.authorization_id });
+  const start = await home.web.post<{ state: string }>("/api/settings/connectors/methods/device/start", { service_id: "github", client_id: "fixture-app", display_name: "Intent account", setup_id: request.authorization_id });
   hold(home.home, "keep-device");
   const now = Date.now(); t.mock.method(Date, "now", () => now + 6_000);
-  const result = await home.web.post<{ status: string; awaiting_intent: boolean }>("/api/settings/connectors/github/device/poll", { state: start.state });
+  const result = await home.web.post<{ status: string; awaiting_intent: boolean }>("/api/settings/connectors/methods/device/poll", { state: start.state });
   assert.equal(result.awaiting_intent, true); assert.equal(polls, 1);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
   assert.equal((await read(home, request.authorization_id)).completion_ready, true);

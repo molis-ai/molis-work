@@ -444,7 +444,7 @@ test("Connectors settings page is a Host global section, not a plugin settings-p
       connector_id: "github",
       title: "GitHub",
       availability: "live",
-      auth_kind: "github",
+      auth_kind: "oauth",
       group_id: "code",
       summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
       outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",

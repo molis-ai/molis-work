@@ -10,7 +10,7 @@ const SERVICE_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const INTEGRATION_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const DOCUMENT_SOURCE = /^[a-z][a-z0-9-]{0,63}$/u;
 const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm", "social"]);
-const AUTH_KINDS = new Set(["github", "gmail", "notion", "feishu", "token", "none"]);
+const AUTH_KINDS = new Set(["oauth", "feishu", "token", "none"]);
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
 const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins"]);
@@ -96,8 +96,10 @@ function methodProblems(id: string, auth: unknown): string[] {
       problems.push(`连接服务 ${id} 的接入方式 kind 必须是 oauth、cli、token、mcp 之一`);
       continue;
     }
-    if (kinds.has(method.kind)) { problems.push(`连接服务 ${id} 的接入方式重复：${method.kind}`); continue; }
-    kinds.add(method.kind);
+    // An `oauth` method is one per grant (the web flow and the device grant side by side); every other kind is once.
+    const slot = method.kind === "oauth" ? `oauth:${method.grant === "device" ? "device" : "authorization_code"}` : method.kind;
+    if (kinds.has(slot)) { problems.push(`连接服务 ${id} 的接入方式重复：${slot === "oauth:device" ? "oauth（device）" : method.kind}`); continue; }
+    kinds.add(slot);
     if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method)); continue; }
     if (method.kind !== "token") {
       if (Object.keys(method).length !== 1) problems.push(`连接服务 ${id} 的 ${method.kind} 接入方式现在只写 kind，数据仍在平台的表里`);

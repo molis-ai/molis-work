@@ -34,6 +34,17 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await evaluate("document.querySelector(" + JSON.stringify(toggle) + ")?.click()");
   assert.equal(await evaluate(dom(toggle) + ".getAttribute('aria-expanded')"), "true");
 
+  // BL-121 ③ (T-337): compact density keeps the subgoal indent. The page body is body.immersive-workbench[data-board-view], so
+  // goal-canvas.ts sets this list's indent to 0; the compact rule must still win (0,4,2 against 0,4,1) without the doubled class.
+  const compactIndent = await evaluate<{ margin: string; padding: string }>(`(() => {
+    document.documentElement.dataset.density = "compact";
+    const nest = document.querySelector('[data-goal-stage-list] [data-tree-item][data-goal-id="V1"] > .tree-children');
+    const style = nest ? getComputedStyle(nest) : null;
+    return { margin: style?.marginLeft ?? "", padding: style?.paddingLeft ?? "" };
+  })()`);
+  assert.deepEqual(compactIndent, { margin: "8px", padding: "4px" }, "compact density keeps the subgoal indent (BL-121 3 / T-337)");
+  await evaluate("delete document.documentElement.dataset.density");
+
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "f", code: "KeyF", modifiers: 4, windowsVirtualKeyCode: 70 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "f", code: "KeyF", modifiers: 4, windowsVirtualKeyCode: 70 }, sessionId);
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");

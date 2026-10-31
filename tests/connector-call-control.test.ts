@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
-import { createPluginPlatform, homeIntegrationRegistry, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { completeApiOAuth, connectorProtocolSecrets, createPluginPlatform, homeIntegrationRegistry, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ConnectorPullReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createFileSecretStore, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 // FI-C-01/02, S-97: actual Runtime -> sourcePull -> default registry -> SDK -> production Gmail -> controlled HTTP.
 // Only HTTP responses wait here. No port, provider, token resolver or owner is replaced.
@@ -130,24 +131,32 @@ test("S-97 FI-C-01/02: a Gmail binding ABA stops the old HTTP continuation and l
   assert.equal((await f.pull()).result.ok, true, "a new pull can use the newly bound A");
 });
 
-test("S-97 FI-C-02: a cancelled connection-scoped Gmail refresh cannot persist any returned tokens", { timeout: 60_000 }, async t => {
+// Gmail signs in through the generic OAuth flow since W5-11 slice 6: a refresh whose call the platform withdrew (an abort that is not a
+// cancellation) keeps nothing of the answer; one every caller cancelled keeps only the rotated credentials (RAC-1085, S-95).
+test("S-97 FI-C-02: a withdrawn connection-scoped Gmail refresh cannot persist any returned tokens", { timeout: 60_000 }, async t => {
   const gate = barrier(), requests: string[] = [];
   const f = await gmailRuntime(t, async input => {
     const url = new URL(String(input)); requests.push(url.host + url.pathname);
-    if (url.pathname === "/token") { await gate.hold(); return Response.json({ access_token: "returned-access", refresh_token: "returned-refresh", expires_in: 3600 }); }
     return url.pathname.endsWith("/profile") ? profile() : emptyList();
   });
-  const id = randomUUID(), prefix = `connector-connection:${id}`, refs = { access: `${prefix}:access`, refresh: `${prefix}:refresh`, expires: `${prefix}:expires_at` };
-  const secrets = createFileSecretStore(), values = { [refs.access]: `expired-${randomUUID()}`, [refs.refresh]: `refresh-${randomUUID()}`, [refs.expires]: new Date(0).toISOString() };
-  for (const [ref, value] of Object.entries(values)) secrets.put(ref, value);
-  secrets.put(`${refs.access}:client`, JSON.stringify({ clientId: "fixture-client", clientSecret: randomUUID() }));
-  const account = withConnectorConnections(f.home, store => store.upsertOAuth({ connectionId: id, serviceId: "gmail", displayName: "Fixture OAuth", accessRef: refs.access, refreshRef: refs.refresh, expiresRef: refs.expires }));
-  f.bind(account.connection_id);
+  const origin = "http://127.0.0.1:19358";
+  const started = await startApiOAuth(f.home, { serviceId: "gmail", displayName: "Fixture OAuth", clientId: "fixture-client", clientSecret: randomUUID(), origin });
+  await completeApiOAuth(f.home, { origin, callback: `${origin}/api/feed/connectors/gmail/oauth/callback`, state: new URL(started.authorization_url).searchParams.get("state")!, code: "code" }, (async (url: unknown) => String(url).includes("userinfo")
+    ? Response.json({ sub: "sub-1", email: "account@example.test" }) : Response.json({ access_token: `access-${randomUUID()}`, refresh_token: `refresh-${randomUUID()}`, expires_in: 3600 })) as typeof fetch);
+  const id = started.connection_id, secrets = connectorProtocolSecrets(f.home, id);
+  secrets.put("expires", String(Date.now() - 60_000));
+  const keys = ["access", "oauth", "expires", "client"], values = Object.fromEntries(keys.map(key => [key, secrets.get(key)]));
+  f.bind(id);
+  oauthNetwork(t, async url => {
+    requests.push(new URL(url).host + new URL(url).pathname);
+    await gate.hold();
+    return Response.json({ access_token: "returned-access", refresh_token: "returned-refresh", expires_in: 3600 });
+  });
   const abort = new AbortController(), old = f.pull("source-a", abort.signal), rejection = assert.rejects(old, refused);
   try { await gate.reached; abort.abort(new Error("call withdrawn")); } finally { gate.release(); }
   await rejection;
   await f.settled();
-  assert.deepEqual(Object.fromEntries(Object.keys(values).map(ref => [ref, secrets.get(ref)])), values);
+  assert.deepEqual(Object.fromEntries(keys.map(key => [key, secrets.get(key)])), values);
   assert.deepEqual(requests, ["oauth2.googleapis.com/token"]);
   assert.equal(f.delivered(), 0);
 });

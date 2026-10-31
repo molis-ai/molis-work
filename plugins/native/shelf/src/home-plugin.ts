@@ -106,7 +106,15 @@ export function createHomeShelfPlugin(): PluginDefinition {
         await caller.beforeEffect();
         const runtime = (await store().snapshot()).runtime;
         if (!runtime.executable || !context.services?.terminal) throw new ActionError("actions.unavailable", "未发现终端 Agent。");
-        return context.services.terminal.open({ key: "conversation", command: runtime.executable, title: runtime.title });
+        const terminal = context.services.terminal, command = runtime.executable;
+        const open = () => terminal.open({ key: "conversation", program: { command }, title: runtime.title, directory: { root: "owner_files" } });
+        // The conversation keeps the Agent it was started with; after the person picked another one, the ended conversation is closed and started anew.
+        const { panelId } = await open().catch(async (error: unknown) => {
+          if (!(error instanceof ActionError) || error.code !== "actions.conflict") throw error;
+          await terminal.close({ key: "conversation" });
+          return open();
+        });
+        return { panelId };
       } },
       { ...shelfReceiveCopy, async handle(caller, input) {
         const preview = input as ShelfArtifactPreview;

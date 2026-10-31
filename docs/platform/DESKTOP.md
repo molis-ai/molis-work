@@ -19,7 +19,6 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 | 路径 | 职责 | 不负责 |
 | --- | --- | --- |
 | `apps/desktop/src/launch.ts` | Runtime 启动配方与面板环境变量 | 启动进程、保存 Session |
-| `apps/desktop/src/advance-prompt.ts` | 当前 Goal 的推进提示，复用 Feed Plugin 的外部内容脱敏 | 解释或保存 Feed 数据 |
 | `apps/desktop/src/shell.ts` | 识别原生 Desktop 请求并保持本地链接的 `desktop=1` 上下文 | 页面业务渲染 |
 | `apps/desktop/src/panels.ts` | 面板打开、关闭、状态、别名和用户确认规则 | SQLite、Project 事实、PTY |
 | `apps/desktop/src/capsule-shell.ts` | Capsule 的 HTML、CSS、浏览器脚本和壳层交互 | Goal 工作状态组合 |

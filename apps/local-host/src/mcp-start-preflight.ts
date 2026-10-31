@@ -1,8 +1,9 @@
 import { isPlatformMcpTool, isRuntimeContextMcpTool, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
 import { MCP_TOOLS } from "./mcp-platform-tools.js";
-import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { mcpErrors } from "./mcp-errors.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-const errors = defineErrorCodes("mcp", { authority_denied: "forbidden", tool_unknown: "not_found", unexpected_field: "invalid" });
+const errors = mcpErrors;
 
 /** Discovery remains usable for repair/connection tools when an installed resident cannot be started. */
 export function mcpResidentUnavailable(error: unknown): error is ActionError {

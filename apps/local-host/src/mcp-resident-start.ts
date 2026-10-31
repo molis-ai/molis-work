@@ -2,11 +2,12 @@ import { spawn } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { ActionError, ACTION_ERROR_KIND_NAMES, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, ACTION_ERROR_KIND_NAMES } from "@molis-ai/molis-work-contracts/platform/actions";
+import { mcpErrors } from "./mcp-errors.js";
 import { probeMcpResident } from "./mcp-resident-health.js";
 import { residentHostOrigin } from "./resident-host-request.js";
 
-const errors = defineErrorCodes("mcp", { startup_entry_missing: "unavailable", startup_failed: "unavailable" });
+const errors = mcpErrors;
 export const MCP_WEB_STARTUP_ENV = "MOLIS_WORK_MCP_WEB_STARTUP";
 export type EnsureMcpResidentHost = (home: string, origin: string, signal: AbortSignal) => Promise<void>;
 interface Attempt { controller: AbortController; promise: Promise<void>; waiters: number }

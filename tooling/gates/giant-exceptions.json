@@ -132,10 +132,15 @@
       "reason": "Home 动作提供方的登记：返回体按动作逐个列出处理器，Talk、Offer、Event 三族处理器已抽成 createHome…Handlers，余下是登记清单与共用的 record、handler 助手；超 150 行 32 行。",
       "size": 182
     },
+    "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
+      "kind": "cohesive-unit",
+      "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
+      "size": { "lines": 311, "methods": 9 }
+    },
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
       "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
-      "size": 160
+      "size": 163
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",

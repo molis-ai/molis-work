@@ -1,7 +1,7 @@
 import { mkdirSync, chmodSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applySqliteBaseline, LocalSqliteStorage, type SqliteBaseline, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, LocalSqliteStorage, type SqliteBaseline, type SqliteDatabase, SqliteSchemaVersionError, describeSqliteSchema, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
 import { IM_SCHEMA_SQL } from "./im/schema.js";
 export type ServerDatabase = SqliteDatabase;
 const SERVER_SCHEMA_SQL = `
@@ -26,14 +26,31 @@ const SERVER_SCHEMA_SQL = `
  * The server database as one current schema (repository-anti-corruption §4.1): identity and transport tables, then IM's.
  * A new database gets it with the version; one at another version is refused, never upgraded in place.
  */
-export const SERVER_DATABASE_BASELINE: SqliteBaseline = { version: 2, schema: SERVER_SCHEMA_SQL + IM_SCHEMA_SQL };
-const maintenanceErrors = defineErrorCodes("im.invite_maintenance", { pending: "unavailable" });
+export const SERVER_DATABASE_BASELINE: SqliteBaseline = { version: 1, schema: SERVER_SCHEMA_SQL + IM_SCHEMA_SQL };
+const databaseErrors = defineErrorCodes("im.database", { structure_invalid: "invalid" });
+let baselineShape: string | undefined;
+const expectedShape = () => baselineShape ??= JSON.stringify(describeSqliteBaseline(SERVER_DATABASE_BASELINE));
+
+/** Refuse an existing wrong version/shape before a writable connection can change its journal mode or identity. */
+function inspectServerFile(file: string): string {
+  if (!existsSync(file)) return file;
+  const inspection = new LocalSqliteStorage(file, { readonly: true });
+  try {
+    const found = Number((inspection.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+    if (found !== SERVER_DATABASE_BASELINE.version) {
+      const empty = !inspection.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
+      if (found !== 0 || !empty) throw new SqliteSchemaVersionError(file, found, SERVER_DATABASE_BASELINE.version);
+    } else if (JSON.stringify(describeSqliteSchema(inspection.db)) !== expectedShape()) {
+      throw databaseErrors.structure_invalid("讨论库结构不符合当前完整基线，不会打开或修补");
+    }
+    return file;
+  } finally { inspection.close(); }
+}
 
 /** Public identity and transport facts only; never a replica of a private Home. */
 export function openServerDatabase(directory: string): LocalSqliteStorage {
-  if (existsSync(join(directory, ".invite-maintenance.json"))) throw maintenanceErrors.pending("邀请库维护尚未完成，请停止 Molis Work 并按维护记录恢复原件；不会创建或打开业务库");
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const storage = new LocalSqliteStorage(join(directory, "server.sqlite"));
+  const storage = new LocalSqliteStorage(inspectServerFile(join(directory, "server.sqlite")));
   try {
     chmodSync(storage.path, 0o600);
     applySqliteBaseline(storage.db, storage.path, SERVER_DATABASE_BASELINE);

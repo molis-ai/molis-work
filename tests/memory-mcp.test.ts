@@ -74,7 +74,7 @@ test("an external MCP client reads memory only through the person's grant for me
 
   await record(true);
   const granted = await readMcpToolPreference(home), generation = granted.action_grants[0]?.generation;
-  assert.equal(granted.version, 3); assert.ok(typeof generation === "string" && generation.length > 0);
+  assert.equal(granted.version, 1); assert.ok(typeof generation === "string" && generation.length > 0);
   assert.deepEqual(granted.action_grants, [{ ...grant, generation }], "the settings owner derives permissions and creates the accepted grant generation");
   assert.deepEqual((await codex.tools()).filter(name => name.includes("memory.")), [RECALL_TOOL], "only the granted tool appears; list, write and manage never do");
   assert.equal((await stranger.tools()).includes(RECALL_TOOL), false, "another client holds no grant");

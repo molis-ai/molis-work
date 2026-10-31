@@ -80,14 +80,25 @@ export class SandboxBroker {
       signal.throwIfAborted();
       const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: serviceTimeoutMs, reason: new SandboxError('sandbox.service_timeout', 'Host service cancelled or timed out; its result may be unknown', 'unknown') } });
       const beforeEffect = async () => { lifetime.assertActive(); await guard?.(); lifetime.assertActive(); };
-      const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
+      // The Runtime holds a model result after this RPC ends: normal disposal is not a cancellation of that result.
+      const modelRequest = method === 'model.complete' ? new AbortController() : undefined;
+      const forwardAbort = () => modelRequest?.abort(lifetime.signal.reason);
+      if (modelRequest) {
+        lifetime.signal.addEventListener('abort', forwardAbort, { once: true });
+        if (lifetime.signal.aborted) forwardAbort();
+      }
+      const context: SandboxServiceContext = { identity: this.identity, signal: modelRequest?.signal ?? lifetime.signal, operationId: operation.id, beforeEffect };
       try {
         await lifetime.wait(beforeEffect());
         const result = await lifetime.wait(this.dispatch(context, operation, method, args, connections));
         await lifetime.wait(beforeEffect()); assertJson(result);
         if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
-      } finally { lifetime.dispose(); }
+      } finally {
+        // Forward real timeout/cancel through the final guard; detach only immediately before our own cleanup abort.
+        if (modelRequest) lifetime.signal.removeEventListener('abort', forwardAbort);
+        lifetime.dispose();
+      }
     });
   }
   /** The checks every SDK method makes before it reaches a service: the declared effect that the person also approved, the argument count and one string. */

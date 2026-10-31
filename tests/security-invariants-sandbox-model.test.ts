@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { getEventListeners } from "node:events";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { PLUGIN_MODEL_LIMITS, type PluginDefinition, type PluginManifest, type PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_MODEL_LIMITS, type PluginDefinition, type PluginManifest, type PluginModelClient, type PluginPrivateStorage, type PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeStores, hostCompleteText, seedDemoBoard, type HostCompleteText, type HostTextOptions, type HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
-import { DEFAULT_SANDBOX_LIMITS, MODEL_DATA_CHARS, assertContract, SandboxBroker, modelDeadlines, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
+import { DEFAULT_SANDBOX_LIMITS, MODEL_DATA_CHARS, createSandboxRunner, type SandboxLimits, assertContract, SandboxBroker, SandboxError, modelDeadlines, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
+import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { runtimeStore } from "./fixtures/home-sandbox.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // S-66 for `services.model` (PG-017 P1): a sandboxed plugin asks the Host's text model through the broker. Three gates in series: the broker (the
@@ -266,3 +269,189 @@ test("S-66 RAC-2032 the longest data with the longest instruction a person can s
   assert.ok(sent[0] === `${instruction}\n\n${data}`, "the person's instruction, then the data, as written");
   assert.equal([...sent[0]!].length, AGENT_PROMPT_MAX_CHARS + 2 + MODEL_DATA_CHARS);
 });
+
+
+// RAC-2628: the service RPC is shorter than the original action's held model result. Use the production Home client and storage.
+interface RpcRun {
+  caller: ActionExecutionContext;
+  storage: PluginPrivateStorage;
+  results: PluginModelResult[];
+  request(options?: { guard?(): Promise<void>; timeout?: number }): Promise<SandboxJson>;
+  worker(limits: Pick<SandboxLimits, "operationTimeoutMs" | "serviceTimeoutMs">): Promise<SandboxJson>;
+}
+async function homeModelRpc(t: test.TestContext, reply: HostCompleteText) {
+  const probe = homeProbe("broker-lifetime");
+  let behavior: (run: RpcRun) => Promise<string> = async () => "unset";
+  const start = probe.definition.start!;
+  const definition: PluginDefinition = { ...probe.definition, async start(context) {
+    const contribution = await start(context); assert.equal(contribution.kind, "app");
+    return { ...contribution, actions: contribution.actions?.map(action => action.capability_id !== probe.ask.capability_id ? action : {
+      ...action, handle: async (caller: ActionExecutionContext) => {
+        const model = context.services!.model!, storage = context.services!.storage!, results: PluginModelResult[] = [];
+        // Capture the actual production result only to check its validator inside this same action scope after RPC cleanup.
+        const services = sandboxServicesFor({ storage, model: { choices: () => model.choices(), availability: selection => model.availability(selection),
+          complete: async (prompt, request) => { const result = await model.complete(prompt, request); results.push(result); return result; } } }, { instructions: [probe.instruction] });
+        const broker = new SandboxBroker({ projectId: null, installationId: context.install_id, pluginId: probe.id, namespace: "installed" }, INVOKE, services, DEFAULT_SANDBOX_LIMITS);
+        const signal = caller.signal ?? new AbortController().signal;
+        const worker = async (limits: Pick<SandboxLimits, "operationTimeoutMs" | "serviceTimeoutMs">) => {
+          const directory = mkdtempSync(join(tmpdir(), "model-rpc-worker-")), bundlePath = join(directory, "worker.mjs");
+          const effects: SandboxEffects = { model: ["invoke"], storage: ["write"] };
+          writeFileSync(bundlePath, `export const operations = { run: async (_input, sdk) => {
+            try { await sdk.model.complete({ prompt_id: 'summarize', data: 'WORKER_INPUT' }); await sdk.storage.set('note', 'success'); }
+            catch { try { await sdk.storage.set('note', 'error'); } catch { /* both writes must be refused after cancellation */ } }
+            return 'done';
+          } };`);
+          let runner: Awaited<ReturnType<typeof createSandboxRunner>> | undefined;
+          try { runner = await createSandboxRunner({ bundlePath, identity: { projectId: null, installationId: context.install_id, pluginId: probe.id, namespace: "installed" },
+            contract: { version: 1, pluginId: probe.id, revision: "one", entities: [], pages: [], acceptance: [], operations: [
+              { id: "run", kind: "command", input: { type: "null" }, output: { type: "string" }, errors: [], effects, examples: [{ input: null, output: "done" }] },
+            ] }, grants: effects, services });
+            return await runner.call("run", null, { signal, beforeEffect: () => caller.beforeEffect(), limits });
+          } finally { await runner?.stop(); rmSync(directory, { recursive: true, force: true }); }
+        };
+        try { return await behavior({ caller, storage, results, worker, request: (options = {}) => broker.invoke(operation("command", INVOKE), signal, "model.complete",
+          [{ prompt_id: "summarize", data: "RPC_INPUT" }], options.guard ?? (() => caller.beforeEffect()), options.timeout ?? 10_000) }); }
+        finally { broker.stop(new SandboxError("sandbox.stopped", "fixture finished")); }
+      },
+    }) };
+  } };
+  const modelCalls: Array<{ prompt: string; options: HostTextRequestOptions }> = [];
+  const f = await serveHomeRuntime(t, { completeText: async (prompt, options = {}) => { modelCalls.push({ prompt, options }); return reply(prompt, options); }, pluginFixtures: { home: [definition] } });
+  const { platform, install } = await grantHomeProbe(f.host, probe);
+  return { ...f, probe, platform, install, modelCalls,
+    invoke: (next: typeof behavior, context: Partial<ActionCallContext> = {}) => { behavior = next; return f.host.homeActionClient().invoke({ ...person(probe.permissions), ...context }, probe.ask, {}); },
+    rows: () => runtimeStore(f.home, db => db.prepare("SELECT * FROM plugin_private_values WHERE install_id = ? ORDER BY item_key").all(install.install_id)),
+    value: async () => (await f.host.homeActionClient().invoke(person(probe.permissions), probe.state, {}) as { value: string | null }).value,
+  };
+}
+
+const rpcReply: HostCompleteText = async (_prompt, options = {}) => { await options.beforeDispatch?.(); return "RPC_RESULT"; };
+
+test("S-66 RAC-2628 normal model RPC cleanup preserves its production held result for the action's real storage commit", { timeout: 30_000 }, async t => {
+  const r = await homeModelRpc(t, rpcReply);
+  assert.equal(await r.invoke(async ({ request, caller, storage, results }) => {
+    const listeners = caller.signal ? getEventListeners(caller.signal, "abort").length : 0;
+    assert.deepEqual(await request(), { text: "RPC_RESULT" });
+    assert.equal(results.length, 1); results[0]!.validateResult();
+    assert.equal(r.modelCalls[0]!.options.signal!.aborted, false, "normal RPC cleanup is not a request cancellation");
+    await caller.beforeEffect(); storage.set("note", results[0]!.text);
+    assert.equal(caller.signal ? getEventListeners(caller.signal, "abort").length : 0, listeners, "the RPC left no listener on the original caller");
+    return "stored";
+  }), "stored");
+  assert.equal(await r.value(), "RPC_RESULT"); assert.equal(r.modelCalls.length, 1);
+  assert.equal(r.modelCalls[0]!.prompt, "用一句话概括材料。\n\nRPC_INPUT");
+});
+
+test("S-66 RAC-2628 ordinary provider failure remains recordable after RPC cleanup while authority stands", { timeout: 30_000 }, async t => {
+  const r = await homeModelRpc(t, async (_prompt, options = {}) => { await options.beforeDispatch?.(); throw new Error("fixture provider failed"); });
+  assert.equal(await r.invoke(async ({ request, caller, storage }) => {
+    await assert.rejects(request(), { code: "plugin.model_failed" });
+    assert.equal(r.modelCalls[0]!.options.signal!.aborted, false);
+    await caller.beforeEffect(); storage.set("note", "provider failure handled"); return "handled";
+  }), "handled");
+  assert.equal(await r.value(), "provider failure handled"); assert.equal(r.modelCalls.length, 1);
+});
+
+for (const change of ["cancel", "revoke"] as const) test(`S-66 RAC-2628 ${change} after normal model RPC cleanup still refuses the real action's next checks and writes`, { timeout: 30_000 }, async t => {
+  const r = await homeModelRpc(t, rpcReply), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
+  const outer = new AbortController(), before = r.rows();
+  const refused: string[] = [];
+  const pending = r.invoke(async ({ request, caller, storage, results }) => {
+    try {
+      assert.deepEqual(await request(), { text: "RPC_RESULT" }); results[0]!.validateResult();
+      entered.resolve(); await release.promise;
+      await assert.rejects(caller.beforeEffect()); refused.push("beforeEffect");
+      assert.throws(() => results[0]!.validateResult()); refused.push("held result");
+      assert.throws(() => storage.set("note", "success")); refused.push("success write");
+      assert.throws(() => storage.set("note", "error")); refused.push("catch write");
+      await caller.beforeEffect(); return "unreachable";
+    } finally { finished.resolve(); }
+  }, { signal: outer.signal });
+  const rejection = assert.rejects(pending);
+  try {
+    await Promise.race([entered.promise, pending.then(() => { throw new Error("action ended before commit barrier"); }, error => { throw error; })]);
+    if (change === "cancel") outer.abort(new Error("original caller cancelled after RPC"));
+    else await r.platform.runtime.regrant(r.install.install_id, MODEL_INVOKE, false);
+  } finally { release.resolve(); }
+  await rejection; await finished.promise;
+  assert.deepEqual(refused, ["beforeEffect", "held result", "success write", "catch write"]);
+  assert.deepEqual(r.rows(), before); assert.equal(r.modelCalls.length, 1);
+});
+
+for (const change of ["timeout", "cancel"] as const) test(`S-66 RAC-2628 ${change} after the model settles but while the broker exit guard waits invalidates the production held result`, { timeout: 30_000 }, async t => {
+  const r = await homeModelRpc(t, rpcReply), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
+  const outer = new AbortController(), before = r.rows();
+  const refusals: string[] = [];
+  const pending = r.invoke(async ({ request, caller, storage, results }) => {
+    try {
+      const call = request({ timeout: change === "timeout" ? 100 : 10_000, guard: async () => {
+        await caller.beforeEffect();
+        if (results.length) { entered.resolve(); await release.promise; }
+      } });
+      const rejected = assert.rejects(call, error => {
+        if (change === "timeout") assert.equal((error as { code?: string }).code, "sandbox.service_timeout");
+        return true;
+      });
+      await entered.promise;
+      const signal = r.modelCalls[0]!.options.signal!;
+      await rejected; // The real deadline/cancel rejection, rather than a guessed delay, establishes the terminal event.
+      assert.equal(signal.aborted, true, "the request must see a real abort through the broker exit guard");
+      if (change === "timeout") assert.equal(signal.reason.code, "sandbox.service_timeout");
+      assert.equal(results.length, 1, "the production client had already returned a result before the broker exit barrier");
+      assert.throws(() => results[0]!.validateResult(), error => {
+        if (change === "timeout") assert.equal((error as { code?: string }).code, "sandbox.service_timeout");
+        return true;
+      }); refusals.push("held result");
+      await assert.rejects(caller.beforeEffect()); refusals.push("beforeEffect");
+      assert.throws(() => storage.set("note", "success")); refusals.push("success write");
+      assert.throws(() => storage.set("note", "error")); refusals.push("catch write");
+      await caller.beforeEffect(); return "unreachable";
+    } finally { release.resolve(); finished.resolve(); }
+  }, { signal: outer.signal });
+  const rejected = assert.rejects(pending);
+  try { await entered.promise; if (change === "cancel") outer.abort(new Error("original caller cancelled at broker exit")); await rejected; }
+  finally { release.resolve(); }
+  await finished.promise;
+  assert.deepEqual(refusals, ["held result", "beforeEffect", "success write", "catch write"]); assert.deepEqual(r.rows(), before);
+});
+
+
+for (const change of ["timeout", "cancel"] as const) for (const response of ["cooperate", "late"] as const) test(
+  `S-66 RAC-2628 real worker ${change} during model work aborts the production request and refuses success/catch writes (${response})`,
+  { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), aborted = Promise.withResolvers<unknown>(), finished = Promise.withResolvers<void>();
+    const outer = new AbortController(); let dispatchedSignal: AbortSignal | undefined;
+    const r = await homeModelRpc(t, async (_prompt, options = {}) => {
+      await options.beforeDispatch?.(); dispatchedSignal = options.signal!;
+      const stopped = Promise.withResolvers<string>();
+      const abort = () => { aborted.resolve(dispatchedSignal!.reason); stopped.reject(dispatchedSignal!.reason); };
+      dispatchedSignal.addEventListener("abort", abort, { once: true });
+      if (dispatchedSignal.aborted) abort();
+      // Observe rejection even in the deliberately non-cooperative supplier branch.
+      void stopped.promise.catch(() => undefined);
+      entered.resolve();
+      try {
+        if (response === "cooperate") return await stopped.promise;
+        await release.promise; return "late answer";
+      }
+      finally { dispatchedSignal.removeEventListener("abort", abort); }
+    });
+    const before = r.rows();
+    const pending = r.invoke(async ({ worker }) => {
+      try { await worker({ operationTimeoutMs: 3000, serviceTimeoutMs: change === "timeout" ? 100 : 2000 }); return "unreachable"; }
+      finally { finished.resolve(); }
+    }, { signal: outer.signal });
+    const rejected = assert.rejects(pending, error => {
+      if (change === "timeout") assert.equal((error as { code?: string }).code, "sandbox.service_timeout");
+      return true;
+    });
+    try {
+      await Promise.race([entered.promise, pending.then(() => { throw new Error("worker ended before model dispatch"); }, error => { throw error; })]);
+      if (change === "cancel") outer.abort(new Error("original caller cancelled in model"));
+      const reason = await aborted.promise;
+      if (change === "timeout") assert.equal((reason as { code?: string }).code, "sandbox.service_timeout");
+      release.resolve(); await rejected; await finished.promise;
+      assert.equal(dispatchedSignal!.aborted, true); assert.equal(dispatchedSignal!.reason, reason);
+      assert.equal(r.modelCalls.length, 1); assert.deepEqual(r.rows(), before);
+    } finally { release.resolve(); outer.abort(); await rejected; await finished.promise; }
+  });

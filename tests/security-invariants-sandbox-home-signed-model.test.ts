@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { sandboxDerivedPermissions, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
@@ -12,8 +13,9 @@ import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { effectsFromContract } from "@molis-ai/molis-work-plugin-sandbox";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
-import { mac, operate, operationsOf, person, ref, runtimeStore } from "./fixtures/home-sandbox.js";
-import { openTestHome } from "./fixtures/test-home.js";
+import { fixture, mac, operate, operationsOf, person, ref, runtimeStore } from "./fixtures/home-sandbox.js";
+import { IMAGE_DOMAIN, IMAGE_PNG, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
+import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 // BL-491 (PG-017; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
 // its image connections in `contract.json` and nothing else; the Host derives the Manifest rows, the names and the clean-up. This file runs real packages in real
@@ -27,9 +29,11 @@ const CODE = `export const operations = {
   'notes.add': async (input, sdk) => {
     const cmd = JSON.parse(input.text); let out = null;
     try {
-      if (cmd.op === 'complete') out = (await sdk.model.complete({ prompt_id: 'summary', data: 'x' })).text;
+      if (cmd.op === 'complete') out = (await sdk.model.complete({ prompt_id: cmd.prompt ?? 'summary', data: cmd.data ?? 'x' })).text;
       else if (cmd.op === 'settings.read') out = await sdk.model.settings.read();
       else if (cmd.op === 'settings.save') out = (await sdk.model.settings.save(cmd.choice)).selection ?? null;
+      else if (cmd.op === 'image.inspect') out = await sdk.imageGeneration.inspect({ slot_id: 'main', base_url: cmd.url });
+      else if (cmd.op === 'image.generate') out = await sdk.imageGeneration.generate({ slot_id: 'main', base_url: cmd.url, expected_revision: cmd.revision, protocol: 'openai-images', model: 'fixture-image', prompt: 'A small blue boat' });
       else if (cmd.op === 'image.connections') out = await sdk.imageGeneration.connections();
       else if (cmd.op === 'image.bind') { await sdk.imageGeneration.bind({ slot_id: 'main', base_url: cmd.url }, cmd.connection); out = 'bound'; }
     } catch (error) { out = { error: error.code ?? String(error) }; }
@@ -37,12 +41,21 @@ const CODE = `export const operations = {
   },
 };\n`;
 
-function bundle(scope: "home" | "project", effects: SandboxEffects = EFFECTS, pluginId?: string) {
+function bundle(scope: "home" | "project", effects: SandboxEffects = EFFECTS, pluginId?: string, options: { query?: boolean; broken?: boolean } = {}) {
   return signedPackage(newPublisher(), (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     contract.operations.find(operation => operation.id === "notes.add")!.effects = effects;
+    const add = contract.operations.find(operation => operation.id === "notes.add")!;
+    (add.input as { properties: { text: { maxLength: number } } }).properties.text.maxLength = 4000;
+    if (options.query) contract.operations.find(operation => operation.id === "notes.list")!.effects = { storage: ["read"], model: ["read"], imageGeneration: ["read"] };
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-    files[SANDBOX_PACKAGE_FILES.entrypoint] = CODE;
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = options.broken ? "throw new Error('signed model startup failure');\n" + CODE : CODE;
+    if (options.query) files[SANDBOX_PACKAGE_FILES.entrypoint] += `operations['notes.list'] = async (_input, sdk) => {
+      const errors = [];
+      try { await sdk.model.complete({ prompt_id: 'summary', data: 'query' }); } catch (error) { errors.push(error.code); }
+      try { await sdk.imageGeneration.generate({}); } catch (error) { errors.push(error.code); }
+      return [{ id: 'query', text: JSON.stringify(errors) }];
+    };\n`;
     files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "summary", title: "摘要", purpose: "把材料压成一句话", body: "把下面的材料压成一句话。" }]);
     Object.assign(manifest, sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, presentation: false,
       ...scope === "home" ? { runtime: { scope } } : {}, effects: effectsFromContract(contract) }));
@@ -52,10 +65,10 @@ function bundle(scope: "home" | "project", effects: SandboxEffects = EFFECTS, pl
 const complete: HostCompleteText = async (_prompt, options = {}) => { await options.beforeDispatch?.(); return "摘要结果"; };
 const ALL = ["model:read", "model:invoke", "image-api:read", "image-api:write", "image-api:generate"];
 
-async function rig(t: test.TestContext) {
+async function rig(t: test.TestContext, completeText: HostCompleteText = complete) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
-  const h = await openTestHome(t, { host: { completeText: complete } });
+  const h = await openTestHome(t, { host: { completeText } });
   const project = await h.createProject("BL-491");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: h.home });
   t.after(() => catalog.close());
@@ -91,7 +104,7 @@ async function rig(t: test.TestContext) {
   const binding = () => withConnectorConnections(h.home, store => store.binding("home", sandboxImageNamespace(installation), "main")?.connection_id ?? null);
   const origin = (id: string) => withConnectorConnections(h.home, store => store.targetOrigin(id));
   const uninstall = (keep_data: boolean) => h.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data });
-  return { h, install, approve, ask, account, binding, origin, uninstall };
+  return { h, install, approve, ask, account, binding, origin, uninstall, client, caller };
 }
 
 test("BL-491 RAC-2627 the Manifest rows a package gets are derived from its effects; a package whose Manifest says anything else is refused, and the preview shows them", mac, async t => {
@@ -226,4 +239,132 @@ test("RAC-239 deleting a project clears what a sandboxed package kept there with
   assert.equal(existsSync(projectFolder), false, "the project's folder, and every file the package kept in it, is gone");
   assert.deepEqual(installs().filter(id => !before.includes(id)), [], "no row of the Home's stores was left behind or added");
   assert.ok(!readdirSync(join(r.h.home, "projects")).includes(doomed.project_id));
+});
+
+// RAC-2628: actual signed Home app, through its installed action and Seatbelt worker to the Host model port.
+test("BL-491 RAC-2628 a signed Home app sends its declared text and data, uses the person's override, and refuses an unknown instruction or caller", mac, async t => {
+  const sent: string[] = [];
+  const r = await rig(t, async (prompt, options = {}) => { await options.beforeDispatch?.(); sent.push(prompt); return "摘要结果"; });
+  await r.install(); await r.approve();
+  assert.equal(await r.ask({ op: "complete", data: "INPUT_ONE" }), "摘要结果");
+  assert.deepEqual(sent, ["把下面的材料压成一句话。\n\nINPUT_ONE"]);
+  await r.h.web.post("/api/agent-definitions/prompt", { key: PACKAGE_PLUGIN_ID + "/summary", body: "只保留用户指定的事实。", expected_revision: null });
+  assert.equal(await r.ask({ op: "complete", data: "INPUT_TWO" }), "摘要结果");
+  assert.deepEqual(sent, ["把下面的材料压成一句话。\n\nINPUT_ONE", "只保留用户指定的事实。\n\nINPUT_TWO"]);
+  assert.deepEqual(await r.ask({ op: "complete", prompt: "unknown" }), { error: "sandbox.instruction_unknown" });
+  const views = await operationsOf(r.client, r.caller), caller = { ...r.caller, permissions: ALL.filter(p => p !== "model:invoke") };
+  await assert.rejects(operate(r.client, caller, views, "notes.add", { text: JSON.stringify({ op: "complete" }) }), { code: "actions.forbidden" });
+  assert.deepEqual(sent.length, 2);
+  const [row] = await operate(r.client, r.caller, views, "notes.list", {}) as Array<{ text: string }>;
+  assert.deepEqual(JSON.parse(row!.text), { error: "sandbox.instruction_unknown" }, "refused caller does not replace the earlier business result");
+});
+
+test("BL-491 RAC-2628 RAC-2632 an installed read-only query enters the worker and refuses model and image spending", mac, async t => {
+  let calls = 0;
+  const r = await rig(t, async (_prompt, options = {}) => { await options.beforeDispatch?.(); calls++; return "unexpected"; });
+  await r.install(bundle("home", EFFECTS, undefined, { query: true })); await r.approve();
+  const rows = await operate(r.client, r.caller, await operationsOf(r.client, r.caller), "notes.list", {}) as Array<{ text: string }>;
+  assert.deepEqual(JSON.parse(rows[0]!.text), ["sandbox.not_authorized", "sandbox.not_authorized"]);
+  assert.equal(calls, 0);
+  assert.deepEqual(runtimeStore(r.h.home, db => db.prepare("SELECT item_key FROM plugin_private_values WHERE install_id = ?").all(r.h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id)), []);
+});
+
+for (const change of ["revoke", "disable"] as const) test(`BL-491 RAC-2628 ${change} while signed complete waits prevents both success and catch writes`, mac, async t => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let calls = 0;
+  const r = await rig(t, async (_prompt, options = {}) => { await options.beforeDispatch?.(); calls++; entered.resolve(); await release.promise; return "late result"; });
+  t.after(() => release.resolve());
+  await r.install(); const installId = await r.approve();
+  await r.ask({ op: "none" });
+  const snapshot = () => runtimeStore(r.h.home, db => db.prepare("SELECT * FROM plugin_private_values WHERE install_id = ? ORDER BY item_key").all(installId));
+  const before = snapshot();
+  const pending = r.ask({ op: "complete" }), rejected = assert.rejects(pending);
+  void rejected.catch(() => undefined); // A broken dispatch fails promptly, without stranding the entry barrier.
+  try {
+    await Promise.race([entered.promise, pending.then(() => { throw new Error("complete ended before model dispatch"); }, error => { throw error; })]);
+    if (change === "disable") await r.h.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {});
+    else await (await r.h.host.homePlugins!.ready()).runtime.regrant(installId, "model:invoke", false);
+  } finally { release.resolve(); }
+  await rejected;
+  assert.equal(calls, 1); assert.deepEqual(snapshot(), before, "no success or error result was persisted after authority ended");
+});
+
+const declarations = (home: string) => {
+  const db = new DatabaseSync(join(home, "agent-declarations", "agent-declarations.db"), { readOnly: true });
+  try { return db.prepare("SELECT install_id, registration FROM install_declarations WHERE owner_id = ?").all(PACKAGE_PLUGIN_ID); } finally { db.close(); }
+};
+
+test("BL-491 RAC-2628 RAC-2635 one signed instruction source survives disable and reopen, retains the human override, and disappears after uninstall", mac, async t => {
+  const sent: string[] = [];
+  const f = await fixture(t, { completeText: async (prompt, options = {}) => { await options.beforeDispatch?.(); sent.push(prompt); return "摘要结果"; } });
+  let web = await serveTestHost(null, { home: f.home, host: f.host });
+  const reopen = async () => { await web.close(); await f.reopen(); web = await serveTestHost(null, { home: f.home, host: f.host }); };
+  const caller = { ...f.homeCaller(), permissions: ALL };
+  const prompts = async () => (await web.web.get<{ prompts: Array<{ owner_id: string; default_body: string; body: string; default_version: number; source: { kind: string; plugin_id: string; plugin_version: string; title: string; state: string } }> }>("/api/agent-definitions/prompts")).prompts.filter(p => p.owner_id === PACKAGE_PLUGIN_ID);
+  const single = async (state: string) => {
+    const rows = await prompts(); assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0]!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.0.0", title: "Example notes", state });
+    assert.equal(rows[0]!.default_body, "把下面的材料压成一句话。"); assert.equal(rows[0]!.default_version, 1);
+    const diagnostics = await web.web.get("/api/agent-definitions/diagnostics");
+    assert.doesNotMatch(JSON.stringify(diagnostics), /此插件有多个安装/);
+    assert.equal(declarations(f.home).length, 1);
+  };
+  try {
+    await f.install(bundle("home"));
+    const installId = f.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id;
+    for (const permission of ALL) await (await f.host.homePlugins!.ready()).runtime.regrant(installId, permission, true);
+    await single("enabled");
+    await web.web.post("/api/agent-definitions/prompt", { key: PACKAGE_PLUGIN_ID + "/summary", body: "用户保留的正文", expected_revision: null });
+    await web.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {}); await single("disabled");
+    assert.deepEqual(await operationsOf(f.homeClient(), caller), []);
+    await reopen(); await single("disabled"); assert.deepEqual(await operationsOf(f.homeClient(), caller), []);
+    await web.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/enable`, {}); await single("enabled");
+    await operate(f.homeClient(), caller, await operationsOf(f.homeClient(), caller), "notes.add", { text: JSON.stringify({ op: "complete", data: "AFTER_REOPEN" }) });
+    assert.deepEqual(sent, ["用户保留的正文\n\nAFTER_REOPEN"]);
+    await web.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data: false });
+    assert.deepEqual(await prompts(), []); assert.deepEqual(declarations(f.home), []);
+    await reopen(); assert.deepEqual(await prompts(), []); assert.deepEqual(declarations(f.home), []); assert.deepEqual(await operationsOf(f.homeClient(), caller), []);
+  } finally { await web.close(); }
+});
+
+test("BL-491 RAC-2628 a signed package that fails after instruction registration compensates its durable declaration", mac, async t => {
+  const r = await rig(t);
+  await assert.rejects(r.install(bundle("home", EFFECTS, undefined, { broken: true })), /安装没有完成/u);
+  assert.deepEqual(declarations(r.h.home), []);
+  assert.deepEqual(await operationsOf(r.client, r.caller), []);
+  const prompts = await r.h.web.get<{ prompts: Array<{ owner_id: string }> }>("/api/agent-definitions/prompts");
+  assert.equal(prompts.prompts.some(p => p.owner_id === PACKAGE_PLUGIN_ID), false);
+});
+
+for (const certificate of ["untrusted", "wrong-san", "trusted"] as const) test(`BL-491 RAC-2655 signed image generation uses real TLS and Prologue: ${certificate}`, mac, async t => {
+  const provider = await signedImageProvider(t, certificate);
+  let r: Awaited<ReturnType<typeof rig>> | undefined;
+  try {
+    r = await rig(t);
+    await r.install(bundle("home", { ...EFFECTS, networkDomains: [IMAGE_DOMAIN] })); await r.approve();
+    const connection = r.account("fixture", provider.origin), url = provider.origin + "/v1";
+    assert.equal(await r.ask({ op: "image.bind", url, connection }), "bound");
+    const state = await r.ask({ op: "image.inspect", url }) as { available: boolean; has_key: boolean; revision: string };
+    assert.equal(state.available, true); assert.equal(state.has_key, true); assert.ok(state.revision);
+    const action = (await operationsOf(r.client, r.caller)).find(view => view.action.local_id === "notes.add")!;
+    assert.equal(action.action.execution?.cost, "metered");
+    const result = await r.ask({ op: "image.generate", url, revision: state.revision }) as { images?: Array<{ base64: string }>; revision?: string; error?: string };
+    assert.ok(provider.lookups.policy > 0, "Host's promises DNS policy lookup reached the fixture");
+    assert.ok(provider.lookups.socket > 0, "the real TLS socket's callback DNS lookup reached the fixture");
+    if (certificate === "trusted") {
+      assert.equal(result.error, undefined); assert.equal(result.revision, state.revision); assert.equal(result.images?.length, 1);
+      assert.deepEqual(Buffer.from(result.images![0]!.base64, "base64"), IMAGE_PNG);
+      assert.equal(provider.requests.length, 1);
+      assert.deepEqual(provider.requests[0], { method: "POST", path: "/v1/images/generations", authorized: true, body: { model: "fixture-image", prompt: "A small blue boat" } });
+      assert.deepEqual(provider.tlsErrors, []);
+      assert.deepEqual(await r.ask({ op: "image.generate", url: "https://unapproved.t143.example/v1", revision: state.revision }), { error: "sandbox.not_authorized" });
+      assert.equal(provider.requests.length, 1, "unapproved origin is refused before sending");
+    } else {
+      assert.ok(result.error, "the installed operation observed the production refusal");
+      assert.equal(provider.requests.length, 0, "TLS refusal happens before HTTP");
+      assert.ok(provider.tlsErrors.includes(certificate === "wrong-san" ? "ERR_TLS_CERT_ALTNAME_INVALID" : "UNABLE_TO_VERIFY_LEAF_SIGNATURE"), JSON.stringify(provider.tlsErrors));
+    }
+  } finally {
+    if (r) { await r.h.close(); await r.h.host.close(); }
+    await provider.close();
+  }
 });

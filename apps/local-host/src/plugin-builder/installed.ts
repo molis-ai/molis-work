@@ -9,6 +9,7 @@ import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxEr
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { sandboxPluginManifest, sandboxUiContribution } from '../sandbox-plugin-manifest.js';
+import { releaseInstructions } from './prompts.js';
 import { releaseVersion } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
@@ -35,10 +36,12 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
   const manifest = declared ?? generatedPluginManifest(release, compatibleFrom), uiId = sandboxUiContribution(release.pluginId);
+  const instructions = declared?.kind === 'app' && declared.runtime?.scope === 'home' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
   return {
     manifest,
+    ...(instructions ? { instructions } : {}),
     // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
     execution: 'sandbox',
     async start(context) {
@@ -46,7 +49,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       // A package's model settings and image connections belong to the person's Home (BL-491): a project's instance of it is refused, as it is for a Home library.
       if (context.project_id && (approved.modelSettings?.length || approved.imageGeneration?.length)) throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
-      const services = sandboxServicesFor(context.services, host);
+      const services = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;

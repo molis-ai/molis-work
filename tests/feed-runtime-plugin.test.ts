@@ -725,9 +725,10 @@ test("RAC-2665 a Runtime Feed adds an account source with no account: the same s
     await assert.rejects(add(input), { code: "actions.input_invalid" }, JSON.stringify(input));
   }
   const sync = (key: string) => f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: added.source.source_id, idempotency_key: key }) as Promise<{ created: number; run: { outcome: string } }>;
-  await assert.rejects(sync("added-unbound"), { code: "feed.connector_failed" });
-  assert.equal(f.calls.length, 0, "no account, no pull");
+  // The person has a working GitHub account, but has not chosen it for this source: the platform pulls with no account of its own choosing.
   const account = f.connect();
+  await assert.rejects(sync("added-unbound"), { code: "feed.connector_failed" });
+  assert.equal(f.calls.length, 0, "an account not bound to the source is not used");
   withConnectorConnections(f.home, store => store.bind({ scopeId: pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id }),
     pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id }));
   await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: added.source.source_id, enabled: true });

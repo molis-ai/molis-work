@@ -50,13 +50,17 @@ const personalEntries = defineSearchEntriesAction("memos.search.entries", person
 function source(notes: Note[] = []): Source {
   return { notes: new Map(notes.map(note => [note.id, note])), lists: 0, reads: 0, fail: false, availability: { available: true } };
 }
-function register(service: ActionService, state: Source, provider: { provider_id: string; project_id?: string; plugin_id?: string }) {
+function register(service: ActionService, state: Source, provider: { provider_id: string; project_id?: string; plugin_id?: string },
+  capabilities: { entries?: string; reader?: string } = {}) {
+  // A second provider in the same project needs its own capability ids: the registry holds one provider per (id, version, project).
+  const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, kinds, "笔记", ["notes:read"]) : entries;
+  const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, "note", "笔记", ["notes:read"]) : reader;
   return service.registerProvider({
     provider: { title: "笔记插件", kind: "plugin", plugin_id: provider.plugin_id ?? "notes", ...provider },
     availability: () => state.availability,
-    definitions: [entries, reader],
+    definitions: [ownEntries, ownReader],
     handlers: [
-      bindSearchEntriesHandler(entries, async () => {
+      bindSearchEntriesHandler(ownEntries, async () => {
         state.lists += 1;
         state.onList?.();
         await state.hold;
@@ -64,7 +68,7 @@ function register(service: ActionService, state: Source, provider: { provider_id
         return [...state.notes.values()].map((note): SearchEntry => ({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title,
           summary: note.secret ? "（私密）" : "", updated_at: null, content: note.secret ? "summary" : "context", open: { surface: "notes", id: note.id } }));
       }),
-      { ...reader, handle: (_caller, input) => {
+      { ...ownReader, handle: (_caller, input) => {
         state.reads += 1;
         const note = state.notes.get((input as { subject_id: string }).subject_id);
         if (!note) throw state.absent?.() ?? new ActionError("actions.subject_unavailable", "笔记已删除");
@@ -87,13 +91,13 @@ function registerPersonal(service: ActionService, memos: Note[]) {
 
 const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "memos:read", "todo:read", "search:read"] });
 
-async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number } = {}) {
+async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number; onError?: (error: unknown, where: string) => void } = {}) {
   const home = await mkdtemp(join(tmpdir(), "system-search-"));
   const actions = new ActionService();
   let now = 1_000_000;
   let index = openTextSearchIndex({ homeDirectory: home });
   const make = () => new SearchService({ index, clock: options.clock ?? (() => now), freshMs: options.freshMs ?? 60_000, budgetMs: 5_000, refreshDelayMs: 5,
-    indexer: async project_id => ({ client: actions, caller: owner(project_id) }) });
+    indexer: async project_id => ({ client: actions, caller: owner(project_id) }), ...(options.onError ? { onError: options.onError } : {}) });
   let search = make();
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });
   return {
@@ -536,3 +540,25 @@ for (const where of ["validate_authority", "assert_authority_current"] as const)
     }
   });
 }
+
+// RAC-2715: a reader discarded because its check is refused leaves exactly one trace through the package's own onError: its plugin id
+// in `where` and the error's code — never the error's message, the query or any content. The discarding itself is unchanged.
+test("RAC-2715 a discarded reader leaves one record with its plugin id and code, and nothing of its message or the query", async t => {
+  const records: Array<{ error: unknown; where: string }> = [];
+  const f = await fixture(t, { onError: (error, where) => { records.push({ error, where }); } });
+  register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
+  register(f.actions, source([{ id: "b1", title: "B 项目合同", body: "乙方付款条款", version: 1 }]), { provider_id: "memos", project_id: "a", plugin_id: "memos" },
+    { entries: "memos.search.entries", reader: "memos.subject.read" });
+  const refusing: ActionCallContext = { ...owner("a"), validate_authority: async (reference?: { capability_id?: string; provider_id?: string }) => {
+    if (reference?.capability_id === reader.capability_id && reference.provider_id === "notes") throw new ActionError("fixture.reader_withheld", "不再交给这个调用者", { kind: "forbidden" });
+  } };
+  const response = await ask(f, refusing, "合同");
+  assert.deepEqual(ids(response), ["b1"], "the refused reader is left out; the other reader's result still comes back");
+  assert.equal(records.length, 1, "exactly one record for the one discarded reader");
+  const record = records[0]!;
+  assert.match(record.where, /notes$/, "the reader's plugin id is in where");
+  assert.ok(record.error instanceof ActionError, "the record carries the error's code");
+  assert.equal((record.error as ActionError).code, "fixture.reader_withheld");
+  assert.equal((record.error as ActionError).message, "", "the error's message is not recorded");
+  assert.doesNotMatch(JSON.stringify(records), /不再交给这个调用者|合同/, "nothing of the message or the query reaches the outlet");
+});

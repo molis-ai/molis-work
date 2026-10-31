@@ -28,6 +28,7 @@ export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
   createWorkbenchUiHost,
+  mountContributionsOf,
   renderPluginSettingsContribution,
   renderWorkbenchDocument,
   WORKBENCH_UI_SLOTS,

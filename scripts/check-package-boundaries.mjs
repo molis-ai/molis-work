@@ -1569,11 +1569,15 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, sur
   // Three links of the chain from the Goals page to the registered contribution, each pinned where it is written: the shell hands the page
   // its one mount (a different function would mount something the UiHost does not declare), that mount is the UiHost's `mountDeclared`
   // in the slot the contribution declares, and the page's surface renderers call only the mount they were given.
-  if (!matchesInCode(renderer, /createGoalsPage<[^>]+>\(\{\s*mount: renderWorkbenchContribution\b/u)) {
-    errors.push("apps/workbench/src/renderer.ts: DD2 the Goals page must be created with mount: renderWorkbenchContribution");
+  if (!matchesInCode(renderer, /createGoalsPage<[^>]+>\(\{\s*mount: mountContributionsOf\(GOALS_PLUGIN_ID\)/u)) {
+    errors.push("apps/workbench/src/renderer.ts: DD2 the Goals page must be created with mount: mountContributionsOf(GOALS_PLUGIN_ID)");
   }
   if (!matchesInCode(workbench, /function renderWorkbenchContribution\([^)]*\): string \{\s*return workbenchUiHost\.mountDeclared\(/u)) {
     errors.push("apps/workbench: DD2 renderWorkbenchContribution must mount through workbenchUiHost.mountDeclared");
+  }
+  // The page's mount serves one plugin's own contributions: the UiHost refuses another plugin's id (`ui_host.plugin_denied`).
+  if (!matchesInCode(workbench, /function mountContributionsOf\(pluginId: string, host: UiHost = workbenchUiHost\)[^{]*\{\s*return \(contributionId, surface, model\) => host\.mountDeclared\(\{[^}]*\}, pluginId\)\.html/u)) {
+    errors.push("apps/workbench: DD2 mountContributionsOf must mount through the workbench host with the plugin's id as owner");
   }
   if (!matchesInCode(surfaces, /return mount\(contributionId, surface, model\)/u)) {
     errors.push("plugins/native/goals: DD2 a surface of the page must be mounted with the mount the shell gave it");

@@ -17,7 +17,7 @@ const exportDeclarations = entry.statements.filter(ts.isExportDeclaration);
 
 /** What `./ui-composition.js` gives out: the names that have a user outside it, each named here. */
 const UI_COMPOSITION_NAMES = [
-  "artifactWorkbench", "createArtifactReferenceRenderer", "createWorkbenchUiHost", "renderPluginSettingsContribution",
+  "artifactWorkbench", "createArtifactReferenceRenderer", "createWorkbenchUiHost", "mountContributionsOf", "renderPluginSettingsContribution",
   "renderWorkbenchDocument", "WORKBENCH_UI_SLOTS",
 ];
 

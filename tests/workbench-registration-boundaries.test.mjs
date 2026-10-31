@@ -30,8 +30,10 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   const legacy = [...sources]; legacy[4] += '\nconst goalTreeDecisionForm = form.closest("[data-goal-tree-decision-form]");';
   assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals client factory/);
   // The chain from the Goals page to the registered contribution is pinned at each link (T-116 review): swapping any one is refused.
-  const otherMount = [...sources]; otherMount[0] = otherMount[0].replace("mount: renderWorkbenchContribution", "mount: mountSomethingElse");
-  assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /created with mount: renderWorkbenchContribution/);
+  const otherMount = [...sources]; otherMount[0] = otherMount[0].replace("mount: mountContributionsOf(GOALS_PLUGIN_ID)", "mount: renderWorkbenchContribution");
+  assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /created with mount: mountContributionsOf\(GOALS_PLUGIN_ID\)/);
+  const unowned = [...sources]; unowned[1] = unowned[1].replace("}, pluginId).html", "}).html");
+  assert.match(checkProposalUiOwnership(...unowned).join("\n"), /mountContributionsOf must mount through the workbench host with the plugin's id as owner/);
   const notDeclared = [...sources]; notDeclared[1] = notDeclared[1].replace("workbenchUiHost.mountDeclared(", "workbenchUiHost.render(");
   assert.match(checkProposalUiOwnership(...notDeclared).join("\n"), /workbenchUiHost\.mountDeclared/);
   const ownMount = [...sources]; ownMount[3] = ownMount[3].replace("return mount(contributionId, surface, model)", "return ownMount(contributionId, surface, model)");

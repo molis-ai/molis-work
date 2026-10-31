@@ -1,4 +1,4 @@
-import { isLoopbackHostname, isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /**
  * The addresses an OAuth authorization may come back to (W5-11 §3.1). The generic callback is the platform's own; an alias is a path a
@@ -7,12 +7,13 @@ import { isLoopbackHostname, isLoopbackHttpOrigin } from "@molis-ai/molis-work-c
  * path, project segment included, is exactly the `redirect_uri` the record saved.
  *
  * An alias may also name the loopback host its address was registered under, for a provider that takes no numeric IP in a redirect URI
- * (Notion): the authorization started at `127.0.0.1:<port>` returns to `localhost:<port>`, the same machine and port, and to nothing else.
+ * (Notion): an authorization started at any loopback origin the Host accepts (`127.0.0.1:<port>` or `[::1]:<port>`) returns to `localhost:<port>`, the
+ * same protocol and port, and to nothing else. The only name an alias may give is `localhost`.
  * Only the alias that names a host has it; the callback's own checks (rules 2 and 3) are what make an arrival elsewhere fail.
  */
 export const OAUTH_CALLBACK = "/api/settings/connectors/methods/oauth/callback";
 
-interface Alias { service: string; path: string; project: boolean; /** A loopback name the address is registered under (not an IP). */ host?: string }
+interface Alias { service: string; path: string; project: boolean; /** The loopback name the address is registered under: `localhost` is the only one, so it is the type, not a check. */ host?: "localhost" }
 const ALIASES: readonly Alias[] = [
   { service: "gmail", path: "/api/feed/connectors/gmail/oauth/callback", project: true },
   { service: "notion", path: "/api/settings/connectors/notion/oauth/callback", project: false, host: "localhost" },
@@ -38,7 +39,7 @@ export function defaultOAuthCallbackPath(service: string): string {
  */
 export function oauthCallbackOrigin(service: string, origin: string): string {
   const host = ALIASES.find(alias => alias.service === service)?.host;
-  if (!host || !isLoopbackHostname(host)) return origin;
+  if (host !== "localhost") return origin;
   const url = new URL(origin);
   if (!isLoopbackHttpOrigin(url)) return origin;
   url.hostname = host;

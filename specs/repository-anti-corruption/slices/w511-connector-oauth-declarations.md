@@ -464,10 +464,11 @@
 **第 7 片落地的写法**（2026-10-30，T-065，分支 `task/T065-ca`，方案经统筹核准：issue #1332 评论 6539926249、6539939254）
 
 - **Notion 走通用流程**：删两份 `notion-oauth.ts`（宿主、catalog 包）、`connector-oauth-callbacks.ts`、`connector-oauth-commit.ts`、`notion/oauth/start` 路由、`connector-oauth-targets.ts` 里 Notion 的待完成目标、`connector-access.ts` 的 Notion 一支、catalog 的 `notionAuthorizationUrl` 等导出和 provider 里“Notion 的 401 重试”特判。声明早已在 `oauth-methods.ts`（`client_auth: "basic"`、`token_format: "json"`、`parameters: { owner: "user" }`、工作区做账号）。
-- **回调别名带主机**：别名表 `connector-oauth-callback-paths.ts` 每项多一个可选的 `host`；Notion 的是 `localhost`（Notion 不收数字 IP 的回调）。`oauthCallbackOrigin(服务, 来源)` 把本机来源的主机名换成别名的主机名，保留协议和端口；默认回调、`isOAuthCallbackAliasFor` 都用它。回调规则 2 因此变成：来源等于记录来源，或等于该服务别名主机换算后的来源（`localhost` ↔ `127.0.0.1`，同端口同协议，用 contracts 的 `isLoopbackHostname`、`isLoopbackHttpOrigin` 判）；没有声明 `host` 的服务没有这条放宽，非本机 Host、另一个端口、`127.0.0.2`、`[::ffff:127.0.0.1]` 照旧拒绝（RAC-2534）。`ConnectorMethodOption.oauth` 多一个可选的 `callback_host`，设置页照着显示要登记的地址。
+- **回调别名带主机**：别名表 `connector-oauth-callback-paths.ts` 每项多一个可选的 `host`；Notion 的是 `localhost`（Notion 不收数字 IP 的回调）。`oauthCallbackOrigin(服务, 来源)` 把本机来源的主机名换成别名的主机名，保留协议和端口；默认回调、`isOAuthCallbackAliasFor` 都用它。回调规则 2 因此变成：来源等于记录来源，或等于该服务别名主机换算后的来源（别名主机只能是 `localhost`，类型就是 `"localhost"`；发起的来源是 Host 本来就接受的回环地址 `127.0.0.1` 或 `[::1]`，同端口同协议，用 contracts 的 `isLoopbackHttpOrigin` 判）；没有声明 `host` 的服务没有这条放宽，非本机 Host、另一个端口、`127.0.0.2`、`[::ffff:127.0.0.1]` 照旧拒绝（RAC-2534）。`ConnectorMethodOption.oauth` 多一个可选的 `callback_host`，设置页照着显示要登记的地址。
 - **旧形状**：`OWN_FLOW` 只剩 `github`；凭据不是 `connector-protocol:` 的 Notion OAuth 连接标 `reauth_required`，不读、不刷新、不发请求（RAC-2536）；PAT 连接不受影响。
 - **环境变量**：Notion 的产品客户端只认 `MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_ID/SECRET`，旧名 `MOLIS_WORK_NOTION_CLIENT_*`、设置页存的 `connector:notion:client_*` 不读；`notion_oauth_configured` 字段删除（RAC-2537）。
 - **共用刷新**：Notion 的刷新就是通用的 `resolveApiOAuthToken`；`complete` 的最后一道检查多比一项：发出的 refresh token 仍是库里的那个（原 Notion 流程有这一项，通用流程没有），变了就写不进去（RAC-2538）。
+- **留给后面的**：`ConnectorAuthKind` 里的按服务取值（`github`、`gmail`、`notion`）随第 8 片收窄；Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 不在本片也不在第 8 片，留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/notion-oauth.test.ts`（RAC-2533～2539，其中 RAC-2538 是原 `connector-oauth-choice.test.ts` “FI-C-02 … Notion” 一组搬过来，断言不放宽）；`connector-oauth-choice`、`security-invariants-oauth-shared-refresh`、`connector-connections`、`connector-setup`、`security-invariants-connector-intent`、`connector-method-directory`、`security-invariants-oauth-non-protocol` 里的 Notion 专门流程用例改成通用流程上的同一组。
 
 ### 2.7 `auth_kind` 收窄
@@ -723,7 +724,7 @@
 | RAC-2485 | Gmail 的产品客户端只读 `MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_ID/SECRET`，旧名 `MOLIS_WORK_GMAIL_CLIENT_*` 不读 | 同上 |
 | RAC-2486 | “可连接”（卡片、入门流程）由声明算：产品客户端配齐或 broker 配了才为真 | 同上 |
 | RAC-2533 | Notion 的完整流程在通用流程上走通：发起 → 别名回调 → 连接可用（通用凭据引用、账号是工作区、标签是工作区名，缺工作区名时取 identity 应答里的）→ 取令牌、刷新、检查；`notion/oauth/start` 路由和旧回调路径不存在 | `tests/notion-oauth.test.ts` |
-| RAC-2534 | Notion 的默认回调是 `http://localhost:<端口>/api/settings/connectors/notion/oauth/callback`；来源是 `localhost`、`127.0.0.1` 或 `[::1]` 且同端口时回调才收，另一个端口、`127.0.0.2`、`localhost.evil.example`、`[::ffff:127.0.0.1]`、非本机 Host 都被拒且不建连接；Gmail、Asana 与插件自己的服务没有 `host`，拿 Notion 的 `localhost` 地址发起或到达都被拒 | 同上 |
+| RAC-2534 | Notion 的默认回调是 `http://localhost:<端口>/api/settings/connectors/notion/oauth/callback`；发起的来源是 `127.0.0.1` 或 `[::1]`（或本来就是 `localhost`）、同协议同端口时回调才收，到达的 Host 必须是 `localhost:<同一端口>`，另一个端口、`127.0.0.2`、`localhost.evil.example`、`[::ffff:127.0.0.1]`、非本机 Host 都被拒且不建连接；Gmail（有别名、没有 `host`）与 Asana（没有别名）拿 Notion 的 `localhost` 地址发起、或在 `localhost` 到达都被拒；包声明的服务没有更多：别名按服务 id 查，服务 id 全局唯一，签名包带数据的 `oauth` 方法在安装预览时就被拒（`assertFree`）；被拒的每个到达都断言了状态码或失败页，以及它的 state 是否已用掉（本机来源不同的拒绝在规则 2，state 取走；非本机 Host 在规则 1，记录不动） | 同上 |
 | RAC-2535 | Notion 的令牌请求是 Basic 认证加 JSON 体（含 `redirect_uri`）；重新授权同一工作区（改了名）通过，另一个工作区在规则 8 被拒、什么都不写 | 同上 |
 | RAC-2536 | 旧形状的 Notion OAuth 连接：`reauth_required` 并带提示，不读、不刷新、不发请求，`if_available` 回 `null`；PAT 连接照读 | 同上 |
 | RAC-2537 | Notion 的产品客户端只读 `MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_ID/SECRET`；旧名与设置页存的客户端不读 | 同上 |

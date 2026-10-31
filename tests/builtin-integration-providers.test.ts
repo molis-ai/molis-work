@@ -24,7 +24,7 @@ const served = (registry: { integration(id: string): unknown }) => BUILTIN_IDS.f
 
 const binding = (extra: Partial<IntegrationBinding> = {}): IntegrationBinding => ({ source_id: "source-1", connection_id: null, credential_ref: null, config: {}, ...extra });
 
-/** Runs `run` with `fetch` replaced, so a connector that reaches for the network is seen and never gets out. */
+/** Runs `run` with `fetch` replaced, so a connector that reaches for the network never gets out; a stub that records says what it was asked. */
 async function withFetch<T>(fetchImpl: typeof fetch, run: () => Promise<T>): Promise<T> {
   const original = globalThis.fetch;
   globalThis.fetch = fetchImpl;
@@ -44,7 +44,8 @@ test("RAC-2660 integration-providers.ts imports no connector and names no integr
   const source = ts.createSourceFile(file, readFileSync(`${root}${file}`, "utf8"), ts.ScriptTarget.Latest, true);
   const imported: string[] = [], literals: string[] = [], comparisons: string[] = [];
   const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) imported.push(node.moduleSpecifier.text);
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) imported.push(node.moduleSpecifier.text);
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && ts.isStringLiteral(node.arguments[0])) imported.push(node.arguments[0].text);
     if (ts.isStringLiteral(node) && !ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent)) literals.push(node.text);
     if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) comparisons.push(node.getText(source));
     ts.forEachChild(node, visit);
@@ -57,7 +58,9 @@ test("RAC-2660 integration-providers.ts imports no connector and names no integr
 
 test("RAC-2661 every built-in integration reads through the connector of its own kind (unchanged)", async () => {
   await withIntegrationHome(async home => {
-    const offline = (async () => { throw new Error("offline"); }) as typeof fetch;
+    // Without a connection none of the three reads asks the network anything: a wiring that does is seen in `calls`, not hidden in a health answer.
+    const calls: string[] = [];
+    const offline = (async (input: RequestInfo | URL) => { calls.push(String(input)); throw new Error("offline"); }) as typeof fetch;
     await withFetch(offline, async () => {
       const registry = await homeIntegrationRegistry(home.directory);
       const direct = (id: string): IntegrationProviderPort => id === "github" ? createGithubConnector({ allowFixture: false })
@@ -71,6 +74,7 @@ test("RAC-2661 every built-in integration reads through the connector of its own
         assert.equal(driver.message, expected.message, `${id}: and in its own words`);
       }
     });
+    assert.deepEqual(calls, [], "no request left for the network");
   });
 });
 
@@ -114,20 +118,23 @@ test("RAC-2663 a source reads with the credential of its own connection and with
     });
     assert.deepEqual(carrying(), [], "linear: without a connection nothing is sent with a token");
 
-    // GitHub: the secret the source's connection stores, and only when the source has both the connection and the reference.
-    createFileSecretStore().put("secret:github-fixture", FIXTURE);
-    seen.length = 0;
-    await withFetch(spy, async () => {
-      await (await registry.bind("github", "source", binding({ connection_id: "connection-1", credential_ref: "secret:github-fixture" }))).connector_driver.health(connectorControl());
-    });
-    assert.ok(carrying().length > 0, "github: the request carries the stored secret");
-    assert.ok(carrying().every(call => call.url.includes("github")), "github: and goes to GitHub");
-    for (const partial of [{ connection_id: null, credential_ref: "secret:github-fixture" }, { connection_id: "connection-1", credential_ref: null }]) {
+    // GitHub and Gmail: the secret the source's connection stores, and only when the source has both the connection and the reference.
+    for (const { id, host } of [{ id: "github", host: "github" }, { id: "gmail", host: "google" }]) {
+      const reference = `secret:${id}-fixture`;
+      createFileSecretStore().put(reference, FIXTURE);
       seen.length = 0;
       await withFetch(spy, async () => {
-        await (await registry.bind("github", "source", binding(partial))).connector_driver.health(connectorControl());
+        await (await registry.bind(id, "source", binding({ connection_id: "connection-1", credential_ref: reference }))).connector_driver.health(connectorControl());
       });
-      assert.deepEqual(carrying(), [], `github: a source with only ${partial.connection_id ? "the connection" : "the reference"} sends no secret`);
+      assert.ok(carrying().length > 0, `${id}: the request carries the stored secret`);
+      assert.ok(carrying().every(call => call.url.includes(host)), `${id}: and goes to its own service`);
+      for (const partial of [{ connection_id: null, credential_ref: reference }, { connection_id: "connection-1", credential_ref: null }]) {
+        seen.length = 0;
+        await withFetch(spy, async () => {
+          await (await registry.bind(id, "source", binding(partial))).connector_driver.health(connectorControl());
+        });
+        assert.deepEqual(carrying(), [], `${id}: a source with only ${partial.connection_id ? "the connection" : "the reference"} sends no secret`);
+      }
     }
   });
 });

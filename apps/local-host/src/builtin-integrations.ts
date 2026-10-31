@@ -15,8 +15,8 @@ import { PLATFORM_CONNECTION_SERVICES } from "./platform-connection-services.js"
 /*
  * How each kind of built-in integration turns a source's binding into a provider that holds the source's credential references: the
  * Host's last per-kind credential wiring for them. Every account source reads through its own connection; a source without one has no
- * account to read. These go away when integration plugins fetch through `services.connections` (PG-045), which is a piece of its own
- * after the GitHub device flow joins the declared OAuth flow (T-066).
+ * account to read. These go away when integration plugins fetch through `services.connections` (PG-045, specs/repository-anti-corruption/privileges.md),
+ * which is a piece of its own after the GitHub device flow joins the declared OAuth flow.
  */
 const githubProvider = (binding: IntegrationBinding): IntegrationProviderPort => createGithubConnector({ allowFixture: false,
   ...(binding.connection_id && binding.credential_ref ? { authRef: binding.credential_ref } : {}),

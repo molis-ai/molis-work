@@ -17,7 +17,7 @@ export const homeEventActions = {
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 /** `projectPlugins` reads the project's plugin manifest: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
-export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<readonly string[]>): ActionHandlerBinding[] {
+export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>): ActionHandlerBinding[] {
   const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
     assertHomeEventWindow(window);
     const directory = await client.discover(caller);
@@ -25,19 +25,19 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
     const events: HomeEventView[] = [], issues: string[] = [];
-    // The manifest is only needed for a source that cannot answer; when it is needed and the lookup fails, the person sees that
-    // (not a plugin silently turned off). A read with no such source never asks for it.
-    let plugins: readonly string[] | undefined, manifestFailed = false;
-    const listedByManifest = async (pluginId: string): Promise<boolean> => {
-      if (!plugins && !manifestFailed && projectPlugins && caller.project_id) {
-        try { plugins = await projectPlugins(caller.project_id); }
+    // The exposure judgement is only needed for a source that cannot answer; when it is needed and the read fails, the person sees
+    // that code (not a plugin silently turned off). A read with no such source never asks for it.
+    let reaches: ((pluginId: string) => boolean | undefined) | undefined, judgedFailed = false;
+    const reachesOf = async (pluginId: string): Promise<boolean | undefined> => {
+      if (!reaches && !judgedFailed && projectPlugins && caller.project_id) {
+        try { reaches = await projectPlugins(caller.project_id); }
         catch (error) {
           if (!(error instanceof ActionError && error.code === "host.catalog_unavailable")) throw error;
-          manifestFailed = true;
+          judgedFailed = true;
           issues.push("首页事项：项目的插件清单读取失败（host.catalog_unavailable）");
         }
       }
-      return plugins?.includes(pluginId) ?? false;
+      return reaches?.(pluginId);
     };
     for (const source of sources) {
       if (!source.availability.available) {
@@ -45,11 +45,9 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
         // A source in this project's plugin manifest that cannot answer (turned off, or refused by policy) is shown; one the project
         // does not list is not installed here and has nothing to report. Without the manifest, the old rule still turns off silently.
         const pluginId = source.provider.plugin_id;
-        // With a real lookup and a plugin behind the source, the project's manifest decides; otherwise the old rule stands.
-        const listed = projectPlugins && caller.project_id && pluginId !== undefined
-          ? await listedByManifest(pluginId)
-          : source.availability.code !== "actions.plugin_disabled";
-        if (listed) issues.push(source.action.title + "：" + source.availability.reason);
+        // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code.
+        const judged = projectPlugins && caller.project_id && pluginId !== undefined ? await reachesOf(pluginId) : undefined;
+        if (source.availability.code !== "actions.plugin_disabled" || judged === true) issues.push(source.action.title + "：" + source.availability.reason);
         continue;
       }
       const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };

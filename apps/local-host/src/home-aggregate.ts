@@ -37,8 +37,8 @@ export interface HomeAggregatePorts {
   client(reference: LocalHostProjectReference): ActionClient;
   /** The person's context in that project; the grants in it are that project's installations' own. */
   context(reference: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext>;
-  /** The project's plugin manifest: what "turned off" is read against, so a listed plugin that cannot answer is not taken for one that is not installed. A Host with no catalog rejects (`host.catalog_unavailable`), which the aggregate records as that project's issue. */
-  projectPlugins(reference: LocalHostProjectReference): Promise<readonly string[]>;
+  /** Whether the project reaches the plugin behind a provider (Manifest id -> the platform's own exposure judgement); `undefined` when that is not the catalog's to judge. A Host with no catalog rejects, which the aggregate records as that project's issue. */
+  projectPlugins(reference: LocalHostProjectReference): Promise<(pluginId: string) => boolean | undefined>;
 }
 
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
@@ -58,8 +58,8 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
   const projects = await Promise.all(ports.openProjects().map(async reference => {
     const project_id = reference.project_id;
     try {
-      // The manifest lives in the catalog, which a project's own open window may hold: read it before entering.
-      const plugins = await ports.projectPlugins(reference);
+      // The exposure judgement comes from the catalog, which a project's own open window may hold: get it before entering.
+      const reaches = await ports.projectPlugins(reference);
       return await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
         const client = ports.client(reference);
         const { caller, views } = await beforeDeadline(signal, async discoverySignal => {
@@ -77,10 +77,11 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
             const pluginId = view.provider.plugin_id;
             // Not in this project's plugin manifest is not installed here, so it has nothing to report; listed but unavailable (turned
             // off, or refused by policy) is what the person needs to see. A platform provider has no plugin and keeps the old rule.
-            const listed = pluginId === undefined
-              ? view.availability.code !== "actions.plugin_disabled"
-              : plugins.includes(pluginId);
-            return listed ? { answers: [], issues: [{ project_id, source, code: view.availability.code }] } : empty;
+            const judged = pluginId === undefined ? undefined : reaches(pluginId);
+            // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code:
+            // the project reaches the plugin => shown, it does not => not installed here, `undefined` => keep the old silent skip.
+            return view.availability.code !== "actions.plugin_disabled" || judged === true
+              ? { answers: [], issues: [{ project_id, source, code: view.availability.code }] } : empty;
           }
           try {
             const output = await beforeDeadline(signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input)) as Output;
@@ -109,6 +110,6 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
     whileOpen: (reference, work) => open(reference.project_id) ? host.withProject(reference, work) : Promise.resolve(undefined),
     client: reference => host.actionClient(reference),
     context: (reference, signal) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, signal),
-    projectPlugins: reference => host.projectPluginIds(reference.project_id),
+    projectPlugins: reference => host.projectPluginReach(reference.project_id),
   };
 }

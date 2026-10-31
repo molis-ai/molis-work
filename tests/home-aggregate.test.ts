@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectHomeAggregate, homeAggregatePorts, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { collectHomeAggregate, homeAggregatePorts, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { HomeAggregatePorts } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -28,7 +29,7 @@ test("RAC-2437 the Home reports a source listed in the project's plugin manifest
       invoke: async () => assert.fail("an unavailable source is never invoked") }),
     context: async projectReference => context(projectReference.project_id),
     // The manifest fact: A does not list the plugin, B does. Same provider, same refusal in both projects.
-    projectPlugins: async projectReference => projectReference.project_id === b.project_id ? [PLUGIN] : [],
+    projectPlugins: async projectReference => (pluginId: string) => projectReference.project_id === b.project_id && pluginId === PLUGIN,
   };
   const result = await collectHomeAggregate(ports, TYPE, {});
   assert.deepEqual(result.answers, []);
@@ -39,7 +40,7 @@ test("RAC-2437 the Home reports a source listed in the project's plugin manifest
 test("RAC-2437 a Host with no catalog refuses the manifest lookup, and the Home records that refusal as the project's issue", async () => {
   const bare = new MolisWorkLocalHost();
   try {
-    await assert.rejects(bare.projectPluginIds("project-a"), { code: "host.catalog_unavailable" });
+    await assert.rejects(bare.projectPluginReach("project-a"), { code: "host.catalog_unavailable" });
   } finally { await bare.close(); }
   const a = reference("project-a");
   const ports: HomeAggregatePorts = {
@@ -62,4 +63,39 @@ test("RAC-2437 homeAggregatePorts wires the Host's own manifest lookup, which re
     await assert.rejects(homeAggregatePorts(host).projectPlugins(reference("project-a")), { code: "host.catalog_unavailable" },
       "the aggregate port must ask the Host, not answer an empty manifest by itself");
   } finally { await host.close(); }
+});
+
+test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to the project's plugin key: listed-and-denied is shown, unlisted or non-plugin_disabled keeps main's behaviour", async () => {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const home = await mkdtemp(join(tmpdir(), "home-aggregate-catalog-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  host.configurePersonalPlanning(home, withCatalog);
+  const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: displayName, actor_id: "user" }));
+  const listedProject = await create("启用 Feed 的项目"), bareProject = await create("没有 Feed 的项目");
+  await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listedProject.project_id, plugin_id: "feed", actor_id: "user" }));
+  const reference = (project: { project_id: string; database_path: string }) => molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const view = (code: string): ActionView => ({
+    capability_id: "homeagg.catalog.read", version: 1, operation: "query",
+    provider: { provider_id: "feed.home.aggregate", title: "Feed", kind: "plugin", plugin_id: "io.molis.work.feed", project_id: listedProject.project_id },
+    availability: { available: false, code, reason: "策略拒绝了这个项目的读取" },
+    action: { title: "运行中的工作", description: "首页聚合的只读查询", kind: "query", scope: "project", audiences: ["user"], permissions: ["homeagg:read"], subject_kinds: [],
+      input_schema: { type: "object" }, output_schema: { type: "object" }, output_type: TYPE, home_aggregate: true },
+  });
+  const portsFor = (project: { project_id: string; database_path: string }, code: string): HomeAggregatePorts => ({
+    openProjects: () => [reference(project)],
+    whileOpen: async (_reference, work) => work(),
+    client: () => ({ discover: async () => [view(code)], invoke: async () => assert.fail("an unavailable source is never invoked") }),
+    context: async projectReference => context(projectReference.project_id),
+    projectPlugins: projectReference => host.projectPluginReach(projectReference.project_id),
+  });
+  try {
+    const denied = await collectHomeAggregate(portsFor(listedProject, "actions.plugin_disabled"), TYPE, {});
+    assert.deepEqual(denied.issues.map(issue => issue.code), ["actions.plugin_disabled"], "the project lists Feed, so its policy refusal is shown");
+    const unlisted = await collectHomeAggregate(portsFor(bareProject, "actions.plugin_disabled"), TYPE, {});
+    assert.deepEqual(unlisted.issues, [], "a project that does not list Feed hears nothing about it being off");
+    const serviceDown = await collectHomeAggregate(portsFor(bareProject, "actions.service_unavailable"), TYPE, {});
+    assert.deepEqual(serviceDown.issues.map(issue => issue.code), ["actions.service_unavailable"], "a source that cannot answer is still shown, as on main");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

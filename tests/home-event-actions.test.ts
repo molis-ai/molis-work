@@ -171,7 +171,7 @@ test("a recommendation read that fails never hides the events and leaves its cod
 // A source the project lists but cannot use (policy refused it, or it is off) is shown as an issue; one the project does not list
 // has nothing to report.
 test("RAC-2438 an unavailable source the project's plugin manifest lists is reported, and one it does not list stays silent", async () => {
-  const read = async (projectId: string, lookup: () => Promise<readonly string[]>): Promise<HomeEventsResult> => {
+  const read = async (projectId: string, lookup: () => Promise<(pluginId: string) => boolean | undefined>): Promise<HomeEventsResult> => {
     const service = new ActionService();
     service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: projectId }, definitions: Object.values(homeEventActions),
       handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }, lookup) });
@@ -181,8 +181,8 @@ test("RAC-2438 an unavailable source the project's plugin manifest lists is repo
       definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "停用插件事项", icon: "note" }, events: [original] }) }] });
     return await service.invoke({ ...caller, project_id: projectId }, homeEventActions.events, window) as HomeEventsResult;
   };
-  const unlisted = await read("manifest-without", async () => []);
-  const listed = await read("manifest-with", async () => ["off.notes"]);
+  const unlisted = await read("manifest-without", async () => () => false);
+  const listed = await read("manifest-with", async () => (pluginId: string) => pluginId === "off.notes");
   assert.deepEqual(unlisted, { events: [], issues: [] }, "a project that does not list the plugin hears nothing about it");
   assert.deepEqual(listed.issues, ["停用插件事项：此项目未启用该插件"], "a listed plugin that cannot answer is shown");
   // A manifest lookup that fails is not "no manifest given": the person sees that the Home could not ask, instead of a plugin silently off.

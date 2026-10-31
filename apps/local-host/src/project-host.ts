@@ -13,6 +13,7 @@ import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contr
 import { artifactActionProvider } from "./artifact-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { projectPluginJudge } from "./project-action-availability.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
@@ -174,7 +175,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read,
-                projectPlugins: projectId => this.projectPluginIds(projectId) }, (judgment, caller) => {
+                projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
@@ -402,11 +403,11 @@ export class MolisWorkLocalHost {
     return this.host.projects();
   }
 
-  /** The project's plugin manifest, by the one catalog the platform injected; a Host without a catalog refuses rather than guesses. */
-  async projectPluginIds(projectId: string): Promise<readonly string[]> {
+  /** Does this project reach the plugin behind a provider? The one judgement actions use (`projectReachesPlugin`), by the injected catalog. */
+  async projectPluginReach(projectId: string): Promise<(pluginId: string) => boolean | undefined> {
     const home = this.personalPlanningHome;
     if (!this.catalogRunner || !home) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");
-    return this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjectPlugins(projectId));
+    return this.catalogRunner({ homeDirectory: home }, catalog => projectPluginJudge(catalog, projectId, home));
   }
 
   status(): LocalHostStatus {

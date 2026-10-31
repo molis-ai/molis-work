@@ -242,19 +242,16 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-353 (MISC 整字截收口), RAC-2726–2728: the Jelly notes list cuts a row's text with the SDK's shared cutHead instead of its own
-// slice-and-drop-the-half, so one rule lives in one place for plugins and the platform. +33 B on this one asset (76866 → 76899), the
-// import and the call in the row. Tried: keeping an inline copy is the second implementation this task removes (and would still be
-// about +30 B); precomputation at render would need the same helper; no new asset, no new image.
-// T-138 (BL-715), RAC-2606: the 插件 page's rows for the Home's own packages say why a package is not running and that its publisher was
-// taken back, and carry the same switch-off, switch-on and uninstall buttons a project's rows have, sent to the Host settings door: +445 B
-// in molis-work-workbench.js (1148388 → 1148833), measured on this merge result. It grows because two lines of text, the Home door's act
-// (`homeAct`) and the two English strings are new; the buttons are the project rows' own `controls` with an `act` parameter, not a second
-// copy, which was the smallest way tried. No new asset. The entries T-223 and T-115 left and the T-234 form.js entry are used up (their
-// budgets already equal their ceilings) and are deleted with this change as the convention says.
 const APPROVED_CEILINGS = {
+  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
+  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
+  // T-354 一审 P1 keeps the shortcut but asks first that what is rendered is not a skipped subtree (`checkVisibility`, style only) and
+  // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
+  // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
+  "/assets/molis-work-plugins/coding.js": [289876, 290029],
+  // T-353 (RAC-2726–2728): Jelly's row summary uses the SDK cutHead instead of a second inline implementation.
+  // +33 B for the shared import/call; an inline copy keeps the duplication and precomputation still needs this helper.
   "/assets/molis-work-plugins/jelly.js": [76866, 76899],
-  "/assets/molis-work-workbench.js": [1148388, 1148833],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

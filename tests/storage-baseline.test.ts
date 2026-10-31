@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, homeSqlitePath, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, describeSqliteSchema, homeSqlitePath, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 
 // One current schema per store (repository-anti-corruption §4.1): created at the baseline, opened as is at the same
 // version, refused at any other version or without one, and never upgraded in place.
@@ -61,4 +61,51 @@ test("schema description sees through how a table was written but not through a 
     `CREATE TABLE items (id TEXT PRIMARY KEY, state TEXT NOT NULL CHECK (state IN ('open','done')), note TEXT NOT NULL DEFAULT ''); CREATE INDEX items_open ON items(state);`,
     `CREATE TABLE items (id TEXT PRIMARY KEY, note TEXT NOT NULL DEFAULT '', state TEXT NOT NULL CHECK (state IN ('open','done'))); CREATE INDEX items_open ON items(state) WHERE state = 'open';`,
   ]) assert.notDeepEqual(shape(different), patched, different);
+});
+
+// RAC-2719: a store at another version is refused by a read-only check before any writable connection, so its bytes, its mode and its
+// directory (no journal sidecars) stay exactly as they were. This store is in SQLite's default (DELETE) journal mode, so a read-only
+// inspection creates no sidecars; a WAL store's read-only open may touch `-shm`'s lock bytes (T-344's finding: lock state, not data),
+// so for a WAL store the assertion is the database and `-wal` bytes, as T-344's RAC-2717 does.
+test("RAC-2719 a store at another version is refused before a writable connection: bytes, mode and sidecars unchanged", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-baseline-refused-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const v1 = { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);" };
+  const db = openBaselineHomeSqlite(home, "notes", v1);
+  db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run();
+  db.close();
+  const path = homeSqlitePath(home, "notes"), directory = dirname(path);
+  chmodSync(path, 0o644);
+  const before = readFileSync(path), mode = statSync(path).mode & 0o777;
+  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && (error as SqliteSchemaVersionError).found === 1 && (error as SqliteSchemaVersionError).expected === 2;
+  assert.throws(() => openBaselineHomeSqlite(home, "notes", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused);
+  assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
+  assert.equal(statSync(path).mode & 0o777, mode, "a writable connection did not tighten the mode");
+  assert.deepEqual(readdirSync(directory).sort(), ["notes.db"], "no journal sidecar was created");
+});
+
+// RAC-2720: the same version with a changed structure is refused too — by the read-only check before opening writable, and by
+// applySqliteBaseline on a connection a caller opened itself; neither writes to a file.
+test("RAC-2720 a store at the current version whose structure changed is refused, without touching the file", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-baseline-damaged-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const v1 = { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);" };
+  const db = openBaselineHomeSqlite(home, "notes", v1);
+  db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run();
+  db.close();
+  const path = homeSqlitePath(home, "notes"), directory = dirname(path);
+  const damaged = new DatabaseSync(path);
+  damaged.exec("ALTER TABLE notes ADD COLUMN extra TEXT;");
+  damaged.close();
+  chmodSync(path, 0o644);
+  const before = readFileSync(path), mode = statSync(path).mode & 0o777;
+  const refused = (error: unknown) => error instanceof Error && !(error instanceof SqliteSchemaVersionError) && /结构/.test(error.message);
+  assert.throws(() => openBaselineHomeSqlite(home, "notes", v1), refused, "the writer is refused a same-version changed structure");
+  assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
+  assert.equal(statSync(path).mode & 0o777, mode, "no writable connection opened (its chmod would have tightened the mode)");
+  assert.deepEqual(readdirSync(directory).sort(), ["notes.db"], "no journal sidecar was created");
+  // The same check covers callers that apply a baseline on their own writable connection.
+  const own = new DatabaseSync(path);
+  try { assert.throws(() => applySqliteBaseline(own, path, v1), refused); } finally { own.close(); }
+  assert.deepEqual(readFileSync(path), before, "a direct baseline apply writes nothing either");
 });

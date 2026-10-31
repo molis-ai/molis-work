@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, openBaselineHomeSqlite, openReadOnlyHomeSqlite, SqliteSchemaVersionError,
+import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, openBaselineHomeSqlite, openReadOnlyHomeSqlite, SqliteSchemaVersionError,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
@@ -23,6 +23,8 @@ const expectedHomeStoreShape = () => baselineShape ??= JSON.stringify(describeSq
 function openWritableHomePluginDatabase(home: string) {
   try { return openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE); }
   catch (error) {
+    // The storage baseline refuses a same-version changed structure before opening writable; this store names that refusal itself.
+    if (isSqliteSchemaStructureMismatch(error)) throw invalidHomeStoreShape();
     if (error instanceof SqliteSchemaVersionError) throw refusedHomeStore(error);
     throw error;
   }

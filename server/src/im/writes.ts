@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { ImReadState, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
 import type { ImDatabase, ImEvents, ImSession } from "./types.js";
 import { clientId, ImError, textInput } from "./errors.js";
+import { invitationTokenHash } from "./invites.js";
 import { ImReads } from "./reads.js";
 
 export class ImWrites {
@@ -58,8 +59,9 @@ export class ImWrites {
   }
 
   join(memberId: string, value: unknown): { room: ImRoom } {
-    const token = textInput(value, "邀请凭证", 100);
-    const room = this.db.prepare<unknown[], { id: string }>("SELECT id FROM im_rooms WHERE invite_token_hash = ?").get(hash(token));
+    // The join takes a current credential only: 64 lowercase hex digits, hashed here as the one that rotates invitations does.
+    const tokenHash = invitationTokenHash(value);
+    const room = this.db.prepare<unknown[], { id: string }>("SELECT id FROM im_rooms WHERE invite_token_hash = ?").get(tokenHash);
     if (room && this.reads.room(room.id).project_id) throw new ImError("im.project_invite", "请通过项目邀请加入讨论", 403);
     if (!room) throw new ImError("im.invite_not_found", "邀请已失效，请向群创建者索取新链接", 404);
     const roomId = String(room.id);

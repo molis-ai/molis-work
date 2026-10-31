@@ -426,3 +426,188 @@ test("RAC-2442 a page without install_id cancels its in-flight requests when the
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+// RAC-2412 (S-47): the workbench keeps only the address parameters and fragments the settings page being opened reads. A page can push any
+// address into a settings page through `molis-work:open-settings-path`; undeclared query parameters and an undeclared fragment must not
+// reach it, while what the page reads stays. The same table is injected into the shell and into the standalone Home model settings dialog.
+import {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  HOME_MODEL_SETTINGS_CLIENT_SCRIPT,
+  HOME_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+  SETTINGS_DIRECTORY_FACTORY_SCRIPT,
+} from "@molis-ai/molis-work-app-workbench";
+import vm from "node:vm";
+import { readFileSync } from "node:fs";
+
+/** The `table` a script injected: `const NAME = {…};` read back out of its source. */
+function injectedTable(script: string, name: string): unknown {
+  const match = new RegExp(`const ${name} = (\\{.*?\\});`).exec(script);
+  assert.ok(match, `${name} is injected`);
+  return JSON.parse(match[1]!);
+}
+
+/** The string a script injected: `const NAME = "…";` read back out of its source. */
+function injectedString(script: string, name: string): string {
+  const match = new RegExp(`const ${name} = ("(?:[^"\\\\]|\\\\.)*");`).exec(script);
+  assert.ok(match, `${name} is injected`);
+  return JSON.parse(match[1]!);
+}
+
+type Event = { type: string; detail?: { href?: string } };
+type Listener = (event: Event) => void;
+
+/** A settings-directory shell over a page mock: the address it sends to the settings page after a page hands one over. */
+function openSettingsAddress(href: string, pluginSections: readonly string[] = [], via: "event" | "link" = "event"): string {
+  const listeners = new Map<string, Listener[]>();
+  const opened: string[] = [];
+  const document = {
+    querySelector: (selector: string) => selector.includes("data-directory-panel") || selector.includes("data-work-surface") ? panel() : null,
+    querySelectorAll: (selector: string) => selector.includes("[data-settings-section]")
+      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...pluginSections].map((id) => ({ dataset: { settingsSection: id } }))
+      : [],
+    createElement: () => panel(),
+    adoptNode: (node: unknown) => node,
+    addEventListener: (type: string, listener: Listener) => { const list = listeners.get(type) ?? []; list.push(listener); listeners.set(type, list); },
+    dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
+  };
+  function panel(): Record<string, unknown> {
+    const node: Record<string, unknown> = { dataset: {}, children: [], hidden: false, scrollTop: 0, scrollLeft: 0, ownerDocument: document,
+      className: "", textContent: "", querySelector: () => null, querySelectorAll: () => [], replaceChildren: () => {}, append: () => {},
+      remove: () => {}, matches: () => false, closest: () => null, setAttribute: () => {}, addEventListener: () => {}, contains: () => false };
+    return node;
+  }
+  const host = { translate: (text: string) => text, projectId: "p1", setDirectory: () => {}, setExclusive: () => {}, hideDirectory: () => {},
+    closeCover: () => false, openCover: () => {}, registerCover: () => {}, showToast: () => {},
+    noteCover: (kind: string, place: string) => { opened.push(`${kind} ${place}`); } };
+  vm.runInNewContext(`(${SETTINGS_DIRECTORY_FACTORY_SCRIPT})(host)`, {
+    host, document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/projects/p1/" }, URL, URLSearchParams,
+    molisWorkRequest: () => new Promise(() => {}), requestAnimationFrame: () => {}, CSS: { escape: (text: string) => text },
+  });
+  if (via === "event") document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+  else {
+    // A plugin page draws a plain link to the settings address; the shell's own click handling opens it (from outside the settings shell).
+    const anchor = { href, tagName: "A", closest: (selector: string) => selector === "a[href]" ? anchor : null, hasAttribute: () => false, matches: () => false };
+    document.dispatchEvent({ type: "click", target: anchor, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, button: 0, defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; } });
+  }
+  assert.equal(opened.length, 1, `${href}: one settings page is opened`);
+  return opened[0]!.split(" ").slice(2).join(" ");
+}
+
+/** A Home shell dialog over a page mock: what it asks the Host for after a page hands over an address. */
+async function homeModelAddress(href: string): Promise<string> {
+  const asked: string[] = [];
+  const listeners = new Map<string, Listener[]>();
+  const element = (): Record<string, unknown> => ({ dataset: {}, hidden: false, textContent: "", value: "", options: [], open: false,
+    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {},
+    removeAttribute: () => {}, setAttribute: () => {}, showModal: () => {}, close: () => {} });
+  const dialog = element();
+  const request = Object.assign((url: string) => { asked.push(url); return Promise.reject(new Error("captured")); }, { show: () => {} });
+  const document = {
+    querySelector: (selector: string) => selector === "[data-home-model-settings]" ? dialog : null,
+    querySelectorAll: () => [],
+    addEventListener: (type: string, listener: Listener) => { const list = listeners.get(type) ?? []; list.push(listener); listeners.set(type, list); },
+    dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
+  };
+  vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
+    document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
+    DOMParser: class {}, AbortController, setTimeout, clearTimeout,
+  });
+  const swallowed: unknown[] = [];
+  const onRejection = (reason: unknown) => swallowed.push(reason);
+  process.on("unhandledRejection", onRejection);
+  try {
+    document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally { process.off("unhandledRejection", onRejection); }
+  assert.equal(asked.length, 1, `${href}: the dialog loads once`);
+  return asked[0]!;
+}
+
+test("RAC-2412 S-47 a settings address keeps only the parameters and fragment its page reads", () => {
+  assert.equal(openSettingsAddress("/settings/models?setup=1&template=balanced&provider=second&new=1&x=1#frag"),
+    "/settings/models?setup=1&template=balanced&provider=second&new=1", "models keeps setup, template, provider and new; drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/connectors?connector=image-api&connected=notion&connection_error=cancelled&setup=s-1&x=1"),
+    "/capabilities/connections?connector=image-api&connected=notion&connection_error=cancelled&setup=s-1", "connectors (opened as the 能力 connections page) keeps connector, connected, connection_error and setup; drops x");
+  assert.equal(openSettingsAddress("/capabilities/library?kind=action&action=feed.list@1&version=2&provider=not-read&x=1"),
+    "/capabilities/library?kind=action&action=feed.list%401&version=2", "library keeps kind, action and version; drops provider (only models reads it) and x");
+  assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#agent-diagnostics"),
+    "/settings/diagnostics?call=c-1#agent-diagnostics", "diagnostics keeps its call and its fragment");
+  assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#elsewhere"),
+    "/settings/diagnostics?call=c-1", "diagnostics drops a fragment it does not read");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&q=feed&filter=all&format=html&bad=1"),
+    "/capabilities/access?client=agent%3Aprologue&client_custom=acme&q=feed&filter=all", "the access page keeps its client selector, q and filter; drops format (the page does not read it) and bad");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&project=desk-1&q=feed&filter=all&format=html&bad=1", [], "link"),
+    "/capabilities/access?client=agent%3Aprologue&client_custom=acme&project=desk-1&q=feed&filter=all", "the same retention on the full address when a plugin page's link clicks through to the access page");
+  assert.equal(openSettingsAddress("/capabilities/rules?project=p1&rule=r-1&key=k-1&x=1"),
+    "/capabilities/rules?project=p1&rule=r-1&key=k-1", "the rules page keeps project, rule and key, drops x");
+  assert.equal(openSettingsAddress("/projects/p1/settings/planning/method-a?project=p1&x=1#frag"),
+    "/projects/p1/settings/planning/method-a?project=p1", "a nested planning page keeps project, drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/coding-settings?project=p1&desktop=1&x=1", ["coding-settings"]),
+    "/settings/coding-settings?project=p1&desktop=1", "a plugin settings page keeps project and desktop, drops x");
+  // A plugin section may be named like an Object property: only the table's own keys count, so it gets the plugin defaults and no hash.
+  assert.equal(openSettingsAddress("/settings/constructor?project=p1&desktop=1&function=not-declared#frag", ["constructor"]),
+    "/settings/constructor?project=p1&desktop=1", "a plugin section named constructor keeps project and desktop, drops an undeclared parameter and the fragment");
+  // Projects reads the picked project's id from the fragment; only a project-id-shaped value is kept, and the page's own project
+  // parameter stays while an undeclared one does not.
+  assert.equal(openSettingsAddress("/settings/projects?project=p1&x=1#p1.2_x~y-3"),
+    "/settings/projects?project=p1#p1.2_x~y-3", "the projects page keeps the picked project's id in the fragment and drops x");
+  assert.equal(openSettingsAddress(`/settings/projects?project=p1#${"x".repeat(200)}`),
+    `/settings/projects?project=p1#${"x".repeat(200)}`, "a project id of exactly 200 characters is kept");
+  for (const bad of ["#.hidden", "#bad id", "#a/b", "#%2e", `#${"x".repeat(201)}`]) {
+    assert.equal(openSettingsAddress(`/settings/projects?project=p1${bad}`), "/settings/projects?project=p1",
+      `the projects page drops a fragment that is not a project id: ${bad.slice(0, 20)}`);
+  }
+  assert.equal(openSettingsAddress("/settings/assistant#contributions"),
+    "/settings/assistant#contributions", "the assistant page keeps its declared contributions fragment");
+});
+
+test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {
+  const models = new URL(await homeModelAddress("/settings/models?setup=1&template=balanced&provider=second&x=1#frag"));
+  assert.equal(models.searchParams.get("setup"), "1");
+  assert.equal(models.searchParams.get("template"), "balanced");
+  assert.equal(models.searchParams.get("provider"), "second", "the providers page's own choice is kept");
+  assert.equal(models.searchParams.get("x"), null, "an undeclared parameter is dropped");
+  assert.equal(models.searchParams.get("embed"), "1", "the dialog still asks for the embedded document");
+  assert.equal(models.hash, "", "the fragment is dropped");
+  const connectors = new URL(await homeModelAddress("/capabilities/connections?setup=s-1&connector=notion&x=1"));
+  assert.equal(connectors.searchParams.get("setup"), "s-1");
+  assert.equal(connectors.searchParams.get("connector"), "notion");
+  assert.equal(connectors.searchParams.get("x"), null);
+});
+
+test("RAC-2412 S-47 the access declaration lists exactly what the access page reader reads", () => {
+  // Tie the declaration to the real reader instead of a second copy: every parameter mcpAccessPageModel reads (after the defaults every
+  // page gets) must be declared, so a new read there without a new declaration turns this red.
+  const source = readFileSync(new URL("../apps/local-host/src/mcp-action-access.ts", import.meta.url), "utf8");
+  const start = source.indexOf("export async function mcpAccessPageModel");
+  assert.ok(start > 0, "the access page reader is found");
+  const bodyStart = source.indexOf("{", source.indexOf("Promise<", start));
+  let depth = 0, end = -1;
+  for (let at = bodyStart; at < source.length; at += 1) {
+    if (source[at] === "{") depth += 1;
+    else if (source[at] === "}" && --depth === 0) { end = at; break; }
+  }
+  assert.ok(end > bodyStart, "the reader's body is found");
+  const read = new Set([...source.slice(bodyStart, end).matchAll(/url\.searchParams\.get\("([A-Za-z_]+)"\)/gu)].map(match => match[1]!));
+  assert.ok(read.has("client") && read.has("client_custom"), "the reader reads the client selector");
+  const shared = new Set(SETTINGS_ADDRESS_DEFAULTS.global.split(" "));
+  const expected = [...read].filter(key => !shared.has(key)).sort();
+  const declared = (GLOBAL_SETTINGS_QUERY_EXTRAS.access ?? "").split(" ").filter(Boolean).sort();
+  assert.deepEqual(declared, expected, "the access declaration is exactly the reader's own parameters");
+});
+
+test("RAC-2412 S-47 both scripts carry the one declaration table", () => {
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_QUERY_EXTRAS"), JSON.parse(JSON.stringify(GLOBAL_SETTINGS_QUERY_EXTRAS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_QUERY_EXTRAS"), JSON.parse(JSON.stringify(PROJECT_SETTINGS_QUERY_EXTRAS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "ADDRESS_HASHES"), JSON.parse(JSON.stringify(SETTINGS_ADDRESS_HASHES)));
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.project);
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ID_HASH_SECTION"), PROJECT_ID_HASH_SECTION);
+  assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_QUERY_EXTRAS"), JSON.parse(JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)));
+  assert.equal(injectedString(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+});

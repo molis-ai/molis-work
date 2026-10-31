@@ -49,6 +49,19 @@ test("W4-2-13 Proposal UI preserves other drafts during forced refresh, retries 
     await waitFor(dom(formSelector) + "?.getBoundingClientRect().width > 0");
   };
   await openGoal("browser-adopt-root", adoptForm);
+  // RAC-2090: the decision card's narrow-screen rules come after Goals' base rules (they live in Goals' own 760px block), so
+  // below 760px the guidance sections stack without a right border and each scenario row is one column.
+  const decisionLayout = () => evaluate(`(() => {
+    const section = ${dom(adoptForm + " .decision-guidance > section")}, row = ${dom(adoptForm + " .decision-scenario dl > div")};
+    const columns = getComputedStyle(row).gridTemplateColumns.trim().split(/\\s+(?![^(]*\\))/).length;
+    return { sectionRight: getComputedStyle(section).borderRightWidth, sectionBottom: getComputedStyle(section).borderBottomWidth, columns, gap: getComputedStyle(row).columnGap };
+  })()`);
+  assert.deepEqual(await decisionLayout(), { sectionRight: "1px", sectionBottom: "0px", columns: 2, gap: "8px" });
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor("innerWidth === 390");
+  assert.deepEqual(await decisionLayout(), { sectionRight: "0px", sectionBottom: "1px", columns: 1, gap: "4px" });
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor("innerWidth === 1440");
   const draftForm = form(draft.proposal_id);
   await click(draftForm + ' textarea[name="reason"]');
   await command("Input.insertText", { text: "这份还没决定，先写下需要补充的依据。" }, sessionId);

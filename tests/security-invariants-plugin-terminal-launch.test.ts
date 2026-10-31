@@ -13,6 +13,7 @@ import type { PluginDefinition, PluginHostServices, PluginManifest } from "@moli
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { buildPtyEnvironment } from "@molis-ai/molis-work-service-runtime-host";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
@@ -529,6 +530,19 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
   assert.deepEqual(Object.keys(env).filter(name => name.startsWith("MOLIS_WORK_")).sort(), ["MOLIS_WORK_FOCUS_ID", "MOLIS_WORK_HOME", "MOLIS_WORK_MCP_AUDIENCE",
     "MOLIS_WORK_PANEL_ID", "MOLIS_WORK_RUNTIME_ID", "MOLIS_WORK_WEB_URL", "MOLIS_WORK_WORK_CONTEXT_ID", "MOLIS_WORK_WORK_CONTEXT_STABLE"],
   "the Molis Work variables are exactly the platform's set: none of the Host process's own reach the terminal");
+});
+
+// The login shell environment is given here, so this runs the same on every machine (CI's runner may have no zsh, and no shell configuration
+// that exports a Molis Work variable).
+test("RAC-2564 S-103 a terminal's Molis Work variables come only from its caller: those the person's login shell configuration exports are not carried in", () => {
+  const env = buildPtyEnvironment({ MOLIS_WORK_HOME: "/overlay-home" }, {
+    PATH: "/usr/bin", KEEP_ME: "kept", MOLIS_WORK_ENCRYPTION_KEY: "sentinel-key", MOLIS_WORK_SECRET_BACKEND: "sentinel-backend", MOLIS_WORK_HOME: "/login-home",
+  });
+  assert.equal(env.MOLIS_WORK_ENCRYPTION_KEY, undefined, "the key the login shell exports is not carried in");
+  assert.equal(env.MOLIS_WORK_SECRET_BACKEND, undefined, "the secret backend the login shell exports is not carried in");
+  assert.equal(env.MOLIS_WORK_HOME, "/overlay-home", "the caller's variable is");
+  assert.equal(env.KEEP_ME, "kept", "the rest of the login environment is carried in");
+  assert.deepEqual(Object.keys(env).filter(key => key.startsWith("MOLIS_WORK_")), ["MOLIS_WORK_HOME"]);
 });
 
 test("RAC-2569 S-103 a terminal's record is its installation's, project's and person's: nobody else lists or closes it; a Home call's record has no project", { timeout: 60_000 }, async t => {

@@ -290,11 +290,12 @@ export function isPtyCommandAvailable(command: string, pathEnv = buildPtyEnviron
   return Boolean(command?.trim()) && isExecutableFile(resolveCommand(command.trim(), pathEnv));
 }
 
-export function buildPtyEnvironment(overlay: Record<string, string> = {}): Record<string, string> {
-  const login = loginShellEnvironment();
+/** A terminal's environment: the person's login shell environment (`login`, read once by default), cleaned, and the caller's `overlay`. */
+export function buildPtyEnvironment(overlay: Record<string, string> = {}, login: Record<string, string> = loginShellEnvironment()): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(login)) {
-    // The Host's own Molis Work variables (its key, secret backend, switches) stay in the Host: a terminal gets only those its overlay names (S-103).
+    // A terminal's Molis Work variables come only from its caller's overlay: those the person's login shell configuration exports
+    // (a `MOLIS_WORK_ENCRYPTION_KEY`, a secret backend, test switches) are not carried in (S-103).
     if (!isBlockedPtyEnvKey(key) && !key.startsWith("MOLIS_WORK_")) env[key] = value;
   }
   env.HOME ||= os.homedir();

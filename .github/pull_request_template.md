@@ -44,7 +44,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 <!-- 2026-10-20 复审后补：评审、全量和 main 基线都以最终 head 为准，不以合并后的补跑替代。 -->
 
 - [ ] 最后一轮评审的「要改」已全部落实，或被评审明确豁免；评论里贴出对应提交/验证
-- [ ] 共享核心（`packages/contracts`、`plugin-sdk`、`plugin-runtime`、`horizontal/agent-host` 等）在最终 head 上跑完 full-suite，贴运行链接，没有取消/失败分片
+- [ ] 共享核心（`packages/contracts`、`packages/kernel`、`plugin-sdk`、`plugin-runtime`、`horizontal/agent-host`、`modules`）在最终 head 上跑完 full-suite，贴运行链接，没有取消/失败分片
 - [ ] 在最终 head 上跑过 `pnpm health:check`、`pnpm boundary:check`、页面资源与 `pnpm secrets:check`（或写明由统筹跑）
 - [ ] stacked PR 写明父 PR；MERGEED 不等于在 main，父 PR 已合入、目标分支确认后才算完成
 - [ ] 合并队列通过后回读 main 上的合并提交，确认文件树与验证过的 head 一致

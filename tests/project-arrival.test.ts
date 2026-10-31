@@ -20,6 +20,8 @@ function withHome(run: (home: string) => void) {
   try { run(home); } finally { rmSync(home, { recursive: true, force: true }); }
 }
 const at = (iso: string) => new Date(iso);
+// RAC-2432 RAC-2433: the introduction a chooser row shows is cut in whole characters, never on half of one.
+const LONE_HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
 
 test("a Home that has never opened a project remembers nothing", () => {
   withHome(home => {
@@ -64,6 +66,21 @@ test("the introduction a person accepted survives later visits and is cut to one
     assert.equal(readProjectArrival(home).projects.a?.last_opened_at, "2026-10-01T08:00:00.000Z", "setting a description keeps the visit");
     setProjectDescription(home, "a", "   ");
     assert.equal(readProjectArrival(home).projects.a?.description, null);
+  });
+});
+
+test("RAC-2432 a summary cut for a chooser row never ends on half of a character", () => {
+  const sentence = descriptionFromSummary("x".repeat(238) + "🙂".repeat(3))!;
+  assert.equal(sentence, "x".repeat(238) + "…");
+  assert.equal(LONE_HALF.test(sentence), false, "no half of a character in the cut sentence");
+});
+
+test("RAC-2433 the stored introduction is cut in whole characters, never keeping half of one", () => {
+  withHome(home => {
+    setProjectDescription(home, "a", "x".repeat(239) + "🙂");
+    const description = readProjectArrival(home).projects.a?.description ?? "";
+    assert.equal(description, "x".repeat(239));
+    assert.equal(LONE_HALF.test(description), false, "no half of a character is stored");
   });
 });
 

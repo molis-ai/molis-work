@@ -1,5 +1,5 @@
 import type { HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
-import { renderHomePackageDocument } from "./home-package-page.js";
+import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";

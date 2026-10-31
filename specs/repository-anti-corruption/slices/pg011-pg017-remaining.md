@@ -239,7 +239,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 恢复错误：出现，打开后是不可用页，原因取 T-138 给的 `recovery_error`；
   - 卸载：消失。
 - **页面通路与数据**（T-401，已做；核对时发现沙箱包的视图没有 `workbench` surface，Home 一侧也没有框内页面，所以比原稿多一块）：
-  - 包的 stage 与项目里的 agent 生成插件用同一份区块标记（`installed-stage-section.ts`）和同一个框内渲染器（`renderPluginDocumentShell`，installed 模式）；Home 一侧由 `home-package-page.ts` 出这个页面，调用走 Home 自己的 `/api/plugins/<id>/call`，页面授权用既有的 `pluginPagesFor(home).open(id, null, 人)`，不新增路由路径、动作或合同；
+  - 包的 stage 与项目里的 agent 生成插件用同一份区块标记（`installed-stage-section.ts`）和同一个框内渲染器（`renderPluginDocumentShell`，installed 模式）；Home 一侧由 `plugin-builder/agent-surface.ts` 的 `renderHomePackageDocument` 出这个页面（放在这里，因为项目一侧的同类页面也在这个文件，且门禁数「内置插件包名在它自己的包之外被点名的文件」，新文件不许加），调用走 Home 自己的 `/api/plugins/<id>/call`，页面授权用既有的 `pluginPagesFor(home).open(id, null, 人)`，不新增路由路径、动作或合同；
   - `/plugins/<id>` 是 Home 插件页（返回、停用/启用按钮）里框一个 iframe，`?frame=workbench` 是框内页面本身；
   - `HomePluginHost.registered()` 末尾并入 `HomeInstalledPlugins.pages()`（在跑的，或没停用但没起来的、有 `recoveryErrors` 的；停用、隔离、卸载、集成包不在），所以 `/plugins/<id>`、项目页的 stage 与页面情境都认它；stage 的区块 id 就是插件 id，也是 Home 登记它用的键，所以 Dock 的名字、标签条的图标按这个 id 找到包的名字和它选的图标，与别的 Home 插件一样（真 Chrome 里看到过用构建号作 id 时 Dock 只显示 `app-…`，改了）；
   - 工具位的数据是 `HomePluginHost.navigation()`（按名字排）：到达页走 `ChooserArrival.home_plugins`，项目页走视图的 `home_plugin_nav`，都只在服务端渲染成 HTML，不进动作、MCP、工作流或插件能读到的任何输出；

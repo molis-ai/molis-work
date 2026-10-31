@@ -60,6 +60,10 @@ export function createAlchemistProloguePort(options: {
         // The instruction travels as `system` here, so this prompt may be as long as the port's own limit; the number comes from the port's
         // constant, not a second one. UTF-16 units are never fewer than code points, so a prompt within the limit in units is within it.
         if (prompt.length > ALCHEMIST_PROMPT_MAX_CHARS) {
+          // A UTF-16 length over twice the limit is over the limit in characters too: refuse on the unit count, without spreading the whole
+          // string into a code-point array (the Host's own promptTooLong has the same fast path for the same reason).
+          if (prompt.length > 2 * ALCHEMIST_PROMPT_MAX_CHARS) throw alchemistErrors.prompt_too_long(
+            `任务材料转成提示后的 UTF-16 长度已超过上限 ${ALCHEMIST_PROMPT_MAX_CHARS} 字的两倍，至少多 ${prompt.length - ALCHEMIST_PROMPT_MAX_CHARS} 个 UTF-16 单元；请减少材料或缩短任务后重试`);
           const promptChars = [...prompt].length;
           if (promptChars > ALCHEMIST_PROMPT_MAX_CHARS) throw alchemistErrors.prompt_too_long(
             `任务材料转成提示后 ${promptChars} 字，超过提示上限 ${ALCHEMIST_PROMPT_MAX_CHARS} 字，多 ${promptChars - ALCHEMIST_PROMPT_MAX_CHARS} 个字；请减少材料或缩短任务后重试`);

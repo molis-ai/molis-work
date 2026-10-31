@@ -249,9 +249,13 @@ const headErrors = (measured, budget, base) => {
 // hint says which actions the automatic judgement looks at) +254 B; +1,795 B in all. T-225 also grows molis-work-plugin-frame.js by
 // +78 B (190760 → 190838). No new asset. The T-138 entry main carried is consumed (its budget already equals its ceiling) and is
 // deleted with this change.
+// T-351 (RAC-2723): the Alchemist research page says "material too long" for a lens job refused because the prompt's data position is
+// over, telling it apart from the generic runtime failure; +146 B on this one asset. Tried: no new asset, one localized sentence with its
+// English pair, no count text (the character excess needs a dedicated error-detail field and is a separate change). Approved [52556, 52702] (the measured bytes, no slack).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [190760, 190838],
   "/assets/molis-work-workbench.js": [1148277, 1150072],
+  "/assets/molis-work-plugins/alchemist.js": [52556, 52702],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

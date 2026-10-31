@@ -13,7 +13,7 @@ Jira/Confluence token 站点只接受 HTTPS 的 `*.atlassian.net` 根地址（�
 
 HTTP 200 的业务失败只映射封闭错误类型与固定恢复说明；远端 `error`、`errmsg`、`msg`、GraphQL errors 原话不会进入 Connector/Listener 的回执与 Feed 日志。已知认证码仍要求重新连接，HTTP 429 保留重试时间；不靠 secret 字符串正则识别和删减远端原话。
 
-`readExternalDocument({ source, url }, { token, fetch? })` 显式读取 Notion、飞书、Lark 或 Google Docs 的正文快照，返回标题、正文、来源与格式限制提示。只请求所选供应商的固定官方 API；凭据由 Host 注入，不在这里保存。本包不创建 Artifact，版本与去重由 [Artifacts Plugin](../../native/artifacts/README.md#从文档工具导入) 编排。飞书与 Lark 使用独立连接器凭据和各自 API 域名。
+`readExternalDocument({ source, url }, { token, fetch? })` 显式读取 Notion、飞书、Lark 或 Google Docs 的正文快照，返回标题、正文、来源与格式限制提示。只请求所选供应商的固定官方 API；凭据由 Host 注入，不在这里保存。本包不创建 Artifact，版本与去重由 [Artifacts Plugin](../../../docs/modules/artifacts.md#从文档工具导入) 编排。飞书与 Lark 使用独立连接器凭据和各自 API 域名。
 
 文档读取接受可信 `signal` / `beforeDispatch`，每次 API 请求前复查，包括元信息、正文和获取应用令牌。30 秒总时限覆盖异步派出检查，取消原因原样抛出，不伪装成网络错误或触发凭据刷新；超限、失败和取消释放响应流。账号身份及提交校验由 Host 负责。
 

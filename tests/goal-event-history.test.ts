@@ -1,3 +1,4 @@
+// RAC-2363: current-format business history behavior remains covered without any maintenance chain.
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

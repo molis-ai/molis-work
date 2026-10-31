@@ -1,13 +1,12 @@
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { projectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
 import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
-import { managedProjectDirectory } from "./project-file-paths.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
@@ -41,7 +40,7 @@ export class ManagedProjectDeletion {
     }
 
     const project = this.projects.query.getProject(projectId);
-    const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
+    const projectDirectory = projectDirectoryPath(this.projectsDirectory, project.project_id);
     const stagedDirectory = path.join(this.projectsDirectory, `.deleting-${project.project_id}-${randomUUID()}`);
     await fs.rename(projectDirectory, stagedDirectory);
     let catalogCommitted = false;

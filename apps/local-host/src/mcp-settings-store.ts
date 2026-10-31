@@ -14,7 +14,7 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-const MCP_TOOL_PREFERENCE_VERSION = 3;
+const MCP_TOOL_PREFERENCE_VERSION = 1;
 const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */
@@ -68,7 +68,7 @@ export function readMcpToolPreferenceSync(homeDirectory: string): McpToolPrefere
 }
 
 function invalidPreference(cause?: unknown): ActionError {
-  return new ActionError("actions.configuration_unavailable", "MCP 授权配置无效，已保留原文件；请修复为完整 version 3 配置后重试", { cause });
+  return new ActionError("actions.configuration_unavailable", "MCP 授权配置无效，已保留原文件；请修复为完整 version 1 配置后重试", { cause });
 }
 
 function parsePreferenceText(text: string): McpToolPreference {

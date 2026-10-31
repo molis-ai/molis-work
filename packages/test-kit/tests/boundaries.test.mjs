@@ -65,8 +65,8 @@ test("rejects a Module implementation or Store import from another Module", () =
 
 test("rejects imports between Plugin implementations", () => {
   const target = boundaryPackage(
-    "@molis-ai/molis-work-plugin-artifacts",
-    "plugins/native/artifacts",
+    "@molis-ai/molis-work-plugin-pages",
+    "plugins/native/pages",
     "native-plugin",
   );
   const importer = boundaryPackage(

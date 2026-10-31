@@ -6,6 +6,7 @@ import { shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 // W5-06 余项第一片（PG-060，RAC-80～84）：/__ui/catalog 的底栏样张（/__ui/catalog/bar）用同一个构建期插件目录画插件格，
 // 并像新项目那样分亮格与灰格。亮格是样例项目默认启用的插件（现行 Dock 默认插件加个人插件），灰格是目录里其余插件；
 // 格子数随目录增减，不再写插件名单。developer 插件（Text Stats）不进目录，也就不进样张。
+// PG-077: the platform Artifact tile is always available to open and has no Plugin membership toggle.
 
 // The Dock's default pins are what the Manifests declare (`pinned_default`, W5-02 PG-074), the plugins a new project starts with,
 // before any personal plugin is added.
@@ -35,7 +36,12 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
     "the grey cells are exactly the directory's plugins the sample project has not added");
   assert.ok(bright.length > 0 && grey.length > 0, "both states are visible");
   assert.match(html, /class="plugin-rail-tile is-available[^"]*" data-plugin-tile="/, "a grey tile carries the not-added class");
-  for (const id of tiles(html)) assert.ok(bright.includes(id) || grey.includes(id), `${id} is drawn as bright or grey`);
+  assert.deepEqual(tiles(html).filter(id => id === "artifacts"), ["artifacts"], "the platform Artifact surface is present once");
+  assert.equal(directory.includes("artifacts"), false, "the platform surface is not in the Plugin market");
+  assert.doesNotMatch(html, /data-plugin-toggle="artifacts"/, "the platform surface cannot be added or removed as a Plugin");
+  assert.match(html, /class="plugin-rail-tile(?: is-kept)?" data-plugin-tile="artifacts"/, "the platform surface is available to open, not a grey unavailable Plugin");
+  assert.match(html, /data-plugin-id="artifacts"[^>]*data-work-surface-open="artifacts"/, "the tile opens the existing platform work surface");
+  for (const id of tiles(html).filter(id => id !== "artifacts")) assert.ok(bright.includes(id) || grey.includes(id), `${id} is drawn as bright or grey`);
 });
 
 test("RAC-82: the developer plugin stays out of the bar specimen, as it stays out of the plugin directory", () => {

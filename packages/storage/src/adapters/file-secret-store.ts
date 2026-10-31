@@ -572,7 +572,8 @@ function saveFile(file: SecretsFileV2): void {
 function assertSealedV2(sealed: string): void {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
-    if (raw.v === 2 && raw.alg === ALG) return;
+    if (raw.v === 2 && raw.alg === ALG && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string"
+      && Buffer.from(raw.iv, "base64").length === 12 && Buffer.from(raw.tag, "base64").length === 16) return;
   } catch { /* reported below */ }
   throw new Error("secret not AES-GCM sealed");
 }

@@ -106,7 +106,6 @@
 | T-295 二审 建议（#1599，6527972062） | `apps/workbench/src/settings-connectors.ts:91`、`tests/connectors-settings-behaviors.test.ts` | ① 来源行的包名没限长（Manifest `name` 只校验非空，5000 字包名渲染成 5003 字一行），也过 `connectorCardText` 并在 RAC-2419 补一条；② `declared_by` 缺失时也显示「Molis Work（内置）」，信任标签默认放行，应缺失时不显示；③ 永久测试只锁了搜索里的名称，说明和 id 兜底没锁；④ 连接行、plugin-slots、guide、request 页仍显示未限长的 `card.title`，详情页头没有来源行。乙，#1599 已合入；①②③ 已进 T-326（派单线 10-30），④ 等 T-326 合入再写书 | 派单线 2026-10-30 |
 | T-294 二审 建议（#1609，6527961477） | `tests/whole-units.test.ts` | `cutHead` 两个变异不红：超限而切口不在字中间（补 `cutHead("x".repeat(181),180)`）、`<=` 改 `<`（补 `cutHead("x\uD83D",2)` 原样）。丙，#1609 已合入，已进 T-335（派单线 10-30） | 派单线 2026-10-30 |
 | T-293 二审 建议（#1606，6527981683；①③ 已随 T-356 #1685 合入，② 等 #1677、#1649、#1101） | `tests/connector-cli.test.ts:181`、`tests/connector-record-actions.test.ts:69`、`horizontal/connector-host/src/connector-cli.ts:44` | ① 两条回归钉补 `assert.equal(missing.code, …)`；② 同类下标漏登记：`agent-connector-ports.ts:8,9`、`connector-plugin-requests.ts:192`、`plugin-connection-slots-http.ts:39`；③ `definition("constructor")` 返回 `Object` 函数，`cliExecutable` 里 `join(directory, undefined)` 抛 `TypeError`（入口 `web-connector-api-methods.ts:43`、`:48`），先做这处。乙，#1606 合入后写书 | 派单线 2026-10-30 |
-| R-63（风险登记） | `apps/local-host/src/home-aggregate.ts:72`、`home-event-actions.ts:31` | 首页读取把 `actions.plugin_disabled` 一律略过，清单里有却被拒的看不到。已进 T-319，合入后在 #1332 报，删本行 | 统筹 2026-10-30 |
 | R-65（风险登记） | 首页下一步的空状态 | 写明自动判断只看 Feed 已被授予的动作。已进 T-320，合入后在 #1332 报，删本行 | 统筹 2026-10-30 |
 | R-49（风险登记） | `plugins/native/feed/src/application.ts:274`、`modules/attention-resumption/src/index.ts:416`、`owner_plugin_id` 的 `IS NULL` 部分唯一索引 | 读取侧还认 null（写入侧已清）：删 null 分支、列改 NOT NULL、合同去掉 null、用例钉住 null 被拒。改共享合同（`pnpm api:update`，full=true）并动 DDL，**不写书**：等干净 Home 批合入后由统筹定时点（要么在重建前落地，要么等重建后随 v2 加维护） | 统筹 2026-10-30 |
 | 文档同步（风险登记） | `specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` | 已进 T-321，合入后在 #1332 报，删本行 | 统筹 2026-10-30 |
@@ -167,9 +166,11 @@
 | T-340 二审 建议 5（#1658，6543825026；已合） | `mcp.grant_unavailable` 动态码 | 保留当前随 discovery 状态带 kind 的行为；后续需要统一声明时先给具体合同方案，不在T-340外无证据改语义。 | Codex 统筹 2026-10-31 |
 
 | T-366 一审建议（#1695，6546934234） | `tests/alchemist-terminal-refresh.e2e.test.ts:190–201` | 未接受旧queued任务的有界观察窗后，再断言同一job的accepted仍false与continue入口仍在；当前生产只重排读取、未新增accept/continue，不挡本单。并入下次改此回归文件的书 | Codex 统筹 |
-| T-319 增量二审建议（#1662，6546161968） | `apps/local-host/src/home-aggregate.ts` | 目录查询与后续项目阶段均失败时保留两阶段诊断，并补双重失败用例；当前仍有错误可见，不挡本单，等 #1662 合入后再起草；关闭项目的静默规则保留 | Codex 统筹 |
+| T-319 增量二审建议（#1662，6546161968） | `apps/local-host/src/home-aggregate.ts` | 目录查询与后续项目阶段均失败时保留两阶段诊断，并补双重失败用例；当前仍有错误可见，不挡本单；#1662 已合入 `45be6f2e1`，可在查清文件锁后起草；关闭项目的静默规则保留 | Codex 统筹 |
 | T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确，等 #1693 合入后起草 | Codex 统筹 |
 
 | T-347 Full 与 main 夜间重复失败（已进 T-366；#1665 6545882401） | `plugins/native/alchemist/src/client.ts` 及定向浏览器回归 | 缺模型后真实 run 已终态，页面旧进度未收敛；先用真实响应制造确定性交错再最小修复，不第三次盲重跑，不回滚 T-347 安全语义；RAC-2752～2757 | Codex 开发线 2 |
 
 | T-360 二审建议（#1691，6546559960） | `tests/pages-materials-prompt-budget.test.ts` | 测试注释补 current default instruction 限定，与已修正文一致；下次修改该文件时带上，不单开单，不声称任意未来指令长度都满足预算。 | Codex 统筹 |
+
+| T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合，起草前重核在途文件锁。 | Codex 统筹 |

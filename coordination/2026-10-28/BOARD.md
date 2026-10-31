@@ -260,7 +260,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-316 | GLOSSARY 把 R-B1～R-B8 补进 R-C 记为保持原名并写理由（W5-14 R-B 不做的收口；统筹 10-30 转的小单；短任务书） | 丙 | 池 | 212 | — | `docs/system/GLOSSARY.md` |
 | T-317 | W5-15 收尾：examples/probe-plugin 去掉退役的包元数据（packageDescriptor、旧块字段、README 旧行），词汇测试的扫描补到 examples（统筹 10-30 转的一行；RAC-2434；短任务书） | 乙 | 池 | 213 | — | `examples/probe-plugin/package.json`、`examples/probe-plugin/src/index.ts`、`examples/probe-plugin/README.md`、`tests/package-maturity-vocabulary.test.ts` |
 | T-318 | R-62：删项目时按声明删文件，删前再核一次路径，父目录被换成链接就不删，RAC-2435～2436（风险登记，统筹 10-30 转；短任务书） | 乙 | A | 214 | — | `apps/local-host/src/plugin-project-rows.ts`、`tests/project-rows-deletion.test.ts` |
-| T-319 | R-63：首页聚合与首页事项读取按项目插件清单判断，清单里有却被拒的记成 issue，RAC-2437～2438（风险登记，统筹 10-30 转；超过四个业务文件停下报告；短任务书） | 乙 | A | 215 | — | `apps/local-host/src/home-aggregate.ts`、`apps/local-host/src/home-event-actions.ts` |
+| T-319 | R-63：首页聚合与首页事项读取按项目插件清单判断，清单里有却被拒的记成 issue，RAC-2437～2438（风险登记，统筹 10-30 转；超过四个业务文件停下报告；短任务书） | 乙 | Codex 统筹 | 已合（10-31，#1662 → `45be6f2e1`） | — | `apps/local-host/src/home-aggregate.ts`、`apps/local-host/src/home-event-actions.ts` |
 | T-320 | R-65：首页「下一步」空状态写明自动判断只看 Feed 已被授予的动作（中英文，英文进插件自己的词典），RAC-2439（风险登记，统筹 10-30 转；短任务书） | 乙 | 池 | 已合（10-31，随批 #1687 → `0ac344d8c`） | — | 由【方案】定（预计 1 个渲染文件、1 个词典、1 个测试） |
 | T-321 | 文档同步：BACKLOG 归属列与 spec §12.2、§12.3、§1.1 的遗留裁决按 10-30 现状改（风险登记，统筹 10-30 转；一个只改文档的 PR；短任务书） | 丙 | B | 217 | — | `specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
 | T-323 | T-218 S1：无 install_id 的登记页面和创作台试用页关闭时在途请求按取消（499）结束，不再回 403，RAC-2442（二审建议；短任务书） | 丙 | Codex 统筹 | 已合（10-31，#1660 → `12c911b1c`） | — | `apps/local-host/src/plugin-page-authority.ts`、一个测试文件（开工定） |

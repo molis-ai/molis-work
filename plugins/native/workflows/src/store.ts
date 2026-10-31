@@ -15,7 +15,7 @@ import {
 } from "./model.js";
 import { workflowsErrors } from "./error.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
-import { firstCharacters } from "./bounded-cut.js";
+import { cutCharacters as firstCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 export { WORKFLOWS_DATABASE };
 
 interface WorkflowRow {

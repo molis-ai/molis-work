@@ -248,6 +248,11 @@ const headErrors = (measured, budget, base) => {
 // +616 B and the answer asked for the dictionary; no new asset, no new image.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/form.js": [29708, 30252],
+  // T-353 (MISC 整字截收口), RAC-2726–2728: the Jelly notes list cuts a row's text with the SDK's shared cutHead instead of its own
+  // slice-and-drop-the-half, so one rule lives in one place for plugins and the platform. +33 B on this one asset (76866 → 76899), the
+  // import and the call in the row. Tried: keeping an inline copy is the second implementation this task removes (and would still be
+  // about +30 B); precomputation at render would need the same helper; no new asset, no new image.
+  "/assets/molis-work-plugins/jelly.js": [76866, 76899],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

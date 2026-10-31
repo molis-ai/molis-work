@@ -9,7 +9,7 @@ import type { WorkflowsStore } from "./store.js";
 import type { WorkflowContentPorts, WorkflowsActionPorts } from "./actions.js";
 import { withPending } from "./continuation.js";
 import { workflowsErrors } from "./error.js";
-import { firstCharacters } from "./bounded-cut.js";
+import { cutCharacters as firstCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type Pending = NonNullable<WorkflowInstance["steps"][number]["pending"]>;
 /** What a step needs of the handler that runs it: its project, and the one write the handler makes (authority is checked again inside it). */

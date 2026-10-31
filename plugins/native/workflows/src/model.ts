@@ -2,7 +2,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
 import type { ActionAvailability, ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workflowsErrors } from "./error.js";
-import { exceedsCharacters, firstCharacters } from "./bounded-cut.js";
+import { cutCharacters as firstCharacters, exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Workflows: pure data rules. No storage, no network, no plugin internals. */
 

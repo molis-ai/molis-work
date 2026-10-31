@@ -8,7 +8,7 @@ import { aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadi
   type WorkflowHandoff, type WorkflowInstance, type WorkflowLink, type WorkflowPayload, type WorkflowVerdict } from "./model.js";
 import type { WorkflowContentPorts, WorkflowsActionPorts, workflowsActions } from "./actions.js";
 import { withPending } from "./continuation.js";
-import { firstCharacters } from "./bounded-cut.js";
+import { cutCharacters as firstCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { workflowsErrors } from "./error.js";
 import { labelOf, readStep, resolveStation, type Pending, type Reach, type RunScope } from "./step-runner.js";
 

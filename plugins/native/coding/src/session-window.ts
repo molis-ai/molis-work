@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { isTerminalAgentPhase, type AgentRunUsage, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { originalTask } from "./continuation.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * Reading a long session without rereading all of it.
@@ -31,7 +32,7 @@ export function codingRunSummary(run: AgentRunView): CodingRunSummary {
   const task = originalTask(run).trim();
   return {
     light: true, ref: run.ref, phase: run.phase, started_at: run.started_at, ended_at: run.ended_at ?? null,
-    task: task.length > 300 ? task.slice(0, 300).replace(/[\uD800-\uDBFF]$/u, "") + "…" : task,
+    task: task.length > 300 ? cutHead(task, 300) + "…" : task,
     frozen: { role_id: run.frozen.role_id, model_id: run.frozen.model_id, ...(run.frozen.character ? { character: { title: run.frozen.character.title } } : {}),
       ...(run.frozen.directory ? { directory: { canonical_path: run.frozen.directory.canonical_path } } : {}),
       text_materials: run.frozen.text_materials.map(item => ({ source_artifact_id: item.source_artifact_id, source_version: item.source_version })) },
@@ -101,7 +102,7 @@ export function codingRunForDisplay(run: AgentRunView): AgentRunView & { fingerp
     if (!item.output) return item;
     const all = item.output.replace(/\n$/, "").split("\n"), limit = SHOWN_LINES[item.name] ?? 24;
     let kept = all.slice(0, limit).join("\n");
-    if (kept.length > SHOWN_CHARS) kept = kept.slice(0, SHOWN_CHARS).replace(/[\uD800-\uDBFF]$/u, "");
+    if (kept.length > SHOWN_CHARS) kept = cutHead(kept, SHOWN_CHARS);
     return kept.length === item.output.length ? item : { ...item, output: kept, output_hidden_lines: Math.max(0, all.length - limit) };
   });
   const shown = { ...run, activity };

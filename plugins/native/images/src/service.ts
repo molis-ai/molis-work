@@ -4,6 +4,7 @@ import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, Pl
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, type StoredConnection } from "./store.js";
 import { runImageJob } from "./service-job.js";
 import { IMAGES_ASSETS } from "./owner-files.js";
@@ -174,17 +175,8 @@ export class ImagesService {
 
 function textField(value: unknown, name: string, maximum: number): string {
   const text = typeof value === "string" ? value.trim() : "";
-  if (!text || !withinCharacters(text, maximum)) throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
+  if (!text || exceedsCharacters(text, maximum)) throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
   return text;
-}
-/**
- * Whether `text` has at most `limit` characters: the unit the action schemas' `maxLength` counts. A character is one or two UTF-16 units.
- * The two cheap answers come first, so a long text is never spread into an array: at most `limit * 2` units are ever counted.
- */
-function withinCharacters(text: string, limit: number): boolean {
-  if (text.length <= limit) return true;
-  if (text.length > limit * 2) return false;
-  return [...text].length <= limit;
 }
 function optionalText(value: unknown, name: string, maximum: number): string { return value === undefined || value === "" ? "" : textField(value, name, maximum); }
 function project(value: unknown): string { return textField(value, "当前项目", 256); }

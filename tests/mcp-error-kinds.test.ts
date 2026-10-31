@@ -127,6 +127,13 @@ test("RAC-2713 the five codes whose kind changed carry it where the error leaves
   const controller = new AbortController();
   controller.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
   assert.equal(kindOf(() => controller.signal.throwIfAborted()), "conflict", "the abort reason keeps its declared kind");
+  // Real throw sites for two more of the five: a known method the project turned off, and a runtime call with no project connection.
+  const turnedOff = kindOfError(() => assertMcpToolAllowed(RUNTIME_STATE as never, "test.turned.off", CALL_CONTEXT,
+    { entries: [], known_names: new Set(["test.turned.off"]), home_scoped_names: new Set() } as never));
+  assert.deepEqual([turnedOff.code, (turnedOff as { kind?: string }).kind], ["mcp.tool_disabled", "unavailable"]);
+  const notConnected = kindOfError(() => assertMcpToolAllowed({ ...RUNTIME_STATE, connectionState: new RuntimeProjectConnection({} as never) } as never,
+    "test.runtime.action", CALL_CONTEXT, { entries: [{ definition: { name: "test.runtime.action" } }], known_names: new Set(), home_scoped_names: new Set() } as never));
+  assert.deepEqual([notConnected.code, (notConnected as { kind?: string }).kind], ["mcp.connection_incomplete", "unavailable"]);
 });
 
 test("RAC-2713 the session-refresh refusal keeps its details flat on the wire, so the recovery fields are read where callers look", () => {

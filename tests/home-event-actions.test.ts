@@ -171,18 +171,22 @@ test("a recommendation read that fails never hides the events and leaves its cod
 // A source the project lists but cannot use (policy refused it, or it is off) is shown as an issue; one the project does not list
 // has nothing to report.
 test("RAC-2438 an unavailable source the project's plugin manifest lists is reported, and one it does not list stays silent", async () => {
-  const read = async (projectId: string, listed: readonly string[]): Promise<HomeEventsResult> => {
+  const read = async (projectId: string, lookup: () => Promise<readonly string[]>): Promise<HomeEventsResult> => {
     const service = new ActionService();
     service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: projectId }, definitions: Object.values(homeEventActions),
-      handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }, async () => listed) });
+      handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }, lookup) });
     const query = defineHomeEventsAction(`${projectId}.off.notes.events`, ["unknown-note"], "停用插件事项", ["notes:read"]);
     service.registerProvider({ provider: { provider_id: `${projectId}.off.plugin`, title: "停用插件事项", kind: "plugin", plugin_id: "off.notes", project_id: projectId },
       availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" }),
       definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "停用插件事项", icon: "note" }, events: [original] }) }] });
     return await service.invoke({ ...caller, project_id: projectId }, homeEventActions.events, window) as HomeEventsResult;
   };
-  const unlisted = await read("manifest-without", []);
-  const listed = await read("manifest-with", ["off.notes"]);
+  const unlisted = await read("manifest-without", async () => []);
+  const listed = await read("manifest-with", async () => ["off.notes"]);
   assert.deepEqual(unlisted, { events: [], issues: [] }, "a project that does not list the plugin hears nothing about it");
   assert.deepEqual(listed.issues, ["停用插件事项：此项目未启用该插件"], "a listed plugin that cannot answer is shown");
+  // A manifest lookup that fails is not "no manifest given": the person sees that the Home could not ask, instead of a plugin silently off.
+  const failed = await read("manifest-failed", async () => { throw new ActionError("host.catalog_unavailable", "项目目录尚未就绪，请稍后重试"); });
+  assert.deepEqual(failed.events, []);
+  assert.deepEqual(failed.issues, ["首页事项：项目的插件清单读取失败（host.catalog_unavailable）"]);
 });

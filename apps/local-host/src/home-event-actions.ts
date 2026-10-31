@@ -17,24 +17,38 @@ export const homeEventActions = {
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 /** `projectPlugins` reads the project's plugin manifest: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
-export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<readonly string[] | undefined>): ActionHandlerBinding[] {
+export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<readonly string[]>): ActionHandlerBinding[] {
   const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
     assertHomeEventWindow(window);
     const directory = await client.discover(caller);
-    const plugins = projectPlugins && caller.project_id ? await projectPlugins(caller.project_id) : undefined;
     const sources = directory.filter(view => view.action.input_type === HOME_EVENTS_INPUT_TYPE && view.action.output_type === HOME_EVENTS_OUTPUT_TYPE
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
     const events: HomeEventView[] = [], issues: string[] = [];
+    // The manifest is only needed for a source that cannot answer; when it is needed and the lookup fails, the person sees that
+    // (not a plugin silently turned off). A read with no such source never asks for it.
+    let plugins: readonly string[] | undefined, manifestFailed = false;
+    const listedByManifest = async (pluginId: string): Promise<boolean> => {
+      if (!plugins && !manifestFailed && projectPlugins && caller.project_id) {
+        try { plugins = await projectPlugins(caller.project_id); }
+        catch (error) {
+          if (!(error instanceof ActionError && error.code === "host.catalog_unavailable")) throw error;
+          manifestFailed = true;
+          issues.push("首页事项：项目的插件清单读取失败（host.catalog_unavailable）");
+        }
+      }
+      return plugins?.includes(pluginId) ?? false;
+    };
     for (const source of sources) {
       if (!source.availability.available) {
         if (pinned) throw new ActionError(source.availability.code, source.availability.reason);
         // A source in this project's plugin manifest that cannot answer (turned off, or refused by policy) is shown; one the project
         // does not list is not installed here and has nothing to report. Without the manifest, the old rule still turns off silently.
         const pluginId = source.provider.plugin_id;
-        const listed = plugins === undefined
-          ? source.availability.code !== "actions.plugin_disabled"
-          : pluginId === undefined ? source.availability.code !== "actions.plugin_disabled" : plugins.includes(pluginId);
+        // With a real lookup and a plugin behind the source, the project's manifest decides; otherwise the old rule stands.
+        const listed = projectPlugins && caller.project_id && pluginId !== undefined
+          ? await listedByManifest(pluginId)
+          : source.availability.code !== "actions.plugin_disabled";
         if (listed) issues.push(source.action.title + "：" + source.availability.reason);
         continue;
       }

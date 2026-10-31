@@ -657,7 +657,16 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
     assert.match(page, /打开 Connectors/);
-    assert.match(page, /在 Connectors 授权 Gmail 后，当前项目的 Feed 会按邮箱关联来源。/);
+    assert.match(page, /在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。/);
+    // RAC-2667 (T-121): an account source's settings name the plugin, the slot and the record, never an account or an installation; the
+    // page script reads and binds through the Host's record-slot path, and an account already chosen is changed by disconnecting first.
+    assert.match(page, /data-plugin-record-slot="\{&quot;plugin_id&quot;:&quot;io\.molis\.work\.feed&quot;,&quot;slot_id&quot;:&quot;gmail&quot;,&quot;service_id&quot;:&quot;gmail&quot;,&quot;record_key&quot;:&quot;[^&]+&quot;\}"/);
+    assert.doesNotMatch(page, /data-source-config-field="connection_id"/);
+    assert.ok([...page.matchAll(/data-plugin-record-slot="([^"]*)"/g)].every(([, slot]) => !slot!.includes("install_id") && !slot!.includes("connection_id")));
+    assert.match(page, /<form class="feed-account-source" data-feed-add-account="github">/);
+    const script = await (await fetch(`${origin}/assets/molis-work-workbench.js`)).text();
+    assert.ok(script.includes("/api/settings/connectors/plugin-slots/record?") && script.includes("[data-plugin-record-slot-account]"), "the page script binds through the record-slot path");
+    assert.ok(!script.includes('data-source-config-field="connection_id"'), "and no longer saves an account with the source");
     assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
@@ -723,6 +732,12 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     );
     assert.equal(deleted.status, 200);
     assert.equal((await deleted.json() as { history_decision: string }).history_decision, "retain_history");
+    // RAC-2665: the page adds an account source empty, through Feed's own route; the same name is the same source, and no account is named.
+    const added = await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" });
+    assert.equal(added.status, 201, await added.clone().text());
+    assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" })).status, 200, "the same name is the same source");
+    assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Other", connection_id: github.connection_id })).status, 201,
+      "the route passes on only the service and the name");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

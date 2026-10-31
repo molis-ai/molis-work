@@ -5,7 +5,7 @@ import type { ActionClient, ActionCallContext } from "@molis-ai/molis-work-contr
 import { connectorUsagesAction, connectorUsagesHandler } from "./connector-usage-actions.js";
 import { modelConnectionUsages, modelConnectionUsagesHandler } from "./model-connection-usages.js";
 import { connectorCliActions, connectorCliHandlers } from "./connector-cli-actions.js";
-import { connectorPluginSlotActions, connectorPluginSlotHandlers, type PluginSlotDeclarations } from "./connector-plugin-slot-actions.js";
+import { connectorPluginSlotActions, connectorPluginSlotHandlers, connectorPluginSlotUsages, connectorPluginSlotUsagesHandler, type PluginSlotDeclarations } from "./connector-plugin-slot-actions.js";
 import { ActionError, defineErrorCodes, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
@@ -106,8 +106,8 @@ export async function readConnectorAccount(home: string, connectionId: string, c
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector, clientFor?: (caller: ActionCallContext) => ActionClient, pluginSlots?: PluginSlotDeclarations): ActionProviderRegistration {
   return {
     provider: { provider_id: CONNECTOR_PROVIDER_ID, title: "服务连接", kind: "system" },
-    definitions: [connectorUsagesAction, modelConnectionUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
-    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), { capability_id: connectorAccountActions.read.capability_id, version: 1,
+    definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
+    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), { capability_id: connectorAccountActions.read.capability_id, version: 1,
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id, revision = withConnectorConnections(home, store => store.get(id)?.updated_at);
         await caller.beforeEffect();

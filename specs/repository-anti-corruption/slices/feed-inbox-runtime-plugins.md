@@ -595,6 +595,11 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
 
 仍未完成或未验证（照实记录；门禁数字只按 `--update` 往下降，不开例外）：
 
+- **FI7b 已做（T-121，2026-10-31，#1332 方案 6540954628、裁定 6540998211）。** 下面三样都补上了，Feed 也不再写 `connection_id`：
+  - 宿主入口：`apps/local-host/src/plugin-connection-slots-http.ts` 的记录槽路径 `/api/settings/connectors/plugin-slots/record`，`GET` 调 `read@2`、`POST` 调 `bind@2`，都以人的身份、在 `?project=` 的项目里；查询参数和正文只认规定的名字，多一个（含 `install_id`）答 400；同一项目同一插件两条未卸载安装答 409（S-71，RAC-2666）。
+  - `install_id`：不交给页面，宿主按插件在项目里找（`recordSlotInstallation`）。
+  - Runtime 里新建账号来源：`feed.sources.add_account@1`（GitHub、Gmail，新建时不带账号，RAC-2665）；目录连接器账号来源记 BL-917。
+  - `feed.sources.update@2` 去掉 `connection_id`、@1 删除，换账号的重键删掉，换账号是断开再绑（游标随断开清空，RAC-2664、RAC-2668）；页面的账号选择改读写记录槽（RAC-2667）；连接用途改由平台的 `connectors.plugin_slot.usages@1` 报，`feed.connection.usages` 删除（RAC-2669）。
 - **FI7b 移到单独切片（统筹 10-27 定）。** 槽账号绑定 UI 不进 C。FI7 在 C 里只做了 Feed 一半：页面路由进 Manifest，两段 HTML 归外壳舞台，宿主 Feed 文件删除。FI7 还缺的都归 FI7b：
   - 槽账号绑定 UI 接在 `connectors.plugin_slot.bind@2` 上，用真实来源 record key。缺三样：宿主给页面调 bind@2、read@2 的入口，页面拿得到的 `install_id`，Runtime 里创建账号来源的路径。
   - Feed 停止往来源配置里写 `connection_id`。

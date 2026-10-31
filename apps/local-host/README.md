@@ -293,7 +293,7 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 
 受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
 
-`connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。
+`connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。插件连接槽的使用位置由平台报（`connectors.plugin_slot.usages@1`，`connector-plugin-slot-actions.ts`）：按安装的槽各一条，按记录的槽按插件、槽、项目计数，不列记录键；项目里的调用只看到本项目的记录（T-121）。插件显示记录时的账号读写经 `plugin-connection-slots-http.ts` 的记录槽路径（S-71）。回归：`tests/connector-consumer-usages.test.ts`。
 
 MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。
 

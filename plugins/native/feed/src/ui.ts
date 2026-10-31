@@ -6,6 +6,7 @@ import type {
   FeedMaterialRecord,
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
+import { FEED_PLUGIN_ID } from "./identity.js";
 import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
@@ -423,8 +424,10 @@ function renderSourceConnection(model: FeedUiModel, source: FeedUiSource): strin
   if (!["gmail", "github", "connector"].includes(source.ui_kind)) return "";
   const p = model.primitives;
   const service = source.ui_kind === "connector" ? source.kind : source.ui_kind;
-  const current = typeof source.config.connection_id === "string" ? source.config.connection_id : "";
-  return `<div data-feed-connection-service="${p.escape(service)}"><label><span>${p.text("使用的账号连接")}</span><select data-source-config-field="connection_id" disabled><option value="${p.escape(current)}" selected>${p.escape(source.account_label || p.text("正在读取账号连接…"))}</option></select></label><p data-feed-connection-status role="status">${p.text("账号授权由 Connectors 统一管理，这里选择要使用的连接。")}</p><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, service))}">${p.text("在 Connectors 管理账号")}</a></div>`;
+  // The account is the person's binding on the platform: the source is the record of the service's `per_record` slot (T-121). The page
+  // names the plugin, the slot and the record; the Host finds the installation, and the account list is the person's own.
+  const slot = JSON.stringify({ plugin_id: FEED_PLUGIN_ID, slot_id: service, service_id: service, record_key: source.source_id });
+  return `<div data-feed-connection-service="${p.escape(service)}" data-plugin-record-slot="${p.escape(slot)}"><label><span>${p.text("使用的账号连接")}</span><select data-plugin-record-slot-account disabled><option value="" selected>${p.escape(source.account_label || p.text("正在读取账号连接…"))}</option></select></label><p data-feed-connection-status role="status">${p.text("账号授权由 Connectors 统一管理，这里选择要使用的连接。")}</p><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, service))}">${p.text("在 Connectors 管理账号")}</a></div>`;
 }
 
 function renderTaskConfigPanels(model: FeedUiModel): string {
@@ -481,7 +484,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
 
           <p class="form-error" data-feed-add-error role="alert" hidden></p>
         </form>
-        <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github, "github")}</em></div><p>${p.text("GitHub 账号在全局设置 · Connectors 管理。Feed 用同一份连接拉通知。")}</p><a class="mw-btn mw-btn--primary" href="${p.escape(connectorSettingsHref(model, "github"))}">${p.text("打开 Connectors")}</a></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail, "gmail")}</em></div><p>${p.text("在 Connectors 授权 Gmail 后，当前项目的 Feed 会按邮箱关联来源。")}</p><a class="mw-btn mw-btn--primary" href="${p.escape(connectorSettingsHref(model, "gmail"))}">${p.text("打开 Connectors")}</a></article>
+        <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github, "github")}</em></div><p>${p.text("GitHub 账号在全局设置 · Connectors 管理。Feed 用同一份连接拉通知。")}</p><form class="feed-account-source" data-feed-add-account="github"><label><span>${p.text("来源名称")}</span><input data-feed-account-name required maxlength="80" value="GitHub"></label><button class="mw-btn mw-btn--primary" type="submit">${p.text("创建来源")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "github"))}">${p.text("打开 Connectors")}</a></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail, "gmail")}</em></div><p>${p.text("在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。")}</p><form class="feed-account-source" data-feed-add-account="gmail"><label><span>${p.text("来源名称")}</span><input data-feed-account-name required maxlength="80" value="Gmail"></label><button class="mw-btn mw-btn--primary" type="submit">${p.text("创建来源")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "gmail"))}">${p.text("打开 Connectors")}</a></article>
       </section>
       <section data-feed-task-configs hidden>${taskPanels}</section>
       <p class="form-error" data-feed-source-error role="alert" hidden></p><p class="feed-source-progress" data-feed-source-progress role="status" hidden></p>

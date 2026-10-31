@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **Feed 来源的账号改由本人在平台上按来源绑定：`feed.sources.update` 升到 @2，`feed.connection.usages` 删除**（2026-10-31，T-121，FI-7b，`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md` §13，S-71）：`feed.sources.update@2` 的输入不再有 `connection_id`，@1 同时删掉；固定了 `feed.sources.update@1` 的工作流程步骤、绑定和 MCP 工具（`feed.sources.update__v1`）要改选 @2，且不能再用它换账号。来源的账号改在 Feed 的来源设置里选，经宿主的 `/api/settings/connectors/plugin-slots/record` 调 `connectors.plugin_slot.bind@2`；要换账号先断开来源（游标随之清空），再选新账号。新增 `feed.sources.add_account@1`（GitHub、Gmail 账号来源，先建空来源再选账号）。连接的使用位置改由平台的 `connectors.plugin_slot.usages@1` 报（按安装的槽，和按项目计数的按记录的槽，不列记录键），`feed.connection.usages@1` 的固定引用失效。存量来源配置里的 `connection_id` 不再被读。
+
 - **目录库起点 1（W5-17，干净 Home）**：项目库位置由 Home 与 project_id 推导，目录不再存 database_path。按用户2026-10-30决定，不迁移旧目录；旧Home整体搬开后创建当前结构1，等代码合入/构建就绪后用户另说“开始”。旧目录版本直接拒绝，无离线升级工具；目录可推导不改变原Home/原key的完整恢复约束。
 
 - **按问题选资料分节（`knowledge.locate`）升到 @3，输出多一个 `omitted`**（2026-10-30，T-132）：分节树太长时只把放得下的整节交给模型，`omitted` 是没给模型看的节数。固定了 `knowledge.locate@2` 的工作流步骤会报错并保留原引用，要在工作流里重选这个动作；直接调用（Agent、MCP、插件）不用改，只是多读到一个字段。

@@ -1,6 +1,3 @@
-import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { feedSourceActions } from "./source-actions.js";
-import { FEED_PLUGIN_ID } from "./identity.js";
 import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
@@ -24,7 +21,6 @@ const linkedContext = define<{ goal_id: string; item_id?: string }, { source_con
   { anyOf: [{ type: "object", properties: { source_context: { type: "string" } }, required: ["source_context"], additionalProperties: false }, { type: "null" }] });
 
 export const feedQueryActions = {
-  connectionUsages: defineConnectorUsagesAction("feed.connection.usages", "Feed 来源使用的连接", ["feed:read"], "project"),
   linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
     required_actions: [{ capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" }] } },
   snapshot: define<{ include_contents?: boolean }, FeedDirectorySnapshot>("feed.snapshot", "读取 Feed 面板",
@@ -53,10 +49,6 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
     handle: (caller, input) => run(input as I, caller),
   });
   return [
-    bind(feedQueryActions.connectionUsages, input => ({ usages: feed.snapshot(projectId).sources.filter(source => source.config.connection_id === input.connection_id).map(source => ({
-      usage_id: source.source_id, title: source.name, detail: source.status === "disconnected" ? "来源账号已断开" : "拉取后按当前捕捉规则处理消息", enabled: source.enabled && source.status !== "disconnected",
-      actions: [{ action: { capability_id: feedSourceActions.sync.capability_id, version: feedSourceActions.sync.version, provider_id: FEED_PLUGIN_ID }, input: { source_id: source.source_id } }],
-    })) })),
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),
     bind(feedQueryActions.snapshot, async input => {
       const { inbox_entries: _inbox, ...snapshot } = feed.snapshot(projectId);

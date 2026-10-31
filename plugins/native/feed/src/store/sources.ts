@@ -65,38 +65,6 @@ export const SOURCES_SCHEMA_SQL = `
       ON source_events(project_id, source_id, at, event_id);
 `;
 
-function storedSourceConfig(value: unknown): Record<string, unknown> {
-  const parsed = parseJson<unknown>(value, {});
-  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-    ? parsed as Record<string, unknown> : {};
-}
-
-/** Connection availability changes Source state through its normal command/event path. */
-export function refreshSourceConnectionState(db: FeedSql, input: {
-  connection_id: string; available: boolean; at?: string;
-}): number {
-  const sources = new SourcesModule(db);
-  const at = input.at ?? new Date().toISOString();
-  return db.transaction(() => {
-    const rows = db.all(`SELECT project_id, source_id, enabled, config_json FROM feed_sources
-      WHERE sync_kind IN ('github', 'gmail', 'connector')`) as Row[];
-    let changed = 0;
-    for (const row of rows) {
-      const config = storedSourceConfig(row.config_json);
-      if (config.connection_id !== input.connection_id || !Number(row.enabled) || sourceDeletedAt({ config })) continue;
-      const source = sources.query.get(asText(row.project_id), asText(row.source_id));
-      const status = input.available
-        ? source.status === "disconnected" ? "active" : source.status
-        : source.status === "paused" ? "paused" : "disconnected";
-      if (status === source.status) continue;
-      sources.commands.save({ ...source, status, updated_at: at,
-        last_error_code: input.available ? null : "sources.connector_disconnected" });
-      changed++;
-    }
-    return changed;
-  });
-}
-
 export class SourcesModule implements SourcesApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),

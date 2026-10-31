@@ -712,6 +712,61 @@ test("RAC-1025 disconnecting an account source takes the person's binding off it
   assert.equal(f.calls.length, 0);
 });
 
+// T-121 (FI-7b): Feed makes an account source empty and never writes which account it reads with; the person binds one on the platform.
+test("RAC-2665 a Runtime Feed adds an account source with no account: the same service and name give it back, and it is pulled once the person binds an account to it", async t => {
+  const f = await connecting(t);
+  const add = (input: unknown) => f.client.invoke(caller(WRITE).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
+  const added = await add({ service: "github", name: "Work GitHub" });
+  assert.deepEqual([added.registered, added.source.sync_kind, added.source.config, added.source.status], [true, "github", {}, "active"]);
+  const again = await add({ service: "github", name: "Work GitHub" });
+  assert.deepEqual([again.registered, again.source.source_id], [false, added.source.source_id]);
+  // Only the services Feed declares an account slot and an integration for, a name, and nothing that names an account.
+  for (const input of [{ service: "notion", name: "Docs" }, { service: "github", name: "" }, { service: "github", name: "Work", connection_id: "c-1" }, { service: "github", name: "Work", install_id: "i-1" }]) {
+    await assert.rejects(add(input), { code: "actions.input_invalid" }, JSON.stringify(input));
+  }
+  const sync = (key: string) => f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: added.source.source_id, idempotency_key: key }) as Promise<{ created: number; run: { outcome: string } }>;
+  await assert.rejects(sync("added-unbound"), { code: "feed.connector_failed" });
+  assert.equal(f.calls.length, 0, "no account, no pull");
+  const account = f.connect();
+  withConnectorConnections(f.home, store => store.bind({ scopeId: pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id }),
+    pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id }));
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: added.source.source_id, enabled: true });
+  const pulled = await sync("added-bound");
+  assert.deepEqual([pulled.run.outcome, pulled.created, f.calls[0]?.source_id, f.calls[0]?.connection_id], ["completed", 1, added.source.source_id, account.connection_id]);
+  const row = f.store.db.prepare("SELECT config_json, credential_ref FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { config_json: string; credential_ref: string | null };
+  assert.deepEqual([JSON.parse(row.config_json), row.credential_ref], [{}, null], "the source holds nothing of the account");
+});
+
+test("RAC-2664 feed.sources.update@2 changes a source's own fields only: an account is not one of them, and @1 is gone", async t => {
+  const f = await connecting(t), account = f.connect();
+  f.bind(account.connection_id);
+  const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
+  assert.equal(feedSourceActions.update.version, 2);
+  await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
+  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 1 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
+  await update({ source_id: f.sourceId, name: "Renamed", description: "Work notifications" });
+  const row = f.row();
+  assert.deepEqual([row.name, JSON.parse(String(row.config_json)), row.credential_ref], ["Renamed", {}, null]);
+  assert.equal(JSON.stringify(row).includes(account.connection_id), false);
+  assert.ok(f.bound(), "renaming leaves the person's binding as it was");
+});
+
+test("RAC-2668 changing a source's account is disconnecting and binding again: the source keeps its id, and the next pull starts from no cursor", async t => {
+  const f = await connecting(t), first = f.connect("First");
+  f.bind(first.connection_id);
+  await f.sync("first-account");
+  const cursor = () => (f.store.db.prepare("SELECT cursor_json FROM listener_instances WHERE source_id = ?").get(f.sourceId) as { cursor_json: string } | undefined)?.cursor_json;
+  assert.notEqual(cursor(), "{}", "the first account's pull left a cursor");
+  await f.client.invoke(caller([...WRITE, "connections:use"]).context, feedSourceActions.disconnect, { source_id: f.sourceId });
+  assert.deepEqual([cursor(), f.bound()], ["{}", null], "disconnecting forgets the cursor and the binding");
+  const second = f.connect("Second");
+  f.bind(second.connection_id);
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: f.sourceId, enabled: true });
+  const pulled = await f.sync("second-account");
+  assert.deepEqual([pulled.run.outcome, f.calls.at(-1)?.connection_id, f.calls.at(-1)?.source_id], ["completed", second.connection_id, f.sourceId]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_sources"), 1, "no second source was made for the other account");
+});
+
 test("RAC-1026 an account the person changes while a pull is running ends the pull refused: nothing is written, not even the bookkeeping", async t => {
   let swap = () => {};
   const f = await connecting(t, { sync: () => swap() }), account = f.connect(), other = f.connect("Other");

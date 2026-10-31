@@ -4,6 +4,7 @@ import { requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 import { feedSourceActions, type FeedSourceRegistration } from "./source-actions.js";
+import type { AddFeedAccountSourceInput } from "./source-ports.js";
 
 const SOURCE_ACTIONS = new Set(["pause", "resume", "sync", "disconnect"]);
 
@@ -16,9 +17,13 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         Object.fromEntries(fields.flatMap(key => typeof request.body[key] === "string" ? [[key, request.body[key]]] : [])) as FeedSourceRegistration);
       return { status: result.registered ? 201 : 200, body: result };
     },
+    "feed.sources.add-account": async ({ request }) => {
+      const result = await options.actions.invoke(feedSourceActions.add_account, { service: request.body.service as AddFeedAccountSourceInput["service"], name: String(request.body.name ?? "") });
+      return { status: result.registered ? 201 : 200, body: result };
+    },
     "feed.sources.update": async ({ params, request }) => {
       const result = await options.actions.invoke(feedSourceActions.update, { source_id: requireParam(params.source_id, "Feed 来源不存在"),
-        ...Object.fromEntries(["name", "description", "scope", "feed_url", "connection_id"].flatMap(key => typeof request.body[key] === "string" ? [[key, request.body[key]]] : [])) });
+        ...Object.fromEntries(["name", "description", "scope", "feed_url"].flatMap(key => typeof request.body[key] === "string" ? [[key, request.body[key]]] : [])) });
       return { status: 200, body: result };
     },
     "feed.sources.delete": async ({ params, request }) => {

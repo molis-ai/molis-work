@@ -109,8 +109,6 @@ export function createFeedPlugin(): PluginDefinition {
     // source actions run inside the action's own transaction and need no transaction of their own.
     const sourcesFor = (caller: ActionExecutionContext) => new FeedSourceService({ feed, providers, acquireSync: lease, appendEvent, transaction: operation => operation(),
       commit: operation => writer.commit(caller, operation),
-      // The account is the person's binding, made through the platform; the source keeps only the connection's id as a record of the choice.
-      ...(connections ? { resolveConnection: () => ({ credentialRef: null, accountLabel: null }) } : {}),
       syncRepository: (source, input) => {
         const repository = sourcePull?.repository;
         if (!repository) throw new ActionError("actions.dependency_missing", "Feed 没有读取研究库的权限");

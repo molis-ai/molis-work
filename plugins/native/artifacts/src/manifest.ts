@@ -21,6 +21,7 @@ export const artifactsManifest: PluginManifest = {
   plugin_id: ARTIFACTS_PLUGIN_ID,
   version: "0.3.0",
   name: "成果",
+  name_en: "Artifacts",
   summary: "项目的固定成果，各版本可回看。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
@@ -32,7 +33,7 @@ export const artifactsManifest: PluginManifest = {
     translations: ARTIFACT_EN,
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "browser", slot: "navigator", title: "成果", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", hue: "pink", order: 60, group: "make" },
+      { view_id: "browser", slot: "navigator", title: "成果", title_en: "Artifacts", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", hue: "pink", order: 60, group: "make" },
     ],
   },
 };

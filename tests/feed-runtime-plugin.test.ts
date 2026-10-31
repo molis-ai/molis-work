@@ -302,7 +302,7 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
 const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
-const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
+const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
@@ -713,7 +713,7 @@ test("RAC-1025 disconnecting an account source takes the person's binding off it
 });
 
 // T-121 (FI-7b): Feed makes an account source empty and never writes which account it reads with; the person binds one on the platform.
-test("RAC-2665 a Runtime Feed adds an account source with no account: the same service and name give it back, and it is pulled once the person binds an account to it", async t => {
+test("RAC-2665 a Runtime Feed adds an account source with no account: the same service and name give it back (a deleted one stays deleted), and it is pulled once the person binds an account to it", async t => {
   const f = await connecting(t);
   const add = (input: unknown) => f.client.invoke(caller(WRITE).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
   const added = await add({ service: "github", name: "Work GitHub" });
@@ -736,6 +736,16 @@ test("RAC-2665 a Runtime Feed adds an account source with no account: the same s
   assert.deepEqual([pulled.run.outcome, pulled.created, f.calls[0]?.source_id, f.calls[0]?.connection_id], ["completed", 1, added.source.source_id, account.connection_id]);
   const row = f.store.db.prepare("SELECT config_json, credential_ref FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { config_json: string; credential_ref: string | null };
   assert.deepEqual([JSON.parse(row.config_json), row.credential_ref], [{}, null], "the source holds nothing of the account");
+
+  // Deleting it (keeping its history) takes the person's binding off it, and the same service and name do not bring it back.
+  const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id });
+  const boundNow = () => withConnectorConnections(f.home, store => store.binding(scope, feedManifest.plugin_id, "github"))?.connection_id ?? null;
+  assert.equal(boundNow(), account.connection_id);
+  await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: added.source.source_id, history_decision: "retain_history" });
+  assert.equal(boundNow(), null, "a deleted source keeps no account");
+  await assert.rejects(add({ service: "github", name: "Work GitHub" }), { code: "feed.source_invalid_state" });
+  const kept = f.store.db.prepare("SELECT status, enabled FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { status: string; enabled: number };
+  assert.deepEqual([kept.status, kept.enabled], ["disconnected", 0], "the deleted source stays deleted");
 });
 
 test("RAC-2664 feed.sources.update@2 changes a source's own fields only: an account is not one of them, and @1 is gone", async t => {
@@ -830,7 +840,7 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   for (const permission of ["connections:use", "sources:pull_connector"]) assert.equal(feedManifest.permissions.find(declared => declared.permission === permission)?.required, true, `${permission} is required`);
   const declared = (definition: ActionDefinition) => feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
   for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);
-  assert.ok(declared(feedSourceActions.disconnect).includes("connections:use"));
+  for (const releases of [feedSourceActions.disconnect, feedSourceActions.delete]) assert.ok(declared(releases).includes("connections:use"), `${releases.capability_id} releases the binding`);
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
   // 4e-2f: the actions that give an item's retained text, and those that judge a new item by it, declare evidence:read; the status of accounts does not.
   for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment,

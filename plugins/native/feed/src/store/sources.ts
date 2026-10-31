@@ -190,7 +190,6 @@ export class SourcesModule implements SourcesApi {
       enabled: false,
       config: {
         ...source.config,
-        token_refs: undefined,
         _molis_work_lifecycle: { deleted_at: retiredAt, history_decision: historyDecision },
       },
       schedule: { mode: "manual" },

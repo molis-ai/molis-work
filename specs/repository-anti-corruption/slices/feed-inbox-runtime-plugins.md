@@ -447,7 +447,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 3. Manifest：`connections.slots` 为 `CONNECTOR_REQUEST_SERVICES`（合同里的平台请求来源表，唯一一份）里每个服务各一个 `per_record` 槽，槽号 = 服务号；权限 `connections:use`、`sources:pull_connector` 可选；`sync`、`tick`、`wake` 加这两项，`feed.items.material` 加 `connections:use`，`feed.connections.status` 加 `sources:pull_connector`（翻转时调用者要持有，PR 说明里写）。
 
 **不在这一片、但翻转前必须有（记在这里，不假装做完）：**
-- **界面**：Feed 页选来源账号时，除了写 `feed.sources.update`，还要由人的这次操作调 `connectors.plugin_slot.bind@2`；这在 FI-7 Feed 一半的页面改动里做。`config.connection_id` 翻转后只是展示用的记录，取数与授权只认槽绑定。
+- **界面**：Feed 页选来源账号只由人的这次操作经宿主的记录槽位路径调 `connectors.plugin_slot.bind@2`，不再写 `feed.sources.update`；`config.connection_id` 已删（T-121，FI-7b），取数与授权只认槽绑定。
 - **维护**：现有账号型来源的 `config.connection_id` 要搬成槽绑定（安装身份 + 项目 + 来源号 + 服务号 → 连接号），进用户维护窗口清单；搬不过去的（连接已不在、服务不是该槽的）列出来，不静默丢。
 - **平台请求来源表里没有的目录连接器**（`feishu`、`lark`、`wechat`、`bitbucket`、`loom`、`adobe`）不能声明槽，Runtime Feed 不支持它们的来源；翻转前要先确认真实 Home 里有没有这样的来源，有就先给表加条目或另裁。
 
@@ -469,7 +469,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 5. **验收**：`tests/feed-runtime-plugin.test.ts` 多 7 个用例，号暂记 RAC-1024（按人绑的账号同步、Feed 不留连接/凭据/令牌；没绑账号时要人、提供方不被问）、RAC-1025（账号状态只回有无、材料读取随账号状态、断开取下绑定、Manifest 的槽与权限）、RAC-1026（同步中途换账号、撤权扫描：撤权后不再写，同一个键再问一次只完成一次、条目不重复）。**号是暂记**（1020～1023 已给平台一半，统筹给范围后改）。
 6. **已知差别（翻转前要认）**：
    - 账号显示名只来自连接器服务的 `describe().display_name`；Host 版 GitHub 的登录名、范围等展示附加信息暂时没有。
-   - `resolveConnection` 在 Runtime 里不再解析账号，`config.connection_id` 只剩展示用的记录。
+   - `resolveConnection` 端口与 `config.connection_id` 都已删（T-121，FI-7b）：账号只在槽绑定里。
    - 来源被删除后，人给它的槽绑定不会自动取下（孤儿绑定），翻转前补一个清理，或进用户维护窗口清单。
    - 撤权时被打断的同步会留下一个未结束的运行与已接受的条目（与 Host 里进程中断一样）；同一个键再问一次会把它做完，不重复。
    - Runtime Feed 还没有创建账号来源的路径（`feed.sources.register` 只管公开来源）；账号来源的创建与绑定在 FI-7 Feed 一半的页面里做，测试里直接按 Host 的写法放一行来源。

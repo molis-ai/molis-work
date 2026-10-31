@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedErrors } from "./contract/feed.js";
 import { sourceDeletedAt } from "./contract/sources.js";
 import type { FeedApplication } from "./application.js";
@@ -73,13 +74,15 @@ export class FeedSourceService {
 
   /**
    * Adds an account source: it holds no account. The person binds one to it on the platform (the source is the record of the service's
-   * `per_record` slot); until then a pull is refused for want of an account. The same service and name give back the source already there.
+   * `per_record` slot); until then a pull is refused for want of an account. The same service and name give back the source already there;
+   * a deleted one is not brought back (its row, its history and whatever was bound to the record stay the deleted source's).
    */
   addAccount(input: AddFeedAccountSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const name = bounded(input.name.trim(), 80);
     if (!name) throw feedErrors.source_invalid_configuration("来源名称不能为空");
     const sourceId = stableId("feed-source", `${this.projectId}\u0000account\u0000${input.service}\u0000${name}`);
-    const existing = this.feed.snapshot(this.projectId).sources.find(source => source.source_id === sourceId);
+    const existing = this.storedSource(sourceId);
+    if (existing && sourceDeletedAt(existing)) throw feedErrors.source_invalid_state("这个名称的来源已删除，请换一个名称");
     if (existing) return { source: existing, registered: false };
     const now = this.now().toISOString();
     const source = this.feed.sources.upsert({
@@ -245,6 +248,12 @@ export class FeedSourceService {
   delete(sourceId: string, historyDecision: SourceHistoryDecision): FeedSourceRecord {
     this.activeSource(sourceId);
     return this.feed.sources.retire(this.projectId, sourceId, historyDecision);
+  }
+
+  /** The source's row whatever its state, deleted ones included; none when the project never had it. */
+  private storedSource(sourceId: string): FeedSourceRecord | null {
+    try { return this.feed.sources.get(this.projectId, sourceId); }
+    catch (error) { if (error instanceof ActionError && error.code === "feed.source_not_found") return null; throw error; }
   }
 
   private activeSource(sourceId: string): FeedSourceRecord {

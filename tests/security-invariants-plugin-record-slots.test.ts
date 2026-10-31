@@ -15,9 +15,10 @@ const PATH = "/api/settings/connectors/plugin-slots/record";
 const BEARER_VALUE = "fixture-bearer-value-for-record-slots";
 
 test("S-71 RAC-2666 the record-slot path binds and reads a record's account as the person, the installation found by the Host, and refuses any other name", { timeout: 60_000 }, async t => {
-  const records = connectionsProbe("recordslotpage", { binding: "per_record" });
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [records.definition] } });
+  const records = connectionsProbe("recordslotpage", { binding: "per_record" }), whole = connectionsProbe("recordslotwhole");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [records.definition, whole.definition] } });
   const { install } = await grantConnections(f.host, records);
+  const wholeInstall = (await grantConnections(f.host, whole)).install;
   const one = await f.project("Record slots one"), two = await f.project("Record slots two");
   const connection = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: BEARER_VALUE }));
   const body = { plugin_id: records.id, slot_id: "github", service_id: "github", record_key: "src-1", connection_id: connection.connection_id };
@@ -39,6 +40,19 @@ test("S-71 RAC-2666 the record-slot path binds and reads a record's account as t
   assert.equal((await f.request(`${PATH}?${query(one.project_id)}&project=${encodeURIComponent(two.project_id)}`)).status, 400, "a name twice");
   assert.equal((await post("no-such-project", body)).status, 404);
   assert.ok([401, 403].includes((await post(one.project_id, body, { authorized: false })).status));
+  // A body that is not one object is refused as a body, not taken apart.
+  for (const raw of ["null", "[]", "\"text\"", "1", JSON.stringify([body])]) {
+    assert.equal((await f.request(`${PATH}?project=${encodeURIComponent(one.project_id)}`, { method: "POST", raw })).status, 400, raw);
+  }
+  // A plugin with no installation in the project (nor in the Home) is not there to bind for: 404, and nothing is bound.
+  const absent = { ...body, plugin_id: "io.molis.work.example.recordslotabsent" };
+  assert.equal((await post(one.project_id, absent)).status, 404);
+  assert.equal((await f.request(`${PATH}?${new URLSearchParams({ project: one.project_id, plugin_id: absent.plugin_id, slot_id: "github", record_key: "src-1" })}`)).status, 404);
+  assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: install.install_id, project_id: one.project_id, record_key: "src-1" }), absent.plugin_id, "github")), null);
+  // An installation slot is not a record's: the path does not bind it (bind@2 refuses a slot not declared per_record).
+  assert.equal((await post(one.project_id, { ...body, plugin_id: whole.id })).status, 400);
+  assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: wholeInstall.install_id, project_id: one.project_id, record_key: "src-1" }), whole.id, "github")), null);
+  assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: wholeInstall.install_id }), whole.id, "github")), null);
   // What the action refuses stays refused here: another service, a slot the plugin does not declare, a record key of another form.
   for (const wrong of [{ service_id: "gmail" }, { slot_id: "other" }, { record_key: "a/b" }]) {
     assert.equal((await post(one.project_id, { ...body, ...wrong })).status, 400, JSON.stringify(wrong));
@@ -53,6 +67,11 @@ test("S-71 RAC-2666 the record-slot path binds and reads a record's account as t
   const read = async (project: string) => { const response = await f.request(`${PATH}?${query(project)}`); assert.equal(response.status, 200); return await response.json() as { connection: { connection_id: string } | null }; };
   assert.equal((await read(one.project_id)).connection?.connection_id, connection.connection_id);
   assert.equal((await read(two.project_id)).connection, null);
+  // A bound record is not moved to another account here: 409 and the binding as it was, until the person unbinds it.
+  const other = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Other GitHub", token: `${BEARER_VALUE}-other` }));
+  assert.equal((await post(one.project_id, { ...body, connection_id: other.connection_id })).status, 409);
+  assert.equal(stored(one.project_id), connection.connection_id);
+  assert.equal((await post(one.project_id, body)).status, 200, "the same account again is no change");
   // A page that says another installation is refused, and the binding is as it was.
   assert.equal((await post(one.project_id, { ...body, install_id: "plugin-install-made-up", connection_id: null })).status, 400);
   assert.equal(stored(one.project_id), connection.connection_id);

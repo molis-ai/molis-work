@@ -738,6 +738,29 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" })).status, 200, "the same name is the same source");
     assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Other", connection_id: github.connection_id })).status, 201,
       "the route passes on only the service and the name");
+
+    // S-71 RAC-2666: the source's account is chosen on its record slot; a record bound to one account is not moved to another there (409,
+    // the binding and the source's cursor as they were) until the person unbinds it.
+    const record = { plugin_id: "io.molis.work.feed", slot_id: "github", service_id: "github", record_key: (await added.json() as { source: { source_id: string } }).source.source_id };
+    const choose = (connection_id: string | null) => fetch(`${origin}/api/settings/connectors/plugin-slots/record?project=${encodeURIComponent(projectId)}`, {
+      method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": `feed-record-slot-${++mutation}` }, body: JSON.stringify({ ...record, connection_id }) });
+    const databasePath = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId).database_path);
+    const sourceNow = () => { const board = new LocalProjectDatabase(databasePath); try { return createLocalFeedApplication(board.db).sources.get(projectId, record.record_key); } finally { board.close(); } };
+    const [first, second] = withConnectorConnections(home, store => [store.createToken({ serviceId: "github", displayName: "GitHub one", token: "github-test-token-24680" }),
+      store.createToken({ serviceId: "github", displayName: "GitHub two", token: "github-test-token-67890" })]);
+    const chosen = await choose(first!.connection_id);
+    assert.equal(chosen.status, 200, await chosen.clone().text());
+    { const board = new LocalProjectDatabase(databasePath); try { const feedHere = createLocalFeedApplication(board.db); feedHere.sources.upsert({ ...feedHere.sources.get(projectId, record.record_key), cursor: { after: "kept" } }); } finally { board.close(); } }
+    const moved = await choose(second!.connection_id);
+    assert.equal(moved.status, 409, await moved.clone().text());
+    const boundTo = async () => (await (await fetch(`${origin}/api/settings/connectors/plugin-slots/record?${new URLSearchParams({ project: projectId, plugin_id: record.plugin_id, slot_id: record.slot_id, record_key: record.record_key })}`,
+      { headers: { origin, "x-molis-work-control-token": controlToken } })).json() as { connection: { connection_id: string } | null }).connection?.connection_id ?? null;
+    assert.equal(await boundTo(), first!.connection_id);
+    assert.deepEqual(sourceNow().cursor, { after: "kept" });
+    assert.equal((await choose(first!.connection_id)).status, 200, "the same account again is no change");
+    assert.equal((await choose(null)).status, 200);
+    assert.equal((await choose(second!.connection_id)).status, 200);
+    assert.equal(await boundTo(), second!.connection_id);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

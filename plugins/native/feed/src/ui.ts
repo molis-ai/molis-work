@@ -427,7 +427,7 @@ function renderSourceConnection(model: FeedUiModel, source: FeedUiSource): strin
   // The account is the person's binding on the platform: the source is the record of the service's `per_record` slot (T-121). The page
   // names the plugin, the slot and the record; the Host finds the installation, and the account list is the person's own.
   const slot = JSON.stringify({ plugin_id: FEED_PLUGIN_ID, slot_id: service, service_id: service, record_key: source.source_id });
-  return `<div data-feed-connection-service="${p.escape(service)}" data-plugin-record-slot="${p.escape(slot)}"><label><span>${p.text("使用的账号连接")}</span><select data-plugin-record-slot-account disabled><option value="" selected>${p.escape(source.account_label || p.text("正在读取账号连接…"))}</option></select></label><p data-feed-connection-status role="status">${p.text("账号授权由 Connectors 统一管理，这里选择要使用的连接。")}</p><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, service))}">${p.text("在 Connectors 管理账号")}</a></div>`;
+  return `<div data-feed-connection-service="${p.escape(service)}" data-plugin-record-slot="${p.escape(slot)}"${source.status === "disconnected" ? " data-feed-source-disconnected" : ""}><label><span>${p.text("使用的账号连接")}</span><select data-plugin-record-slot-account disabled><option value="" selected>${p.escape(source.account_label || p.text("正在读取账号连接…"))}</option></select></label><p data-feed-connection-status role="status">${p.text("账号授权由 Connectors 统一管理，这里选择要使用的连接。")}</p><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, service))}">${p.text("在 Connectors 管理账号")}</a></div>`;
 }
 
 function renderTaskConfigPanels(model: FeedUiModel): string {

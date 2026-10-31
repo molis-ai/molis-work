@@ -104,13 +104,19 @@ async function handleRecordSlotHttp(request: IncomingMessage, response: ServerRe
       return true;
     }
     // The action's schema checks each value; the names are checked here, since a name the action does not take would otherwise be dropped.
-    const body = await readLocalWebBody(request, 4_096);
-    if (!exactly(Object.keys(body), RECORD_BODY)) return refuse({ status: 400, error: "请求内容无效" });
+    const body: unknown = await readLocalWebBody(request, 4_096);
+    if (!body || typeof body !== "object" || Array.isArray(body) || !exactly(Object.keys(body), RECORD_BODY)) return refuse({ status: 400, error: "请求内容无效" });
     const input = body as { plugin_id: string; slot_id: string; service_id: string; record_key: string; connection_id: string | null };
     const install_id = await recordSlotInstallation(host, reference, String(input.plugin_id));
     if (typeof install_id !== "string") return refuse(install_id);
-    sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.bindRecord, { install_id,
-      plugin_id: input.plugin_id, slot_id: input.slot_id, service_id: input.service_id, record_key: input.record_key, connection_id: input.connection_id }));
+    const record = { install_id, plugin_id: input.plugin_id, slot_id: input.slot_id, record_key: input.record_key };
+    // A record bound to one account is not moved to another here: what the plugin kept for that account (a source's cursor, say) is
+    // the plugin's to clear when the person disconnects it. Unbinding first (`connection_id: null`) is that step.
+    if (input.connection_id !== null) {
+      const { connection } = await actions.invoke(connectorPluginSlotActions.readRecord, record);
+      if (connection && connection.connection_id !== input.connection_id) return refuse({ status: 409, error: "这条记录已经选好账号；要换账号，先断开" });
+    }
+    sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: input.service_id, connection_id: input.connection_id }));
   } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
   return true;
 }

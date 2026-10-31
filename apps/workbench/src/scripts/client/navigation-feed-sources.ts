@@ -135,8 +135,9 @@ export const NAVIGATION_FEED_SOURCES_PART = `
       select.disabled = true;
       try {
         await molisWorkRequest(feedRecordSlotPath({}), {method:"POST", body:{ ...slot, connection_id: select.value }, fallback:FL("无法保存账号，请重试。")});
-        status.textContent = FL("账号已保存。");
+        const resume = region.hasAttribute("data-feed-source-disconnected");
         if (await refreshFeedStage()) { setFeedTask(slot.record_key); showFeedView("settings"); }
+        showToast(FL(resume ? "账号已保存。这个来源已断开，请点「恢复来源」再拉取。" : "账号已保存。"));
       } catch (error) { select.disabled = false; molisWorkRequest.show(status,error,FL("无法保存账号，请重试。")); }
     });
     document.addEventListener("submit", async event => {

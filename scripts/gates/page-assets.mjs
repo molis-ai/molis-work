@@ -243,12 +243,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 // T-121 (FI-7b), RAC-2666–2667: a Feed source's account is chosen on the platform's record slot instead of in Feed's own config.
-// workbench.js +1337 B: the page reads the slot's binding next to the person's accounts, binds on change through the Host's
-// record-slot path, and creates an account source from its card (two delegated listeners and one path helper); the old
+// workbench.js +1483 B: the page reads the slot's binding next to the person's accounts, binds on change through the Host's
+// record-slot path (a toast says so, and asks to resume a disconnected source, #1677 review), and creates an account source from
+// its card (two delegated listeners and one path helper); the old
 // re-key-on-save branch (connection_id in the source save, following a new source id) is deleted. Tried: moving comments out of
 // the shipped template, sending the slot's own JSON as the body, one fallback string for both reads (−161 B together).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148388, 1149725],
+  "/assets/molis-work-workbench.js": [1148388, 1149871],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

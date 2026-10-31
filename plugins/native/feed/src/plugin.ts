@@ -34,6 +34,8 @@ import { SignalsModule } from "./store/index.js";
 import { createConnectionWatch, FEED_RECONCILE_ACTOR, keepFeedReconcile } from "./runtime-reconcile.js";
 
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
+/** The source actions after which an account source holds no account any more. */
+const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, feedSourceActions.delete.capability_id]);
 
 /**
  * Feed as a Plugin Runtime plugin, one instance per project (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
@@ -149,8 +151,9 @@ export function createFeedPlugin(): PluginDefinition {
       // The platform's notifications are written in one commit, as the platform's notification service; a judgment that fails afterwards keeps the item and comes back as the receipt's code.
       ...createFeedNotificationHandlers(projectId, { feed: () => feed }),
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
-      // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
-      ...sourceHandlers.map(binding => binding.capability_id !== feedSourceActions.disconnect.capability_id || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {
+      // Disconnecting or deleting an account source also takes the person's binding off it (after the commit, as the platform's own binding
+      // is not Feed's): a deleted source keeps no account bound to it.
+      ...sourceHandlers.map(binding => !RELEASES_ACCOUNT.has(binding.capability_id) || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {
         const source = feed.sources.get(projectId, (input as { source_id: string }).source_id);
         return Promise.resolve(binding.handle(caller, input)).then(async result => { if (connectorSlotOf(source) !== null) await releaseRuntimeAccount(connections, source); return result; });
       } }),

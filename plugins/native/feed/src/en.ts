@@ -83,6 +83,7 @@ export const FEED_EN: Record<string, string> = {
   "这个来源已经选好账号。要换账号，先断开来源。": "This source has an account. To use another, disconnect the source first.",
   "为这个来源选一个账号，选好就保存。": "Choose an account for this source. It saves at once.",
   "账号已保存。": "Account saved.",
+  "账号已保存。这个来源已断开，请点「恢复来源」再拉取。": "Account saved. This source is disconnected; choose Resume source before pulling.",
   "无法保存账号，请重试。": "Could not save the account. Please retry.",
   "创建来源": "Create source",
   "无法创建来源，请重试。": "Could not create the source. Please retry.",

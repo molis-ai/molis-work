@@ -419,3 +419,49 @@ test("RAC-1214 a scheduled pull that fails judging after it committed spends its
     assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot stays due for the new settings");
   });
 });
+
+// RAC-2711 (T-339): a call refused by a revoked grant (T-400 made these kinds forbidden) is a refusal of the call itself. The capture is
+// thrown again and the item's commit rolls back; it is never recorded as this item's artifact_out_failed with a business entry.
+test("a capture whose call is refused by a revoked grant is thrown again and writes no artifact_out_failed entry", async () => {
+  for (const refused of ["mcp.action_revoked", "mcp.permission_revoked", "assistant.action_revoked"]) {
+    await withProject(`molis-work-feed-revoked-${refused.split(".").join("-")}-`, async store => {
+      const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+        write({ head: () => null, publish() { throw new ActionError(refused, "调用已被撤权", { kind: "forbidden" }); } }) };
+      const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+      const source = workflowSource(feed, "src-1");
+      const { item } = feed.ingestItem({ source, externalId: `x-${refused}`, title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+      feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+      await assert.rejects(async () => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]), { code: refused }, `${refused} is thrown again`);
+      assert.deepEqual(entriesOf(feed, item.item_id), [], "a refused call writes no artifact_out_failed entry");
+      assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, item.item_id).disposition, item.disposition, "the item keeps the state it had before the refused call");
+    });
+  }
+});
+
+// RAC-2712 (T-339): every code the refusal table carried before is still a refusal of the call itself (regression pin), and so is an AbortError.
+test("every code that was a refusal of the call before is still thrown again, AbortError included", async () => {
+  const before = ["actions.cancelled", "actions.forbidden", "actions.plugin_unavailable", "actions.expired", "plugin.grant_denied",
+    "actions.plugin_permission", "actions.provider_changed"];
+  for (const code of before) {
+    await withProject(`molis-work-feed-refusal-${code.split(".").join("-")}-`, async store => {
+      const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+        write({ head: () => null, publish() { throw Object.assign(new Error("refused"), { code }); } }) };
+      const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+      const source = workflowSource(feed, "src-1");
+      const { item } = feed.ingestItem({ source, externalId: `x-${code}`, title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+      feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+      await assert.rejects(async () => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]), { code }, `${code} is still thrown again`);
+      assert.deepEqual(entriesOf(feed, item.item_id), [], `${code} writes no artifact_out_failed entry`);
+    });
+  }
+  await withProject("molis-work-feed-refusal-abort-", async store => {
+    const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+      write({ head: () => null, publish() { throw Object.assign(new Error("aborted"), { name: "AbortError" }); } }) };
+    const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+    const source = workflowSource(feed, "src-1");
+    const { item } = feed.ingestItem({ source, externalId: "x-abort", title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+    await assert.rejects(async () => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]), (error: { name?: string }) => error.name === "AbortError", "an AbortError is still thrown again");
+    assert.deepEqual(entriesOf(feed, item.item_id), [], "an AbortError writes no artifact_out_failed entry");
+  });
+});

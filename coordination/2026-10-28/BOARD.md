@@ -11,7 +11,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-加急：T-366 炼金台终态刷新竞态已发书并交开发线 2；T-347 Full 等其修复。
+加急：T-366 #1695 已合 `f640b5b0f`，同头 Full 16片及汇总成功；T-347 接着同步该修复并结算最终头。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -270,14 +270,14 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-327 | T-304 二审登记：共享核心名单守卫改两向逐项比对，PR 模板与 `select.mjs` 同名单也钉住，RAC-2444 | 丙 | A | 223 | — | `tests/affected-tests.test.ts` |
 | T-328 | T-235 二审登记②：PPT 大纲框超多 emoji 时真 Backspace 慢，先复现并量（测量单，不改源码，复现不了就关），不用新号（需 Chrome ≥153） | 乙 | A | 224 | — | 不改仓库文件 |
 | T-329 | T-132 二审登记：选节交给模型的树标题与节标题按整字截，补宿主层「发出的串就是量的串」断言，RAC-2445～2446（乙，派 B；B 已开 #1630） | 乙 | B | 225 | — | `horizontal/knowledge/src/locate.ts`、`tests/knowledge-locate-budget.test.ts` |
-| T-330 | T-302 二审登记：两个包不能声明同一个 `document_source`（`assertFree` 补检查），BL-694 放开前必须做，RAC-2447～2448 | 乙 | A | 226 | — | `apps/local-host/src/integration-declarations.ts`、`tests/integration-registry.test.ts` |
+| T-330 | T-302 二审登记：两个包不能声明同一个 `document_source`（`assertFree` 补检查），BL-694 放开前必须做，RAC-2447～2448 | 乙 | A | 已合 #1693 → `dc75e22bb`；patch-id同 | — | 已释放；原实现/测试见 #1693 |
 | T-331 | T-246 二审登记 ③：引导材料标题交成果库前按整字截到 200（先复现），② 项目名三处口径先摆清楚等统筹答，RAC-2703～2704 | 乙 | A | 227 | — | `apps/local-host/src/context-onboarding-service.ts`、`tests/context-onboarding.test.ts` |
 | T-332 | T-235 二审登记①：PPT 大纲用例的 `slides() >= 1` 空断言改成提交后页数大于提交前（RAC-2220、RAC-2222 加强；需 Chrome ≥153） | 丙 | A | 228 | — | `tests/ppt-outline-length.e2e.test.ts` |
 | T-333 | T-313 二审登记：资料 grep 的 `clipAround` 起点与卡片 `hint`（`index.ts` 三处 `HINT_CHARS`）按整字截，RAC-2701～2702 | 乙 | A | 已合（10-31，#1635 → `9da3a88db`） | — | `horizontal/knowledge/src/text.ts`、`horizontal/knowledge/src/index.ts`、`tests/knowledge-service.test.ts` |
 | T-334 | 两处测试小修：RAC-2429 的 🙂 挪到切点上，RAC-2434 补 `registration` 断言并合并重复读取（T-308／T-317 二审登记） | 丙 | Codex 统筹 | 已合（10-31，#1641 → `2f3992999`） | — | `tests/contextual-draft.test.ts`、`tests/package-maturity-vocabulary.test.ts` |
 | T-335 | T-294 二审登记：`tests/whole-units.test.ts` 补两个 `cutHead` 变异用例（超限而切口不在字中间、恰好等于上限的落单高位） | 丙 | 池 | 已合（10-31，#1634 → `2b9eaefba`） | — | `tests/whole-units.test.ts` |
 | T-336 | BL-121 ②：删掉 `?feed-start=1` 整条链（start 路由、`feed.item.promote` 的 `start_processing`、客户端分支与终端自动填入；`processing` 取值与 DDL 等统筹答；要先于 T-137 落地） | 乙 | A | 已合（10-31，#1644 → `94c49fa1b`） | — | `plugins/native/feed/src/item-route-handlers.ts`、`item-actions.ts`、`goal-promotion.ts`、`apps/workbench/src/terminal/autofill.ts`、`events-secondary.ts`、`initialization.ts` |
-| T-337 | BL-121 ③：紧凑密度子目标缩进的 `.tree-children.tree-children` 改成正常一条规则（缩进不变，加计算样式用例） | 丙 | A | 0.6 | T-336 | `packages/design-system/src/styles/momentum.ts`、`specs/BACKLOG.md` |
+| T-337 | BL-121 ③：紧凑密度子目标缩进的 `.tree-children.tree-children` 改成正常一条规则（缩进不变，加计算样式用例） | 丙 | A | 已合 #1688 → `b9a975578`；patch-id同 | T-336 已合 | 已释放；P2仍在MISC |
 | T-338 | `tests/interaction-no-crosstalk.e2e.test.ts` 夹具次序加固与观察等待超时诊断（按6539144174/6539212534收窄，根因未定）；保留原谓词、拒绝／无写断言与时限，发送状态UNKNOWN | 乙 | Codex 统筹 | 已合（10-31，#1647 → `dc544a397`）；根因UNKNOWN保留 | — | `tests/interaction-no-crosstalk.e2e.test.ts` |
 | T-339 | Feed `throwIfCallRefused` 改按被拒的 kind 认：撤权（`mcp.*_revoked`、`assistant.action_revoked`）的捕获不再记成 `artifact_out_failed` | 甲 | A | 0.8 | — | `plugins/native/feed/src/out-rules.ts` |
 | T-340 | MCP 宿主里裸 `new ActionError` 的 `mcp.*` 码改成 `defineErrorCodes` 声明，抛出处带声明的 kind；同码两种 kind 统一 | 乙 | A | 已合（10-31，#1658 → `7d74dc353`；Codex 统筹） | — | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts` |
@@ -304,14 +304,14 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-361 | 两处测试小补：RAC-2446 钉发出数据的键只有 question／pieces；RAC-2706 注释改准 | 丙 | B | 已合（10-31，#1689 → `f8de25546`；Codex 统筹） | — | `tests/security-invariants-knowledge-lifecycle.test.ts`、`tests/artifact-links.test.ts` |
 | T-362 | 插件的设置页在 Manifest 里声明自己认哪些地址参数（查询参数与 hash），外壳按声明过滤（改合同） | 乙 | A | 2.9 | — | `packages/contracts/src/platform/ui.ts`、`apps/workbench/src/settings-address-params.ts`、`apps/workbench/src/scripts/client/settings-directory.ts`、`tests/security-invariants-plugin-pages.test.ts` |
 | T-363 | BACKLOG 七行（BL-090／092／094／095／096／099／114）对着 main 核一遍，做完的删行，没做完的只写没做的 | 丙 | A | 3.0 | — | `specs/BACKLOG.md`（这七行） |
-| T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 待分配 | 待领 | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |
-| T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | 待领 | T-318 已合 | `tests/project-rows-deletion.test.ts` |
-| T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | #1695 一审、独立验证、二审通过；同头Full在途 | 无；T-347 等本单落地 | `plugins/native/alchemist/src/client.ts`、`tests/alchemist-workbench.e2e.test.ts`、边界测试或独立 terminal-refresh 测试二选一、Alchemist README；不动 #1661 的 client-views；资源文件由统筹串行 |
+| T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 开发线 4 | 已领，开发线4实施 | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |
+| T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | WAIT，不计待领 | 唯一测试被 #1101 锁；不碰保护分支 | `tests/project-rows-deletion.test.ts` |
+| T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | 已合 #1695 → `f640b5b0f`；patch-id同 | 同头审验/Verify/SI/Full全部通过 | 已释放；未接受queued观察窗P2仍在MISC |
 | T-367 | 连接事务失败后的真实 secret 清理与恢复证据（T-134 建议①；RAC-2758～2760） | 丙 | Codex 待分配 | 待领 | T-134 已合；建议②仍等 #1677/#1675 | `tests/connector-connection-declarers.test.ts` |
-| T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 起草与范围核对线 1 | 已领（只读核证／文档候选） | T-119/T-120/T-134 已合；源码修复另核锁 | 文档状态段，详见 `tasks/T-122.md`；生产只读 |
+| T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 起草与范围核对线 1 | 文档片 #1696 已合 `c6353876d`；patch-id同 | 配置/队列采用已核；origins实际展示仍归T-141 | 两文档状态片已释放；不结清整条PG-046 |
 | T-368 | MCP 无目录真实权限拒绝及精确 raiser 变异（RAC-2761～2763） | 丙 | Codex 待分配 | 待领 | 无；领取前重核文件锁 | `tests/mcp-error-kinds.test.ts` |
 | T-369 | alias 等待中换连接的真实拒绝（RAC-2764～2766） | 丙 | Codex 待分配 | WAIT，不计待领 | 等 #1654/T-148 新 aliasTerminalSession 合同落 main 后重核 | 仅新增 `tests/mcp-connection-change-refusal.test.ts`；不改 #1654 生产文件 |
-| T-370 | W6-04 可重复首尾度量的方法准备与新序列中间点（RAC-2767～2770）；不签最终W6-04 | 丙 | Codex 待分配 | 待领 | 无实现前置；METHOD先独立核对再量两端 | 只写自有测量脚本／证据候选；共享spec由统筹串行 |
+| T-370 | W6-04 可重复首尾度量的方法准备与新序列中间点（RAC-2767～2770）；不签最终W6-04 | 丙 | Codex 开发线 3 | 已领，开发线3先交METHOD | 无实现前置；METHOD先独立核对再量两端 | 只写自有测量脚本／证据候选；共享spec由统筹串行 |
 | T-141 | Home 签名包原地升级、初装／升级 origins 实际设置预览（RAC-2615～2619） | 甲 | Codex 待分配 | 书已审定，等文件锁 | T-134/T-140 已合；#1652 必改与 #1672/#1693 条件路径锁 | 详见 `tasks/T-141.md`；共享 SI／slice 由统筹串行 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给 Goals、走启动终端服务，删工作台面板路由与 control token 的启动通道（BL-695 · BL-637 · BL-508；RAC-2560～2569；四项已定（用户 10-31），叠在 T-136 上开发） | 甲 | A-Claude | 统筹定 | T-136；T-115～T-118 链合入 | 由【方案】定（候选见书 §4） |

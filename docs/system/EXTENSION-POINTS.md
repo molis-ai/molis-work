@@ -17,7 +17,7 @@ Molis Work 是插件基座加多个插件。想加一个东西时，最好只动
 - **分两栏记**，「现在」和「目标」都按同一口径：
   - **登记**：不改它功能起不来或不可见（包依赖、装配条目、目录条目、渲染接线）。
   - **名单**：不改它功能能用，但某处退化（没有英文、没有色调、不在分组里）。
-- **外加两项，两端都不计入「处」**：新内置插件还要在 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 加一行，在 `docs/SSOT-MATRIX.md` 加一行 owner。前者是测试文件，后者是文档，按上一条本来就不计；它们现在要、目标也要（门禁那一行只有在 W5-02 生成的目录同时供给门禁测试时才能去掉，这一点不在 W5-02 现有的描述里），所以写成「外加 2」，不混进现在和目标的比较。
+- **外加一项，两端都不计入「处」**：新内置插件还要在 `docs/SSOT-MATRIX.md` 加一行 owner（文档，按上一条本来就不计）。门禁 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 从生成的登记读，新插件不改它（W5-02、PG-067；2026-10-31 W6-01 第二片改）。
 - **不计功能本身的产品集成**。例如待办被助理、首页、简介引用，是待办这个产品功能的一部分，不是扩展点。
 - **目标是上限**，等于对应切片完成后手改的文件数。没有对应切片的写「无切片」，并在第 4.3 节给出建议。路线图以外的建议不算已定。
 - **复核方法**（Text Stats，包外的包名引用）：
@@ -36,7 +36,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | --- | --- | --- | --- | --- |
 | 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
 | 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
-| 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 12 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
+| 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 11 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
 | 5 | 动作与消费场景 | 0 | 0 | 已达到 |
 | 6 | 设置分区 | 插件自带 0；宿主自有 9（含项目页 11） | 0 / 2 | 无切片，建议并入 W5-02 |
@@ -66,7 +66,6 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
 | 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数；宿主自己画的（Coding 一族、Text Stats、Characters）仍走 `plugin_stages` |
 | 名单 | `apps/workbench/src/i18n/en.ts` | `import` 并 `...X_EN`；没有它，英文界面仍是中文 key |
-| 外加 | `tests/builtin-plugin-assembly-gate.test.ts` | `RUNTIME_ASSEMBLED` 加一行 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
 
 Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（`palette.ts`、`icons.ts`、`catalog.ts` 三处按插件手写的名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）已随 PG-075 删除，现在是 2026-10-25 起的 9 个：插件的图标是视图的 `icon`，tab 组的颜色是视图的 `hue`，两者都写在 Manifest 里，设计系统不再保留插件名单。）（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
@@ -81,7 +80,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
 - **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。
 
-门禁名单那一行（`RUNTIME_ASSEMBLED`）也只有在 W5-02 生成的目录同时供给门禁测试时才能去掉；本清单把它记作外加项，不替 W5-02 许诺。
+门禁名单不再要手加一行：`RUNTIME_ASSEMBLED` 从生成的登记读（2026-10-31 W6-01 第二片改）。
 
 ### 3.2 第三方插件
 
@@ -99,9 +98,9 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | --- | --- | --- | --- |
 | token 型目录连接器 | Linear、Slack、Jira 等 | 1（另可选 1 个图标） | `plugins/official-integrations/catalog/src/catalog.ts` 加一条 `spec(...)`；每个连接器的 Manifest 带自己的 `connection_services` 与 `integrations`，服务连接目录由已装插件的声明汇成（`apps/local-host/src/connector-directory.ts`、`integration-registry.ts`）；图标在 `apps/workbench/src/connector-icons.ts`，缺图标时 `connectorIconSvg` 返回 `undefined`，界面不报错 |
 | 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
-| 自带 OAuth 或专属协议型 | GitHub、Gmail | 12 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 5（`builtin-integrations.ts` 的内置清单、`integration-providers.ts` 的 `defaultIntegrationProvider`、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
+| 自带 OAuth 或专属协议型 | GitHub、Gmail | 11 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 4（`builtin-integrations.ts` 的内置清单，它同时给每种内置集成接自己种类的提供方、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
 
-**目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入各自的官方接入包）。「宿主设置写入」那一项用户 2026-10-08 已定（决定 #7，`specs/repository-anti-corruption/spec.md` §1「宿主设置里的写入只走 HTTP」，PR #312）：宿主设置里的写入留作管理接口并登记例外，其中连接器路由以后搬进各自的官方接入插件。所以 OAuth 型的目标就是 1，不再有「登记为宿主例外、目标是 5」的一支；上表的 5 个宿主分支里，`web-connectors-settings.ts` 就是这类要搬走的连接器路由；目标 1 还要求其余 4 个分支也由集成包的声明取代，这属于 W5-11 的范围，由那一片的设计确认。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
+**目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入各自的官方接入包）。「宿主设置写入」那一项用户 2026-10-08 已定（决定 #7，`specs/repository-anti-corruption/spec.md` §1「宿主设置里的写入只走 HTTP」，PR #312）：宿主设置里的写入留作管理接口并登记例外，其中连接器路由以后搬进各自的官方接入插件。所以 OAuth 型的目标就是 1，不再有「登记为宿主例外、目标是 5」的一支；上表的 4 个宿主分支里，`web-connectors-settings.ts` 就是这类要搬走的连接器路由；目标 1 还要求其余 3 个分支也由集成包的声明取代，这属于 W5-11 的范围，由那一片的设计确认。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
 
 ### 3.4 AI 能力、Agent 角色、提示词
 
@@ -238,7 +237,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | --- | --- | --- | --- | --- | --- |
 | F1 | 风险记录插件 | 12（带 AI 建议时 13），外加 2 | 1，外加 2 | 1，外加 2 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
 | F2 | Coding 质量保证 | 2 | 0 | 0 | X-5（项目库基线由 owner 声明）；端口走服务 |
-| F3 | 新的外部服务（自带 OAuth） | 12 | 1 | 1 | W5-11 |
+| F3 | 新的外部服务（自带 OAuth） | 11 | 1 | 1 | W5-11 |
 | F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
 | F5 | 自动化规则（事件触发动作） | 约 21（推演），外加 2 | 6，外加 2 | 6，外加 2 | X-1、X-6 加 4 项已有切片 |
 | F6 | 调用诊断（按调用编号追查、导出诊断包） | 约 13（推演） | 3 | 3 | W3-01、W3-02（W5-13 在宿主里已铺好） |
@@ -247,7 +246,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F1 风险记录插件**（`specs/risk-plugin/spec.md`：记风险、关联 Goal 与会话、动作进共同目录、只走 Plugin Runtime、插件只提供内容）。
 
-- 现在：3.1 的 12 处（外加门禁名单一行、SSOT 一行），包外全是平台登记。关联 Goal、会话、消息、成果走公开对象引用，不 import 其他插件，包外 0 处；到期复查提醒用 `defineDueRemindersAction`，搜索用 `defineSearchEntriesAction`，都在包内。要在 Goal 事件里以「顾虑」引用风险，要改 `plugins/native/goals`，属功能自己的产品集成（Goals 是构建期例外），不计。带「建议处置办法」的 AI 动作会因缺 `services.model` 多一个宿主端口文件，所以是 13。
+- 现在：3.1 的 12 处（外加 SSOT 一行），包外全是平台登记。关联 Goal、会话、消息、成果走公开对象引用，不 import 其他插件，包外 0 处；到期复查提醒用 `defineDueRemindersAction`，搜索用 `defineSearchEntriesAction`，都在包内。要在 Goal 事件里以「顾虑」引用风险，要改 `plugins/native/goals`，属功能自己的产品集成（Goals 是构建期例外），不计。带「建议处置办法」的 AI 动作会因缺 `services.model` 多一个宿主端口文件，所以是 13。
 - 超过目标：登记 8、名单 4；外加的 2 现在和目标里都在，不算超出。
 - 补什么：3.1 列出的四片加 X-1。**再推演：1，外加 2**（`scripts/workspace-packages.mjs` 的一条登记；应用依赖要按 X-1 生成才不再手改，否则是 4）。
 
@@ -258,7 +257,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F3 新的外部服务（自带 OAuth，GitHub、Gmail 形）**（来源：BL-060、BL-061）。
 
-- 现在：12（3.3）。其中 token 型服务只要 1 处，所以先问能不能走目录连接器。
+- 现在：11（3.3）。其中 token 型服务只要 1 处，所以先问能不能走目录连接器。
 - 补什么：W5-11 把连接器设置和 OAuth 移入集成包（决定 #7，2026-10-08：宿主设置的写入留作登记过的管理接口，连接器路由以后搬进各自的官方接入插件）。**再推演：1。**
 
 **F4 团队与权限**（`docs/modules/identity-team-access.md` 目标；BL-071；第一步：项目有多个成员、成员有角色、调用动作前做访问决定）。

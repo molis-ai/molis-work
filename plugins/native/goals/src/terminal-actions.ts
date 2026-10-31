@@ -21,9 +21,9 @@ const panel = object({ key: text, panel_id: text, title: text, runtime: text, pr
 type PanelRow = { key: string; panel_id: string; title: string; runtime: string; program: PluginTerminalProgram; running: boolean; created_at: string };
 
 /** The person's own page only: an Agent, workflow, MCP client or another plugin does not start, close or read a Goal's terminals. */
-function terminalAction<Input, Output>(id: string, title: string, description: string, operation: "query" | "command",
+function terminalAction<Input, Output>(id: string, version: number, title: string, description: string, operation: "query" | "command",
   permissions: string[], input: ActionSchema, output: ActionSchema): ActionDefinition<Input, Output> {
-  return { capability_id: id, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  return { capability_id: id, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences: ["user"], ...(operation === "command" ? { authorship: "session" as const } : {}), permissions,
     subject_kinds: ["goal"], input_schema: input, output_schema: output } };
 }
@@ -31,18 +31,18 @@ function terminalAction<Input, Output>(id: string, title: string, description: s
 type OpenInput = { goal_id: string; key?: string; runtime?: string; resume_session_id?: string; command?: string; args?: string[]; workspace_id?: string };
 export const goalsTerminalActions = {
   list: terminalAction<{ goal_id: string }, { panels: PanelRow[]; read_only: boolean }>(
-    "goals.terminal.list", "读取目标的工作终端", "列出本人在这个目标上打开过的工作终端与它们是否在运行；上层目标的终端只读", "query",
+    "goals.terminal.list", 2, "读取目标的工作终端", "列出本人在这个目标上打开过的工作终端与它们是否在运行；上层目标的终端只读", "query",
     ["goals:read", "terminal:run"], object(goal), object({ panels: array(panel), read_only: boolean })),
   open: terminalAction<OpenInput, { panel_id: string; key: string; started: boolean }>(
-    "goals.terminal.open", "打开目标的工作终端", "在项目已关联的工作目录里为这个目标打开终端：runtime 是平台认识的编程 Agent（可用 resume_session_id 接着它原来的会话），或给出 command 与参数；同一个 key 在运行时直接接上，停了就用原来的程序重开", "command",
+    "goals.terminal.open", 2, "打开目标的工作终端", "在项目已关联的工作目录里为这个目标打开终端：runtime 是平台认识的编程 Agent（可用 resume_session_id 接着它原来的会话），或给出 command 与参数；同一个 key 在运行时直接接上，停了就用原来的程序重开", "command",
     ["goals:write", "terminal:run", "workspace:read"],
     object({ ...goal, key, runtime: identifier, resume_session_id: session, command: identifier, args: array(text), workspace_id: identifier }, ["goal_id"]),
     object({ panel_id: text, key: text, started: boolean })),
   close: terminalAction<{ goal_id: string; key: string }, { closed: true }>(
-    "goals.terminal.close", "关闭目标的工作终端", "结束这个目标上的一个工作终端并忘掉它", "command",
+    "goals.terminal.close", 1, "关闭目标的工作终端", "结束这个目标上的一个工作终端并忘掉它", "command",
     ["goals:write", "terminal:run"], object({ ...goal, key }), object({ closed: { const: true } })),
   prompt: terminalAction<{ goal_id: string; onboarding?: boolean }, { goal_id: string; title: string; prompt: string }>(
-    "goals.terminal.prompt", "读取推进目标的提示词", "给终端里的编程 Agent 的推进提示：目标的当前事实与项目指引", "query",
+    "goals.terminal.prompt", 1, "读取推进目标的提示词", "给终端里的编程 Agent 的推进提示：目标的当前事实与项目指引", "query",
     ["goals:read"], object({ ...goal, onboarding: boolean }, ["goal_id"]), object({ goal_id: text, title: text, prompt: text })),
 } as const;
 export const GOALS_TERMINAL_ACTIONS: readonly ActionDefinition[] = Object.values(goalsTerminalActions);

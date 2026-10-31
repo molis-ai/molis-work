@@ -120,6 +120,7 @@ export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "
 export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
+export { installedStageSection } from "./installed-stage-section.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
@@ -178,9 +179,6 @@ export { handleContextualHttp } from "./contextual/contextual-http.js";
 export { draftRequest } from "./contextual/contextual-draft.js";
 export { createChosen, undoCreated, type ContextualCreated, type UndoOwner } from "./contextual/contextual-create.js";
 export { intakeKey } from "./contextual/contextual-choice.js";
-// The Host's one whole-character cut, exported for the tests that pin it; the MISC "整字截收成一份" line drops these two exports when it
-// makes them a public helper.
-export { cutHead, cutTail } from "./whole-units.js";
 export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { scheduleServiceFor } from "./project-clock.js";
@@ -191,6 +189,11 @@ export { createLocalWebAssets } from "./web-assets.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { MCP_TOOLS } from "./mcp-platform-tools.js";
+export { mcpErrors, mcpErrorKind, type McpErrorReason } from "./mcp-errors.js";
+export { createPresentationError } from "./mcp-v1-tool.js";
+export { assertMcpStartInput } from "./mcp-start-preflight.js";
+export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
+export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";

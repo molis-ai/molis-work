@@ -1,6 +1,6 @@
 # 平台的「启动终端」服务（S-103 · T-136）
 
-状态：T-136 已批可合（#1640），S-103 行已写进 `docs/system/SECURITY-INVARIANTS.md`；T-137 在评审，叠在 T-136 上（第 6 节），第 4 节第 3、5 条的改写与第 8 条随它写进 S-103 行；T-148 第一片在评审，叠在 T-137 上（第 7 节），第 4 节第 5 条的会话与第 7 条随它写进 S-103 行；外壳那一半（RAC-2566 的 `[data-tui-pane]`、RAC-2567）等 T-115～T-118 放锁。
+状态：T-136（#1640）与 T-137（#1643）已进入 main，S-103 行已写进 `docs/system/SECURITY-INVARIANTS.md`；T-148 第一片（#1654，第 7 节）在评审，本轮正常合并 main 并按统筹 6548428638/6548548260 将 Goals 的 open/list 升为 @2、close/prompt 保持 @1，作者已完成本轮版本行为定向验证，独立审验与 CI 另记。第 4 节第 5 条的会话与第 7 条随本片写进 S-103 行；外壳那一半（RAC-2566 的 `[data-tui-pane]`、RAC-2567）等 T-115～T-118 放锁。
 
 用户 2026-10-30 裁定（#1332）：平台加一个「启动终端」服务，任何宿主运行的插件按安装授权可用，新 S 号；本片把服务立起来、把边界写成 S-103。工作终端搬过去、删旧路（`/api/goals/:id/panels`、control token 上的 `spawn`）、关 BL-637 / BL-695 / BL-508 是 T-137。
 
@@ -76,7 +76,7 @@
 | 记录表 `plugin_terminal_panels`、`plugin_terminal_panel_aliases`（目录库，`project_id` 可空；不存工作目录、不存在跑与否），`aliasSession` 记下运行时的会话（MCP 的调用方 T-148 改接） | `apps/local-host/src/plugin-terminal-panels.ts`、`catalog-schema.ts`、`project-catalog.ts` |
 | 服务：记录、绑定运行时工作上下文、项目事件与 `spawn` 在一个目录库事务里；PATH 在事务之前读；平台的一组环境变量（`MOLIS_WORK_HOME`、`MCP_AUDIENCE=runtime`、`RUNTIME_ID`、`WORK_CONTEXT_ID`、`WORK_CONTEXT_STABLE`、`PANEL_ID`、`FOCUS_ID`、`WEB_URL`、`TERM`、`COLORTERM`） | `apps/local-host/src/plugin-terminal-service.ts` |
 | 删项目时项目里还有在跑的插件终端照旧拒删，记录随项目清掉 | `apps/local-host/src/project-deletion-service.ts`、`project-catalog.ts` |
-| Goals：四个动作（`goals.terminal.list@1`、`open@1`、`close@1`、`prompt@1`，只给 `user`）、四条路由（`/goals/:goalId/terminals` GET/POST、`/goals/:goalId/terminals/:key` DELETE、`/goals/:goalId/advance-prompt` GET）；父 Goal 只读（`goals.terminal.read_only`）；推进提示从桌面壳搬来（`goalAdvancePrompt`），项目指引经 `goals.guidance.read` 以调用者读（实时策略照旧管住提示），推进提示暂不带 Feed 关联原文：`feed.goals.context@1` 只给 `user`，Goals 以人的身份委托出去的调用算 `workflow` 受众，不给它加受众（统筹答，#1332 6538636605），通路记 BL-911 | `plugins/native/goals/src/terminal-actions.ts`、`http/terminals.ts`、`plugin.ts`、`manifest.ts` |
+| Goals：四个动作（`goals.terminal.list@2`、`open@2`、`close@1`、`prompt@1`（T-137 初始 open/list@1，T-148 升版），只给 `user`）、四条路由（`/goals/:goalId/terminals` GET/POST、`/goals/:goalId/terminals/:key` DELETE、`/goals/:goalId/advance-prompt` GET）；父 Goal 只读（`goals.terminal.read_only`）；推进提示从桌面壳搬来（`goalAdvancePrompt`），项目指引经 `goals.guidance.read` 以调用者读（实时策略照旧管住提示），推进提示暂不带 Feed 关联原文：`feed.goals.context@1` 只给 `user`，Goals 以人的身份委托出去的调用算 `workflow` 受众，不给它加受众（统筹答，#1332 6538636605），通路记 BL-911 | `plugins/native/goals/src/terminal-actions.ts`、`http/terminals.ts`、`plugin.ts`、`manifest.ts` |
 | 宿主的推进提示处理器、`apps/desktop/src/advance-prompt.ts` 删掉；工作台改调 Goals 的路由 | `apps/local-host/src/web-panel*.ts`、`apps/workbench/src/terminal/client-prompt.ts` |
 | Shelf 改成 `program: { command }`；换了终端 Agent 后旧会话已结束时，关掉旧记录再开 | `plugins/native/shelf/src/home-plugin.ts` |
 
@@ -92,13 +92,15 @@ RAC-2560、2561、2566～2568 随 T-148（第 7 节）。
 
 ## 7. T-148 第一片：只附着、客户端走 Goals、删宿主面板路由
 
+当前动作版本（统筹 #1654 6548428638、6548548260）：`goals.terminal.open/list@2`，`close/prompt@1`。T-137 的 open/list@1 已在 main，T-148 新增 `resume_session_id` 与 list 的 `program`，按 `CONTRACT-CHANGES.md` §3.3 升能力版本；原“父动作尚未进入 main、同 @1 改形状”的理由失效。Manifest、生产注册与 HTTP 消费者使用同一份 @2 定义；旧固定 @1 引用保留并明确失效，调用方须显式重选 @2，不加别名、双注册、兼容或自动换号。动作名、权限、受众、HTTP 路径与会话拒绝规则不变，产品/包版本不变。
+
 统筹批（#1332 6538935984）：`program` 加可选 `session`（问 1 按推荐）；旧表本片只留建表语句、不留读写，删不删在 #1633 落地后与「开始」同一个弹窗里问用户；工作台的终端客户端同片改走 Goals 路由，属性名照旧 `data-tui-*`、五处外壳脚本不动。方案见 #1332 6538925374。
 
 | 部分 | 在哪 |
 | --- | --- |
 | `/pty` 只附着：所有连接（控制令牌的也一样）的 `spawn` 都只能是 `{ type, panelId, attachOnly: true, cols?, rows? }`，尺寸 1 到 1000 | `apps/local-host/src/pty-socket.ts` |
 | MCP 续接的三个调用方改接平台终端记录（`aliasTerminalSession` → `terminalPanels.aliasSession`），绑定用开终端的人 | `runtime-panel-session.ts`、`mcp-server.ts`、`mcp-context-gateway.ts`、`plugin-terminal-panels.ts`、合同 `runtime-project-host.ts` |
-| `program.session`（合同、服务、记录）；Goals `open` 的可选 `resume_session_id`，只配 `runtime`；`list` 回 `program`（不含会话：重开不写会话就续接记下的） | `plugin-host-services.ts`、`plugin-terminal-service.ts`、`plugin-terminal-panels.ts`、`plugins/native/goals/src/terminal-actions.ts` |
+| `program.session`（合同、服务、记录）；Goals `open@2` 的可选 `resume_session_id`，只配 `runtime`；`list@2` 回 `program`（不含会话：重开不写会话就续接记下的） | `plugin-host-services.ts`、`plugin-terminal-service.ts`、`plugin-terminal-panels.ts`、`plugins/native/goals/src/terminal-actions.ts` |
 | 工作台客户端：列出、打开、重开、关闭都走 Goal 页面给的 `data-tui-terminals-route`（`DELETE <route>/<key>` 结束进程），`/pty` 只附着；`markExited` 与 `/exited` 删掉。`panel-spawn.ts` 没有删，改成只发附着消息的排队（方案里写的是并进 `panels.ts`，留下它更小） | `apps/workbench/src/terminal/`、`goals-documents.ts` |
 | 删掉：宿主的 `/api/goals/:id/panels`、`/api/panels/*`（`web-panel.ts`、`web-panel-routes.ts`、`desktopPanelRoute`），桌面的面板服务与启动配方（`panels.ts`、`launch.ts`），合同的 `DesktopPanel*` 一族，`desktop.runtime-launch.v1`、`desktop.panels.v1` 两个登记 | `apps/local-host/src/`、`apps/desktop/src/`、`packages/contracts/src/platform/app-host.ts`、`scripts/workspace-packages.mjs` |
 | 旧两张表只留建表语句 `createDesktopPanelTables`，经 `createPanelSchema` 端口在 `initializeCatalog` 里建，没有读写 | `apps/desktop/src/adapters/sqlite-panels.ts` |
@@ -109,7 +111,7 @@ RAC-2560、2561、2566～2568 随 T-148（第 7 节）。
 | RAC-2560 | 控制令牌的连接发带 `command` 的 `spawn`、不带 `attachOnly` 的、带第六个键的、尺寸超界的，都答 `error`，不起进程；没有的面板答 `started: false`（⑦） | `tests/security-invariants-plugin-terminal-launch.test.ts` |
 | RAC-2561 | 宿主不再答 `/api/panels…`、`/api/goals/:id/panels`；路由表快照没有 `desktop-panel`；`…/goals/:goalId/terminals` 由 Goals 的插件路由答 | `tests/web-route-table.test.ts` |
 | RAC-2564（补） | `program.session`：合法的值第一次起就以 `resume <session>` 起、记成 `host_session_id`；带空格、带 `;`、以 `-` 开头（`--dangerously-bypass-approvals-and-sandbox`）、超过 128 个字符、配在 `command` 上的，都 `actions.input_invalid`，不起进程 | `tests/security-invariants-plugin-terminal-launch.test.ts` |
-| RAC-2565（补） | 走 MCP：运行时从终端的工作上下文报了会话号，记录的 `host_session_id` 跟着变（S-07 那一段改接平台记录）；Goals 的 `resume_session_id` 只配 `runtime`，带空格、`;` 或以 `-` 开头答 400；运行时报来的 `--dangerously-bypass-approvals-and-sandbox` 与带空格的值不记成会话，同一 key 重开不带续接参数；绕过服务直接写进记录的选项，出去时被拦下、按新会话起；合格式的照常续接 | `tests/security-invariants-home-context.test.ts`、`tests/goals-terminal.test.ts`、`tests/security-invariants-plugin-terminal-launch.test.ts` |
+| RAC-2565（补） | 生产目录的 open/list 为 @2、close/prompt 为 @1，HTTP 经 @2 续接，固定旧 @1 引用按现行动作目录拒绝、不得自动落到 @2。走 MCP：运行时从终端的工作上下文报了会话号，记录的 `host_session_id` 跟着变（S-07 那一段改接平台记录）；Goals 的 `resume_session_id` 只配 `runtime`，带空格、`;` 或以 `-` 开头答 400；运行时报来的 `--dangerously-bypass-approvals-and-sandbox` 与带空格的值不记成会话，同一 key 重开不带续接参数；绕过服务直接写进记录的选项，出去时被拦下、按新会话起；合格式的照常续接 | `tests/security-invariants-home-context.test.ts`、`tests/goals-terminal.test.ts`、`tests/security-invariants-plugin-terminal-launch.test.ts` |
 | RAC-2566（前一半） | 源码扫描：工作台终端客户端里每条 `spawn` 都 `attachOnly: true`、不带 `command`、`args`、`cwd`、`env`；行为：工作台的终端客户端不再发带命令的 `spawn`，不点名 `/api/panels`、`/api/goals/`、插件；载入只附着，重开是带同一个 key 向 Goals 的路由 `POST` 再附着 | `tests/page-terminal.test.ts`、`tests/work-terminal-client.test.ts`、`tests/desktop-tui.test.ts` |
 | RAC-2568 | 项目里有在跑的 Goals 终端时拒删；人关掉之后能删，记录与它工作上下文的别名随项目清掉 | `tests/project-settings-deletion.test.ts`、`tests/project-deletion-service.test.ts` |
 

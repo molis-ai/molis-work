@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { createTerminalAutofill, createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalAutofillOptions, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
+import { createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
 
 function installGlobals(t: TestContext, values: Record<string, unknown>) {
   for (const [key, value] of Object.entries(values)) {
@@ -12,80 +12,6 @@ function installGlobals(t: TestContext, values: Record<string, unknown>) {
     });
   }
 }
-
-// Browser ports, not a browser E2E: assertions exercise the exported production controller.
-function autofillFixture(t: TestContext) {
-  const storage = new Map<string, string>();
-  installGlobals(t, {
-    sessionStorage: {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => storage.set(key, value),
-      removeItem: (key: string) => storage.delete(key),
-    },
-  });
-  const writes: unknown[][] = [];
-  const statuses: Array<[string, string | undefined]> = [];
-  const menus: boolean[] = [];
-  const state = { panel: null as { panel_id: string } | null };
-  const options: TerminalAutofillOptions = {
-    goalId: () => "goal-a",
-    text: (text) => text, errorText: (error) => String(error),
-    terminal: {
-      current: () => state.panel,
-      isAlive: (id) => state.panel?.panel_id === id,
-      output: () => ({ hasOutput: true, lastOutputAt: Date.now() - 10_000 }),
-      writePrompt: async (...args) => { writes.push(args); },
-    },
-    setStatus: (text, status) => statuses.push([text, status]),
-    setMenuOpen: (open) => menus.push(open), showToast() {},
-  };
-  return { storage, state, options, writes, statuses, menus };
-}
-
-test("Feed context waits for a live panel, fills once without sending, and consumes its pending record", async (t) => {
-  const f = autofillFixture(t);
-  const key = "molis-work-feed-runtime-autofill:goal-a";
-  f.storage.set(key, JSON.stringify({ itemId: "item-a", at: Date.now() }));
-  let completeWrite!: () => void;
-  f.options.terminal.writePrompt = async (...args) => {
-    f.writes.push(args);
-    await new Promise<void>((resolve) => { completeWrite = resolve; });
-  };
-  const controller = createTerminalAutofill(f.options);
-  await controller.fillPendingFeedContext();
-  assert.deepEqual(f.menus, [true]);
-  assert.equal(f.storage.has(key), true);
-  assert.deepEqual(f.writes, []);
-  f.state.panel = { panel_id: "panel-a" };
-  const first = controller.fillPendingFeedContext();
-  await Promise.resolve();
-  await controller.fillPendingFeedContext();
-  assert.deepEqual(f.writes, [[false, "item-a"]]);
-  completeWrite();
-  await first;
-  assert.equal(f.storage.has(key), false);
-  assert.deepEqual(f.statuses.at(-1), ["Item 上下文已填入，检查后再发送。", "live"]);
-});
-
-test("Failed context fill preserves the pending item for a later retry", async (t) => {
-  const f = autofillFixture(t);
-  const key = "molis-work-feed-runtime-autofill:goal-a";
-  f.storage.set(key, JSON.stringify({ itemId: "item-a" }));
-  f.state.panel = { panel_id: "panel-a" };
-  let fail = true;
-  f.options.terminal.writePrompt = async (...args) => {
-    if (fail) throw new Error("channel disconnected");
-    f.writes.push(args);
-  };
-  const controller = createTerminalAutofill(f.options);
-  await controller.fillPendingFeedContext();
-  assert.equal(f.storage.has(key), true);
-  assert.equal(f.statuses.at(-1)?.[1], "error");
-  fail = false;
-  await controller.fillPendingFeedContext();
-  assert.equal(f.storage.has(key), false);
-  assert.deepEqual(f.writes, [[false, "item-a"]]);
-});
 
 class BrowserSocket extends EventTarget {
   static OPEN = 1;
@@ -205,7 +131,7 @@ function panelsFixture(t: TestContext) {
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
     terminalsRoute: () => "/api/plugins/goals-owner/goals/:goalId/terminals", request,
     controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
-    showTerminal: (id) => shown.push(id), afterOpened: async () => {},
+    showTerminal: (id) => shown.push(id),
   };
   return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, resets: () => resets };
 }

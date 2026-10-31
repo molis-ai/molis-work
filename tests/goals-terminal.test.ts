@@ -100,6 +100,23 @@ async function goalsPage(t: TestContext, f: Awaited<ReturnType<typeof served>>["
 const runs = async () => existsSync(log) ? (await readFile(log, "utf8")).split("\n").filter(Boolean).length : 0;
 const json = async (response: Response) => ({ status: response.status, body: await response.json() as Record<string, unknown> });
 
+// RAC-2565 T-148: use the running project's production directory and gateway, not only the exported definitions.
+test("RAC-2565 Goals registers open/list at version 2 and close/prompt at version 1; an old fixed reference is refused without starting a terminal", async t => {
+  const { f, reference } = await served(t);
+  const person = await f.host.localPersonContext(reference), client = f.host.actionClient(reference), before = await runs();
+  const directory = (await client.discover(person)).filter(row => row.capability_id.startsWith("goals.terminal."));
+  assert.deepEqual(directory.map(row => [row.capability_id, row.version]).sort(), [
+    ["goals.terminal.close", 1], ["goals.terminal.list", 2], ["goals.terminal.open", 2], ["goals.terminal.prompt", 1],
+  ], "the registered versions are the current contract");
+  for (const capability_id of ["goals.terminal.open", "goals.terminal.list"]) {
+    const fixed = { capability_id, version: 1, provider_id: "io.molis.work.goals" };
+    const input = capability_id.endsWith("open") ? { goal_id: "LEAF", runtime: "codex" } : { goal_id: "LEAF" };
+    await assert.rejects(client.invoke(person, fixed, input), { code: "actions.missing" });
+    assert.equal(fixed.version, 1, "the caller's fixed reference is not silently changed");
+  }
+  assert.equal(await runs(), before, "neither old reference started a terminal");
+});
+
 test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the project's preferred workspace; the page attaches and writes; a parent Goal and another project's workspace are refused", { timeout: 60_000 }, async t => {
   const { f, folder, other, project, api } = await served(t);
   const opened = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex" } }));

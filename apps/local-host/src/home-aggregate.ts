@@ -37,6 +37,8 @@ export interface HomeAggregatePorts {
   client(reference: LocalHostProjectReference): ActionClient;
   /** The person's context in that project; the grants in it are that project's installations' own. */
   context(reference: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext>;
+  /** Whether the project reaches the plugin behind a provider (Manifest id -> the platform's own exposure judgement); `undefined` when that is not the catalog's to judge. A Host with no catalog rejects, which the aggregate records as that project's issue. */
+  projectPlugins(reference: LocalHostProjectReference): Promise<(pluginId: string) => boolean | undefined>;
 }
 
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
@@ -55,8 +57,19 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
   signal?.throwIfAborted();
   const projects = await Promise.all(ports.openProjects().map(async reference => {
     const project_id = reference.project_id;
+    let catalogIssue: HomeAggregateIssue | null = null;
+    let reaches: (pluginId: string) => boolean | undefined = () => undefined;
     try {
-      return await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
+      // The exposure judgement comes from the catalog, which a project's own open window may hold: get it before entering.
+      reaches = await ports.projectPlugins(reference);
+    } catch (error) {
+      signal?.throwIfAborted();
+      // A catalog failure is that project's issue; it does not cost the answers the other sources can still give. The judgement
+      // stays undefined, so plugin_disabled keeps the old silent rule and unavailable sources with other codes are still shown.
+      catalogIssue = closing(error) ? null : { project_id, source: null, code: codeOf(error) };
+    }
+    try {
+      const result = await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
         const client = ports.client(reference);
         const { caller, views } = await beforeDeadline(signal, async discoverySignal => {
           // Queries and all their nested calls remain read-only; discovery has its own bound too.
@@ -69,7 +82,16 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
           if (view.action.output_type !== outputType || !isHomeAggregateQuery(view)) return empty;
           const source = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
           if (caller.allowed_actions && !caller.allowed_actions.some(allowed => same(allowed, source))) return empty;
-          if (!view.availability.available) return { answers: [], issues: view.availability.code === "actions.plugin_disabled" ? [] : [{ project_id, source, code: view.availability.code }] };
+          if (!view.availability.available) {
+            const pluginId = view.provider.plugin_id;
+            // Not in this project's plugin manifest is not installed here, so it has nothing to report; listed but unavailable (turned
+            // off, or refused by policy) is what the person needs to see. A platform provider has no plugin and keeps the old rule.
+            const judged = pluginId === undefined ? undefined : reaches(pluginId);
+            // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code:
+            // the project reaches the plugin => shown, it does not => not installed here, `undefined` => keep the old silent skip.
+            return view.availability.code !== "actions.plugin_disabled" || judged === true
+              ? { answers: [], issues: [{ project_id, source, code: view.availability.code }] } : empty;
+          }
           try {
             const output = await beforeDeadline(signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input)) as Output;
             return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, output }], issues: [] };
@@ -80,6 +102,7 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
         }));
         return { answers: results.flatMap(result => result.answers), issues: results.flatMap(result => result.issues) };
       }) ?? { answers: [], issues: [] };
+      return catalogIssue ? { answers: result.answers, issues: [catalogIssue, ...result.issues] } : result;
     } catch (error) {
       signal?.throwIfAborted();
       return { answers: [], issues: closing(error) ? [] : [{ project_id, source: null, code: codeOf(error) }] };
@@ -97,5 +120,6 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
     whileOpen: (reference, work) => open(reference.project_id) ? host.withProject(reference, work) : Promise.resolve(undefined),
     client: reference => host.actionClient(reference),
     context: (reference, signal) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, signal),
+    projectPlugins: reference => host.projectPluginReach(reference.project_id),
   };
 }

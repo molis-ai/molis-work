@@ -35,8 +35,22 @@ function keysLabel(keys: string): string {
   return keys.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥");
 }
 
-/** Home tools stay within reach; declared side views open beside the current work. */
-export function renderHomePluginNavigation(href?: (path: string) => string): string {
+/** A signed package installed in the Home, as the tool bar offers it: its name, the stage's icon, and the surface its stage opens as. */
+export interface HomePluginNavigationEntry {
+  readonly plugin_id: string;
+  readonly name: string;
+  readonly icon?: string;
+  readonly surface: string;
+}
+
+/** The icon a package that picked none is drawn with, as every plugin view without one. */
+const DEFAULT_ICON: PluginIconName = "package";
+
+/**
+ * Home tools stay within reach; declared side views open beside the current work. The signed packages installed in the Home follow the
+ * built-in tools, by name: a package has a stage and no side view, so it opens that stage (BL-713).
+ */
+export function renderHomePluginNavigation(href?: (path: string) => string, installed: readonly HomePluginNavigationEntry[] = []): string {
   const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").flatMap(entry => {
     const stage = entry.manifest.ui?.views?.find(view => view.slot === "stage");
     if (!stage) return [];
@@ -50,6 +64,11 @@ export function renderHomePluginNavigation(href?: (path: string) => string): str
     return [side ? `<button ${attrs} type="button" data-side-plugin-open="${escapeHtml(`${entry.project_plugin_id}/${side.view_id}`)}" aria-controls="side-panel" aria-expanded="false">${content}</button>` : href
       ? `<a ${attrs} href="${escapeHtml(href(`/plugins/${encodeURIComponent(entry.project_plugin_id)}`))}">${content}</a>`
       : `<button ${attrs} type="button" data-work-surface-open="${escapeHtml(stage.view_id)}">${content}</button>`];
+  }).join("") + installed.map(entry => {
+    const attrs = `class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-home-plugin-open="${escapeHtml(entry.plugin_id)}"`;
+    const content = `${icon((entry.icon ?? DEFAULT_ICON) as PluginIconName)}${escapeHtml(entry.name)}`;
+    return href ? `<a ${attrs} href="${escapeHtml(href(`/plugins/${encodeURIComponent(entry.plugin_id)}`))}">${content}</a>`
+      : `<button ${attrs} type="button" data-work-surface-open="${escapeHtml(entry.surface)}">${content}</button>`;
   }).join("");
   return `<span class="mw-group" style="order:var(--home-tools-order,4);flex:none;padding:0;margin-left:auto">${entries}</span>`;
 }

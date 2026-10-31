@@ -542,23 +542,30 @@ for (const where of ["validate_authority", "assert_authority_current"] as const)
 }
 
 // RAC-2715: a reader discarded because its check is refused leaves exactly one trace through the package's own onError: its plugin id
-// in `where` and the error's code — never the error's message, the query or any content. The discarding itself is unchanged.
-test("RAC-2715 a discarded reader leaves one record with its plugin id and code, and nothing of its message or the query", async t => {
-  const records: Array<{ error: unknown; where: string }> = [];
-  const f = await fixture(t, { onError: (error, where) => { records.push({ error, where }); } });
-  register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
-  register(f.actions, source([{ id: "b1", title: "B 项目合同", body: "乙方付款条款", version: 1 }]), { provider_id: "memos", project_id: "a", plugin_id: "memos" },
-    { entries: "memos.search.entries", reader: "memos.subject.read" });
-  const refusing: ActionCallContext = { ...owner("a"), validate_authority: async (reference?: { capability_id?: string; provider_id?: string }) => {
-    if (reference?.capability_id === reader.capability_id && reference.provider_id === "notes") throw new ActionError("fixture.reader_withheld", "不再交给这个调用者", { kind: "forbidden" });
-  } };
-  const response = await ask(f, refusing, "合同");
-  assert.deepEqual(ids(response), ["b1"], "the refused reader is left out; the other reader's result still comes back");
-  assert.equal(records.length, 1, "exactly one record for the one discarded reader");
-  const record = records[0]!;
-  assert.match(record.where, /notes$/, "the reader's plugin id is in where");
-  assert.ok(record.error instanceof ActionError, "the record carries the error's code");
-  assert.equal((record.error as ActionError).code, "fixture.reader_withheld");
-  assert.equal((record.error as ActionError).message, "", "the error's message is not recorded");
-  assert.doesNotMatch(JSON.stringify(records), /不再交给这个调用者|合同/, "nothing of the message or the query reaches the outlet");
-});
+// in `where` and the error's code — never the error's message, the query or any content. Both discard sites are driven — the
+// asynchronous re-check and the synchronous tail — and both halves of the identifier: a plugin id, or the provider id when a provider
+// has none. The discarding itself is unchanged.
+for (const where of ["validate_authority", "assert_authority_current"] as const) {
+  test(`RAC-2715 a discarded reader leaves one record with its plugin id and code, and nothing of its message or the query (${where})`, async t => {
+    for (const scenario of [
+      { label: "a provider with its own plugin id", plugin_id: "io.molis.work.notes" as string | undefined, expected: "search.reader:io.molis.work.notes" },
+      { label: "a provider without one", plugin_id: undefined as string | undefined, expected: "search.reader:notes" },
+    ]) {
+      const records: Array<{ error: unknown; where: string }> = [];
+      const f = await fixture(t, { onError: (error, where) => { records.push({ error, where }); } });
+      register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]),
+        { provider_id: "notes", project_id: "a", plugin_id: scenario.plugin_id });
+      register(f.actions, source([{ id: "b1", title: "B 项目合同", body: "乙方付款条款", version: 1 }]), { provider_id: "memos", project_id: "a", plugin_id: "memos" },
+        { entries: "memos.search.entries", reader: "memos.subject.read" });
+      const response = await ask(f, readerRefusing(where, new ActionError("fixture.reader_withheld", "不再交给这个调用者", { kind: "forbidden" })), "合同");
+      assert.deepEqual(ids(response), ["b1"], `${scenario.label}: the refused reader is left out; the other reader's result still comes back`);
+      assert.equal(records.length, 1, `${scenario.label}: exactly one record for the one discarded reader`);
+      const record = records[0]!;
+      assert.equal(record.where, scenario.expected, `${scenario.label}: where is the plugin id, or the provider id when it has none`);
+      assert.ok(record.error instanceof ActionError, "the record carries the error's code");
+      assert.equal((record.error as ActionError).code, "fixture.reader_withheld");
+      assert.equal((record.error as ActionError).message, "", "the error's message is not recorded");
+      assert.doesNotMatch(JSON.stringify(records), /不再交给这个调用者|合同/, "nothing of the message or the query reaches the outlet");
+    }
+  });
+}

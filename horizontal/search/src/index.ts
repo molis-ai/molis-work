@@ -96,7 +96,7 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
   });
   // A reader this caller may not use (any more) is left out of the query: told by the refusal's kind (its own, or the platform table's for a
   // platform code), never by an owner's code. Anything else its check throws ends the query.
-  const revokedReader = (error: unknown) => error instanceof ActionError && (error.kind ?? platformErrorKind(error.code)) === "forbidden";
+  const revokedReader = (error: unknown): error is ActionError => error instanceof ActionError && (error.kind ?? platformErrorKind(error.code)) === "forbidden";
   // A discarded reader leaves one trace with its code only: its plugin id goes in the outlet's `where`, never its message, the query or
   // an object (the rule the call log follows: who and what failed, not what was asked or returned).
   const discard = (reader: { view: ActionView; valid: boolean }, error: ActionError) => {
@@ -109,7 +109,7 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
         check.caller.signal?.throwIfAborted(); await check.caller.validate_authority?.(check.source.reference);
         for (const reader of check.readers) {
           try { await check.caller.validate_authority?.(referenceOf(reader.view)); }
-          catch (error) { if (!revokedReader(error)) throw error; discard(reader, error as ActionError); }
+          catch (error) { if (!revokedReader(error)) throw error; discard(reader, error); }
         }
       }
     },
@@ -120,7 +120,7 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
         check.caller.signal?.throwIfAborted(); requireSynchronous(check.caller.assert_authority_current?.(check.source.reference));
         for (const reader of check.readers.filter(reader => reader.valid)) {
           try { requireSynchronous(check.caller.assert_authority_current?.(referenceOf(reader.view))); }
-          catch (error) { if (!revokedReader(error)) throw error; discard(reader, error as ActionError); }
+          catch (error) { if (!revokedReader(error)) throw error; discard(reader, error); }
         }
       }
     },

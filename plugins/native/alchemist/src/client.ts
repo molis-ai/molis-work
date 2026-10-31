@@ -9,6 +9,8 @@ import { ALCHEMIST_FLOWS } from './client-flows.js';
  *   search uses. It is republished whenever the content redraws (every view sets the discussion context as it renders).
  * - A run that stopped for want of a model says so once, with the way to settings (`noModel`): no status, no waiting label,
  *   no internal code. The direction card and the research card share it.
+ * - Read worker acceptance before the business snapshot: a worker releases acceptance after committing its terminal state.
+ *   The stopping decision must never combine newer acceptance with an older queued drawing (RAC-2752–2755).
  * - The body is written without indentation, like `client-views.ts` and `client-flows.ts`: the served script is measured in
  *   bytes (tooling/gates/page-assets.json), and indentation is the one thing in it that cannot matter.
  * - Private state names and `$`'s data-alc selector shorthand keep the lifecycle fixes within that same byte budget.
@@ -45,7 +47,7 @@ const persist=()=>{try{localStorage.setItem(stateKey,JSON.stringify({collection:
 const same=v=>JSON.stringify(v)===JSON.stringify(focus);
 function setTitle(title){$('title').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
-async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime'),api('/runs')]);if(n!==loadSeq)return false;[data,pulse,decisions,runtime]=values;jobs=values[4].jobs;ready=true;renderList();schedule();return true;}
+async function load(){const n=++loadSeq,j=await api('/runs');const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return false;[data,pulse,decisions,runtime]=values;jobs=j.jobs;ready=true;renderList();schedule();return true;}
 life.listen(document,'molis-work:model-ready',()=>{if(ready&&life.visible)void refresh().catch(failed);});
 async function refresh(){if(wanted)return selectItem(wanted);const n=seq;await load();if(n===seq&&focus)await open(focus,false);}
 function closeDetail(){seq++;wanted=null;focus=null;target=null;quote=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('workspace').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}

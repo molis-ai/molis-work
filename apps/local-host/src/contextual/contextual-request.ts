@@ -3,7 +3,7 @@ import {
   SURFACE_LANDING_POSITIONS, SURFACE_PLACES, type ContextualJudgeRequest, type SurfaceActivity, type SurfaceFocus, type SurfaceFocusTarget,
   type SurfaceLanding, type SurfaceLandingPosition, type SurfacePlace,
 } from "@molis-ai/molis-work-contracts/services/contextual";
-import { cutHead, cutTail } from "../whole-units.js";
+import { cutHead, cutTail } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * What a page may claim about the context, bounded before anything else reads it. A page's focus and landing are claims:

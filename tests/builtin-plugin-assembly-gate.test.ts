@@ -18,7 +18,7 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperat
  *
  * Two plugins are still wired by hand at build time (a `registerProvider(...)` in the Host, Host files named after them), and
  * only because the user approved them as exceptions: APPROVED_BUILD_TIME_EXCEPTIONS below, each with where the decision is
- * written (W6-01, BL-750). Any other catalog entry that no supervisor starts fails here. An exception leaves when its plugin is
+ * written (W6-01, BL-377). Any other catalog entry that no supervisor starts fails here. An exception leaves when its plugin is
  * redone on the Plugin Runtime; none joins.
  *
  * The lists match the disk exactly, both ways: a name that is no longer there has to leave the list, and a plugin the
@@ -39,7 +39,7 @@ const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manife
 const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project_plugin_id));
 
 /**
- * The only built-in plugins assembled by hand at build time, each with the decision that keeps it (W6-01, BL-750): Alchemist
+ * The only built-in plugins assembled by hand at build time, each with the decision that keeps it (W6-01, BL-377): Alchemist
  * and the plugin studio are neither migrated nor deleted this round (specs/repository-anti-corruption/privileges.md, the
  * 2026-10-23 note at the top; specs/post-anticorruption-roadmap/spec.md). Each names the user's dates and the BACKLOG row
  * that redoes it, and that row has to be open (RAC-2650).

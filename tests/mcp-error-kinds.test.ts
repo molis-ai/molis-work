@@ -4,12 +4,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { dispatchMcpProjectTool } from "@molis-ai/molis-work-app-mcp";
-import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { mcpErrors, mcpErrorKind, type McpErrorReason } from "../apps/local-host/dist/mcp-errors.js";
-import { assertMcpStartInput } from "../apps/local-host/dist/mcp-start-preflight.js";
-import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "../apps/local-host/dist/mcp-authority.js";
-import { runtimeConnectionIdentity } from "../apps/local-host/dist/mcp-event-identity.js";
-import { createPresentationError } from "../apps/local-host/dist/mcp-v1-tool.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorKind, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
 
 // T-340 (RAC-2713, RAC-2714): every `mcp.*` code is declared once with its kind, every throw site raises through that
 // declaration, and a code raised from two paths has one kind. The statuses that the HTTP edges derive from those kinds stay
@@ -47,8 +44,17 @@ test("RAC-2713 every declared mcp code raises with its declared kind, and no thr
     };
     walk(fileURLToPath(new URL(`../${root}`, import.meta.url)));
   }
+  let pinned = 0;
   for (const source of sources) {
-    assert.doesNotMatch(source.text, /new ActionError\(\s*"mcp\./u, `${source.path}: a bare mcp code is raised by hand`);
+    for (const match of source.text.matchAll(/new ActionError\(\s*"mcp\.([a-z0-9_]+)"/gu)) {
+      const code = `mcp.${match[1]}`;
+      // scripts/gates/goals-management-wiring.mjs pins this one refusal's AST shape (a bare ActionError with the code literal
+      // mcp.path_required); changing it needs a gate change, and its kind is the default invalid, which is what it declares.
+      assert.ok(source.path.endsWith("apps/local-host/src/mcp-v1-tool.ts") && code === "mcp.path_required",
+        `${source.path}: a bare mcp code is raised by hand (${code})`);
+      assert.equal(actionErrorKind(new ActionError(code, "message")), DECLARED.path_required);
+      pinned += 1;
+    }
     for (const match of source.text.matchAll(/createError\("(mcp\.[a-z0-9_]+)"/gu)) {
       assert.notEqual(mcpErrorKind(match[1]), undefined, `${source.path}: ${match[1]} is not declared`);
     }
@@ -60,6 +66,7 @@ test("RAC-2713 every declared mcp code raises with its declared kind, and no thr
         `${source.path}: ${code} is not a declared mcp code`);
     }
   }
+  assert.equal(pinned, 1, "the gate-pinned refusal is the only bare mcp throw");
   assert.ok(sources.length > 20, "the source scan saw the two trees");
 });
 

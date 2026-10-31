@@ -35,7 +35,9 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     ? runtimeConnection!.databasePath
     : namedDatabasePath(arguments_.database_path) ?? namedDatabasePath(readProductEnv("DATABASE"));
   if (!location) {
-    throw mcpErrors.path_required(
+    // Pinned by scripts/gates/goals-management-wiring.mjs, which checks this refusal's AST shape (a bare ActionError with the code
+    // literal); changing it needs a gate change, so it is the one mcp.* throw outside the declaration (its kind is the default invalid).
+    throw new ActionError("mcp.path_required",
       "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
   }
   if (audience === "management" && caller.resident?.ensureResident) {

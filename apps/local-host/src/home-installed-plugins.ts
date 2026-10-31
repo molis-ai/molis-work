@@ -187,6 +187,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
      */
     pages: (): { key: string; manifest: PluginManifest }[] => records().flatMap(item => {
       if (item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
+      // Like `running`: a publisher the person took back has no page until its installation is stopped and says why.
+      if (item.state === 'running' && !standing.trusted(item)) return [];
       const manifest = releaseFor(item.plugin_id)?.packaged?.manifest;
       return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
     }),

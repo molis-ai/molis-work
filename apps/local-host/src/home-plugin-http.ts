@@ -41,8 +41,15 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
-  const registered = host.homePlugins.registered();
-  const entry = page ? registered.find(item => item.key === page[1]) : undefined;
+  let registered = host.homePlugins.registered();
+  let entry = page ? registered.find(item => item.key === page[1]) : undefined;
+  if (page && !entry) {
+    // An installed package's page is registered once the Home has started, so the first request after a start may be that page (BL-713).
+    try { await host.homePlugins.ready(); }
+    catch (error) { sendLocalWebJson(response, 503, { error: error instanceof Error ? error.message : String(error) }); return true; }
+    registered = host.homePlugins.registered();
+    entry = registered.find(item => item.key === page[1]);
+  }
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
   if (!host.homePlugins.manifest(pluginId)) return false;
@@ -105,7 +112,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       try {
         const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken)!
           : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
-            { L, htmlLang, clientI18nScript }, false, false, project, surface ? `/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined);
+            // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
+            { L, htmlLang, clientI18nScript }, false, false, project, surface ? `/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
         response.end(body);
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }

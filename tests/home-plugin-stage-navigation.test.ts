@@ -3,7 +3,9 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { MolisWorkLocalHost, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { HomeConsentLedger, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, installedStageSection, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { renderHomePluginNavigation } from "@molis-ai/molis-work-app-workbench";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, mac, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
@@ -122,13 +124,99 @@ test("RAC-2624 a package that was uninstalled leaves the tool bar and has no pag
   assert.equal((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).status, 404);
 });
 
-test("RAC-2626 the tool bar's entries are the person's page only: no action view an agent or an MCP client is shown carries them, and a plugin is shown none without a caller the Host issued", mac, async t => {
+test("RAC-2626 the tool bar's entries are the person's page only: no action view an agent, an MCP client or a workflow is shown carries them, and a plugin is shown none without a caller the Host issued", mac, async t => {
   const h = await navHome(t);
   await h.install(PACKAGE_PLUGIN_ID, "book");
   assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), "the person's page has it");
-  const seen = await Promise.all((["agent", "mcp"] as const).map(async audience =>
-    JSON.stringify(await h.client.discover({ actor_id: "someone-else", audience, project_id: h.project.project_id, permissions: [] }))));
-  for (const view of seen) assert.ok(!view.includes("home_plugin_nav") && !view.includes("data-home-plugin-open"), "no navigation data in an action view");
+  // The person's own permissions are the widest view there is: if the entries were in any action view, it would be this one.
+  const seen = await Promise.all((["agent", "mcp", "workflow"] as const).map(async audience =>
+    JSON.stringify(await h.client.discover({ actor_id: LOCAL_PERSON_ACTOR_ID, audience, project_id: h.project.project_id, permissions: LOCAL_OWNER_PERMISSIONS }))));
+  for (const view of seen) {
+    assert.ok(view.includes("notes.add"), "the view is the full one: it lists the package's own actions");
+    assert.ok(!view.includes("home_plugin_nav") && !view.includes("data-home-plugin-open") && !view.includes("data-work-surface-open"), "no navigation data in an action view");
+  }
   // A plugin is shown nothing unless the Host issued it its caller (S-15); a context it writes itself is refused before any directory is read.
   await assert.rejects(h.client.discover({ actor_id: "someone-else", audience: "plugin", project_id: h.project.project_id, permissions: [] }), (error: unknown) => (error as { code?: string }).code === "host.plugin_caller_invalid");
+});
+
+test("RAC-2622.1 a package whose publisher was taken back leaves the tool bar and has no page or stage", mac, async t => {
+  const h = await navHome(t);
+  await h.install();
+  assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), "it runs, so it is offered");
+  await h.home.web.post("/api/settings/plugin-publishers/revoke", { key_id: new HomeConsentLedger(h.home.home).publishers()[0]!.key_id });
+  await h.home.host.homePlugins!.reconcilePublishers();
+  assert.equal(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), undefined, "stopped by the Home, it is no longer offered");
+  assert.equal((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).status, 404, "and has no page");
+  assert.deepEqual(stagesOf((await h.page(h.projectPath)).text), [], "no stage is drawn for it in a project");
+});
+
+test("RAC-2621.1 the first request after a start can be a package's page: the Home registers its packages once it has started", mac, async t => {
+  const h = await navHome(t);
+  await h.install();
+  await h.home.close(); await h.home.host.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: h.home.home, completeText: null });
+  const served = await serveTestHost(null, { home: h.home.home, host });
+  try {
+    // Nothing has asked the Home to start yet: refreshing the package's page, or opening the window again after a restart, is the first request.
+    const opened = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`, served.origin);
+    assert.equal(opened.status, 200);
+    assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench"`), "the page frames the package");
+  } finally { await served.close(); await host.close(); }
+});
+
+test("RAC-2621.2 a framed page is the page of a package running in this Home and nothing else: not an absent, switched-off or removed one, a built-in Home plugin's key, or a forged generated id", mac, async t => {
+  const h = await navHome(t);
+  await h.install(PACKAGE_PLUGIN_ID);
+  await h.install(SECOND_PLUGIN_ID);
+  await h.home.web.post(`/api/plugins/${SECOND_PLUGIN_ID}/disable`, {});
+  const gone = "io.molis.work.example.gone";
+  await h.install(gone);
+  await h.home.web.post(`/api/plugins/${gone}/uninstall`, { keep_data: false });
+  const forged = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
+  // The running package answers, so the markers below are known to be what a framed page carries.
+  const running = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
+  assert.equal(running.status, 200);
+  assert.match(running.text, /"mode":"installed"/u);
+  const refusals = { absent: "io.molis.work.example.absent", "switched off": SECOND_PLUGIN_ID, uninstalled: gone, "a built-in Home plugin's key": "todo", "a forged generated id": forged };
+  for (const [what, key] of Object.entries(refusals)) {
+    const framed = await h.page(`/plugins/${key}?frame=workbench`);
+    assert.ok(!framed.text.includes('"mode":"installed"'), `${what}: the answer is not an installed package's page`);
+    // A built-in Home plugin answers with its own page, which has its own page token; every other key has no page at all.
+    if (what === "a built-in Home plugin's key") assert.ok(!framed.text.includes("?frame=workbench"), `${what}: and it frames no package`);
+    else { assert.ok(!framed.text.includes("page_id"), `${what}: no page token is given out`); assert.equal(framed.status, 404, `${what}: there is no such page`); }
+  }
+});
+
+test("RAC-2621.3 the framed page carries the Home page's policy, and neither the Home's page nor a project's stage sandboxes its frame by markup", mac, async t => {
+  const h = await navHome(t);
+  await h.install();
+  const framed = await fetch(`${h.home.origin}/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
+  assert.equal(framed.status, 200);
+  assert.match(framed.headers.get("content-security-policy") ?? "", /frame-ancestors 'self'/u, "only this origin frames it");
+  assert.equal(framed.headers.get("x-frame-options"), "SAMEORIGIN");
+  const frameOf = (html: string, from: RegExp) => from.exec(html)?.[0];
+  const outer = frameOf((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text, /<iframe src="\/plugins\/[^"]*\?frame=workbench"[^>]*>/u);
+  const stage = frameOf((await h.page(h.projectPath)).text, new RegExp(`data-installed-plugin="${PACKAGE_PLUGIN_ID.replaceAll(".", "\\.")}" hidden><iframe [^>]*>`, "u"));
+  for (const [where, tag] of Object.entries({ "the Home's page": outer, "a project's stage": stage })) {
+    assert.ok(tag, `${where} has the frame`);
+    assert.ok(!/\bsandbox\b/u.test(tag), `${where}: the frame is not sandboxed by its markup (the package's page is the document that is isolated)`);
+  }
+});
+
+test("RAC-2620.1 an installed stage is drawn with the string a project's agent plugin has always had, and the tool bar's entry is a link on the arrival page and a stage button in a project", () => {
+  const pluginId = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
+  assert.equal(installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p" }),
+    '<section class="desktop-work-surface pb-surface" data-work-surface="app-b1" data-work-surface-label="Notes &amp; &lt;Tasks&gt;" data-installed-plugin="' + pluginId + '" hidden>'
+    + '<iframe src="/projects/p/plugins/' + pluginId + '?frame=workbench" title="Notes &amp; &lt;Tasks&gt;" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>');
+  const installed = [
+    { plugin_id: "io.molis.work.example.notes", name: "Notes <1>", surface: "io.molis.work.example.notes" },
+    { plugin_id: "io.molis.work.example.books", name: "Books", icon: "book", surface: "io.molis.work.example.books" },
+  ];
+  const arrival = renderHomePluginNavigation(path => path, installed), inProject = renderHomePluginNavigation(undefined, installed);
+  const notes = entryOf(arrival, "io.molis.work.example.notes")!, books = entryOf(arrival, "io.molis.work.example.books")!;
+  assert.ok(notes.startsWith("<a ") && notes.includes('href="/plugins/io.molis.work.example.notes"') && !notes.includes("data-work-surface-open"), "a link to the package's page");
+  assert.ok(notes.includes(icon("package")) && notes.includes("Notes &lt;1&gt;"), "the default icon, the name escaped");
+  assert.ok(books.includes(icon("book")) && !books.includes(icon("package")), "the icon the package picked");
+  const openStage = entryOf(inProject, "io.molis.work.example.books")!;
+  assert.ok(openStage.startsWith("<button ") && openStage.includes('type="button"') && openStage.includes('data-work-surface-open="io.molis.work.example.books"') && !openStage.includes('href="/plugins/'), "a button that opens the stage, not a link");
 });

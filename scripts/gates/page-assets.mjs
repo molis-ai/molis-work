@@ -242,12 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-281, RAC-2076 (user 2026-10-29 chose to keep colouring off the frame that first lays a large block out): Coding's painter waits for
-// the block's first layout (a non-zero height) through a resize observer it releases when the job is replaced or stopped, +202 B on this one asset.
-// Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
-// dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
+// T-223 (MISC T-184 发布), RAC-2160–2164: on top of T-183's +63 already in main (budget 190623), the plugin-frame bridge cuts the name
+// a plugin page file is saved under by whole characters (200, extension kept) instead of 200 UTF-16 units: +137 B more, measured on
+// this merge result (190623 → 190760). Tried: whole characters without keeping the extension +41 B (does not fix the dropped
+// extension), cutting by units and dropping a dangling half +143 B, an early return for a name that fits +163 B; no new asset.
+// The entries this block inherited from main are used up (their budget already equals their ceiling): T-183's frame +63 and workbench
+// +96, and T-235's ppt.js [27065, 27364]; the entries and their notes are deleted with this change as the convention says.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [289674, 289876],
+  "/assets/molis-work-plugin-frame.js": [190623, 190760],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -7,6 +7,16 @@ import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
 
+/** Where a card comes from: the plugin that declared the service and the name its Manifest gives it; null for the platform's own. */
+export interface ConnectorDeclaredBy {
+  readonly plugin_id: string;
+  readonly title: string;
+}
+
+export interface ConnectorDirectoryEntryWithSource extends ConnectorDirectoryEntry {
+  readonly declared_by: ConnectorDeclaredBy | null;
+}
+
 /**
  * The card for one declared service. A plugin's service says whether Feed can read it (an integration of kind `source` is declared
  * for it); a service the platform declares for its own use does not say.
@@ -33,7 +43,7 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, feedAva
 }
 
 /** The directory of services, in the order they were declared: built only from declarations, never from a list of names. */
-export function connectorDirectory(declarations: IntegrationDeclarationsView): readonly ConnectorDirectoryEntry[] {
+export function connectorDirectory(declarations: IntegrationDeclarationsView): readonly ConnectorDirectoryEntryWithSource[] {
   return declarations.connectionServices().map(({ declaration, owner }) => {
     const entry = directoryEntry(declaration, owner === PLATFORM_OWNER ? undefined : declarations.hasSource(declaration.service_id));
     const method_options = connectorMethodsOf(declaration);
@@ -41,6 +51,8 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView): r
       ...entry,
       method_options,
       setup_links: entry.setup_links?.length ? entry.setup_links : method_options.flatMap((method) => method.links),
+      // The card says which package declared it: the name its Manifest gives it, the id only when there is no name.
+      declared_by: owner === PLATFORM_OWNER ? null : { plugin_id: owner, title: declarations.pluginName(owner) || owner },
     };
   });
 }
@@ -49,7 +61,7 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView): r
  * The services a connection can be made to in this Home: what the Home's registry declares now, a built-in plugin's and an installed
  * integration package's alike. It is built on each call, so a package attached or detached is seen at once.
  */
-export async function homeConnectorDirectory(home: string): Promise<readonly ConnectorDirectoryEntry[]> {
+export async function homeConnectorDirectory(home: string): Promise<readonly ConnectorDirectoryEntryWithSource[]> {
   return connectorDirectory(await homeIntegrationRegistry(home));
 }
 

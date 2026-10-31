@@ -146,12 +146,9 @@ export { instantiatePlanningRequirementId, resolvePlanningEventAdoption } from "
 export {
   BUILTIN_PLANNING_METHOD_PACKS,
   PLANNING_METHOD_CATALOG_DIRECTORY,
-  TASK_CONTEXT_METHOD_IDS,
   compilePlanningMethodInstructions,
   composePlanningMethodPacks,
   loadBuiltinPlanningMethodPacks,
-  mergedCoverageRules,
-  methodPacksForReview,
   normalizePlanningMethodPack,
   resolvePlanningMethodPacks,
   validatePlanningMethodPack,

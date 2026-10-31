@@ -32,6 +32,8 @@ export const EN: Record<string, string> = {
   "可在应用内连接": "Connect in Molis Work",
   "可在此粘贴凭据": "Paste credential here",
   "Molis Work 尚未接入": "Not yet integrated in Molis Work",
+  "来自 {package}": "From {package}",
+  "Molis Work（内置）": "Molis Work (built in)",
   "更多官方配置入口": "More official setup links",
   "步骤回报与验收": "Step reports and acceptance",
   "模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。": "A model report is not user acceptance. Review the actual actions and results in the original run before assessing.",

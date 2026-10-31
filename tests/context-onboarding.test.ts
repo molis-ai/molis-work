@@ -773,3 +773,45 @@ for (const c of ROUND_FITS) test(`RAC-2121 a failed round keeps an error of 600 
 test("RAC-2124 a failed round whose error is not an Error keeps the plain text of its own, not a cut of the value", async t => {
   assert.equal((await failedRound(t, "x".repeat(700))).error, "整理失败，材料已保留");
 });
+
+// RAC-2250 RAC-2252: the onboarding's 120 limit on a project's name counts characters (码点), not UTF-16 units, so the message
+// "1–120 字" is what the check is; the projects module's create action takes the same name (it has no limit of its own).
+test('RAC-2250 RAC-2252 a 120-character project name of two-unit characters is taken by the start and by the project, and 121 is refused',async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({homeDirectory:dir,completeText:null}).close();
+  withContextJourneys(dir,store=>store.create(id));
+  const wide='🟢'.repeat(120);assert.equal([...wide].length,120);assert.equal(wide.length,240,'one character, two UTF-16 units');
+  const adopted=await adoptContextJourney(dir,id,{title:wide,blank:true},{...pagesPorts(dir)});assert.equal(adopted.phase,'complete',adopted.error??'');
+  await withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().find(project=>project.project_id===adopted.project_id)?.display_name,wide,'the started project carries the name'));
+  const over=randomUUID();withContextJourneys(dir,store=>store.create(over));
+  await assert.rejects(adoptContextJourney(dir,over,{title:'🟢'.repeat(121),blank:true},{...pagesPorts(dir)}),/请输入 1–120 字的项目名称/);
+});
+
+// RAC-2253: a 120-character project name with a non-empty summary also saves the derived summary artifact: its title is cut to
+// at most 200 UTF-16 units (the artifacts contract), after a whole character, so the review adoption completes instead of failing
+// after the project is created.
+test('RAC-2253 a 120-character project name saves the summary artifact title within 200 units, whole',async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,store=>{const journey=store.create(id);journey.phase='review';journey.summary={title:'草稿',body:'正文',references:[]};store.save(journey);});
+  const wide='🟢'.repeat(120);
+  const adopted=await adoptContextJourney(dir,id,{title:wide,body:'正文'},{...pagesPorts(dir)});
+  assert.equal(adopted.phase,'complete',adopted.error??'');
+  assert.equal(adopted.artifact_references!.length,1);
+  const actions=await pagesPorts(dir).actions(dir,adopted.project_id);
+  const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});
+  const title=(stored.selected as {title:string}).title;
+  assert.ok(title.length<=200,`${title.length} UTF-16 units`);
+  assert.ok(title.endsWith('…'));
+  assert.equal(title.isWellFormed(),true,'no lone half character');
+  assert.equal([...title].length,100,'99 two-unit characters and the ellipsis');
+});
+
+// RAC-2250: the draft's rename check counts the same way (the same message is kept).
+test('RAC-2250 the draft\'s rename check counts 120 characters too',async t=>{
+  const dir=await home(t),id=randomUUID();
+  withContextJourneys(dir,store=>{const journey=store.create(id);journey.phase='review';journey.summary={title:'草稿',body:'正文',references:[]};store.save(journey);});
+  const wide='🟢'.repeat(120);
+  assert.equal(updateContextDraft(dir,id,{title:wide,body:'正文'}).summary?.title,wide);
+  assert.throws(()=>updateContextDraft(dir,id,{title:'🟢'.repeat(121),body:'正文'}),/摘要内容过长或无效/);
+});

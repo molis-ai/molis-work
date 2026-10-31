@@ -1,8 +1,6 @@
 import { scheduleServiceFor } from "./project-clock.js";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
@@ -30,8 +28,6 @@ export interface ProjectPluginPorts {
   processItems: ProjectVersionStores["processItems"];
   projectId: string;
   actorId: string;
-  /** Directories bound to this project. Empty means none is bound yet. */
-  workspaces?: readonly ProjectWorkspaceRef[];
   dependencyCheck?: PluginDependencyCheck;
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
   routePrefix?: string;
@@ -104,7 +100,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["workspaces", "routePrefix", "observeReviewSettlements"] as const) {
+    for (const key of ["routePrefix", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -127,7 +123,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   try {
     // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
     const fixtures = projectFixtureEntries(ports.homeDirectory);
-    const scoped = projectScopeEntries([...projectPluginEntries(ports), ...fixtures], ports.homeDirectory);
+    const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], ports.homeDirectory);
     const entries = scoped.filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
@@ -177,33 +173,13 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
 }
 
 /**
- * The built-in plugins every project's Runtime runs, before fixtures and refusals: each registration's `project_runtime` (PG-067),
- * then Files, the one factory that takes a port from the Host
- * (BL-616). Independent companions start together so their Artifact inputs and outputs can connect; browsing roots come from
+ * The built-in plugins every project's Runtime runs, before fixtures and refusals: each registration's `project_runtime` (PG-067).
+ * Independent companions start together so their Artifact inputs and outputs can connect; browsing roots come from
  * current-project settings capabilities.
  */
-function projectPluginEntries(ports: ProjectPluginPorts): PluginPlatformEntry[] {
-  const declared = projectRuntimeDeclarations().map(entry => ({
+function projectPluginEntries(): PluginPlatformEntry[] {
+  return projectRuntimeDeclarations().map(entry => ({
     definition: entry.create(), trust: HOST_BUILD_TRUST,
     releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory()),
   }));
-  const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
-  return [...declared, {
-    definition: createFilesPlugin(filesPorts),
-    trust: HOST_BUILD_TRUST,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createFilesPlugin>(
-      "@molis-ai/molis-work-plugin-files", "createFilesPlugin", factory => factory(filesPorts)),
-  }];
-}
-
-/**
- * Which directory this project is working in.
- *
- * Exactly one bound directory is an answer. Several with nothing to choose
- * between them is not: picking one would silently point every downstream Plugin
- * at a directory the user never chose.
- */
-function currentWorkspaceId(ports: ProjectPluginPorts): string | null {
-  const workspaces = ports.workspaces ?? [];
-  return workspaces.length === 1 ? workspaces[0]!.workspace_id : null;
 }

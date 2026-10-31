@@ -6,6 +6,7 @@
 
 ### 升级须知（需要动手）
 
+- **按问题选资料分节（`knowledge.locate`）升到 @3，输出多一个 `omitted`**（2026-10-30，T-132）：分节树太长时只把放得下的整节交给模型，`omitted` 是没给模型看的节数。固定了 `knowledge.locate@2` 的工作流步骤会报错并保留原引用，要在工作流里重选这个动作；直接调用（Agent、MCP、插件）不用改，只是多读到一个字段。
 - **「被谁引用」（`artifacts.links@1`）的输出按声明链接的插件分组**（2026-10-30，BL-646 T-113，`specs/repository-anti-corruption/slices/ac-artifacts.md` §3.5）：输出的 `goals`（`goal_id`、四值 `role`）换成 `plugins`（每组 `plugin_id`、`plugin_title` 与对象的 `id`、`title`、`role: input|output`、`proposal`、`open`）。直接读这个动作输出的调用方（工作流步骤、MCP 客户端、脚本）照新形状改；开发 Home 里固定了 `artifacts.links@1` 的工作流会读到新形状。MCP 客户端要看到 Goal 标题，需同时被授予 `goals.artifacts.link_subjects@1`（原先是 `goals.directory.read`），否则只看到 id。声明了 Manifest `artifacts.links` 的插件，要用 plugin SDK 导出的 `defineArtifactLinkSubjectsAction` 声明一个按 id 说出自己对象名字的动作，否则成果库只显示对象 id。
 - **Gmail 并进通用 OAuth 流程：旧 Gmail 连接要新增一条，环境变量改名**（2026-10-29，W5-11 第 6 片，T-064，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.4、§10 Q2、Q5、Q6，S-101、RAC-2476～2486）：
   - 原来用 Gmail 自己的授权流程建立的连接（设置里显示“账号授权”、凭据是 `connector-connection:<id>:access`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；点“重新授权”只会得到“请新增一条连接”。请新增一条 Gmail 连接，在 Feed 来源详情的“使用的账号连接”里换到新连接（换连接会建出独立的新来源、暂停旧来源，原消息保留），新连接可用后删掉旧连接。

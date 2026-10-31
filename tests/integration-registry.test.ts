@@ -356,7 +356,7 @@ test("RAC-2447 a document_import source already held by another plugin is refuse
   assert.deepEqual(documents(), { notes: "docs-service" }, "the refused plugin records nothing and the first source stays");
   assert.equal(registry.integration("rival-notes"), undefined);
   // The same refusal on the signed-package path.
-  await assert.rejects(registry.attach(rival.manifest, () => null, () => true), { code: "plugin.integration_declaration_conflict" });
+  await assert.rejects(registry.attach(rival.manifest, "fixture-docs-rival-install", () => null, () => true), { code: "plugin.integration_declaration_conflict" });
   assert.deepEqual(documents(), { notes: "docs-service" });
 });
 
@@ -367,7 +367,7 @@ test("RAC-2448 a plugin's own source is not a conflict, release frees it, and on
   const packaged = manifestOf("io.molis.work.example.packaged", [service("packaged-service")], [
     { integration_id: "packaged-notes", kind: "document_import", service_id: "packaged-service", document_source: "packaged", connection_methods: ["token"] },
   ]);
-  await registry.attach(packaged, () => null, () => true);
+  await registry.attach(packaged, "fixture-docs-packaged-install", () => null, () => true);
   registry.assertFree(packaged);
   assert.throws(() => registry.assertFree(manifestOf("io.molis.work.example.same", [service("same-service")], [
     { integration_id: "same-one", kind: "document_import", service_id: "same-service", document_source: "notes", connection_methods: ["token"] },

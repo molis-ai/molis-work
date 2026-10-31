@@ -26,6 +26,10 @@ test("RAC-2625 a view icon outside the platform's set is refused when the Manife
   const refused = withViewIcon("not-a-glyph");
   assert.throws(() => parsePluginManifest(refused),
     (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("not-a-glyph") && error.message.includes("不在平台图标集里"));
-  assert.throws(() => parsePluginManifest(withViewIcon(7)), (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("不在平台图标集里"),
-    "a value that is not a string is not a name in the set");
+  // A value that is not a name at all (not a string, or blank) is the placement rule's, which has said so since W5-06; one message, not two.
+  for (const notAName of [7, " "]) {
+    assert.throws(() => parsePluginManifest(withViewIcon(notAName)),
+      (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message === `视图 ${todoManifest.ui.views![0]!.view_id} 的 icon 必须是图标名`,
+      `${JSON.stringify(notAName)} is not a name`);
+  }
 });

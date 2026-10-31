@@ -29,6 +29,20 @@ test("RAC-2620 a package that names no icon reads exactly as before: its stage v
   assert.equal(Object.hasOwn(stageView(readSandboxPackage(payload).manifest), "icon"), false);
 });
 
+test("RAC-2620 a stage view that names a set icon and also carries anything else the Host does not build is still not the sandbox plugin's shape", () => {
+  const notTheShape = (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("清单不是沙箱插件的形状");
+  for (const extra of [{ hue: "green" }, { title: "Another title" }]) {
+    const { files, manifest } = packageFiles("example", (_files, built) => { Object.assign(stageView(built), { icon: "book", ...extra }); });
+    assert.throws(() => readSandboxPackage(payloadOf(manifest, files)), notTheShape, `${Object.keys(extra)[0]} beside a valid icon`);
+  }
+});
+
+test("RAC-2625 readSandboxPackage reads the Manifest itself: given an unverified payload that names an icon outside the set, it refuses it", () => {
+  const { payload } = withIcon("not-a-glyph");
+  assert.throws(() => readSandboxPackage(payload),
+    (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("not-a-glyph") && error.message.includes("不在平台图标集里"));
+});
+
 test("RAC-2625 a package that names an icon outside the platform's set is refused, at signing and at the Host's preview, and one that names a set icon installs", mac, async t => {
   const refusal = (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("not-a-glyph") && error.message.includes("不在平台图标集里");
   assert.throws(() => signedPackage(newPublisher(), (_files, manifest) => { stageView(manifest).icon = "not-a-glyph"; }), refusal, "the author cannot sign it");

@@ -54,13 +54,13 @@ export function assertMcpToolAllowed(
     if (state.connectionState.observe(host.runtimeContext) === "refresh_required") {
       throw mcpErrors.context_refresh_required(
         "MCP 当前调用的 Session 身份与已解析的项目连接不连续。请只读调用 molis_work_v1_context_resolve；若返回 bound，请使用原 idempotency_key 原样重试失败调用。不要调用 context_bind，也不要再次询问用户；若未返回 bound，则按 context_resolve 的 next_action 处理。",
-        { details: {
+        {
           next_action: "context_resolve_then_retry",
           requires_bind: false,
           requires_user_confirmation: false,
           retry_same_idempotency_key: true,
           retry_when_context_status: "bound",
-        } },
+        },
       );
     }
   }

@@ -6,7 +6,8 @@ import test from "node:test";
 import { dispatchMcpProjectTool, formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
+import { RuntimeProjectConnection, assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
+import type { RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 // T-340 (RAC-2713, RAC-2714): every `mcp.*` code is declared once with its kind, every throw site raises through that
 // declaration, and a code raised from two paths has one kind. The statuses that the HTTP edges derive from those kinds stay
@@ -126,4 +127,25 @@ test("RAC-2713 the five codes whose kind changed carry it where the error leaves
   const controller = new AbortController();
   controller.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
   assert.equal(kindOf(() => controller.signal.throwIfAborted()), "conflict", "the abort reason keeps its declared kind");
+});
+
+test("RAC-2713 the session-refresh refusal keeps its details flat on the wire, so the recovery fields are read where callers look", () => {
+  // The real throw site (mcp-authority.ts:55) passes the recovery fields as the details object; the declaration raiser takes the
+  // details directly, so a `{ details: … }` wrapper would nest them under wire `details.details` and break the documented recovery
+  // shape (`next_action`, `requires_bind`, …). Check the actual throw and the production formatting.
+  const connection = new RuntimeProjectConnection();
+  const contextA: RuntimeWorkContext = { runtime_id: "runtime-1", stable_work_context_id: "session-1" };
+  const contextB: RuntimeWorkContext = { runtime_id: "runtime-1", stable_work_context_id: "session-2" };
+  connection.accept({} as never, contextA);
+  connection.observe(contextB);
+  const state = { audience: "runtime", connectionState: connection, runtimeConnection: null, runtimeContextHost: { runtimeContext: contextB } };
+  // A runtime-surface action (not a context tool, which returns before the refresh check) with a catalog that knows it by name.
+  const catalog = { entries: [{ definition: { name: "test.runtime.action" } }], known_names: new Set(["test.runtime.action"]), home_scoped_names: new Set() };
+  const error = kindOfError(() => assertMcpToolAllowed(state as never, "test.runtime.action", CALL_CONTEXT, catalog as never));
+  assert.deepEqual((error as { details?: unknown }).details, { next_action: "context_resolve_then_retry", requires_bind: false,
+    requires_user_confirmation: false, retry_same_idempotency_key: true, retry_when_context_status: "bound" });
+  const wire = JSON.parse(formatMcpToolError(error)) as { code?: string; details?: Record<string, unknown> };
+  assert.equal(wire.code, "mcp.context_refresh_required");
+  assert.equal(wire.details?.next_action, "context_resolve_then_retry", "the recovery field stays at wire details.next_action");
+  assert.equal(Object.hasOwn(wire.details ?? {}, "details"), false, "no nested details wrapper on the wire");
 });

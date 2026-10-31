@@ -244,12 +244,12 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 // T-138 (BL-715), RAC-2606: the 插件 page's rows for the Home's own packages say why a package is not running and that its publisher was
 // taken back, and carry the same switch-off, switch-on and uninstall buttons a project's rows have, sent to the Host settings door: +445 B
-// in molis-work-workbench.js (1148337 → 1148782), measured on this merge result. It grows because two lines of text, the Home door's act
+// in molis-work-workbench.js (1148388 → 1148833), measured on this merge result. It grows because two lines of text, the Home door's act
 // (`homeAct`) and the two English strings are new; the buttons are the project rows' own `controls` with an `act` parameter, not a second
-// copy, which was the smallest way tried. No new asset. The entry T-223 left for molis-work-plugin-frame.js is used up (its budget already
-// equals its ceiling) and is deleted with this change as the convention says.
+// copy, which was the smallest way tried. No new asset. The entries T-223 and T-115 left (molis-work-plugin-frame.js; molis-work-workbench.css
+// and the workbench.js one) are used up (their budgets already equal their ceilings) and are deleted with this change as the convention says.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148337, 1148782],
+  "/assets/molis-work-workbench.js": [1148388, 1148833],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

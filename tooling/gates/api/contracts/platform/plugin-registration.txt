@@ -53,6 +53,7 @@ export interface PluginWorkbenchRegistration {
     readonly order: number;
     readonly contributions: readonly UiContribution[];
     readonly stylesheet?: string;
+    readonly stylesheetLayer?: "over-shell" | "beneath-shell";
     readonly stylesheetShared?: readonly string[];
     readonly stylesheetPrefixes?: readonly string[];
     readonly stylesheetUses?: readonly string[];
@@ -61,6 +62,8 @@ export interface PluginWorkbenchRegistration {
     readonly clientUses?: readonly string[];
     readonly clientAssets?: readonly string[];
     readonly settingsClient?: string;
+    readonly settingsStylesheet?: string;
+    readonly pageClients?: Readonly<Record<string, string>>;
     readonly searchRow?: PluginSearchRow;
     readonly recordRow?: PluginSearchRow;
     readonly specimens?: (ports: PluginBoardSpecimenPorts) => readonly PluginBoardSpecimen[];

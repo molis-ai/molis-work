@@ -615,8 +615,9 @@ function buildStore(master: ResolvedMaster): SecretStore {
     },
     get(authRef) {
       const file = loadFile();
+      // Presence is keyed by the entry name, not by the sealed string: "" is a legal string and a bad entry, not a missing one.
+      if (!Object.hasOwn(file.entries, authRef)) return null;
       const sealed = file.entries[authRef];
-      if (!sealed) return null;
       assertSealedV2(sealed);
       return openV2(sealed, master.key);
     },

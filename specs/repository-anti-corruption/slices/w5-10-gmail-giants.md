@@ -22,6 +22,8 @@ Provider 的配置快照和 usable-token 闭包仍按实例装配；health/sync 
 
 2026-10-24 工程验证：**RAC-124–128 通过**。四个 factory 实测分别 178→8、168→8、177→14、177→63 行，provider 文件 910→263 行；新同步/映射/夹具文件为 446/176/38 行，最大函数 93/53/11 行；Gmail 巨大单元 5→0，无新例外。43 个原函数/方法主体按 AST 打印器对照基线，除显式依赖传递外一致；原 usable-token 闭包与配置捕获留在 Provider 工厂内。这只作为移动的辅助核验，业务证据来自公开生产入口回归。
 
+2026-10-30 注：RAC-124–126 说的 pending、token lifecycle、OAuth 三个 factory 随 W5-11 第 6 片（T-064）删除——Gmail 改走声明式的通用 OAuth 流程，包里不再有 OAuth 代码；这三条的行为（PKCE/state 与过期、单次取消、读取与一次刷新、复查与提交次序）改由通用流程的现行测试守住（`tests/gmail-oauth.test.ts`、`tests/security-invariants-oauth-shared-refresh.test.ts`），RAC-127/128 仍在 `tests/gmail-factory-boundaries.test.ts`。
+
 原 README 三文件及新增公开入口 5 项先在原实现通过。拆分后 README 与实际影响面的 11 文件 **96/96** 通过，新增 CI 清单相关文件再 **19/19** 通过，合计 12 文件 115 项，无跳过或重试。覆盖现有错误/分页恢复、Feed/Source/同步权限，以及新增实例、接收者、刷新交错、同步提交与请求顺序回归。离线安装、基线/拆分后/最终指纹的整体构建、Gmail typecheck、新测试 strict TypeScript、相关 8 文件 Biome、包边界均通过。准确 `--base origin/main` 的 merge-base 仍为 `584112c6`，健康门禁通过：全仓巨大单元 96→91，仅该指标下降；72 份 API 快照匹配。Gmail 导出键及声明双向类型赋值通过；公开声明中仅 start 的可选参数因 bind 多了等价的 `| undefined` 写法，参数、返回与公开出口不变。源码、Manifest、contracts/SDK API 及动作快照没有合同变化。
 
 实际 affected-tests 给 12 个非浏览器文件和一个 live 浏览器文件；上述非浏览器集合全部通过。暂存后仍因 Provider 移走 543 行代码建议 full，交 Claude 在固定候选上统一安排，未自行启动。live 浏览器需真实 Gmail 账户，未运行；不触碰真实 Home、安装或账号。共享 baseline 留最终批刷新，spec coverage 仅作报告不充当验收门槛。原始日志、前后测量与差异保存在 `/tmp/molis-verify-2026-10-24/c3-gmail-giants/`，最终固定 head 与推送前密钥扫描另随 PR 交付。

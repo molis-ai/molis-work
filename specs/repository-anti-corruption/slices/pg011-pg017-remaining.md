@@ -236,6 +236,12 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 停用：不出现；
   - 恢复错误：出现，打开后是不可用页，原因取 T-138 给的 `recovery_error`；
   - 卸载：消失。
+- **页面通路与数据**（T-401，已做；核对时发现沙箱包的视图没有 `workbench` surface，Home 一侧也没有框内页面，所以比原稿多一块）：
+  - 包的 stage 与项目里的 agent 生成插件用同一份区块标记（`installed-stage-section.ts`，区块 id 取 `app-<构建号>`，每个包唯一）和同一个框内渲染器（`renderPluginDocumentShell`，installed 模式）；Home 一侧由 `home-package-page.ts` 出这个页面，调用走 Home 自己的 `/api/plugins/<id>/call`，页面授权用既有的 `pluginPagesFor(home).open(id, null, 人)`，不新增路由路径、动作或合同；
+  - `/plugins/<id>` 是 Home 插件页（返回、停用/启用按钮）里框一个 iframe，`?frame=workbench` 是框内页面本身；
+  - `HomePluginHost.registered()` 末尾并入 `HomeInstalledPlugins.pages()`（在跑的，或没停用但没起来的、有 `recoveryErrors` 的；停用、隔离、卸载、集成包不在），所以 `/plugins/<id>`、项目页的 stage 与页面情境都认它；
+  - 工具位的数据是 `HomePluginHost.navigation()`（按名字排）：到达页走 `ChooserArrival.home_plugins`，项目页走视图的 `home_plugin_nav`，都只在服务端渲染成 HTML，不进动作、MCP、工作流或插件能读到的任何输出；
+  - **发布记录读不到的包**（包文件被搬走，`releaseFor` 为空）没有清单可画，不出现在工具位和页面里，只在插件管理里看到 T-138 的原因；
 - **图标**（D4）：
   - 包的 stage 视图允许带 `icon`，这是 §1 名单里「包自己写的」一块；
   - 取值只能是平台命名图标集里的名字（SDK 的 `PluginIconName`，`packages/plugin-sdk/src/ui/icon.ts`）；不写就画 `package`；
@@ -244,10 +250,10 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - RAC-2620：装一个 Home 包后，到达页的 Home 工具位有它，图标是包选的名字，没写就是 `package`；
   - RAC-2621：只有 stage 视图的包不出侧栏页签，到达页的工具位有它，从那里打开的是它的 stage 视图；
   - RAC-2622：停用后它从工具位消失；
-  - RAC-2623：恢复错误时它出现，打开后的不可用页写出原因；
+  - RAC-2623：恢复错误时它出现，打开后的不可用页写出原因（有清单可画的：见上面发布记录读不到的一条）；
   - RAC-2624：卸载后消失；
   - RAC-2625：写了图标集之外的名字，装包时以明确的错误码被拒，不画默认图标；
-  - RAC-2626：运行期导航数据只给本人的页面：agent、MCP、工作流、插件看不到也读不到；
+  - RAC-2626：运行期导航数据只给本人的页面：agent、MCP 的动作视图里没有它，插件没有宿主发的调用身份就看不到任何目录（S-15）；
   - RAC-2653：SDK 的运行期图标名数组与 design-system 的图标集逐项相等；
 
 ### 选项与推荐（图标，D4 定①）

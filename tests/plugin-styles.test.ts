@@ -240,3 +240,42 @@ test("RAC-768 the workbench's settings panel loads a fetched page's plugin sheet
   assert.deepEqual(sheets('<head><link rel="stylesheet" href="/assets/molis-work-settings.css"><link rel="stylesheet" href="/assets/molis-work-plugins/shelf.css"></head><p>x</p>'),
     ["/assets/molis-work-plugins/shelf.css"], "only a plugin's own sheet is brought");
 });
+
+const CODING_SETTINGS_CONTRIBUTION = "io.molis.work.native.coding.settings.v1";
+// One marker from each place Coding's rules live. [data-coding-method-list] names only Coding's own class, so it is in coding.css;
+// .tok-keyword names no plugin and the change reader's line button names a class the shared diff view draws, so both stay in the shared sheet.
+const CODING_OWN_MARKER = "[data-coding-method-list]";
+const CODING_SHARED_MARKERS = [".tok-keyword", "[data-coding-change-reader] [data-coding-line]"] as const;
+const codingSettingsView = (): MolisWorkSettingsView => ({
+  section: "coding-settings", plugin_settings_html: "<p>s</p>", runtimes: [], projects: [],
+  web_service: { provider: "unsupported", state: "unsupported", supported: false, owned: false, running: false, label: "", plist_path: "", command: [], stdout_log: "", stderr_log: "", message: "" },
+  diagnostics: { home_directory: "/", installation_state: "ready", version: null, release_directory: null, project_count: 0, launchers: [] },
+});
+
+test("RAC-2590 the settings sheet carries none of Coding's styles: its settings page uses the shell's own .coding-settings rules", () => {
+  const coding = packs.find((pack) => pack.project_plugin_id === "coding")!;
+  const { scoped, shared } = splitPluginStylesheet(coding.stylesheet!, "coding", coding.stylesheetShared, coding.stylesheetPrefixes);
+  const settings = renderMolisWorkSettingsStylesheet();
+  assert.ok(scoped.length > 50_000 && shared.length > 1_000, "Coding's sheet splits into a large part of its own and a small shared one");
+  assert.ok(!settings.includes(coding.stylesheet!.trim()), "none of Coding's whole sheet is in the settings sheet");
+  assert.ok(!settings.includes(scoped.trim()), "none of what coding.css brings is in the settings sheet");
+  assert.ok(!settings.includes(shared.trim()), "nor the part of Coding's sheet that stays shared");
+  for (const rule of [CODING_OWN_MARKER, ...CODING_SHARED_MARKERS]) assert.ok(!settings.includes(rule), `the settings sheet does not hold ${rule}`);
+  assert.ok(settings.includes(".coding-settings .coding-method-body"), "the shell's own rules for Coding's settings page are still there");
+});
+
+test("RAC-2591 Coding's rules reach the pages that use them: its own from coding.css, the rest from the workbench sheet, and its settings page links coding.css", () => {
+  const own = pluginOnDemandStylesheet("coding", packs)!;
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  assert.ok(own.includes(CODING_OWN_MARKER) && !workbench.includes(CODING_OWN_MARKER), "a rule that names only Coding's class is in coding.css and not in the workbench sheet");
+  for (const rule of CODING_SHARED_MARKERS) assert.ok(workbench.includes(rule) && !own.includes(rule), `${rule} stays in the workbench sheet`);
+  assert.equal(pluginSettingsStyleLinks(CODING_SETTINGS_CONTRIBUTION, packs), `${link("coding")}${link("git")}${link("files")}`, "the settings page links the sheets its frame links");
+  const page = renderMolisWorkSettings(codingSettingsView());
+  assert.ok(page.indexOf('href="/assets/molis-work-settings.css"') < page.indexOf('href="/assets/molis-work-plugins/coding.css"'), "linked after the settings sheet");
+});
+
+test("RAC-2592 the workbench's page assets no longer name Coding's package or its sheet", () => {
+  const source = readFileSync(new URL("../apps/workbench/src/page-assets.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /molis-work-plugin-coding|CODING_STYLES/u);
+});
+

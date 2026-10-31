@@ -5,10 +5,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { projectDeletedHooksFor, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { retainedDeclaration, retainedRegistryPath, stripRetainedSnapshotDeclaration } from "./fixtures/home-snapshot-declaration.js";
 
 // SC-4 (specs/repository-anti-corruption/slices/sc-4-sessions-offline.md): the Sessions plugin is gone; what is left is the
-// retired `<home>/sessions/` store that only backup and purge still know.
+// clean Home has no retired sessions directory, offline reader or registry exemption.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const text = (path: string) => readFileSync(join(root, path), "utf8");
 
@@ -50,9 +49,9 @@ test("RAC-211 the private work context module keeps only Runtime context binding
   assert.equal(existsSync(join(root, "packages/contracts/src/modules/session-messages.ts")), false);
 });
 
-test("RAC-212 runtime business code never opens the retired store; only its exact literal offline declaration is allowed", () => {
+test("RAC-212 RAC-2378 product code never opens or registers the retired store", () => {
   const opener = /sessions\.db|session_meta|content\.key|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
-  const source = (path: string) => stripRetainedSnapshotDeclaration(path, text(path));
+  const source = (path: string) => text(path);
   const offenders = productSources().map(path => relative(root, path)).filter(path => opener.test(source(path)));
   assert.deepEqual(offenders, []);
   const mentions = productSources().map(path => relative(root, path))
@@ -60,24 +59,18 @@ test("RAC-212 runtime business code never opens the retired store; only its exac
   assert.deepEqual(mentions, [], "the only place that names the directory is the store registry");
 });
 
-test("RAC-213 backup and purge still know sessions/; deleting a project has no sessions owner", () => {
-  const store = homeStores().get("sessions");
-  assert.ok(store, "the retired store stays registered, so backup and uninstall --purge-user-data keep covering it");
-  assert.equal(store.owner, "apps/local-host");
-  assert.deepEqual(store.snapshot.retained, retainedDeclaration.snapshot.retained, "RAC-104-S-01: the real registry supplies only strict version-7 metadata and the original key dependency");
-  assert.ok(homeStores().paths("/home").includes(join("/home", "sessions")));
+test("RAC-213 RAC-2378 a clean Home has no retired Sessions store or project deletion owner", () => {
+  assert.equal(homeStores().get("sessions"), undefined);
+  assert.equal(homeStores().paths("/home").includes(join("/home", "sessions")), false);
   assert.ok(!projectDeletedHooksFor(join(root, ".nonexistent-home")).owners().some(owner => owner.id === "sessions"));
 });
 
-test("RAC-212 RAC-104-S-01: the declaration detector rejects runtime openers and executable declaration expressions", () => {
-  const source = text(retainedRegistryPath), opener = /sessions\.db|session_meta|content\.key/u;
-  assert.doesNotMatch(stripRetainedSnapshotDeclaration(retainedRegistryPath, source), opener);
-  const added = source + '\nnew Database(join(home, "sessions", "sessions.db"));\n';
-  assert.match(stripRetainedSnapshotDeclaration(retainedRegistryPath, added), opener, "a business opener elsewhere in the same file is never removed");
-  assert.match(stripRetainedSnapshotDeclaration("apps/local-host/src/another-reader.ts", added), opener, "no other file can use the declaration exemption");
-  assert.throws(() => stripRetainedSnapshotDeclaration(retainedRegistryPath, source.replace('file: "sessions.db"', 'file: open("sessions.db")')), /literal/u);
-  assert.throws(() => stripRetainedSnapshotDeclaration(retainedRegistryPath, source.replace('version: 7', 'version: (() => 7)()')), /literal/u);
-  assert.throws(() => stripRetainedSnapshotDeclaration(retainedRegistryPath, source.replace('table: "session_meta"', 'table: "session_messages"')), /Expected values/u);
+test("RAC-212 RAC-2378 the source refusal has no literal offline-registration exemption", () => {
+  const opener = /sessions\.db|session_meta|content\.key/u;
+  assert.doesNotMatch(text("apps/local-host/src/home-stores.ts"), opener);
+  for (const candidate of ['new Database(join(home, "sessions", "sessions.db"));', '{ file: "sessions.db", metadata: { table: "session_meta" } }']) {
+    assert.match(candidate, opener, "runtime openers and static registrations are both forbidden");
+  }
 });
 
 test("RAC-214 the home has no 说一句 (home talk)", () => {

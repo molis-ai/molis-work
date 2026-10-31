@@ -186,7 +186,7 @@ test("Alchemist search initializes its own persistent SEL storage and returns ac
     delete: ref => { secrets.delete(ref); },
     createIfAbsent(ref, value) { if (secrets.has(ref)) return false; secrets.set(ref, value); return true; },
     deleteIfPresent: ref => secrets.delete(ref),
-    backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 2 }),
+    backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 1 }),
   };
   const calls: string[] = [];
   let addresses = [{ address: "1.1.1.1", family: 4 }], peer = "1.1.1.1";

@@ -526,6 +526,9 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
     MOLIS_WORK_HOME: f.home, MOLIS_WORK_MCP_AUDIENCE: "runtime", MOLIS_WORK_RUNTIME_ID: "command", MOLIS_WORK_WORK_CONTEXT_ID: panelId,
     MOLIS_WORK_WORK_CONTEXT_STABLE: "true", MOLIS_WORK_PANEL_ID: panelId, MOLIS_WORK_FOCUS_ID: "S-1", MOLIS_WORK_WEB_URL: f.origin, TERM: "xterm-256color", COLORTERM: "truecolor" });
   assert.equal(env.MOLIS_WORK_GOAL_ID, undefined, "the retired name is not set");
+  assert.deepEqual(Object.keys(env).filter(name => name.startsWith("MOLIS_WORK_")).sort(), ["MOLIS_WORK_FOCUS_ID", "MOLIS_WORK_HOME", "MOLIS_WORK_MCP_AUDIENCE",
+    "MOLIS_WORK_PANEL_ID", "MOLIS_WORK_RUNTIME_ID", "MOLIS_WORK_WEB_URL", "MOLIS_WORK_WORK_CONTEXT_ID", "MOLIS_WORK_WORK_CONTEXT_STABLE"],
+  "the Molis Work variables are exactly the platform's set: none of the Host process's own reach the terminal");
 });
 
 test("RAC-2569 S-103 a terminal's record is its installation's, project's and person's: nobody else lists or closes it; a Home call's record has no project", { timeout: 60_000 }, async t => {

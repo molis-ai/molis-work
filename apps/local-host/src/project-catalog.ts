@@ -1,5 +1,5 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
-import { prepareMemoryHome } from "./memory/memory-adoption.js";
+import { prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -134,7 +134,7 @@ export interface LocalCatalogPlatform {
   createPanelSchema(db: SqliteDatabase): void;
 }
 
-/** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
+/** The complete memory preference gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   prepareMemoryHome(homeDirectory);
@@ -142,6 +142,13 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   await fs.mkdir(projectsDirectory, { recursive: true });
   const databasePath = path.join(projectsDirectory, "catalog.db");
   const existed = await exists(databasePath);
+  if (existed) {
+    const inspection = new LocalSqliteStorage(databasePath, { readonly: true });
+    try {
+      assertOwnedCatalog(inspection, databasePath);
+      assertCurrentCatalog(inspection, databasePath);
+    } finally { inspection.close(); }
+  }
   const storage = new LocalSqliteStorage(databasePath);
   return { homeDirectory, databasePath, existed, storage };
 }
@@ -186,7 +193,7 @@ export class MolisWorkProjectCatalog {
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
-      db,
+      db, projects_directory: this.projectsDirectory,
       plugins: homeProjectPlugins(homeDirectory),
     });
     this.runtimeContexts = createRuntimeContextModule({

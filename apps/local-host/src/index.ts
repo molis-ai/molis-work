@@ -266,7 +266,6 @@ export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/mem
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
-export { adoptMemoryHome, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";

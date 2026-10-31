@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "../apps/local-host/dist/connector-cli.js";
-import { withConnectorConnections, connectorRecordActions, CONNECTOR_RECORDS_READ, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withConnectorConnections, connectorRecordActions, connectorCliActions, CONNECTOR_RECORDS_READ, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { openTestHome } from "./fixtures/test-home.js";
 import { inspectSourceAuthorization } from "../apps/local-host/dist/connector-access.js";
 
 test("ASC-03 ASC-04: official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
@@ -172,4 +174,20 @@ test("CLI login uses a real PTY and never returns echoed interactive credentials
     }
     assert.equal(result.status, "succeeded");
   } finally { if (jobId) cliLoginJob(home, jobId, undefined, true); process.env.PATH = prior; rmSync(home, { recursive: true, force: true }); }
+});
+
+// RAC-2415: a package may declare the service id `constructor` (SDK SERVICE_ID allows it); a prototype member is not a CLI this Host
+// knows. Through the public prepare action the refusal is the same one an unregistered service gets, not what the prototype answered.
+test("RAC-2415 a service id that names a prototype member is no CLI this Host knows", async t => {
+  const f = await openTestHome(t), actions = f.host.homeActionClient();
+  const caller: ActionCallContext = { actor_id: "user-1", audience: "user", project_id: null, permissions: ["connectors:management:write"] };
+  const refusal = async (service_id: string) => {
+    const error = await actions.invoke(caller, connectorCliActions.prepare, { service_id, display_name: "Prototype", version: "1.2.3" })
+      .then(() => null, (failure: unknown) => failure);
+    assert.ok(error instanceof ActionError, `a refusal, not ${String(error)}`);
+    return { code: error.code, message: error.message };
+  };
+  const missing = await refusal("no-such-service");
+  assert.deepEqual(await refusal("constructor"), missing);
+  assert.deepEqual(await refusal("__proto__"), missing);
 });

@@ -22,7 +22,7 @@ import { tokenEndpointRefused } from "./connector-refresh-refusals.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import type { OAuthServiceOwner } from "./integration-registry.js";
 export { apiOAuthConnectionId } from "./connector-oauth-shape.js";
-import { OAUTH_CALLBACK as CALLBACK, defaultOAuthCallback, isOAuthCallbackAliasFor } from "./connector-oauth-callback-paths.js";
+import { OAUTH_CALLBACK as CALLBACK, defaultOAuthCallback, isOAuthCallbackAliasFor, oauthCallbackOrigin } from "./connector-oauth-callback-paths.js";
 import { assertOAuthReturnPending, beginOAuthReturn, expiredOAuthReturn, finishOAuthReturn, type OAuthReturn } from "./connector-oauth-return.js";
 
 interface OAuthConfiguration extends ConnectorProtocolConfiguration {
@@ -332,8 +332,9 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
   const staged = config.protocol === "oauth" ? connectorProtocolSecrets(home, config.sessionId) : null;
   try {
     if (config.protocol !== "oauth") throw new ApiOAuthError("授权方式不匹配，请重新开始");
-    // Rule 2: the local origin the authorization started from.
-    if (session.origin !== origin) throw new ApiOAuthError("回调来自另一个本机地址，请从发起授权的页面重新连接");
+    // Rule 2: the local origin the authorization started from, or the host its service's registered address names on the same port (Notion's
+    // `localhost`). A service whose alias names no host has only the first; what came back to the host is then judged by rule 3.
+    if (session.origin !== origin && oauthCallbackOrigin(config.serviceId, session.origin) !== origin) throw new ApiOAuthError("回调来自另一个本机地址，请从发起授权的页面重新连接");
     // Rule 3: the address the service came back to is the one registered for this authorization.
     const callback = returned ? `${returned.origin}${returned.pathname}` : input.callback ?? (config.brokerOrigin ? `${origin}${CALLBACK}` : defaultOAuthCallback(config.serviceId, origin));
     if (callback !== config.redirectUri) throw new ApiOAuthError("返回地址不匹配本次登记的回调地址");
@@ -441,7 +442,8 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
   const secrets = connectorProtocolSecrets(home, id);
   const checks = refresh.control;
   const send: typeof fetch = fetchImpl ? async (input, init) => { await checks.beforeEffect(); checks.current(); return fetchImpl(input, init); } : sender(undefined, checks, network);
-  const json = await exchange(home, config, method, { refreshToken: secrets.get("oauth")! }, send);
+  const sentRefreshToken = secrets.get("oauth")!;
+  const json = await exchange(home, config, method, { refreshToken: sentRefreshToken }, send);
   const next = text(json.access_token);
   if (!next) throw new ApiOAuthError("刷新失败，请重新授权此连接");
   // A refresh sends no context request; it keeps what the token response says again, and what it leaves out stays as it was.
@@ -456,7 +458,7 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
   boundMethod(config, owner);
   // A disconnect during the network request must win over a token refresh.
   configured(home, id);
-  if (withConnectorConnections(home, store => store.require(id)).updated_at !== read.revision) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
+  if (withConnectorConnections(home, store => store.require(id)).updated_at !== read.revision || secrets.get("oauth") !== sentRefreshToken) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
   secrets.put("access", next);
   if (text(json.refresh_token)) secrets.put("oauth", text(json.refresh_token));
   const nextExpiry = oauthExpiry(method, json, Date.now());

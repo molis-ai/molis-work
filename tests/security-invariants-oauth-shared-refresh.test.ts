@@ -40,8 +40,6 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 const ORIGIN = "http://localhost:19358";
 const ASANA_TOKEN = "https://app.asana.com/-/oauth_token";
 const ASANA_ME = "https://app.asana.com/api/1.0/users/me";
-const NOTION_TOKEN = "https://api.notion.com/v1/oauth/token";
-const NOTION_ME = "https://api.notion.com/v1/users/me";
 const unavailable = (error: unknown) => error instanceof ActionError && error.code === "connector.plugin_requests.connection_unavailable";
 const target = { plugin_id: "io.molis.work.example.sharedrefresh", install_id: "install-rac1085", slot_id: "account", service_id: "asana" };
 
@@ -67,24 +65,17 @@ async function connected(t: TestContext, expired = true) {
 /**
  * The token endpoint holds each refresh until the test releases it (answering access-n and refresh-n+1), or answers at once after
  * `answerAll`; the service answers 200, or 401 to the bearer `refused` names, and holds a read `holdRead` was asked for until released.
- * For Notion, whose refresh still leaves by the global fetch until it joins the generic flow (W5-11 slice 7), that fetch answers the same.
  */
-function network(t: TestContext, refused?: string, service: "asana" | "notion" = "asana") {
+function network(t: TestContext, refused?: string) {
   const refreshes: Array<{ body: URLSearchParams; release: () => void }> = [], reads: string[] = [], held: Array<() => void> = [];
   const gates: Array<{ reached: () => void; open: Promise<void> }> = [];
   let arrived = () => {}, answering = false;
-  const tokenUrl = service === "notion" ? NOTION_TOKEN : ASANA_TOKEN, me = service === "notion" ? NOTION_ME : ASANA_ME;
+  const tokenUrl = ASANA_TOKEN, me = ASANA_ME;
   const refreshed = async (body: string) => {
     const index = refreshes.length;
     await new Promise<void>(release => { refreshes.push({ body: new URLSearchParams(body), release }); arrived(); if (answering) release(); });
-    return Response.json(service === "notion"
-      ? { access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, workspace_id: "workspace", workspace_name: "Workspace", bot_id: "bot" }
-      : { access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, expires_in: 3600 });
+    return Response.json({ access_token: `access-${index}`, refresh_token: `refresh-${index + 2}`, expires_in: 3600 });
   };
-  if (service === "notion") t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
-    assert.equal(String(url), NOTION_TOKEN, "no other request by the global fetch");
-    return refreshed(String(init?.body ?? ""));
-  });
   oauthNetwork(t, async (url, init) => {
     if (url === tokenUrl) return refreshed(init.body);
     assert.equal(url, me, "no other request");
@@ -246,42 +237,21 @@ test("S-95 RAC-1085 a call that lost its authority while the refresh asked who d
   } finally { net.releaseAll(); }
 });
 
-/**
- * A Home with a Notion account (access `old-access`, refresh `refresh-1`) bound to the plugin's slot. Notion keeps its own refresh until it
- * joins the generic flow (W5-11 slice 7), under the same rules (`notion-oauth.ts`).
- */
-async function notionConnected(t: TestContext) {
-  const home = await mkdtemp(join(tmpdir(), "oauth-shared-refresh-notion-")); t.after(() => rm(home, { recursive: true, force: true }));
-  const id = "22222222-2222-4222-8222-222222222222", prefix = `connector-connection:${id}`;
-  const refs = { access: `${prefix}:access`, refresh: `${prefix}:refresh`, workspace: `${prefix}:workspace` };
-  const secrets = <T>(run: (store: ReturnType<typeof createFileSecretStore>) => T) => runWithMolisWorkHome(home, () => run(createFileSecretStore()));
-  secrets(store => {
-    store.put("connector:notion:client_id", "notion-app"); store.put("connector:notion:client_secret", "notion-secret");
-    store.put(refs.access, "old-access"); store.put(refs.refresh, "refresh-1");
-  });
-  withConnectorConnections(home, store => {
-    store.upsertOAuth({ connectionId: id, serviceId: "notion", displayName: "Notion", accessRef: refs.access, refreshRef: refs.refresh });
-    store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: "notion", connectionId: id });
-  });
-  const stored = () => secrets(store => Object.fromEntries(Object.entries(refs).map(([key, ref]) => [key, store.get(ref)])));
-  return { home, stored, target: { ...target, service_id: "notion" } };
-}
-
-// Notion's refresh asked the participants for the last time at the end of `settle`, and wrote after `await refresh.settle()` resumed: a
+// The refresh asked the participants for the last time at the end of `settle`, and wrote after `await refresh.settle()` resumed: a
 // withdrawal already queued ran in between (#1479 补位验证 6513862465, 统筹裁定 T-063). Whatever the code between the last check and the
 // write, a withdrawal that comes before anything is written must leave nothing written: the test withdraws both calls 0, 1, 2… microtasks
 // after the second call's check comes back, no timer involved, and at each depth either the write came first or nothing is written.
-test("S-95 RAC-1085 Notion: calls that lost their authority in the microtask after the refresh's last check came back keep nothing of the answer", { timeout: 60_000 }, async t => {
+test("S-95 RAC-1085 calls that lost their authority in the microtask after the refresh's last check came back keep nothing of the answer", { timeout: 60_000 }, async t => {
   let withdrawnFirst = 0;
   for (let depth = 0; depth <= 24; depth++) await t.test(`both withdrawn ${depth} microtasks after the second call's check came back`, async t => {
-    const { home, stored, target: slot } = await notionConnected(t), net = network(t, "Bearer old-access", "notion"), port = createPluginConnectionsPort(home);
-    const before = stored(), [first, second] = [call(NOTION_ME), call(NOTION_ME)];
+    const { home, stored } = await connected(t, false), net = network(t, "Bearer old-access"), port = createPluginConnectionsPort(home);
+    const before = stored(), [first, second] = [call(), call()];
     try {
       // Both calls read with the old token and are refused; the first's forced refresh goes out, then the second joins it.
-      const readOne = net.holdRead(), pending = [port.request(slot, first.dispatch)];
+      const readOne = net.holdRead(), pending = [port.request(target, first.dispatch)];
       await readOne.reached;
       const readTwo = net.holdRead();
-      pending.push(port.request(slot, second.dispatch));
+      pending.push(port.request(target, second.dispatch));
       await readTwo.reached;
       const sent = net.next();
       readOne.release();

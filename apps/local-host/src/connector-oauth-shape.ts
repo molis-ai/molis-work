@@ -11,11 +11,10 @@ export function replacedOAuthAccessRef(ref: string): boolean {
 }
 
 /**
- * Services whose OAuth connections are still made by a flow of their own, and so are still of the shape that flow leaves: Notion
- * until W5-11 slice 7, GitHub's device authorization until slice 8. Each of those slices takes its service off this list; with the list
- * empty the rule below is the whole of it (W5-11 §2.6, M4).
+ * Services whose OAuth connections are still made by a flow of their own, and so are still of the shape that flow leaves: GitHub's
+ * device authorization until W5-11 slice 8, which takes it off this list; with the list empty the rule below is the whole of it (§2.6, M4).
  */
-const OWN_FLOW = new Set(["notion", "github"]);
+const OWN_FLOW = new Set(["github"]);
 
 /**
  * An OAuth connection made before its service joined the generic flow: `auth_method: "oauth"` with credentials that are not the generic

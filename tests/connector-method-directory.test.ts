@@ -10,7 +10,7 @@ import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts
 // A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
 // without the three flags a listing adds from this machine's own settings.
 const HOME = "connector-method-directory-test-home";
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map(({ github_client_id_configured, ...entry }) => entry);
 
 test("every catalog service and the two host account services have official method choices", () => {
   const ids = new Set(["github", "gmail", ...CATALOG_CONNECTORS.map((row) => row.id)]);
@@ -106,13 +106,13 @@ test("onboarding prefers ready account login and keeps developer configuration o
   const p = { L: (s: string) => s, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
   for (const service of ["gmail", "notion", "github"]) {
     const entry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === service)!;
-    // Gmail's ready login is its OAuth method's own `login_ready` (the generic flow's product client), never a per-service flag.
-    const ready = { ...entry, notion_oauth_configured: true, github_client_id_configured: true,
+    // Gmail's and Notion's ready login is their OAuth method's own `login_ready` (the generic flow's product client), never a per-service flag.
+    const ready = { ...entry, github_client_id_configured: true,
       method_options: entry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: true } : m) };
     assert.equal(recommendedMethod(ready)?.kind, "oauth", service);
     const html = renderConnectorSetup(ready, p);
-    // Gmail signs in through the generic flow: the same start button, with no dedicated-login marker of its own.
-    assert.equal(html.includes(`data-account-login="${service}"`), service !== "gmail", service);
+    // Gmail and Notion sign in through the generic flow: the same start button, with no dedicated-login marker of their own.
+    assert.equal(html.includes(`data-account-login="${service}"`), service === "github", service);
     assert.ok(html.includes("data-protocol-start=\"oauth\""), service);
     assert.match(html, /<details class="settings-connector-help"><summary>使用其他应用配置/);
     const primary = html.split('<details class="settings-connector-alternatives">')[0]!;

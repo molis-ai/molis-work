@@ -7,7 +7,6 @@ import { connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "..
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withConnectorConnections, connectorRecordActions, connectorCliActions, CONNECTOR_RECORDS_READ, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
-import { inspectSourceAuthorization } from "../apps/local-host/dist/connector-access.js";
 
 test("ASC-03 ASC-04: official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-cli-"));
@@ -50,23 +49,6 @@ test("ASC-03 ASC-04: official CLI fixed commands bind separate account identitie
     setIdentity(2, "Alex");
     await inspectCliConnection(home, b.connection.connection_id);
   } finally { process.env.PATH = prior; rmSync(home, { recursive: true, force: true }); }
-});
-
-test("material authorization follows the selected connection and source lifecycle without returning credentials", async () => {
-  const home = mkdtempSync(join(tmpdir(), "molis-source-auth-"));
-  try {
-    const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Account", token: "private-token-never-output" }));
-    const source = { kind: "github", sync_kind: "github", status: "active", enabled: true,
-      config: { connection_id: connection.connection_id }, credential_ref: connection.credential_ref };
-    const available = await inspectSourceAuthorization(home, source);
-    assert.equal(available.authorized, true); assert.equal(available.connection_id, connection.connection_id);
-    assert.equal(JSON.stringify(available).includes("private-token"), false);
-    assert.equal((await inspectSourceAuthorization(home, { ...source, status: "paused" })).authorized, false);
-    assert.equal((await inspectSourceAuthorization(home, { ...source, kind: "notion" })).authorized, false);
-    withConnectorConnections(home, store => store.disconnect(connection.connection_id));
-    assert.equal((await inspectSourceAuthorization(home, source)).authorized, false);
-    assert.equal((await inspectSourceAuthorization(home, { ...source, sync_kind: "public_source", config: {}, credential_ref: null })).authorized, true);
-  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 test("ASC-19 ASC-20: an explicit CLI reconnect restores its own account, but late identity checks cannot undo removal", async () => {

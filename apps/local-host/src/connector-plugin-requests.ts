@@ -48,7 +48,7 @@ export function forgetInstallationBindings(home: string, install_id: string): vo
 
 /** The installations that have any plugin binding at all (BL-596); none when the Home never saved an account. */
 export function installationIdsWithBindings(home: string): string[] {
-  return existsSync(homeSqlitePath(home, "connectors")) ? withConnectorConnections(home, store => store.bindingInstallationIds()) : [];
+  return existsSync(homeSqlitePath(home, "connectors")) ? withConnectorConnections(home, store => [...new Set(store.pluginBindings().map(binding => binding.install_id))]) : [];
 }
 
 /** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-71 provisional). */

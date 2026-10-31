@@ -1,4 +1,7 @@
-/** Sources panel of the navigation segment: source selection, filters, connections and the add-source dialog (a part of CLIENT_NAVIGATION_FEED_SCRIPT, joined in place). */
+/** Sources panel of the navigation segment: source selection, filters, connections and the add-source dialog (a part of CLIENT_NAVIGATION_FEED_SCRIPT, joined in place).
+ * A source's account is the person's binding on the platform (connectors.plugin_slot.read@2 / bind@2), made through the Host's record-slot path:
+ * the page names the plugin, the slot and the record, never an installation (T-121). Changing a chosen account is disconnecting first; an account
+ * source is made empty and then given its account there. */
 export const NAVIGATION_FEED_SOURCES_PART = `
     const selectSource = (sourceId, moveToDetail = false) => {
       if (!sourceList || !sourceWorkbench) return false;
@@ -88,37 +91,68 @@ export const NAVIGATION_FEED_SOURCES_PART = `
       create.textContent = FL("创建任务");
       feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = false;
     };
+    const feedRecordSlotPath = (query) => "/api/settings/connectors/plugin-slots/record?" + new URLSearchParams({ project: document.body.dataset.projectId || "", ...query });
     const loadFeedConnections = async (detail) => {
-      const region = detail?.querySelector("[data-feed-connection-service]");
+      const region = detail?.querySelector("[data-plugin-record-slot]");
       if (!region || region.dataset.loading === "true") return;
-      const select = region.querySelector('[data-source-config-field="connection_id"]');
+      const select = region.querySelector("[data-plugin-record-slot-account]");
       const status = region.querySelector('[data-feed-connection-status]');
-      const initial = [...select.options].find(option => option.defaultSelected)?.value || "";
-      const selected = select.value;
+      const slot = JSON.parse(region.dataset.pluginRecordSlot);
       region.dataset.loading = "true"; select.disabled = true;
       try {
-        const result = await molisWorkRequest("/api/settings/connectors/connections?service_id=" + encodeURIComponent(region.dataset.feedConnectionService), {fallback:FL("无法读取账号连接，请重试。")});
+        const fallback = FL("无法读取账号连接，请重试。"), { service_id: _service, ...query } = slot;
+        const [result, bound] = await Promise.all([
+          molisWorkRequest("/api/settings/connectors/connections?service_id=" + encodeURIComponent(slot.service_id), {fallback}),
+          molisWorkRequest(feedRecordSlotPath(query), {fallback})]);
         if(!region.isConnected)return;
-        const options = result.connections.map(connection => {
+        const chosen = bound.connection?.connection_id || "";
+        const accounts = result.connections.filter(connection => !connection.project_id);
+        const options = accounts.map(connection => {
           const option = document.createElement("option");
           option.value = connection.connection_id;
           const state = connection.state === "connected" ? FL("可用") : connection.state === "reauth_required" ? FL("需要重新授权") : FL("已断开");
           option.textContent = (connection.account_label || connection.display_name) + " · " + connection.auth_method + " · " + state;
-          option.defaultSelected = connection.connection_id === initial;
+          option.defaultSelected = connection.connection_id === chosen;
+          option.disabled = connection.state !== "connected" && connection.connection_id !== chosen;
           return option;
         });
-        if (!options.some(option => option.value === selected)) {
-          const placeholder = document.createElement("option"); placeholder.value = selected; placeholder.defaultSelected = selected === initial;
-          placeholder.textContent = selected ? FL("原连接已不可用，请重新选择或前往 Connectors") : FL("请选择账号连接");
+        if (!options.some(option => option.value === chosen)) {
+          const placeholder = document.createElement("option"); placeholder.value = chosen; placeholder.defaultSelected = true;
+          placeholder.textContent = chosen ? FL("原连接已不可用，请重新选择或前往 Connectors") : FL("请选择账号连接");
           placeholder.disabled = true; options.unshift(placeholder);
         }
-        select.replaceChildren(...options); select.value = selected;
-        select.disabled = !result.connections.length;
-        status.textContent = FL(result.connections.length ? "更换账号会创建独立来源并暂停旧来源，原消息会保留。" : "还没有账号连接，请先在 Connectors 添加。" );
-        select.dispatchEvent(new Event("change", { bubbles: true }));
+        select.replaceChildren(...options); select.value = chosen;
+        select.disabled = Boolean(chosen) || !accounts.length;
+        status.textContent = FL(chosen ? "这个来源已经选好账号。要换账号，先断开来源。" : accounts.length ? "为这个来源选一个账号，选好就保存。" : "还没有账号连接，请先在 Connectors 添加。");
       } catch (error) { molisWorkRequest.show(status,error,FL("无法读取账号连接，请重试。")); }
       finally { delete region.dataset.loading; }
     };
+    document.addEventListener("change", async event => {
+      const select = event.target.closest?.("[data-plugin-record-slot-account]");
+      if (!select?.value) return;
+      const region = select.closest("[data-plugin-record-slot]"), status = region.querySelector("[data-feed-connection-status]");
+      const slot = JSON.parse(region.dataset.pluginRecordSlot);
+      select.disabled = true;
+      try {
+        await molisWorkRequest(feedRecordSlotPath({}), {method:"POST", body:{ ...slot, connection_id: select.value }, fallback:FL("无法保存账号，请重试。")});
+        const resume = region.hasAttribute("data-feed-source-disconnected");
+        if (await refreshFeedStage()) { setFeedTask(slot.record_key); showFeedView("settings"); }
+        showToast(FL(resume ? "账号已保存。这个来源已断开，请点「恢复来源」再拉取。" : "账号已保存。"));
+      } catch (error) { select.disabled = false; molisWorkRequest.show(status,error,FL("无法保存账号，请重试。")); }
+    });
+    document.addEventListener("submit", async event => {
+      const form = event.target.closest?.("[data-feed-add-account]");
+      if (!form) return;
+      event.preventDefault();
+      if (form.getAttribute("aria-busy") === "true") return;
+      form.setAttribute("aria-busy", "true");
+      try {
+        const result = await api(feedApi + "/sources/accounts", "POST", { service: form.dataset.feedAddAccount, name: form.querySelector("[data-feed-account-name]").value }, "无法创建来源，请重试。");
+        setFeedAddOpen(false);
+        if (await refreshFeedStage()) { setFeedTask(result.source.source_id); showFeedView("settings"); }
+      } catch (error) { setFeedSourceFeedback(molisWorkRequest.text(error,FL("无法创建来源，请重试。")), true); }
+      finally { form.removeAttribute("aria-busy"); }
+    });
 
     const showFeedSetup = (stage = "choose", value = "") => {
       if (feedSourcesDialog?.getAttribute("aria-busy") === "true") return;

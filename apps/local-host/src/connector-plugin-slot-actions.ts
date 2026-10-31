@@ -1,6 +1,6 @@
 import { defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionSlotDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { defineConnectorUsagesAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
@@ -109,4 +109,29 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
       return { connection: bound(home, input, scope) };
     } },
   ];
+}
+
+/**
+ * The plugin slots a connection is bound to, as its uses (T-121): installation slots, and `per_record` ones counted per plugin, slot and project,
+ * never naming a record. A caller in a project sees that project's records only; one at the Home sees every project's. A plugin keeps no
+ * connection of its own, so the platform, which holds the bindings, is the one to say where an account is used.
+ */
+export const connectorPluginSlotUsages = defineConnectorUsagesAction("connectors.plugin_slot.usages", "插件连接槽使用的连接", [CONNECTOR_MANAGEMENT_READ], "home");
+
+export function connectorPluginSlotUsagesHandler(home: string): ActionHandlerBinding {
+  return { ...connectorPluginSlotUsages, handle: (caller, value) => {
+    const id = (value as ConnectorUsagesInput).connection_id;
+    const found = withConnectorConnections(home, store => { const connection = store.get(id); return connection ? { connected: store.state(connection) === "connected", bindings: store.pluginBindings(id) } : null; });
+    if (!found) return { usages: [] };
+    const counted = new Map<string, { binding: (typeof found.bindings)[number]; records: number }>();
+    for (const binding of found.bindings) {
+      if (binding.project_id !== undefined && caller.project_id && binding.project_id !== caller.project_id) continue;
+      const key = JSON.stringify([binding.install_id, binding.plugin_id, binding.slot_id, binding.project_id ?? null]);
+      counted.set(key, { binding, records: (counted.get(key)?.records ?? 0) + 1 });
+    }
+    const usages: ConnectorUsage[] = [...counted].map(([key, { binding, records }]) => ({ usage_id: key, title: `${binding.plugin_id} · ${binding.slot_id}`,
+      enabled: found.connected, actions: [],
+      detail: binding.project_id === undefined ? "插件这个安装发出的请求都用这个账号" : `项目 ${binding.project_id} 里 ${records} 条记录用这个账号` }));
+    return { usages };
+  } };
 }

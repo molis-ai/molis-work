@@ -657,7 +657,16 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
     assert.match(page, /打开 Connectors/);
-    assert.match(page, /在 Connectors 授权 Gmail 后，当前项目的 Feed 会按邮箱关联来源。/);
+    assert.match(page, /在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。/);
+    // RAC-2667 (T-121): an account source's settings name the plugin, the slot and the record, never an account or an installation; the
+    // page script reads and binds through the Host's record-slot path, and an account already chosen is changed by disconnecting first.
+    assert.match(page, /data-plugin-record-slot="\{&quot;plugin_id&quot;:&quot;io\.molis\.work\.feed&quot;,&quot;slot_id&quot;:&quot;gmail&quot;,&quot;service_id&quot;:&quot;gmail&quot;,&quot;record_key&quot;:&quot;[^&]+&quot;\}"/);
+    assert.doesNotMatch(page, /data-source-config-field="connection_id"/);
+    assert.ok([...page.matchAll(/data-plugin-record-slot="([^"]*)"/g)].every(([, slot]) => !slot!.includes("install_id") && !slot!.includes("connection_id")));
+    assert.match(page, /<form class="feed-account-source" data-feed-add-account="github">/);
+    const script = await (await fetch(`${origin}/assets/molis-work-workbench.js`)).text();
+    assert.ok(script.includes("/api/settings/connectors/plugin-slots/record?") && script.includes("[data-plugin-record-slot-account]"), "the page script binds through the record-slot path");
+    assert.ok(!script.includes('data-source-config-field="connection_id"'), "and no longer saves an account with the source");
     assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
@@ -723,6 +732,35 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     );
     assert.equal(deleted.status, 200);
     assert.equal((await deleted.json() as { history_decision: string }).history_decision, "retain_history");
+    // RAC-2665: the page adds an account source empty, through Feed's own route; the same name is the same source, and no account is named.
+    const added = await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" });
+    assert.equal(added.status, 201, await added.clone().text());
+    assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" })).status, 200, "the same name is the same source");
+    assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Other", connection_id: github.connection_id })).status, 201,
+      "the route passes on only the service and the name");
+
+    // S-71 RAC-2666: the source's account is chosen on its record slot; a record bound to one account is not moved to another there (409,
+    // the binding and the source's cursor as they were) until the person unbinds it.
+    const record = { plugin_id: "io.molis.work.feed", slot_id: "github", service_id: "github", record_key: (await added.json() as { source: { source_id: string } }).source.source_id };
+    const choose = (connection_id: string | null) => fetch(`${origin}/api/settings/connectors/plugin-slots/record?project=${encodeURIComponent(projectId)}`, {
+      method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": `feed-record-slot-${++mutation}` }, body: JSON.stringify({ ...record, connection_id }) });
+    const databasePath = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId).database_path);
+    const sourceNow = () => { const board = new LocalProjectDatabase(databasePath); try { return createLocalFeedApplication(board.db).sources.get(projectId, record.record_key); } finally { board.close(); } };
+    const [first, second] = withConnectorConnections(home, store => [store.createToken({ serviceId: "github", displayName: "GitHub one", token: "github-test-token-24680" }),
+      store.createToken({ serviceId: "github", displayName: "GitHub two", token: "github-test-token-67890" })]);
+    const chosen = await choose(first!.connection_id);
+    assert.equal(chosen.status, 200, await chosen.clone().text());
+    { const board = new LocalProjectDatabase(databasePath); try { const feedHere = createLocalFeedApplication(board.db); feedHere.sources.upsert({ ...feedHere.sources.get(projectId, record.record_key), cursor: { after: "kept" } }); } finally { board.close(); } }
+    const moved = await choose(second!.connection_id);
+    assert.equal(moved.status, 409, await moved.clone().text());
+    const boundTo = async () => (await (await fetch(`${origin}/api/settings/connectors/plugin-slots/record?${new URLSearchParams({ project: projectId, plugin_id: record.plugin_id, slot_id: record.slot_id, record_key: record.record_key })}`,
+      { headers: { origin, "x-molis-work-control-token": controlToken } })).json() as { connection: { connection_id: string } | null }).connection?.connection_id ?? null;
+    assert.equal(await boundTo(), first!.connection_id);
+    assert.deepEqual(sourceNow().cursor, { after: "kept" });
+    assert.equal((await choose(first!.connection_id)).status, 200, "the same account again is no change");
+    assert.equal((await choose(null)).status, 200);
+    assert.equal((await choose(second!.connection_id)).status, 200);
+    assert.equal(await boundTo(), second!.connection_id);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

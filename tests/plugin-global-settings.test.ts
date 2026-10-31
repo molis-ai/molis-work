@@ -1,5 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,7 +37,7 @@ import {
   isHostGlobalSettingsSection,
 } from "../apps/workbench/dist/plugin-settings-catalog.js";
 import { renderAppearanceSettingsDocument } from "../apps/workbench/dist/settings-appearance.js";
-import { renderSettingsDirectorySection, renderSettingsNav } from "../apps/workbench/dist/settings-directory.js";
+import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
@@ -361,18 +362,60 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   );
 });
 
-// T-362 (RAC-2743, BL-543): a plugin settings page's declared address parameters are rendered on its directory row, which is where the
-// shell's filter reads them; a row that declares none carries neither attribute.
-test("T-362 a plugin settings row carries the address parameters its Manifest declares", () => {
-  const primitives = { ...directoryPrimitives };
-  const rendered = renderSettingsNav(primitives, [{ group: "", sections: [
-    { id: "roles", label: "角色", icon: "user" as const, addressQuery: "tab filter", addressHash: "#section" },
-    { id: "plain", label: "普通", icon: "user" as const, addressQuery: "", addressHash: "" },
-  ] }], "appearance", "系统设置", "settings");
-  assert.match(rendered, /data-settings-section="roles"[^>]*data-settings-address-query="tab filter"[^>]*data-settings-address-hash="#section"/);
-  assert.match(rendered, /data-settings-section="plain"(?![^>]*data-settings-address-query)/);
-  assert.doesNotMatch(rendered, /data-settings-section="plain"[^>]*data-settings-address-hash/);
-});
+// RAC-2743/2744: each child injects a parsed Manifest before the first catalog consumer, then follows the real rendering path.
+for (const declared of [true, false]) {
+  test(`T-362 RAC-2743 RAC-2744 a ${declared ? "declared" : "plain"} Shelf Manifest reaches the catalog, settings rows and address filter`, () => {
+    execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", String.raw`
+      import assert from "node:assert/strict";
+      import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+      import { registration } from "@molis-ai/molis-work-plugin-shelf/registration";
+      const manifest = structuredClone(registration.manifest);
+      const view = manifest.ui.views.find(item => item.slot === "settings");
+      assert.ok(view, "the existing Shelf settings view is the input");
+      if (${declared}) view.settings_address = { query: ["tab", "filter"], hash: ["#section"] };
+      else delete view.settings_address;
+      const parsed = parsePluginManifest(manifest);
+      registration.manifest = parsed;
+      const { BUILTIN_PLUGIN_CATALOG, listPluginSettingsNavItems } = await import("@molis-ai/molis-work-app-workbench");
+      const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "shelf");
+      assert.equal(entry, registration, "the catalog consumes the original registration object");
+      assert.equal(entry.manifest, parsed, "the catalog consumes the parsed Manifest");
+      const nav = listPluginSettingsNavItems(["shelf"]).find(item => item.section_id === "shelf");
+      assert.ok(nav);
+      assert.deepEqual(nav.address, ${declared} ? { query: "tab filter", hash: "#section" } : { query: "", hash: "" },
+        "Manifest declaration reaches the real nav item");
+      const { renderMolisWorkWeb } = await import("./tests/workbench-renderer-fixture.ts");
+      const html = renderMolisWorkWeb({
+        snapshot: { board: { project_id: "p1", title: "Settings", active_goal_id: null,
+          created_at: "2026-10-31T00:00:00.000Z", updated_at: "2026-10-31T00:00:00.000Z" },
+          cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
+        project: { project_id: "p1", display_name: "Settings" }, projects: [{ project_id: "p1", display_name: "Settings" }],
+        route_prefix: "/projects/p1", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
+        input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+        enabled_plugins: ["shelf"],
+      });
+      const tags = html.match(/<[^>]*data-settings-section="[^"]+"[^>]*>/g) ?? [];
+      const row = tags.find(tag => /data-settings-section="shelf"/.test(tag));
+      assert.ok(row, "the real workbench renders the Shelf settings row");
+      if (${declared}) {
+        assert.match(row, /data-settings-address-query="tab filter"/, "sections forwards query to the real row");
+        assert.match(row, /data-settings-address-hash="#section"/, "sections forwards hash to the real row");
+      } else assert.doesNotMatch(row, /data-settings-address-(?:query|hash)=/, "plain Manifest renders no address attributes");
+      const rows = tags.map(tag => ({
+        id: /data-settings-section="([^"]+)"/.exec(tag)[1],
+        query: /data-settings-address-query="([^"]*)"/.exec(tag)?.[1],
+        hash: /data-settings-address-hash="([^"]*)"/.exec(tag)?.[1],
+      }));
+      const { createSettingsAddressHarness } = await import("./tests/fixtures/settings-address.ts");
+      const shell = createSettingsAddressHarness(rows);
+      assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=members&filter=active&evil=1#section"),
+        ${declared} ? "/settings/shelf?project=p1&desktop=1&tab=members&filter=active#section" : "/settings/shelf?project=p1&desktop=1",
+        "real rendered declarations govern the complete forwarded address");
+      assert.equal(shell.open("/settings/shelf?tab=members&evil=1#other"),
+        ${declared} ? "/settings/shelf?tab=members" : "/settings/shelf", "undeclared query and hash are dropped");
+    `], { cwd: new URL("..", import.meta.url), encoding: "utf8", timeout: 60_000, stdio: "pipe" });
+  });
+}
 
 test("workbench settings directory and standalone settings list the same grouped categories", () => {
   const directory = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins([]));

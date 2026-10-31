@@ -52,12 +52,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const declared = (table, key) => Object.prototype.hasOwnProperty.call(table, key) ? table[key] : "";
   // A plugin settings page's own address parameters (BL-543) come from its directory row: the Manifest declares them, the server
   // renders them as data-settings-address-*, and only the pages that declared some have them.
-  const addressOf = (() => { let rows = null; return (section) => {
-    rows ??= new Map([...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
-      .map((row) => [row.dataset.settingsSection, { query: row.dataset.settingsAddressQuery || "", hash: row.dataset.settingsAddressHash || "" }])
-      .filter(([, kept]) => kept.query || kept.hash));
-    return rows.get(section) || { query: "", hash: "" };
-  }; })();
+  const addressOf = (section) => {
+    const row = [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
+      .find((row) => row.dataset.settingsSection === section);
+    return { query: row?.dataset.settingsAddressQuery || "", hash: row?.dataset.settingsAddressHash || "" };
+  };
   const keptQuery = (search, defaults, extras, section) => {
     const allowed = (defaults + " " + (declared(extras, section) || addressOf(section).query)).trim().split(/ +/);
     const kept = new URLSearchParams();

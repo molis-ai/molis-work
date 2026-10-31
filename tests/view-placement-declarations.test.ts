@@ -183,6 +183,24 @@ const ADDRESS_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unkn
   { rule: "hash repeating a fragment", manifest: ADDRESS({ hash: ["#section", "#section"] }), expected: "视图 main 的 settings_address.hash 重复声明了 #section" },
 ];
 
+test("RAC-2745 public Manifest parsing refuses the settings embed control parameter", () => {
+  assert.throws(() => parsePluginManifest(ADDRESS({ query: ["embed"] })), (error: unknown) => {
+    assert.ok(error instanceof ActionError);
+    assert.equal(error.code, "plugin.declaration_invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "视图 main 的 settings_address.query 不能声明 embed（外壳的默认或入口参数）");
+    return true;
+  });
+});
+
+test("RAC-2745 public Manifest parsing retains eight legal names and fragments at their length limits", () => {
+  const address = {
+    query: ["plugin", "q", "filter", "format", "section", "tab", "A_-09", "x".repeat(32)],
+    hash: ["#a", "#b", "#c", "#d", "#e", "#f", "#A._~-09", "#" + "x".repeat(32)],
+  };
+  assert.deepEqual(parsePluginManifest(ADDRESS(address)).ui?.views?.[0]?.settings_address, address);
+});
+
 for (const { rule, manifest, expected } of ADDRESS_RULES) {
   test(`RAC-2745 settings address: ${rule}`, () => {
     assert.equal(manifestProblems(manifest), expected);

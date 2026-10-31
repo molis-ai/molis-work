@@ -169,7 +169,7 @@ export interface UiSettingsDataDeclaration {
  * The address parameters a plugin's settings page reads (BL-543, S-47). A plugin page may name a settings address
  * (`molis-work:open-settings-path`); the shell keeps only what the page being opened reads, and every settings page is rendered with the
  * defaults (`project`, `desktop`). A page that reads more lists those names explicitly — never a wildcard. Query names are
- * `[A-Za-z0-9_-]{1,32}` (at most 8; `project`, `desktop`, `settings` and `settingsPath` are the shell's own and cannot be named);
+ * `[A-Za-z0-9_-]{1,32}` (at most 8; `project`, `desktop`, `settings`, `settingsPath` and `embed` are the shell's own and cannot be named);
  * fragments are written with their leading `#` (`#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}`, at most 8).
  */
 export interface UiSettingsAddressParamsDeclaration {

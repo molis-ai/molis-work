@@ -18,11 +18,11 @@ const HUES: ReadonlySet<string> = new Set(UI_VIEW_HUES);
 const HAN = /\p{Script=Han}/u;
 const CONTROL = /[\u0000-\u001f\u007f]/u;
 // T-362 (BL-543, S-47): a settings page's own address parameters. The defaults (`project`, `desktop`) and the shell's entry parameters
-// (`settings`, `settingsPath`) belong to the shell; the lists are explicit and bounded.
+// (`settings`, `settingsPath`, `embed`) belong to the shell; the lists are explicit and bounded.
 const ADDRESS_QUERY_LIMIT = 8, ADDRESS_HASH_LIMIT = 8;
 const ADDRESS_QUERY_NAME = /^[A-Za-z0-9_-]{1,32}$/u;
 const ADDRESS_HASH = /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}$/u;
-const ADDRESS_RESERVED_QUERY = new Set(["project", "desktop", "settings", "settingsPath"]);
+const ADDRESS_RESERVED_QUERY = new Set(["project", "desktop", "settings", "settingsPath", "embed"]);
 /** The longest English name or title, in Unicode code points: the unit the Host's directory cuts a name to (`apps/workbench/src/plugin-directory.ts`). */
 export const ENGLISH_NAME_LIMIT = 80;
 

@@ -180,6 +180,16 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     },
     /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */
     running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item) && releaseFor(item.plugin_id)?.packaged?.manifest.kind !== 'integration').map(item => item.plugin_id),
+    /**
+     * The packages the Home draws a page for, by the key its pages go under (the plugin id): those that run, and those that are not
+     * switched off but did not come back (their page says why). One switched off or quarantined, one uninstalled, an integration package
+     * (no page) and one whose release cannot be read back (no Manifest to draw) are not.
+     */
+    pages: (): { key: string; manifest: PluginManifest }[] => records().flatMap(item => {
+      if (item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
+      const manifest = releaseFor(item.plugin_id)?.packaged?.manifest;
+      return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
+    }),
     refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },
     /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
     reconcilePublishers: stops.reconcile,

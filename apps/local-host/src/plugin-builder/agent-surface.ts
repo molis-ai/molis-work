@@ -14,7 +14,8 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
-import { selectionPorts, FRAME_QUERY } from '../plugin-builder-surface.js';
+import { selectionPorts } from '../plugin-builder-surface.js';
+import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { generatedPluginManifest } from './installed.js';
@@ -154,10 +155,9 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
   return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
-    const surface = 'app-' + release.buildId, label = release.design.title;
+    const surface = installedStageSurface(release), label = release.design.title;
     const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
-    return [{ pluginId: item.plugin_id, surface, label, directory, stage: '<section class="desktop-work-surface pb-surface" data-work-surface="' + surface + '" data-work-surface-label="' + escapeHtml(label) + '" data-installed-plugin="' + escapeHtml(item.plugin_id) + '" hidden>'
-      + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id + '?' + FRAME_QUERY) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>' }];
+    return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix }) }];
   });
 }
 

@@ -6,7 +6,7 @@ import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirecto
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
-import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
+import { renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -276,7 +276,7 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean): string {
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = []): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
@@ -288,7 +288,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    ${renderHomePluginNavigation()}
+    ${renderHomePluginNavigation(undefined, homePlugins)}
     <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
   </header>`;
 }

@@ -462,7 +462,7 @@ const device = (extra: Partial<PluginOAuthMethodDeclaration> = {}): PluginOAuthM
 });
 const withMethods = (methods: unknown[], authKind = "oauth"): PluginManifest => {
   const base = manifest("slack", method()), service = base.connection_services![0]!;
-  return { ...base, connection_services: [{ ...service, auth_kind: authKind, auth: { methods } }] } as unknown as PluginManifest;
+  return Object.assign({}, base, { connection_services: [{ ...service, auth_kind: authKind, auth: { methods } }] });
 };
 
 test("RAC-2547 a service declares one oauth method per grant: the same grant twice is refused, each grant once passes", () => {

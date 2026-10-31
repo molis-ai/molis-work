@@ -18,16 +18,17 @@ const cancel = (home: TestHome, id: string, context = caller) => home.host.homeA
 for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: cancel ${service} clears only its pending protocol material without requiring a callback`, async t => {
   const home = await openTestHome(t), request = await prepare(home, service, "oauth");
   const input = { service_id: service, display_name: "Pending account", client_id: "fixture-client", client_secret: "fixture-client-material", setup_id: request.authorization_id };
-  const path = service === "asana" ? "/api/settings/connectors/methods/oauth/start" : `/api/settings/connectors/${service}/oauth/start`;
+  const generic = service !== "notion";
+  const path = generic ? "/api/settings/connectors/methods/oauth/start" : `/api/settings/connectors/${service}/oauth/start`;
   const started = await home.web.post<{ authorization_url?: string; authorizationUrl?: string }>(path, input);
   const state = new URL(started.authorization_url ?? started.authorizationUrl!).searchParams.get("state")!;
   const readSecret = (ref: string) => runWithMolisWorkHome(home.home, () => createFileSecretStore().get(ref));
   assert.ok(readSecret(`connector-authorization:${request.authorization_id}:presentation`));
-  if (service !== "asana") assert.ok(readSecret(`connector:${service}:oauth:pending:${state}`));
+  if (!generic) assert.ok(readSecret(`connector:${service}:oauth:pending:${state}`));
   await cancel(home, request.authorization_id);
   assert.equal((await status(home, request.authorization_id)).status, "cancelled");
   assert.equal(readSecret(`connector-authorization:${request.authorization_id}:presentation`), null);
-  if (service === "asana") assert.equal(runWithMolisWorkHome(home.home, () => readSecretsFileMeta().entryCount), 0, "staged client and PKCE secrets are deleted");
+  if (generic) assert.equal(runWithMolisWorkHome(home.home, () => readSecretsFileMeta().entryCount), 0, "staged client and PKCE secrets are deleted");
   else {
     assert.equal(readSecret(`connector:${service}:oauth:pending:${state}`), null);
     assert.equal(readSecret(`connector:${service}:oauth:connection-target:${state}`), null);

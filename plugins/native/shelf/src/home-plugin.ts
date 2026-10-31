@@ -106,7 +106,7 @@ export function createHomeShelfPlugin(): PluginDefinition {
         await caller.beforeEffect();
         const runtime = (await store().snapshot()).runtime;
         if (!runtime.executable || !context.services?.terminal) throw new ActionError("actions.unavailable", "未发现终端 Agent。");
-        return context.services.terminal.open({ key: "conversation", command: runtime.executable, title: runtime.title });
+        return context.services.terminal.open({ key: "conversation", command: runtime.executable, title: runtime.title, directory: { root: "owner_files" } });
       } },
       { ...shelfReceiveCopy, async handle(caller, input) {
         const preview = input as ShelfArtifactPreview;

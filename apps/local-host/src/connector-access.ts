@@ -9,7 +9,7 @@ import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccou
 import type { OAuthNetwork } from "./connector-oauth-send.js";
 import { clearRefreshRefused, markRefreshRefused, tokenEndpointRefused } from "./connector-refresh-refusals.js";
 import { resolveUsableNotionToken } from "./notion-oauth.js";
-import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
+import { replacedOAuthShape, REPLACED_OAUTH_NOTE } from "./connector-oauth-shape.js";
 import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { inspectCliConnection } from "./connector-cli.js";
@@ -54,6 +54,11 @@ export async function resolveApiConnection(home: string, id: string, control: Co
     catch (error) { await control.beforeEffect(); current(); if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
   };
   return runWithMolisWorkHome(home, async () => {
+    // An OAuth connection of the shape the generic flow replaced is not read: no request, no token branch (W5-11 §2.6, M4).
+    if (replacedOAuthShape(connection)) {
+      if (forceRefresh === "if_available") return null;
+      throw new ApiOAuthError(REPLACED_OAUTH_NOTE, connection.service_id, true);
+    }
     if (forceRefresh === "if_available" && (connection.auth_method !== "oauth" || !connection.refresh_ref
       || !createFileSecretStore().get(connection.refresh_ref))) return null;
     if (connection.auth_method === "cli") {
@@ -72,15 +77,6 @@ export async function resolveApiConnection(home: string, id: string, control: Co
         error => error instanceof CatalogLiveError && error.kind === "needs_auth" && tokenEndpointRefused(error.status));
       if (!token) throw new Error("Notion 连接需要重新授权");
       return { connection, token, authExtras: undefined, fetchImpl: undefined };
-    }
-    if (connection.auth_method === "oauth" && connection.service_id === "gmail" && connection.credential_ref && connection.refresh_ref && connection.expires_ref) {
-      const refs = { access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref };
-      const result = await refreshing(async () => {
-        const answer = await resolveUsableGmailAccessToken({ control, forceRefresh: refresh, tokenRefs: refs });
-        if (!answer.ok) throw Object.assign(new Error("Gmail 连接需要重新授权"), { refused: answer.status === "needs_auth" && answer.refused === true });
-        return answer;
-      }, error => (error as { refused?: boolean }).refused === true);
-      return { connection, token: result.accessToken, authExtras: undefined, fetchImpl: undefined };
     }
     if (forceRefresh === "if_available") return null;
     const token = connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;

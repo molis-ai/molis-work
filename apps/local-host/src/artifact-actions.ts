@@ -30,9 +30,7 @@ export function artifactLinkSubjectsPort(client: ActionClient | undefined, decla
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
-  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id,
-    // The English of its action text is still in the 成果 plugin's words, until that shell goes (PG-077 step 2).
-    words_of: ARTIFACTS_PLUGIN_ID };
+  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id };
   return {
     provider,
     definitions: ARTIFACT_ACTIONS,

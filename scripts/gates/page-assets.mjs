@@ -242,14 +242,16 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-223 (MISC T-184 发布), RAC-2160–2164: on top of T-183's +63 already in main (budget 190623), the plugin-frame bridge cuts the name
-// a plugin page file is saved under by whole characters (200, extension kept) instead of 200 UTF-16 units: +137 B more, measured on
-// this merge result (190623 → 190760). Tried: whole characters without keeping the extension +41 B (does not fix the dropped
-// extension), cutting by units and dropping a dangling half +143 B, an early return for a name that fits +163 B; no new asset.
-// The entries this block inherited from main are used up (their budget already equals their ceiling): T-183's frame +63 and workbench
-// +96, and T-235's ppt.js [27065, 27364]; the entries and their notes are deleted with this change as the convention says.
+// batch/assets-1031 lands four reviewed changes together, each with its own approved growth, measured once on the merged tree
+// against merge-base 1148277 for molis-work-workbench.js: T-290 (RAC-2412, the settings shell keeps only the address parameters and
+// fragments the opened settings page reads) +1,343 B; T-285 (the new-Goal title box capped by characters) +213 B; T-225 (selected
+// passages, heading paths and the selection handed to the assistant cut to whole characters) −15 B; T-320 (R-65, the home next-step
+// hint says which actions the automatic judgement looks at) +254 B; +1,795 B in all. T-225 also grows molis-work-plugin-frame.js by
+// +78 B (190760 → 190838). No new asset. The T-138 entry main carried is consumed (its budget already equals its ceiling) and is
+// deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugin-frame.js": [190623, 190760],
+  "/assets/molis-work-plugin-frame.js": [190760, 190838],
+  "/assets/molis-work-workbench.js": [1148277, 1150072],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

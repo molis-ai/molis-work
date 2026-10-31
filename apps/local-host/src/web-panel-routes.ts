@@ -26,7 +26,7 @@ export interface PanelHttpContext {
   respond(status: number, value: unknown): void;
   withHost<T>(operation: (host: PanelHost) => Promise<T>): Promise<T>;
   readGoal(goalId: string): PanelGoal | Promise<PanelGoal>;
-  readLinkedFeedContext(goalId: string, itemId?: string): Promise<{ source_context: string } | null> | { source_context: string } | null;
+  readLinkedFeedContext(goalId: string): Promise<{ source_context: string } | null> | { source_context: string } | null;
   projectGuidance(): string | Promise<string>;
   isRuntimeKind(kind: string): boolean;
   launchSpec(input: { runtime_kind: string; command?: string; args?: unknown; resume_session_id?: string | null }): {
@@ -64,12 +64,7 @@ async function readAdvancePrompt(context: PanelHttpContext, _host: PanelHost, go
     respond(409, { error: L("这条上层 Goal 由子 Goal 共同完成，不能直接推进。请选择一个具体的子 Goal。") });
     return;
   }
-  const requestedFeedItemId = url.searchParams.get("feed_item_id")?.trim() || null;
-  const linkedFeedItem = await context.readLinkedFeedContext(goalId, requestedFeedItemId ?? undefined);
-  if (requestedFeedItemId && !linkedFeedItem) {
-    respond(409, { error: L("这条 Item 已不再关联当前 Goal，请返回 Inbox 或 Feed 重新开始处理。") });
-    return;
-  }
+  const linkedFeedItem = await context.readLinkedFeedContext(goalId);
   respond(200, {
     goal_id: goalId,
     title: contract.title,

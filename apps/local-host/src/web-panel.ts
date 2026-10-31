@@ -81,11 +81,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
           : undefined;
         return { ...goal, event_work, event_facts };
       },
-      readLinkedFeedContext: async (goalId, itemId) => {
-        const input = { goal_id: goalId, ...(itemId ? { item_id: itemId } : {}) };
-        return itemId ? actions.invoke(feedQueryActions.linkedContext, input)
-          : await optionalPluginQuery(actions, feedQueryActions.linkedContext, input) ?? null;
-      },
+      readLinkedFeedContext: async (goalId) => await optionalPluginQuery(actions, feedQueryActions.linkedContext, { goal_id: goalId }) ?? null,
       projectGuidance: async () => (await actions.invoke(goalsActions.guidanceRead, {})).runtime_prompt_prefix,
       isRuntimeKind: ports.isRuntimeKind,
       launchSpec: ports.launchSpec,

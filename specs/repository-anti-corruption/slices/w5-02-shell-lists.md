@@ -2,7 +2,7 @@
 
 状态：统筹 2026-10-25 已裁 Q1～Q4（见 §4），PR-D1 已实现（四个提交：PG-076 余项与 PG-073 ①②；PG-074；PG-072；本稿与门禁收尾），在 `claude/ac-shell-lists`，基线 batch-37（`batch/1025-37`）。PG-075 留给 PR-D2，等 PG-055 合入。PR-D（PG-072～076）从 ac-registry 移来，加 PG-063；设计依据是 ac-registry 分支 `w5-02-registry.md` §5，事实按本分支头重核。
 
-验收编号：RAC-690～709（RAC-700 为 PG-060 余项）。BL：BL-656～665（暂未取用）；余项核对发现的记 BL-636。
+验收编号：RAC-690～709（RAC-700 为 PG-060 余项）。BL：BL-656～665（暂未取用）；余项核对发现的 BL-636 已做完（T-126）。
 
 ## 0. 结论
 
@@ -79,7 +79,7 @@
 | PG-060 的「标签标题兜底表」「规格板」 | 已做 | #1112（batch-33） |
 | PG-060 的 `global-search.ts`、`goal-inputs-html.ts` 里剩下的 `goals` / `artifacts` 字面量 | 不在本线 | Goals S11、成果库 A6，privileges PG-073 ④ / PG-074 已写明归属 |
 | `.plugin-stage-kind[data-kind=…]` 五行（form、dataset、ppt、page、lingguang） | **本片删**（RAC-700）。五行都是 `--status-tone: var(--plugin-<id>)`，而 `--plugin-*` 全部定义为 `var(--ink-soft)`（`palette.ts` 的 `pluginCustomProperties`），与紧邻的中性规则重复；没有任何代码再发出这五个 `data-kind` | `tests/visual-foundation.test.ts`；`workbench.css` 变小 |
-| `PLUGIN_ENGLISH_NAMES`（`plugin-catalog.ts`，七个内置插件的英文名） | **发现，不在本片做**：这是第三个按插件 id 手写的表，第三方插件没有同样待遇；但要改成 Manifest 声明需要一个合同新字段（字段名要定），也不能并进界面翻译词典（「成果」「图片」在词典里已有别的英文，会新增翻译冲突）。记 BL-636，可与 PG-075 的显示声明同一次改合同 | `specs/BACKLOG.md` BL-636 |
+| `PLUGIN_ENGLISH_NAMES`（`plugin-catalog.ts`，七个内置插件的英文名） | **已在 BL-636（T-126，2026-10-30）做完，表已删**：Manifest 声明 `name_en`、导航与岛视图声明 `title_en`，外壳按声明取英文名，同一来源不互相兜底；待办的英文名按用户 10-30 裁定由 To-do 改为 Todo | `tests/plugin-english-name-declaration.test.ts`（RAC-1720～1729） |
 | `SAMPLE_PROJECT_PLUGINS`（`primitive-catalog.ts`，规格板的样例项目） | 留：是规格板自己的固定样例（开发工具，文件头写明），不是外壳行为；外壳画的目录读 `builtinPluginDirectory()` | 注释 |
 | `page-plugin-visibility.ts` 的缺省 `["goals","inbox","feed","artifacts"]` | 留：只在没有宿主给 `shown_plugins`、`enabled_plugins` 的页面（规格板、夹具）生效，文件头写明；宿主页面一律给 `shown_plugins` | 注释 |
 | PG-088 引导流程 | 已做，不再改 | W5-06 余项第 4 片 #1275（RAC-615～618）：`context-onboarding-service.ts` 不再 import `blocksFromMarkdown` 与 ProseMirror，Markdown→正文走 `pages.documents.body_from_markdown` |

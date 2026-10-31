@@ -58,6 +58,6 @@ export function searchMemorySecrets(): SecretStore {
     get: ref => keys.get(ref) ?? null, put: (ref, value) => { keys.set(ref, value); }, delete: ref => { keys.delete(ref); },
     createIfAbsent(ref, value) { if (keys.has(ref)) return false; keys.set(ref, value); return true; },
     deleteIfPresent: ref => keys.delete(ref),
-    backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 2 }),
+    backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 1 }),
   };
 }

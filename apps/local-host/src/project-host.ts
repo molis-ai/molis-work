@@ -29,7 +29,7 @@ import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
-import { prepareMemoryHome } from "./memory/memory-adoption.js";
+import { prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";

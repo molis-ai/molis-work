@@ -13,10 +13,11 @@ import {
 } from "@molis-ai/molis-work-module-projects";
 import Database from "better-sqlite3";
 
-function createModule(db: Database.Database): ProjectsModule {
+function createModule(db: Database.Database, directory: string): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
+    projects_directory: directory,
     plugins: { has: id => id === "goals", companions: () => [] },
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
@@ -29,19 +30,17 @@ test("Projects Module owns canonical project identity and workspace membership",
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
-    const projects = createModule(db);
+    const projects = createModule(db, directory);
     // W5-08-MOD-01/02: records stay behind business services; the complete identity/membership path below remains public.
     assert.equal("ProjectsRepository" in projectsExports, false);
     assert.equal("repository" in projects, false);
 
     const first = projects.lifecycle.prepareRecord({
       display_name: "同名项目",
-      projects_directory: directory,
       data_class: "user",
     });
     const second = projects.lifecycle.prepareRecord({
       display_name: "同名项目",
-      projects_directory: directory,
       data_class: "user",
     });
     projects.lifecycle.register(first, "project.created", "user-1");
@@ -97,7 +96,6 @@ test("Projects Module owns canonical project identity and workspace membership",
     assert.throws(
       () => projects.lifecycle.prepareRecord({
         display_name: " ",
-        projects_directory: directory,
         data_class: "user",
       }),
       (error: unknown) => {
@@ -121,9 +119,9 @@ function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsM
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
-    const projects = createModule(db);
+    const projects = createModule(db, directory);
     const ids = ["甲", "乙"].map(name => {
-      const record = projects.lifecycle.prepareRecord({ display_name: name, projects_directory: directory, data_class: "user" });
+      const record = projects.lifecycle.prepareRecord({ display_name: name, data_class: "user" });
       projects.lifecycle.register(record, "project.created", "user-1");
       return record.project_id;
     });

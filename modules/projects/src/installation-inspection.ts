@@ -1,5 +1,6 @@
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectsSqliteDatabase } from "./sqlite.js";
+import { projectDatabasePath } from "./project-paths.js";
 
 function projectDataClass(value: unknown): ProjectRecord["data_class"] {
   return String(value) === "regenerable_demo" ? "regenerable_demo" : "user";
@@ -10,15 +11,15 @@ function projectDataClass(value: unknown): ProjectRecord["data_class"] {
  * file is a Molis Work catalog at all is decided by the caller from the catalog's own metadata (the storage package owns
  * `catalog_meta`), before this is asked.
  */
-export function listCatalogProjectsForUninstall(db: ProjectsSqliteDatabase): ProjectRecord[] {
+export function listCatalogProjectsForUninstall(db: ProjectsSqliteDatabase, projectsDirectory: string): ProjectRecord[] {
   const rows = db.prepare(`
-    SELECT project_id, display_name, database_path, source, data_class, created_at, updated_at
+    SELECT project_id, display_name, source, data_class, created_at, updated_at
     FROM projects ORDER BY created_at, project_id
   `).all() as Array<Record<string, unknown>>;
   return rows.map((row) => ({
     project_id: String(row.project_id),
     display_name: String(row.display_name),
-    database_path: String(row.database_path),
+    database_path: projectDatabasePath(projectsDirectory, String(row.project_id)),
     source: "created" as const,
     data_class: projectDataClass(row.data_class),
     created_at: String(row.created_at),

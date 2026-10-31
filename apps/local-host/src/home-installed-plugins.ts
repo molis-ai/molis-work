@@ -34,7 +34,7 @@ export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatfor
 
 /** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
 export interface HomeIntegrationsPort {
-  attach(manifest: PluginManifest, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
   detach(pluginId: string): Promise<void>;
 }
 
@@ -143,11 +143,11 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
     const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
-    if (!active()) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
+    if (!active() || !installId) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
     const token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
     const forget = () => { if (attached.get(pluginId) === token) attached.delete(pluginId); };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, () => platform.supervisor.contribution(pluginId), live)) forget(); }
+    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
     catch (error) { forget(); throw error; }
   };
   const promptScope = (installId: string) => JSON.stringify([null, HOME_INSTALL_SCOPE, installId]);
@@ -200,6 +200,18 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     },
     /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */
     running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item) && releaseFor(item.plugin_id)?.packaged?.manifest.kind !== 'integration').map(item => item.plugin_id),
+    /**
+     * The packages the Home draws a page for, by the key its pages go under (the plugin id): those that run, and those that are not
+     * switched off but did not come back (their page says why). One switched off or quarantined, one uninstalled, an integration package
+     * (no page) and one whose release cannot be read back (no Manifest to draw) are not.
+     */
+    pages: (): { key: string; manifest: PluginManifest }[] => records().flatMap(item => {
+      if (item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
+      // Like `running`: a publisher the person took back has no page until its installation is stopped and says why.
+      if (item.state === 'running' && !standing.trusted(item)) return [];
+      const manifest = releaseFor(item.plugin_id)?.packaged?.manifest;
+      return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
+    }),
     refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },
     /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
     reconcilePublishers: stops.reconcile,

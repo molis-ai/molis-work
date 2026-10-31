@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import type { IncomingMessage } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
-import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginPageRequest, pluginPagesFor, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
@@ -390,6 +395,36 @@ test("SYS-15 S-47 RAC-1811 a plain Home request with bad percent-encoding is 400
   assert.deepEqual(answered, [], "the route's handler did not run for a malformed path");
   assert.equal((await f.request(`/api/plugins/${id}/items/abc`)).status, 200, "a well-formed path still reaches the route");
   assert.deepEqual(answered, ["abc"]);
+});
+// RAC-2442 (T-218 S1): a page without an install_id (a registered page or the builder's trial page) ends the requests it has in flight as
+// a cancellation when the person who opened it leaves; only a withdrawal ends them as refused. The class is the same production authority
+// the HTTP routes use, so the page state and the abort reason are the real ones.
+test("RAC-2442 a page without install_id cancels its in-flight requests when the person leaves, and refuses them on a withdrawal", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-work-page-authority-"));
+  try {
+    const authority = pluginPagesFor(home);
+    const manifest = { plugin_id: "io.example.registered", ui: {}, actions: [], routes: [] } as PluginManifest;
+    const activation = () => ({ manifest, install_id: null, project_id: null, actor_id: "web-user", assertCurrent() {}, requestAllowed: () => true });
+    const requestOf = async (pageId: string) => {
+      const request = { headers: { "x-molis-plugin-page": pageId }, method: "GET" } as IncomingMessage;
+      await authority.bind(request, new URL("http://127.0.0.1/api/anything"));
+      return pluginPageRequest(request)!.signal;
+    };
+
+    const person = authority.open("io.example.registered", null, "web-user", undefined, activation());
+    const left = await requestOf(person.page_id);
+    await authority.finish(person.page_id, undefined);
+    assert.equal((left.reason as { code?: string } | undefined)?.code, "actions.cancelled",
+      "the person leaving ends the request as a cancellation, not a withdrawal");
+
+    const revoked = authority.open("io.example.registered", null, "web-user", undefined, activation());
+    const refused = await requestOf(revoked.page_id);
+    authority.close(revoked.page_id);
+    assert.equal((refused.reason as { code?: string } | undefined)?.code, "actions.forbidden",
+      "a withdrawn page still ends its requests as refused");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 // RAC-2412 (S-47): the workbench keeps only the address parameters and fragments the settings page being opened reads. A page can push any

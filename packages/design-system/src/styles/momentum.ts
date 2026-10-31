@@ -627,7 +627,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     html[data-density="compact"] body[data-board-view] .tree-scroll {
       padding: 4px 8px 8px;
     }
-    /* doubled class: keeps specificity 0,4,2 so the compact indent beats goal-canvas.ts's flat stage list (BL-121) */ html[data-density="compact"] body[data-board-view] .tree-children.tree-children {
+    /* compact keeps the subgoal indent: explicit 0,4,2 beats goal-canvas.ts's 0,4,1, no doubled class (BL-121 ③, T-337) */ html[data-density="compact"] body[data-board-view] .tree-children:not(:empty) {
       margin-left: 8px;
       padding-left: 4px;
     }

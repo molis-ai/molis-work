@@ -9,6 +9,7 @@ import type {
   ConnectorConnectionView,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { ConnectorConnectionDeclarers, inConnectorTransaction, normalizeConnectorDeclarer, type ConnectorConnectionDeclarer } from "./connection-declarers.js";
 
 const SERVICE_ID = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/u;
 const CONNECTION_ID = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|external-[0-9a-f]{24})$/u;
@@ -118,13 +119,23 @@ export const CONNECTOR_CONNECTIONS_SCHEMA = `
     origin TEXT NOT NULL,
     FOREIGN KEY(connection_id) REFERENCES connector_connections(connection_id)
   );
+  CREATE TABLE connector_connection_declarers (
+    connection_id TEXT PRIMARY KEY,
+    plugin_id TEXT NOT NULL,
+    install_id TEXT NOT NULL,
+    plugin_title TEXT NOT NULL,
+    FOREIGN KEY(connection_id) REFERENCES connector_connections(connection_id)
+  );
 `;
 
 /** Home-scoped metadata over the connectors store's baseline tables. Secret values only live in the existing SecretStore. */
 export class ConnectorConnectionStore {
+  /** The package each connection was made for (T-134): `declarers.get(id)`, and `declarers.pin(id, …)` once for a connection that is already there. */
+  readonly declarers: ConnectorConnectionDeclarers;
+
   constructor(private readonly db: DatabaseSync, private readonly secrets: ConnectorConnectionSecrets,
     private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void,
-    private readonly onBindingChange?: (binding: ConnectorBindingKey) => void) {}
+    private readonly onBindingChange?: (binding: ConnectorBindingKey) => void) { this.declarers = new ConnectorConnectionDeclarers(db); }
 
   list(serviceId?: string): ConnectorConnectionRecord[] {
     const sql = serviceId
@@ -161,12 +172,13 @@ export class ConnectorConnectionStore {
   }
 
   view(connection: ConnectorConnectionRecord): ConnectorConnectionView {
-    const targetOrigin = this.targetOrigin(connection.connection_id);
+    const targetOrigin = this.targetOrigin(connection.connection_id), declarer = this.declarers.get(connection.connection_id);
     return {
       connection_id: connection.connection_id, service_id: connection.service_id,
       display_name: connection.display_name, account_label: connection.account_label,
       auth_method: connection.auth_method, source: connection.source, enabled: connection.enabled, state: this.state(connection),
       ...(targetOrigin ? { target_origin: targetOrigin } : {}),
+      ...(declarer ? { declared_by: { plugin_id: declarer.plugin_id, title: declarer.plugin_title } } : {}),
     };
   }
 
@@ -194,17 +206,22 @@ export class ConnectorConnectionStore {
     return origin;
   }
 
-  createToken(input: ConnectorTokenInput): ConnectorConnectionRecord {
+  /** `declarer`: the signed package the service belongs to, when it is a package's (T-134); the connection and its pin are written together. */
+  createToken(input: ConnectorTokenInput, declarer?: ConnectorConnectionDeclarer): ConnectorConnectionRecord {
     const { serviceId, displayName, token } = normalizeConnectorTokenInput(input);
+    const pin = declarer && normalizeConnectorDeclarer(declarer);
     const connectionId = randomUUID();
     const ref = `connector-connection:${connectionId}:token`;
     const now = this.now().toISOString();
     this.secrets.put(ref, token);
     try {
-      this.db.prepare(`INSERT INTO connector_connections
-        (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(connectionId, serviceId, displayName,
-        input.accountLabel?.trim() || null, input.authMethod ?? "token", ref, null, null, "managed", null, now, now);
+      inConnectorTransaction(this.db, () => {
+        this.db.prepare(`INSERT INTO connector_connections
+          (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(connectionId, serviceId, displayName,
+          input.accountLabel?.trim() || null, input.authMethod ?? "token", ref, null, null, "managed", null, now, now);
+        if (pin) this.declarers.pin(connectionId, pin);
+      });
     } catch (error) {
       this.secrets.delete(ref);
       throw error;

@@ -6,6 +6,7 @@
 
 ### 升级须知（需要动手）
 
+- **已装插件的两份列表带上没能启动的原因，个人空间里的签名包能在设置里停用、启用、卸载**（2026-10-31，PG-011 BL-715 T-138）：`plugins.installed.list@2` → `@3`、`plugins.home.installed.list@1` → `@2`，每行多了必有的 `recovery_error`（插件宿主记着的没能启动的原因，没有为 `null`）；新增 `plugins.home.installed.disable@1`、`plugins.home.installed.enable@1`、`plugins.home.installed.uninstall@1`，范围 `home`，只给本人，要宿主设置入口的凭据。都没有 MCP 工具；固定旧版本的引用须重新选择。
 - **目录库起点 1（W5-17，干净 Home）**：项目库位置由 Home 与 project_id 推导，目录不再存 database_path。按用户2026-10-30决定，不迁移旧目录；旧Home整体搬开后创建当前结构1，等代码合入/构建就绪后用户另说“开始”。旧目录版本直接拒绝，无离线升级工具；目录可推导不改变原Home/原key的完整恢复约束。
 
 - **按问题选资料分节（`knowledge.locate`）升到 @3，输出多一个 `omitted`**（2026-10-30，T-132）：分节树太长时只把放得下的整节交给模型，`omitted` 是没给模型看的节数。固定了 `knowledge.locate@2` 的工作流步骤会报错并保留原引用，要在工作流里重选这个动作；直接调用（Agent、MCP、插件）不用改，只是多读到一个字段。

@@ -246,10 +246,10 @@ const headErrors = (measured, budget, base) => {
 // declarations as "each page's defaults plus the extra variables it reads" (not one full list per page, not a packed encoding, for
 // readability), and one small filter helper injected into the shell and the Home dialog; the review re-audit added provider/new and
 // connected/connection_error and the own-key lookup (+64 B), so this one asset is +1,346 B in all; the increment review then corrected
-// the access page's own parameters (client/client_custom instead of format, +14 B): +1,360 B in all; no new asset. With T-183 landed the
-// workbench baseline is 1148549, so this entry's merge-base number is that landed value; the T-203, T-235, T-183 and T-223 entries are consumed (their budgets already equal their ceilings) and are deleted with this change.
+// the access page's own parameters (client/client_custom instead of format, +14 B): +1,360 B in all; no new asset. With T-183 and T-115 landed the
+// workbench baseline is 1148388, so this entry's merge-base number is that landed value and the increment is still +1,343; the T-203, T-235, T-183 and T-223 entries are consumed (their budgets already equal their ceilings) and are deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148549, 1149892],
+  "/assets/molis-work-workbench.js": [1148388, 1149731],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

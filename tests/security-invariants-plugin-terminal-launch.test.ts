@@ -566,3 +566,41 @@ test("RAC-2569 S-103 a terminal's record is its installation's, project's and pe
     assert.equal(catalog.terminalPanels.listIds(project.project_id).includes(homePanel), false, "a project does not count a Home terminal");
   });
 });
+
+test("RAC-2560 S-103 the terminal channel only attaches: a control-token connection that asks to start a program, leaves out attachOnly, adds a key or sends a size out of bounds is refused and starts nothing", { timeout: 60_000 }, async t => {
+  const f = await open(t, []);
+  const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty"), messages: Array<Record<string, unknown>> = [];
+  socket.on("message", raw => messages.push(JSON.parse(raw.toString())));
+  const reply = async (panelId: string) => {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const index = messages.findIndex(message => message.panelId === panelId && (message.type === "error" || message.type === "spawned"));
+      if (index >= 0) return messages.splice(index, 1)[0]!;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error("no answer for " + panelId + ": " + JSON.stringify(messages));
+  };
+  await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+  // Closed here, before the fixture stops the server: an upgraded socket is not among the connections it closes.
+  try {
+    socket.send(JSON.stringify({ type: "auth", token: f.token }));
+    await until(async () => messages.some(message => message.type === "ready"), "the control connection is ready");
+    const cases: Array<[string, (panelId: string, marker: string) => Record<string, unknown>]> = [
+      ["a program", (panelId, marker) => ({ type: "spawn", panelId, command: f.program, args: [marker], cwd: f.home })],
+      ["attachOnly false", (panelId, marker) => ({ type: "spawn", panelId, attachOnly: false, command: f.program, args: [marker], cwd: f.home })],
+      ["a sixth key", (panelId, marker) => ({ type: "spawn", panelId, attachOnly: true, command: f.program, args: [marker] })],
+      ["a width of 0", panelId => ({ type: "spawn", panelId, attachOnly: true, cols: 0, rows: 24 })],
+      ["a height of 1001", panelId => ({ type: "spawn", panelId, attachOnly: true, cols: 80, rows: 1001 })],
+      ["a fractional width", panelId => ({ type: "spawn", panelId, attachOnly: true, cols: 80.5 })],
+    ];
+    for (const [why, message] of cases) {
+      const panelId = `rac-2560-${why.replaceAll(" ", "-")}`, marker = f.marker();
+      socket.send(JSON.stringify(message(panelId, marker)));
+      assert.equal((await reply(panelId)).type, "error", `${why}: refused`);
+      await nothingRan(f, marker, panelId, why);
+    }
+    // Attaching to a panel nobody started answers that nothing runs there, and starts nothing.
+    socket.send(JSON.stringify({ type: "spawn", panelId: "rac-2560-none", attachOnly: true, cols: 80, rows: 24 }));
+    assert.deepEqual(await reply("rac-2560-none"), { type: "spawned", panelId: "rac-2560-none", attached: false, started: false, replay: "" });
+  } finally { socket.terminate(); }
+});

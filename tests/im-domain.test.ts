@@ -291,8 +291,9 @@ test("RAC-2716 joining accepts only a 64-hex invitation credential and writes no
     const invite = { token: randomBytes(32).toString("hex") };
     assert.equal((await f.post(alice.session, `/rooms/${room.id}/invite/rotate`, invite)).status, 200);
     const members = () => (f.db.prepare("SELECT COUNT(*) AS n FROM im_members WHERE room_id = ? AND member_id = ?").get(room.id, bob.member.id) as { n: number }).n;
-    const forged = [randomBytes(33).toString("hex"), "g".repeat(64), randomBytes(32).toString("hex").slice(0, 63)];
-    assert.deepEqual(forged.map(token => token.length), [66, 64, 63]);
+    // The boundary is exact — 64 lowercase hex digits — so 63, 65 and 66 are all outside it, and so is 64 non-hex characters.
+    const forged = [randomBytes(33).toString("hex"), randomBytes(32).toString("hex") + "a", randomBytes(32).toString("hex").slice(0, 63), "g".repeat(64)];
+    assert.deepEqual(forged.map(token => token.length), [66, 65, 63, 64]);
     for (const token of forged) {
       const refused = await f.post(bob.session, "/join", { token });
       assert.deepEqual([refused.status, refused.body.code], [400, "im.invite.invalid_token"], `${token.length} characters is not the credential`);

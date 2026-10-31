@@ -19,18 +19,15 @@ export function createAdvancePrompt(options: AdvancePromptOptions) {
   const { text: L, route, goalId, guard } = options;
   let promptCache = "";
 
-  const loadAdvancePrompt = async (requestedGoalId?: string, feedItemId?: string) => {
+  const loadAdvancePrompt = async (requestedGoalId?: string) => {
     const id = requestedGoalId || goalId();
     if (!id) throw new Error(L("打开失败"));
     if (guard.readOnly()) throw new Error(guard.parentReadOnlyMessage());
     if (requestedGoalId && requestedGoalId !== goalId()) {
       throw new Error(L("当前页面已经切到另一条 Goal，请回到终端所属的 Goal 再操作。"));
     }
-    const query = new URLSearchParams();
-    if (feedItemId) query.set("feed_item_id", feedItemId);
-    const queryText = query.size ? `?${query.toString()}` : "";
     const payload = await options.request<{ prompt?: string } | null>(
-      route(`/api/goals/${encodeURIComponent(id)}/advance-prompt${queryText}`),
+      route(`/api/goals/${encodeURIComponent(id)}/advance-prompt`),
       { fallback: L("打开失败") },
     );
     const text = payload?.prompt || promptCache;
@@ -39,10 +36,10 @@ export function createAdvancePrompt(options: AdvancePromptOptions) {
     return text;
   };
 
-  const writePrompt = async (send: boolean, feedItemId?: string) => {
+  const writePrompt = async (send: boolean) => {
     const panel = options.current();
     if (!guard.canControlPanel(panel)) return;
-    const text = await loadAdvancePrompt(panel.goal_id, feedItemId);
+    const text = await loadAdvancePrompt(panel.goal_id);
     const fillText = text
       .replace(/[\r\n]+/g, " ⏎ ")
       .replace(/[\u0000-\u001f\u007f]/g, " ");

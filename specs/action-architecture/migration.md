@@ -1444,7 +1444,7 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 
 ## Feed 消息去向进入统一动作，首页可推荐与执行（2026-09-26）
 
-- Feed 新增 `feed.items.read/inbox/disposition/restore/promote` 五项命令和 `feed.items.offers` 事项动作查询，全部由 Feed 自己声明并由 Host 在项目目录注册；原 `/api/feed/items/:id/(read|inbox|save|archive|restore|promote|start)` 只把 URL 翻译为这些动作，响应形状（含 `goal_path`）与状态码不变。Feed 存储拒绝（版本冲突、不存在、非法转换）以原错误码作为 ActionError 返回，路由映射回原 404/409。
+- Feed 新增 `feed.items.read/inbox/disposition/restore/promote` 五项命令和 `feed.items.offers` 事项动作查询，全部由 Feed 自己声明并由 Host 在项目目录注册；原 `/api/feed/items/:id/(read|inbox|save|archive|restore|promote)` 只把 URL 翻译为这些动作，响应形状（含 `goal_path`）与状态码不变（`start` 分支与 `feed.item.promote` 的 `start_processing` 已由 T-336 删除，动作升到 @2）。Feed 存储拒绝（版本冲突、不存在、非法转换）以原错误码作为 ActionError 返回，路由映射回原 404/409。
 - 首页对 Feed 消息显示「加入 Inbox / 保存为资料 / 升格为 Goal / 忽略」，已忽略的显示「恢复到 Feed」；按钮名称来自插件声明，输入带读取时的版本，执行前首页重新准备并核对，过期的选项被拒绝而不是覆盖。升格为 Goal 记录实际调用者，不再固定为本地网页用户。
 - 首页与 Feed 网页调用者的原生权限由原生清单派生（`NATIVE_CONTENT_PERMISSIONS`），不再在 Host 手写权限名单；因此 Inbox 自己的「整理成文稿」在首页出现，并如实显示「请先配置文字模型」这类不可用原因。
 - 验证：`tests/feed-item-actions.test.ts`（真实 Host：首页准备/执行、旧选项拒绝、直接调用版本冲突、加入 Inbox、升格 Goal、缺写权限不可执行、旧路由转发与 404/409）；Feed/Home/Inbox/能力相关 39 个文件 179 项中 177 项通过，失败 2 项在 main 上同样失败或已随本次修正（`functions-system-capability` 断言改为检查真实动作声明）；home-offers e2e 按新增的 Feed 选项更新后通过（main 上原本失败）；`project-home-start`、`workbench-pane-feed` 各 1 项在 main 上同样失败。浏览器实操（1280）：首页执行「保存为资料」→ Feed 详情显示「已保存为资料」→ 在 Feed 点「忽略」经转发路由 200 并从列表移除。

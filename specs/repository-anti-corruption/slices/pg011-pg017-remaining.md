@@ -1,6 +1,6 @@
 # PG-011、PG-017 余项的设计稿
 
-状态：设计稿，第 9 节六问用户 2026-10-30 已弹窗裁定、都选推荐项（第 10 节），二审（#1632 评论 6537279271）的四条必修与三审（评论 6537734731）的一条必修由统筹裁定补进稿（第 11 节），T-140～T-145 与 T-149 按稿开单（T-139；方案 #1332 评论 6529582547，统筹 6529598304 批准）。行号在 main `cc138cf75` 上核过；只读了代码，没有构建，也没有跑测试。
+状态：设计稿，第 9 节六问用户 2026-10-30 已弹窗裁定、都选推荐项（第 10 节），二审（#1632 评论 6537279271）的四条必修与三审（评论 6537734731、6537969194）的两条必修由统筹裁定补进稿（第 11 节），T-140～T-145 与 T-149 按稿开单（T-139；方案 #1332 评论 6529582547，统筹 6529598304 批准）。行号在 main `cc138cf75` 上核过；只读了代码，没有构建，也没有跑测试。
 
 ## 为什么有这份稿
 
@@ -20,15 +20,15 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 | 1 | 签名包格式（BL-491、BL-493、BL-916 共用） | 由 T-142～T-144 落地 | 随各单 | 改 S-84 一句 | 第 10 节 D6 |
 | 2 | BL-714 Home 实例的模型入口 | T-140 | RAC-2610～2614 | 扩 S-66、S-91 的分句 | T-134 |
 | 3 | BL-711 Home 包就地升级（回滚不做，D1） | T-141 | RAC-2615～2619 | 改写 S-80、S-84 的分句 | T-134、T-140 |
-| 4 | BL-712 创作台产物装进 Home | T-149 | RAC 号段统筹另给 | 无（D2 甲） | BL-377、BL-589 |
+| 4 | BL-712 创作台产物装进 Home | T-149 | RAC-2656～2658（统筹预留） | 无（D2 甲） | BL-377、BL-589 |
 | 5 | BL-713 导航位置与图标 | T-142（档甲） | RAC-2620～2626、2653 | 无 | T-138、#1576、#1552 |
-| 6 | BL-491 模型设置与生图 | T-143 | RAC-2627～2635、2654 | 扩 S-60；S-66、S-91 补分句 | 第 1 节、D6（不依赖 T-142） |
-| 7 | BL-493 Agent 角色与方法正文 | T-144 | RAC-2636～2643 | S-104（统筹暂留） | T-143 |
+| 6 | BL-491 模型设置与生图 | T-143 | RAC-2627～2635、2654、2655 | 扩 S-60；S-66、S-91 补分句 | 第 1 节、D6（不依赖 T-142） |
+| 7 | BL-493 Agent 角色与方法正文 | T-144 | RAC-2636～2643 | S-104（统筹暂留） | T-143 先合 |
 | 8 | BL-710 项目范围动作对 Home 包可达 | T-145 | RAC-2644～2649 | S-105（统筹暂留） | T-134、T-141 |
 
 - S-104、S-105 是统筹给 BL-493、BL-710 暂留的号。开 T-144、T-145 时，统筹会再核 main 与在途的改动。S 号要连着排：前面的号如果还没落地，这两个可能顺延。S-103 已经给了 T-136。
 - BL-715 不在这份稿里，由 T-138 做。
-- 二审后各单的 RAC 段在 RAC-2610～2649 这四十个号里重新分过；三审再按统筹的批示从 2650～2669 段里取 RAC-2653、RAC-2654 两个号（RAC-2650～2652 是 T-147 的）。合计 42 个：T-140 五个、T-141 五个、T-142 八个（2620～2626、2653）、T-143 十个（2627～2635、2654）、T-144 八个、T-145 六个。每节「可检验」的条目都写了号，条数与号数一一对应。
+- 二审后各单的 RAC 段在 RAC-2610～2649 这四十个号里重新分过；三审再按统筹的批示从 2650～2669 段里取 RAC-2653、RAC-2654、RAC-2655 三个号（RAC-2650～2652 是 T-147 的）。T-140～T-145 合计 43 个：T-140 五个、T-141 五个、T-142 八个（2620～2626、2653）、T-143 十一个（2627～2635、2654、2655）、T-144 八个、T-145 六个；T-149 另有统筹预留的 RAC-2656～2658 三个。每节「可检验」的条目都写了号，条数与号数一一对应。
 
 ## 1. 前提：签名包的格式（BL-491、BL-493、BL-916 共用，先定这个）
 
@@ -88,7 +88,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- 不单独开单：T-142 落地图标，T-143 落地模型设置与生图两块，T-144 落地 `agent`、`methods`，RAC 在它们各自的号段里。三单各给 `sandboxPluginManifest` 加各自的输入项，彼此不依赖；谁先合谁先改参数形状，后合的在合并时解冲突。
+- 不单独开单：T-142 落地图标，T-143 落地模型设置与生图两块，T-144 落地 `agent`、`methods`，RAC 在它们各自的号段里。T-142 与 T-143 各给 `sandboxPluginManifest` 加各自的输入项，彼此不依赖，谁先合谁先改参数形状，后合的在合并时解冲突；T-144 在 T-143 之后（同一处包格式，第 7 节）。
 - **BL-916 只由 T-143、T-144 解决 model、agent、methods 三项**，装进来的真实包能调 `sdk.model.*` 的用例在 T-143（第 6 节）。**之后仍待**：`homeDatabase`、`connections`、`materials`、`ownerFiles`、`background`，需要固定 Manifest 能声明它们——这几项都要包自己起名字（owner_files 目录、库名、连接槽、来源域名），要沿用 `effects` 派生的做法并另写命名规则，另开开发单，BL-916 这一行不删（第 11 节 R3）。
 
 ## 2. BL-714 Home 实例的模型入口（T-140）
@@ -197,10 +197,10 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 之后产物走 S-84 那条唯一的安装路：验签、固定、本人确认、沙箱，S-80 不变；
   - 密钥按「密钥只给引用」存放，删 Home 时一起删。
 - **乙**：放开 S-80，允许 `unsigned` 加沙箱装进 Home。没有发布者身份，等于让一个没署名的东西常驻 Home。
-- 可检验（甲；这三条没有号，是因为 T-149 的号段统筹开单时才给，是「逐条带号」唯一的例外，开单时逐条带上）：
-  - 本机密钥没有固定时，产物装不进 Home；
-  - 固定之后能装；
-  - 别的 Home 的密钥签的包，在这里仍是未固定的发布者。
+- 可检验（甲）：
+  - RAC-2656：本机密钥没有固定时，产物装不进 Home；
+  - RAC-2657：固定之后能装；
+  - RAC-2658：别的 Home 的密钥签的包，在这里仍是未固定的发布者。
 
 ### S
 
@@ -209,7 +209,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- 开发单 T-149，RAC 号段由统筹另给，不在 T-138～T-145 里。
+- 开发单 T-149，RAC-2656～2658（统筹预留，不在 T-140～T-145 的号里），对应上面三条。
 - 依赖：D2；甲方案与 BL-589 共用「创作台发布出签名包」这一步，推荐排在 BL-589 之后，或与它合成一单。BL-377 的重做不必等。
 
 ## 5. BL-713 导航位置与图标（T-142）
@@ -292,7 +292,8 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - **真正挡住装进来的包的，是 `givenService`**（三审必修 1，统筹采纳；上一版把拦路点写成了 `execution === "sandbox"` 的两处检查，是错的）：
   - `apps/local-host/src/plugin-declared-services.ts` 第 8～14 行的 `givenService`：Manifest 声明了 `model_configuration` 或 `image_generation`、而宿主没有把它「给」这个定义，就以 `plugin.declaration_invalid`（「不在宿主启动名单上的插件现在还没有模型设置」）拒启动。`home-plugin-executor.ts` 第 134～135 行调它；
   - 它拿到的「给」的值来自 `plugin-entry-identity.ts` 第 21～22 行的两张 `WeakMap`（`modelConfigurationFor`、`imageGenerationFor`），只有 `remember(启动名单)`（同文件第 37～42 行）会填它们，装进来的定义永远取到 `undefined`；
-  - `model-configuration-entries.ts` 第 12 行与 `plugin-image-generation-entries.ts` 第 11 行的 `execution === "sandbox"` 拒绝，只在宿主启动名单（`home-plugins.ts` 第 191、200～201 行）上跑；装进来的包走的是 `home-installed-plugins.ts` 第 112～113 行的 `sandboxDeclaration`，不经过这两处。pg017 片的表也写着「声明只在宿主条目上，沙箱插件没有条目」。**这两处检查不动**：沙箱定义进不了启动名单，它们在名单上仍是有效的防线。
+  - `model-configuration-entries.ts` 第 12 行与 `plugin-image-generation-entries.ts` 第 11 行的 `execution === "sandbox"` 拒绝，只在宿主启动名单（`home-plugins.ts` 第 191、200～201 行）上跑；装进来的包走的是 `home-installed-plugins.ts` 第 112～113 行的 `sandboxDeclaration`，不经过这两处。pg017 片的表也写着「声明只在宿主条目上，沙箱插件没有条目」。**这两处检查不动**：沙箱定义进不了启动名单，它们在名单上仍是有效的防线；
+  - **第三处，在 `givenService` 之后**（三审必修，统筹采纳）：`plugin-image-generation-service.ts` 第 15 行 `pluginImageGenerationFor` 开头是 `if (!home || !declaration || definition.execution === "sandbox") return undefined;`。执行器（`home-plugin-executor.ts` 第 135 行）先过 `givenService`，再把结果交给它；对沙箱定义这一行直接返回 `undefined`，`services.imageGeneration` 为空。就算 `givenService` 与 `SANDBOX_SERVICE_FATE` 都改好，装进来的包也拿不到生图客户端。模型一侧没有这个问题：`plugin-model-service.ts` 第 23～29 行的 `pluginModelFor` 只看声明是否给了，不看 `execution`。
 - 存储登记也落不到现有机制：Home 的登记表是静态的 `homeStores()` 加测试夹具（`home-side.ts` 第 86～98 行），不收装进来的包；装进来的包的库归属走账本（`installed-plugin-libraries.ts` 第 94～139 行，`holderOf` 防撞，卸载清理读同一张表）。
 - **范围**：这两块的使用方只有 Home 执行器（`git grep` `apps/local-host/src` 核过）；`assertHomeOnlyDeclarations`（`plugin-declared-services.ts` 第 16～31 行）拒项目里（非双实例）的插件写这两块。
 - **一个安全边界**：模型设置的 `save` 接受 `base_url`、`api_format`、`connection_id`（`plugin-model-configuration.ts` 第 7～12 行、`apps/local-host/src/model-configuration.ts` 第 49～53、85 行），会把本插件专用的供应商指到调用方给的地址；沙箱同时有 `sdk.model.complete`（S-66）。也就是说，如果放着不管，包能影响人的模型请求发往哪里，而联网来源本来是由人逐个批准的（S-93、S-95）。`assertTarget`（`model-configuration.ts` 第 79 行）挡到哪一步还没有核完。
@@ -307,7 +308,8 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
     - `model_configuration`：`preference.store_name`、`preference.file_name`、`custom_provider.provider_id` 都由 `plugin_id` 派生（取值规则在开发单里定，要满足现有的格式检查，并保证不同 `plugin_id` 得到不同的名字，也不会与静态登记表里的名字相撞）；`display_name` 取清单的 `name`；
     - `image_generation`：`store_name` 同样派生，三个权限名固定成平台起的名字（在开发单里定）。
 - **`givenService` 怎样拿到派生出来的声明**（三审必修 1 的 a）：装进来的定义不走启动名单的 `WeakMap`，由安装记录加派生规则当场算。先例是 `plugin-database-entries.ts` 第 77～90 行的 `homeLibraryFor(definition, given, record)`：沙箱定义忽略名单绑定，用安装记录里的主人。做法：`pluginEntryIdentity` 给 `modelConfigurationFor`、`imageGenerationFor` 各加一个带安装记录的入口；执行器对沙箱定义把派生出来的声明交给 `givenService`；声明与按 `plugin_id` 重新派生的结果不相等就拒（`plugin.declaration_invalid`）。对不是沙箱、又不在启动名单上的定义，`givenService` 仍照旧拒绝。
-- **归属记在哪**（三审必修 1 的 b）：派生出来的 `store_name`、专用供应商 id 的主人关系记在已装包的账本（`installed-plugin-libraries.ts`，沿 `holderOf` 防撞的做法，登记时与静态登记表和别的插件的名字比对），不进静态登记表；卸载清理读同一张账本。账本怎样加一类条目（同一张表加一列，还是同一份账本文件里另开一张表）T-143 开工第一步写明，核不通就停下回统筹。`actions.read`、`actions.save` 怎么指同理：沿用现有的「指向 `manifest.actions` 的唯一动作」检查，还是为沙箱另写一条等价的派生检查（两个设置动作由宿主按 `plugin_id` 派生登记，权限用上面的权限行），也在第一步写明，核不通就停下回统筹，不自己换设计。
+- **归属记在哪**（三审必修 1 的 b）：派生出来的 `store_name`、专用供应商 id 的主人关系记在已装包的账本（`installed-plugin-libraries.ts`，沿 `holderOf` 防撞的做法，登记时与静态登记表和别的插件的名字比对），不进静态登记表；卸载清理读同一张账本。现在的账本表 `plugin_home_libraries` 是一个插件一行、一个库名（第 109～110、126 行），而 T-143 要给一个插件登记最多三个名字（偏好库名、专用供应商 id、生图库名），所以账本怎样加一类条目（同一张表加列，还是同一份账本文件里另开一张表）T-143 开工第一步写明，核不通就停下回统筹。`holderOf(name, reserved)`（第 101 行）现在只比静态登记表，开单时补上账本里别的行：派生出来的库名、供应商 id 也要与账本里已有的库名、供应商 id 互相防撞。`actions.read`、`actions.save` 怎么指同理：沿用现有的「指向 `manifest.actions` 的唯一动作」检查，还是为沙箱另写一条等价的派生检查（两个设置动作由宿主按 `plugin_id` 派生登记，权限用上面的权限行），也在第一步写明，核不通就停下回统筹，不自己换设计。
+- **`pluginImageGenerationFor` 的沙箱分支**（`plugin-image-generation-service.ts` 第 15 行）：删掉 `definition.execution === "sandbox"` 这一项，改由 `givenService` 派生出来的声明决定有没有客户端（给了就建，没给就是 `undefined`，与 `pluginModelFor` 一致）。沙箱定义没有声明，本来就拿不到；声明是宿主按 `plugin_id` 派生的，所以这一行不再需要另外拦一次。
 - **`SANDBOX_SERVICE_FATE`**：`imageGeneration` 从 `'entry'` 改成 `'given'`，NOT_GIVEN 的 `model_configuration` 一行删掉（`packages/plugin-sandbox/src/services.ts`）。
 - **模型设置的 `save` 怎么限**（统筹裁定，第 11 节 R2）：沙箱包的 `save` **不许写 `base_url` 和 `connection_id`**（`api_format` 与指向自己的专用供应商也一并不许），只能在宿主已经批过、已经启用的供应商与模型里选（`provider_id`、`model_id`）。S-93、S-95 的来源审批因此不被绕开。T-143 开工**第一步**先核 `assertTarget` 对 `base_url` 与连接配对能挡到哪一步，结论写进 PR，并把每个被拒的字段写成一条拒绝用例。要给沙箱包自定义供应商，要走来源批准，另议、不在本单。
 - 生图：只给命令，不给查询；照项目的计量；返回的 base64 字节设上限，数字在开发单里定，照 pg017 片 §3.7 的取法。
@@ -324,7 +326,8 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - RAC-2633：返回超过字节上限被拒；生图计量照项目；
   - RAC-2634：装进来的包的声明交给 `givenService` 时，声明与按 `plugin_id` 派生的结果对不上被拒；不是沙箱又不在启动名单上的定义仍被 `givenService` 拒（真实签名包经这条路能启动，是这一条的正面用例）；
   - RAC-2635：卸载（保留数据或不保留）时，账本里的归属行与专用供应商登记一并清掉；
-  - RAC-2654：项目范围的包写 `model_configuration` 或 `image_generation` 仍被 `assertHomeOnlyDeclarations` 拒。
+  - RAC-2654：项目范围的包写 `model_configuration` 或 `image_generation` 仍被 `assertHomeOnlyDeclarations` 拒；
+  - RAC-2655：装进来的真实签名包调生图的 `generate` 成功（正面用例，不是拒绝）：经 `givenService` 与 `pluginImageGenerationFor` 拿到客户端，返回照上限与计量。
 
 ### 选项与推荐
 
@@ -343,7 +346,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- RAC-2627～2635、RAC-2654，对应上面十条。
+- RAC-2627～2635、RAC-2654、RAC-2655，对应上面十一条。
 - 依赖：第 1 节的格式扩展（本单落地其中的模型、模型设置、生图三块）、D6。**不依赖 T-142**：两单各给 `sandboxPluginManifest` 加各自的输入项（第 1 节）。
 - 档：甲（改 contracts 的 `SandboxEffects`、预览形状、安全边界）。
 
@@ -483,7 +486,7 @@ S-105（统筹暂留）：Home 沙箱包只在本人对某个项目同意之后�
 
 二审的建议 A～E、G～I 都已照做：A 行号改为 273～275；B 把 bl628 的 D5 写明；C BL-712 统一写 T-149；D 预览不止三样、`effects` 新键要改 contracts，已算进 T-143；E 权限行由 `effects` 派生；G 补了 T-145 的项目来源、升级后沿用、删项目清同意与依赖；H 各节「可检验」逐条带 RAC 号；I 更新了 PR 正文。
 
-三审（#1632 评论 6537734731，增量二审）又要改一条必修，统筹同日裁定如下，并采纳其中的建议 J～P：
+三审（#1632 评论 6537734731，增量二审）又要改一条必修，统筹同日裁定如下，并采纳其中的建议 J～P；三审的增量（评论 6537969194）再要一条必修与建议 Q～S，也已照做（R6）：
 
 | # | 裁定 |
 | --- | --- |
@@ -498,3 +501,9 @@ S-105（统筹暂留）：Home 沙箱包只在本人对某个项目同意之后�
 - N：T-143 不依赖 T-142，汇总表与各节改成一致；
 - O：PR 正文如实写 `privileges.md` 的 PG-011 格有改动；
 - P：BL-710、711、714 补上 RAC 段，BL-916 的开发单列写 T-143、T-144；新增的号取 RAC-2653、RAC-2654（统筹的 2650～2669 段，RAC-2650～2652 是 T-147 的）。
+
+| # | 裁定 |
+| --- | --- |
+| R6 | **生图在 `givenService` 之后还有第三道沙箱拒绝**：`plugin-image-generation-service.ts` 第 15 行的 `definition.execution === "sandbox"`。T-143 的「现状」列出它，「做完」写明 `pluginImageGenerationFor` 的这个分支怎么改（删掉，改由派生声明决定），并补一条生图的正面用例 RAC-2655 |
+
+Q～S（统筹同日裁定，已照做）：Q 把依赖说法统一为「T-142 与 T-143 彼此不依赖，T-144 在 T-143 之后」；R 账本一个插件一行一个库名，T-143 要登记最多三个名字，开单第一步写明账本形状，`holderOf` 补上与账本里别的行的防撞；S T-149 的三条验收用统筹预留的 RAC-2656～2658。

@@ -1,6 +1,6 @@
 # PG-111：Goals 的合同归 Goals，顺带拆开事件事实的接口（T-112）
 
-状态：两个 PR（2026-10-29，Claude（设备 A））。第一个，BL-781（第 1 节）：PR #1516 已合入 main（e75051931）；第二个，合同搬进 Goals 插件并改入口（第 2 节，分支 `task/T112b-ca`）：已合 main，开 PR 待验证与二审。方案与裁定在 #1332（【方案 T-112】、【王一骏裁定 T-112】，选 A）。
+状态：两个 PR 都已合入 main：第一个，BL-781（第 1 节）：PR #1516（e75051931，2026-10-29）；第二个，合同搬进 Goals 插件并改入口（第 2 节）：PR #1527（ac5735fb2，2026-10-30）。方案与裁定在 #1332（【方案 T-112】、【王一骏裁定 T-112】，选 A）。
 
 ## 1. BL-781：`GoalEventFactsApi` 拆成事实、状态、意图
 
@@ -41,11 +41,11 @@ Goals 包内 136 个文件的 193 处引用改成指向 `contract/` 的相对路
 
 `checkGoalTransportCallers`（`scripts/check-package-boundaries.mjs`）原来写死「CLI 与 MCP 分发器只能从平台合同的 `modules/goal-actions` 取 `goalEntryActions`」。现在写成**入口不许碰任何 Goals 合同**，比原来更严：
 
-- 新增 `entries`：`apps/cli/src` 与 `apps/mcp/src` 的每个文件，任何语法的引用（`import`、`export … from`、`import()`、`require()`、import 类型）指向 Goals 包（含 `/contract`）、Goals 源码路径或平台合同的旧三个子路径，都拒绝。
+- 新增 `entries`：`apps/cli/src` 与 `apps/mcp/src` 的每个文件，任何语法的引用（`import`、`export … from`、`import()`、`require()`、import 类型）指向 Goals 包（含 `/contract`）、Goals 源码路径或平台合同的旧三个子路径，都拒绝。入口文件按 `ENTRY_SOURCE_FILE`（`scripts/check-package-boundaries.mjs`）认 `.ts`、`.tsx`、`.js`、`.jsx`、`.mts`、`.cts`、`.cjs`、`.mjs`。
 - CLI 分发器只许引用 `platform/actions` 与 `./protocol.js`，MCP 分发器只许引用 `platform/actions` 与 `./goal-presentation.js`；每个 `invoke` 的第一个参数必须是自己声明的表（`GOALS`、`MANAGEMENT_GOAL_ACTIONS`）的一项，表要在文件里声明，要求的调用（CLI 的 `GOALS.snapshot`，MCP 的 `initialize`、`decide`、`treeDecide`）都在。
 - 宿主那一半（`checkGoalsManagementWiring`，`cli-project.ts` 与 `mcp-v1-tool.ts` 的装配）不变；因此事件决定的字段表不放进分发调用的选项里，而是放在宿主造的端口上（`fields`），那条调用文本一个字没变。
 
-先红：同一批新用例在旧门禁上 5 个失败（`t112b-gate-red`），换上新门禁后 10 个全过（RAC-1774 加上原有用例按新表名改写）。
+先红：当时（T-112 第二本合入时）同一批新用例在旧门禁上 5 个失败（`t112b-gate-red`），换上新门禁后 10 个全过（RAC-1774 加上原有用例按新表名改写）；之后该测试文件继续增加用例（T-259 #1547 起），不再拿总数代表现状。
 
 ### 对 MCP、CLI 工具生成的影响
 

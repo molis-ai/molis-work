@@ -96,26 +96,19 @@ test("PLIB-12 opening the same declaration again opens normally and changes noth
   } finally { db.close(); }
 });
 
-test("PLIB-13 the declared tables are the ones the version 7 baseline had for Goals and Governance, the board without its name and keyed to the project's root", () => {
+test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business fixture and its board is keyed to the project root", () => {
   const db = emptyLibrary();
-  const version7 = new DatabaseSync(":memory:");
+  const expected = new DatabaseSync(":memory:");
   try {
     open(db);
-    // The only record of the tables as the baseline made them: the current baseline (tests/fixtures/project-database-schema.sql) no longer has them.
-    version7.exec(readFileSync(new URL("./fixtures/project-database-schema-v7.sql", import.meta.url), "utf8"));
-    const then = describeSqliteSchema(version7).tables, declared = describeSqliteSchema(db).tables;
-    for (const table of GOALS_TABLES.filter(name => name !== "boards")) {
-      assert.ok(then[table], `${table} is in the version 7 baseline`);
-      assert.deepEqual(declared[table], then[table], `${table} is as it was: its keys still point at the board`);
+    expected.exec(readFileSync(new URL("./fixtures/goal-event-history/approved.sql", import.meta.url), "utf8"));
+    const current = describeSqliteSchema(expected).tables, declared = describeSqliteSchema(db).tables;
+    for (const table of GOALS_TABLES) {
+      assert.ok(current[table], `${table} is in the independent current fixture`);
+      assert.deepEqual(declared[table], current[table], `${table}: complete columns, checks, keys and indexes`);
     }
-    const board = then.boards!;
-    assert.deepEqual(board.columns.map(column => column.name), ["project_id", "title", "active_goal_id", "created_at", "updated_at"], "version 7's board carried the project's name");
-    assert.deepEqual(declared.boards, {
-      ...board,
-      columns: board.columns.filter(column => column.name !== "title"),
-      foreign_keys: [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }],
-    }, "the board lost its name and its key points at the root, deleting with it");
-    // And nothing more: the declaration makes no table the baseline did not have for these owners.
+    assert.deepEqual(declared.boards!.columns.map(column => column.name), ["project_id", "active_goal_id", "created_at", "updated_at"]);
+    assert.deepEqual(declared.boards!.foreign_keys, [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }]);
     assert.deepEqual(Object.keys(describeSqliteBaseline(GOALS_PROJECT_DATABASE).tables).sort(), GOALS_TABLES);
-  } finally { version7.close(); db.close(); }
+  } finally { expected.close(); db.close(); }
 });

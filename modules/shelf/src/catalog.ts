@@ -10,7 +10,7 @@ import type {
 import { shelfErrors } from "./errors.js";
 import { defaultShelfDeviceSettings } from "./settings.js";
 
-export const CATALOG_VERSION = 2;
+export const CATALOG_VERSION = 1;
 export const CATALOG_FILE = "catalog.json";
 
 export interface StoredItem extends Omit<ShelfItemRecord, "hidden" | "size_bytes" | "preview_text"> {

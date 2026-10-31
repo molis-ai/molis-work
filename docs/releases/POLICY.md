@@ -50,9 +50,11 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 5. 数据库版本与产品版本
 
-产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。每个库只认一个当前版本，不符就拒绝（只有搜索索引这种可重建的派生库重建，角色库只拒绝更高的版本，MCP 授权文件读成空，密钥文件 `feed/secrets.json` 拒绝读取）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。这套「版本不符就拒绝、老 Home 先维护」只到第一个装到开发机之外的版本为止（用户 2026-10-08 的决定 #15，`specs/repository-anti-corruption/spec.md` §1）：发布那个版本的 PR 把起点写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)（检查清单第 1 节第 2 项），从那以后库的版本变更要带升级路径，不再靠拒绝加一次性维护；升级机制现在还没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2（C-2）。
+产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。每个库只认一个当前版本，不符就拒绝（只有搜索索引这种可重建的派生库重建；角色库同样严格拒绝不符版本，MCP 授权文件和密钥文件 `feed/secrets.json` 拒绝读取并保留原文件）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。这套「版本不符就拒绝、老 Home 先维护」只到第一个装到开发机之外的版本为止（用户 2026-10-08 的决定 #15，`specs/repository-anti-corruption/spec.md` §1）：发布那个版本的 PR 把起点写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)（检查清单第 1 节第 2 项），从那以后库的版本变更要带升级路径，不再靠拒绝加一次性维护；升级机制现在还没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2（C-2）。
 
-W5-16 B1 的讨论库 1 → 2 按这条规则执行：运行时只认 2，维护在离线副本上先 list，保留旧链接、业务事实与敏感原件后再重建；中断标记存在时拒绝启动业务库。真正维护仍与 W5-17、Goals S9 的同一个授权窗口执行，当前功能 PR 不操作真实 Home。产品发布版本不因本片提前修改。
+2026-10-30 用户经统筹 #1332 6517794305 改为干净重建：本次保留各库现行完整结构，存储起点统一为 1；W5-16 B1 的讨论库 1→2、W5-17、Goals S9 等旧库维护路线取消，旧转换工具、旧结构夹具和演练删除。各片代码先验证合入，真实 Home 的搬开与重建另等用户说“开始”，步骤见检查清单第 4 节；此决定不授权提前停服务、安装或操作 Keychain，也不改变产品发布版本及外部版本之后的兼容策略。
+
+版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
 
 ## 6. 交付状态与尚缺项
 
@@ -69,7 +71,7 @@ W5-16 B1 的讨论库 1 → 2 按这条规则执行：运行时只认 2，维护
 ### 7.1 两种情形的共同背景
 
 - 有安装记录的只有 `startPlatform`（`apps/local-host/src/project-plugins.ts`）交给监督器的 `entries`（`projectPluginEntries()`）里的内置插件，名单以登记上的 `project_runtime` 为准、不在这里写死（2026-10-08 写下这条时是 Characters、Shelf、Coding、Files、Diff、Git、TextStats 这 7 个；Characters 按用户 2026-10-08 的决定会并进宿主，第 4 波；CHR-1 已做，2026-10-22：它不再是插件，已有项目库里的 Characters 记录没人启动也没人改，删除是 `docs/releases/CHECKLIST.md` 第 4.3 节维护八里的一项）。记录按项目存在 `projects/<project_id>/molis-work.db` 的 `plugin_runtime_installs` 表里（`PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL`，`packages/plugin-runtime/src/repository.ts:14`），每个版本与摘要的发行物存档在同库的 `plugin_runtime_release_artifacts`（`PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL`，`packages/plugin-runtime/src/release-artifacts.ts:30`，主键含 `manifest_digest`，`:36`）。别的内置插件走旧的装配，没有这种记录。
-- 清单的摘要覆盖整份 Manifest，不只是版本（`pluginManifestDigest`，`packages/plugin-runtime/src/identity.ts:5`）：动作、权限、成果类型、界面贡献，改任何一处摘要都变。清单里还嵌着从别处引进来的定义：每个清单的 `actions` 是插件里别的文件导出的动作表（Coding 是 `codingManifest` 的 `actions: [...CODING_ACTIONS, codingArtifactPreview]`，`plugins/native/coding/src/manifest.ts:108`），Coding 的 `capabilities.consumes` 当时由 contracts 的 `agentHostCapabilities`、`goalContextCapabilities`、`goalProgressCapabilities` 展开（当前已改为 `agentHostCapabilities` 与共享的 `goalPluginActions`）（同文件 `:60-62`）。所以不碰 `manifest.ts`，摘要也会变。
+- 清单的摘要覆盖整份 Manifest，不只是版本（`pluginManifestDigest`，`packages/plugin-runtime/src/identity.ts:5`）：动作、权限、成果类型、界面贡献，改任何一处摘要都变。清单里还嵌着从别处引进来的定义：每个清单的 `actions` 是插件里别的文件导出的动作表（Coding 是 `codingManifest` 的 `actions: [...CODING_ACTIONS, codingArtifactPreview]`，`plugins/native/coding/src/manifest.ts:108`），Coding 的 `capabilities.consumes` 当时由 contracts 的 `agentHostCapabilities`、`goalContextCapabilities`、`goalProgressCapabilities` 展开（当前已改为 `agentHostCapabilities` 与 Coding 自己就地声明的 `GOALS_ACTIONS`，见 `plugins/native/coding/src/goals-actions.ts`）（同文件 `:60-62`）。所以不碰 `manifest.ts`，摘要也会变。
 - 私有数据按 `install_id` 存（`SqlitePluginPrivateStorage.forPlugin` 按它读写 `plugin_private_values`，`packages/plugin-runtime/src/private-storage.ts:51`），所以任何做法都必须保留原来的安装记录，不能卸载再重装，否则私有数据成了孤儿。
 - 用户 2026-10-04 的决定写的是内置插件「启动时把安装记录升到宿主的版本……不再恢复旧发行物」（`specs/repository-anti-corruption/spec.md` §1 该日期的一行）。#237 只做了版本更高这一种：监督器对「更高」才直接放行（`#resolveInstalledEntry` 的 `directlyUsable`，`supervisor.ts:491-492`），其余情形仍恢复旧发行物。所以下面把 Runtime 也改成不恢复旧发行物的做法（A、E），算把那条决定补全到它没覆盖的情形，还是新增行为，由用户定；用户选了 A，按补全办（第 7.6 节第 2 条）。
 - 这 7 个插件在 v0.2.0 里还不存在（`git ls-tree v0.2.0 plugins/native/` 只有 artifacts、feed、goals、work），没有任何已发布的构建写过这些安装记录：现有的记录全部来自开发机上的构建。

@@ -29,6 +29,8 @@ export class IntegrationDeclarations {
   private readonly services = new Map<string, RegisteredConnectionService>();
   private readonly integrations = new Map<string, RegisteredIntegration>();
   private readonly declared = new Map<string, { services: readonly string[]; integrations: readonly string[] }>();
+  /** The display name each declaring plugin's Manifest gives it, for the cards that say where a service comes from. */
+  private readonly names = new Map<string, string>();
 
   constructor(platform: readonly PluginConnectionServiceDeclaration[] = []) {
     for (const declaration of platform) {
@@ -52,6 +54,7 @@ export class IntegrationDeclarations {
   declare(manifest: PluginManifest): void {
     if (this.declared.has(manifest.plugin_id)) return;
     this.assertFree(manifest);
+    this.names.set(manifest.plugin_id, manifest.name);
     const services = manifest.connection_services ?? [];
     const integrations = manifest.integrations ?? [];
     for (const declaration of services) this.services.set(declaration.service_id, { declaration, owner: manifest.plugin_id });
@@ -64,12 +67,18 @@ export class IntegrationDeclarations {
     const held = this.declared.get(pluginId);
     if (!held) return;
     this.declared.delete(pluginId);
+    this.names.delete(pluginId);
     for (const id of held.services) this.services.delete(id);
     for (const id of held.integrations) this.integrations.delete(id);
   }
 
   has(pluginId: string): boolean {
     return this.declared.has(pluginId);
+  }
+
+  /** The name a Manifest gives a declaring plugin, or undefined when it declares nothing here. */
+  pluginName(pluginId: string): string | undefined {
+    return this.names.get(pluginId);
   }
 
   /** Every registered service: the platform's first, then each plugin's in the order they were declared. */

@@ -165,6 +165,36 @@ export interface UiSettingsDataDeclaration {
   readonly action: string;
 }
 
+/**
+ * Where a plugin's stage gets what it shows (T-133, PG-060): the same rule as `settings_data`. `action` is the `capability_id` of one of
+ * the same Manifest's own actions, a query for the person (audience `user`) that only reads, with one version. The Host calls it with no
+ * input, as the person in the project and with only that action's own permissions, and the stage receives the answer as
+ * `StagePageModel.data`; the Host knows no plugin by name for it. A stage that needs nothing of its own declares none.
+ */
+export interface UiStageDataDeclaration {
+  readonly action: string;
+}
+
+/** What the Host writes text and markup with on a plugin's stage, in the page's locale. */
+export interface StagePagePrimitives {
+  escape(value: unknown): string;
+  text(value: string, values?: Record<string, string | number>): string;
+  /** An icon of the Host's catalog by name. */
+  icon(name: string): string;
+  /** A time as the page shows it (short month, day, hours and minutes); a value that is not a time comes back as it is. */
+  formatDate(value: string): string;
+}
+
+/** The model every plugin's stage is drawn with, whoever draws it: the page's place and plugins, and the answer of its `stage_data` action. */
+export interface StagePageModel<Data = unknown> {
+  readonly route_prefix: string;
+  /** The plugins the page shows. */
+  readonly shown_plugins: readonly string[];
+  /** The `stage_data` action's answer; absent when the view declares none, or when the plugin is not there to answer. */
+  readonly data?: Data;
+  readonly primitives: StagePagePrimitives;
+}
+
 /** The platform facts the Host gives every plugin's settings page, in this one shape, whatever the plugin is. */
 export interface SettingsPageContext {
   /** The projects the person has, for a page that offers to open something in one. */
@@ -211,6 +241,12 @@ export interface UiViewDeclaration {
   readonly view_id: string;
   readonly slot: UiViewSlot;
   readonly title: string;
+  /**
+   * `navigator` and `island` views only: the title in the English interface (BL-636), one line of English of at most 80 characters.
+   * Left out, the English interface shows `title`; the Chinese interface always does. A view that opens nothing from the rail has
+   * no title the shell draws, so a `side`, `settings` or `stage` view that declares it is refused.
+   */
+  readonly title_en?: string;
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**
@@ -245,6 +281,11 @@ export interface UiViewDeclaration {
   readonly settings_data?: UiSettingsDataDeclaration;
   /** `settings` views only: request the Host's Agent Runtime list in `SettingsPageContext.runtimes`. Omission skips the query. */
   readonly settings_runtimes?: true;
+  /**
+   * The view that opens the plugin's stage only (its `stage` view, else its `navigator` view): the read action that gives the stage its
+   * data. The Host calls it as the person and hands the answer to the stage, on the page and when the stage is redrawn in place.
+   */
+  readonly stage_data?: UiStageDataDeclaration;
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */

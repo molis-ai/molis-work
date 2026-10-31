@@ -263,34 +263,6 @@ export function resolvePlanningMethodPacks(
     || left.method_id.localeCompare(right.method_id));
 }
 
-export const TASK_CONTEXT_METHOD_IDS: Record<string, string[]> = {
-  game: ["work-build-change", "domain-game-design"],
-  app: ["work-build-change", "domain-app-product"],
-  ai_data: ["work-build-change", "domain-ai-data-product"],
-  content_research: ["work-content-communication", "domain-research-content"],
-  operations: ["work-operate-process", "domain-operations-organization"],
-  other: ["work-build-change"],
-};
-
-export function methodPacksForReview(
-  available: readonly PlanningMethodPack[],
-  methodPackIds: readonly string[],
-  taskContext?: string | null,
-): { packs: PlanningMethodPack[]; missing_ids: string[] } {
-  const ids = methodPackIds.length ? [...new Set(methodPackIds)] : TASK_CONTEXT_METHOD_IDS[taskContext ?? "other"] ?? TASK_CONTEXT_METHOD_IDS.other;
-  const byId = new Map(available.filter((pack) => pack.enabled).map((pack) => [pack.method_id, pack]));
-  return {
-    packs: ids.map((id) => byId.get(id)).filter((pack): pack is PlanningMethodPack => pack != null),
-    missing_ids: ids.filter((id) => !byId.has(id)),
-  };
-}
-
-export function mergedCoverageRules(packs: readonly PlanningMethodPack[]): PlanningCoverageRule[] {
-  const rules = new Map<string, PlanningCoverageRule>();
-  for (const pack of packs) for (const item of pack.required_coverage) if (!rules.has(item.area)) rules.set(item.area, item);
-  return [...rules.values()];
-}
-
 /**
  * Builds the project planning lens consumed by a Runtime. Method paths stay
  * separate because multiple methods are complementary reasoning passes, not a

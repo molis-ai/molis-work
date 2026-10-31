@@ -20,12 +20,13 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.match(html, /data-market-scope="all"/);
   assert.match(html, /data-market-scope="added"/);
   assert.match(html, /class="plugin-market-list"/);
-  assert.match(html, /data-market-add="artifacts"/);
-  assert.match(html, /data-market-runtime-id="io\.molis\.work\.artifacts"/);
+  assert.match(html, /data-market-add="coding"/);
+  assert.match(html, /data-market-runtime-id="io\.molis\.work\.coding"/);
+  assert.doesNotMatch(html, /data-market-add="artifacts"/);
   assert.match(html, /data-market-version hidden/);
   assert.match(html, /#icon-rss/);
   assert.match(html, /#icon-inbox/);
-  assert.match(html, /#icon-package/);
+  assert.match(html, /#icon-code/);
   assert.doesNotMatch(html, />Molis Work</);
   assert.doesNotMatch(html, /plugin-market-grid/);
   assert.doesNotMatch(html, /仅看已添加/);

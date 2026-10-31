@@ -242,12 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-281, RAC-2076 (user 2026-10-29 chose to keep colouring off the frame that first lays a large block out): Coding's painter waits for
-// the block's first layout (a non-zero height) through a resize observer it releases when the job is replaced or stopped, +202 B on this one asset.
-// Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
-// dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
+// T-115 (PG-060), RAC-2090–2093: the workbench takes Goals' styles and scripts from its registration. workbench.css +24 B: Goals'
+// narrow-screen rules (five of them moved out of the shell's responsive block, whose base rules are Goals') need an `@media` of their
+// own now that they leave the shell's. workbench.js +51 B: Goals' settings scripts run from the registration's `settingsClient`, inside
+// the page bootstrap like every plugin's, where the minifier renames their `L` and `form` against the bootstrap's own. Tried: dropping
+// indentation and joins (the server already strips them), trimming the scripts; the same PR takes 26,294 B off settings.css.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [289674, 289876],
+  "/assets/molis-work-workbench.css": [1233233, 1233257],
+  "/assets/molis-work-workbench.js": [1148337, 1148388],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

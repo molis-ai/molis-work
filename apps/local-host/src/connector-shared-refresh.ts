@@ -9,9 +9,10 @@ import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 // a participant that passed its check may lose its authority while another's check is awaited, or while the caller awaits its own.
 
 /**
- * What the answer of a sent refresh may write: `deliver`, everything as usual, to the participants still current; `write_back`, only the
- * rotated credentials of the connection, every participant having cancelled (the user's decision of 2026-10-27, "只存新令牌");
- * `discard`, nothing, a participant having left because its call lost its authority (`cancelledBy` says which is which).
+ * What the answer of a sent refresh may write: `deliver`, everything as usual, while at least one participant is still current; `write_back`,
+ * only the rotated credentials of the connection, every participant having left by cancellation (the user's decision of 2026-10-27,
+ * "只存新令牌"); `discard`, nothing, no participant current and at least one having left because its call lost its authority
+ * (`cancelledBy` says which is which; a cancellation and a lost authority together are `discard`).
  */
 export type SharedRefreshOutcome = "deliver" | "write_back" | "discard";
 
@@ -34,7 +35,12 @@ export interface SharedRefreshRun {
 export interface SharedRefresh<T> {
   /** The first participant's answer: the refresh's result once its own call passes its checks again. */
   readonly first: Promise<T>;
-  /** One more participant, answered the same way. */
+  /**
+   * Whether it still takes participants. Once `outcome` has said `discard` its answer is dropped for everyone in it, so a call arriving
+   * after that waits for a refresh of its own instead of being answered "authority lost" (second review of #1479).
+   */
+  readonly open: boolean;
+  /** One more participant, answered the same way. Only while `open`. */
   join(control: ConnectorCallControl): Promise<T>;
   /** Settles when the refresh itself has ended, whatever the participants did. */
   readonly done: Promise<void>;
@@ -60,7 +66,7 @@ function cancelledBy(signal: AbortSignal): boolean {
 export function startSharedRefresh<T>(first: ConnectorCallControl, run: (refresh: SharedRefreshRun) => Promise<T>): SharedRefresh<T> {
   type Participant = { control: ConnectorCallControl; leave: (withdrawn: boolean) => void };
   const participants = new Set<Participant>();
-  let withdrawn = false;
+  let withdrawn = false, discarded = false;
   // A participant is still current when its call is not aborted and still has its authority; one that is not leaves, as a withdrawal
   // unless it was cancelled.
   const ended = (participant: Participant): false => { participant.leave(!cancelledBy(participant.control.signal)); return false; };
@@ -87,6 +93,7 @@ export function startSharedRefresh<T>(first: ConnectorCallControl, run: (refresh
   const outcome = (): SharedRefreshOutcome => {
     let delivered = false;
     for (const participant of [...participants]) if (live(participant)) delivered = true;
+    if (!delivered && withdrawn) discarded = true;
     return delivered ? "deliver" : withdrawn ? "discard" : "write_back";
   };
   // A participant that passed its `beforeEffect` may lose its authority while the next one's is awaited: none of these answers counts
@@ -124,5 +131,5 @@ export function startSharedRefresh<T>(first: ConnectorCallControl, run: (refresh
   const answer = answered(opening, result);
   // The first caller may leave before it awaits its answer; the refresh's own failure is its participants' to see.
   answer.catch(() => {});
-  return { first: answer, join: async call => answered(enter(call), result), done: result.then(() => undefined, () => undefined) };
+  return { first: answer, get open() { return !discarded; }, join: async call => answered(enter(call), result), done: result.then(() => undefined, () => undefined) };
 }

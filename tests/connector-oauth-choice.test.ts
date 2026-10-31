@@ -9,8 +9,11 @@ import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } fr
 import { createCatalogConnector, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/dist/feishu-cli.js";
 import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "../apps/local-host/dist/notion-oauth.js";
-import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
+import { listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
+
+// What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connector-oauth-choice-test-home")).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
 
 async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "connector-oauth-choice-"));

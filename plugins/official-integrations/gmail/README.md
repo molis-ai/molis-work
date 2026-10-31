@@ -1,12 +1,12 @@
 # Gmail 信息接入
 
-提供 Gmail OAuth、账户安装配置、历史游标与邮件 Provider，使授权邮件更新进入 Signal/Feed。
+提供 Gmail 的连接服务与授权方式声明（OAuth 的数据）、历史游标与邮件 Provider，使授权邮件更新进入 Signal/Feed。
 
 包名：`@molis-ai/molis-work-integration-gmail`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pending state、回调和 token 生命周期，provider 读取邮件更新，history-cursor 处理历史位置。Host 注入网络和 Secret ports。
+createGmailIntegrationPlugin 注册 Provider/Adapter；Manifest 把 Gmail 的授权方式写成数据，授权、回调和令牌刷新由平台的通用 OAuth 流程做（本包不拿密钥库，W5-11 第 6 片），provider 读取邮件更新，history-cursor 处理历史位置。Host 注入网络和 Secret ports。
 
 ## 从哪里读代码
 
@@ -15,10 +15,6 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 | 文件 | 用途 |
 | --- | --- |
 | [src/index.ts](src/index.ts) | Integration 公共入口 |
-| [src/oauth.ts](src/oauth.ts) | 授权流程装配与模块级 start/complete 操作 |
-| [src/oauth-pending.ts](src/oauth-pending.ts) | 每个实例的 pending 会话存取、清理与校验 |
-| [src/oauth-token-lifecycle.ts](src/oauth-token-lifecycle.ts) | 每个连接的 token 读取、刷新与同步提交 |
-| [src/oauth-types.ts](src/oauth-types.ts) | scope/回调与端口 |
 | [src/provider.ts](src/provider.ts) | Provider 装配、health 与 sync 入口 |
 | [src/provider-sync.ts](src/provider-sync.ts) | 有界完整/增量同步与请求顺序（包内私有） |
 | [src/provider-message.ts](src/provider-message.ts) | 邮件详情映射、标签、地址与时间（包内私有） |
@@ -29,7 +25,7 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 
 ## 接入与边界
 
-默认 scope、授权回调和 refresh token 规则见 oauth-types/scope 的实际定义。凭据不能写进 Source 或 Signal 正文；游标失效与授权过期是不同恢复路径。
+授权方式（授权与令牌地址、scope、身份请求）写在 [manifest.json](manifest.json) 与 `src/index.ts` 的 Manifest 里，读邮件的范围预设见 scope 的实际定义。凭据不能写进 Source 或 Signal 正文；游标失效与授权过期是不同恢复路径。
 
 首次接入仍只取最新 25 封快照。增量每批最多读取 25 封详情、20 页历史；游标只越过本批详情已成功处理的完整记录。一个历史记录包含更多邮件时，保存该记录的下一条偏移，下一批继续；不把尚未处理的尾部算作完成，也不把短期 page token 写进游标。详情或历史读取失败保留旧进度，重开后从同一位置继续，Feed/Signals 按正式身份去重。
 
@@ -54,14 +50,14 @@ node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/gmail-factory-boundar
 
 ## 开发要求
 
-- 负责：Gmail OAuth、账户配置、历史游标与邮件 Provider。
+- 负责：Gmail 授权方式的声明、账户配置、历史游标与邮件 Provider。
 - 不负责：Source/Signal/Feed/Attention 事实、宿主业务决定。
 - 公开入口：`@molis-ai/molis-work-integration-gmail`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 授权邮件更新进入 Signal/Feed 链路，本包不拥有其状态。
   - 凭据不写进 Source 或 Signal 正文。
-  - 刷新令牌写入前同步调用宿主提供的 `beforePersist`；宿主复查连接修订，停用、删除或重授权后的旧请求不得写入。
+  - 本包不拿密钥库，看不到授权码、verifier、client secret 和 refresh token（RAC-2482）。
   - 测试用隔离数据或注入端口，通过不代表真实账号已连通。
 - 改动后必跑：`node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/gmail-factory-boundaries.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts`
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

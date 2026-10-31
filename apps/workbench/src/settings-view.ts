@@ -2,7 +2,7 @@ import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string };
+export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string; reauth_note?: string };
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 import type { CallRowView } from "./call-row.js";
@@ -87,8 +87,9 @@ export interface ConnectorSettingsCardView {
   readonly auth_help?: string;
   readonly setup_links?: readonly ConnectorSetupLink[];
   readonly method_options?: readonly ConnectorMethodOption[];
+  /** The plugin that declared the card (its id and the name its Manifest gives it); null when the platform declares the service. */
+  readonly declared_by?: { readonly plugin_id: string; readonly title: string } | null;
   github_client_id_configured?: boolean;
-  gmail_oauth_configured?: boolean;
   notion_oauth_configured?: boolean;
 }
 

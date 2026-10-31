@@ -14,7 +14,7 @@ test("RAC-776 the 成果库 shows a type's name in its owner's English and its o
   const home = mkdtempSync(join(tmpdir(), "artifact-english-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "成果英文", actor_id: "web-user" });
-  for (const plugin_id of ["dataset", "artifacts"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
+  for (const plugin_id of ["dataset"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
   catalog.close();
   const prefix = "/projects/" + project.project_id, token = "artifact-english-control-token-123456789";
   const store = new LocalProjectDatabase(project.database_path), app = openProjectVersionStores(store);

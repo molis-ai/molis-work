@@ -19,6 +19,7 @@ import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { createStations, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
+import { PLUGIN_ICON_NAMES } from "./ui/icon-names.js";
 
 
 
@@ -294,6 +295,9 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
       problems.push(`视图 ${view.view_id} 的 context_binding 只支持 side 的 focused-object`);
     }
     if (!text(view.title)) problems.push(`视图 ${view.view_id} 缺少标题`);
+    if (view.icon !== undefined && !(PLUGIN_ICON_NAMES as readonly unknown[]).includes(view.icon)) {
+      problems.push(`视图 ${view.view_id} 的图标 ${JSON.stringify(view.icon)} 不在平台图标集里`);
+    }
     const contributionId = view.contribution_id ?? `${parsed.plugin_id}.${view.view_id}`;
     if (!contributions.has(contributionId)) {
       problems.push(`视图 ${view.view_id} 的 contribution ${contributionId} 未在 ui.contributions 声明`);

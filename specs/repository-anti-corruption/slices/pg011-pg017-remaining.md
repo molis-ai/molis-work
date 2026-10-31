@@ -1,6 +1,6 @@
 # PG-011、PG-017 余项的设计稿
 
-状态：设计稿，第 9 节六问用户 2026-10-30 已弹窗裁定、都选推荐项（第 10 节），T-140～T-145 按稿开单（T-139；方案 #1332 评论 6529582547，统筹 6529598304 批准）。行号在 main `cc138cf75` 上核过；只读了代码，没有构建，也没有跑测试。
+状态：设计稿，第 9 节六问用户 2026-10-30 已弹窗裁定、都选推荐项（第 10 节），二审（#1632 评论 6537279271）的四条必修由统筹裁定补进稿（第 11 节），T-140～T-145 与 T-149 按稿开单（T-139；方案 #1332 评论 6529582547，统筹 6529598304 批准）。行号在 main `cc138cf75` 上核过；只读了代码，没有构建，也没有跑测试。
 
 ## 为什么有这份稿
 
@@ -17,17 +17,18 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 | 节 | 项 | 开发单 | RAC | S | 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 签名包格式（BL-491、BL-493、BL-916 共用） | 由 T-143、T-144 落地 | 随 T-143、T-144 | 改 S-84 一句 | 第 9 节第 6 问 |
+| 1 | 签名包格式（BL-491、BL-493、BL-916 共用） | 由 T-142～T-144 落地 | 随各单 | 改 S-84 一句 | 第 10 节 D6 |
 | 2 | BL-714 Home 实例的模型入口 | T-140 | RAC-2610～2614 | 扩 S-66、S-91 的分句 | T-134 |
-| 3 | BL-711 Home 包就地升级（回滚不做，D1） | T-141 | RAC-2615～2619 | 改写 S-80、S-84 的分句 | T-134、T-140、第 1 问 |
-| 4 | BL-712 创作台产物装进 Home | 统筹另给 | 统筹另给 | 甲方案无；乙方案要新号 | BL-377、BL-589、第 2 问 |
-| 5 | BL-713 导航位置与图标 | T-142 | RAC-2620～2624 | 无 | T-138、#1576、#1552、第 4 问 |
-| 6 | BL-491 模型设置与生图 | T-143 | RAC-2625～2634 | 扩 S-60；S-66、S-91 补分句 | 第 1 节、第 6 问 |
-| 7 | BL-493 Agent 角色与方法正文 | T-144 | RAC-2635～2641 | S-104（统筹暂留） | T-143、第 5 问 |
-| 8 | BL-710 项目范围动作对 Home 包可达 | T-145 | RAC-2642～2649 | S-105（统筹暂留） | 第 3 问 |
+| 3 | BL-711 Home 包就地升级（回滚不做，D1） | T-141 | RAC-2615～2619 | 改写 S-80、S-84 的分句 | T-134、T-140 |
+| 4 | BL-712 创作台产物装进 Home | T-149 | RAC 号段统筹另给 | 无（D2 甲） | BL-377、BL-589 |
+| 5 | BL-713 导航位置与图标 | T-142（档甲） | RAC-2620～2626 | 无 | T-138、#1576、#1552 |
+| 6 | BL-491 模型设置与生图 | T-143 | RAC-2627～2635 | 扩 S-60；S-66、S-91 补分句 | 第 1 节、T-142 |
+| 7 | BL-493 Agent 角色与方法正文 | T-144 | RAC-2636～2643 | S-104（统筹暂留） | T-143 |
+| 8 | BL-710 项目范围动作对 Home 包可达 | T-145 | RAC-2644～2649 | S-105（统筹暂留） | T-134、T-141 |
 
 - S-104、S-105 是统筹给 BL-493、BL-710 暂留的号。开 T-144、T-145 时，统筹会再核 main 与在途的改动。S 号要连着排：前面的号如果还没落地，这两个可能顺延。S-103 已经给了 T-136。
 - BL-715 不在这份稿里，由 T-138 做。
+- 二审后各单的 RAC 段在 RAC-2610～2649 这四十个号里重新分过，总数不变：T-140 五个、T-141 五个、T-142 七个、T-143 九个、T-144 八个、T-145 六个。每节「可检验」的条目都写了号，条数与号数一一对应。
 
 ## 1. 前提：签名包的格式（BL-491、BL-493、BL-916 共用，先定这个）
 
@@ -36,42 +37,49 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - `apps/local-host/src/sandbox-package.ts` 的 `readSandboxPackage`（第 70～104 行）读五个文件：`manifest.json`、`plugin.mjs`、`contract.json`、`interface.json`、`prompts.json`（见 `docs/platform/PLUGIN-DEVELOPMENT.md`「沙箱包」）。prompts 至多 64 条，每条正文至多 8000 字。
 - 第 99～102 行用 `sandboxPluginManifest(...)`（`apps/local-host/src/sandbox-plugin-manifest.ts` 第 31～46 行）重建清单，与包里的清单逐字段比较，有不同就以「清单不是沙箱插件的形状」拒绝。固定形状只有这几样：
   - `storage:private`；
-  - 可选的 `projects:exist`；
+  - 可选的 `projects:exist`——它不是包自己写的一块，而是由包的 `contract.json` 里的 `effects.projects` 派生（`sandbox-plugin-manifest.ts` 第 28、40 行）；
   - 路由 `studio.call`；
   - 一个不带 `icon` 的 stage 视图。
 - 所以真实的签名包写不了 `model:read`、`model:invoke`、`model_configuration`、`image_generation`、`agent`、`methods`。PG-017 已经给出的服务里，至少 S-66（文字模型）是这样：`apps/local-host/src/home-plugin-executor.ts` 第 134 行已经对 Home 包调 `pluginModelFor`，但它要求 Manifest 里有 `model:read` 或 `model:invoke`（`apps/local-host/src/plugin-model-service.ts` 第 25 行）。这类服务的测试用的都是探针定义，不是装进来的包。这就是 **BL-916**。
-- **先例**：沙箱集成包（BL-530）已经是「固定部分 + 包给的块」的写法。`readSandboxIntegrationPackage`（`sandbox-package.ts` 第 129～168 行）的做法是：
-  1. 先用 `parsePluginManifest` 校验整份清单；
-  2. 逐块检查包写的 `connection_services`、`integrations`；
-  3. 交给 `sandboxIntegrationManifest`（`sandbox-plugin-manifest.ts` 第 64～77 行）重建，再逐字段比较。
-- **安装预览**（`apps/local-host/src/plugin-install-service.ts` 第 103～123 行）给出三样东西：
+- **并不止这几项**：`contract.json` 的 `effects`（`SandboxEffects`，`packages/contracts/src/platform/plugin-sandbox.ts` 第 24～66 行）已经有 `homeDatabase`、`connections`、`materials`、`ownerFiles`、`model`、`background`，而对应的 Manifest 声明（`databases.home`、`connections:use`、`materials:*`、`owner_files` 及其读写权限、`background_job`、`model:*`）固定形状一个都写不了。这些服务里包要自己起名字的（owner_files 的目录、库名、连接槽、来源域名）不是「加一个块」就能解决，见 BL-916 的范围（本节「S」之后）。
+- **先例**：
+  - 沙箱集成包（BL-530）是「固定部分 + 包给的块」的写法。`readSandboxIntegrationPackage`（`sandbox-package.ts` 第 129～168 行）：先用 `parsePluginManifest` 校验整份清单，逐块检查包写的 `connection_services`、`integrations`，交给 `sandboxIntegrationManifest`（`sandbox-plugin-manifest.ts` 第 64～77 行）重建，再逐字段比较；
+  - 应用包的 `projects:exist` 是「由 `effects` 派生的权限行」的写法。
+- **安装预览**（`apps/local-host/src/plugin-install-service.ts` 第 103～123 行）给出的不止三样：
   - `permissions`（`permissionViews`）；
   - `declarations`（`declarationsNeedingConsent`）；
+  - `jobs`（`jobViews`）与顶层 `effects`（`pkg.permissions`，设置页「它的代码能做的事」读它，`apps/workbench/src/settings-plugins.ts` 第 194～195 行）；
   - 集成包的顶层可选字段 `origins`。
 - `declarations` 是同意账本的条目：`PluginConsentKind` 只有四个值（`packages/contracts/src/platform/plugin-trust.ts` 第 18 行：`always_on`、`default_wiring`、`default_group`、`local_directory`），由 `assertConsentsDeclared` 校验，记进账本，声明一变就重新问。
 
-### 做完是什么
+### 做完是什么（统筹按二审裁定，第 11 节）
 
-- 应用包的清单比对改成「固定部分逐字段相同 + 名单内的块由包给、各块各自校验」。名单是：
-  - `model_configuration`、`image_generation`，以及它们需要的权限行（`model:read`、`model:invoke`）；
-  - `agent`、`methods`。
-- `sandboxPluginManifest` 的输入加这几个可选块。固定部分仍由宿主写，这个函数仍是写清单的唯一一处。
+应用包的清单比对改成「固定部分逐字段相同 + 名单内的块」，名单分两类，**各块的校验和错误码各自独立**：
+
+1. **由 `contract.json` 的 `effects` 派生的**（包只写 `effects`，宿主按它重建清单里的这一部分，包的清单与重建的有任何不同就拒，写法同 `projects:exist`；这样权限行与 `effects` 不会两处不一致）：
+   - `effects.model`（`read`、`invoke`，已有）→ 清单里的 `model:read`、`model:invoke` 权限行；这是 BL-916 里模型一项的解法（第 6 节）；
+   - 模型设置、生图两项：`SandboxEffects` 加新键，派生出清单里的 `model_configuration`、`image_generation` 两块与它们要的权限行。块里的名字一律由宿主按 `plugin_id` 派生，包不写（第 6 节）。
+2. **包自己写的**，每块各自校验：
+   - `agent`：只收名字、用途、正文引用（正文在包里的资源文件，Manifest 块只用相对路径引用它，第 7 节）；
+   - `ui.views[0].icon`：取值必须在平台命名图标集里（第 5 节）。
+- `sandboxPluginManifest` 的输入加这几个可选项。固定部分仍由宿主写，这个函数仍是写清单的唯一一处。
 - 安装预览这样列出：
-  - BL-491 的两项走 `permissions`；
+  - 模型一项走 `permissions`；模型设置、生图两项在顶层 `effects` 里多两个键，设置页「它的代码能做的事」跟着列出（改 contracts 的 `SandboxEffects`，要 `pnpm api:update`，T-143 的「做完」要算上）；
   - BL-493 加一个顶层可选的列表，推荐写成 `agent_bodies: [{ kind: "role" | "method", name, excerpt }]`，字段名在开发单里定；
   - `plugins.install.preview` 的输出形状因此改变，由 T-144 升到 `@4`。按 `docs/system/CONTRACT-CHANGES.md`，现在不留兼容期，旧版同时删掉。
-- 可检验：
+- 可检验（RAC 号在各节）：
   - 写了名单内块的包能装；
   - 写了名单外字段的包仍以「清单不是沙箱插件的形状」拒绝；
   - 名单内的块写错了，以那一块自己的错误拒绝；
-  - 预览列出新的权限行与正文列表。
+  - 预览列出新的权限行、`effects` 键与正文列表。
 
 ### 选项与推荐
 
 | 要定的 | 选项 | 推荐与理由 |
 | --- | --- | --- |
-| 新声明写在哪 | ① Manifest 里允许名单内的可选块；② 另加包文件（如 `agent.json`） | **①**。这些声明本来就是 Manifest 的字段，SDK 的 Manifest 规则已经认得；`SANDBOX_NOT_GIVEN` 的判断也读 `definition.manifest.*`（`packages/plugin-sandbox/src/services.ts` 第 133～138 行）；集成包已经这样做。另起文件要再写一套解析，还要让它和 Manifest 保持一致。用户已定①（D6） |
+| 新声明写在哪 | ① Manifest 里允许名单内的可选块；② 另加包文件（如 `agent.json`） | **①**。这些声明本来就是 Manifest 的字段，SDK 的 Manifest 规则已经认得；`SANDBOX_NOT_GIVEN` 的判断也读 `definition.manifest.*`（`packages/plugin-sandbox/src/services.ts` 第 133～138 行）；集成包已经这样做。另起文件要再写一套解析，还要让它和 Manifest 保持一致。用户已定①（D6）。Agent 正文是包里的资源文件、Manifest 只引用它，不算 ② 的「另加声明文件」（第 7 节、第 11 节 R1） |
 | 预览怎样列出 | ① 沿用 `declarations`；② `permissions` 加顶层可选字段 | **②**。新内容是安装时看一次的东西，不是对别处的改变要不要同意。塞进 `declarations` 要给 `PluginConsentKind` 加值、给账本加记录，等于平白多改一次合同。集成包的 `origins` 是先例。属于合同上的做法，不问用户 |
+| 模型权限行怎么来 | ① 包写一块；② 由 `effects` 派生 | **②**。应用包的 `projects:exist` 已经是这样，改动更小，也不会让权限行与 `effects` 两处不一致 |
 | 与 BL-589 的先后 | ① 先扩格式，BL-589 在后；② BL-589 先做 | **①**。BL-589 要把 `sandboxPluginManifest` 搬进 `plugin-sdk`，先扩格式再搬，同一个函数只改一遍 |
 
 ### S
@@ -80,8 +88,8 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- 不单独开单：T-143 落地模型设置与生图两块，T-144 落地 `agent`、`methods` 两块，RAC 在它们各自的号段里。
-- BL-916（S-66 等已给的服务，真实包够不着）由 T-143 的权限行一并解决，开发单里要有一条「装进来的真实包能调 `sdk.model.*`」的用例。
+- 不单独开单：T-142 落地图标，T-143 落地模型设置与生图两块，T-144 落地 `agent`，RAC 在它们各自的号段里。
+- **BL-916 只由 T-143、T-144 解决 model、agent、methods 三项**，装进来的真实包能调 `sdk.model.*` 的用例在 T-143（第 6 节）。**之后仍待**：`homeDatabase`、`connections`、`materials`、`ownerFiles`、`background`，需要固定 Manifest 能声明它们——这几项都要包自己起名字（owner_files 目录、库名、连接槽、来源域名），要沿用 `effects` 派生的做法并另写命名规则，另开开发单，BL-916 这一行不删（第 11 节 R3）。
 
 ## 2. BL-714 Home 实例的模型入口（T-140）
 
@@ -95,7 +103,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 快照里只有一行：`tooling/gates/actions/host-actions.tsv` 的 `model.generate	1	plugin-platform`。
   - 只有项目的已装插件宿主注册它（`apps/local-host/src/installed-plugin-host.ts` 第 158 行）。第 147 行还要求调用者的 `project_id` 等于这个项目，否则以 `plugin.capability_denied`（「模型调用缺少当前项目的执行身份」）拒绝。
   - Home 的已装插件宿主（`apps/local-host/src/home-installed-plugins.ts`）不注册它，所以 Home 包的 `prompts.json` 调用被拒。
-- **快照能不能有 Home 一行**：`scripts/gates/action-contract-snapshot.mjs` 第 198 行，宿主行的键是 `capability_id@version via provider`；第 268～270 行（`buildHostRows`），同一个键再出现一次而各列不同（比如 `scope`），就报「registered with two different declarations」。所以**同一个 provider 下不能有 Home 一行；另起一个 provider id 就可以**。先例是 Goals 的 `goals.planning.personal.*`：它在 Home 里以 `io.molis.work.goals.home` 注册（同一文件第 247～250 行的注释）。
+- **快照能不能有 Home 一行**：`scripts/gates/action-contract-snapshot.mjs` 第 198 行，宿主行的键是 `capability_id@version via provider`；第 273～275 行（`buildHostRows`），同一个键再出现一次而各列不同（比如 `scope`），就报「registered with two different declarations」。所以**同一个 provider 下不能有 Home 一行；另起一个 provider id 就可以**。先例是 Goals 的 `goals.planning.personal.*`：它在 Home 里以 `io.molis.work.goals.home` 注册（同一文件第 247～250 行的注释）。
 - `registerPlatformCapabilities` 已经在 `actions.project_id === null` 时去掉 provider 的 `project_id`（`catalog.ts` 第 56 行），只差 `scope` 和 provider id。
 
 ### 做完是什么
@@ -104,12 +112,12 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - 这个入口只认本 Home 实例的执行身份（调用者有 `plugin_install_id`、`project_id` 为空、安装属于这个 Home）。指令只能按包自己登记的 id 点名（与 `createPluginModelPort` 的规则相同）。
 - 计量与模型设置读 Home 的。它只读已有的模型设置与计量，不新建表，所以预计不用等干净重建批（#1578、#1549、#1588、#1587、#1589、#1591、#1593、#1552）。开发单开工时若发现要动 Home 插件库的 DDL，就等批落地（#1588 把 `home-plugin-store.ts` 的基线改成 v1）。
 - 快照多一行 `model.generate@1 via <Home 的 provider>`，跑 `pnpm actions:update`。
-- 可检验（都断言「拒绝」）：
-  - 带项目身份调 Home 入口被拒；
-  - 别的安装的身份被拒；
-  - 点名未登记的指令被拒；
-  - 停用后的调用被拒；
-  - 本 Home 包用自己登记的指令可以调通。
+- 可检验（前四条断言「拒绝」）：
+  - RAC-2610：带项目身份调 Home 入口被拒；
+  - RAC-2611：别的安装的身份被拒；
+  - RAC-2612：点名未登记的指令被拒；
+  - RAC-2613：停用后的调用被拒；
+  - RAC-2614：本 Home 包用自己登记的指令可以调通。
 
 ### 选项与推荐
 
@@ -117,7 +125,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 | --- | --- |
 | ① 同一个 `capability_id`，Home 用另一个 provider id（推荐） | 包的代码不用管自己在哪里运行；快照有先例 |
 | ② 另起 id，如 `model.generate.home@1` | 不推荐：作者要按运行范围调不同的 id |
-| ③ 同一个 provider 下 `scope` 跟着 registry 走 | 不行：快照门禁按第 268～270 行报错 |
+| ③ 同一个 provider 下 `scope` 跟着 registry 走 | 不行：快照门禁按第 273～275 行报错 |
 
 统筹已采纳 ①，不问用户。
 
@@ -127,7 +135,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- RAC-2610～2614。
+- RAC-2610～2614，对应上面五条。
 - 依赖 T-134（`origin/task/T134-ca`，改 `home-installed-plugins.ts` 的集成挂载），排在它后面。
 
 ## 3. BL-711 Home 包就地升级（T-141）
@@ -150,8 +158,14 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - 上面四个用例改成断言新行为。这是预期变化，不是放宽，PR 里要逐条写；仍要断言的拒绝包括：
   - 另一个发布者被拒；
   - 版本不更新被拒；
-  - 范围被换被拒（D5）。
+  - 范围被换被拒（bl628 的 D5，同一 plugin_id 的范围不能换）。
 - 不做回滚（D1）：两个范围的回滚照旧被拒，`installed-plugin-lifecycle.ts` 的拒绝和钉住它的断言不动。
+- 可检验：
+  - RAC-2615：同一发布者的新版本装上，Home 包就地升级，批准、密钥、提示词登记随新版本换，数据保留；
+  - RAC-2616：另一个发布者的同名包被拒；
+  - RAC-2617：版本不更新被拒；
+  - RAC-2618：范围被换（Home 的换成项目的）被拒；
+  - RAC-2619：设置页的预览与 Home 行比对，说出「已装的是 x，装上后升级到 y；数据保留」。
 
 ### 选项与推荐（回滚，D1 定①）
 
@@ -166,10 +180,10 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- RAC-2615～2619。
-- 依赖：T-134（同一文件）；T-140 先合，因为升级时提示词与模型入口要一起换，入口要先立起来；第 9 节第 1 问。
+- RAC-2615～2619，对应上面五条；改成断言新行为的四个已有用例（RAC-1505～1507、RAC-1683）不占新号。
+- 依赖：T-134（同一文件）；T-140 先合，因为升级时提示词与模型入口要一起换，入口要先立起来；D1。
 
-## 4. BL-712 创作台产物装进 Home（开发单号由统筹另给）
+## 4. BL-712 创作台产物装进 Home（T-149）
 
 ### 现状
 
@@ -183,7 +197,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 之后产物走 S-84 那条唯一的安装路：验签、固定、本人确认、沙箱，S-80 不变；
   - 密钥按「密钥只给引用」存放，删 Home 时一起删。
 - **乙**：放开 S-80，允许 `unsigned` 加沙箱装进 Home。没有发布者身份，等于让一个没署名的东西常驻 Home。
-- 可检验（甲）：
+- 可检验（甲；号由统筹另给，开单时逐条带上）：
   - 本机密钥没有固定时，产物装不进 Home；
   - 固定之后能装；
   - 别的 Home 的密钥签的包，在这里仍是未固定的发布者。
@@ -195,8 +209,8 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- 号段由统筹另给，不在 T-138～T-145 里。
-- 依赖：第 9 节第 2 问；甲方案与 BL-589 共用「创作台发布出签名包」这一步，推荐排在 BL-589 之后，或与它合成一单。BL-377 的重做不必等。
+- 开发单 T-149，RAC 号段由统筹另给，不在 T-138～T-145 里。
+- 依赖：D2；甲方案与 BL-589 共用「创作台发布出签名包」这一步，推荐排在 BL-589 之后，或与它合成一单。BL-377 的重做不必等。
 
 ## 5. BL-713 导航位置与图标（T-142）
 
@@ -215,16 +229,24 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### 做完是什么
 
+- **运行期数据通路**（二审建议 F，统筹采纳）：到达页的 Home 工具位读的是 `renderHomePluginNavigation` 里对 `BUILTIN_PLUGIN_CATALOG` 常量的过滤（`apps/workbench/src/home-plugin-navigation.ts` 第 40 行，图标取 `navigator` 视图，第 43 行），侧栏页签读 `homePluginSideTabs` 里同一个常量的 `side` 视图（同文件第 7～11 行）。装进来的包不在这个常量里，stage 视图的图标本身到不了首页工具位。所以本单要新开一条运行期数据通路：宿主给出「运行中的 Home 包」的导航数据（名字、图标、视图），工作台把它并进上面两处。这是一个只给本人页面的读（动作或页面数据，形状在开发单里定，改 contracts 时跑 `pnpm api:update` 与 `pnpm actions:update`），不是改静态目录。因此本单从乙档改为**甲档**。
 - 运行中的 Home 包进到达页与侧栏的 Home 工具位，和构建期 Home 插件放在同一个固定位置，按名字排。
 - 三种状态照构建期条目的画法：
   - 停用：不出现；
   - 恢复错误：出现，打开后是不可用页，原因取 T-138 给的 `recovery_error`；
   - 卸载：消失。
-- 图标按第 9 节第 4 问的裁定。推荐：固定形状的 stage 视图允许带 `icon`，取值只能是平台命名图标集里的名字，经 `sanitizeView` 收；不写就画 `package`。
+- **图标**（D4）：
+  - 包的 stage 视图允许带 `icon`，这是 §1 名单里「包自己写的」一块；
+  - 取值只能是平台命名图标集里的名字（SDK 的 `PluginIconName`，`packages/plugin-sdk/src/ui/icon.ts`）；不写就画 `package`；
+  - **在哪里拒**：SDK 的 Manifest 规则（`packages/plugin-sdk/src/manifest.ts`，现在对视图 `icon` 没有任何检查）加一条图标名校验，名字不在集合里，安装时就以明确的错误码拒绝（码名在开发单里按 `defineErrorCodes` 定），不靠 `sanitizeView` 静默丢弃。这是改 SDK，算共享核心，要跑全量和 `pnpm api:update`。
 - 可检验：
-  - 装一个 Home 包后，到达页的 Home 工具位有它，图标是包选的名字；
-  - 写了图标集之外的名字，装包时被拒；
-  - 停用后它从工具位消失。
+  - RAC-2620：装一个 Home 包后，到达页的 Home 工具位有它，图标是包选的名字，没写就是 `package`；
+  - RAC-2621：侧栏页签有它；
+  - RAC-2622：停用后它从工具位与侧栏消失；
+  - RAC-2623：恢复错误时它出现，打开后的不可用页写出原因；
+  - RAC-2624：卸载后消失；
+  - RAC-2625：写了图标集之外的名字，装包时以明确的错误码被拒，不画默认图标；
+  - RAC-2626：运行期导航数据只给本人的页面：agent、MCP、工作流、插件看不到也读不到。
 
 ### 选项与推荐（图标，D4 定①）
 
@@ -236,16 +258,16 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### S
 
-无。包格式只多一个取值受限的字段；如果选 ③，就要改 S-84 并另议。
+无。包格式只多一个取值受限的字段，并在 SDK 的 Manifest 规则里校验。
 
 ### RAC 与依赖
 
-- RAC-2620～2624。
+- RAC-2620～2626，对应上面七条。
 - 依赖：
   - T-138（同一套「个人空间里的插件」的说法与 `recovery_error`）；
   - #1576（T-126）与 #1552（都碰插件目录与沉浸外壳）合入；
-  - 第 9 节第 4 问。
-- 档：乙；如果选 ③，改为甲。
+  - D4。
+- 档：甲（新增运行期数据通路、改 SDK 与 contracts）。
 
 ## 6. BL-491 模型设置与生图（T-143）
 
@@ -258,40 +280,62 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - 同一片的「项目清理」要确认声明式清理对沙箱同样成立（RAC-239），但 main 上没有这条用例：`git grep RAC-239 -- tests` 无输出。
 - `files` 一项已不用做：它在 PG-102 P2b 删了，主人文件（S-64）已给。
 - 前提：包格式写不了这两项声明（第 1 节）。
+- **这两项不是「读写一份 JSON 设置」**，它们各自要的声明（二审必修 2）：
+  - 模型设置 `model_configuration`（`packages/contracts/src/platform/plugin-model-configuration.ts`）要：
+    - `preference`：`store_name` 与 `file_name`，`store_name` 必须在 Home 的存储登记里登记为本插件所有（`apps/local-host/src/model-configuration-entries.ts` 第 14～17 行，靠 `owner === plugin_id` 把关）；
+    - `custom_provider`：`provider_id`、`display_name`，这个专用供应商全 Home 唯一；
+    - `actions.read`、`actions.save`：必须指向本插件 `manifest.actions` 里唯一的一个动作，并且那个动作自己声明了权限（同文件第 27～34 行）；
+    - 权限行 `storage:private`、`model:invoke`。
+  - 生图 `image_generation`（`packages/plugin-sdk/src/service-declarations.ts` 第 58～63 行、`apps/local-host/src/plugin-image-generation-entries.ts` 第 13～17 行）要：`store_name`（同样要登记为本插件所有）和三个权限名（`read_permission`、`write_permission`、`generate_permission`），外加 `model:invoke`。
+  - 固定 Manifest 没有 `actions`，`capabilities.provides` 为空（`sandbox-plugin-manifest.ts` 第 41 行）。
+- **两处启动检查对沙箱直接抛错**：`model-configuration-entries.ts` 第 12 行与 `plugin-image-generation-entries.ts` 第 11 行的 `definition.execution === "sandbox"`。只改 `SANDBOX_SERVICE_FATE` 与 NOT_GIVEN 那一行，包仍然启动不了。
+- **一个安全边界**：模型设置的 `save` 接受 `base_url`、`api_format`、`connection_id`（`plugin-model-configuration.ts` 第 7～12 行、`apps/local-host/src/model-configuration.ts` 第 49～53、85 行），会把本插件专用的供应商指到调用方给的地址；沙箱同时有 `sdk.model.complete`（S-66）。也就是说，如果放着不管，包能影响人的模型请求发往哪里，而联网来源本来是由人逐个批准的（S-93、S-95）。`assertTarget`（`model-configuration.ts` 第 79 行）挡到哪一步还没有核完。
 
 ### 做完是什么
 
-- 包能在 Manifest 里写 `model_configuration`、`image_generation` 与 `model:read`、`model:invoke` 权限行（第 1 节），安装预览在 `permissions` 里列出它们。
-- broker 加这两项服务，每次一个方法地转进沙箱，照 S-60 两道门串联：
-  - 模型设置：读、写本插件自己的设置，形状是可序列化的 JSON（选择、状态）；
-  - 生图：只给命令，不给查询；照项目的计量；返回的 base64 字节设上限，数字在开发单里定，照 pg017 片 §3.7 的取法；
-  - `SANDBOX_SERVICE_FATE.imageGeneration` 从 `'entry'` 改成 `'given'`。
-- 删掉 NOT_GIVEN 的 `model_configuration` 一行。
-- 补 RAC-239 的用例：删项目时，平台按安装与声明清掉沙箱插件的数据，沙箱插件不用交 `purge` 函数。
-- BL-916 的用例：装进来的真实包能调 `sdk.model.*`。
-- 可检验（都断言「拒绝」）：
-  - 没写声明的包调生图被拒；
-  - 超过字节上限被拒；
-  - 查询里调生图被拒；
-  - 别的安装的设置读不到。
+- **名字归宿主，包不起**（防撞别的插件，也不用包去引用 `manifest.actions`）：
+  - 包只在 `contract.json` 的 `effects` 里写意图：模型一项用已有的 `effects.model`，模型设置与生图是两个新键（形状在开发单里定，例如 `modelSettings: ['read','save']`、`imageGeneration: ['generate']`），`SandboxEffects` 因此加键，改 contracts，跑 `pnpm api:update`；
+  - 宿主按 `plugin_id` 派生清单里这几处，`sandboxPluginManifest` 重建，包的清单与重建的不同就拒：
+    - 权限行：`model:read`、`model:invoke`（BL-916 的模型一项，第 1 节）；
+    - `model_configuration`：`preference.store_name`、`preference.file_name`、`custom_provider.provider_id` 都由 `plugin_id` 派生（取值规则在开发单里定，要满足现有的格式检查，并保证不同 `plugin_id` 得到不同的名字）；`display_name` 取清单的 `name`；
+    - `image_generation`：`store_name` 同样派生，三个权限名固定成平台起的名字（在开发单里定）；
+  - 派生出来的 `store_name` 在安装时登记为本插件所有（Home 的存储登记），卸载与删项目时一并清掉。
+- **`actions.read`、`actions.save` 怎么指**：沙箱包的操作不在 `manifest.actions` 里。T-143 开工第一步先核：沿用现有的「指向 `manifest.actions` 的唯一动作」检查，还是为沙箱另写一条等价的派生检查（两个设置动作由宿主按 `plugin_id` 派生登记，权限用上面的权限行）。核不通就停下回统筹，不自己换设计。
+- **两处启动检查怎么改**：`execution === "sandbox"` 的一刀切拒绝改成「沙箱只认派生出来的那一份声明」，声明与按 `plugin_id` 重新派生的结果不相等就拒；其余检查（登记为本插件所有、权限在清单里、动作存在）照旧。`SANDBOX_SERVICE_FATE.imageGeneration` 从 `'entry'` 改成 `'given'`，NOT_GIVEN 的 `model_configuration` 一行删掉。
+- **模型设置的 `save` 怎么限**（统筹裁定，第 11 节 R2）：沙箱包的 `save` **不许写 `base_url` 和 `connection_id`**（`api_format` 与指向自己的专用供应商也一并不许），只能在宿主已经批过、已经启用的供应商与模型里选（`provider_id`、`model_id`）。S-93、S-95 的来源审批因此不被绕开。T-143 开工**第一步**先核 `assertTarget` 对 `base_url` 与连接配对能挡到哪一步，结论写进 PR，并把每个被拒的字段写成一条拒绝用例。要给沙箱包自定义供应商，要走来源批准，另议、不在本单。
+- 生图：只给命令，不给查询；照项目的计量；返回的 base64 字节设上限，数字在开发单里定，照 pg017 片 §3.7 的取法。
+- 补 RAC-239 的用例（沿用原号，不占新号）：删项目时，平台按安装与声明清掉沙箱插件的数据，沙箱插件不用交 `purge` 函数。
+- 预览：模型一项列在 `permissions`，模型设置与生图列在顶层 `effects` 的新键里（第 1 节）。
+- 可检验（除标明的，都断言「拒绝」）：
+  - RAC-2627：包的清单与按 `effects` 重建的不同（多一块、少一块、名字不同）被拒；预览列出新的权限行与 `effects` 键（这一条不是拒绝）；
+  - RAC-2628：装进来的真实签名包能调 `sdk.model.*`（BL-916 的模型一项；不是拒绝）；
+  - RAC-2629：模型设置经 broker 读、写，`save` 只收 `provider_id`、`model_id`（不是拒绝）；
+  - RAC-2630：`save` 里写 `base_url`、`connection_id`、`api_format` 或自己的专用供应商被拒，设置不变；
+  - RAC-2631：专用供应商与存储名由 `plugin_id` 派生，别的安装读不到这份设置，也撞不到别的插件的名字；
+  - RAC-2632：没写生图的包调生图被拒；在查询里调生图被拒；
+  - RAC-2633：返回超过字节上限被拒；生图计量照项目；
+  - RAC-2634：启动检查只认派生的声明，对不上的被拒（两处 `execution === "sandbox"` 的拒绝已改掉）；
+  - RAC-2635：卸载与删项目时，派生的存储登记与专用供应商一并清掉。
 
 ### 选项与推荐
 
 | 要定的 | 选项 | 推荐与理由 |
 | --- | --- | --- |
 | S 号 | ① 扩 S-60；② 新开一个号 | **①**。它是「沙箱经 broker 用宿主服务」这条总规则下的又一项服务，与 S-66 同类。统筹已采纳 |
+| 名字谁起 | ① 包写，宿主校验；② 宿主按 `plugin_id` 派生 | **②**（统筹裁定 R2）。包写就要自己防撞，还要核登记；派生一次定死 |
 | 上限与计量 | — | 不问用户，照 pg017 片 §3.7 写进开发单 |
 
 ### S
 
 - 扩 S-60（broker 转模型设置与生图）；
-- S-66 补一句「模型设置可经 broker 读写」；
+- S-66 补一句「模型设置可经 broker 读写，沙箱的 `save` 不许写 `base_url`、`connection_id`」；
 - S-91 补一句「Home 沙箱实例同样适用」。
 
 ### RAC 与依赖
 
-- RAC-2625～2634。
-- 依赖：第 1 节的格式扩展（本单落地其中的模型设置、生图两块）、第 9 节第 6 问。
+- RAC-2627～2635，对应上面九条。
+- 依赖：第 1 节的格式扩展（本单落地其中的模型、模型设置、生图三块）、D6。
+- 档：甲（改 contracts 的 `SandboxEffects`、预览形状、安全边界）。
 
 ## 7. BL-493 Agent 角色与方法正文（T-144）
 
@@ -302,10 +346,16 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - 不给的表里有 `agent` 一行（`services.ts` 第 137～138 行）：definition 只要带了 `methods`、`agent_prompts`、`agent_skills`、`manifest.agent` 之一，启动就被拒。
 - pg017 片 §3.2 写「角色与方法正文先不给」（§6 Q2），理由是安装确认列不出它们。原来等的 PG-001（一条安装路，S-84、S-85）已经做完，这个前提已经满足。
 - 包里现在只有 `prompts.json`：至多 64 条，每条正文至多 8000 字。它们登记成 `model.generate` 用的指令，不是给别的 Agent 的角色或方法。
+- **合同写明正文不在 Manifest 里**：`packages/contracts/src/platform/plugin-agent.ts` 第 85 行「Prompt bodies live in the Plugin package, never in the Manifest」；Manifest 的 `agent`、`methods` 只有声明，正文在定义的 `agent_prompts`、`agent_skills`、`methods` 上（`packages/plugin-sandbox/src/services.ts` 第 85～86 行、`packages/contracts/src/platform/plugin.ts` 第 167～182 行）。
+- **`agent` 整块里有带权限的字段，不是文字**（二审必修 1）：角色的 `execution`（`workspace-write`、`operate`）和 `host_tools`（`plugin-agent.ts` 第 33～52 行），以及 `subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port`（同文件第 174～195 行）。合同自己说方法是文字、不授予东西（同文件第 26～31 行），角色不是。
 
-### 做完是什么
+### 做完是什么（统筹裁定，第 11 节 R1）
 
-- 包能在 Manifest 里写 `agent`、`methods`（第 1 节）。正文的条数与字数上限照 `prompts.json` 的口径，在开发单里定。
+- **声明在 Manifest 里，正文在包里**：
+  - D6 管的是**声明**：声明写在 Manifest 的名单内的块里；
+  - 正文是包里的资源文件（包格式的文件名单多一个目录，例如 `agent/`，每条一个文件），Manifest 的块只用包内相对路径引用它；这与合同「正文在包里，不在 Manifest」一致，也不算 D6 被拒的「另加单独的声明文件」，不用再问用户；
+  - 条数与字数上限照 `prompts.json` 的口径（至多 64 条、每条 8000 字），在开发单里定；路径必须在包内、不许越界。
+- **`agent` 块的名单收到「不加权限」的子集**：只收名字、用途、正文引用。`execution`、`host_tools`、`subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port` 这类带权限的字段，安装时一律以明确的错误码拒绝，这就是 D5 的「不加权限」。角色里其余必须有的字段（`role_id`、`version`、`workspace` 等）由宿主写成固定的、不带权限的值；这样一个只读、不带工具的角色是否还有用，T-144 开工第一步核，没用就只许 `methods`，回统筹。
 - 安装预览逐条列出名字与正文前 N 字（N 在开发单里定）。`plugins.install.preview` 升到 `@4`，加顶层可选字段（第 1 节）。
 - 正文按提示注入面处理，对照 `docs/system/SECURITY-INVARIANTS.md` 里提示注入的几行：
   - 只作数据进别的 Agent 的上下文，带来源标记（哪个插件、哪个版本、哪个发布者）；
@@ -313,10 +363,14 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 升级后正文换了，预览里要能看出来。
 - 删掉 NOT_GIVEN 的 `agent` 一行。
 - 可检验：
-  - 预览列出每一条的名字与摘要；
-  - 正文进上下文时带来源标记；
-  - 正文里写「调用某某动作」不会让 Agent 多一项授权（断言拒绝）；
-  - 超过上限的包被拒。
+  - RAC-2636：名单内的 `agent`、`methods` 能装（不是拒绝）；
+  - RAC-2637：名单外字段**每个一例**被拒：`execution`、`host_tools`、`subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port`；
+  - RAC-2638：正文引用不是包内相对路径（绝对路径、`..`、缺文件）被拒；
+  - RAC-2639：超过条数或字数上限的包被拒；
+  - RAC-2640：预览列出每一条的名字与正文开头（不是拒绝）；
+  - RAC-2641：正文进上下文时带来源标记（不是拒绝）；
+  - RAC-2642：正文里写「调用某某动作」不会让 Agent 多一项授权（断言拒绝）；
+  - RAC-2643：包升级后正文换了，预览里能看出来（不是拒绝）。
 
 ### 选项与推荐（正文怎样给，D5 定①）
 
@@ -327,12 +381,12 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### S
 
-S-104（统筹暂留）：签名包带进来的 Agent 角色与方法正文只作数据、带来源、不升级权限。开 T-144 时统筹再核号。
+S-104（统筹暂留）：签名包带进来的 Agent 角色与方法正文只作数据、带来源、不升级权限；包的 `agent` 块只收名字、用途、正文引用，带权限的字段安装时拒。开 T-144 时统筹再核号。
 
 ### RAC 与依赖
 
-- RAC-2635～2641。
-- 依赖：T-143 先合（同一处包格式）、第 9 节第 5 问。
+- RAC-2636～2643，对应上面八条。
+- 依赖：T-143 先合（同一处包格式）、D5、D6。
 
 ## 8. BL-710 项目范围动作对 Home 包可达（T-145）
 
@@ -347,10 +401,21 @@ S-104（统筹暂留）：签名包带进来的 Agent 角色与方法正文只�
 - **谁同意、在哪里同意**：本人，在某个项目的设置里，对某一个 Home 包同意「它可以读写这个项目」。一次同意只对这一个项目、这一个安装有效。
 - **存在哪**：同意账本加一个值（推荐叫 `project_reach`），主体写成「项目 id + 安装 id」。这是改合同：`PluginConsentKind` 加值，有关动作的形状变了就升版本，照 `docs/system/CONTRACT-CHANGES.md`。
 - **怎样撤回**：同一处设置可以撤回；卸载这个包、删这个项目，都一并撤掉。
-- **调用时怎样查**：
-  - `project_id` 只取自调用上下文，不从输入读；
-  - 每次调用都查账本里有没有「这个项目 + 这个安装」的同意，并照常检查世代与生命周期。
-- RAC-967 改成「没同意时仍拒」，另加「同意后可达」「撤回后再拒」「别的项目仍拒」。
+- **调用时怎样查，项目从哪来**（二审建议 G）：
+  - Home 实例自己没有项目，它的调用者上下文里 `project_id` 是 `null`（`apps/local-host/src/home-plugin-executor.ts` 第 130 行）；
+  - 所以检查的项目是**触发这次调用的那个项目**：包的动作是从某个项目的页面或 Agent 里调进 Home 的（RAC-968 的可达集合就是按项目算的），这个项目取自**外层调用的上下文**，从包的输入里读不到；
+  - 没有触发项目的调用（后台作业、Home 自己发起）调项目范围的动作一律拒；
+  - 每次调用都查账本里有没有「这个项目 + 这个安装」的同意，并照常检查世代与生命周期；
+  - T-145 开工第一步核：包发出的下行调用确实带着外层的触发项目，核不到就停下回统筹。
+- **同意在包就地升级后**：沿用同一个安装 id，同意照旧；新版本声明的可达动作变多时重新问（沿用 S-84「声明一变就重新问」的规则）。依赖 T-141。
+- **删项目时**：清这个项目的所有同意，走 `ProjectDeletionService`（`AGENTS.md`「硬约束」），不另写删除入口。
+- 可检验：
+  - RAC-2644：没同意时仍拒（RAC-967 改成这样断言）；
+  - RAC-2645：本人对某个项目同意之后可达；
+  - RAC-2646：撤回之后再拒；
+  - RAC-2647：别的项目仍拒（同意只对这一个项目、这一个安装有效）；
+  - RAC-2648：卸载这个包、删这个项目，同意一并清掉；没有触发项目的调用仍拒；
+  - RAC-2649：就地升级后同意沿用，新版本声明的可达动作变多时重新问。
 
 ### 选项与推荐（给不给，D3 定①）
 
@@ -365,8 +430,8 @@ S-105（统筹暂留）：Home 沙箱包只在本人对某个项目同意之后�
 
 ### RAC 与依赖
 
-- RAC-2642～2649。
-- 依赖：第 9 节第 3 问。
+- RAC-2644～2649，对应上面六条。
+- 依赖：D3；T-134、T-141（同一文件 `home-installed-plugins.ts` 与升级路径）。
 
 ## 9. 问用户
 
@@ -393,3 +458,16 @@ S-105（统筹暂留）：Home 沙箱包只在本人对某个项目同意之后�
 | D4 | BL-713 图标由包从平台命名图标集里选一个名字，不写就画 `package`（第 5 节）（用户 2026-10-30 弹窗决定） |
 | D5 | BL-493 安装预览逐条列出 Agent 角色与方法的名字和正文开头；正文只当资料进上下文，不加权限（第 7 节）（用户 2026-10-30 弹窗决定） |
 | D6 | 新声明写在 Manifest 里，只许名单内的几块，照集成包的先例（第 1 节）（用户 2026-10-30 弹窗决定） |
+
+## 11. 二审后的统筹裁定
+
+二审（#1632 评论 6537279271）要改的四条必修，统筹 2026-10-30 裁定如下；这些是统筹按现有合同与用户已定的 D1～D6 做的取舍，不是新的用户决定。
+
+| # | 裁定 |
+| --- | --- |
+| R1 | **T-144 的 Agent 正文放在包里的资源文件，Manifest 块只引用它**：D6 管的是声明；正文与合同「正文在包里，不在 Manifest」一致，不算 D6 被拒的「另加声明文件」，不再问用户。`agent` 块的名单只收名字、用途、正文引用；`execution`、`host_tools`、`subagents`、`mcp`、`characters` 这类带权限的字段安装时一律拒，这就是 D5 的「不加权限」；T-144 的验收里每个被拒字段一例（第 7 节） |
+| R2 | **T-143 的沙箱模型设置**：把真实需要的东西写进稿（存储登记、专用供应商 id、动作指向、生图的存储与三个权限名、两处 `execution === "sandbox"` 的启动拒绝怎么改，第 6 节）；沙箱包的 `save` **不许写 `base_url` 和 `connection_id`**，只能写宿主批过的值，S-93、S-95 的来源审批不被绕开；`assertTarget` 能挡到哪一步，T-143 开工第一步先核，写成拒绝用例 |
+| R3 | **BL-916 只写 T-143、T-144 真正覆盖的部分**：model、agent、methods。`homeDatabase`、`connections`、`materials`、`ownerFiles`、`background` 仍留在 BL-916，写明「T-143/T-144 之后仍待……，需要固定 Manifest 能声明它们」；这一行不删（第 1 节、BACKLOG） |
+| R4 | **图标的拒绝落在 SDK 的 Manifest 规则里**：名字不在平台图标集里，安装时就以明确的错误码拒，不靠 `sanitizeView` 静默丢弃；图标字段进 §1 名单；这条归 T-142，T-142 按二审建议 F 重定范围：已装包的导航与侧栏数据需要运行时路径，不能靠静态目录，因此改为甲档（第 5 节） |
+
+二审的建议 A～E、G～I 都已照做：A 行号改为 273～275；B 把 bl628 的 D5 写明；C BL-712 统一写 T-149；D 预览不止三样、`effects` 新键要改 contracts，已算进 T-143；E 权限行由 `effects` 派生；G 补了 T-145 的项目来源、升级后沿用、删项目清同意与依赖；H 各节「可检验」逐条带 RAC 号；I 更新了 PR 正文。

@@ -78,7 +78,7 @@ export function heldInstalls(home: string | null, current?: { readonly db: Runti
   try {
     if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog.db).owner())) throw new Error("项目目录不是本 Home 建的，读不了其中的安装");
     const root = resolve(home, "projects") + sep;
-    for (const project of listCatalogProjectsForUninstall(catalog.db)) {
+    for (const project of listCatalogProjectsForUninstall(catalog.db, join(home, "projects"))) {
       const file = resolve(project.database_path);
       if (!file.startsWith(root)) throw new Error(`项目库 ${project.project_id} 不在本 Home 的项目目录里，读不了其中的安装`);
       const db = new LocalSqliteStorage(file, { readonly: true });

@@ -96,3 +96,4 @@ export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugi
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
+export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";

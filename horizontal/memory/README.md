@@ -59,7 +59,7 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 允许修改：本 README、`src/prefs.ts` 与包导出、storage 的 memory ledger、Host 的最早启动门与必要的现役入口（含 `web-server.ts` 既有装配顺序）、对应定向测试。`installer/home.ts` 的新 Home 安装准备与 `project-catalog.ts` 的打开存储准备在原文件内各自持有完整职责，不扩大冻结的主流程或巨类。维护脚本只在会话临时目录。验证覆盖新 Home 候选行为、旧默认与关闭设置、项目继承及插件限制的重启效果、错版/缺采用拒绝、旧产品三入口在采用副本上的 SDK 零写及 Web 拒绝后跨轮询周期无写入；按 `--jobs 2` 运行定向用例，不调模型。产品分类闭环和真人体验不在本片完成声明中。
 
-2026-10-22 的隔离验证覆盖了真实 Host / SDK 持久化、新 Home 安装及中断重试、偏好动作保存后重启、旧有效设置和项目/插件限制保留。副本维护在偏好更新后、版本提升前实际注入失败，旧基线、原偏好、SDK 正文与备份不变，随后能重新采用；冻结的旧 Home / Web / MCP 入口打开采用副本均拒绝且 SDK 正文零写。对应回归为 `tests/memory-adoption.test.ts`、`tests/install.test.ts` 和 `tests/secret-store-keychain-retry.test.ts`，另保留原记忆和存储定向回归。此处只证明偏好与 ledger 格式门；SDK 分类数据采用、最终安装包全链路和真实 Home 操作尚未验收。
+2026-10-22 的隔离验证覆盖了真实 Host / SDK 持久化、新 Home 安装及中断重试、偏好动作保存后重启、旧有效设置和项目/插件限制保留。副本维护在偏好更新后、版本提升前实际注入失败，旧基线、原偏好、SDK 正文与备份不变，随后能重新采用；冻结的旧 Home / Web / MCP 入口打开采用副本均拒绝且 SDK 正文零写。对应回归为 `tests/memory-initialization.test.ts`、`tests/install.test.ts` 和 `tests/secret-store-keychain-retry.test.ts`，另保留原记忆和存储定向回归。此处只证明偏好与 ledger 格式门；SDK 分类数据采用、最终安装包全链路和真实 Home 操作尚未验收。
 
 ### M1 后续独立片：自动批准门 v2
 
@@ -189,7 +189,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 显式召回只记录返回，不更新最近参考；最近参考由真实 Run 的 `response-observed` Context 回执投影。派发未知和记录失败单独显示，不重发模型；迟到回执不能恢复已遗忘身份。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-initialization.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

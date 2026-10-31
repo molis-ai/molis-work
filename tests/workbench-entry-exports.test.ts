@@ -27,7 +27,7 @@ const UI_COMPOSITION_NAMES = [
 /** The plugin words (PG-071) `./i18n.js` gives out besides the locale names, each with the files outside the workbench that use it. */
 const PLUGIN_WORDS_USERS: Readonly<Record<string, readonly string[]>> = {
   // Text a plugin's own code draws (its summary, its page) is translated with that plugin's words and no one else's.
-  inWordsOf: ["apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/home-plugin-http.ts"],
+  inWordsOf: ["apps/local-host/src/home-plugin-http.ts"],
   // A plugin that activates brings its Manifest's `ui.messages` and `ui.translations` to the pages' catalog, a built-in or an installed one.
   registerPluginMessages: ["apps/local-host/src/plugin-platform.ts"],
   // Takes a plugin's words out again; the Host has no path for it yet (an uninstalled plugin's words stay until restart), so only the tests call it.

@@ -1,5 +1,6 @@
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 /**
  * What the shell reads of one plugin that runs in the project (W5-06 余项 2, BL-388, BL-542): the declarations of its Manifest
@@ -114,11 +115,11 @@ export function scriptJson(value: unknown): string {
 export interface ClientDirectoryEntry { readonly id: string; readonly accepts_objects: boolean; readonly hue: string | null }
 
 export function clientPluginDirectory(directory: PluginDirectory): ClientDirectoryEntry[] {
-  return directory.map(entry => ({
+  return [{ id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue }, ...directory.map(entry => ({
     id: entry.id,
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,
-  }));
+  }))];
 }
 
 /** The directory element the page's scripts read once at start (`data-plugin-directory`). */

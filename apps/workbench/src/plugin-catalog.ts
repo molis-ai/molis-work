@@ -4,6 +4,8 @@ import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-wo
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
+import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
@@ -151,9 +153,14 @@ function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDire
     rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
 
-/** Navigator entries for the enabled set, in the order the Manifests declare. */
+/** Platform navigation and the enabled Plugins' views, in their declared order. Platform entries are never project members. */
 export function railEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
-  return [...placedViews(directory, enabled, "navigator"), ...stageOnlyViews(directory, enabled)].map(railEntry);
+  const views = placedViews(directory, enabled, "navigator"), entries = views.map(railEntry);
+  const at = views.findIndex(({ view }) => view.order > ARTIFACT_NAVIGATION.order
+    || (view.order === ARTIFACT_NAVIGATION.order && view.plugin_id.localeCompare(ARTIFACTS_PROVIDER_ID) > 0));
+  const { id, surface, label, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
+  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label, glyph, group, rail, pinned_default, chosen });
+  return [...entries, ...stageOnlyViews(directory, enabled).map(railEntry)];
 }
 
 /** Personal island entries above the project card. */

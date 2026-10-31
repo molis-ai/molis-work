@@ -7,6 +7,7 @@ import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
 import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -139,7 +140,7 @@ export function renderPluginRail(
   const join = (values: readonly string[]) => values.join(L("、"));
   const summaries = pluginStageSummaries();
   // A summary is the Plugin's own text, so it is English in that Plugin's own words and nobody else's.
-  const hints = Object.fromEntries(Object.entries(summaries).map(([id, { plugin_id, summary }]) => [id, withPluginWords(plugin_id, () => L(summary))]));
+  const hints: Record<string, string> = { ...Object.fromEntries(Object.entries(summaries).map(([id, { plugin_id, summary }]) => [id, withPluginWords(plugin_id, () => L(summary))])), [ARTIFACT_NAVIGATION.id]: L(ARTIFACT_NAVIGATION.hint) };
   const names = new Map<string, string>([...entries, ...islands].map(plugin => [plugin.id, plugin.label]));
   const sitesOf = new Map(cards.map(card => [card.id, card.sites]));
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);

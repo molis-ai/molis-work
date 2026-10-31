@@ -453,14 +453,16 @@ test("on this repository: no browser file is run, known darwin and live files ar
   assert.deepEqual(launching.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that opens the goal browser is a browser file");
 });
 
-// Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. It stays that way when the
-// product subset it led to joins Verify (tests/ci-product-subset.test.ts holds the same lines for that job).
+// Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. It stayed that way when the
+// product subset it led to joined Verify (2026-10-31; tests/ci-product-subset.test.ts holds that job's lines).
 test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and that Verify does not wait for", () => {
   const probeJob = jobBlock("linux-probe");
   assert.match(probeJob, /^    runs-on: ubuntu-latest$/m);
   assert.match(probeJob, /^    continue-on-error: true$/m, "a red probe must not turn the workflow red");
-  // Nightly on main and by hand, not on every push (user 2026-10-14); the nightly run has its own concurrency group, so a merge does not cancel it.
-  assert.match(probeJob, /^    if: \$\{\{ github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch' \}\}$/m);
+  // Nightly on main and by hand, not on every push (user 2026-10-14); by hand only with the `linux_probe` input ticked, which is off
+  // by default (user 2026-10-31). The nightly run has its own concurrency group, so a merge does not cancel it.
+  assert.match(probeJob, /^    if: \$\{\{ github\.event_name == 'schedule' \|\| \(github\.event_name == 'workflow_dispatch' && inputs\.linux_probe\) \}\}$/m);
+  assert.match(workflow, /^  workflow_dispatch:\n    inputs:\n(?:      #.*\n)*      linux_probe:\n        description: "[^"]+"\n        type: boolean\n        default: false$/m, "a manual run does not start the probe unless asked");
   assert.match(workflow, /^  schedule:\n    - cron: "[^"]+"$/m);
   assert.match(workflow, /^  group: ci-.*github\.event_name == 'schedule' && 'nightly'/m);
   assert.match(probeJob, /node scripts\/ci-linux-probe\.mjs --expect-platform linux /, "the probe refuses to record results from another platform");

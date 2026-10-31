@@ -144,6 +144,7 @@ export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuth
 export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } from "./connector-device-oauth.js";
+export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
 export { createGithubConnector } from "./github-connector.js";

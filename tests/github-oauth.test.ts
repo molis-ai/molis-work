@@ -8,13 +8,13 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { DatabaseSync } from "node:sqlite";
-import { connectorProtocolSecrets, withConnectorProtocols, handleLocalConnectorsSettingsHttp, listConnectorConnectionViews, pollDeviceOAuth, registerConnectorDevicePolling, resolveApiConnection, startApiOAuth, startDeviceOAuth,
+import { connectorAuthorizationStatus, connectorProtocolSecrets, createPeriodicTasks, withConnectorProtocols, handleLocalConnectorsSettingsHttp, listConnectorConnectionViews, pollDeviceOAuth, registerConnectorDevicePolling, resolveApiConnection, startApiOAuth, startDeviceOAuth,
   withConnectorConnections, type OAuthOwners } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 // W5-11 slice 8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.5 "GitHub"): GitHub signs in through the
 // generic OAuth flow by what its declaration says: the web flow for a client of the person's own, the device grant (RFC 8628) for the
-// product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-109).
+// product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-105).
 // - RAC-2540: GitHub connects by the device grant: the page gets a user code and an address, never the device code; the connection is the generic shape.
 // - RAC-2541: the verification address must be https, without an account, port or fragment, and the origin the request went to, compared as parsed origins.
 // - RAC-2542: polling is rate-limited per authorization: early polls send nothing, `slow_down` moves only that authorization's interval.
@@ -195,6 +195,57 @@ test("RAC-2542: two polls arriving together send one request: the second reads t
   assert.equal(remote.of(TOKEN_URL).length, 1, "the poll that waited behind the other did not ask again");
 });
 
+test("RAC-2542: a poll cancelled while queued sends nothing and writes no nextPollAt when its turn arrives", { timeout: 10_000 }, async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  const started = await startDeviceOAuth(home, START);
+  const release = Promise.withResolvers<void>(), cancelled = new AbortController();
+  remote.options.tokenPoll = () => release.promise;
+  time.advance(6);
+  const polls = Promise.allSettled([
+    pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }),
+    pollDeviceOAuth(home, { origin: ORIGIN, state: started.state, signal: cancelled.signal }),
+  ]);
+  try {
+    await settle(); await settle();
+    assert.equal(remote.of(TOKEN_URL).length, 1, "the first poll holds the connection queue");
+    const record = withConnectorProtocols(home, store => store.read(started.state, ORIGIN)).configuration;
+    cancelled.abort();
+    time.advance(6); // The interval expires while the cancelled poll is still waiting in the real queue.
+    release.resolve();
+    assert.deepEqual(await polls, [
+      { status: "fulfilled", value: { status: "pending" } },
+      { status: "fulfilled", value: { status: "pending" } },
+    ]);
+    assert.deepEqual(withConnectorProtocols(home, store => store.read(started.state, ORIGIN)).configuration, record, "a queued cancellation writes no polling state");
+    assert.equal(remote.of(TOKEN_URL).length, 1, "the cancelled poll sends no request");
+    assert.equal(sessionSecrets(home, started.state).get("device"), "private-device-code");
+    assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
+  } finally { release.resolve(); await polls; }
+});
+
+test("RAC-2542: the real periodic registry calls onStop once per task, waits for every result and rejects registration after stop", { timeout: 5_000 }, async t => {
+  const periodic = createPeriodicTasks();
+  const releases = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+  const callbacks = releases.map(release => t.mock.fn(() => release.promise));
+  t.after(() => { for (const release of releases) release.resolve(); return periodic.stop(); });
+  callbacks.forEach((onStop, index) => periodic.every({ id: `stop-${index}`, title: "Stop contract", owner: "test", intervalMs: 60_000, run: () => undefined, onStop }));
+  const stopping = periodic.stop();
+  assert.equal(periodic.stop(), stopping, "concurrent stop calls share the same shutdown");
+  let resolved = false;
+  const observed = stopping.then(() => { resolved = true; });
+  await settle();
+  assert.deepEqual(callbacks.map(callback => callback.mock.callCount()), [1, 1], "every task's onStop is called once");
+  assert.equal(resolved, false, "stop waits for its callbacks");
+  assert.throws(() => periodic.every({ id: "after-stop", title: "Too late", owner: "test", intervalMs: 60_000, run: () => undefined }), /periodic tasks are stopped/);
+  releases[0]!.resolve(); await settle();
+  assert.equal(resolved, false, "one unfinished callback still keeps stop pending");
+  releases[1]!.resolve(); await observed;
+  await periodic.stop();
+  assert.deepEqual(callbacks.map(callback => callback.mock.callCount()), [1, 1], "later stop calls do not repeat onStop");
+  assert.throws(() => periodic.every({ id: "after-resolve", title: "Too late", owner: "test", intervalMs: 60_000, run: () => undefined }), /periodic tasks are stopped/);
+  assert.deepEqual(periodic.list(), []);
+});
+
 test("RAC-2542: a service whose token endpoint hangs holds up only its own authorization: the poller starts every authorization and waits for none", { timeout: 20_000 }, async t => {
   const home = homeOf(t), time = clock(t), remote = github(t);
   let tick: (() => unknown) | undefined;
@@ -231,13 +282,15 @@ test("RAC-2542: stopping the Host's periodic tasks aborts the polls in flight an
   let settled = false;
   const stopped = Promise.resolve(stop!()).then(() => { settled = true; });
   await Promise.race([stopped, new Promise(resolve => setTimeout(resolve, 5_000))]);
-  assert.ok(settled, "stop() resolves once the request is aborted, not after its 25 s");
+  assert.ok(settled, "stop() resolves once the request is aborted, before the transport's 15 s timeout");
   const after = withConnectorProtocols(home, store => store.read<{ nextPollAt: number; interval: number }>(started.state, ORIGIN)).configuration;
   assert.deepEqual([after.nextPollAt, after.interval], [record.nextPollAt, record.interval], "the Host stopping is not the service failing: no back-off is written");
   assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
   assert.equal(sessionSecrets(home, started.state).get("device"), "private-device-code", "the authorization is still pending, untouched");
-  time.advance(60); await tick!(); await settle();
+  const authorization = connectorAuthorizationStatus(home, started.authorization_id, 0);
+  time.advance(25 * 60 * 60); await tick!(); await settle();
   assert.equal(remote.of(TOKEN_URL).length, 1, "nothing is started after stop()");
+  assert.deepEqual(connectorAuthorizationStatus(home, started.authorization_id, 0), authorization, "a tick after stop cannot expire or change the pending record");
 });
 
 test("RAC-2542: stop() waits for a poll that has reached the account request: the connection is whole before it resolves", { timeout: 20_000 }, async t => {

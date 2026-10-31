@@ -15,7 +15,7 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 
 // The device authorization grant of the generic OAuth flow (RFC 8628, W5-11 §2.5). The service's declaration says where to ask for the
 // code and where to poll; the platform does the rest: it keeps the device code, rate-limits the polling itself, and judges the
-// declaring plugin and the authorization on every poll, the way a callback does (S-101, S-109). The page gets the user code, the
+// declaring plugin and the authorization on every poll, the way a callback does (S-101, S-105). The page gets the user code, the
 // address to type it at and a state to poll with, never the device code.
 
 /** A pending device authorization: the OAuth configuration of a callback flow plus what polling needs. */
@@ -126,6 +126,7 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
   let terminal = false;
   try {
     return await serialized(home, first.connectionId, async () => {
+      if (input.signal?.aborted) return { status: "pending" as const };
       const config = read();
       assertConnectorAuthorizationPending(home, state);
       if (Date.now() < config.nextPollAt) return { status: "pending" as const };
@@ -187,12 +188,12 @@ export function registerConnectorDevicePolling(home: string, periodic: PeriodicT
   const stopping = new AbortController();
   periodic.every({ id: "connector-device-authorization", title: "完成设备登录授权", owner: "connectors", intervalMs: 2000,
     run: () => runWithMolisWorkHome(home, async () => {
+      if (stopping.signal.aborted) return;
       expireConnectorAuthorizations(home);
       for (const request of pendingConnectorAuthorizations(home)) {
         const ui = readConnectorAuthorizationPresentation(home, request.id);
         if (!ui?.device_state || !ui.origin || inFlight.has(ui.device_state)) continue;
         const { device_state: state, origin } = ui;
-        if (stopping.signal.aborted) return;
         inFlight.set(state, runWithMolisWorkHome(home, () => pollDeviceOAuth(home, { state, origin, signal: stopping.signal })).catch(() => undefined).finally(() => inFlight.delete(state)));
       }
     }),

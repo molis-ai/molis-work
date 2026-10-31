@@ -11,9 +11,8 @@ import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 // icon set. The set lives in the SDK as a list a Manifest is checked against, and the host's sprite must draw every name in it.
 
 const withViewIcon = (icon: unknown): PluginManifest => {
-  const manifest = structuredClone(todoManifest) as { ui: { views: Array<Record<string, unknown>> } };
-  manifest.ui.views[0]!.icon = icon;
-  return manifest as unknown as PluginManifest;
+  const [first, ...rest] = todoManifest.ui.views!;
+  return { ...todoManifest, ui: { ...todoManifest.ui, views: [{ ...first!, icon: icon as string }, ...rest] } };
 };
 
 test("RAC-2653 the SDK's list of icon names is exactly the glyphs the host's sprite draws", () => {

@@ -148,9 +148,11 @@ test("RAC-2720 a store at the current version missing its baseline tables is ref
   finally { fresh.close(); }
 });
 
-// RAC-2719 (T-346 review): a write killed before commit leaves a hot journal. On some platforms a read-only connection cannot roll it
-// back (SQLITE_READONLY_ROLLBACK); the writable open may recover it (SQLite's crash recovery, not a business write) and the baseline
-// check then runs on the recovered database. A wrong version is still refused with storage.schema_version_mismatch.
+// RAC-2719 (T-346 review): a write killed before commit leaves a hot journal — a journal with a valid, non-zero header and a database
+// file holding pages only that journal can roll back. A native read-only connection cannot recover it (SQLITE_READONLY_ROLLBACK,
+// errcode 776), which is the branch `inspectSqliteBaseline` hands to the writable open: SQLite's crash recovery (not a business write)
+// runs there, and the baseline check then runs on the recovered database. A wrong version is still refused with
+// storage.schema_version_mismatch.
 test("RAC-2719 a store with a hot journal still opens, and a wrong version is still refused", t => {
   const home = mkdtempSync(join(tmpdir(), "molis-baseline-hot-journal-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -159,18 +161,38 @@ test("RAC-2719 a store with a hot journal still opens, and a wrong version is st
     const db = openBaselineHomeSqlite(home, store, v1);
     try { db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run(); } finally { db.close(); }
     const path = homeSqlitePath(home, store);
+    // Enough rows in the uncommitted transaction that the page cache spills to the database file: only then does the journal get a
+    // valid header and pages the next open has to roll back. One small INSERT can stay in the cache, so a journal file alone would not
+    // prove the recovery path is exercised.
     const killed = spawnSync(process.execPath, ["-e", `const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync(${JSON.stringify(path)});
-      db.exec("BEGIN IMMEDIATE"); db.exec("INSERT INTO notes VALUES ('b', 'uncommitted')"); process.kill(process.pid, "SIGKILL");`], { encoding: "utf8" });
+      db.exec("PRAGMA cache_size = 2"); db.exec("BEGIN IMMEDIATE");
+      const insert = db.prepare("INSERT INTO notes VALUES (?, ?)");
+      for (let index = 0; index < 400; index += 1) insert.run("b" + index, "uncommitted " + "x".repeat(800));
+      process.kill(process.pid, "SIGKILL");`], { encoding: "utf8" });
     assert.equal(killed.signal, "SIGKILL", "the write is killed before it commits");
-    assert.ok(existsSync(`${path}-journal`), "so the journal is left hot beside the database");
+    const journal = `${path}-journal`;
+    assert.ok(existsSync(journal), "so a journal is left beside the database");
+    assert.ok(statSync(journal).size > 0, "and it has bytes: a hot journal needs a valid, non-zero header");
+    // The premise of this test: the native read-only path really is refused by the hot journal. If this assertion stops holding, the
+    // wrapper assertions below no longer prove the 776 recovery branch was taken.
+    const nativeReadOnly = () => {
+      const readOnly = new DatabaseSync(path, { readOnly: true });
+      try { readOnly.prepare("SELECT count(*) AS count FROM notes").get(); } finally { readOnly.close(); }
+    };
+    assert.throws(nativeReadOnly, (error: unknown) => (error as { errcode?: unknown }).errcode === 776,
+      "a native read-only read of the hot-journal store fails with errcode 776");
     return path;
   };
   const path = create("notes");
   const recovered = openBaselineHomeSqlite(home, "notes", v1);
-  try { assert.deepEqual((recovered.prepare("SELECT id FROM notes ORDER BY id").all() as Array<{ id: string }>).map(row => row.id), ["a"], "only the committed row survives the recovery"); }
-  finally { recovered.close(); }
+  try {
+    assert.deepEqual((recovered.prepare("SELECT id FROM notes ORDER BY id").all() as Array<{ id: string }>).map(row => row.id), ["a"],
+      "only the committed row survives the recovery");
+  } finally { recovered.close(); }
+  assert.equal(existsSync(`${path}-journal`), false, "the writable open rolled the hot journal back");
   const wrongPath = create("wrong");
-  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 1 && error.expected === 2;
+  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.code === "storage.schema_version_mismatch"
+    && error.found === 1 && error.expected === 2;
   assert.throws(() => openBaselineHomeSqlite(home, "wrong", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused,
     "the version check still refuses a hot-journal store at another version");
   assert.equal(wrongPath, homeSqlitePath(home, "wrong"));

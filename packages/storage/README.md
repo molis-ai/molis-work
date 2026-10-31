@@ -13,7 +13,7 @@
 
 ## 一次典型调用
 
-LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 把各模块交出的当前 schema 拼成库的基线（`applySqliteBaseline`）：先只读核对版本与结构，版本不符（`storage.schema_version_mismatch`）或同版本基线表缺失/形状不同（`storage.schema_structure_mismatch`）都拒绝，不就地升级。runWithMolisWorkHome 将文件适配限定到当前 Home。
+LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 用 `openBaselineHomeSqlite` 打开一个 Home 库：**这个 wrapper** 先只读核对版本与结构（同版本也必须有基线的每张表；热日志库的只读预检报 SQLITE_READONLY_ROLLBACK 时交给可写打开的 SQLite 崩溃恢复，恢复后再完整核对），再开可写连接并调用 `applySqliteBaseline`。公开的 `applySqliteBaseline` 处理的是**已有连接**：只在该连接上核对版本与基线表结构、给空库建基线，本身不做只读预检，也不负责其他 owner 的路径、密钥或 JSON 检查；直接 `openHomeSqliteDatabase` 后再 apply 的调用点保留各自顺序。版本不符（`storage.schema_version_mismatch`）或同版本基线表缺失/形状不同（`storage.schema_structure_mismatch`）都拒绝，不就地升级；runWithMolisWorkHome 将文件适配限定到当前 Home。
 
 `describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。Host 用它与 `describeSqliteSchema` 的实测结果比较，确认完整结构后才构造可能创建表的 Repository；SQLite 连接技术留在 storage。
 

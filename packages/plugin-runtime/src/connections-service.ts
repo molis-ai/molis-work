@@ -151,9 +151,12 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
  * The account one call of the Host's own gives a sandboxed integration (S-95): the connection the person chose for the source it pulls,
  * the service its plugin declared for it, and that service's origins when the platform's table has none (the package's, kept with the
  * publisher the person trusted). `connection_id` is `null` for a source without an account: its requests then go out without one.
+ * `install_id` is the installation the call runs as, from its run context: a connection pinned to another package's installation is
+ * refused for it (T-134).
  */
 export interface CallConnection {
   readonly plugin_id: string;
+  readonly install_id: string;
   readonly service_id: string;
   readonly connection_id: string | null;
   readonly origins?: readonly string[];

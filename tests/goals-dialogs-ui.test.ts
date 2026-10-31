@@ -16,7 +16,9 @@ test("create dialog preserves editable Draft fields, limits and parent/dependenc
   const before = structuredClone(items), html = renderer.renderCreateDialog(items);
   assert.deepEqual(items, before);
   for (const name of ["goal_id", "priority", "title", "outcome", "why", "business_logic", "acceptance_criteria", "parent_goal_id", "dependency_goal_ids"]) assert.ok(html.includes('name="' + name + '"'));
-  assert.match(html, /name="title" required maxlength="120"/);
+  assert.match(html, /name="title" required autocomplete="off"/);
+  // T-285: an HTML maxlength counts UTF-16 units; the title is capped by characters in the client instead.
+  assert.doesNotMatch(html, /name="title"[^>]*maxlength/);
   assert.match(html, /name="priority" type="number" min="0" max="100" value="50"/);
   assert.match(html, /Title &quot;&lt;safe&gt;/);
   const optionIds = [...html.matchAll(/<option value="([^"]*)"/g)].map(match => match[1]);

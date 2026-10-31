@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_ICON_NAMES } from "./ui/icon-names.js";
 
 // The checks for where a view says its plugin is listed, made new and started from (W5-06 2b): its icon, its tab-strip `hue` (PG-075), its rail `group`,
 // what it `creates` and its project home `start`. Only a view that opens its plugin from the rail (`navigator`, `island`) may say
@@ -58,6 +59,7 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   const problems: string[] = [];
   const id = view.view_id;
   if (view.icon !== undefined && !words(view.icon)) problems.push(`视图 ${id} 的 icon 必须是图标名`);
+  else if (view.icon !== undefined && !(PLUGIN_ICON_NAMES as readonly unknown[]).includes(view.icon)) problems.push(`视图 ${id} 的图标 ${JSON.stringify(view.icon)} 不在平台图标集里`);
   if (view.hue !== undefined && (typeof view.hue !== "string" || !HUES.has(view.hue))) problems.push(`视图 ${id} 的 hue ${String(view.hue)} 不是设计系统的颜色名（${UI_VIEW_HUES.join("、")}）`);
   const opens = view.slot === "navigator" || view.slot === "island";
   if (view.title_en !== undefined) {

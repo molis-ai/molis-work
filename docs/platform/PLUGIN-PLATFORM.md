@@ -83,9 +83,9 @@ Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secre
 
 ## 7. 当前实现边界
 
-v2 已在 Coding、Files、Diff、Git、Text Stats、Shelf 的正式宿主装配中运行（名单见 `tests/builtin-plugin-assembly-gate.test.ts`），
+v2 已在除两个构建期例外以外的全部内置插件的正式宿主装配中运行（名单见 `tests/builtin-plugin-assembly-gate.test.ts`），
 复用 `createPluginPlatform` 的生命周期、Artifact、连线、事件及能力合同；真实 SQLite 重启路径有工程验证。
-其他仍标为 `native` 的插件继续由构建期组合装配，该名单冻结、只许减少；新的内置插件只走 Plugin Runtime，不能据 Coding 的接通宣称所有内置插件已迁移。
+构建期组合只剩用户批过的两个例外 Alchemist、插件创作台（`APPROVED_BUILD_TIME_EXCEPTIONS`，以后由 BL-377 重做）；新的内置插件只走 Plugin Runtime。
 每个插件的具体产品完成度以自身需求书和正式运行证据为准。
 
 Runtime 以稳定 `install_id` 关联安装记录和私有数据。启动只恢复已安装版本，不会因 Host 提供了较新 Manifest 就改写版本或授权。Manifest 可用 `upgrade_compatibility.compatible_from_versions` 声明新实现可直接兼容的精确来源版本，或用 `migratable_from_versions` 声明仅可经用户手动升级的数据来源；可迁移升级要求插件提供只能读 `storage:private.get` 的 `validateUpgrade` 预检。Host 不做数据迁移；预检通过后目标实现必须直接使用原数据。项目插件市场展示当前项目的候选版本与新旧版本，用户触发升级后 Runtime 校验来源声明、权限保留和数据预检，再切换版本。更高版本升级仍需提高版本号；同版本 Manifest 变更仅在声明兼容当前精确版本时允许继续运行，安装记录指纹保持不变，也不会产生市场候选。内置插件是例外（随 Host 发布，监督器条目给 `trust: HOST_BUILD_TRUST`）：启动时安装记录改成 Host 这个构建的清单，版本更高、更低或同版本摘要不同都一样，保留 `install_id` 与私有数据，不恢复旧发行物，也不进市场候选（[发布策略](../releases/POLICY.md)第 7 节）。

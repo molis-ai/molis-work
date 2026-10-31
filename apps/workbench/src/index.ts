@@ -66,6 +66,15 @@ export {
 export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
+export { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
+export {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  HOME_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+} from "./settings-address-params.js";
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";

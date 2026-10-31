@@ -8,7 +8,7 @@ import { aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadi
   type WorkflowHandoff, type WorkflowInstance, type WorkflowLink, type WorkflowPayload, type WorkflowVerdict } from "./model.js";
 import type { WorkflowContentPorts, WorkflowsActionPorts, workflowsActions } from "./actions.js";
 import { withPending } from "./continuation.js";
-import { cutCharacters as firstCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { workflowsErrors } from "./error.js";
 import { labelOf, readStep, resolveStation, type Pending, type Reach, type RunScope } from "./step-runner.js";
 
@@ -47,7 +47,7 @@ async function judge(reach: Reach, link: WorkflowLink, handed: WorkflowPayload):
   const view = await reach.find(ref);
   if (!view) throw workflowsErrors.not_ready("这一段的判断规则已不可用或版本已变化；原引用已保留，请重新选择");
   if (!view.availability.available) throw workflowsErrors.not_ready(`这一段的判断规则暂不可用：${view.availability.reason}`);
-  const content = firstCharacters([handed.title, handed.body].filter(Boolean).join("\n\n"), 8000);
+  const content = cutCharacters([handed.title, handed.body].filter(Boolean).join("\n\n"), 8000);
   const result = await reach.invoke({ capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }, { content }) as
     { status: "ok" | "needs_review"; function_key: string; version: number; data: { choice?: string | null }; confidence: number | null };
   const choice = result.data?.choice ?? null;

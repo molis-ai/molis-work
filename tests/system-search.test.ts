@@ -507,3 +507,32 @@ test("the Host's search actions are well-formed directory entries", () => {
   assert.deepEqual(inspectActionDeclarations(Object.values(searchActions), undefined), []);
   assert.equal(SEARCH_PROVIDER_ID, "system.search");
 });
+
+// RAC-2673: a reader the caller may not use (any more) is left out of the query, told by the refusal's kind (its own, or the platform table's
+// for a platform code) whatever its code, whether the asynchronous re-check or the synchronous tail finds it.
+// RAC-2674: anything else a reader's check throws still ends the query; the MCP grant check's code without its kind is not a refusal.
+const readerRefusing = (where: "validate_authority" | "assert_authority_current", thrown: Error): ActionCallContext => {
+  const check = (reference?: { capability_id: string }) => { if (reference?.capability_id === reader.capability_id) throw thrown; };
+  return where === "validate_authority" ? { ...owner("a"), validate_authority: async reference => check(reference) }
+    : { ...owner("a"), assert_authority_current: reference => check(reference) };
+};
+for (const where of ["validate_authority", "assert_authority_current"] as const) {
+  test(`RAC-2673 a reader refused by its kind is left out of the query, whatever its code (${where})`, async t => {
+    const f = await fixture(t);
+    register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
+    assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"], "with its reader the caller finds it");
+    for (const refusal of [new ActionError("fixture.reader_withheld", "不再交给这个调用者", { kind: "forbidden" }), new ActionError("actions.forbidden", "没有读取权限"),
+      new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销", { kind: "forbidden" })]) {
+      assert.deepEqual(ids(await ask(f, readerRefusing(where, refusal), "合同")), [], `${refusal.code}: the reader is left out, and with it what only it would show`);
+    }
+  });
+  test(`RAC-2674 any other failure of a reader's check still ends the query, the grant check's code without its kind included (${where})`, async t => {
+    const f = await fixture(t);
+    register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
+    assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"]);
+    for (const failure of [new ActionError("fixture.reader_broken", "读取器坏了", { kind: "invalid" }), new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销"), new Error("读取器坏了")]) {
+      await assert.rejects(ask(f, readerRefusing(where, failure), "合同"), (error: unknown) => error === failure,
+        `${failure instanceof ActionError ? failure.code : "a plain Error"}: not a refusal, so the query fails as before`);
+    }
+  });
+}

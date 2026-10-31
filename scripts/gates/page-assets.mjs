@@ -245,8 +245,9 @@ const headErrors = (measured, budget, base) => {
 // T-225, RAC-2170–2174: the context reader and the text handed to the Assistant cut whole characters instead of UTF-16 units: one
 // short cutWhole in PANE_PART (moved out of the context bus, which now shares it) and three call sites. +78 B on the frame script,
 // which carries its own copy of PANE_PART; the workbench script falls 15 B (it loses the function the bus carried and gains this one).
-// Tried: an inline slice+replace at each of the three sites (+102 B); no new asset, no new text. The T-203, T-235 and T-183 entries this
-// file used to carry are consumed (their budgets already equal their ceilings) and are deleted with this change.
+// Tried: an inline slice+replace at each of the three sites (+102 B); no new asset, no new text. This change starts from main's 190760
+// budget (T-223's +137, already landed) and grows it by at most 78; the T-203, T-235, T-183 and T-223 entries this file inherited are
+// consumed (their budgets already equal their ceilings) and are deleted with this change as the convention says.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [190760, 190838],
 };

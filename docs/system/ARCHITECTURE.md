@@ -124,4 +124,4 @@ Gmail Integration Plugin
 → 用户选择后，Feed 自己记下保存或忽略；加入 Inbox、升格为 Goal 等由 Inbox、Goals 等对应 owner 经动作接收 Command
 ```
 
-每一步只改变自己拥有的事实：上面三步现在都在 Feed 插件的存储层里，各写自己的表（监听记录、信号、条目），没有谁替谁写。未来用户把某个 Plugin 结果共享给 Team 时，Artifacts/Goals 生成 Envelope，Exchange 负责可靠传输，接收方本地 Plugin 再消费内容。
+每一步只改变自己拥有的事实：上面三步现在都在 Feed 插件里，各写自己存储层里的表（监听记录、信号、条目），没有谁替谁写。未来用户把某个 Plugin 结果共享给 Team 时，Artifacts/Goals 生成 Envelope，Exchange 负责可靠传输，接收方本地 Plugin 再消费内容。

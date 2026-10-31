@@ -482,6 +482,7 @@
 - **环境变量与设置页**：产品客户端只认 `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`；`github_client_id_configured` 与 `connector:github:client_id` 不再读。设置页的主按钮在 `oauth.device.login_ready` 时走设备授权，自带应用仍走网页授权码。
 - **没碰的**：Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/github-oauth.test.ts`（RAC-2540～2549）；`connector-setup`、`security-invariants-connector-intent`、`security-invariants-connector-scope` 里的 GitHub 设备授权用例改走通用路由与 `oauthNetwork`；`connector-method-directory`、`connector-oauth-choice`、`connectors-settings-behaviors`、`plugin-global-settings` 的 `auth_kind` 与按钮断言随之更新；`tests/github-device-flow.test.ts` 删除（内容并入上面几份）。
+- **变异记录**（每条改源码、重建、跑 `github-oauth` 与 `connector-setup`，再还原重建）：①去掉 origin 全等 → RAC-2541、2548 红；②再去掉端口检查 → 同；③去掉“间隔没到不发请求” → RAC-2540、2542 红；④`slow_down` 不加间隔 → 同；⑤去掉设备授权的声明复查（请求前） → RAC-2544 红；⑥`oauthOwner` 不看 grant → 两个设备授权用例（`connector-setup`）和 `github-oauth` 的 7 条红；⑦不检查 `user_code` → RAC-2541 红。三条没有红，因为另一层已经守住同一件事：令牌领取与记录丢弃（授权结束时 `finishConnectorAuthorization` 已清掉待完成记录与秘密、之后的 poll 过不了“仍在等待”）、请求前推后 `nextPollAt`（失败的 poll 本身结束授权）。
 
 ### 2.7 `auth_kind` 收窄
 
@@ -742,6 +743,16 @@
 | RAC-2537 | Notion 的产品客户端只读 `MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_ID/SECRET`；旧名与设置页存的客户端不读 | 同上 |
 | RAC-2538 | 共用刷新的取消、走光后保留新令牌且下次刷新用新的 refresh token、25 秒自己的时限、走光后新来的调用加入在途刷新、期间 refresh token 或连接变了什么都不写（原 FI-C-02 Notion 一组，断言不放宽） | 同上 |
 | RAC-2539 | Host 和 catalog 里没有只给 Notion 的 OAuth 代码、路由和密钥名 | 同上，读源码 |
+| RAC-2540 | GitHub 走设备授权：页面只拿到 `user_code`、验证地址和 state，拿不到 `device_code`；间隔没到的 poll 不发请求；授权后连接是通用形状（`connector-protocol:` 引用、账号是登录名） | `tests/github-oauth.test.ts` |
+| RAC-2541 | 验证地址（含 `verification_uri_complete`）不是 https、带账号密码、端口、片段或不是请求地址的 origin，`user_code` 不合格，都在存任何东西之前结束授权 | 同上 |
+| RAC-2542 | 限速按每条授权各自算：`slow_down` 只加大这一条的间隔，别的授权仍按自己的间隔被问 | 同上 |
+| RAC-2543 | 过期、被拒、其他回答都只写状态，不建连接，`device_code` 不留 | 同上 |
+| RAC-2544 | 声明的插件停用、换了安装或发布者、方法指纹变了，请求之前就拒，不发请求；令牌请求期间失去声明，账号不读、不提交 | 同上 |
+| RAC-2545 | 令牌只领一次，第二次 poll 找不到记录；没发出的 state、别的来源的 state 什么都读不到 | 同上；`tests/connector-setup.test.ts`、`tests/security-invariants-connector-scope.test.ts` 的取消用例 |
+| RAC-2546 | GitHub 的产品客户端只读 `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`；旧名与设置页存的 Client ID 不读 | `tests/github-oauth.test.ts` |
+| RAC-2547 | 旧形状的 GitHub 设备授权连接 `reauth_required`、不发请求；两种 grant 各读自己的方法 | 同上；`tests/security-invariants-oauth-non-protocol.test.ts` |
+| RAC-2548 | 验证地址按解析后的 origin 比较，拼写花样（大小写、末尾点、`@`、`\\`、编码）不让仿冒域通过 | `tests/github-oauth.test.ts` |
+| RAC-2549 | Host、GitHub 包、catalog、工作台里没有只给 GitHub 的 OAuth 代码、路由、密钥名；`ConnectorAuthKind` 不再有按服务的取值 | 同上，读源码 |
 
 ## 9. 不做与后续（BL）
 

@@ -62,7 +62,8 @@ const pages: Record<string, Draw> = {
 // the page's scripts read (about 57 KB a page) and `data-project-guidance-json`. A mismatch writes what
 // was drawn to the temp directory. Each draw fixes Date.now and the default time zone: the new method id and the trash dates stay in
 // the output and the hash. The clock mock and time zone are restored after each test; the generated method id is no longer masked.
-// To re-record: in a clean checkout of the pre-change baseline, copy this test and fixtures/goals-page-golden/view.json into tests/,
+// To re-record: use a clean production reference without the renderer migration (the original baseline, or accepted main when
+// integrating newer product changes). Copy this test and fixtures/goals-page-golden/view.json into its tests/ directory,
 // keeping their relative paths. Build that whole workspace first (MOLIS_HELPER_SIGNING_IDENTITY=- pnpm build); stale dist is not evidence.
 // Then run MOLIS_WORK_GOLDEN_RECORD=1 MOLIS_WORK_GOLDEN_DUMP=1 node scripts/run-tests.mjs --jobs 1 tests/goals-page-golden.test.ts.
 // Copy only the resulting golden.json back to the candidate, build it, then run the same complete test with MOLIS_WORK_GOLDEN_DUMP=1 and MOLIS_WORK_GOLDEN_RECORD unset.

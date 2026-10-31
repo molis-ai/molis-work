@@ -3,10 +3,10 @@ import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-
 /**
  * The Functions store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
  * ones must already be at its version, in the column order existing stores have; registered as `FUNCTIONS_HOME_STORE` (W4-11).
- * Version 4 (PG-032 P2, S-90): `function_judgments.install_id` names the plugin installation that recorded a judgment through
+ * Current schema (PG-032 P2, S-90): `function_judgments.install_id` names the plugin installation that recorded a judgment through
  * `services.judgments` and is empty for a judgment the Host recorded itself; a plugin reads and loses only its own.
  */
-export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 4, schema: `
+export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
   CREATE TABLE functions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

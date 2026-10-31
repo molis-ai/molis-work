@@ -1145,7 +1145,8 @@ test("a card a page prepared from the person's selection is checked like the Ass
     // A page cannot place what the Assistant may not do, nor an input the capability would refuse.
     await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
     f.store.setActionEnabled("web-user", actionKey(card.reference), false);
-    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof ActionError && error.code === "assistant.action_revoked" && error.kind === "invalid");
+    // RAC-2675: the card rules' refusal of an action switched off for the Assistant is one by its kind.
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof ActionError && error.code === "assistant.action_revoked" && error.kind === "forbidden");
     f.store.setActionEnabled("web-user", actionKey(card.reference), true);
     await assert.rejects(f.service.offers.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
     // The click runs exactly what the card shows, once.

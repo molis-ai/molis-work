@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createCipheriv, randomBytes } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -110,20 +109,9 @@ export async function populatedSnapshotHome(t: TestContext) {
   const builderRoot = join(home, "plugin-builder", "project", "runs", "build"), builder = snapshotSdk(builderRoot, "snapshot-builder");
   try { await (await builder).memory!.withCaller(snapshotMemoryCaller("snapshot-builder")).write({ scope: "user", owner: "snapshot-builder", text: "Retained builder memory", origin: "test" }); }
   finally { await builder.close(); }
-  const sessionKey = randomBytes(32), nonce = randomBytes(12), cipher = createCipheriv("aes-256-gcm", sessionKey, nonce);
-  const encrypted = Buffer.concat([cipher.update("Retained retired Session body"), cipher.final()]);
-  await file("sessions/content/content.key", sessionKey, 0o600, false);
-  await file("sessions/content/blobs/fixture.blob", JSON.stringify({ v: 1, iv: nonce.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: encrypted.toString("base64") }));
-  const retired = new DatabaseSync(join(home, "sessions", "sessions.db"));
-  try {
-    retired.exec("CREATE TABLE session_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE sessions (session_id TEXT PRIMARY KEY, runtime_id TEXT NOT NULL, title TEXT, metadata_json TEXT NOT NULL);");
-    retired.prepare("INSERT INTO session_meta VALUES (?,?)").run("owner", "molis-work-session-registry-v1");
-    retired.prepare("INSERT INTO session_meta VALUES (?,?)").run("schema_version", "7");
-    retired.prepare("INSERT INTO sessions VALUES (?,?,?,?)").run("retired-before", "codex", "Retained retired Session", "{}");
-  } finally { retired.close(); }
   const sdkKey = await readFile(join(sdkRoot, "storage.key")), builderKey = await readFile(join(builderRoot, "storage.key"));
   assert.equal(sdkKey.length, 32); assert.equal(builderKey.length, 32);
   return { ...cli, directory, workspace, projects, facts, binary, evidence, memoryId: memoryId!, privateText, runtimeText, bookmark, sdkRoot, builderRoot,
     forbidden: [Buffer.from(privateText), Buffer.from("fixture opaque directory authorization"), Buffer.from("Retained SDK memory"), Buffer.from("Retained builder memory"),
-      cli.key, sessionKey, sdkKey, builderKey], snapshot: join(directory, "snapshot") };
+      cli.key, sdkKey, builderKey], snapshot: join(directory, "snapshot") };
 }

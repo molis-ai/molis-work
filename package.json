@@ -100,7 +100,6 @@
     "@molis-ai/molis-work-module-projects": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-alchemist": "workspace:*",
-    "@molis-ai/molis-work-plugin-artifacts": "workspace:*",
     "@molis-ai/molis-work-plugin-builder": "workspace:*",
     "@molis-ai/molis-work-plugin-cli": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",

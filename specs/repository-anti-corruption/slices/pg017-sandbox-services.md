@@ -113,9 +113,9 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
 
 | 项 | 为什么 | 什么时候再看 |
 | --- | --- | --- |
-| 方法与角色的正文 | 进别的 Agent 的一轮，没有安装确认页能列出 | 外部插件安装确认（PG-001）之后，BL-493 |
-| `files`、生图、项目清理的 `purge` | 声明只在宿主条目上，沙箱插件没有条目 | PG-022/102 之后，BL-491 |
-| 模型设置 | Manifest `model_configuration` 已有；沙箱未提供对应端口与 broker 方法，声明即带码拒绝 | BL-491 |
+| 方法与角色的正文 | 进别的 Agent 的一轮，没有安装确认页能列出 | PG-001 已做完；BL-493，→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §7 |
+| 生图、项目清理的 `purge`（`files` 已在 PG-102 P2b 删去，主人文件 S-64 已给） | 声明只在宿主条目上，沙箱插件没有条目 | BL-491，→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §6 |
+| 模型设置 | Manifest `model_configuration` 已有；沙箱未提供对应端口与 broker 方法，声明即带码拒绝 | BL-491，→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §6 |
 | `model.complete` 的 `onText`/`images`、材料的字节输入大对象 | 回调/大字节过不了有界 JSON | 第二批，视需要 |
 
 ## 4. 前提与顺序

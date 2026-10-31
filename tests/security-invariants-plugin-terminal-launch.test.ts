@@ -380,6 +380,12 @@ test("RAC-2555 S-103 the input is the five keys and nothing else, bounded; the i
     ["spaced-command", input => ({ ...input, command: f.program + " " })],
     ["newline-command", input => ({ ...input, command: f.program + "\n" })],
     ["sparse-args", input => ({ ...input, args: new Array(3) })],
+    // A Proxy passes Array.isArray; its length answers 0 once, then 40, each index a valid argument.
+    ["proxy-length", input => {
+      let reads = 0;
+      return { ...input, args: new Proxy([input.args[0]], { get: (target, name) => name === "length" ? { valueOf: () => reads++ ? 40 : 0 }
+        : typeof name === "string" && /^\d+$/u.test(name) ? input.args[0] : Reflect.get(target, name) }) };
+    }],
     ["many-args", input => ({ ...input, args: Array.from({ length: 33 }, () => input.args[0]) })],
     ["nul-arg", input => ({ ...input, args: [input.args[0] + "\0"] })],
     ["number-arg", input => ({ ...input, args: [1] })],
@@ -441,6 +447,7 @@ test("RAC-2556 S-103 revoking terminal:run or workspace:read, or cancelling the 
     const answer = await pending; await invalidated;
     // A revocation stops the instance after revoking its grant (regrant), so the check that answers is the instance's; a cancellation answers
     // with the call's own abort. The checks between the awaits are defence in depth: this proves one of them refuses before the spawn.
+    // The cancellation's answer is the DOMException the abort raises: its raw `code` is ABORT_ERR (20).
     assert.deepEqual(answer, invalidation === "cancel" ? { outcome: String(DOMException.ABORT_ERR), message: "This operation was aborted" }
       : { outcome: "actions.forbidden", message: "此插件实例已停止，请重新打开" }, invalidation);
     await nothingRan(f, marker, panelOf(install.install_id, project.project_id, key), invalidation);

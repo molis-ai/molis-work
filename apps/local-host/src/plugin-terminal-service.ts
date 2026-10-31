@@ -64,9 +64,10 @@ function terminalRequest(input: unknown): TerminalRequest {
   if (typeof key !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(key) || !text(title, 120) || !title.trim()
     || !text(command) || !isAbsolute(command) || command !== command.trim()) throw invalid();
   // Read once, by index, into a plain array: that copy is what is checked and what starts (a hole, an iterator or a getter changes nothing).
+  // `length` is read once too and must be a small integer: a Proxy passes Array.isArray and could answer differently on each read.
   if (!Array.isArray(args)) throw invalid();
-  const length = args.length;
-  if (length > ARGS_LIMIT) throw invalid();
+  const length: unknown = args.length;
+  if (typeof length !== "number" || !Number.isInteger(length) || length < 0 || length > ARGS_LIMIT) throw invalid();
   const list: unknown[] = [];
   for (let index = 0; index < length; index++) list.push(args[index]);
   if (!list.every(arg => text(arg))) throw invalid();

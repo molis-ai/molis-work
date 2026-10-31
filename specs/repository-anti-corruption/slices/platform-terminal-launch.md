@@ -41,10 +41,10 @@
 2. 只能在本安装（同一半、同一世代）当次的、受众为 `user`、command、非只读、自己声明了 `terminal:run` 的动作里调用，否则 `actions.forbidden`；没批准的 `terminal:run` 让人的调用在内核就被拒；每次核安装在跑、持有 `terminal:run`、原调用没取消没撤权，`beforeEffect` 前后与每次等待之后都核，任何一处失败都不起进程。
 3. 安装、项目、人只从调用上下文取；输入只认 `key`、`title`、`program`、`subject`、`directory`，多一个键整个拒；面板号由平台按身份与 key 派生，页面只能附着同一身份的面板（S-47）。
 4. 工作目录只能在两种根里：本次调用所在项目已关联的工作目录（另要 `workspace:read`；不写 `workspace_id` 就是项目的首选工作目录；没有项目的调用、别的项目的 `workspace_id`、不存在的都拒），或本插件声明的主人文件目录（项目实例没有）；相对路径的空段、`.`、`..`、绝对路径、NUL、反斜杠拒，解析真实路径后逃出根（符号链接）、首尾有空白（终端宿主会 trim，`<root>/sub ` 会落到 `<root>/sub`）或不是目录拒。
-5. 程序是平台的运行时配方（`program.runtime`，未知的拒；T-148 起可带 `program.session`：只含 `[A-Za-z0-9._:-]`、1 到 128 个字符，由平台拼进配方的续接参数、作为一个参数传入，不经 shell，记成终端的 `host_session_id`，第一次起就续接；配在 `program.command` 上、带空格或 `;` 的拒），或 `program.command`：不含 NUL、首尾无空白的绝对路径，或只含 `[A-Za-z0-9._+-]` 的命令名（由平台在自己的 PATH 上解析成绝对路径，找不到答 `actions.unavailable`），不经 shell；参数先读一次长度（须是 0 到 32 的整数：Proxy 过得了 `Array.isArray`，它的 `length` 每次读可以答不同的值），循环只用这个值，按下标拷成普通数组，检查这份拷贝（至多 32 项、每项是至多 4096 字符、无 NUL 的字符串），起进程也用它（稀疏数组、自定义迭代器、下标 getter 换不掉）；否则 `actions.input_invalid`。
+5. 程序是平台的运行时配方（`program.runtime`，未知的拒；T-148 起可带 `program.session`：`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，首字符不能是 `-`（运行时会把它读成选项，统筹裁 #1654 6539830193 改严，原批的正则作废），由平台拼进配方的续接参数、作为一个参数传入，不经 shell，记成终端的 `host_session_id`，第一次起就续接；配在 `program.command` 上、带空格、`;` 或以 `-` 开头的拒。页面给的、运行时经 MCP 报来的、记录里存的会话都过同一份检查（`plugin-terminal-runtimes.ts` 的 `isTerminalSessionId`），进来、存、出去三处都调），或 `program.command`：不含 NUL、首尾无空白的绝对路径，或只含 `[A-Za-z0-9._+-]` 的命令名（由平台在自己的 PATH 上解析成绝对路径，找不到答 `actions.unavailable`），不经 shell；参数先读一次长度（须是 0 到 32 的整数：Proxy 过得了 `Array.isArray`，它的 `length` 每次读可以答不同的值），循环只用这个值，按下标拷成普通数组，检查这份拷贝（至多 32 项、每项是至多 4096 字符、无 NUL 的字符串），起进程也用它（稀疏数组、自定义迭代器、下标 getter 换不掉）；否则 `actions.input_invalid`。
 6. 停用、撤权、卸载、项目实例停止时，本激活经该服务起的进程全部结束；停了的激活留下的句柄：在动作之外调不回答也不起进程（BL-411），在新激活的动作里调以 `actions.forbidden` 拒。
 7. （T-148）`/pty` 上任何连接都只能附着服务端已经建好的面板：`spawn` 必须 `attachOnly: true`，只许五个键，否则报错、不起进程。
-8. 终端的记录只对本安装、本项目、本人可见，也只能由他们关闭：`list` 只回这些行，`close` 别人的 key 答 `actions.missing`；一个 key 只属于开它时的 `subject`，换了 `subject` 不论在跑与否都答 `actions.conflict`；同一 key 在跑就附着（不比程序），停了就按记下的程序与会话重起，重起时换程序、或写了与记下的不同的会话，答 `actions.conflict`（不写会话就续接记下的）；重起不重新绑定运行时的工作上下文，首选工作目录换过后，绑定里的 `workspace` 仍是第一次打开时的；被拒的调用不留记录（记录、绑定、项目事件与 `spawn` 在同一个目录库事务里，事务里先核一次）。一个安装、项目、人与 key 只有一行：面板号由这四项派生、是主键，所以表上不另加 UNIQUE。终端环境里的 `MOLIS_WORK_*` 变量只来自调用方给的那一组：用户登录 shell 配置里导出的（如 `MOLIS_WORK_ENCRYPTION_KEY`、`MOLIS_WORK_SECRET_BACKEND`、测试开关）原先经登录环境带进每一个终端，T-137 二审建议的断言在导出了测试开关的开发机上把它测了出来；`buildPtyEnvironment`（`horizontal/runtime-host`，任务书「不许碰」的例外，统筹批 #1643 6539462194）不再带入，管所有 PTY（Goals 与插件终端、Shelf、Characters）。宿主进程自己的环境本来就不进登录环境。钉住它的是 RAC-2564 里登录环境由用例给定的那一例，CI 上照样跑（RAC-2564）。
+8. 终端的记录只对本安装、本项目、本人可见，也只能由他们关闭：`list` 只回这些行，`close` 别人的 key 答 `actions.missing`；一个 key 只属于开它时的 `subject`，换了 `subject` 不论在跑与否都答 `actions.conflict`；同一 key 在跑就附着（不比程序），停了就按记下的程序与记下的、已校验的会话重起，重起时换程序、或写了与记下的不同的会话，答 `actions.conflict`（不写会话就续接记下的）；运行时经 MCP 报来的会话不合格式时仍记成工作上下文的别名、不记成会话；记录里的会话出去之前再核一次，不合格式就按新会话起，宿主日志留一行错误码；重起不重新绑定运行时的工作上下文，首选工作目录换过后，绑定里的 `workspace` 仍是第一次打开时的；被拒的调用不留记录（记录、绑定、项目事件与 `spawn` 在同一个目录库事务里，事务里先核一次）。一个安装、项目、人与 key 只有一行：面板号由这四项派生、是主键，所以表上不另加 UNIQUE。终端环境里的 `MOLIS_WORK_*` 变量只来自调用方给的那一组：用户登录 shell 配置里导出的（如 `MOLIS_WORK_ENCRYPTION_KEY`、`MOLIS_WORK_SECRET_BACKEND`、测试开关）原先经登录环境带进每一个终端，T-137 二审建议的断言在导出了测试开关的开发机上把它测了出来；`buildPtyEnvironment`（`horizontal/runtime-host`，任务书「不许碰」的例外，统筹批 #1643 6539462194）不再带入，管所有 PTY（Goals 与插件终端、Shelf、Characters）。宿主进程自己的环境本来就不进登录环境。钉住它的是 RAC-2564 里登录环境由用例给定的那一例，CI 上照样跑（RAC-2564）。
 
 **不覆盖**：`realpath` 与 `stat` 核过之后、`spawn` 之前，路径里的某一段被换成链接，进程可能落到根外。这是检查与使用之间的竞态，本片不修，测试也测不住；`spawn` 用的是解析后的真实路径。
 
@@ -108,10 +108,10 @@ RAC-2560、2561、2566～2568 随 T-148（第 7 节）。
 | --- | --- | --- |
 | RAC-2560 | 控制令牌的连接发带 `command` 的 `spawn`、不带 `attachOnly` 的、带第六个键的、尺寸超界的，都答 `error`，不起进程；没有的面板答 `started: false`（⑦） | `tests/security-invariants-plugin-terminal-launch.test.ts` |
 | RAC-2561 | 宿主不再答 `/api/panels…`、`/api/goals/:id/panels`；路由表快照没有 `desktop-panel`；`…/goals/:goalId/terminals` 由 Goals 的插件路由答 | `tests/web-route-table.test.ts` |
-| RAC-2564（补） | `program.session`：合法的值第一次起就以 `resume <session>` 起、记成 `host_session_id`；带空格、带 `;`、超过 128 个字符、配在 `command` 上的，都 `actions.input_invalid`，不起进程 | `tests/security-invariants-plugin-terminal-launch.test.ts` |
-| RAC-2565（补） | 走 MCP：运行时从终端的工作上下文报了会话号，记录的 `host_session_id` 跟着变（S-07 那一段改接平台记录）；Goals 的 `resume_session_id` 只配 `runtime`，带空格或 `;` 答 400 | `tests/security-invariants-home-context.test.ts`、`tests/goals-terminal.test.ts` |
-| RAC-2566（前一半） | 工作台的终端客户端不再发带命令的 `spawn`，不点名 `/api/panels`、`/api/goals/`、插件；载入只附着，重开是带同一个 key 向 Goals 的路由 `POST` 再附着 | `tests/work-terminal-client.test.ts`、`tests/desktop-tui.test.ts` |
-| RAC-2568 | 项目里有在跑的 Goals 终端时拒删；人关掉之后能删，记录随项目清掉 | `tests/project-settings-deletion.test.ts`、`tests/project-deletion-service.test.ts` |
+| RAC-2564（补） | `program.session`：合法的值第一次起就以 `resume <session>` 起、记成 `host_session_id`；带空格、带 `;`、以 `-` 开头（`--dangerously-bypass-approvals-and-sandbox`）、超过 128 个字符、配在 `command` 上的，都 `actions.input_invalid`，不起进程 | `tests/security-invariants-plugin-terminal-launch.test.ts` |
+| RAC-2565（补） | 走 MCP：运行时从终端的工作上下文报了会话号，记录的 `host_session_id` 跟着变（S-07 那一段改接平台记录）；Goals 的 `resume_session_id` 只配 `runtime`，带空格、`;` 或以 `-` 开头答 400；运行时报来的 `--dangerously-bypass-approvals-and-sandbox` 与带空格的值不记成会话，同一 key 重开不带续接参数；绕过服务直接写进记录的选项，出去时被拦下、按新会话起；合格式的照常续接 | `tests/security-invariants-home-context.test.ts`、`tests/goals-terminal.test.ts`、`tests/security-invariants-plugin-terminal-launch.test.ts` |
+| RAC-2566（前一半） | 源码扫描：工作台终端客户端里每条 `spawn` 都 `attachOnly: true`、不带 `command`、`args`、`cwd`、`env`；行为：工作台的终端客户端不再发带命令的 `spawn`，不点名 `/api/panels`、`/api/goals/`、插件；载入只附着，重开是带同一个 key 向 Goals 的路由 `POST` 再附着 | `tests/page-terminal.test.ts`、`tests/work-terminal-client.test.ts`、`tests/desktop-tui.test.ts` |
+| RAC-2568 | 项目里有在跑的 Goals 终端时拒删；人关掉之后能删，记录与它工作上下文的别名随项目清掉 | `tests/project-settings-deletion.test.ts`、`tests/project-deletion-service.test.ts` |
 
 变异（本机跑过的）：
 
@@ -119,8 +119,10 @@ RAC-2560、2561、2566～2568 随 T-148（第 7 节）。
 | --- | --- | --- |
 | 2568 | `project-deletion-service.ts` 不读 `terminalPanels.listIds` | `project-settings-deletion` 有在跑的终端时删项目成功 |
 | 2560 | `pty-socket.ts` 对控制令牌连接的只附着检查 | 「进程在跑」 |
-| 2564 | 服务对 `session` 的格式检查 | 带空格、`;` 的那几例起了进程 |
+| 2564 | 服务对 `session` 的格式检查（放成任意 1 到 128 个字符） | 带空格、`;` 的那几例起了进程 |
+| 2565 | 会话格式去掉首字符限制 | 运行时报来的 `--dangerously-…` 被记成会话、重开带着它 |
+| 2565 | `terminalLaunch` 出去之前的检查 | 直接写进记录的选项进了续接参数 |
 
-`desktop-launch-args` 用例随被测代码删掉：参数边界由 RAC-2555、2564 接住，记录的存取由 RAC-2569 接住。`desktop-tui` 里测宿主面板路由的两段（三个配方的启动参数、Codex 续接记下会话）删掉，分别由同文件里改读 `terminalRuntimeRecipe` 的配方单测与 RAC-2565 接住；其余改成经 Goals 开终端、`/pty` 附着。BL-508（路由名点名 goals）随路由删除关掉；BL-695（工作终端经控制令牌**启动**进程）由 Goals 经 `services.terminal` 启动、客户端只附着关掉，把客户端搬进 Goals 仍是 BL-637。
+`desktop-launch-args` 用例随被测代码删掉：参数边界由 RAC-2555、2564 接住，谁能看到、谁能关由 RAC-2569 接住；新表上坏的 `launch_args` 还没有用例，记 BL-913。`desktop-tui` 里测宿主面板路由的两段（三个配方的启动参数、Codex 续接记下会话）删掉，分别由同文件里改读 `terminalRuntimeRecipe` 的配方单测与 RAC-2565 接住；其余改成经 Goals 开终端、`/pty` 附着。BL-508（路由名点名 goals）随路由删除关掉；BL-695（工作终端经控制令牌**启动**进程）由 Goals 经 `services.terminal` 启动、客户端只附着关掉，把客户端搬进 Goals 仍是 BL-637。
 
 随外壳那片（等 T-115～T-118 放锁）：RAC-2566 的 `[data-tui-pane]` 一半、RAC-2567（浏览器：从 Goal 工作区开、输入、关、重开）、五处外壳脚本与属性改名。旧两张表的建表语句删不删，等统筹与用户定。

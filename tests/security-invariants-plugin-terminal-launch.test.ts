@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import Database from "better-sqlite3";
 import { WebSocket } from "ws";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, hostDependencyCheck, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
@@ -529,7 +530,7 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
   assert.equal(env.MOLIS_WORK_GOAL_ID, undefined, "the retired name is not set");
   assert.deepEqual(Object.keys(env).filter(name => name.startsWith("MOLIS_WORK_")).sort(), ["MOLIS_WORK_FOCUS_ID", "MOLIS_WORK_HOME", "MOLIS_WORK_MCP_AUDIENCE",
     "MOLIS_WORK_PANEL_ID", "MOLIS_WORK_RUNTIME_ID", "MOLIS_WORK_WEB_URL", "MOLIS_WORK_WORK_CONTEXT_ID", "MOLIS_WORK_WORK_CONTEXT_STABLE"],
-  "the Molis Work variables are exactly the platform's set: none of the Host process's own reach the terminal");
+  "the Molis Work variables are exactly the platform's set: none the login shell exports reach the terminal");
   // A runtime recipe is looked up on the platform's PATH, whose first entry is `~/.local/bin`: for these cases HOME is a folder with a `codex`
   // there that writes its arguments to its first marker. A session goes to the recipe's resume arguments as one argument, never to a shell.
   const runtimeHome = join(f.home, "runtime-home"), resumed = join(runtimeHome, "codex.args"), previousHome = process.env.HOME;
@@ -539,7 +540,8 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
   try {
     const commandMarker = f.marker();
     for (const [key, program, marker] of [["spaced-session", { runtime: "codex", session: "s-1 rm" }, resumed], ["semicolon-session", { runtime: "codex", session: "s-1;rm" }, resumed],
-      ["long-session", { runtime: "codex", session: "s".repeat(129) }, resumed], ["command-session", { command: f.program, args: [commandMarker], session: "s-1" }, commandMarker]] as const) {
+      ["long-session", { runtime: "codex", session: "s".repeat(129) }, resumed],
+      ["option-session", { runtime: "codex", session: "--dangerously-bypass-approvals-and-sandbox" }, resumed], ["command-session", { command: f.program, args: [commandMarker], session: "s-1" }, commandMarker]] as const) {
       const answer = await run(f, probe, "project", "run", own => opened(own, { key, program, directory }), { project });
       await refused(f, answer, "actions.input_invalid", marker, panelOf(install.install_id, project.project_id, key), key);
     }
@@ -554,6 +556,53 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
   }
+});
+
+// The session a terminal resumes is checked where it comes in (what a runtime reports through MCP, `aliasTerminalSession`), where it is
+// stored and where it goes out (the recipe's resume arguments). A `codex` on the platform's PATH (`~/.local/bin` of HOME) appends its
+// arguments to a log and exits, so the same key starts again.
+test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the resume arguments only in the session format: an option or a value with a space never does", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchresume");
+  const f = await open(t, [probe]), project = await f.project("续接");
+  const { workspace_id } = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const directory = { root: "workspace", workspace_id };
+  const runtimeHome = join(f.home, "runtime-home"), log = join(runtimeHome, "codex.log"), previousHome = process.env.HOME;
+  await mkdir(join(runtimeHome, ".local", "bin"), { recursive: true });
+  await writeFile(join(runtimeHome, ".local", "bin", "codex"), `#!/bin/sh\nprintf '[%s]\\n' "$*" >> '${log}'\n`, { mode: 0o700 });
+  process.env.HOME = runtimeHome;
+  t.after(() => { if (previousHome === undefined) delete process.env.HOME; else process.env.HOME = previousHome; });
+  const runs = async () => existsSync(log) ? (await readFile(log, "utf8")).split("\n").filter(Boolean) : [];
+  const panelId = (key: string) => panelOf(install.install_id, project.project_id, key);
+  /** Opens the key with the runtime and waits until it ran and ended: what it was started with. */
+  const start = async (key: string) => {
+    const before = (await runs()).length;
+    const answer = await run(f, probe, "project", "run", own => opened(own, { key, program: { runtime: "codex" }, directory }), { project });
+    assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
+    await until(async () => (await runs()).length > before && (await panelState(f, panelId(key))).attached === false, `${key}: the runtime ran and ended`);
+    return (await runs()).at(-1);
+  };
+  const reported = (key: string, session: string) => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+    catalog.commit(() => { catalog.terminalPanels.aliasSession({ panel_id: panelId(key), runtime_id: "codex", host_session_id: session }); }));
+  const recorded = (key: string) => withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => catalog.terminalPanels.get(panelId(key))?.host_session_id);
+  for (const [key, session] of [["reported-option", "--dangerously-bypass-approvals-and-sandbox"], ["reported-spaced", "s-1 --yolo"]] as const) {
+    assert.equal(await start(key), "[]", `${key}: a new session`);
+    await reported(key, session);
+    assert.equal(await recorded(key), null, `${key}: what the runtime reported is not the terminal's session`);
+    assert.equal(await start(key), "[]", `${key}: started again as a new session, without the reported value`);
+  }
+  // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
+  assert.equal(await start("recorded-option"), "[]");
+  // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
+  const db = new Database(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
+  try {
+    db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
+  } finally { db.close(); }
+  assert.equal(await start("recorded-option"), "[]", "the recorded option never reaches the resume arguments");
+  // A session in the format is the one it resumes.
+  await reported("recorded-option", "019a-b2");
+  assert.equal(await recorded("recorded-option"), "019a-b2");
+  assert.equal(await start("recorded-option"), "[resume 019a-b2]");
 });
 
 // The login shell environment is given here, so this runs the same on every machine (CI's runner may have no zsh, and no shell configuration

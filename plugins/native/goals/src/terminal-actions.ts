@@ -14,8 +14,8 @@ const terminalErrors = defineErrorCodes("goals.terminal", {
 /** A terminal's key: what `services.terminal` accepts, so a Goal page names its tabs without asking the platform. */
 const key = { type: "string", pattern: "^[a-z][a-z0-9-]{0,63}$" };
 const goal = { goal_id: identifier };
-/** A runtime session to resume: what `services.terminal` takes as the program's `session`. */
-const session = { type: "string", pattern: "^[A-Za-z0-9._:-]{1,128}$" };
+/** A runtime session to resume: what `services.terminal` takes as the program's `session` (never starting with `-`, an option). */
+const session = { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" };
 const program = { anyOf: [object({ runtime: text }), object({ command: text, args: array(text) })] };
 const panel = object({ key: text, panel_id: text, title: text, runtime: text, program, running: boolean, created_at: text });
 type PanelRow = { key: string; panel_id: string; title: string; runtime: string; program: PluginTerminalProgram; running: boolean; created_at: string };

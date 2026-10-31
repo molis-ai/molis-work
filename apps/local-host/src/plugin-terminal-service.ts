@@ -10,7 +10,8 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { pluginCatalogFor } from "./home-side.js";
 import { TERMINAL_RUN_PERMISSION } from "./plugin-service-permissions.js";
 import type { PluginTerminalPanelRecord, TerminalOwner } from "./plugin-terminal-panels.js";
-import { isTerminalCommand, isTerminalRuntime, terminalCommandPath, terminalRuntimeRecipe, terminalSearchPath, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
+import { hostLog } from "./host-log.js";
+import { isTerminalCommand, isTerminalRuntime, isTerminalSessionId, terminalCommandPath, terminalRuntimeRecipe, terminalSearchPath, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 interface TerminalHostBinding { readonly host: MolisWorkPtyHost; readonly webUrl: () => string }
 const hosts = new Map<string, TerminalHostBinding>();
@@ -157,7 +158,10 @@ function sameProgram(record: PluginTerminalPanelRecord, program: TerminalProgram
 function terminalLaunch(program: TerminalProgram, existing: PluginTerminalPanelRecord | null, searchPath: string) {
   if ("runtime" in program) {
     const recipe = terminalRuntimeRecipe(program.runtime);
-    const session = existing ? existing.host_session_id : program.session ?? null;
+    const recorded = existing ? existing.host_session_id : program.session ?? null;
+    // Checked again on the way out: a recorded session that is not one (it never should be) starts a new session, with a line that says so.
+    const session = recorded !== null && isTerminalSessionId(recorded) ? recorded : null;
+    if (recorded !== null && session === null) hostLog.warn("terminal", "session_not_resumed", invalid());
     return { runtime: program.runtime as string, stored: recipe.command, storedArgs: [] as readonly string[], title: recipe.title, session,
       path: terminalCommandPath(recipe.command, searchPath), args: session ? recipe.resumeArgs(session) : [] };
   }
@@ -183,8 +187,6 @@ function terminalEnvironment(input: { home: string; record: PluginTerminalPanelR
 }
 
 const invalid = () => new ActionError("actions.input_invalid", "终端启动参数无效");
-/** A runtime session to resume: one argument of the recipe's resume arguments, so no space, quote or shell character. */
-const TERMINAL_SESSION = /^[A-Za-z0-9._:-]{1,128}$/u;
 const text = (value: unknown, limit = TEXT_LIMIT): value is string => typeof value === "string" && value.length <= limit && !value.includes("\0");
 const terminalKey = (value: unknown): value is string => typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/u.test(value);
 const subjectText = (value: unknown): value is string => text(value, SUBJECT_LIMIT) && value.length > 0;
@@ -214,7 +216,7 @@ function terminalProgram(program: unknown): TerminalProgram {
     if (keys.some(name => name !== "runtime" && name !== "session") || typeof program.runtime !== "string" || !isTerminalRuntime(program.runtime)) throw invalid();
     const { session } = program;
     if (session === undefined) return Object.freeze({ runtime: program.runtime });
-    if (typeof session !== "string" || !TERMINAL_SESSION.test(session)) throw invalid();
+    if (!isTerminalSessionId(session)) throw invalid();
     return Object.freeze({ runtime: program.runtime, session });
   }
   const { command, args = [] } = program;

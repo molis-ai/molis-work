@@ -145,7 +145,8 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   const foreign = await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", workspace_id: other.workspace_id } });
   assert.equal(foreign.status, 403, await foreign.clone().text());
   for (const body of [{}, { runtime: "codex", command: "sh" }, { runtime: "codex", args: [] }, { runtime: "nope" }, { command: "sh", cwd: "/" },
-    { command: "sh", resume_session_id: "s-1" }, { runtime: "codex", resume_session_id: "s-1 rm" }, { runtime: "codex", resume_session_id: "s-1;rm" }]) {
+    { command: "sh", resume_session_id: "s-1" }, { runtime: "codex", resume_session_id: "s-1 rm" }, { runtime: "codex", resume_session_id: "s-1;rm" },
+    { runtime: "codex", resume_session_id: "--dangerously-bypass-approvals-and-sandbox" }]) {
     assert.equal((await api("/LEAF/terminals", { method: "POST", body })).status, 400, JSON.stringify(body));
   }
   assert.equal((await logged(2)).length, 2, "nothing else ran");

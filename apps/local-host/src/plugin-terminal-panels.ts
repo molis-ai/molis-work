@@ -1,5 +1,6 @@
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isTerminalSessionId } from "./plugin-terminal-runtimes.js";
 
 /**
  * The records of the terminals plugins start through `services.terminal` (S-103), in the project catalog: one row per installation,
@@ -97,6 +98,7 @@ export class PluginTerminalPanels {
    * session it starts by resuming is kept as its session; it answers to it once the runtime reports it.
    */
   insert(input: Omit<PluginTerminalPanelRecord, "tab_index" | "created_at" | "updated_at" | "host_session_id"> & { host_session_id?: string | null }, cwd: string): PluginTerminalPanelRecord {
+    if (input.host_session_id != null && !isTerminalSessionId(input.host_session_id)) throw new ActionError("actions.input_invalid", "终端启动参数无效");
     const now = this.now();
     const { tab_index } = this.db.prepare(`
       SELECT COALESCE(MAX(tab_index), -1) + 1 AS tab_index FROM plugin_terminal_panels
@@ -136,11 +138,13 @@ export class PluginTerminalPanels {
     if (!session || !runtime) throw new ActionError("actions.input_invalid", "Runtime 与它的 Session 标识不能为空");
     const now = this.now();
     this.addAlias(current.panel_id, runtime, session, now);
-    if (current.host_session_id !== session) this.db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ?, updated_at = ? WHERE panel_id = ?")
-      .run(session, now, current.panel_id);
     // The session is the person's who opened the terminal, as its own work context is.
     if (current.project_id) this.ports.bind({ runtime_id: runtime, stable_work_context_id: session, project_id: current.project_id, actor_id: current.actor_id });
-    return { ...current, host_session_id: session, updated_at: current.host_session_id === session ? current.updated_at : now };
+    // Only a session in the session format is the one the terminal resumes: anything else (an option, a space) still names this work
+    // context, but never reaches the recipe's resume arguments.
+    if (!isTerminalSessionId(session) || current.host_session_id === session) return current;
+    this.db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ?, updated_at = ? WHERE panel_id = ?").run(session, now, current.panel_id);
+    return { ...current, host_session_id: session, updated_at: now };
   }
 
   deleteForProject(projectId: string): void {

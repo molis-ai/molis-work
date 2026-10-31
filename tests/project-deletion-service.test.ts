@@ -10,6 +10,7 @@ import { dirname, join, resolve as resolvePath } from "node:path";
 import test, { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import Database from "better-sqlite3";
 import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -153,7 +154,7 @@ async function residentHostWithTerminal(t: TestContext, home: string, project: {
     socket.send(JSON.stringify({ type: "kill", panelId: panel.panel_id }));
     assert.equal((await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned")).attached, false);
   };
-  return { localHost, origin, token, closeTerminal };
+  return { localHost, origin, token, closeTerminal, panelId: panel.panel_id };
 }
 
 const runtimeHost = (home: string) => ({ homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "deletion-service-session", host_declares_stable: true } });
@@ -163,7 +164,15 @@ const callTool = async (server: LocalMcpServer, name: string, args: Record<strin
 test("the MCP tool asks the resident Host: a live terminal stops it (409), and once it is closed the Host lets go of its runtime and deletes", { timeout: 60_000 }, async t => {
   const { directory, home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "有终端的项目", actor_id: "test-user" });
-  const { localHost, origin, closeTerminal } = await residentHostWithTerminal(t, home, project, directory, catalog);
+  const { localHost, origin, closeTerminal, panelId } = await residentHostWithTerminal(t, home, project, directory, catalog);
+  // The terminal's own work context is an alias of it; deleting the project takes the alias with it (RAC-2568).
+  const aliases = () => {
+    // The catalog's own SQLite (better-sqlite3), as the Host in this process opens it.
+    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    try { return Number((db.prepare("SELECT COUNT(*) AS count FROM plugin_terminal_panel_aliases WHERE panel_id = ?").get(panelId) as { count: number }).count); }
+    finally { db.close(); }
+  };
+  assert.equal(aliases(), 1);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // The forwarding process assembles protocol metadata without opening a Home or project runtime of its own.
   const mcpHost = createMolisWorkLocalHost({});
@@ -203,6 +212,7 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   assert.equal(residentCloses[0], true, "the resident Host's service let go of the runtime while the project's directory was still in place");
   assert.equal(isOpen(mcpHost), false, "successful forwarding never opened a local project runtime");
   assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [], "RAC-2568: the project's terminal records went with it");
+  assert.equal(aliases(), 0, "RAC-2568: and the aliases of its work contexts");
 
   const replay = await callTool(mcp, "molis_work_v1_project_delete", request);
   assert.equal(replay.isError, false, replay.content[0]?.text);

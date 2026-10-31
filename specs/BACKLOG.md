@@ -282,6 +282,7 @@
 | BL-821 | Goals 的「记录读不出来」错误不带列名、表名、行号：`goals.storage.record_unreadable` 只写固定文案，排查时看不出是哪一行；要带位置得给两处 `parseJson` 加参数、改二十多处调用 | T-025 派单 | 已知缺口 | 要改 `parseJson` 全部调用的签名，还要定这些位置给不给用户看，任务书明确这次不做 | 无 | 低 | 未分配 |
 | BL-910 | 沙箱包的交互终端：平台的 `services.terminal`（S-103）只给宿主自己运行的插件，沙箱包声明 `terminal:run`（必需，或人批准的可选）在启动时以 `sandbox.service_not_given` 拒（`SANDBOX_NOT_GIVEN` 的 `terminal` 行）。终端进程跑在沙箱之外、带人的全部权限，沙箱包拿到它就等于出了沙箱；要给须另有设计（例如只许签名包里声明、随包校验的程序），先问用户 | [platform-terminal-launch §3](repository-anti-corruption/slices/platform-terminal-launch.md)；T-136 统筹裁 ④ | 待你决定 | 要先有设计，并由用户定给不给 | 无 | 低 | 未分配 |
 | BL-911 | 人发起的动作经 `actions:delegate` 委托出去的调用，按规则算 `workflow` 受众（S-43），所以要以人的身份读另一个插件只给 `user` 的查询，现在没有通路：Goals 的推进提示（`goals.terminal.prompt@1`）因此不带 Feed 的关联原文（`feed.goals.context@1` 只给 `user`）。可选：平台给「人发起的委托」保留 `user` 受众（改动作网关的规则，碰 S-08），或由页面各调各的再拼起来；不给 Feed 那条加 `workflow`、`plugin` 受众（会扩大谁能读个人数据）。等 T-336 合入后连同 BL-121 ② 的余项一起评 | [platform-terminal-launch §6](repository-anti-corruption/slices/platform-terminal-launch.md)；T-137 统筹答（#1332 6538636605） | 待你决定 | 统筹定等 T-336 合入后连同 BL-121 ② 的余项一起评 | T-336 | 中 | 统筹 |
+| BL-913 | 平台终端记录的 `launch_args` 坏了（不是 JSON 或不是字符串数组）时，`apps/local-host/src/plugin-terminal-panels.ts` 的 `record()` 里 `JSON.parse` 抛出没有错误码的 `SyntaxError`，列出、重开这个终端都以无码失败结束；应收成带码的 `ActionError`（与数组形状不对时同一个码），并补一例坏记录的用例。原来旧表上的 RAC-117 一族随 T-148 删掉 | T-148 二审（#1654 6539823611）、统筹裁（6539830193） | 明确后续做 | 不挡 T-137 / T-148 合入，统筹裁记 BL | — | 低 | T-137 的主人（Claude 设备 A） |
 
 ## 8. 交给第二步（防腐整理）
 

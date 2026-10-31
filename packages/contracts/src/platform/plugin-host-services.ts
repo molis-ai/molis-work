@@ -160,8 +160,8 @@ export type PluginTerminalDirectory =
 /**
  * What a plugin's terminal runs (S-103): one of the platform's runtime recipes by id (`codex`, `claude-code`, …), which also resumes the
  * runtime's own session when the terminal starts again, or from its first start when `session` names one (letters, digits and `._:-`, at
- * most 128, handed to the recipe's resume arguments, never to a shell); or a program the plugin's backend chose, an absolute path or a bare
- * name the platform finds on its PATH, with bounded arguments. Never a shell line.
+ * most 128, not starting with `-`; handed to the recipe's resume arguments as one argument, never to a shell); or a program the plugin's
+ * backend chose, an absolute path or a bare name the platform finds on its PATH, with bounded arguments. Never a shell line.
  */
 export type PluginTerminalProgram =
   | { readonly runtime: string; readonly session?: string }

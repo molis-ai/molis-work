@@ -116,6 +116,7 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
   const data = locateData[0]!;
   assert.equal(data, knowledgeLocateData(JSON.parse(data)), "the measured string is exactly the one sent");
   const parsed = JSON.parse(data) as { question: string; pieces: Array<{ piece: number }> };
+  assert.deepEqual(Object.keys(parsed), ["question", "pieces"], "RAC-2741 the sent data carries exactly the question and the pieces, no other key");
   assert.equal(parsed.question, "这份资料讲什么？", "the question asked is the question sent");
   assert.equal(parsed.pieces[0]!.piece, 1, "the first piece is piece 1");
 });

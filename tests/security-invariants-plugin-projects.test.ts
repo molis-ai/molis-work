@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import Database from "better-sqlite3";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { captureHostLog, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -110,13 +110,14 @@ test("S-96 RAC-1063 what is not a short list of ids is refused before the Host i
 
 /**
  * Break the Home's project catalog for the Host's own open catalog connection: hide the table `listProjects` reads. Returns the function
- * that puts it back. (Overwriting the database file does not do it: the Web owner keeps one open connection whose page cache survives it.)
+ * that puts it back. Use the Host's SQLite binding for both schema changes: mixing node:sqlite with its WAL-backed connection leaves
+ * the restored table invisible to the open Host connection. Overwriting the file also fails because that connection stays open.
  */
 function breakProjectCatalog(home: string): () => void {
-  const db = new DatabaseSync(join(home, "projects", "catalog.db"));
+  const db = new Database(join(home, "projects", "catalog.db"));
   db.exec("ALTER TABLE projects RENAME TO projects_hidden");
   db.close();
-  return () => { const back = new DatabaseSync(join(home, "projects", "catalog.db")); back.exec("ALTER TABLE projects_hidden RENAME TO projects"); back.close(); };
+  return () => { const back = new Database(join(home, "projects", "catalog.db")); back.exec("ALTER TABLE projects_hidden RENAME TO projects"); back.close(); };
 }
 
 // RAC-2735 (T-358): a project catalog that cannot be read is a Host failure the plugin must not see raw — the SQLite/filesystem error

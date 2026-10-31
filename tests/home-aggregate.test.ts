@@ -59,6 +59,96 @@ test("RAC-2437 a Host with no catalog refuses the manifest lookup, and the Home 
     "the refused lookup is what the person sees, not a silently empty Home");
 });
 
+test("RAC-2779 keeps both code-only issues in phase order while another project answers", async () => {
+  const a = reference("project-a"), b = reference("project-b");
+  const privateCatalog = "PRIVATE_CATALOG_BODY", privateDiscovery = "PRIVATE_DISCOVERY_BODY";
+  let aInvoked = false;
+  const answering = { ...unavailableView(b.project_id), availability: { available: true } };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [a, b],
+    projectPlugins: async project => {
+      if (project.project_id === a.project_id) throw new ActionError("host.catalog_unavailable", privateCatalog);
+      return () => true;
+    },
+    whileOpen: async (_project, work) => work(),
+    context: async project => context(project.project_id),
+    client: project => ({
+      discover: async () => {
+        if (project.project_id === a.project_id) throw new ActionError("actions.timeout", privateDiscovery);
+        return [answering];
+      },
+      invoke: async () => {
+        if (project.project_id === a.project_id) { aInvoked = true; return assert.fail("A must not invoke"); }
+        return { project: "project-b" };
+      },
+    }),
+  };
+  const result = await collectHomeAggregate(ports, TYPE, {});
+  assert.deepEqual(result.issues, [
+    { project_id: "project-a", source: null, code: "host.catalog_unavailable" },
+    { project_id: "project-a", source: null, code: "actions.timeout" },
+  ]);
+  assert.equal(aInvoked, false);
+  assert.deepEqual(result.answers, [{ project_id: "project-b", source: {
+    capability_id: "homeagg.running.read", version: 1, provider_id: "example.plugin",
+  }, plugin_id: PLUGIN, output: { project: "project-b" } }]);
+  assert.ok(!JSON.stringify(result).includes(privateCatalog));
+  assert.ok(!JSON.stringify(result).includes(privateDiscovery));
+});
+
+test("RAC-2780 a closing project stays silent after its catalog fails, while another project answers", async () => {
+  const a = reference("project-a"), b = reference("project-b");
+  const answering = { ...unavailableView(b.project_id), availability: { available: true } };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [a, b],
+    projectPlugins: async project => {
+      if (project.project_id === a.project_id) throw new ActionError("host.catalog_unavailable", "private catalog error");
+      return () => true;
+    },
+    whileOpen: async (_project, work) => work(),
+    context: async project => context(project.project_id),
+    client: project => ({
+      discover: async () => {
+        if (project.project_id === a.project_id) throw new ActionError("host.project_closing", "closing");
+        return [answering];
+      },
+      invoke: async () => project.project_id === a.project_id ? assert.fail("A must not invoke") : { project: "project-b" },
+    }),
+  };
+  const result = await collectHomeAggregate(ports, TYPE, {});
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(result.answers, [{ project_id: "project-b", source: {
+    capability_id: "homeagg.running.read", version: 1, provider_id: "example.plugin",
+  }, plugin_id: PLUGIN, output: { project: "project-b" } }]);
+});
+
+test("RAC-2781 deferred discovery obeys the real parent's exact cancellation reason", async () => {
+  const a = reference("project-a"), parent = new AbortController();
+  const parentReason = new Error("parent cancelled aggregate");
+  let entered!: () => void, release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [a],
+    projectPlugins: async () => { throw new ActionError("host.catalog_unavailable", "private catalog error"); },
+    whileOpen: async (_project, work) => work(),
+    context: async project => context(project.project_id),
+    client: () => ({ discover: async () => { entered(); await held; return []; },
+      invoke: async () => assert.fail("discovery never finished") }),
+  };
+  const pending = collectHomeAggregate(ports, TYPE, {}, parent.signal);
+  // Observe pending before abort so its rejection can never be unhandled.
+  const observed = assert.rejects(pending, error => error === parentReason);
+  try {
+    await reached;
+    parent.abort(parentReason);
+    await observed;
+  } finally {
+    release();
+    await observed.catch(() => {});
+  }
+});
+
 test("RAC-2437 homeAggregatePorts wires the Host's own manifest lookup, which refuses when that Host has no catalog", async () => {
   const host = new MolisWorkLocalHost();
   try {

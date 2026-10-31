@@ -269,7 +269,7 @@ test("RAC-2440: a card's source line cuts a package name to whole characters", (
     Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
   const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
   // 5,000 characters, 7,500 UTF-16 units: alternating a two-unit emoji and a one-unit Han character. A cut by units at the 119-unit point
-  // would give 79 original characters plus 「…」 (80 characters) — well formed, but one character short, which the exact 120-character
+  // would give 79 original characters plus 「…」 (80 characters) — well formed but 40 short of 120, which the exact 120-character
   // assertion refuses; the cut must count characters, not units.
   const title = "🙂汉".repeat(2_500);
   const html = renderConnectorsSettings({ connectors: [{ connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],

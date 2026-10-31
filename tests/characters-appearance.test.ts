@@ -29,7 +29,7 @@ test("Characters navigation and work surface receive the one neutral tint every 
 const settingsSections = (shown?: readonly string[]) => groupedGlobalSettingsSections(shown).flatMap((group) => group.sections);
 
 test("Characters' page is the Host's Settings › 角色 with the user glyph, not in navigation", () => {
-  assert.deepEqual(railEntries(["characters"]), [{ id: "artifacts", surface: "artifacts", label: "成果", glyph: "package", group: "make", rail: null, pinned_default: false, chosen: false }]);
+  assert.deepEqual(railEntries(["characters"]), [{ id: "artifacts", surface: "artifacts", label: "成果", label_en: "Artifacts", glyph: "package", group: "make", rail: null, pinned_default: false, chosen: false }]);
   assert.equal(pluginTabGlyphs().characters, undefined);
   const sections = settingsSections(["characters"]);
   const pages = sections.filter((item) => item.id === "characters");

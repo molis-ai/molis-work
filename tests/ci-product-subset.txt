@@ -384,6 +384,7 @@ tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
 tests/form-draft-questions.test.ts
 tests/form-draft-retry.test.ts
+tests/form-fillpage-answer-length.test.ts
 tests/functions-agent-references.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts

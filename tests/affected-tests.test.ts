@@ -1237,8 +1237,8 @@ const conditionNames = (line: string | undefined) => {
   const listed = /^- 改了 (.+?)(?: 或任一| |；|$)/u.exec(line)?.[1];
   assert.ok(listed, "the condition lists the packages after 改了");
   const names = writtenNames(listed);
-  const glob = /`([a-z0-9-]+)\/\*`/u.exec(line)?.[1];
-  if (glob) names.add(glob);
+  // Read every glob the bullet writes, not only the first one: a second prefix in the same bullet is part of the rule too.
+  for (const glob of [...line.matchAll(/`([a-z0-9-]+)\/\*`/gu)]) names.add(glob[1]!);
   return names;
 };
 
@@ -1263,13 +1263,21 @@ test("RAC-2444 the shared-core parse rejects an extra name, a missing one and on
   assert.throws(() => compareSharedCore("the table with an extra", mustRunNames(extra), expected), /left-pad/u);
   // A rule package dropped from the list: the old loop would catch this one too, kept so the guard is known to still see it.
   const missing = mustRun!.replace("kernel、", "");
-  assert.throws(() => compareSharedCore("the table without kernel", mustRunNames(missing), expected), /kernel/u);
+  assert.throws(() => compareSharedCore("the table without kernel", mustRunNames(missing), expected), /missing \[kernel\]/u);
   // A name moved into the row's trailing explanation: still a substring of the line, so the old loop stayed green.
   const moved = mustRun!.replace("kernel、", "");
-  assert.throws(() => compareSharedCore("the table with kernel moved out of the cell", mustRunNames(moved), expected), /kernel/u);
+  assert.throws(() => compareSharedCore("the table with kernel moved out of the cell", mustRunNames(moved), expected), /missing \[kernel\]/u);
   const movedLine = `${moved}（kernel 见 rules.mjs）`;
   oldIncludesLoop(movedLine);
-  assert.throws(() => compareSharedCore("the table with kernel in the explanation", mustRunNames(movedLine), expected), /kernel/u);
+  assert.throws(() => compareSharedCore("the table with kernel in the explanation", mustRunNames(movedLine), expected), /missing \[kernel\]/u);
+  // The full-suite condition bullet is parsed by the same set, so the in-memory mutations hit it too: a name dropped from the bullet and
+  // an extra name written beside the shared-core ones are both seen.
+  const conditionMissing = condition!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the condition without kernel", conditionNames(conditionMissing), expected), /missing \[kernel\]/u);
+  const conditionExtra = condition!.replace("contracts、", "contracts、left-pad、");
+  assert.throws(() => compareSharedCore("the condition with an extra", conditionNames(conditionExtra), expected), /left-pad/u);
+  const conditionGlob = condition!.replace("`modules/*`", "`modules/*` 或 `tools/*`");
+  assert.throws(() => compareSharedCore("the condition with a second glob", conditionNames(conditionGlob), expected), /tools/u);
 });
 
 test("RAC-2444 the shared core in the PR template and the selector's label is the same rule's set", () => {
@@ -1277,7 +1285,7 @@ test("RAC-2444 the shared core in the PR template and the selector's label is th
     .find((line) => line.startsWith("- [ ] 共享核心（"))!;
   assert.ok(template, "the PR template's merge queue section names the shared core");
   const inside = /共享核心（([^）]+)）/u.exec(template)![1]!;
-  assert.doesNotMatch(inside, /等/u, "the template names the shared core in full, not with 等 (统筹答 T-327 6530...)");
+  assert.doesNotMatch(inside, /等/u, "the template names the shared core in full, not with 等 (统筹答 T-327 6531556707)");
   const listed = [...inside.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!);
   assert.ok(listed.length > 0, "the template lists the shared-core packages in code spans");
   // The template mixes both forms (`packages/contracts` and `plugin-sdk`), so compare by the name each entry means.

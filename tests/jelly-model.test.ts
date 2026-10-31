@@ -252,7 +252,7 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
     const f = await trustedJelly(t), connection = modelConnection(f.home, "未绑定连接", "lifecycle-config-fixture");
     try {
       const entered = deferred(), release = deferred();
-      const handler = f.registrations.at(-1)!.handlers.find(action => action.capability_id === jellyServiceActions.saveModelSettings.capability_id)!;
+      const handler = f.registrations.flatMap(registration => registration.handlers).find(action => action.capability_id === jellyServiceActions.saveModelSettings.capability_id)!;
       const pending = Promise.resolve(handler.handle({ actor_id: "person", audience: "user", project_id: null, permissions: ["jelly:settings"],
         beforeEffect: async () => { entered.resolve(); await release.promise; } },
       { base_url: "https://late-save.example/v1", model_id: "late", connection_id: connection.connection_id }));

@@ -100,7 +100,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3269
+      "size": 3265
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",

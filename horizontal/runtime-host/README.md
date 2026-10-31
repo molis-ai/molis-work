@@ -50,7 +50,7 @@ node scripts/run-tests.mjs tests/runtime-host.test.ts
 - 不变量：
   - 终端进程退出后必须清理句柄；`killAll` 结束全部进程；重放缓冲有上限。
   - 一个面板只认它当前的进程：被 `kill` 停掉或重启时换下的旧进程，之后的输出不进重放、不转给面板，退出也不报告。
-  - 终端的环境里没有宿主进程自己的 `MOLIS_WORK_*` 变量（密钥、存储后端、测试开关等）：只有调用方在 `env` 里给的那几个（S-103，`tests/security-invariants-plugin-terminal-launch.test.ts` 的 RAC-2564）。
+  - 终端环境里的 `MOLIS_WORK_*` 只来自调用方在 `env` 里给的那几个；用户登录 shell 配置里导出的（密钥、存储后端、测试开关等）一律不带进去，每一个终端都是（S-103，`tests/security-invariants-plugin-terminal-launch.test.ts` 的 RAC-2564，登录环境由用例给定，CI 上照样跑）。
   - 外部不导入本包 `src/**`；本包也不导入 Web Server 或任何业务 Store。
 - 改动后必跑：`node scripts/run-tests.mjs tests/runtime-host.test.ts tests/desktop-tui.test.ts`
 - 相关手册：[docs/horizontal/runtime-host.md](../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

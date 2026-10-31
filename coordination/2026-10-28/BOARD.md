@@ -294,7 +294,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-351 | Alchemist 超长材料先粗筛再展开、任务把“材料太长”与字数交给页面、Todo 预检补边界、信息助手 sources 加上界 | 乙 | A | 1.8 | — | `plugins/native/alchemist/src/alchemist-prologue.ts`、`lens-job-handler.ts`、`apps/local-host/src/information-planner.ts` |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
 | T-353 | 统一“整字且不超过 N 单元”的截法：一个公开小函数，各处改调它（甲，先出【方案】定放哪层，等统筹答） | 甲 | Codex 统筹 | A 已合（#1681 → `69d2a4cfa`）；B/C 待同步审验 | — | `apps/local-host/src/whole-units.ts`、新函数所在包、各就地截法文件 |
-| T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | A | 2.2 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
+| T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
 | T-355 | 急：`form.fill.too-long` 的英文改成 fill-message 测试认可的写法（main 红 VUX-40，挡集成分支 Full） | 丙 | A | 0.1 | — | `plugins/native/form/src/messages.ts` |
 | T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 已合（10-31，#1685 → `a9fbdf756`；Codex 统筹） | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |
 | T-357 | 插件英文名的测试要证明它说的事：RAC-1727 调生产函数并补变异，RAC-1729 真比版本 | 乙 | B | 2.4 | — | `tests/plugin-english-name-declaration.test.ts` |
@@ -306,7 +306,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-363 | BACKLOG 七行（BL-090／092／094／095／096／099／114）对着 main 核一遍，做完的删行，没做完的只写没做的 | 丙 | A | 3.0 | — | `specs/BACKLOG.md`（这七行） |
 | T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 待分配 | 待领 | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |
 | T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | 待领 | T-318 已合 | `tests/project-rows-deletion.test.ts` |
-| T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | 开发中 | 无；T-347 等本单落地 | `plugins/native/alchemist/src/client.ts`、`tests/alchemist-workbench.e2e.test.ts`、边界测试或独立 terminal-refresh 测试二选一、Alchemist README；不动 #1661 的 client-views；资源文件由统筹串行 |
+| T-366 | 加急：炼金台缺模型终态刷新收敛（RAC-2752～2757） | 乙 | Codex 开发线 2 | #1695 待独立审验 | 无；T-347 等本单落地 | `plugins/native/alchemist/src/client.ts`、`tests/alchemist-workbench.e2e.test.ts`、边界测试或独立 terminal-refresh 测试二选一、Alchemist README；不动 #1661 的 client-views；资源文件由统筹串行 |
 | T-367 | 连接事务失败后的真实 secret 清理与恢复证据（T-134 建议①；RAC-2758～2760） | 丙 | Codex 待分配 | 待领 | T-134 已合；建议②仍等 #1677/#1675 | `tests/connector-connection-declarers.test.ts` |
 | T-122 | BL-530 已采用 config／队列组合核收和文档纠偏；origins 实际设置展示归 T-141，不结清整条 PG-046 | 甲 | Codex 待分配 | 待领（核证／文档版） | T-119/T-120/T-134 已合；源码修复另核锁 | 文档状态段，详见 `tasks/T-122.md`；生产只读 |
 | T-368 | MCP 无目录真实权限拒绝及精确 raiser 变异（RAC-2761～2763） | 丙 | Codex 待分配 | 待领 | 无；领取前重核文件锁 | `tests/mcp-error-kinds.test.ts` |

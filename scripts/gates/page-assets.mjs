@@ -246,10 +246,10 @@ const headErrors = (measured, budget, base) => {
 // attribute (which counts UTF-16 units and stopped a title of two-unit characters at 60), +213 B on the workbench script (a cap function, its
 // call and the comment). Tried: inlining the cap into the listener (+40 B but unreadable), no new asset, no new text; the maxlength attribute
 // is in Goals' server-drawn dialog HTML, not an asset, so removing it saves nothing here. The T-203, T-235 and T-183 entries this file used
-// to carry are consumed (their budgets already equal their ceilings) and are deleted with this change; T-183's own landing changed the
-// workbench baseline from 1148453 to 1148549, so this entry's merge-base number is that landed value and the ceiling is the re-measurement.
+// to carry are consumed (their budgets already equal their ceilings) and are deleted with this change; T-183's and then T-115's landings changed the
+// workbench baseline from 1148453 to 1148388, so this entry's merge-base number is that landed value and the ceiling is the re-measurement (+213 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148549, 1148762],
+  "/assets/molis-work-workbench.js": [1148388, 1148601],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

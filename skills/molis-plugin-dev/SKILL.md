@@ -49,7 +49,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 | kind | 何时 | 现在 |
 | --- | --- | --- |
-| `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（登记上的 `project_runtime` 或 `runtime`，例如 Shelf 两个都写）；构建期装配只剩 `tests/builtin-plugin-assembly-gate.test.ts` 冻结的旧名单，只许减少 | Runtime 装配：不在冻结名单里的内置插件（名单以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）；构建期（冻结）：Alchemist、Artifacts、Feed、Goals、Inbox、插件创作台 |
+| `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（登记上的 `project_runtime` 或 `runtime`，例如 Shelf 两个都写）；构建期装配只剩用户批过的两个例外（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | Runtime 装配：两个例外以外的全部内置插件（以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）；构建期（批过的例外）：Alchemist、插件创作台 |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Files、Git、Diff、Text stats |
 | `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
 
@@ -76,7 +76,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 2. Manifest 身份：`schema_version`（产品插件用 2）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason；要用侧栏浏览器的网站，写 `surface:browser` 并列出 `origins`，见 [ui.md](ui.md) 侧栏标签一节）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
 3. 个人还是项目：个人插件（本机创作、置物架、灵光、Todo、Jelly、Cognia 等，以各包 `src/registration.ts` 的 `personal: true` 为准）在每个项目都可用；Goals、Feed、Inbox、Coding 等按项目启用。判断规则属于系统模块 `modules/functions`，不是插件。
 4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island` | `side`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
-5. HTTP：写 Manifest `routes`，Host 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。短名路径（如 `/api/alchemist`）只属于冻结名单里的旧插件（已迁完的 Pages、灵光、Schedule、Inbox、Feed 等走 Manifest `routes`，旧短名路径已删），新插件不新增 `<插件>-native-plugin-http.ts`。未声明或未接线的路径到不了插件。
+5. HTTP：写 Manifest `routes`，Host 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。短名路径（如 `/api/alchemist`）只属于构建期例外 Alchemist（已迁完的 Pages、灵光、Schedule、Inbox、Feed 等走 Manifest `routes`，旧短名路径已删），新插件不新增 `<插件>-native-plugin-http.ts`。未声明或未接线的路径到不了插件。
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的点击在 `apps/workbench/src/scripts/client/navigation-*.ts`。只出静态 HTML 不够。
 7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；HTTP 路由只转发到这些动作。写法：用 SDK 的 `defineAction`，同一份定义既进 Manifest 的 `actions`，也绑定运行实例的处理器（`packages/plugin-sdk/README.md`；[host.md](host.md) 必改第 12 步）。
 8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。判断规则归系统模块 `modules/functions`，编辑器在「能力」（`apps/workbench/src/functions`），不是插件。

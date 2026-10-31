@@ -246,10 +246,10 @@ const headErrors = (measured, budget, base) => {
 // result, that automatic judgment only considers the actions Feed has been granted: one note and the condition that shows it,
 // reusing the panel's existing note structure (its unused data attribute is dropped), +254 B on this one asset. Tried: no new
 // structure, no new asset, no new component; the English is in the workbench's own HOME_EN dictionary. 统筹答 6532134256
-// approved +283 B (< 1 KB) over the merge-base 1148388; this change measures 1148642 (+254, under that ceiling). The T-115
-// entries (workbench.css +24, workbench.js +51) are used up and deleted with this change.
+// approved +283 B (< 1 KB) over the merge-base 1148277; this change measures 1148531 (+254, under that
+// ceiling). The T-138 entry (workbench.js [1148388, 1148833]) is used up and deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148388, 1148642],
+  "/assets/molis-work-workbench.js": [1148277, 1148531],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

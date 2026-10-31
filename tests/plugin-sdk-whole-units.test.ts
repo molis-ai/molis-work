@@ -12,7 +12,9 @@ test("RAC-2726 cutHead and cutTail keep at most max units without leaving half a
     const capped = cutHead(text, 4000);
     assert.equal([...capped].length <= 4000, true);
     assert.doesNotMatch(capped, LONE);
-    assert.equal(capped, text.length <= 4000 ? text : capped);
+    assert.ok(text.startsWith(capped), "a cut only ever drops the tail");
+    if (text.length <= 4000) assert.equal(capped, text, "text within the limit comes back as it was");
+    else assert.ok(capped.length >= 4000 - 1, "and it keeps every unit but the half it had to drop");
   }
   assert.equal(cutHead("x".repeat(179) + "😀", 180), "x".repeat(179), "the cut falls between the pair's halves: the lone high half goes");
   assert.equal(cutHead("x".repeat(178) + "😀", 180), "x".repeat(178) + "😀", "exactly the limit comes back as it was");
@@ -28,6 +30,22 @@ test("RAC-2726 cutHead and cutTail keep at most max units without leaving half a
   assert.doesNotMatch(cutTail("\uDE00" + "a".repeat(50) + "😀" + "b".repeat(99), 100), LONE);
 });
 
+// RAC-2726: the bound keeps whole code points, not whole grapheme clusters: a ZWJ family, a flag and a keycap are several code points,
+// and a cut may fall between them; what it must never do is leave half a surrogate or go over the bound.
+test("RAC-2726 a bound over multi-code-point emoji keeps whole code points and the unit bound", () => {
+  const family = "👨‍👩‍👧", flag = "🇨🇳", keycap = "1️⃣";
+  for (const [text, max] of [
+    [`xxx${family}`, 4], [`xxx${family}`, 5], [`aaa${flag}`, 5], [`aaa${flag}`, 4], [`bbb${keycap}`, 4], [`bbb${keycap}`, 5],
+  ] as const) {
+    const capped = cutHead(text, max);
+    assert.ok(capped.length <= max, `${JSON.stringify(capped)} is at most ${max} units`);
+    assert.doesNotMatch(capped, LONE, "no half of a code point is left behind");
+    assert.ok(text.startsWith(capped), "only the tail is dropped");
+  }
+  assert.equal(cutHead("aaa" + flag, 5), "aaa" + "🇨", "the flag's two code points can be split: whole code points are the rule, not clusters");
+  assert.doesNotMatch(cutHead("aaa" + flag, 5), LONE);
+});
+
 test("RAC-2726 cutCharacters and exceedsCharacters count characters, never spreading the whole text", () => {
   const wide = "🟢";
   assert.equal(cutCharacters(wide.repeat(4001), 4000), wide.repeat(4000), "4001 emoji are cut at 4000 whole characters, though 8002 units");
@@ -40,4 +58,26 @@ test("RAC-2726 cutCharacters and exceedsCharacters count characters, never sprea
   assert.equal(exceedsCharacters("a".repeat(8001), 4000), true, "8001 units is over without spreading");
   assert.equal(exceedsCharacters("a".repeat(4000) + wide, 4000), true, "one whole character past the bound is over");
   assert.equal(exceedsCharacters("a".repeat(4000), 4000), false);
+});
+
+// RAC-2726: the cheap paths are bounded work, not just correct results: more than twice the limit is decided from the unit count, and
+// cutting characters spreads at most twice the bound (never the whole text). The string iterator is counted and put back in finally.
+test("RAC-2726 deciding and cutting never spread more text than the bound needs", () => {
+  const original = String.prototype[Symbol.iterator];
+  let yielded = 0;
+  const counting = function* (this: string): Generator<string> {
+    for (const character of original.call(this) as Iterable<string>) { yielded += 1; yield character; }
+  };
+  try {
+    Object.defineProperty(String.prototype, Symbol.iterator, { value: counting, configurable: true, writable: true });
+    yielded = 0;
+    assert.equal(exceedsCharacters("a".repeat(8001), 4000), true);
+    assert.equal(yielded, 0, "more than 2 * limit units is decided without spreading the text");
+    yielded = 0;
+    const capped = cutCharacters("a".repeat(100_000), 4000);
+    assert.equal(capped.length, 4000);
+    assert.ok(yielded <= 8000, `cutCharacters spreads at most 2 * limit units (saw ${yielded})`);
+  } finally {
+    Object.defineProperty(String.prototype, Symbol.iterator, { value: original, configurable: true, writable: true });
+  }
 });

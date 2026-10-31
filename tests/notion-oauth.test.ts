@@ -1,13 +1,13 @@
 import { connectorControl } from "./fixtures/connector-control.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { request as httpRequest, createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { completeApiOAuth, connectorLoginReady, connectorProtocolSecrets, handleConnectorApiMethodsHttp, handleLocalConnectorsSettingsHttp, listConnectorConnectionViews,
-  resolveApiConnection, resolveApiOAuthToken, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+  resolveApiConnection, resolveApiOAuthToken, startApiOAuth, withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 // W5-11 slice 7 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.4 "Notion"): Notion signs in through the
@@ -15,7 +15,7 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 // provider forced on it: Notion does not take a numeric IP in a registered redirect URI, so its return address names `localhost`. That
 // is the platform's alias table now (`connector-oauth-callback-paths.ts`), and only Notion's entry has a host.
 // - RAC-2533: Notion connects, is read, refreshed and checked by the generic flow; its own routes and code are gone.
-// - RAC-2534: the return address names `localhost` on the same port; no other service, host, port or spelling gets that.
+// - RAC-2534: the return address names `localhost` on the same port (from any loopback origin the Host accepts: `127.0.0.1` or `[::1]`); no other service, host, port or spelling gets that.
 // - RAC-2535: the token request, the account (workspace) and the reauthorization rule.
 // - RAC-2536: a Notion connection of the dedicated flow's shape says reauth_required and nothing is sent for it.
 // - RAC-2537: the product client comes from the new variable names only.
@@ -128,12 +128,26 @@ test("RAC-2534: Notion's return address names localhost on the same port, and th
   const state = stateOf(started.authorization_url);
   const wrongName = await f.getAt(`127.0.0.1:${f.port}`, `${ALIAS}?state=${state}&code=c`);
   assert.equal(wrongName.location, "/settings/connectors?connection_error=failed&connector=notion");
-  // A new authorization, then the arrivals that are not this machine's, or not this port's, are refused and consume the state.
-  for (const host of [`localhost:${f.port + 1}`, `127.0.0.2:${f.port}`, `localhost.evil.example:${f.port}`, `[::ffff:127.0.0.1]:${f.port}`, "evil.example"]) {
+  // The arrivals that are not this address are refused. A local Host at another origin (another port) fails the
+  // authorization at rule 2: its state is taken, so the right address with the same state finds it used. A Host that is not this machine's (another loopback address such as 127.0.0.2 included) is
+  // refused before the record is read (rule 1): the state is untouched and the right address still completes it.
+  const FAILED = "/settings/connectors?connection_error=failed&connector=notion";
+  let connected = 0;
+  for (const [host, consumes] of [[`localhost:${f.port + 1}`, true], [`127.0.0.2:${f.port}`, false], [`localhost.evil.example:${f.port}`, false],
+    [`[::ffff:127.0.0.1]:${f.port}`, false], ["evil.example", false]] as const) {
     const again = await startApiOAuth(f.home, { ...CLIENT, origin: f.origin });
     const refused = await f.getAt(host, `${ALIAS}?state=${stateOf(again.authorization_url)}&code=c`);
-    assert.notEqual(refused.location, done(again.connection_id), host);
-    assert.equal(withConnectorConnections(f.home, store => store.list()).length, 0, `${host} connected nothing`);
+    if (consumes) { assert.equal(refused.status, 302, host); assert.match(refused.location ?? "", /^\/settings\/connectors\?connection_error=failed(&connector=notion)?$/u, host); }
+    else assert.ok(refused.status >= 400 || /^\/settings\/connectors\?connection_error=failed/u.test(refused.location ?? ""), `${host} is refused (${refused.status} ${refused.location})`);
+    assert.equal(withConnectorConnections(f.home, store => store.list()).length, connected, `${host} connected nothing`);
+    const replay = await f.getAt(f.localhost, `${ALIAS}?state=${stateOf(again.authorization_url)}&code=c`);
+    if (consumes) {
+      assert.deepEqual([replay.status, replay.location], [302, "/settings/connectors?connection_error=failed"], `${host}: the state it used is gone`);
+      assert.equal(withConnectorConnections(f.home, store => store.list()).length, connected, host);
+    } else {
+      assert.equal(replay.location, done(again.connection_id), `${host}: refused before the record was read`);
+      connected += 1;
+    }
   }
   // An authorization started from a browser at localhost, or at [::1], names the same address and comes back to it.
   for (const origin of [`http://localhost:${f.port}`, `http://[::1]:${f.port}`]) {
@@ -144,7 +158,7 @@ test("RAC-2534: Notion's return address names localhost on the same port, and th
   }
 });
 
-test("RAC-2534: only Notion's alias has a host: Gmail, Asana and a plugin's own service get no localhost return address or arrival", async t => {
+test("RAC-2534: only Notion's alias has a host: Gmail, which has an alias without one, and Asana, which has none, get no localhost return address or arrival", async t => {
   const f = await served(t);
   notion(t);
   // A service with an alias of its own that names no host keeps the origin it started from, and does not take localhost.
@@ -167,6 +181,13 @@ test("RAC-2534: only Notion's alias has a host: Gmail, Asana and a plugin's own 
   // The generic callback is still answered where the origin is: a service without an alias host does not change.
   const asana = await startApiOAuth(f.home, { serviceId: "asana", displayName: "Work", clientId: "app", clientSecret: "s", origin: f.origin });
   assert.equal(asana.redirect_uri, `${f.origin}${GENERIC}`);
+  // And it is not taken at localhost either: rule 2 compares against the origin it started from, the alias table has no entry to widen that.
+  const asanaAtLocalhost = await f.getAt(f.localhost, `${GENERIC}?state=${stateOf(asana.authorization_url)}&code=c`);
+  assert.deepEqual([asanaAtLocalhost.status, asanaAtLocalhost.location], [302, "/settings/connectors?connection_error=failed&connector=asana"]);
+  assert.equal(withConnectorConnections(f.home, store => store.list()).length, 0);
+  // A service a package declares has no more of this than Asana: the alias table is keyed by the service id, which is unique across plugins
+  // (`integration-declarations.ts`), and a signed package may not carry an `oauth` method with its flow as data (`assertFree`, S-101), so it can
+  // neither take `notion` nor name a host of its own.
 });
 
 test("RAC-2535: the token request is Basic with a JSON body and the workspace is the account: another workspace is refused with nothing written, a renamed one is the same", async t => {
@@ -264,7 +285,10 @@ async function connectedNotion(t: TestContext) {
       : Response.json({ object: "user", id: "bot", bot: { workspace_name: "Work" } })) as typeof fetch);
   const id = started.connection_id, secrets = connectorProtocolSecrets(home, id);
   const revision = () => withConnectorConnections(home, store => store.require(id)).updated_at;
-  return { home, id, secrets, revision };
+  /** The connection's protocol configuration as saved, and the workspace name the refreshes keep in it. */
+  const protocol = () => JSON.stringify(withConnectorProtocols(home, store => store.get(id)));
+  const workspace = () => (withConnectorProtocols(home, store => store.get<{ context: Record<string, string> }>(id))?.context ?? {}).workspace_name;
+  return { home, id, secrets, revision, protocol, workspace };
 }
 
 /** A token endpoint that holds each request until the test releases it and ignores abort, answering request n with access-n and refresh-n. */
@@ -276,16 +300,45 @@ function heldTokenEndpoint() {
     const held = new Promise<void>(resolve => requests.push({ refreshToken: JSON.parse(String(init?.body)).refresh_token as string, signal: init!.signal!, release: resolve }));
     arrived();
     await held;
-    return Response.json({ access_token: `access-${index}`, refresh_token: `refresh-${index}`, workspace_id: "work", workspace_name: "Work", bot_id: "bot" });
+    // The workspace name a refresh answers with is never the one the authorization saved ("Work"), so a write of it can be told from no write.
+    return Response.json({ access_token: `access-${index}`, refresh_token: `refresh-${index}`, workspace_id: "work", workspace_name: `Renamed ${index}`, bot_id: "bot" });
   };
   return { requests, fetch: fetchImpl, next: () => new Promise<void>(resolve => { arrived = resolve; }), releaseAll: () => requests.forEach(request => request.release()) };
 }
 const settle = () => new Promise<void>(resolve => setImmediate(resolve));
 const cancelled = () => new DOMException("caller cancelled", "AbortError");
 
+test("RAC-2538 FI-C-02 concurrent refreshes share a request only within the same Home: two Homes holding the same connection id each send their own and write their own tokens", async t => {
+  const alpha = await connectedNotion(t), beta = mkdtempSync(join(tmpdir(), "molis-notion-refresh-")); t.after(() => rmSync(beta, { recursive: true, force: true }));
+  cpSync(alpha.home, beta, { recursive: true });
+  connectorProtocolSecrets(beta, alpha.id).put("oauth", "beta-refresh");
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const requests: string[] = [];
+  const fetchImpl: typeof fetch = async (_url, init) => {
+    const token = JSON.parse(String(init?.body)).refresh_token as string;
+    requests.push(token);
+    await waiting;
+    return Response.json({ access_token: `access-for-${token}`, refresh_token: `rotated-${token}`, workspace_id: "work", workspace_name: token, bot_id: "bot" });
+  };
+  const homes = [alpha.home, beta];
+  // Each Home's first call sends; the second call of each joins what is in flight in its own Home only.
+  const pending = homes.map(home => resolveApiOAuthToken(home, alpha.id, connectorControl(), true, fetchImpl));
+  while (requests.length < 2) await settle();
+  pending.push(...homes.map(home => resolveApiOAuthToken(home, alpha.id, connectorControl(), true, fetchImpl)));
+  await settle();
+  release();
+  assert.deepEqual(await Promise.all(pending), ["access-for-original-refresh", "access-for-beta-refresh", "access-for-original-refresh", "access-for-beta-refresh"]);
+  assert.deepEqual(requests.sort(), ["beta-refresh", "original-refresh"], "one request per Home, not one for both");
+  for (const [home, token] of [[alpha.home, "original-refresh"], [beta, "beta-refresh"]] as const) {
+    assert.equal(connectorProtocolSecrets(home, alpha.id).get("oauth"), `rotated-${token}`);
+    assert.equal(connectorProtocolSecrets(home, alpha.id).get("access"), `access-for-${token}`);
+  }
+});
+
 test("RAC-2538 FI-C-02 Notion's shared refresh isolates either caller's cancellation: a sent refresh is not aborted, the caller still waiting is answered", async t => {
   for (const leaver of [0, 1, "both"] as const) await t.test(`cancel ${leaver}`, async tt => {
-    const f = await connectedNotion(tt), endpoint = heldTokenEndpoint(), before = f.revision();
+    const f = await connectedNotion(tt), endpoint = heldTokenEndpoint(), before = f.revision(), saved = f.protocol();
     try {
       const controllers = [new AbortController(), new AbortController()];
       const sent = endpoint.next();
@@ -309,12 +362,14 @@ test("RAC-2538 FI-C-02 Notion's shared refresh isolates either caller's cancella
       assert.equal(f.secrets.get("access"), "access-0", "the rotated tokens are written back");
       assert.equal(f.secrets.get("oauth"), "refresh-0");
       assert.equal(f.revision(), before);
+      // What the answer says again is kept only while a caller still waits for it; when every caller left, nothing but the tokens is written.
+      if (leaver === "both") { assert.equal(f.workspace(), "Work"); assert.equal(f.protocol(), saved); } else assert.equal(f.workspace(), "Renamed 0");
     } finally { endpoint.releaseAll(); }
   });
 });
 
 test("RAC-2538 FI-C-02 an answer nobody waits for keeps only the rotated tokens, and the next refresh sends the rotated refresh token", async t => {
-  const f = await connectedNotion(t), before = f.revision(), endpoint = heldTokenEndpoint();
+  const f = await connectedNotion(t), before = f.revision(), saved = f.protocol(), endpoint = heldTokenEndpoint();
   try {
     const controllers = [new AbortController(), new AbortController()];
     const sent = endpoint.next();
@@ -334,6 +389,8 @@ test("RAC-2538 FI-C-02 an answer nobody waits for keeps only the rotated tokens,
     assert.equal(f.secrets.get("access"), "access-0");
     assert.equal(f.secrets.get("oauth"), "refresh-0");
     assert.equal(f.revision(), before);
+    assert.equal(f.workspace(), "Work", "nothing but the tokens is written for an answer nobody waits for");
+    assert.equal(f.protocol(), saved);
     const sentAgain = endpoint.next();
     const next = resolveApiOAuthToken(f.home, f.id, connectorControl(), true, endpoint.fetch);
     await sentAgain;
@@ -405,6 +462,7 @@ test("RAC-2538 FI-C-02 a call arriving after both callers left joins the sent re
     for (const result of await results) assert.equal(result.status, "rejected");
     assert.equal(f.secrets.get("access"), "access-0");
     assert.equal(f.secrets.get("oauth"), "refresh-0");
+    assert.equal(f.workspace(), "Renamed 0", "a participant still waits, so what the answer says again is kept as usual");
     assert.equal(f.revision(), before);
     assert.equal(endpoint.requests.length, 1);
   } finally { endpoint.releaseAll(); }
@@ -412,7 +470,7 @@ test("RAC-2538 FI-C-02 a call arriving after both callers left joins the sent re
 
 test("RAC-2538 FI-C-02 a shared refresh a caller still awaits writes nothing when the refresh token or the connection changes meanwhile", async t => {
   for (const change of ["refresh", "revision"] as const) await t.test(change, async tt => {
-    const f = await connectedNotion(tt), endpoint = heldTokenEndpoint();
+    const f = await connectedNotion(tt), endpoint = heldTokenEndpoint(), saved = f.protocol();
     try {
       const leaving = new AbortController();
       const sent = endpoint.next();
@@ -436,6 +494,8 @@ test("RAC-2538 FI-C-02 a shared refresh a caller still awaits writes nothing whe
       assert.equal(f.secrets.get("access"), "expired-access");
       assert.equal(f.secrets.get("oauth"), change === "refresh" ? "replaced-refresh" : "original-refresh");
       assert.equal(f.revision(), changed, "the refused refresh does not touch the connection");
+      assert.equal(f.protocol(), saved, "nor its protocol configuration: the workspace the answer names is not kept");
+      assert.equal(f.workspace(), "Work");
       assert.equal(endpoint.requests.length, 1);
     } finally { endpoint.releaseAll(); }
   });

@@ -178,9 +178,6 @@ export { handleContextualHttp } from "./contextual/contextual-http.js";
 export { draftRequest } from "./contextual/contextual-draft.js";
 export { createChosen, undoCreated, type ContextualCreated, type UndoOwner } from "./contextual/contextual-create.js";
 export { intakeKey } from "./contextual/contextual-choice.js";
-// The Host's one whole-character cut, exported for the tests that pin it; the MISC "整字截收成一份" line drops these two exports when it
-// makes them a public helper.
-export { cutHead, cutTail } from "./whole-units.js";
 export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { scheduleServiceFor } from "./project-clock.js";

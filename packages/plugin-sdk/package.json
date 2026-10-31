@@ -41,6 +41,10 @@
     "./page-globals": {
       "types": "./dist/page-globals.d.ts",
       "import": "./dist/page-globals.js"
+    },
+    "./whole-units": {
+      "types": "./dist/whole-units.d.ts",
+      "import": "./dist/whole-units.js"
     }
   },
   "files": [

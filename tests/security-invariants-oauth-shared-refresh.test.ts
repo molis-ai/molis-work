@@ -33,6 +33,8 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 //   of the call, whose reason (`sandbox.stopped`) is the platform's and passed on as it is, so a stopped integration keeps nothing.
 // - RAC-2420 (T-296): a call whose authority is withdrawn while the shared refresh is out, its signal never aborted, is a withdrawal,
 //   not a cancellation: `outcome()` says `discard` and nothing of the answer is written. No broker, so it runs on every platform.
+//   Covered by the RAC-1085 case below ("a call that lost its authority while its refresh was out keeps nothing of the answer, even
+//   with another caller cancelled"), whose `alone` subcase walks the same path; its own duplicate case was removed (T-342).
 // - RAC-1087: a connection bound to another plugin, publisher or token endpoint, or to none, is marked for reauthorization before its
 //   refresh token or client secret is sent anywhere.
 // - RAC-1088: while the declaring plugin is disabled, the connection sends nothing and refreshes nothing; enabled again, it works.
@@ -165,7 +167,7 @@ test("RAC-1085 a sent refresh every caller cancelled still ends, keeps only the 
   } finally { net.releaseAll(); }
 });
 
-test("RAC-1085 a call that lost its authority while its refresh was out keeps nothing of the answer, even with another caller cancelled", { timeout: 30_000 }, async t => {
+test("RAC-1085 RAC-2420 a call that lost its authority while its refresh was out keeps nothing of the answer, even with another caller cancelled", { timeout: 30_000 }, async t => {
   for (const alongside of [false, true]) await t.test(alongside ? "with a cancelled caller" : "alone", async t => {
     const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
     const before = { stored: stored(), protocol: protocol() }, lost = call(), other = call();
@@ -561,27 +563,6 @@ test("S-95 RAC-2462 a sandboxed integration's request ended by the broker carrie
     await assert.rejects(answered);
     assert.equal(reason, stopped, lost ? "a call no longer current still carries the broker's reason" : "a current call ended by the broker is not a cancellation");
   }
-});
-
-// T-296 N2 (MISC「T-218 二审复核 建议」): the same stretch RAC-2463 covers through the real broker, which only runs on darwin, in a unit
-// without the broker: the call's authority is withdrawn while the refresh is out and its signal is never aborted, so `live()` sees a
-// withdrawal, `outcome()` says `discard`, and `renewed` writes nothing of the answer.
-test("S-95 RAC-2420 RAC-2464: a call withdrawn while its refresh is out is a withdrawal, not a cancellation, and keeps nothing", { timeout: 30_000 }, async t => {
-  const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
-  const before = { stored: stored(), protocol: protocol() }, lost = call();
-  try {
-    const sent = net.next();
-    const settled = Promise.allSettled([port.request(target, lost.dispatch)]);
-    await sent;
-    lost.withdraw();
-    assert.equal(lost.dispatch.signal.aborted, false, "the call was withdrawn by its authority, not aborted");
-    net.refreshes[0]!.release();
-    const [result] = await settled;
-    assert.equal(result!.status, "rejected");
-    assert.deepEqual(stored(), before.stored, "nothing of the refresh's answer is written: outcome is discard, not write_back");
-    assert.equal(protocol(), before.protocol, "nothing of the configuration is written");
-    assert.deepEqual(net.reads, [], "the withdrawn call sends no data request after the refresh");
-  } finally { net.releaseAll(); }
 });
 
 // #1479 second review, advice 1 (W5-11 §7 slice 6): once the answer of a sent refresh is to be dropped because a call lost its authority,

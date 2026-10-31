@@ -87,8 +87,7 @@ Generation smoke: 3/3 briefs reached a frozen design with MiniMax-M3; 3 full des
   - 一是**疑似模型输出波动**：证据止于两次报告与第二次运行的对照，本单没有逐项对照失败答卷与宿主校验，**不能排除产品检查或环境**；
   - 二是**模型照抄示例**：失败报错的组件 id 是 `notes`，而设计者提示词 `plugins/native/plugin-builder/src/agent-prompts.ts:58-59` 的示例里正好有一个 id 叫 `notes` 的组件、用 `selection:notes.id` 引用（宿主规则在 `packages/design-system/src/plugin-components.ts:276`）；若是这样，问题在提示词示例，**「模型能力不打补丁」不适用**。
   - 待独立排查再定因；本单只记录两次运行与原文。
-- 每条的「一次接受」「修复轮数」见上面两张表；报告的 `repairs` 字段保留了宿主退回的原话（§4）。
-- 报告 JSON 与设计者失败答卷原件的存留：作者称报告 JSON 留在本机 `/tmp` 工作目录（临时 Home 已删）；本线未取得原件、未独立核对存留，也没把已核的摘录当原件。原回放 stdout 记报告输出在一次性 Home 中（该 Home 已删）。
+- 每条的「一次接受」「修复轮数」见上面两张表；`--out` 写在临时 Home 里，已随 Home 删除，没有留存；宿主退回的原话只有 §3、§4 的摘录。
 
 ## 4. 失败与归因（逐条）
 

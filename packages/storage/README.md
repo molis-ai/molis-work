@@ -5,7 +5,7 @@
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 
-`openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接。`homeStoreRegistry`（`home-stores.ts`）是 Home 存储登记的形状与检查：路径只能是 Home 下的一个名字或 `config/` 下的一个文件，一个路径只有一个主人；登记本身由 Host 组装（`apps/local-host/src/home-stores.ts`），这里不认识任何插件或模块。记忆账本与搜索索引的登记（`MEMORY_LEDGER_HOME_STORE`、`TEXT_SEARCH_HOME_STORE`）在各自的适配器旁，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
+`openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接——打开前先只读核对版本与结构（同版本也必须有基线的每张表），错版本与坏结构不改文件即拒绝，热日志库留给可写打开做 SQLite 崩溃恢复后再完整核对。`homeStoreRegistry`（`home-stores.ts`）是 Home 存储登记的形状与检查：路径只能是 Home 下的一个名字或 `config/` 下的一个文件，一个路径只有一个主人；登记本身由 Host 组装（`apps/local-host/src/home-stores.ts`），这里不认识任何插件或模块。记忆账本与搜索索引的登记（`MEMORY_LEDGER_HOME_STORE`、`TEXT_SEARCH_HOME_STORE`）在各自的适配器旁，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
 
 `acquireStorageOwner` 是 Host、独立 Agent 与离线 Home 操作共用的 SQLite EXCLUSIVE 所有权技术端口，路径仍是显式绝对目录里的 `.molis-runtime-owner.db`。获取始终严格，同一进程第二次获取也拒绝；不另建锁或根据 PID 放行。`assertStorageOwner` 与 `borrowStorageOwner` 只认本模块认证、同一 canonical root 和原 inode 的 live capability；复制对象不能借用，一个父 owner 同时只给一个执行服务借用。子服务关闭仅归还借用，父 owner 在借用归还前不能释放。失败关闭由原拥有者明确重试，普通释放保留锁 inode；Home 的 `agent-runtime` 父目录也不能在恢复发布时整体替换。该锁及侧车不进业务快照。回归：`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
 
@@ -13,7 +13,7 @@
 
 ## 一次典型调用
 
-LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 把各模块交出的当前 schema 拼成库的基线（`applySqliteBaseline`），版本不符就拒绝，不就地升级。runWithMolisWorkHome 将文件适配限定到当前 Home。
+LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 把各模块交出的当前 schema 拼成库的基线（`applySqliteBaseline`）：先只读核对版本与结构，版本不符（`storage.schema_version_mismatch`）或同版本基线表缺失/形状不同（`storage.schema_structure_mismatch`）都拒绝，不就地升级。runWithMolisWorkHome 将文件适配限定到当前 Home。
 
 `describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。Host 用它与 `describeSqliteSchema` 的实测结果比较，确认完整结构后才构造可能创建表的 Repository；SQLite 连接技术留在 storage。
 

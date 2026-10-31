@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -99,7 +100,7 @@ test("RAC-2720 a store at the current version whose structure changed is refused
   damaged.close();
   chmodSync(path, 0o644);
   const before = readFileSync(path), mode = statSync(path).mode & 0o777;
-  const refused = (error: unknown) => error instanceof Error && !(error instanceof SqliteSchemaVersionError) && /结构/.test(error.message);
+  const refused = (error: unknown) => error instanceof Error && (error as { code?: unknown }).code === "storage.schema_structure_mismatch";
   assert.throws(() => openBaselineHomeSqlite(home, "notes", v1), refused, "the writer is refused a same-version changed structure");
   assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
   assert.equal(statSync(path).mode & 0o777, mode, "no writable connection opened (its chmod would have tightened the mode)");
@@ -121,7 +122,7 @@ test("RAC-2720 a store at the current version missing its baseline tables is ref
     { store: "multi", baseline: { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE tags (id TEXT PRIMARY KEY, name TEXT NOT NULL);" },
       drop: "DROP TABLE notes; DROP TABLE tags;" },
   ] as const;
-  const refused = (error: unknown) => error instanceof Error && !(error instanceof SqliteSchemaVersionError) && /结构/.test(error.message);
+  const refused = (error: unknown) => error instanceof Error && (error as { code?: unknown }).code === "storage.schema_structure_mismatch";
   for (const { store, baseline, drop } of cases) {
     const db = openBaselineHomeSqlite(home, store, baseline);
     db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run();
@@ -145,4 +146,58 @@ test("RAC-2720 a store at the current version missing its baseline tables is ref
   const fresh = openBaselineHomeSqlite(home, "fresh", cases[0].baseline);
   try { assert.deepEqual((fresh.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as Array<{ name: string }>).map(row => row.name), ["notes"]); }
   finally { fresh.close(); }
+});
+
+// RAC-2719 (T-346 review): a write killed before commit leaves a hot journal. On some platforms a read-only connection cannot roll it
+// back (SQLITE_READONLY_ROLLBACK); the writable open may recover it (SQLite's crash recovery, not a business write) and the baseline
+// check then runs on the recovered database. A wrong version is still refused with storage.schema_version_mismatch.
+test("RAC-2719 a store with a hot journal still opens, and a wrong version is still refused", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-baseline-hot-journal-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const v1 = { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);" };
+  const create = (store: string) => {
+    const db = openBaselineHomeSqlite(home, store, v1);
+    try { db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run(); } finally { db.close(); }
+    const path = homeSqlitePath(home, store);
+    const killed = spawnSync(process.execPath, ["-e", `const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync(${JSON.stringify(path)});
+      db.exec("BEGIN IMMEDIATE"); db.exec("INSERT INTO notes VALUES ('b', 'uncommitted')"); process.kill(process.pid, "SIGKILL");`], { encoding: "utf8" });
+    assert.equal(killed.signal, "SIGKILL", "the write is killed before it commits");
+    assert.ok(existsSync(`${path}-journal`), "so the journal is left hot beside the database");
+    return path;
+  };
+  const path = create("notes");
+  const recovered = openBaselineHomeSqlite(home, "notes", v1);
+  try { assert.deepEqual((recovered.prepare("SELECT id FROM notes ORDER BY id").all() as Array<{ id: string }>).map(row => row.id), ["a"], "only the committed row survives the recovery"); }
+  finally { recovered.close(); }
+  const wrongPath = create("wrong");
+  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 1 && error.expected === 2;
+  assert.throws(() => openBaselineHomeSqlite(home, "wrong", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused,
+    "the version check still refuses a hot-journal store at another version");
+  assert.equal(wrongPath, homeSqlitePath(home, "wrong"));
+});
+
+// RAC-2717 (T-346 review): in WAL mode the read-only check refuses another version without touching the database or the pages still in
+// its WAL file. The WAL was written with wal_autocheckpoint = 0 and copied with the database, as a crashed process would leave them.
+// A cleanly closed store may gain empty -wal/-shm files on refusal; these copied files keep their bytes.
+test("RAC-2717 a WAL store at another version is refused with the database and its WAL unchanged", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-baseline-wal-"));
+  const sourceDirectory = mkdtempSync(join(tmpdir(), "molis-baseline-wal-source-"));
+  t.after(() => { rmSync(home, { recursive: true, force: true }); rmSync(sourceDirectory, { recursive: true, force: true }); });
+  const source = join(sourceDirectory, "source.db");
+  const writer = new DatabaseSync(source);
+  try {
+    writer.exec("PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0; CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL); PRAGMA user_version = 1;");
+    const insert = writer.prepare("INSERT INTO notes VALUES (?, ?)");
+    for (let index = 0; index < 50; index += 1) insert.run(`k${index}`, "每一行都留在 WAL 里。".repeat(3));
+    const path = homeSqlitePath(home, "notes");
+    mkdirSync(dirname(path), { recursive: true });
+    copyFileSync(source, path);
+    copyFileSync(`${source}-wal`, `${path}-wal`);
+    assert.ok(existsSync(`${path}-wal`), "the WAL file holds pages that never reached the database");
+  } finally { writer.close(); }
+  const path = homeSqlitePath(home, "notes"), before = readFileSync(path), beforeWal = readFileSync(`${path}-wal`);
+  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 1 && error.expected === 2;
+  assert.throws(() => openBaselineHomeSqlite(home, "notes", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused);
+  assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
+  assert.deepEqual(readFileSync(`${path}-wal`), beforeWal, "and the WAL's pages are not written either");
 });

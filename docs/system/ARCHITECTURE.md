@@ -116,12 +116,12 @@ AP3 已把稳定文档 Shell、命名 Slot、mount 校验、浏览器资产和�
 ```text
 Gmail Integration Plugin
 → Connector Host 建立授权连接
-→ Listener Host 拉取并保存 cursor/lease
+→ Feed 插件存储层的监听记录（`ListenerHost.run`）保存 cursor/lease
 → Gmail Adapter 生成 Signal Draft
-→ Signals Module 去重并保存 Signal
-→ Feed Module 判断并生成 Feed Item
+→ Feed 插件里的信号存储（`SignalsModule`）去重并保存 Signal
+→ `FeedApplication.ingestItem` 写入 Feed 存储层、生成 Feed Item
 → Feed Native Plugin 在 Workbench 显示
 → 用户选择后，Feed 自己记下保存或忽略；加入 Inbox、升格为 Goal 等由 Inbox、Goals 等对应 owner 经动作接收 Command
 ```
 
-每一步只改变自己拥有的事实。未来用户把某个 Plugin 结果共享给 Team 时，Artifacts/Goals 生成 Envelope，Exchange 负责可靠传输，接收方本地 Plugin 再消费内容。
+每一步只改变自己拥有的事实：上面三步现在都在 Feed 插件里，各写自己存储层里的表（监听记录、信号、条目），没有谁替谁写。未来用户把某个 Plugin 结果共享给 Team 时，Artifacts/Goals 生成 Envelope，Exchange 负责可靠传输，接收方本地 Plugin 再消费内容。

@@ -1,7 +1,7 @@
 import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./functions/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
+import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
@@ -62,7 +62,7 @@ function renderConnectionRow(connection: ConnectorSettingsConnection, card: Conn
   const serviceId = escapeHtml(connection.service_id);
   return `<div class="settings-connection-row" data-connection-row="${id}" data-connection-service="${serviceId}" data-connection-revision="${escapeHtml(connection.revision)}">
     ${renderConnectorMark(connection.service_id, escapeHtml)}
-    <div class="settings-connection-row__identity"><strong>${name}</strong><small>${serviceTitle} · ${escapeHtml(connectionMethod(connection.auth_method, L))}${connection.account_label ? ` · ${escapeHtml(connection.account_label)}` : ""}</small>${connection.target_origin ? `<small>${escapeHtml(L("绑定地址"))} · ${escapeHtml(connection.target_origin)}</small>` : ""}</div>
+    <div class="settings-connection-row__identity"><strong>${name}</strong><small>${serviceTitle} · ${escapeHtml(connectionMethod(connection.auth_method, L))}${connection.account_label ? ` · ${escapeHtml(connection.account_label)}` : ""}</small>${connection.target_origin ? `<small>${escapeHtml(L("绑定地址"))} · ${escapeHtml(connection.target_origin)}</small>` : ""}${connection.declared_by ? `<small data-connection-declared-by>${escapeHtml(L("建于"))} · ${escapeHtml(connection.declared_by.title)}</small>` : ""}${connection.reauth_note ? `<small class="settings-connection-row__note" data-connection-reauth-note>${escapeHtml(L(connection.reauth_note))}</small>` : ""}</div>
     <span class="settings-state settings-state--${state.tone}" data-connection-state data-mw-state="${connection.state === "reauth_required" ? "reauth" : connection.state === "connected" ? "saved" : "disconnected"}">${escapeHtml(state.label)}</span>
     ${inDetail ? `${renderConnectionStatus(connection.status, p)}<div class="settings-connection-row__actions">
       ${project || connection.state !== "disconnected" && !["model-api", "image-api", "typesafe", "mcp-bearer"].includes(connection.service_id) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-check="${id}">${L("检查连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-preview="${id}">${L(connection.auth_method === "mcp" ? "查看可用工具" : "查看读取结果")}</button>` : ""}
@@ -81,11 +81,19 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
   const placeholder = card.availability === "placeholder";
   const method = recommendedMethod(card);
   const direct = !placeholder && !count && (method?.login_ready || readyAccountLogin(card));
-  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name: card.title, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
+  // A package writes the card's words: the card shows them within its limits, cut in whole characters.
+  const name = connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS);
+  const purpose = connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS);
+  // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
+  // the card shows no source line at all rather than a trust label it cannot back.
+  const source = card.declared_by === null ? L("Molis Work（内置）")
+    : card.declared_by ? connectorCardText(card.declared_by.title, CONNECTOR_SOURCE_MAX_CHARS) : undefined;
+  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
     ${renderConnectorMark(card.connector_id, escapeHtml)}
     <span class="settings-connector-card__body">
-      <span class="settings-connector-card__title"><strong>${escapeHtml(card.title)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
-      <span class="settings-connector-card__copy">${escapeHtml(connectorPurpose(card, L))}</span>
+      <span class="settings-connector-card__title"><strong>${escapeHtml(name)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
+      ${source === undefined ? "" : `<span class="settings-connector-card__copy settings-connector-card__source" data-connector-source>${escapeHtml(L("来自 {package}", { package: source }))}</span>`}
+      <span class="settings-connector-card__copy">${escapeHtml(purpose)}</span>
     </span>
   </button>`;
 }
@@ -132,10 +140,10 @@ export function renderConnectorsSettings(
       <button class="mw-btn mw-btn--ghost settings-connector-back" type="button" data-connectors-back>${icon("back")}${L("返回列表")}</button>
       <header class="settings-connector-detail__head">
         ${renderConnectorMark(card.connector_id, escapeHtml)}
-        <h2 tabindex="-1">${escapeHtml(card.title)}</h2>
+        <h2 tabindex="-1">${escapeHtml(connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS))}</h2>
         <span class="settings-state settings-state--neutral">${escapeHtml(pathLabel(card, L))}</span>
       </header>
-      <p class="settings-connector-purpose">${escapeHtml(connectorPurpose(card, L))}</p>
+      <p class="settings-connector-purpose">${escapeHtml(connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS))}</p>
       <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" hidden></div>
       ${serviceConnections.length ? `<section class="settings-connection-detail-list"><h3>${L("已有连接")}</h3>${serviceConnections.map((connection) => renderConnectionRow(connection, card, primitives, true)).join("")}</section>` : ""}
       ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: escapeHtml, text: L } }) : ""}

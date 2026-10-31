@@ -242,11 +242,16 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-204 (MISC T-157/T-158 起草), RAC-1978–1984: the Pages page and editor cut what they tell the Assistant, a picture caption, a bookmark name and an export file name
-// on a whole character instead of between the two UTF-16 units of one, +80 B on pages.js and +198 B on pages-editor.js (one shared two-line function and its calls).
-// Tried: the same regex written at every call site, +64 B on pages.js (one call) but +450 B on pages-editor.js (nine calls), so the shared function is kept; no new asset,
-// no new text. Measured after merging main (which had admitted pages-editor.js to 707886 in T-203), so the editor's start is that 707886.
 const APPROVED_CEILINGS = {
+  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
+  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
+  // T-354 一审 P1 keeps the shortcut but asks first that what is rendered is not a skipped subtree (`checkVisibility`, style only) and
+  // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
+  // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
+  "/assets/molis-work-plugins/coding.js": [289876, 290029],
+  // T-204: whole-character Pages excerpts and export names, +80 B / +198 B; approved by 6542200551.
+  // Tried inline regexes: +64 B / +450 B; the shared local helper saves 252 B in the editor.
+  // Recomputed after main sync: preserve the current merge-base and freeze each at its measured size.
   "/assets/molis-work-plugins/pages.js": [38946, 39026],
   "/assets/molis-work-pages-editor.js": [707886, 708084],
 };

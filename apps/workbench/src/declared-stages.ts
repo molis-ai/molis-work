@@ -1,3 +1,4 @@
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -13,6 +14,15 @@ export function viewContributionId(manifest: PluginManifest, view: UiViewDeclara
 export function stageOpeningView(manifest: PluginManifest): UiViewDeclaration | undefined {
   const views = manifest.ui?.views ?? [];
   return views.find(view => view.slot === "stage") ?? views.find(view => view.slot === "navigator");
+}
+
+/**
+ * The read action a plugin's stage is drawn from: the Manifest's own action its stage-opening view names (`stage_data`, T-133). The SDK
+ * has checked it is a query for the person that only reads; the Host calls it by this definition and knows no plugin by name for it.
+ */
+export function stageDataAction(manifest: PluginManifest): ActionDefinition | undefined {
+  const declared = stageOpeningView(manifest)?.stage_data?.action;
+  return declared ? manifest.actions?.find(item => item.capability_id === declared) : undefined;
 }
 
 /** The contribution that draws a plugin's stage; a host path that draws the stage itself reports this id. */

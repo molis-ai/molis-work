@@ -12,13 +12,14 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperat
   writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
- * Built-in plugins reach the product one of two ways. Plugin Runtime plugins are
- * started by a supervisor from their registration's `runtime` (the Home) or `project_runtime` (each project, PG-067) and get
- * install records, upgrade checks, crash recovery and per-install private storage.
- * Build-time composed plugins are wired by hand: a `registerProvider(...)` line in
- * `project-host.ts` and an `<plugin>-native-plugin-http.ts` route file (the catalog entry is no hand step: each plugin's
- * `src/registration.ts` writes it and `builtin-plugins.ts` is generated). The second path is frozen: the lists below may
- * only shrink as plugins move to the Runtime (`skills/molis-plugin-dev/host.md`).
+ * Built-in plugins reach the product one way: a supervisor starts them from their registration's `runtime` (the Home) or
+ * `project_runtime` (each project, PG-067), and they get install records, upgrade checks, crash recovery and per-install
+ * private storage. A new built-in plugin is its own package plus those declarations; there is no second path (AGENTS.md).
+ *
+ * Two plugins are still wired by hand at build time (a `registerProvider(...)` in the Host, Host files named after them), and
+ * only because the user approved them as exceptions: APPROVED_BUILD_TIME_EXCEPTIONS below, each with where the decision is
+ * written (W6-01, BL-377). Any other catalog entry that no supervisor starts fails here. An exception leaves when its plugin is
+ * redone on the Plugin Runtime; none joins.
  *
  * The lists match the disk exactly, both ways: a name that is no longer there has to leave the list, and a plugin the
  * Runtime starts has to be on the Runtime list (specs/repository-anti-corruption W1-05). The numbers that cannot be gamed
@@ -27,50 +28,55 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperat
  */
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
-/**
- * Started by the project supervisor from an entry written in `project-plugins.ts`, because its factory takes a port from the Host:
- * Files only, until that port is the platform's (PG-005, X-5, BL-616). Frozen on 2026-10-25; it may only shrink.
- */
-const HAND_STARTED: ReadonlyMap<string, string> = new Map([["files", "@molis-ai/molis-work-plugin-files"]]);
-
 /** Each project's registrations that declare `project_runtime`, read from the generated platform registry (PG-067). */
 const PROJECT_RUNTIME_ENTRIES = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.project_runtime);
 
-/** Started by `createPluginPlatform` in each project: the declared project instances and the hand-started ones. */
-const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
-  ...PROJECT_RUNTIME_ENTRIES.map(entry => [entry.project_plugin_id, entry.project_runtime!.package_name] as const),
-  ...HAND_STARTED,
-]);
+/** Started by `createPluginPlatform` in each project: the declared project instances, and nothing written by hand (BL-616). */
+const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map(
+  PROJECT_RUNTIME_ENTRIES.map(entry => [entry.project_plugin_id, entry.project_runtime!.package_name] as const));
 
 const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home");
 const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project_plugin_id));
 
-/** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
-const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts",
-  "plugin-builder",
+/**
+ * The only built-in plugins assembled by hand at build time, each with the decision that keeps it (W6-01, BL-377): Alchemist
+ * and the plugin studio are neither migrated nor deleted this round (specs/repository-anti-corruption/privileges.md, the
+ * 2026-10-23 note at the top; specs/post-anticorruption-roadmap/spec.md). Each names the user's dates and the BACKLOG row
+ * that redoes it, and that row has to be open (RAC-2650).
+ */
+const APPROVED_BUILD_TIME_EXCEPTIONS: ReadonlyMap<string, string> = new Map([
+  ["alchemist", "user 2026-10-21, 2026-10-23: not migrated, not deleted, bypassed this round; redone under BL-377 (user 2026-10-27)"],
+  ["plugin-builder", "user 2026-10-21, 2026-10-23: not migrated, not deleted, bypassed this round; redone under BL-377 (user 2026-10-27)"],
 ]);
 
-/** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
-const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
-  "alchemist", "artifact",
+/**
+ * `apps/local-host/src/<name>-native-plugin-http.ts` files that exist, each with why it is there (RAC-2651). One named for a
+ * built-in plugin belongs to an approved build-time exception. `artifact` serves the platform's Artifacts routes since PG-077
+ * (#1552); it is no plugin's, and keeps its old file name until BL-926 renames it.
+ */
+const NATIVE_PLUGIN_HTTP_FILES: ReadonlyMap<string, string> = new Map([
+  ["alchemist", "the routes of an approved build-time exception (APPROVED_BUILD_TIME_EXCEPTIONS)"],
+  ["artifact", "the platform's Artifacts routes since PG-077 (#1552), no plugin's; BL-926 renames the file"],
 ]);
 
-test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {
-  const unknown = BUILTIN_PLUGIN_CATALOG
-    .map(entry => entry.project_plugin_id)
-    .filter(id => !RUNTIME_ASSEMBLED.has(id) && !HOME_RUNTIME_IDS.has(id) && !BUILD_TIME_ASSEMBLED.has(id));
-  assert.deepEqual(unknown, [],
-    `New built-in plugins must be started by the Plugin Runtime (declare runtime or project_runtime in the plugin's registration). Not on the build-time list: ${unknown.join(", ")}`);
+test("RAC-2650 every built-in catalog entry is started by a supervisor or is one of the two build-time exceptions the user approved", async () => {
+  const buildTime = BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string)
+    .filter(id => !RUNTIME_ASSEMBLED.has(id) && !HOME_RUNTIME_IDS.has(id)).sort();
+  assert.deepEqual(buildTime, [...APPROVED_BUILD_TIME_EXCEPTIONS.keys()].sort(),
+    `New built-in plugins must be started by the Plugin Runtime (declare runtime or project_runtime in the plugin's registration); only the approved exceptions are assembled at build time. Assembled at build time: ${buildTime.join(", ")}`);
+  const backlog = await readFile(join(repoRoot, "specs/BACKLOG.md"), "utf8");
+  for (const [id, why] of APPROVED_BUILD_TIME_EXCEPTIONS) {
+    assert.match(why, /\buser 20\d\d-\d\d-\d\d\b/, `${id}: the exception names the user's decision and its date`);
+    const row = /\bBL-\d+\b/.exec(why)?.[0];
+    assert.ok(row, `${id}: the exception names the BACKLOG row that redoes it`);
+    assert.match(backlog, new RegExp(`^\\| ${row} \\|`, "m"),
+      `${id}: ${row} has to be open in specs/BACKLOG.md; once it is done the plugin runs on the Runtime and leaves APPROVED_BUILD_TIME_EXCEPTIONS`);
+  }
 });
 
 test("a plugin listed as Runtime-assembled really is started by the supervisor", async () => {
-  const source = await readFile(join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
-  const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id));
-  for (const [id, packageName] of HAND_STARTED) {
-    assert.ok(catalogIds.has(id), `${id} is listed as hand-started but has no catalog entry`);
-    assert.ok(source.includes(`"${packageName}"`), `${id} is listed as hand-started but project-plugins.ts does not start ${packageName}`);
-  }
+  // RAC-2530: Files, the last plugin whose factory took a port from the Host, is a declared project instance like the others (BL-616).
+  assert.equal(RUNTIME_ASSEMBLED.get("files"), "@molis-ai/molis-work-plugin-files", "Files is started from its registration's project_runtime");
   // A declared project instance is the factory its package ships, under the registration's own Manifest.
   for (const entry of PROJECT_RUNTIME_ENTRIES) {
     const declaration = entry.project_runtime!;
@@ -78,7 +84,7 @@ test("a plugin listed as Runtime-assembled really is started by the supervisor",
     assert.equal(module[declaration.factory_export], declaration.create, `${entry.project_plugin_id}: ${declaration.factory_export} is what the package exports`);
     assert.deepEqual(declaration.create().manifest, entry.manifest, `${entry.project_plugin_id}: its project instance runs the registration's Manifest`);
   }
-  const overlap = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS].filter(id => BUILD_TIME_ASSEMBLED.has(id));
+  const overlap = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS].filter(id => APPROVED_BUILD_TIME_EXCEPTIONS.has(id));
   assert.deepEqual(overlap, [], "an id cannot be on both lists");
 });
 
@@ -90,6 +96,26 @@ test("no new <plugin>-native-plugin-http.ts route file appears in the Host", asy
   const added = names.filter(name => !NATIVE_PLUGIN_HTTP_FILES.has(name));
   assert.deepEqual(added, [],
     `Plugin HTTP belongs to the plugin's own Manifest routes (served under /api/plugins/<plugin_id>/), not a hand-written Host file: ${added.join(", ")}`);
+});
+
+test("RAC-2651 a Host route file named for a built-in plugin belongs to an approved build-time exception", async () => {
+  const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
+  const backlog = await readFile(join(repoRoot, "specs/BACKLOG.md"), "utf8");
+  const files = await readdir(join(repoRoot, "apps/local-host/src"));
+  for (const name of files.filter(file => file.endsWith("-native-plugin-http.ts")).map(file => file.slice(0, -"-native-plugin-http.ts".length))) {
+    // A plural plugin directory may have had a singular Host file (artifact-… for artifacts), so both spellings are checked.
+    const plugin = [name, `${name}s`].find(id => catalogIds.has(id));
+    if (plugin) assert.ok(APPROVED_BUILD_TIME_EXCEPTIONS.has(plugin), `${name}-native-plugin-http.ts is named for ${plugin}, which is not an approved build-time exception`);
+  }
+  // RAC-2746, RAC-2747, RAC-2748: a platform route's exception needs an independent, still-open BACKLOG row; plugin exceptions use RAC-2650.
+  for (const [name, why] of NATIVE_PLUGIN_HTTP_FILES) {
+    assert.ok(why.length >= 20, `${name}-native-plugin-http.ts: say why it is there`);
+    if ([name, `${name}s`].some(id => catalogIds.has(id))) continue;
+    const row = /\bBL-\d+\b/.exec(why)?.[0];
+    assert.ok(row, `${name}-native-plugin-http.ts: the platform route exception must name its BACKLOG row`);
+    assert.match(backlog, new RegExp(`^\\| ${row} \\|`, "m"),
+      `${name}-native-plugin-http.ts: ${row} must still be open in specs/BACKLOG.md; once done, rename the platform route file and remove it from NATIVE_PLUGIN_HTTP_FILES`);
+  }
 });
 
 const hostSourceFiles = async (): Promise<string[]> => {
@@ -104,31 +130,30 @@ const hostSourceFiles = async (): Promise<string[]> => {
   return out.sort();
 };
 
-test("the frozen lists name exactly what exists: no id, route file or Runtime plugin is missing or left behind", async () => {
+test("the lists name exactly what exists: no id, route file or Runtime plugin is missing or left behind", async () => {
   const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
-  const listed = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS, ...BUILD_TIME_ASSEMBLED];
+  const listed = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS, ...APPROVED_BUILD_TIME_EXCEPTIONS.keys()];
   assert.deepEqual(listed.filter(id => !catalogIds.has(id)), [],
     "an id on the Runtime or build-time list has no catalog entry any more; delete it from the list (the lists match the disk exactly)");
 
   const files = await readdir(join(repoRoot, "apps/local-host/src"));
   const onDisk = new Set(files.filter(name => name.endsWith("-native-plugin-http.ts")).map(name => name.slice(0, -"-native-plugin-http.ts".length)));
-  assert.deepEqual([...NATIVE_PLUGIN_HTTP_FILES].filter(name => !onDisk.has(name)), [],
+  assert.deepEqual([...NATIVE_PLUGIN_HTTP_FILES.keys()].filter(name => !onDisk.has(name)), [],
     "a <name>-native-plugin-http.ts route file was deleted or renamed; delete its name from NATIVE_PLUGIN_HTTP_FILES");
 
-  // RAC-571: the entries written in project-plugins.ts are exactly the hand-started ones, and it names no other plugin package, so
-  // a new project instance is its registration's project_runtime and the supervisor's file does not change for it.
+  // RAC-571, RAC-2530: project-plugins.ts starts no plugin by hand and names no plugin package, so every project instance is its
+  // registration's project_runtime and the supervisor's file does not change for a new one.
   const supervisor = await readFile(join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
   const started = new Set([...supervisor.matchAll(/"(@molis-ai\/molis-work-plugin-[a-z0-9-]+)",\s*"create[A-Za-z]+Plugin"/g)].map(match => match[1]));
-  assert.deepEqual([...started].sort(), [...HAND_STARTED.values()].sort(),
-    "the plugins project-plugins.ts starts by hand and HAND_STARTED have to be the same set");
+  assert.deepEqual([...started], [], "project-plugins.ts starts no plugin by hand");
   const named = new Set([...supervisor.matchAll(/["'](@molis-ai\/molis-work-plugin-(?!runtime\b|sdk\b|sandbox\b)[a-z0-9-]+)/g)].map(match => match[1]));
-  assert.deepEqual([...named].sort(), [...HAND_STARTED.values()].sort(), "project-plugins.ts names no plugin package it does not start by hand");
+  assert.deepEqual([...named], [], "project-plugins.ts names no plugin package");
 });
 
 /**
  * Plugins that the Runtime starts and the Host ALSO assembles by hand: a `<plugin>-native-plugin-http.ts` route file, a
  * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
- * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
+ * Runtime shape (declarations only) nor the build-time shape of the approved exceptions, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
  * PG-036 C9: Coding left with coding-surface.ts. Its page and its Files/Git/Diff/Text stats companion stages are the plugins' own
  * contributions, which the Host draws through the generic stage channel (project-plugin-stages.ts).
@@ -217,7 +242,7 @@ test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled on
   assert.ok(runtime, "Cognia's catalog entry declares a Home Runtime");
   assert.equal(cognia?.manifest.runtime?.scope, "home", "where it runs is its Manifest's");
   assert.equal(runtime.package_name, "@molis-ai/molis-work-plugin-cognia");
-  assert.ok(!BUILD_TIME_ASSEMBLED.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
+  assert.ok(!APPROVED_BUILD_TIME_EXCEPTIONS.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
   const sources = await hostSourceFiles();
   assert.deepEqual(sources.filter(file => file.slice(file.lastIndexOf("/") + 1).startsWith("cognia")), [], "no Host file is named after Cognia");
   // The platform's copy of the catalog (W5-02 PR-B) imports every plugin's registration; it is generated, never written by hand.
@@ -246,9 +271,9 @@ test("Home Runtime declarations resolve shipped factories and start once without
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// RAC-571 (W5-02 PR-B4, PG-067): each project's Runtime starts every declared project instance and the hand-started ones from the
-// registration alone, one installation each, under the Host's build trust.
-test("RAC-571 a project's Runtime installs every registration's project_runtime and the hand-started plugins, once each", { timeout: 90_000 }, async () => {
+// RAC-571 (W5-02 PR-B4, PG-067), RAC-2530 (BL-616): each project's Runtime starts every declared project instance, Files among them,
+// from the registration alone, one installation each, under the Host's build trust.
+test("RAC-571 a project's Runtime installs every registration's project_runtime, once each", { timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "project-assembly-"));
   const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "装配", actor_id: "owner" }));
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });

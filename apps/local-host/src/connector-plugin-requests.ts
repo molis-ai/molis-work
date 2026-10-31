@@ -75,7 +75,7 @@ export interface PluginConnectionsPortOptions {
 /**
  * Requests reach only the slot's service origins, exactly; a tenant's service only the origin its bound connection was pinned to when it was
  * made (BL-595), never unbound. An unbound slot sends nothing but what the plugin wrote; a bound slot whose account is gone, disabled,
- * disconnected, of another service, pinned to another origin (or, for a tenant's service, to none), or of a kind whose secret the Host
+ * disconnected, of another service, made for another package's installation (T-134), pinned to another origin (or, for a tenant's service, to none), or of a kind whose secret the Host
  * cannot send, is refused rather than sent without it. The person's credential is added here and nowhere else, written as the registry
  * says for the kind of connection, and redirects come back unfollowed.
  * A 401 to a credential the Host can refresh (S-70 provisional: the service's `refresh: "host"` and real OAuth refresh material) is refreshed once
@@ -114,14 +114,14 @@ export function createCallConnectionsPort(home: string, options: PluginConnectio
       const what = "来源的账号", origin = reachable(service, dispatch.url, what);
       // A Home that has never saved an account has no connection to name; reading must not create its registry.
       if (call.connection_id !== null && !existsSync(homeSqlitePath(home, "connectors"))) throw pluginRequestErrors.connection_unavailable("来源的账号已不可用，请在来源上重新选择");
-      const connection = call.connection_id === null ? null : withConnectorConnections(home, store => usableConnection(home, store, call.connection_id!, call.service_id, service, origin));
+      const connection = call.connection_id === null ? null : withConnectorConnections(home, store => usableConnection(home, store, call.connection_id!, call.service_id, service, origin, call.install_id));
       return sendThrough(home, call.service_id, service, connection, dispatch, what, options);
     },
     describe(call) {
       if (call.connection_id === null || !existsSync(homeSqlitePath(home, "connectors"))) return { bound: call.connection_id !== null, ...(call.connection_id === null ? {} : { state: "disconnected" as const }) };
       return withConnectorConnections(home, store => {
         const connection = store.get(call.connection_id!);
-        if (!connection) return { bound: true, state: "disconnected" as const };
+        if (!connection || pinnedToAnother(store, connection.connection_id, call.install_id)) return { bound: true, state: "disconnected" as const };
         return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection)) : "disconnected" };
       });
     },
@@ -186,6 +186,7 @@ function describeBinding(home: string, target: PluginConnectionTarget): PluginCo
   return withConnectorConnections(home, store => {
     const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     if (!connection) return { bound: false };
+    if (pinnedToAnother(store, connection.connection_id, target.install_id)) return { bound: true, state: "disconnected" };
     const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection)) : "disconnected";
     const origin = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) && CONNECTOR_REQUEST_SERVICES[target.service_id]!.tenant
       ? store.targetOrigin(connection.connection_id) : null;
@@ -201,14 +202,28 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {
     const binding = store.binding(targetScope(target), target.plugin_id, target.slot_id);
-    return binding ? usableConnection(home, store, binding.connection_id, target.service_id, service, origin) : null;
+    return binding ? usableConnection(home, store, binding.connection_id, target.service_id, service, origin, target.install_id) : null;
   });
 }
 
-/** A connection that can send to `origin` for `service_id` as it is; any other is refused, not sent without its credential. */
-function usableConnection(home: string, store: ConnectorConnectionStore, connection_id: string, service_id: string, service: ConnectorRequestService, origin: string)
+/**
+ * Whether a connection was made for a signed package and `install_id` is not that package's installation (T-134): the plugin id and the
+ * publisher's verified signature. A package of another publisher that declares the same service later is another installation, so
+ * it never gets the account the first one was given. A built-in or platform service's connection has no pin and is judged as before.
+ */
+function pinnedToAnother(store: ConnectorConnectionStore, connection_id: string, install_id: string): boolean {
+  const pin = store.declarers.get(connection_id);
+  return pin !== null && pin.install_id !== install_id;
+}
+
+/**
+ * A connection that can send to `origin` for `service_id` as it is, to the installation `install_id` the request runs as; any other is
+ * refused, not sent without its credential. A pin to another installation is refused before anything of the credential is read.
+ */
+function usableConnection(home: string, store: ConnectorConnectionStore, connection_id: string, service_id: string, service: ConnectorRequestService, origin: string, install_id: string)
   : { connection_id: string; auth_method: "token" | "oauth" } {
   const connection = store.get(connection_id);
+  if (connection && pinnedToAnother(store, connection.connection_id, install_id)) throw pluginRequestErrors.connection_unavailable("所绑定的账号不是为这个插件建的，请在设置里为它新建连接");
   const usable = connection && connection.service_id === service_id && shownState(home, connection, store.state(connection)) === "connected"
     && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined;
   if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");

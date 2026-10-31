@@ -1,5 +1,5 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   isPluginConnectionRecordKey, PLUGIN_CONNECTIONS_PERMISSION, type PluginConnectionDescription, type PluginConnectionMethod, type PluginConnectionRequest,
@@ -26,6 +26,24 @@ const TRANSPORT_HEADERS = new Set(["host", "connection", "content-length", "tran
 const HEADER_NAME = /^[a-z0-9!#$%&'*+.^_`|~-]{1,128}$/u;
 /** Node's own rule for a header value: one it would throw on is refused here, as the plugin's error, before anything is sent. */
 const HEADER_VALUE_INVALID = /[^\t\x20-\x7e\x80-\xff]/u;
+
+/**
+ * An in-process plugin's own signal for one request, as the platform reads a caller leaving (a sandboxed integration's request carries the
+ * broker's lifetime of the call instead, a platform reason that is not read here): whatever reason the plugin aborts it for, it is a
+ * cancellation (`actions.cancelled`) while the call still has its authority (`authority` passes), and the authority's own error once it
+ * has lost it. A refresh shared by the request then keeps its rotated tokens only for a cancellation, and a call whose authority is gone
+ * cannot make its abort one (S-95, T-218). `done` takes the listener off the plugin's signal when the request ends.
+ */
+function ownSignal(signal: AbortSignal | undefined, authority: () => void): { signal?: AbortSignal; done(): void } {
+  if (signal === undefined) return { done() {} };
+  const plugin = AbortSignal.any([signal]), own = new AbortController();
+  const left = () => {
+    try { authority(); } catch (error) { own.abort(error); return; }
+    own.abort(new ActionError("actions.cancelled", "插件中止了这次请求"));
+  };
+  if (plugin.aborted) left(); else plugin.addEventListener("abort", left, { once: true });
+  return { signal: own.signal, done: () => plugin.removeEventListener("abort", left) };
+}
 
 /** One request as the Host's side receives it: checked, with only the fields it may send. */
 export interface PluginConnectionDispatch {
@@ -88,22 +106,27 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
     if (releases && slot.binding !== "per_record") throw errors.connections_release_unsupported(`连接槽 ${slot.slot_id} 按安装绑定，账号只能由本人在设置里解除`);
     return { scope, slot, target: slotTarget(manifest, gate, slot, record_key, scope.caller.project_id) };
   };
+  const authorityOf = (scope: NonNullable<ReturnType<typeof currentPluginInvocation>>) => () => {
+    gate.assertActive(); gate.requireGrant(PLUGIN_CONNECTIONS_PERMISSION); assertCapturedPluginActionCurrent(scope, gate);
+  };
   const currentFor = (scope: NonNullable<ReturnType<typeof currentPluginInvocation>>, signal?: AbortSignal) => () => {
-    signal?.throwIfAborted(); gate.assertActive(); gate.requireGrant(PLUGIN_CONNECTIONS_PERMISSION);
-    assertCapturedPluginActionCurrent(scope, gate); signal?.throwIfAborted();
+    signal?.throwIfAborted(); authorityOf(scope)(); signal?.throwIfAborted();
   };
   return Object.freeze({
     async request(slot_id: string, request: PluginConnectionRequest): Promise<PluginConnectionResponse> {
       const { scope, target } = enter(slot_id, request?.record_key, true);
       const checked = connectionRequest(request);
       if (pluginInvocationReadOnly(scope) && checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("只读调用里只能发 GET 或 HEAD 请求");
-      const signal = AbortSignal.any([scope.caller.signal, request?.signal].filter(item => item !== undefined));
-      const current = currentFor(scope, signal);
-      const beforeEffect = async () => { current(); if ("definition" in scope) await scope.caller.beforeEffect(); current(); };
-      await beforeEffect();
-      const response = await port.request(target, { ...checked, signal, beforeEffect, current });
-      await beforeEffect();
-      return response;
+      const own = ownSignal(request?.signal, authorityOf(scope));
+      try {
+        const signal = AbortSignal.any([scope.caller.signal, own.signal].filter(item => item !== undefined));
+        const current = currentFor(scope, signal);
+        const beforeEffect = async () => { current(); if ("definition" in scope) await scope.caller.beforeEffect(); current(); };
+        await beforeEffect();
+        const response = await port.request(target, { ...checked, signal, beforeEffect, current });
+        await beforeEffect();
+        return response;
+      } finally { own.done(); }
     },
     async describe(slot_id: string, record_key?: string): Promise<PluginConnectionDescription> {
       const { scope, target } = enter(slot_id, record_key, false);
@@ -128,9 +151,12 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
  * The account one call of the Host's own gives a sandboxed integration (S-95): the connection the person chose for the source it pulls,
  * the service its plugin declared for it, and that service's origins when the platform's table has none (the package's, kept with the
  * publisher the person trusted). `connection_id` is `null` for a source without an account: its requests then go out without one.
+ * `install_id` is the installation the call runs as, from its run context: a connection pinned to another package's installation is
+ * refused for it (T-134).
  */
 export interface CallConnection {
   readonly plugin_id: string;
+  readonly install_id: string;
   readonly service_id: string;
   readonly connection_id: string | null;
   readonly origins?: readonly string[];
@@ -161,6 +187,8 @@ export function createCallConnectionsClient(port: CallConnectionsPort, connectio
       enter(slot, request?.record_key);
       const checked = connectionRequest(request);
       if (checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("集成拉取只能发 GET 或 HEAD 请求");
+      // Not the plugin's own signal: a sandboxed plugin cannot hand one in, and the one here is the broker's lifetime of the call. Its
+      // reason (`sandbox.stopped` when the integration is switched off or removed) is the platform's, passed on as it is (T-218 M1).
       const signal = AbortSignal.any([call.signal, request?.signal].filter(item => item !== undefined));
       const current = currentFor(signal);
       const beforeEffect = async () => { current(); await call.beforeEffect(); current(); };

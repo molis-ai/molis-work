@@ -6,12 +6,13 @@ import test from "node:test";
 import { isShelfFailure } from "@molis-ai/molis-work-module-shelf";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 
-test("W1-18-SHELF-FORMAT-01 current Shelf data reopens, while wrong version and retired item shapes stay untouched", async () => {
+test("RAC-2376 RAC-2377 W1-18-SHELF-FORMAT-01 current Shelf data reopens, while wrong version and retired item shapes stay untouched", async () => {
   const home = mkdtempSync(join(tmpdir(), "shelf-current-format-"));
   try {
     const store = openTestShelfStore(home, { disabled: true });
     const item = await store.admitText("Current copy", "current");
     const filename = join(home, "shelf", "catalog.json"), current = readFileSync(filename, "utf8");
+    assert.equal(JSON.parse(current).version, 1);
     assert.equal(openTestShelfStore(home, { disabled: true }).readFile(item.item_id).bytes.toString("utf8"), "Current copy");
     const changedVersion = JSON.parse(current); changedVersion.version = 99;
     const missingArray = JSON.parse(current); delete missingArray.items[0].source_item_ids;

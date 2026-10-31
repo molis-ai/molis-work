@@ -7,6 +7,7 @@ import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { codingManifest, knowledgeCatalogMaterial, withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KnowledgeService, PLAIN_SECTION_CHARS, grepLines, outlineOf } from "@molis-ai/molis-work-service-knowledge";
+import { searchSourceKey } from "@molis-ai/molis-work-contracts/services/search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
@@ -18,7 +19,7 @@ async function fixture(t: import("node:test").TestContext) {
   const cards = openKnowledgeCards({ homeDirectory: f.home });
   t.after(() => cards.close());
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards });
-  return { ...f, knowledge };
+  return { ...f, knowledge, cards };
 }
 const HANDBOOK = ["试用手册的开头说明。", "", "# 准备", "安装 Molis Work。", "", "## 账号", "每人一个账号，编号 MW-0042。", "", "```", "# 这不是标题", "```", "", "# 反馈", "把试用反馈写进 Goal。"].join("\n");
 
@@ -94,6 +95,69 @@ test("PMAT-45 grep shows a long line around its match, not only its first 400 ch
   assert.ok(hit?.text.includes("MW-0042") && hit.text.startsWith("…") && hit.text.endsWith("…"), hit?.text);
   assert.ok(hit.text.length <= 402);
   assert.equal(grepLines("短行里的 MW-0042", ["MW-0042"], 0, 5).hits[0]?.text, "短行里的 MW-0042");
+});
+
+test("RAC-2431 section titles and grep context lines keep whole characters, never leaving half of one", () => {
+  // One 🙂 (U+1F642) is one character and two UTF-16 units: a cut of 59 whole characters lands on the first unit of the next one.
+  const wide = "🙂", head = "x".repeat(59);
+  assert.equal(outlineOf("# " + head + wide + "尾\n正文")[0]!.title, head, "a Markdown heading's title keeps whole characters");
+  assert.equal(outlineOf(head + wide + "尾")[0]!.title, head, "a heading-less section's first line keeps whole characters");
+  const line = "y".repeat(399) + wide + "z";
+  const [hit] = grepLines(line + "\n尾行标记\n", ["尾行标记"], 1, 5).hits;
+  assert.equal(hit?.before[0], "y".repeat(399) + "…", "a grep context line excerpt keeps whole characters and still says it was cut");
+});
+
+test("RAC-2701 a grep line's excerpt keeps whole characters at both ends, even when the cut lands inside one", () => {
+  const wide = "🙂"; // one character, two UTF-16 units
+  // The match sits at index 300, so the excerpt starts at 180: line[179] and line[180] are the two units of one 🙂.
+  const startingInside = "x".repeat(179) + wide + "y".repeat(119) + "needle" + "z".repeat(400);
+  assert.equal(startingInside.slice(180, 181), "\uDE42", "the cut starts on the low half");
+  const [first] = grepLines(startingInside + "\n尾行\n", ["needle"], 1, 5).hits;
+  assert.equal(first?.text, "…" + startingInside.slice(181, 580) + "…", "the excerpt drops the low half and keeps both ellipses");
+  assert.ok(first!.text.isWellFormed(), "no lone half of a character is left");
+  assert.doesNotMatch(first!.text, /^…[\uDC00-\uDFFF]/u, "the excerpt does not start with a low half");
+  // The cut ends on the high half: line[399] is the first unit of a 🙂 at the very end of the 400-unit window.
+  const endingInside = "x".repeat(399) + wide + "尾";
+  const [second] = grepLines(endingInside + "\n尾行\n", ["x"], 1, 5).hits;
+  assert.equal(second?.text, "x".repeat(399) + "…", "the excerpt drops the high half and still says it was cut");
+  assert.ok(second!.text.isWellFormed(), "no lone half at the end either");
+});
+
+test("RAC-2702 a card's hint keeps whole characters, never the high half of one", async t => {
+  const f = await fixture(t);
+  const brief = "x".repeat(159) + "🙂"; // 160 characters, 161 units: the 160-unit hint ends on the high half
+  f.cards.put({ project_id: "a", subject: { kind: "page", id: "p1" },
+    source_key: searchSourceKey({ project_id: "a", provider_id: "pages", capability_id: "pages.search.entries", version: 1 })!, provider_id: "pages",
+    plugin_id: "pages", plugin_title: "Pages", content_policy: "context", title: "提示卡", brief, keywords: ["提示"], revision: "1",
+    organized_revision: "1", state: "ready", outline: [], edited: [], suggestion: null, excluded: false, error: null,
+    updated_at: null, organized_at: null, open: null });
+  const found = await f.knowledge.search(f.access(reader()), { query: "提示" });
+  const card = found.cards.find(item => item.subject.id === "p1");
+  assert.ok(card, "the card whose own words matched is shown");
+  assert.equal(card.hint, "x".repeat(159), "the hint drops the high half: 159 units, no half of a character");
+  assert.ok(card.hint.isWellFormed(), "no lone half of a character is left");
+  assert.ok(card.hint.length <= 160, "the hint stays within its limit");
+
+  // The other two hints come from the search hit's snippet and from the related pieces' snippets. Both ports are injectable, so the
+  // boundary text can be handed in without touching FTS: a hit's snippet, and a related piece's snippet for a person (snippets on).
+  const boundary = "y".repeat(159) + "🙂";
+  const fromHit = new KnowledgeService({ cards: f.cards, search: async (access, input) => {
+    const answer = await f.search.query(access, input);
+    return { ...answer, hits: answer.hits.map(hit => ({ ...hit, snippet: boundary })) };
+  } });
+  const hitCard = (await fromHit.search(f.access(reader()), { query: "试用" })).cards.find(item => item.subject.id === "p1");
+  assert.ok(hitCard, "the search hit's card is shown");
+  assert.notEqual(hitCard!.matched, "card", "the card comes from the search hit, not from its own words");
+  assert.equal(hitCard!.hint, "y".repeat(159), "the search hit's snippet hint drops the high half");
+  assert.ok(hitCard!.hint.isWellFormed(), "the search hit's hint leaves no lone half");
+
+  const fromRelated = new KnowledgeService({ cards: f.cards,
+    search: async (access, input) => ({ ...(await f.search.query(access, input)), hits: [] }),
+    related: () => [{ kind: "page", id: "p1", snippet: boundary }] });
+  const relatedCard = (await fromRelated.search(f.access(person("a")), { query: "陌生词" })).cards.find(item => item.subject.id === "p1");
+  assert.ok(relatedCard && relatedCard.matched === "related", "the card comes from a related piece");
+  assert.equal(relatedCard!.hint, "y".repeat(159), "the related snippet hint drops the high half");
+  assert.ok(relatedCard!.hint.isWellFormed(), "the related hint leaves no lone half");
 });
 
 test("PMAT-06 PMAT-09 read returns the owner's original text of one section, with what is left", async t => {

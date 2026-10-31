@@ -94,11 +94,32 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     }
     await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
     await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
-    await waitFor("document.querySelector('[data-coding-task]')");
+    // T-338: the child frame's bootstrap sets globalThis.fetch to its bridge first (plugin-frame/child.ts:43), then defines the
+    // molisWorkRequest entry (:53) and body.dataset.routePrefix (:57). Waiting for those public marks before installing the request
+    // observer therefore means the child's own fetch assignment is already behind us; the same 10 s readiness wait carries them.
+    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix) && Boolean(document.querySelector('[data-coding-task]'))", 10_000);
     // What the page sends: each request's path and body, to tell which session a draft or an answer went to.
     await evaluate(`(() => { if (window.__sent) return; window.__sent = []; const original = window.fetch; window.fetch = async (...args) => {
       const sent = args[1] && typeof args[1].body === 'string' ? { url: String(args[0]), method: args[1].method || 'GET', body: args[1].body } : null; if (sent) window.__sent.push(sent);
       const response = await original(...args); if (sent && sent.method === 'POST') response.clone().text().then(text => { sent.status = response.status; sent.reply = text.slice(0, 300); }, () => {}); return response; }; })()`);
+    // RAC-2710: the observer is the page's fetch now, so what the page sends is recorded; the child bootstrap marks awaited above
+    // are what makes that ordering safe (installing before them lets the child's own assignment take the observer off the page).
+    assert.equal(await evaluate<boolean>("String(window.fetch).includes('__sent')"), true, "the request observer is the page's fetch");
+  };
+  /** Waits for one observed request shape; on timeout reports only what the test can see (sending status stays UNKNOWN). */
+  const waitObserved = async (predicate: string, expected: string, what: string) => {
+    const started = Date.now();
+    try { await waitFor(predicate, 10_000); return; }
+    catch (original) {
+      const waitError = original instanceof Error ? original.message : String(original);
+      let sampleError: string | undefined, recorded: Array<{ url: string; method: string; body: string }> = [], apiResources: number | null = null;
+      try {
+        const raw = await evaluate<string>(`JSON.stringify({ sent: (window.__sent || []).map(one => ({ url: String(one.url), method: String(one.method), body: String(one.body) })), api: performance.getEntriesByType('resource').filter(one => String(one.name).includes('/api/')).length })`);
+        try { const sample = JSON.parse(raw) as { sent: typeof recorded; api: number }; recorded = sample.sent; apiResources = sample.api; }
+        catch (error) { sampleError = "unreadable sample: " + (error instanceof Error ? error.message : String(error)); }
+      } catch (error) { sampleError = error instanceof Error ? error.message : String(error); }
+      assert.fail(`${what} did not reach the request observer: ${observationDiagnostics({ recorded, apiResources, expected, elapsedMs: Date.now() - started, waitError, ...(sampleError === undefined ? {} : { sampleError }) })}`);
+    }
   };
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
@@ -121,7 +142,7 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     await b.click(`[data-tab-id="${tab.id}"]`);
     await waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && Boolean(document.querySelector('${coding} [data-coding-question][data-ix-question]'))`, 15_000);
   };
-  return { ...b, ...child, ownerEvaluate: b.evaluate, coding, fill, heard, prompts, enter, ask, show };
+  return { ...b, ...child, ownerEvaluate: b.evaluate, coding, fill, heard, prompts, enter, ask, show, waitObserved };
 }
 
 /** The tool results a model request carries: what the round heard back from its questions. */
@@ -147,19 +168,68 @@ const picked = (coding: string) => `[...document.querySelectorAll(${JSON.stringi
 const savedDraftKeys = (session: string) => `window.__sent.filter(one => one.method === 'PATCH' && one.url.endsWith('/sessions/' + ${JSON.stringify(session)}) && one.body.includes('question_drafts'))
   .flatMap(one => Object.keys(JSON.parse(one.body).question_drafts || {}))`;
 
+/**
+ * T-338 (加固与诊断，根因未定): what a first failure of an observation wait reports. Only facts the page exposes: how many calls the
+ * page's fetch wrapper recorded (if sampling worked), their method/URL shapes, the shape that was expected, whether sampling itself
+ * failed, and how long it waited. Whether a request reached the transport is UNKNOWN: the wrapper being out of the page's request
+ * path is exactly what these waits check, so an empty record cannot prove "not sent", and a recorded call cannot prove "sent".
+ * A failed sample is reported as unavailable, never as zero.
+ */
+function observationDiagnostics(state: { readonly recorded: ReadonlyArray<{ url: string; method: string; body: string }>;
+  readonly apiResources: number | null; readonly expected: string; readonly elapsedMs: number; readonly waitError: string; readonly sampleError?: string }): string {
+  const shape = (one: { url: string; method: string; body: string }) => one.method + " " + one.url.replace(/[0-9a-f-]{8,}/gu, "<id>").slice(0, 120);
+  const recorded = state.sampleError === undefined
+    ? `page fetch wrapper recorded ${state.recorded.length} request(s)${state.recorded.length ? `: ${state.recorded.map(shape).join(" | ")}` : ""}`
+    : `page fetch wrapper sample unavailable (${state.sampleError}); sampled records are not evidence either way`;
+  const resources = state.apiResources === null ? "" : `; ${state.apiResources} /api/ resource entries (bridge-transported, not proof of sending)`;
+  return [
+    recorded + resources,
+    "sending: UNKNOWN (an empty record does not prove nothing was sent; a recorded call does not prove the transport sent it)",
+    `expected: ${state.expected}`,
+    `waited: ${state.elapsedMs} ms`,
+    `the wait itself failed: ${state.waitError}`,
+  ].join("; ");
+}
+
 const LOGIN: Asked = { task: "甲会话：登录和导出都坏了", done: "甲：好的，先修导出。",
   ask: { why: "甲：先确认要修哪一处。", questions: [{ prompt: "先修哪一个？", options: [{ label: "登录" }, { label: "导出" }] }] } };
 const REPORT: Asked = { task: "乙会话：报表要改版", done: "乙：好的，先改日报。",
   ask: { why: "乙：先确认改哪张表。", questions: [{ prompt: "先改哪张？", options: [{ label: "日报" }, { label: "周报" }] }] } };
 
+test("RAC-2710 an observation-timeout diagnostic reports facts, keeps sending UNKNOWN, and reports a failed sample as unavailable", () => {
+  const filled = observationDiagnostics({ recorded: [{ url: "http://127.0.0.1/api/projects/p1/sessions/s1", method: "PATCH", body: JSON.stringify({ question_drafts: {} }) }],
+    apiResources: 3, expected: "PATCH .../sessions/s1 carrying question_drafts", elapsedMs: 10_001, waitError: "waitFor timed out after 10000 ms" });
+  assert.match(filled, /recorded 1 request\(s\): PATCH http:\/\/127\.0\.0\.1\/api\/projects\/p1\/sessions\/s1/u);
+  assert.match(filled, /sending: UNKNOWN/u);
+  assert.match(filled, /3 \/api\/ resource entries/u);
+  assert.match(filled, /expected: PATCH \.\.\.\/sessions\/s1 carrying question_drafts/u);
+  assert.match(filled, /waited: 10001 ms/u);
+  assert.match(filled, /the wait itself failed: waitFor timed out/u);
+  // An empty record is not "not sent": it is the state under investigation.
+  const empty = observationDiagnostics({ recorded: [], apiResources: 0, expected: "any request whose URL contains /sessions/s1", elapsedMs: 10_000, waitError: "timed out" });
+  assert.match(empty, /recorded 0 request\(s\)/u);
+  assert.match(empty, /sending: UNKNOWN/u, "an empty record does not prove the request was not sent");
+  assert.doesNotMatch(empty, /sending: no/u);
+  // Resources recorded without a page call is a mismatch, still UNKNOWN, and says so.
+  const mismatch = observationDiagnostics({ recorded: [], apiResources: 2, expected: "any request whose URL contains /sessions/s1", elapsedMs: 10_000, waitError: "timed out" });
+  assert.match(mismatch, /2 \/api\/ resource entries/u);
+  assert.match(mismatch, /sending: UNKNOWN/u);
+  // A failed sample is reported as unavailable, never as zero records.
+  const unreadable = observationDiagnostics({ recorded: [], apiResources: null, expected: "any request whose URL contains /sessions/s1", elapsedMs: 10_000, waitError: "timed out", sampleError: "Runtime.evaluate timed out" });
+  assert.match(unreadable, /sample unavailable \(Runtime\.evaluate timed out\); sampled records are not evidence either way/u);
+  assert.doesNotMatch(unreadable, /recorded 0 request/u, "a failed sample must not be reported as a successful zero-record sample");
+});
+
 test("AC-05: a question's draft and answer stay in the session it was asked in; switching sessions carries none to the other", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, [LOGIN, REPORT]); if (!opened) return;
-  const { click, evaluate, waitFor, coding, heard, prompts, enter, ask, show, projectId } = opened;
+  const { click, evaluate, waitFor, coding, heard, prompts, enter, ask, show, projectId, waitObserved } = opened;
   await enter(projectId!);
 
   const first = await ask(LOGIN.task);
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
-  await waitFor(`${savedDraftKeys(first)}.length > 0`, 10_000);
+  // RAC-2710 (T-338): after the pick, this session's draft save must reach the observer installed over the child's fetch bridge; a
+  // missed record here is what the ordering in enter() exists to prevent.
+  await waitObserved(`${savedDraftKeys(first)}.length > 0`, `PATCH .../sessions/${first} carrying question_drafts`, "the first session's draft save");
   const firstKey = (await evaluate<string[]>(savedDraftKeys(first)))[0]!;
 
   const second = await ask(REPORT.task);
@@ -168,7 +238,7 @@ test("AC-05: a question's draft and answer stay in the session it was asked in; 
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(card(coding))}).querySelector('h3').textContent`), /乙/, "the card shown is the second session's own question");
   assert.deepEqual(await evaluate<string[]>(picked(coding)), [], "the first session's pick is not on the second session's card");
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`);
-  await waitFor(`${savedDraftKeys(second)}.length > 0`, 10_000);
+  await waitObserved(`${savedDraftKeys(second)}.length > 0`, `PATCH .../sessions/${second} carrying question_drafts`, "the second session's draft save");
   assert.ok(!(await evaluate<string[]>(savedDraftKeys(second))).includes(firstKey), "no draft of the first session's question is saved with the second session");
 
   await show(first);
@@ -297,7 +367,7 @@ const OUR_GOAL = "甲项目的发布清单", THEIR_GOAL = "乙项目的发布清
 
 test("AC-05: a reference question in one project finds and keeps only that project's objects; switching projects carries no pick or answer across", { timeout: 300_000 }, async t => {
   const opened = await openCoding(t, [OURS, THEIRS]); if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory } = opened;
+  const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const other = await (async () => {
     try {
@@ -347,7 +417,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
   // S-26 at Coding's door: the first project's Goal, named in an answer sent to this session as the page sends one, is refused
   // by the Host (it cannot be read in this project) and nothing of it is written; the question still takes the real answer.
   const path = encodeURIComponent(theirs);
-  await waitFor(`window.__sent.some(one => one.url.includes('/sessions/${path}'))`, 10_000);
+  await waitObserved(`window.__sent.some(one => one.url.includes('/sessions/${path}'))`, `any request whose URL contains /sessions/${theirs}`, "the answer about to be sent for the other project's Goal");
   const run = await evaluate<{ run_id: string; pending_id: string; pending_revision: number }>(`(() => {
     const [run_id, pending_id, pending_revision] = JSON.parse(document.querySelector('${card}').dataset.questionKey); return { run_id, pending_id, pending_revision }; })()`);
   const before = await runtimeFiles(homeDirectory);

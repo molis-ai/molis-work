@@ -13,7 +13,7 @@ import { listConnectorSettingsCards } from "../apps/local-host/dist/connector-di
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connector-oauth-choice-test-home")).map(({ github_client_id_configured, gmail_oauth_configured, notion_oauth_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connector-oauth-choice-test-home")).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
 
 async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "connector-oauth-choice-"));

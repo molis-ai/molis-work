@@ -109,7 +109,7 @@ export function refreshFeedConnectionState(homeDirectory: string, connectionId: 
   const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
   try {
     const root = resolve(homeDirectory, "projects") + sep;
-    for (const databasePath of listProjectDatabasePaths(catalog.db)) {
+    for (const databasePath of listProjectDatabasePaths(catalog.db, join(homeDirectory, "projects"))) {
       const path = resolve(databasePath);
       if (!path.startsWith(root) || !existsSync(path)) continue;
       const project = new LocalSqliteStorage(path, { fileMustExist: true });

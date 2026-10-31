@@ -116,6 +116,12 @@ export interface PluginManifest {
   plugin_id: string;
   version: string;
   name: string;
+  /**
+   * v2: the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
+   * draws the Manifest `name` itself (a plugin that has a stage and no navigator or island view); a navigator or island view's name is
+   * its own `title_en`, so one is never read for the other. Left out, the English interface shows `name`.
+   */
+  name_en?: string;
   kind: PluginKind;
   publisher: {
     publisher_id: string;

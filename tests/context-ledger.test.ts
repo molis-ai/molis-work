@@ -96,12 +96,12 @@ test("Feed uses Ledger as sole link owner across relink, restart and deletion wi
   try {
     const item = h.ingest("issue-1");
     const feed = h.open();
-    const linked = feed.commands.linkGoal("project-a", item.item_id, "goal-1", "processing");
+    const linked = feed.commands.linkGoal("project-a", item.item_id, "goal-1", "promoted");
     assert.equal(linked.linked_goal_id, "goal-1");
-    assert.equal(linked.disposition, "processing");
+    assert.equal(linked.disposition, "promoted");
     assert.equal(linked.revision, item.revision + 1);
-    assert.deepEqual(feed.commands.linkGoal("project-a", item.item_id, "goal-1", "processing"), linked);
-    assert.equal(h.attention.query.list("project-a")[0]?.status, "in_progress");
+    assert.deepEqual(feed.commands.linkGoal("project-a", item.item_id, "goal-1", "promoted"), linked);
+    assert.equal(h.attention.query.list("project-a")[0]?.status, "done");
     assert.equal(feed.query.findByLinkedGoal("project-a", "goal-1")?.item_id, item.item_id);
     assert.equal(feed.query.findByLinkedGoal("project-b", "goal-1"), null);
     assert.equal((h.db.prepare("SELECT name FROM pragma_table_info('feed_items')").all() as Array<{ name: string }>).some((column) => column.name === "linked_goal_id"), false, "Feed keeps no copy of the link");
@@ -126,7 +126,7 @@ test("Feed link and Attention changes roll back with Ledger when event persisten
     const beforeAttention = h.attention.query.list("project-a");
     const beforeEvents = feed.events.list("project-a");
     h.failEvents();
-    assert.throws(() => feed.commands.linkGoal("project-a", item.item_id, "goal-1", "processing"), /event failed/);
+    assert.throws(() => feed.commands.linkGoal("project-a", item.item_id, "goal-1", "promoted"), /event failed/);
     assert.deepEqual(feed.query.get("project-a", item.item_id), item);
     assert.deepEqual(h.attention.query.list("project-a"), beforeAttention);
     assert.deepEqual(feed.events.list("project-a"), beforeEvents);

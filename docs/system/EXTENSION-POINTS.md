@@ -36,7 +36,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | --- | --- | --- | --- | --- |
 | 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
 | 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
-| 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 12 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
+| 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 11 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
 | 5 | 动作与消费场景 | 0 | 0 | 已达到 |
 | 6 | 设置分区 | 插件自带 0；宿主自有 9（含项目页 11） | 0 / 2 | 无切片，建议并入 W5-02 |
@@ -99,9 +99,9 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | --- | --- | --- | --- |
 | token 型目录连接器 | Linear、Slack、Jira 等 | 1（另可选 1 个图标） | `plugins/official-integrations/catalog/src/catalog.ts` 加一条 `spec(...)`；每个连接器的 Manifest 带自己的 `connection_services` 与 `integrations`，服务连接目录由已装插件的声明汇成（`apps/local-host/src/connector-directory.ts`、`integration-registry.ts`）；图标在 `apps/workbench/src/connector-icons.ts`，缺图标时 `connectorIconSvg` 返回 `undefined`，界面不报错 |
 | 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
-| 自带 OAuth 或专属协议型 | GitHub、Gmail | 12 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 5（`builtin-integrations.ts` 的内置清单、`integration-providers.ts` 的 `defaultIntegrationProvider`、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
+| 自带 OAuth 或专属协议型 | GitHub、Gmail | 11 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 4（`builtin-integrations.ts` 的内置清单，它同时给每种内置集成接自己种类的提供方、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
 
-**目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入各自的官方接入包）。「宿主设置写入」那一项用户 2026-10-08 已定（决定 #7，`specs/repository-anti-corruption/spec.md` §1「宿主设置里的写入只走 HTTP」，PR #312）：宿主设置里的写入留作管理接口并登记例外，其中连接器路由以后搬进各自的官方接入插件。所以 OAuth 型的目标就是 1，不再有「登记为宿主例外、目标是 5」的一支；上表的 5 个宿主分支里，`web-connectors-settings.ts` 就是这类要搬走的连接器路由；目标 1 还要求其余 4 个分支也由集成包的声明取代，这属于 W5-11 的范围，由那一片的设计确认。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
+**目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入各自的官方接入包）。「宿主设置写入」那一项用户 2026-10-08 已定（决定 #7，`specs/repository-anti-corruption/spec.md` §1「宿主设置里的写入只走 HTTP」，PR #312）：宿主设置里的写入留作管理接口并登记例外，其中连接器路由以后搬进各自的官方接入插件。所以 OAuth 型的目标就是 1，不再有「登记为宿主例外、目标是 5」的一支；上表的 4 个宿主分支里，`web-connectors-settings.ts` 就是这类要搬走的连接器路由；目标 1 还要求其余 3 个分支也由集成包的声明取代，这属于 W5-11 的范围，由那一片的设计确认。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
 
 ### 3.4 AI 能力、Agent 角色、提示词
 
@@ -238,7 +238,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | --- | --- | --- | --- | --- | --- |
 | F1 | 风险记录插件 | 12（带 AI 建议时 13），外加 2 | 1，外加 2 | 1，外加 2 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
 | F2 | Coding 质量保证 | 2 | 0 | 0 | X-5（项目库基线由 owner 声明）；端口走服务 |
-| F3 | 新的外部服务（自带 OAuth） | 12 | 1 | 1 | W5-11 |
+| F3 | 新的外部服务（自带 OAuth） | 11 | 1 | 1 | W5-11 |
 | F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
 | F5 | 自动化规则（事件触发动作） | 约 21（推演），外加 2 | 6，外加 2 | 6，外加 2 | X-1、X-6 加 4 项已有切片 |
 | F6 | 调用诊断（按调用编号追查、导出诊断包） | 约 13（推演） | 3 | 3 | W3-01、W3-02（W5-13 在宿主里已铺好） |
@@ -258,7 +258,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F3 新的外部服务（自带 OAuth，GitHub、Gmail 形）**（来源：BL-060、BL-061）。
 
-- 现在：12（3.3）。其中 token 型服务只要 1 处，所以先问能不能走目录连接器。
+- 现在：11（3.3）。其中 token 型服务只要 1 处，所以先问能不能走目录连接器。
 - 补什么：W5-11 把连接器设置和 OAuth 移入集成包（决定 #7，2026-10-08：宿主设置的写入留作登记过的管理接口，连接器路由以后搬进各自的官方接入插件）。**再推演：1。**
 
 **F4 团队与权限**（`docs/modules/identity-team-access.md` 目标；BL-071；第一步：项目有多个成员、成员有角色、调用动作前做访问决定）。

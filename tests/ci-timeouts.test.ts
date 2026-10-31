@@ -21,8 +21,29 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
 /** The `Install pnpm` step took 66 seconds at the longest of 2547 in the sample. */
 const INSTALL_PNPM = { limit: 3, longest: 66 };
 
-const jobTimeout = (name: string) => /^    timeout-minutes: (\d+)$/m.exec(jobBlock(name))?.[1];
+/** A job's limit: the number, then optional whitespace and a `#` comment (YAML keeps the comment out of the value). */
+const jobTimeoutIn = (text: string) => /^    timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
+const jobTimeout = (name: string) => jobTimeoutIn(jobBlock(name));
+/** A step's limit, the same way; a step line is indented four spaces further. */
+const stepTimeoutIn = (text: string) => /^        timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
 const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step) => step.startsWith("name: Install pnpm\n"));
+
+/**
+ * The blocking-job floor for one job block (RAC-2411's check, so RAC-2425 can drive it with any text): a job-level
+ * `timeout-minutes:` line must be a plain number — a comment after it is fine — and at least the floor; a line that is there but not a
+ * plain number fails instead of reading as "no limit". Returns whether the block has such a line at all.
+ */
+const assertBlockingJobLimit = (name: string, block: string): boolean => {
+  const line = /^    timeout-minutes:(.*)$/m.exec(block)?.[1];
+  if (line === undefined) return false;
+  const plain = /^\s+(\d+)(?:\s+#.*)?\s*$/u.exec(line);
+  assert.ok(plain, `${name}: a job-level timeout-minutes line is a plain number (not ${JSON.stringify(line.trim())}), or the floor cannot check it`);
+  assert.ok(Number(plain![1]) >= BLOCKING_FLOOR, `${name}: a blocking job with a limit gets ${BLOCKING_FLOOR} minutes or more, so a slow runner does not fail a merge group`);
+  return true;
+};
+
+/** The blocking jobs that carry a job-level limit in `text`: the ones the floor can check (a job without one falls back to the default). */
+const limitedBlockingJobs = (text: string): string[] => blockingJobs(text).filter((name) => assertBlockingJobLimit(name, jobBlock(name, text)));
 
 test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit of at least 1.8 times their longest run, a blocking job at 30 minutes or more, and none above an hour", () => {
   for (const [name, { limit, longest, blocking }] of Object.entries(JOBS)) {
@@ -45,9 +66,7 @@ test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or 
   assert.equal(jobTimeout("queue-check"), "5", "queue-check keeps its intentional 5-minute limit");
   // `secret-scan`, `native-checks` and `shell-checks` are verify's needs without a job-level limit, so they fall back to the six-hour
   // default if they hang; giving them a limit is a workflow change of its own, and a job without one is skipped here.
-  const limited = blocking.filter((name) => jobTimeout(name) !== undefined);
-  for (const name of limited) assert.ok(Number(jobTimeout(name)) >= BLOCKING_FLOOR,
-    `${name}: a blocking job with a limit gets ${BLOCKING_FLOOR} minutes or more, so a slow runner does not fail a merge group`);
+  const limited = limitedBlockingJobs(workflow);
   // The table marks what blocks a merge and `verify` is what decides it: neither may drift from the other, or a new blocking job would
   // go unchecked, and a job the table calls blocking but verify does not need would hold a merge group for nothing.
   const tableBlocking = Object.entries(JOBS).filter(([, job]) => job.blocking).map(([name]) => name).sort();
@@ -65,11 +84,38 @@ test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, exc
     if (name === "linux-probe") continue;
     for (const step of steps) {
       seen++;
-      const limit = /^        timeout-minutes: (\d+)$/m.exec(step)?.[1];
+      const limit = stepTimeoutIn(step);
       assert.equal(limit, String(INSTALL_PNPM.limit), `${name}: the Install pnpm step has timeout-minutes: ${INSTALL_PNPM.limit}`);
       assert.ok(INSTALL_PNPM.limit * 60 >= 1.8 * INSTALL_PNPM.longest, "above 1.8 times the longest it took");
     }
   }
   assert.equal(seen, 6, "the six jobs that install pnpm besides the Linux probe: the four blocking ones, security-invariants and product-subset");
   for (const name of [...Object.keys(JOBS), "product-subset"]) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
+});
+
+// RAC-2425 (T-287 二审): a limit written with a trailing comment is still a limit, and a blocking job's limit line that is not a plain
+// number is refused instead of read as "no job-level limit". The gate itself is driven with inline workflow text, and verify's needs
+// must name the job, so the floor cannot be skipped.
+test("RAC-2425 a job or step limit with a trailing comment is read, and an unreadable blocking-job limit is refused by the gate", () => {
+  const inline = "  slow-job:\n    runs-on: ubuntu-latest\n    timeout-minutes: 20 # 偏短\n    steps:\n      - name: Install pnpm\n        timeout-minutes: 3 # 安装\n  verify:\n    needs: [slow-job]\n";
+  const slow = jobBlock("slow-job", inline);
+  assert.deepEqual(blockingJobs(inline), ["slow-job"], "verify needs the job, so the blocking floor applies to it");
+  assert.equal(jobTimeoutIn(inline), "20", "a job-level limit with a trailing comment is read as its number");
+  assert.equal(stepTimeoutIn(inline), "3", "a step-level limit with a trailing comment too");
+  // The hole: 20 minutes is refused by the real gate, with the floor's own message.
+  assert.throws(() => assertBlockingJobLimit("slow-job", slow), /slow-job: a blocking job with a limit gets 30 minutes or more/u);
+  // A plain 20 still fails the floor, and 30 with a comment passes.
+  assert.throws(() => assertBlockingJobLimit("slow-job", "  slow-job:\n    timeout-minutes: 20\n"), /30 minutes or more/u);
+  assert.equal(assertBlockingJobLimit("slow-job", "  slow-job:\n    timeout-minutes: 30 # 注释\n"), true);
+  // A limit line the reading cannot make a plain number of fails rather than reading as no limit.
+  for (const value of ["\"20\"", "20.5", "${{ 20 }}"]) {
+    assert.throws(() => assertBlockingJobLimit("slow-job", `  slow-job:\n    timeout-minutes: ${value}\n`),
+      /timeout-minutes line is a plain number/u, `${value} is refused, not read as no limit`);
+  }
+  // Two spaces after the colon is legal YAML: reading it as the number is fine, and the floor still applies.
+  assert.throws(() => assertBlockingJobLimit("slow-job", "  slow-job:\n    timeout-minutes:  20\n"), /30 minutes or more/u);
+  assert.equal(assertBlockingJobLimit("slow-job", "  slow-job:\n    runs-on: ubuntu-latest\n"), false, "a job without a limit line has none");
+  // Only blocking jobs with a job-level limit are checked: one without a limit is skipped, not counted as checked.
+  const mixed = "  limited:\n    timeout-minutes: 30\n  unlimited:\n    runs-on: ubuntu-latest\n  verify:\n    needs: [limited, unlimited]\n";
+  assert.deepEqual(limitedBlockingJobs(mixed), ["limited"], "a blocking job without a limit is skipped by the limit check, not silently counted");
 });

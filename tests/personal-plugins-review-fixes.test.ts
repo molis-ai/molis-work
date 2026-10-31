@@ -94,8 +94,9 @@ async function listenDispatcher(
 }
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
+// Clean Home retires the offline Sessions reader and its store declaration; every current owner remains pinned.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
-  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",

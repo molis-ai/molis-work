@@ -132,6 +132,11 @@
       "reason": "Home 动作提供方的登记：返回体按动作逐个列出处理器，Talk、Offer、Event 三族处理器已抽成 createHome…Handlers，余下是登记清单与共用的 record、handler 助手；超 150 行 32 行。",
       "size": 182
     },
+    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
+      "kind": "cohesive-unit",
+      "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
+      "size": 160
+    },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",
       "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。",

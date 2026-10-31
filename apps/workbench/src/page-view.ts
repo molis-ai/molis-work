@@ -3,6 +3,7 @@ import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import type { PluginDirectory } from "./plugin-directory.js";
+import type { HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export interface MolisWorkWebView {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
@@ -26,6 +27,8 @@ export interface MolisWorkWebView {
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
    */
   plugin_directory?: PluginDirectory;
+  /** The signed packages installed in the Home, for the tool bar beside its built-in tools (read per page, for the person's own page only). */
+  home_plugin_nav?: readonly HomePluginNavigationEntry[];
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];

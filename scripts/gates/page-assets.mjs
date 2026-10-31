@@ -242,14 +242,12 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-223 (MISC T-184 发布), RAC-2160–2164: on top of T-183's +63 already in main (budget 190623), the plugin-frame bridge cuts the name
-// a plugin page file is saved under by whole characters (200, extension kept) instead of 200 UTF-16 units: +137 B more, measured on
-// this merge result (190623 → 190760). Tried: whole characters without keeping the extension +41 B (does not fix the dropped
-// extension), cutting by units and dropping a dangling half +143 B, an early return for a name that fits +163 B; no new asset.
-// The entries this block inherited from main are used up (their budget already equals their ceiling): T-183's frame +63 and workbench
-// +96, and T-235's ppt.js [27065, 27364]; the entries and their notes are deleted with this change as the convention says.
+// T-234 (MISC T-086 起草), RAC-2215–2218: the Form answer box is cut at 4000 characters by an input handler instead of by a maxlength
+// attribute (which counts UTF-16 units and stopped a two-unit character at 2000), and says the limit through the plugin's own dictionary;
+// +544 B on this one asset, over three small functions (the message, the slot lookup and the cap). Tried: inline bilingual text was
+// +616 B and the answer asked for the dictionary; no new asset, no new image.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugin-frame.js": [190623, 190760],
+  "/assets/molis-work-plugins/form.js": [29708, 30252],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

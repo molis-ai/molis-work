@@ -1846,3 +1846,152 @@ test("RAC-2707/RAC-2709 the Feed start route is gone and advance-prompt no longe
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   }
 });
+
+// RAC-2707/RAC-2709 follow-up (BL-121 ②): the removed client/terminal chain leaves no marker behind; a re-added branch would be a
+// regression on the same promise, so the rendered workbench script and the terminal sources must stay free of it.
+test("the workbench client and terminal no longer carry the removed Feed start chain", () => {
+  const client = renderMolisWorkWorkbenchClientScript();
+  assert.doesNotMatch(client, /feed-start|feedStartRequested|molis-work-feed-runtime-autofill:/u);
+  assert.doesNotMatch(terminalSource("client-prompt.ts"), /feed_item_id/u);
+  assert.doesNotMatch(terminalSource("panels.ts"), /afterOpened/u);
+});
+
+test("Inbox Message save and promote survives a Web restart without duplicating its Goal", async () => {
+  const fixture = await catalogFixture();
+  const inboxCatalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
+  try { inboxCatalog.addProjectPlugin({ project_id: fixture.project.project_id, plugin_id: "inbox", actor_id: "test-user" }); }
+  finally { inboxCatalog.close(); }
+  const itemId = "inbox-restart-test";
+  addProjectFeedItem(fixture.project, itemId, { openInbox: true });
+  const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
+  let goalId = "";
+  let revision = 1;
+
+  const firstServer = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
+  await new Promise<void>((resolve) => firstServer.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = firstServer.address();
+    assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const page = await (await webFetch(`${origin}${prefix}`)).text();
+    assert.match(page, new RegExp(`data-feed-entry-id="${itemId}"[^>]*data-feed-entry-type="feed"`));
+    assert.doesNotMatch(page, /data-feed-entry-id="inbox:/);
+    const listed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);
+    assert.equal(listed.status, 200);
+    const listedBody = await listed.json() as { entries: Array<{ entry_id: string; subject_id: string }> };
+    const inboxEntryId = listedBody.entries.find((entry) => entry.subject_id === itemId)?.entry_id;
+    assert.ok(inboxEntryId);
+
+    const completed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "done", expected_revision: 1 }),
+    });
+    assert.equal(completed.status, 200);
+    const completedBody = await completed.json() as { entry: { status: string; revision: number } };
+    assert.equal(completedBody.entry.status, "done");
+    assert.equal(completedBody.entry.revision, 2);
+
+    const completedAgain = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "done", expected_revision: 2 }),
+    });
+    assert.equal(completedAgain.status, 200);
+    const completedAgainBody = await completedAgain.json() as { entry: { status: string; revision: number } };
+    assert.equal(completedAgainBody.entry.revision, 2, "repeating the same Inbox result stays idempotent");
+
+    const reopened = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "open", expected_revision: 2 }),
+    });
+    assert.equal(reopened.status, 200);
+    const reopenedBody = await reopened.json() as { entry: { status: string; revision: number } };
+    assert.equal(reopenedBody.entry.status, "open");
+    assert.equal(reopenedBody.entry.revision, 3);
+
+    const saved = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/save`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expected_revision: revision }),
+    });
+    assert.equal(saved.status, 200);
+    const savedBody = await saved.json() as { item: { disposition: string; revision: number } };
+    assert.equal(savedBody.item.disposition, "saved");
+    revision = savedBody.item.revision;
+
+    const promoted = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/promote`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expected_revision: revision }),
+    });
+    assert.equal(promoted.status, 200);
+    const promotedBody = await promoted.json() as {
+      goal_id: string;
+      created: boolean;
+      item: { disposition: string; revision: number };
+    };
+    goalId = promotedBody.goal_id;
+    revision = promotedBody.item.revision;
+    assert.equal(promotedBody.created, true);
+    assert.equal(promotedBody.item.disposition, "promoted");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      firstServer.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+
+  const restartedServer = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
+  await new Promise<void>((resolve) => restartedServer.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = restartedServer.address();
+    assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const repeated = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/promote`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expected_revision: revision }),
+    });
+    assert.equal(repeated.status, 200);
+    const repeatedBody = await repeated.json() as {
+      goal_id: string;
+      created: boolean;
+      item: { disposition: string; revision: number };
+    };
+    assert.equal(repeatedBody.goal_id, goalId, "the restart reuses the Goal the first promotion made");
+    assert.equal(repeatedBody.created, false);
+    assert.equal(repeatedBody.item.disposition, "promoted");
+    assert.equal(repeatedBody.item.revision, revision);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      restartedServer.close((error) => error ? reject(error) : resolve()),
+    );
+  }
+
+  const store = new LocalProjectDatabase(fixture.project.database_path);
+  try {
+    const item = store.db.prepare(`
+      SELECT disposition, read_at FROM feed_items
+      WHERE project_id = ? AND item_id = ?
+    `).get(fixture.project.project_id, itemId) as {
+      disposition: string;
+      read_at: string | null;
+    };
+    const goal = store.db.prepare(`
+      SELECT title FROM goals WHERE project_id = ? AND goal_id = ?
+    `).get(fixture.project.project_id, goalId) as { title: string };
+    const bindings = new GoalProjectApplication(store).goalInputs.list(fixture.project.project_id)
+      .filter((input) => input.goal_id === goalId && input.source_type === "feed_item" && input.source_ref === `feed-item:${itemId}`);
+    const materialCount = store.db.prepare(`
+      SELECT COUNT(*) AS count FROM feed_materials WHERE project_id = ? AND item_id = ?
+    `).get(fixture.project.project_id, itemId) as { count: number };
+    assert.deepEqual(item, { disposition: "promoted", read_at: null });
+    assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.project_id, goalId, itemId)?.linked_goal_id, goalId);
+    assert.equal(goal.title, "处理 Feed Item：需要处理的 Inbox Message");
+    assert.equal(bindings.length, 1);
+    assert.equal(materialCount.count, 1);
+  } finally {
+    store.close();
+  }
+});

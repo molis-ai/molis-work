@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **Feed 的「开始处理」链删除，`feed.items.promote` 与 `feed.items.offers` 升到 @2**（2026-10-31，BL-121 ② T-336）：`feed.items.promote@1` 不再存在，固定这个版本的调用方（工作流步骤与绑定、MCP 授权、脚本）要改到 `@2`；输入不再接受 `start_processing`（还发这个字段会得到 `actions.input_invalid`），输出不再有 `runtime_autofill`。`feed.items.offers@1` 不再存在，改到 `@2`（清单里 `feed.promote` 的 offer 指向 `feed.items.promote@2`）。HTTP `POST /api/feed/items/:id/start` 不再存在（400「Feed 动作不存在」）；`?feed-start=1`、终端自动填入与 `feed_item_id` 查询参数一并删除，界面上的「开始处理」入口早在此前已撤。按 CONTRACT-CHANGES 不留兼容。
+
 - **目录库起点 1（W5-17，干净 Home）**：项目库位置由 Home 与 project_id 推导，目录不再存 database_path。按用户2026-10-30决定，不迁移旧目录；旧Home整体搬开后创建当前结构1，等代码合入/构建就绪后用户另说“开始”。旧目录版本直接拒绝，无离线升级工具；目录可推导不改变原Home/原key的完整恢复约束。
 
 - **按问题选资料分节（`knowledge.locate`）升到 @3，输出多一个 `omitted`**（2026-10-30，T-132）：分节树太长时只把放得下的整节交给模型，`omitted` 是没给模型看的节数。固定了 `knowledge.locate@2` 的工作流步骤会报错并保留原引用，要在工作流里重选这个动作；直接调用（Agent、MCP、插件）不用改，只是多读到一个字段。

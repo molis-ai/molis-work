@@ -123,7 +123,7 @@ test("Attention overlay no longer changes Feed Item type or blocks markRead", as
         /已忽略的 Feed Item/,
       );
       assert.throws(
-        () => feed.linkGoal(DEMO_PROJECT_ID, "inbox-message-1", "CORE", "processing"),
+        () => feed.linkGoal(DEMO_PROJECT_ID, "inbox-message-1", "CORE", "promoted"),
         /已忽略的 Feed Item/,
       );
     } finally {
@@ -150,7 +150,7 @@ test("Feed disposition updates reject stale revisions and archived shortcuts", a
         /已忽略的 Feed Item/,
       );
       assert.throws(
-        () => feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "processing"),
+        () => feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted"),
         /已忽略的 Feed Item/,
       );
       const restored = feed.restoreToFeed(DEMO_PROJECT_ID, item.item_id, archived.revision);
@@ -203,6 +203,34 @@ test("Feed disposition updates reject stale revisions and archived shortcuts", a
         () => feed.setDisposition(DEMO_PROJECT_ID, item.item_id, "saved", item.revision),
         /已经变化/,
       );
+    } finally {
+      store.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("the Feed v1 schema refuses the removed processing disposition, and promotion records promoted + its event", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-processing-gone-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
+  try {
+    await seedDemoGoals(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
+    try {
+      insertRssFeedItem(store, "feed-processing-gone");
+      const feed = createLocalFeedApplication(store.db);
+      const item = feed.getItem(DEMO_PROJECT_ID, "feed-processing-gone");
+      // The v1 DDL no longer accepts the removed value: a real Feed database refuses it, not only the TypeScript type.
+      assert.throws(
+        () => store.db.prepare("UPDATE feed_items SET disposition = 'processing' WHERE project_id = ? AND item_id = ?").run(DEMO_PROJECT_ID, item.item_id),
+        /CHECK constraint/u,
+      );
+      const linked = feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted");
+      assert.equal(linked.disposition, "promoted");
+      const events = store.db.prepare("SELECT type FROM feed_item_events WHERE project_id = ? AND item_id = ? ORDER BY at, event_id").all(DEMO_PROJECT_ID, item.item_id) as Array<{ type: string }>;
+      assert.equal(events.at(-1)?.type, "feed_item.promoted", "promotion records the promoted event");
+      assert.equal(events.some(event => event.type.includes("processing")), false, "no processing event is recorded");
     } finally {
       store.close();
     }

@@ -96,7 +96,7 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     const goal_id = "GUIDANCE-WEB";
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "user", audience: "user", project_id: project.project_id, permissions: ["goals:write"] }));
     await bound.invoke(goalsActions.create, { goal_id, title: "使用项目说明", idempotency_key: "create" });
-    const promptPath = `/api/goals/${goal_id}/advance-prompt`;
+    const promptPath = `/api/plugins/io.molis.work.goals/goals/${goal_id}/advance-prompt`;
     const prompt = await request(promptPath);
     assert.equal(prompt.status, 200, await prompt.clone().text());
     assert.match((await prompt.json() as { prompt: string }).prompt, /所有导出必须由用户发起/);

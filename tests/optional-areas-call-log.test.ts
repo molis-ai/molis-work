@@ -119,9 +119,14 @@ test("OPTAREA-06 advancing a Goal in a project without Feed leaves no row about 
   await withProject([], async ({ base, host, projectId, reference }) => {
     const goals = bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: ["goals:read", "goals:write"] }));
     await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create" });
-    const advanced = await get(`${base}/projects/${projectId}/api/goals/G1/advance-prompt`);
+    // The prompt is a Goals route: the project's plugin platform is opened by an earlier route first, so the rows its one-time opening
+    // announcement may leave (`announceProjectOpened`; this Host has no folders) are not counted against the prompt.
+    assert.equal((await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/directory`)).status, 200);
+    const before = rowsOf(host, projectId);
+    assert.ok(before.some(row => row[0] === goalsActions.create.capability_id));
+    const advanced = await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/G1/advance-prompt`);
     assert.equal(advanced.status, 200, advanced.text);
-    assert.deepEqual(rowsOf(host, projectId).map(row => row[0]), [goalsActions.create.capability_id]);
+    assert.deepEqual(rowsOf(host, projectId), before);
   });
 });
 

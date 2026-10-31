@@ -110,12 +110,14 @@ test("RAC-2197 the card's summary cuts a long first field at 39 units without le
 });
 
 // RAC-2429 (T-308): the request id is cut to Math.min(160, the schema's maxLength) in whole characters; a schema under 160 was not covered.
+// The 🙂 straddles the 5-unit cut (units 5 and 6, its high half being the last unit a unit cut would keep), so a cut by units leaves a
+// lone high half and the LONE_HALF item below now catches it; a cut by characters keeps the 🙂 whole.
 test("RAC-2429 a request_id maxLength under 160 cuts the request id to that many characters", async () => {
   const small = { ...SCHEMA, properties: { ...SCHEMA.properties, request_id: { type: "string", minLength: 1, maxLength: 5 } } };
   const { generate } = fake(() => ({ title: "t" }));
-  const draft = await draftIntake({ target: target({ input_schema: small }), material: material(), request_id: "rrr🙂尾巴尾巴" }, ports(generate));
+  const draft = await draftIntake({ target: target({ input_schema: small }), material: material(), request_id: "rrrr🙂尾巴" }, ports(generate));
   const requestId = draft.input.request_id as string;
-  assert.deepEqual([requestId, [...requestId].length, LONE_HALF.test(requestId)], ["rrr🙂尾", 5, false], "five characters, the two-unit 🙂 whole, no half one");
+  assert.deepEqual([requestId, [...requestId].length, LONE_HALF.test(requestId)], ["rrrr🙂", 5, false], "five characters, the two-unit 🙂 whole, no half one");
   assert.doesNotThrow(() => assertActionInput(small, draft.input), "Ajv counts characters, so five characters are valid under maxLength 5");
 });
 

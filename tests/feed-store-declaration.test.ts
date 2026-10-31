@@ -74,7 +74,7 @@ test("RAC-498 the four packages that held the Feed, Sources, Signals and Listene
   }
 });
 
-/** The eleven tables the baseline made until version 10 and the eleven indexes on them: Feed's declaration makes them now. */
+/** The current Feed-owned tables and indexes, independently fixed below and in the business fixture. */
 const MOVED_TABLES = ["feed_item_events", "feed_items", "feed_materials", "feed_source_runs", "feed_sources", "listener_deliveries", "listener_instances",
   "signal_events", "signal_revisions", "signals", "source_events"];
 const MOVED_INDEXES = ["feed_item_events_project_item_idx", "feed_items_project_signal_idx", "feed_items_project_source_external_idx", "feed_items_project_updated_idx",
@@ -84,22 +84,22 @@ const MOVED_INDEXES = ["feed_item_events_project_item_idx", "feed_items_project_
 const statementsOf = (db: DatabaseSync) => Object.fromEntries((db.prepare("SELECT name, sql FROM sqlite_master WHERE sql IS NOT NULL").all() as { name: string; sql: string }[]).map(row => [row.name, row.sql]));
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
-test("RAC-496 Feed's declaration makes the eleven tables and eleven indexes version 10's baseline made, statement for statement, beside its out rules", () => {
+test("RAC-2360 RAC-2362 RAC-496 Feed's first declaration owns the complete current tables and indexes beside its out rules", () => {
   const before = new DatabaseSync(":memory:"), declared = new DatabaseSync(":memory:"), baseline = new DatabaseSync(":memory:");
   try {
-    before.exec(fixture("project-database-schema-v10.sql"));
+    before.exec(fixture("goal-event-history/approved.sql"));
     declared.exec(FEED_PROJECT_DATABASE.schema);
     baseline.exec(PROJECT_DATABASE_BASELINE.schema);
     const was = statementsOf(before), is = statementsOf(declared);
     for (const name of [...MOVED_TABLES, ...MOVED_INDEXES]) {
-      assert.ok(was[name], `${name} was the version 10 baseline's`);
-      assert.equal(is[name], was[name], `${name}: the declaration's statement is the baseline's, word for word`);
-      assert.equal(name in statementsOf(baseline), false, `${name} is not the version 11 baseline's`);
+      assert.ok(was[name], `${name} is in the independent current fixture`);
+      assert.ok(is[name], `${name} is declared by Feed`);
+      assert.equal(name in statementsOf(baseline), false, `${name} is not the platform baseline's`);
     }
     assert.deepEqual(Object.keys(is).sort(), [...MOVED_TABLES, ...MOVED_INDEXES, "feed_out_rules", "feed_out_rules_project_enabled_idx"].sort(), "and the declaration holds the out rules and nothing else");
     const shapeBefore = describeSqliteSchema(before as never), shapeDeclared = describeSqliteSchema(declared as never);
-    for (const table of MOVED_TABLES) assert.deepEqual(shapeDeclared.tables[table], shapeBefore.tables[table], `${table}: columns, checks, keys and indexes as they were`);
-    assert.equal(FEED_PROJECT_DATABASE.version, 2);
+    assert.deepEqual(shapeDeclared, { tables: Object.fromEntries([...MOVED_TABLES, "feed_out_rules"].map(table => [table, shapeBefore.tables[table]])) }, "complete independent Feed schema: columns, checks, keys and indexes");
+    assert.equal(FEED_PROJECT_DATABASE.version, 1);
     assert.equal(FEED_PROJECT_DATABASE.store_name, "feed");
   } finally { before.close(); declared.close(); baseline.close(); }
 });
@@ -114,9 +114,9 @@ const ledger = (file: string) => {
   try { return db.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json FROM plugin_project_databases ORDER BY plugin_id").all().map(row => ({ ...row })) as Array<{ plugin_id: string; version: number; tables_json: string }>; } finally { db.close(); }
 };
 
-test("RAC-496 a new version 11 library has none of the eleven tables until Feed's declaration makes them, and then records twelve tables at version 2", t => {
+test("RAC-2360 RAC-496 a new library starts at 1, creates Feed's twelve declared tables and records declaration 1", t => {
   const file = scratch(t);
-  const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec("PRAGMA user_version = 11");
+  const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec("PRAGMA user_version = 1");
   assert.deepEqual(MOVED_TABLES.filter(name => name in statementsOf(bare)), [], "the baseline alone has none");
   bare.close();
 
@@ -126,18 +126,18 @@ test("RAC-496 a new version 11 library has none of the eleven tables until Feed'
     assert.ok(feed && "record" in feed, "Feed's tables are opened with the library");
   } finally { opened.close(); }
   const row = ledger(file).find(entry => entry.plugin_id === FEED_PLUGIN_ID)!;
-  assert.equal(row.version, 2);
+  assert.equal(row.version, 1);
   assert.deepEqual((JSON.parse(row.tables_json) as string[]).filter(name => !name.endsWith("_idx")).sort(), [...MOVED_TABLES, "feed_out_rules"].sort());
   const db = new DatabaseSync(file, { readOnly: true });
   try { assert.deepEqual(MOVED_TABLES.filter(name => !(name in statementsOf(db))), [], "all eleven are there"); } finally { db.close(); }
 });
 
-test("RAC-496 a version 10 library is refused by the version 11 Host, not upgraded in place", t => {
+test("RAC-2361 RAC-496 a noncurrent library is refused by the Host without rewriting it", t => {
   const file = scratch(t);
-  const old = new DatabaseSync(file); old.exec(fixture("project-database-schema-v10.sql")); old.exec("PRAGMA user_version = 10"); old.close();
-  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 10 && error.expected === 11);
+  const old = new DatabaseSync(file); old.exec(PROJECT_DATABASE_BASELINE.schema); old.exec("PRAGMA user_version = 2"); old.close();
+  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 2 && error.expected === 1);
   const after = new DatabaseSync(file, { readOnly: true });
-  try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 10, "and left as it was"); } finally { after.close(); }
+  try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2, "and left as it was"); } finally { after.close(); }
 });
 
 // What a refused Feed does at run time is the project's plugin supervisor's since FI-6 deleted the Host's Feed paths: the same edit leaves

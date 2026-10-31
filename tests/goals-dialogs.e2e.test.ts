@@ -198,3 +198,60 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.deepEqual(newRelations(), expectedRelations);
   assert.deepEqual(current().runs, before.runs);
 });
+
+// T-285: an HTML maxlength counts UTF-16 units, so a title of two-unit characters was stopped at 60 while the route counts 120
+// characters; the box caps by characters now, and the person's 120 characters reach the Goal whole.
+test("RAC-2700 the new-Goal title box caps at 120 characters, not 120 UTF-16 units, and a 121st character is stopped", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList, projectId } = browser;
+  const prefix = `/projects/${projectId}`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId));
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')");
+  await showGoalStageList();
+  const openCreate = async () => {
+    await click("[data-goal-stage-chrome] [data-open-create]");
+    await waitFor("document.activeElement.name === 'title'");
+  };
+  const titleState = () => evaluate<{ chars: number; units: number; value: string }>(
+    "(() => { const v = document.querySelector('[data-create-form]').elements.title.value; return { chars: [...v].length, units: v.length, value: v }; })()");
+  const waitForGoal = async (title: string) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      if (boardSnapshot(store, DEMO_PROJECT_ID).goals.some((goal: { title: string }) => goal.title === title)) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.fail(`the Goal ${JSON.stringify(title)} was not created`);
+  };
+  const backToBoard = async () => {
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId));
+    await waitFor("document.querySelector('[data-goal-canvas-shell]')");
+    await showGoalStageList();
+  };
+  await openCreate();
+  await command("Input.insertText", { text: "😀".repeat(120) }, sessionId);
+  assert.deepEqual(await titleState(), { chars: 120, units: 240, value: "😀".repeat(120) }, "120 two-unit characters fit whole");
+  await command("Input.insertText", { text: "😀" }, sessionId);
+  assert.equal((await titleState()).chars, 120, "a 121st character is stopped");
+  await click("[data-create-submit]");
+  await waitForGoal("😀".repeat(120));
+  await backToBoard();
+  await openCreate();
+  await command("Input.insertText", { text: "a".repeat(120) }, sessionId);
+  assert.deepEqual(await titleState(), { chars: 120, units: 120, value: "a".repeat(120) }, "120 plain characters fit");
+  await command("Input.insertText", { text: "a" }, sessionId);
+  assert.equal((await titleState()).chars, 120, "a 121st plain character is stopped");
+  await click("[data-create-submit]");
+  await waitForGoal("a".repeat(120));
+  await backToBoard();
+  // The mixed case: neither a units slice nor a plain code-point slice leaves half of a two-unit character behind.
+  await openCreate();
+  await command("Input.insertText", { text: "😀".repeat(119) + "a" }, sessionId);
+  assert.deepEqual(await titleState(), { chars: 120, units: 239, value: "😀".repeat(119) + "a" }, "119 two-unit characters and one plain character fit");
+  await command("Input.insertText", { text: "😀" }, sessionId);
+  const mixed = await titleState();
+  assert.deepEqual({ chars: mixed.chars, units: mixed.units, value: mixed.value }, { chars: 120, units: 239, value: "😀".repeat(119) + "a" }, "the extra two-unit character is cut whole, not by units");
+  assert.ok([...mixed.value].every((character) => { const point = character.codePointAt(0)!; return point < 0xD800 || point > 0xDFFF; }), "no lone surrogate is left in the value");
+  await click("[data-create-submit]");
+  await waitForGoal("😀".repeat(119) + "a");
+});

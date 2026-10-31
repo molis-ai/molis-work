@@ -13,7 +13,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "inbox", "artifacts"] as const) {
+  for (const plugin_id of ["feed", "inbox"] as const) {
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "frame-container" });
   }
   catalog.close();

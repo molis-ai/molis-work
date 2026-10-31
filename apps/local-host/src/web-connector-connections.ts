@@ -8,7 +8,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
-import { homeConnectorDirectory } from "./connector-directory.js";
+import { connectorDirectory } from "./connector-directory.js";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
@@ -53,15 +54,20 @@ export async function handleConnectorConnectionsHttp(
     }
     if (request.method === "POST" && collection) {
       const body = await readLocalWebBody(request);
-      const service = (await homeConnectorDirectory(homeDirectory)).find(entry => entry.connector_id === body.service_id);
+      // The card and the package behind it are read from one registry with nothing awaited between them: a package detached in between
+      // would leave a card with no declarer, and a connection made unpinned that another publisher's package could then use (T-134).
+      const registry = await homeIntegrationRegistry(homeDirectory);
+      const service = connectorDirectory(registry).find(entry => entry.connector_id === body.service_id);
       if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw connectorErrors["connector.connection.invalid"]("此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
+      // A signed package's service: the new connection is pinned to the package that declares it now, read from the Home's registry, never from the body (T-134).
+      const declarer = registry.connectionDeclarer(service.connector_id);
       const setup = startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined, { service_id: body.service_id as string, method: "token" });
       try {
         setup?.assertCurrent();
         const completion: ConnectorActivation = { kind: "token", input: {
           serviceId: body.service_id as string, displayName: body.display_name as string,
           token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
-        } };
+        }, ...(declarer ? { declarer } : {}) };
         const result = setup ? setup.submit(completion) : { connection: activateConnectorConnection(homeDirectory, completion) };
         sendJson(response, "status" in result && result.status === "pending" ? 202 : 201, result);
       } catch (error) { setup?.fail(); throw error; }

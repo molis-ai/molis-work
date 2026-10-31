@@ -1,11 +1,17 @@
-import { ActionError, defineErrorCodes, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { mcpErrors } from "./mcp-errors.js";
 import { KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
 import { actionGrantKey } from "./mcp-settings-store.js";
 
 type GrantFacts = { readonly action_grants: readonly McpActionGrant[] };
-/** A client calling what it holds no grant for (any more) is refused: a refusal, which every reader can tell by its kind. */
-const grantErrors = defineErrorCodes("mcp", { action_revoked: "forbidden" });
+/**
+ * A client calling what it holds no grant for (any more), or without a permission a scene or a background task needs (any more), is
+ * refused: a refusal, which every reader can tell by its kind. One declaration for every check that raises them (mcp-action-client.ts,
+ * mcp-background-authority.ts).
+ */
+/** The two revocation refusals the grant checks raise; one declaration with every `mcp.*` code is in mcp-errors.ts. */
+export const mcpGrantErrors = { action_revoked: mcpErrors.action_revoked, permission_revoked: mcpErrors.permission_revoked } as const;
 
 /** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
 export const actionClientAudience = (clientId: string) => clientId.startsWith("agent:") ? "agent" as const : "mcp" as const;
@@ -18,9 +24,9 @@ export const isExternalRuntimeClient = (clientId: string) => clientId.startsWith
 
 /** Only the local management owner calls this with a definition from Host inspection. */
 export function createMcpActionGrant(clientId: string, projectId: string | null, action: ActionView, enabled: boolean): McpActionGrant {
-  if (!clientId.trim() || !action.action.audiences.includes(actionClientAudience(clientId))) throw new ActionError("mcp.grant_invalid", "缺少客户端身份或此能力不支持 MCP");
+  if (!clientId.trim() || !action.action.audiences.includes(actionClientAudience(clientId))) throw mcpErrors.grant_invalid("缺少客户端身份或此能力不支持 MCP");
   if (action.action.scope === "project" && !projectId) throw new ActionError("actions.project_required", "请为此能力选择具体项目");
-  if (action.action.scope === "home" && projectId) throw new ActionError("mcp.grant_scope", "全局能力必须在全局范围单独授权");
+  if (action.action.scope === "home" && projectId) throw mcpErrors.grant_scope("全局能力必须在全局范围单独授权");
   if (action.provider.project_id && action.provider.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "能力属于其他项目");
   return { client_id: clientId, project_id: projectId, capability_id: action.capability_id, version: action.version,
     provider_id: action.provider.provider_id, permissions: [...new Set(action.action.permissions)].sort(), enabled };
@@ -68,7 +74,7 @@ export function assertMcpActionAuthority(caller: ActionCallContext, catalog: rea
   const allowed = resolveMcpActionContext(caller, catalog, preference).allowed_actions ?? [];
   if (!allowed.some(item => item.capability_id === reference.capability_id && item.version === reference.version
     && item.provider_id === reference.provider_id)) {
-    throw grantErrors.action_revoked("此客户端的能力授权已撤销或发生变化，请重新检查对外接入设置");
+    throw mcpGrantErrors.action_revoked("此客户端的能力授权已撤销或发生变化，请重新检查对外接入设置");
   }
 }
 

@@ -8,7 +8,7 @@ import { WebSocket } from "ws";
 import { attachMolisWorkPtySocket } from "@molis-ai/molis-work-app-local-host";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-test("SYS-15-F3 S-47 Shelf opens the backend program in its owner directory, reconnects once and kills it on revocation", { timeout: 20_000 }, async t => {
+test("SYS-15-F3 S-47 Shelf opens the backend program in its owner directory, reconnects once and kills it on revocation RAC-2559", { timeout: 20_000 }, async t => {
   const f = await serveHomeRuntime(t), bin = join(f.home, "bin"); await mkdir(bin);
   await writeFile(join(bin, "codex"), "#!/bin/sh\nprintf 'OWNER_CWD=%s\\n' \"$PWD\"\nexec /bin/cat\n", { mode: 0o700 });
   const priorPath = process.env.MOLIS_WORK_LOCAL_TOOLS_PATH;

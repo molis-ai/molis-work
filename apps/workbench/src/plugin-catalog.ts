@@ -158,8 +158,8 @@ export function railEntries(enabled: readonly ProjectPluginId[], directory: Plug
   const views = placedViews(directory, enabled, "navigator"), entries = views.map(railEntry);
   const at = views.findIndex(({ view }) => view.order > ARTIFACT_NAVIGATION.order
     || (view.order === ARTIFACT_NAVIGATION.order && view.plugin_id.localeCompare(ARTIFACTS_PROVIDER_ID) > 0));
-  const { id, surface, label, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
-  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label, glyph, group, rail, pinned_default, chosen });
+  const { id, surface, label, label_en, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
+  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label, label_en, glyph, group, rail, pinned_default, chosen });
   return [...entries, ...stageOnlyViews(directory, enabled).map(railEntry)];
 }
 

@@ -171,7 +171,7 @@ test("RAC-1726 the workbench keeps no table of English plugin names by plugin id
   const source = (path: string) => readFileSync(fileURLToPath(new URL(`../apps/workbench/src/${path}`, import.meta.url)), "utf8");
   for (const file of ["plugin-catalog.ts", "immersive-shell.ts"]) assert.equal(/PLUGIN_ENGLISH_NAMES|"Plugin Studio"|Lingguang/u.test(source(file)), false, `${file} keeps a table of English names`);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
-    if (!(entry.project_plugin_id in NAMES_EN)) continue;
+    if (!(entry.project_plugin_id in NAMES_EN) || entry.project_plugin_id === "artifacts") continue;
     assert.equal(entry.manifest.name_en, NAMES_EN[entry.project_plugin_id], `${entry.project_plugin_id} declares its English name`);
   }
 });
@@ -192,7 +192,7 @@ test("RAC-1727 a publisher's English is escaped where it is written and the inli
 
 test("RAC-1728 the name and the body are two places: 成果 is Artifacts as a name and still Results in the body; 待办 is Todo in both", () => {
   const declared = (id: string) => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === id)?.manifest;
-  assert.equal(declared("artifacts")?.name_en, "Artifacts");
+  assert.equal(railEntries([]).find(entry => entry.id === "artifacts")?.label_en, "Artifacts", "the library is platform navigation: it declares its own English name");
   assert.equal(EN["成果"], "Results", "the Host's body word is not touched by the plugin's name");
   assert.equal(declared("todo")?.name_en, "Todo");
   assert.equal(EN["待办"], "Todo", "the to-do is one word in the name and in the body");

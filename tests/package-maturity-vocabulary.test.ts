@@ -111,14 +111,16 @@ test("RAC-2434 examples packages carry no retired package metadata, and their bu
         assert.ok(!fs.readFileSync(source, "utf8").includes(retired), `${packagePath}/src/index.ts still names ${retired}`);
       }
     }
-    const manifest = JSON.stringify(manifestOf(packagePath));
+    const manifest = manifestOf(packagePath);
+    const serialized = JSON.stringify(manifest);
     for (const retired of ["migrationGoals", "legacySources"]) {
-      assert.ok(!manifest.includes(retired), `${packagePath}/package.json still carries ${retired}`);
+      assert.ok(!serialized.includes(retired), `${packagePath}/package.json still carries ${retired}`);
     }
-    const block = manifestOf(packagePath)["molis-work"];
+    const block = manifest["molis-work"];
     if (block !== undefined) {
       for (const key of Object.keys(block)) assert.ok(PLUGIN_BLOCK_KEYS.includes(key), `${packagePath}: ${key} is not a built-in block key`);
       assert.ok(PACKAGE_MATURITY.includes(String(block.maturity)), `${packagePath}: ${String(block.maturity)} is not a maturity word`);
+      assert.equal(block.registration, "./registration", `${packagePath}: registration`);
     }
     const readme = new URL(`../${packagePath}/README.md`, import.meta.url);
     if (fs.existsSync(readme)) {

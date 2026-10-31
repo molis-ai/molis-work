@@ -120,6 +120,7 @@ export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "
 export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
+export { installedStageSection } from "./installed-stage-section.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
@@ -314,6 +315,7 @@ export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
+export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";

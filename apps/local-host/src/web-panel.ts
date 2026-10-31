@@ -1,16 +1,14 @@
-import { optionalPluginQuery } from "./web-view.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { type MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
 import { handlePanelHttp, type PanelHttpContext } from "./web-panel-routes.js";
 
-interface PanelHttpPorts extends Pick<PanelHttpContext, "isRuntimeKind" | "launchSpec" | "advancePrompt"> {
+interface PanelHttpPorts extends Pick<PanelHttpContext, "isRuntimeKind" | "launchSpec"> {
   withCatalog: LocalWebCatalogRunner;
   panelEnv(input: {
     homeDirectory: string; runtimeId: string;
@@ -67,25 +65,10 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
         const collection = await actions.invoke(goalsActions.collection, {});
         const entry = [...collection.goals, ...collection.archived_goals, ...collection.trashed_goals].find(row => row.goal.goal_id === goalId);
         if (!entry) throw new ActionError("actions.missing", "找不到这个 Goal");
-        const { goal, event_work } = entry;
-        const state = event_work ? await actions.invoke(goalsActions.state, { goal_id: goalId }) : null;
-        const event_facts = state
-          ? [
-              `工作状态：${state.work_status}`,
-              state.agreement.outcome ? `当前约定：${state.agreement.outcome}` : "",
-              state.progress_summary?.next_step ? `下一步：${state.progress_summary.next_step}` : "",
-              state.pending_decisions.length ? `待决定：${state.pending_decisions.map((item) => item.question).join("；")}` : "",
-              state.current_decisions.length ? `已决定：${state.current_decisions.map((item) => item.conclusion).join("；")}` : "",
-              state.gaps.length ? `未满足：${state.gaps.map((item) => item.statement).join("；")}` : "",
-            ].filter(Boolean).join("\n")
-          : undefined;
-        return { ...goal, event_work, event_facts };
+        return { ...entry.goal, event_work: entry.event_work };
       },
-      readLinkedFeedContext: async (goalId) => await optionalPluginQuery(actions, feedQueryActions.linkedContext, { goal_id: goalId }) ?? null,
-      projectGuidance: async () => (await actions.invoke(goalsActions.guidanceRead, {})).runtime_prompt_prefix,
       isRuntimeKind: ports.isRuntimeKind,
       launchSpec: ports.launchSpec,
-      advancePrompt: ports.advancePrompt,
       kill: (panelId) => ptyHost.kill(panelId),
     });
   }

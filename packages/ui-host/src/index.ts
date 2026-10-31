@@ -95,12 +95,17 @@ export class UiHost implements UiHostApi {
 
   /**
    * W5-06: mount a surface in the slot its contribution declares (`target_slot_id`), so a caller names only the
-   * contribution and surface and keeps no surface→slot table. The same checks as `mount` then run.
+   * contribution and surface and keeps no surface→slot table. The same checks as `mount` then run. With `owner`, only that plugin's
+   * own contributions mount (T-116): another plugin's is refused with `ui_host.plugin_denied`, so a page given this mount cannot draw
+   * a surface another plugin owns.
    */
-  mountDeclared<TModel>(request: UiRenderRequest<TModel>): UiMountResult {
+  mountDeclared<TModel>(request: UiRenderRequest<TModel>, owner?: string): UiMountResult {
     const contribution = this.contributions.get(request.contribution_id);
     if (!contribution) {
       throw uiHostErrors.contribution_not_found(`找不到 UI Contribution ${request.contribution_id}`);
+    }
+    if (owner !== undefined && contribution.descriptor.plugin_id !== owner) {
+      throw uiHostErrors.plugin_denied(`UI Contribution ${request.contribution_id} 不属于 ${owner}`);
     }
     const surface = contribution.descriptor.surfaces?.find((candidate) => candidate.surface_id === request.surface);
     if (!surface) {

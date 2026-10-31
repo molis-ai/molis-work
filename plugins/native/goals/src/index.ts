@@ -60,6 +60,7 @@ export * from "./planning-client.js";
 export * from "./planning-styles.js";
 export * from "./planning-en.js";
 export * from "./planning-routes.js";
+export { GOALS_PAGE_ROUTES } from "./page-routes.js";
 export { PROJECT_RULES_CLIENT_SCRIPT } from "./project-policy-client.js";
 export { PROJECT_RULES_SETTINGS_STYLES } from "./project-policy-styles.js";
 export * from "./goal-state-copy.js";

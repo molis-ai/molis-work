@@ -48,6 +48,11 @@ export interface MolisWorkWebView {
    * plugin that is not shown, declares none, or is not there to answer has no key; its stage is drawn without `data`.
    */
   stage_data?: Readonly<Record<string, unknown>>;
+  /**
+   * The request parameters each shown plugin's stage names in its `stage_data.input`, by project plugin id (T-116): those its own
+   * `page_routes` declare and the request carried, as strings, and nothing else of the request. A stage that names none has no key.
+   */
+  stage_request?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
   developer_mode?: boolean;
   /** Live authorized status from the Inbox scene owner. */

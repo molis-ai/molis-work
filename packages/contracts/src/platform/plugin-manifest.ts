@@ -1,4 +1,4 @@
-import type { UiViewDeclaration } from "./ui.js";
+import type { UiPageRouteDeclaration, UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
@@ -174,6 +174,8 @@ export interface PluginManifest {
     embedded_plugins?: string[];
     /** v2: where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
+    /** v2: the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
+    page_routes?: UiPageRouteDeclaration[];
     /**
      * v2: the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
      * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads

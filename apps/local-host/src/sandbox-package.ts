@@ -10,6 +10,7 @@ import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPa
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
 import { parsePluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
@@ -97,11 +98,14 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
 
   // The Manifest of a sandbox plugin has one shape; what the package may choose is who it is, its version, its name, what it upgrades from, where it runs,
-  // and the icon of its page (a name of the platform's set, which the Manifest reader has already checked).
-  const icon = manifest.ui.views?.[0]?.icon;
+  // and the icon of its page, a name of the platform's set. This reads the Manifest itself (the install path has, but this is exported and takes any payload),
+  // so a name outside the set is refused here and `icon` below is one of the set.
+  validated('清单', () => parsePluginManifest(manifest));
+  const named = manifest.ui.views?.[0]?.icon;
+  const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime, effects: permissions,
-    ...(typeof icon === 'string' ? { icon } : {}) });
+    ...(icon ? { icon } : {}) });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }

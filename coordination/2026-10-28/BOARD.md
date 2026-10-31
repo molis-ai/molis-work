@@ -280,7 +280,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-337 | BL-121 ③：紧凑密度子目标缩进的 `.tree-children.tree-children` 改成正常一条规则（缩进不变，加计算样式用例） | 丙 | A | 0.6 | T-336 | `packages/design-system/src/styles/momentum.ts`、`specs/BACKLOG.md` |
 | T-338 | `tests/interaction-no-crosstalk.e2e.test.ts` 跨项目用例在设备 B 本机首败（新 session 路径等不到 `window.__sent`，干净基线同败、CI 过）：先诊断是没发出、没记下还是夹具环境，再修；保留拒绝／无写断言与原时限 | 乙 | B | 0.7 | — | `tests/interaction-no-crosstalk.e2e.test.ts` |
 | T-339 | Feed `throwIfCallRefused` 改按被拒的 kind 认：撤权（`mcp.*_revoked`、`assistant.action_revoked`）的捕获不再记成 `artifact_out_failed` | 甲 | A | 0.8 | — | `plugins/native/feed/src/out-rules.ts` |
-| T-340 | MCP 宿主里裸 `new ActionError` 的 `mcp.*` 码改成 `defineErrorCodes` 声明，抛出处带声明的 kind；同码两种 kind 统一 | 乙 | A | 0.9 | — | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts` |
+| T-340 | MCP 宿主里裸 `new ActionError` 的 `mcp.*` 码改成 `defineErrorCodes` 声明，抛出处带声明的 kind；同码两种 kind 统一 | 乙 | A | 已合（10-31，#1658 → `7d74dc353`；Codex 统筹） | — | `apps/local-host/src/mcp-authority.ts`、`mcp-server.ts` |
 | T-341 | 搜索：读取器报 forbidden 被弃时经 `onError` 留一条记录（只记码） | 乙 | 池 | 已合（10-31，#1648 → `f8aaece61`） | — | `horizontal/search/src/index.ts` |
 | T-342 | 两条弱断言收紧：安装插件关闭顺序数组 deepEqual；去掉 RAC-2420 与已有用例重复的用例 | 丙 | A | 1.6 | — | `tests/installed-plugin-host.test.ts`、`tests/security-invariants-oauth-shared-refresh.test.ts` |
 | T-343 | 两处文档状态句改成现状：bl588 状态句的 BL-739、privileges PG-026-S1 行里已删的维护脚本 | 丙 | B | 已合（10-31，#1650 → `9e7d0533b`） | — | `specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`、`specs/repository-anti-corruption/privileges.md` |

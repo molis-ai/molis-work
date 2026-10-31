@@ -80,7 +80,7 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
   // The locate data is measured by knowledgeLocateData(input) and sent as the data after the registered instruction. This drives the real
   // Host action and a local model stand-in that records what arrives, so a Host line that re-serializes the measured input differently
   // (pretty JSON, a different shape) is caught: the data part must be exactly knowledgeLocateData(parsed).
-  const home = await openTestHome(t), project = await home.createProject("选节数据", ["artifacts"]);
+  const home = await openTestHome(t), project = await home.createProject("选节数据");
   const prefix = `/projects/${project.project_id}`;
   await home.web.post(prefix + "/api/artifacts/import", { source: "file", filename: "A.md", content: "# 一节\n检查选节的数据。\n" });
   const listed = await untilSetup(async () => {

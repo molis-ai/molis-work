@@ -69,3 +69,5 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+“被谁引用”按声明链接种类（Manifest `artifacts.links`）的插件分组，输入、产出及提议均由声明方的 `link_subjects` 动作以当前调用者身份给出名称和打开位置；答不出名称时只显示对象id，未识别的其他引用仍计数。平台成果界面消费这个模型，事实与权限仍由各自owner管理。

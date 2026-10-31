@@ -109,6 +109,7 @@ export interface PluginHostServices {
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
+  /** Present when the Manifest declares terminal:run and the Host runs the plugin itself (S-103). */
   readonly terminal?: PluginTerminalClient;
   /**
    * The Host's text model, for a plugin the Host runs itself that declares `model:read` (the list and availability only) or
@@ -147,8 +148,20 @@ export interface PluginHostServices {
   readonly outputs?: PluginOutputsClient;
 }
 
-/** A user-started interactive terminal in the plugin's declared owner-files directory. */
+/**
+ * Where a plugin's terminal starts (S-103): a folder of a workspace linked to the project of the call (`workspace_id` from that project's
+ * list, which also needs workspace:read), or of the plugin's own declared owner files. `path` is relative to that root, `/`-separated.
+ */
+export type PluginTerminalDirectory =
+  | { readonly root: "workspace"; readonly workspace_id: string; readonly path?: string }
+  | { readonly root: "owner_files"; readonly path?: string };
+
+/** A user-started interactive terminal, for a plugin the Host runs itself that declares terminal:run (S-103). */
 export interface PluginTerminalClient {
-  /** Backend-selected executable; the page receives only its panel handle. Requires terminal:run. */
-  open(input: { key: string; command: string; title: string }): Promise<{ panelId: string }>;
+  /**
+   * Starts (or reattaches to) the plugin's interactive terminal for this key. The Host takes the installation, the project and the person
+   * from the running action; the program is an absolute path the plugin's backend chose; the directory is a folder inside one of two roots.
+   * Requires terminal:run, and workspace:read for a workspace root. The page receives only the panel handle.
+   */
+  open(input: { key: string; title: string; command: string; args?: readonly string[]; directory: PluginTerminalDirectory }): Promise<{ panelId: string }>;
 }

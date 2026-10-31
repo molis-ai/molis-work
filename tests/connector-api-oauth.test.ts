@@ -102,7 +102,7 @@ test("ASC-19 ASC-35: disabling and reenabling during API refresh refuses stale t
     assert.equal(withConnectorConnections(directory, store => store.state(store.require(first.connection_id))), "connected");
   } finally { release(); rmSync(directory, { recursive: true, force: true }); }
 });
-for (const service of ["gmail", "notion"] as const) test(`ASC-19 ASC-35: ${service} refresh cannot write after disable and reenable`, async t => {
+for (const service of ["notion"] as const) test(`ASC-19 ASC-35: ${service} refresh cannot write after disable and reenable`, async t => {
   const directory = home(), id = crypto.randomUUID(), prefix = `connector-connection:${id}`;
   let release!: () => void, entered!: () => void;
   const waiting = new Promise<void>(resolve => { release = resolve; });

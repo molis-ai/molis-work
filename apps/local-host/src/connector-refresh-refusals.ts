@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import type { ConnectorConnectionRecord, ConnectorConnectionState } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { replacedOAuthShape } from "./connector-oauth-shape.js";
 
 // Connections whose token endpoint refused a refresh (S-70 provisional; slice s57-connections-extension X3, hub ruling 2026-10-24). The
 // mark is not a stored fact: it is what the token endpoint's answer says, held in this Host process only. It is tied to the
@@ -31,7 +32,10 @@ export function refreshRefused(home: string, connection: Pick<ConnectorConnectio
   return false;
 }
 
-/** The state to show for a connection: one whose refresh was refused needs the person to reconnect it. */
-export function shownState(home: string, connection: Pick<ConnectorConnectionRecord, "connection_id" | "updated_at">, state: ConnectorConnectionState): ConnectorConnectionState {
-  return state === "connected" && refreshRefused(home, connection) ? "reauth_required" : state;
+/**
+ * The state to show for a connection: one whose refresh was refused needs the person to reconnect it, and so does an OAuth connection
+ * of the shape the generic flow replaced (`replacedOAuthShape`), which is not read at all.
+ */
+export function shownState(home: string, connection: Pick<ConnectorConnectionRecord, "connection_id" | "updated_at" | "auth_method" | "service_id" | "credential_ref">, state: ConnectorConnectionState): ConnectorConnectionState {
+  return state === "connected" && (replacedOAuthShape(connection) || refreshRefused(home, connection)) ? "reauth_required" : state;
 }

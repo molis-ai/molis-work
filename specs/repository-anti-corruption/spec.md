@@ -1304,7 +1304,9 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 ### 1.1 剩余风险登记（2026-10-23）
 
-复审报告（2026-10-20～23 合入 PR 的复审；报告文件不入库，由合并 Agent 会话持有）§2.8 与 §8 第 6 条要求：#1018 的 Todo 宿主私路至少在这里登记剩余风险。本节是登记，不是清理完成。
+复审报告（2026-10-20～23 合入 PR 的复审；报告文件不入库，由合并 Agent 会话持有）§2.8 与 §8 第 6 条要求：#1018 的 Todo 宿主私路至少在这里登记剩余风险。本节记录当时的剩余风险；`plugin-page-todo.ts` 已由 #1169（`1ae1e41ae`）删除，BACKLOG 的 BL-568 行已由 T-021（#1344，`1b7e78316`）关闭，其余按下文归属与跟踪继续。
+
+- **已清理（2026-10-30 核）**：main 上没有 `apps/local-host/src/plugin-page-todo.ts`（删除于 `1ae1e41ae`，#1169，R11/RAC-135～137），没有 Todo 的 POST 放行名单；BACKLOG 的 BL-568 已由 T-021（#1344，`1b7e78316`）删掉。
 
 - **来源**：#1018（`f562ed466`，隔离插件页面并修复系统评审中的生命周期与权限问题）；报告 §2.8「隔离页新增 Todo 宿主私路」一行。
 - **现在的代码**
@@ -1568,6 +1570,9 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 ### 4.1 库与就地补表
 
+**2026-10-30决定：旧迁移路线作废，改为干净重建。** 统筹6517794305与6518340875转达用户决定：现行库/存储JSON合为第1版，删旧脚本、演练、旧结构与按版本分支；不迁移、不猜偏好、不在启动时改表。旧Home等用户说开始才整体搬开，不删Keychain或只读副本；分片见[slices/home-maintenance-window.md](slices/home-maintenance-window.md)。本节下方历史维护事项不再执行；版本变更登记只说明代码起点，不是旧数据转换授权。
+
+
 系统评审修复的项目库 v8 → v9（2026-10-22，`feature/system-review-fixes`，待提交、待维护）：新增 `schedule_action_bindings`，记录闹钟所绑定安装、世代与动作版本。运行时只接受 v9，不补旧表、不推测旧闹钟身份。维护只在备份副本先演练：严格检查 v8、加入现行表、暂停未绑定闹钟、保留原任务与执行历史，明确重新授权后才恢复；拒绝错误版本并保证失败回滚。真实 Home 尚未维护，切换前须按发布维护窗口另行授权。验收与证据归 `specs/archive/system-review-fixes/spec.md` 的 SYS-15-S6。
 
 一个隔离 Home（QA Home，跑过一轮场景）里 Molis 自己的库共 30 个：
@@ -1736,31 +1741,42 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
   - **用户决定**（2026-10-11 弹窗，§1 三行）：不写真库，#382–#385 都合完后重装一次，再对会被改的五处做只读复查；停住的 Coding 轮次不提前处理。
   - **重装与复查**（2026-10-11）：`origin/main` `9f9bda551` 的干净工作树里整体构建（经整机构建锁），`node dist/cli/main.js install --source .` 输出「同版本内容已刷新（0.2.0）」，常驻服务未启用（`service status`：absent），新装的 MCP 经 stdio 列出 18 个项目。然后只读拷出五处到会话临时目录（700 权限）：`config/mcp-tools.json` 直接拷贝；`workflows/workflows.db`、`characters/characters.sqlite`、`assistant/assistant.db` 用 `?mode=ro` 打开 `VACUUM INTO`；18 个项目库是 WAL 模式、没有 `-wal` 文件、没有进程打开，只读打开建不了 `-shm`，改用 `immutable=1` 打开 `VACUUM INTO`。在拷贝上跑 `list`：各类都是 0（拷贝里只有这五处，`NOT READ` 也是 0），退出码 0；拷贝随即删除。真实 Home 一个字都没改（`workflows.db-shm` 的修改时间因只读连接更新，它是共享内存索引，不是数据）。
   - **收尾**：工具 `tests/fixtures/provider-identity-maintenance.mjs` 与演练用例 `tests/provider-identity-maintenance.test.ts` 删除，从 Git 历史 `9f9bda551` 取；检查清单第 4.3 节维护七一项勾上并写明结果，CHANGELOG 的 W3-06 C 一行注明已核对。会话里已经开着的 MCP 进程跑的是旧代码（用户要重开 Claude Code、Codex、Grok 会话）；克隆 `2026-10-10-before-maint7` 留着，删不删由用户定。
-- 真实 Home 维护八（候选，未做；动真实 Home 之前弹窗问用户）：做下面「库版本维护清单」里还没做的行，与装下一个版本同一步做，不提前：已装的构建只认旧版本，提前改了它就拒绝打开。
-  - **#661 旧 HTTP MCP 凭据配置**（候选，未做）：此前通过 `replace-secret` 保存的 Prologue `molis-mcp` 配置可能只有 `credential_ref`，新版本连接时会拒绝该引用并提示重新填写。与 `connectors/connectors.db` 1→2 同一次维护：先在停宿主后的完整备份副本中，经 Agent Runtime 的公开存储入口列出受影响配置的 owner、id、地址与数量，不输出秘密；能通过凭据 owner 恢复的，演练迁成固定地址的 Host 连接，并将配置改存 `auth_connection_id`；不能恢复的，保留配置并明确请用户升级后重新填写或选择已有连接。真实 Home 当前未核对，不预报数量，也不宣称已迁移。演练须核对配置归属、地址和现行版本、重启后认证、原调用授权及秘密不进入日志；失败恢复同一时点的完整副本。维护及安装新构建仍需当次授权，产品读取不增加旧值兜底。
-  - **Shelf 目录 `shelf/catalog.json` 1 → 2**（Shelf S3，① 裁定 D3；候选，未做）：版本 2 的条目不再带 `origin_realpath`，原件由平台的 `materials.claimOriginal` 按条目编号登记；新构建只认版本 2，打开版本 1 的目录会拒绝。维护是停宿主后跑 `node tests/fixtures/shelf-catalog-maintenance.mjs rewrite --home <Home> --maintenance-window`（先在完整备份副本上 `list`，只报版本、条目数和带路径的条目数，不报路径）：去掉每个条目的 `origin_realpath`，版本写成 2，一次改名落盘，再跑一遍什么也不改。路径不搬进平台的登记，所以维护前放进来的副本不再有「原件已变」的提示。只在临时 Home 演练过（`tests/shelf-catalog-maintenance.test.ts`）；这台机器没有真实 Home。目录是 JSON 文件，不在检查清单第 3 节的库版本表里，所以没有进下面那张门禁读的表。
+- 原真实Home维护八（2026-10-30已被干净重建取代）：旧库逐段升级、凭据转换和残留清理全部取消，不再按旧清单处理旧Home。当前结构统一起点1，真实Home整体搬开与新建仍须统筹另获用户“开始”；当前执行步骤只见CHECKLIST第4节。
+  - **#661旧HTTP MCP凭据配置（已被干净重建取代）**：旧凭据配置不迁移或改写；旧Home整体搬开后由用户在新Home重新建立连接和授权。旧数据未核对，不宣称已转换；现行owner的凭据、安装与授权拒绝仍保留。
+  - **原Shelf目录1→2维护（已被干净重建取代）**：现行完整目录结构起点1，原件仍由平台materials.claimOriginal登记。旧转换脚本与演练已删除，不再执行旧目录改写；旧Home整体搬开，新Home不继承旧条目或路径授权，真实重建未开始。
   - **10-17 只读核对**（真实 Home 各库的只读拷贝，读完即删；只读 `user_version` 与 `catalog_meta`、`session_meta` 的版本，不读内容、不碰密钥；真实 Home 跑的是 10-11 构建的安装版 0.2.0）：19 个项目库都是 7，目录库 22、会话库 7，Functions 3，助理、记忆、Form 2，`homeStores()` 登记的其余各库 1，都与基线相符；不符的只有 Pages（真实 1，代码 2）。`plugin-runtime/plugin-runtime.db`、`issues/issues.db`（都是 2）真实 Home 里还没有，新版本第一次打开时按基线新建，不用维护。没有核对的：搜索索引 `search/search.db`（可重建的派生库，版本记在 `search_meta`，不符就重建、不拒绝）和两个 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`）。
 
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | [同一片规格](slices/aca-005-search-authority.md)；逐条授权增加管理 owner 生成的 generation，原 client、scope、精确引用、权限、enabled 全部保留。临时副本已演练一次性 list/apply、外置原件、幂等、重复拒绝、真实写入失败零改和原件恢复；脚本仅在会话临时目录，不进运行时读路径。真实 Home 未操作，随 W5-17/统一发布维护窗口停全部 owner、完整备份并在副本核对后，另按真实 Home 的当次授权执行；v3 运行时严格拒绝 v2，不自动迁移、不改产品发布版本。 |
-| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | [本片规格](slices/w5-16-home-snapshot.md) B1；真实 Home 未执行，随 W5-17、Goals S9 的既定维护窗口另行授权。停宿主并在完整副本先 `list`，显式 `apply --backup <Home外新目录>` 按原邀请 SHA-256 重建 v2 库，清除邀请回执原文，保留其余业务事实、自增序号与旧链接效力；不自动迁移。`tests/im-invite-maintenance.test.ts` 已在一次性 Home 演练：含最新 WAL 的全表比对、发布库与 backup API 副本无原文字节、重复零改、失败回滚和中断后拒绝打开及原件恢复。 |
-| `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | [记忆策略 spec](../prologue-memory-strategy/spec.md) §9.4 / §13；真实 Home 未执行。停止全部 owner 并备份，在隔离副本按旧代码物化个人、项目默认及已有项目的有效开关，保留消费者/插件限制，同一事务写采用记录和版本 3，不改 SDK 正文。已演练事务失败回退、重试、两次新进程重启及旧 Home/Web/MCP 入口拒绝。真实库采用与安装新构建须另获对应授权，不能由普通启动就地升级 |
-| `memory/memory.db` | 3 → 4 | [Memory SDK 采用 PR #1064](https://github.com/molis-ai/molis-work/pull/1064)，`6bbacc107` | [记忆策略 spec](../prologue-memory-strategy/spec.md) §8.3 / §13；真实 Home 未执行。停止 owner 并备份，在隔离副本经公开 `adoptMemoryHome` 转换并逐页核验 SDK 当前格式，再事务提交 ledger4；保留原偏好、历史和引用。SDK 已转但 ledger 提交失败时，原维护操作重读并补齐，不启动旧 App 或回写旧格式。已演练非空旧 App 采用、故障重试、新包重启及旧 Home/Web/MCP/延迟绑定入口拒绝；直接旧 SDK 绕过不受支持。真实库切换仍须另获授权，不由普通启动升级 |
-| `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
-| `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
-| `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 维护八，未做：一个事务里按 `PAGES_STORE_BASELINE` 建 `page_comments`，写 `PRAGMA user_version = 2`，不动已有的表和行；先在副本上演练（检查清单第 4.3 节）。那个提交在检查清单第 3 节写了「真实 Home 尚未执行这一项维护」，但没有进这张表、也没有待办行，10-17 只读核对时才发现（BL-157） |
-| `projects/<project_id>/molis-work.db` | 7 → 8 | L1b（`feat/project-library-l1b`，叠在 #857 上；与 S8 同一批） | 维护八，未做：每个项目库一个事务跑 `tests/fixtures/project-maintenance-v8.sql`，建 `project_root` 并抄 Board 的那一行，重建 `boards`（去掉 `title`，外键指 `project_root`，行与 rowid 不变，S8）和外键指向 `boards` 的 11 张表改指 `project_root`（行、rowid 与自增序号不变），建插件库账本写 Coding、Feed、Goals、Schedule 四行（Goals 一行与 `boards` 的改建是 S8 加进同一份脚本的两步），写 `user_version = 8`；前置或后置核对任一不对整库回滚。演练 `tests/project-maintenance-v8.test.ts`（一次性 Home）；做法见检查清单第 4.3 节维护八。2026-10-20 本机没有真实 Home |
-| `projects/<project_id>/molis-work.db` | 8 → 9 | `feature/system-review-fixes`（SYS-15 公共调度安装绑定，待提交） | 未维护真实 Home：备份副本严格核对 v8，事务中新增 `schedule_action_bindings`、暂停未绑定闹钟、保留业务数据与历史，写 v9；错误版本和失败整笔回滚。SYS-15-S6 临时库演练已通过（`tests/project-maintenance-v9.test.ts`，脚本 `tests/fixtures/project-maintenance-v9.sql`），切换真实 Home 前另定维护窗口。 |
-| `projects/<project_id>/molis-work.db` | 9 → 10 | ac-trust T1（[PR #1250](https://github.com/molis-ai/molis-work/pull/1250)）与 S9-0b（[PR #1245](https://github.com/molis-ai/molis-work/pull/1245)，[slice](slices/goals-s9-0b-attention-ledger-services.md)）合成同一版（batch-36） | 未维护真实 Home，动之前弹窗问用户，时段与 W5-17 同一次：备份副本严格核对 v9（两张 Attention 表的列数也要正好是 v9 的，多一列整笔拒绝），一个事务里重建 `plugin_runtime_installs`（多 `publisher_trust` 列，按记录的 `execution` 写：`host` → `host`，`sandbox` → `unsigned`，别的取值整笔回滚），再重建 `inbox_entries` 与 `attention_events`（多 `owner_plugin_id`，旧行全部保留、rowid 不变、owner 为 null，不按 ID 或 kind 猜；按 owner 区分的两条部分唯一索引），写 v10。演练是 `tests/project-maintenance-v10.test.ts`，脚本 `tests/fixtures/project-maintenance-v10.sql`；设计 [slices/ac-trust-install.md](slices/ac-trust-install.md) §6。 |
-| `projects/<project_id>/molis-work.db` | 10 → 11 | FI-5（`claude/ac-feed-inbox-designs`；Feed 的表归 Feed 声明，[slice](slices/feed-inbox-store-into-feed.md)；版本号暂定，别的分支先合入则顺延） | 未维护真实 Home，动之前弹窗问用户，时段与 W5-17 同一次：备份副本严格核对 v10（11 张表和 11 条索引都在、Feed 的账本行正好是版本 1 的那一行，任一不对整笔拒绝），一个事务里把 `plugin_project_databases` 的 Feed 行改成版本 2 与 12 张表的 `tables_json`、`user_version` 写 11；表和行一行不动，没有数据搬迁。演练是 `tests/project-maintenance-v11.test.ts`，脚本 `tests/fixtures/project-maintenance-v11.sql`。 |
-| `projects/<project_id>/molis-work.db#feed` | 1 → 2 | FI-5（同上一行，同一次维护） | 未维护真实 Home，随上一行同一个事务：Feed 的声明从只有 `feed_out_rules` 与它的索引，变为 12 张表（加 Feed 条目、Sources、Signals、Listener Host 的 11 张）与它们的索引；账本行改成版本 2 和新的 `tables_json`，表与行不动。演练同上一行（`tests/project-maintenance-v11.test.ts`）。 |
-| `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 同上一行，同一次：事务中重建 `plugin_runtime_installs` 并建同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`，写 v3。演练是 `tests/plugin-runtime-maintenance-v3.test.ts`（用本构建的 Home 退回 v2 再维护、再打开），脚本 `tests/fixtures/plugin-runtime-maintenance-v3.sql`。 |
-| `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/characters-maintenance-v2.sql`（只核对 `user_version` 正好是 1，不比表结构；只加 `character_runs` 表与索引，草稿不动），演练是 `tests/characters-maintenance-v2.test.ts`；以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。与装新构建同一步做，动真实 Home 之前弹窗问用户 |
-| `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](slices/platform-scenes-judgments-services.md)） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/functions-maintenance-v4.sql`（只核对 `user_version` 正好是 3；给 `function_judgments` 加 `install_id` 列，写 4；已有的判断都留着，`install_id` 为空，即宿主自己记的），演练是 `tests/functions-maintenance-v4.test.ts`。Feed、Inbox 现在经宿主私路记的判断都是空；它们迁到 Runtime（FI-6）后读 `latest()` 只看自己安装记的，要不要把旧行按场景号补成插件的安装号（`plugin-install-` 加 `plugin_id` 与发布者签名算出的号，逐项目一致）由 FI-6 那一步定，不补则旧判断不再被采用、重新判断一次。与装下一个版本同一步做，动真实 Home 之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。 |
-| `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 归维护八，与装下一个版本同一步做；未维护真实 Home，动之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。停宿主并整份备份，在副本上一个事务跑 `tests/fixtures/assistant-maintenance-v3.sql`：只核对 `user_version` 正好是 2；工作正文里 `executor.kind` 为 `coding` 的改成 `plugin` 并补 `plugin_id` 为 `io.molis.work.coding`，轮次正文里 `executor` 为 `coding` 的改成 `plugin`，已发送请求的结果（`assistant_requests.result`，同一个请求标识再发会原样取回）里的 `work.executor` 同工作正文那样改，写版本 3；表、工作与会话的关联（种类仍是 `coding_session`）和其余字段不动。失败整笔回滚。临时库演练是 `tests/assistant-maintenance-v3.test.ts`（RAC-447、RAC-448） |
+| `projects/catalog.db` | 22 → 1 | W5-17（`feature/maintenance-w517-a`；统筹 #1332 6517794305） | 原迁移已取消，真实重建未开始。当前结构无projects.database_path，路径由可信Home与project_id推导；删除catalog维护脚本、旧结构夹具与演练。新建/错版拒绝及S-102在 `tests/catalog-path-derivation.test.ts`、`tests/security-invariants-project-storage.test.ts`。旧Home整体搬开后新建当前结构1，等全部代码合入/构建就绪后用户另说“开始”；不碰#1101分支。 |
+| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `memory/memory.db` | 3 → 4 | [Memory SDK 采用 PR #1064](https://github.com/molis-ai/molis-work/pull/1064)，`6bbacc107` | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](slices/platform-scenes-judgments-services.md)） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `projects/<project_id>/molis-work.db` | 11 → 1 | 干净Home第一片 | 不迁移旧库；保留现行完整DDL，只在干净Home创建1。旧Home搬开由统筹另获“开始”；错版仍拒绝，项目旧维护链已删。 |
+| `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同第一片 | Feed现行12表和索引不改，声明起点1；旧账本不升级。 |
+| `plugin-runtime/plugin-runtime.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `characters/characters.sqlite` | 2 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `functions/functions.db` | 4 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `assistant/assistant.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `issues/issues.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行完整DDL、owner与权限保留；旧Home整体搬开后新建，不升级旧数据。新建/重开/错版拒绝见 `slices/clean-home-plugin-stores.md`；真实重建等全部代码就绪后用户“开始”。 |
+| `form/form.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行问卷/回答/发布恢复结构和实体版本保留；旧Home整体搬开后新建，不转换旧数据；库起点1，不改动作版本。真实重建未开始。 |
+| `pages/pages.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 当前文稿/评论/发布恢复完整DDL保留；旧Home整体搬开后新建，不升级旧库；新建/重开及拒绝见本片，真实重建未开始。 |
+| `search/search.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行索引结构保留，元数据起点1；仍按既有派生缓存合同在缺失/损坏/版本不符时重建，从事实owner获得相同结果，不迁移业务库。真实Home未操作。 |
+| `memory/memory.db` | 4 → 1 | 干净Home第五片（统筹6517794305） | 原storage/Host/SDK显式采用路线已取消，工具/演练删除；现行DDL不变，新Home完整reviewed偏好，旧账本错版和不完整设置仍拒绝。SDK内部shape不改；真实重建等全部代码就绪后用户“开始”。 |
+| `server/server.sqlite` | 2 → 1 | 干净Home第六片（统筹6517794305） | 现行IM/身份/传输完整DDL归1，错版与错结构在可写打开前拒绝；旧邀请转换工具/演练删除，旧Home整体搬开后新建，真实未开始。 |
+| `feed/secrets.json` | 2 → 1 | 干净Home第六片（统筹6517794305 / 6518340875） | 只改外层文件格式号；AES-GCM、AAD、Home绑定及缺原key拒绝保持，不改Keychain或SDK内部形状；旧Home整体搬开，真实未开始。 |
+| `config/mcp-tools.json` | 3 → 1 | 干净Home第六片（统筹6517794305） | 现行逐客户端/动作精确授权字段归外层1，权限与撤销保持；旧Home整体搬开后用户重授权，不转换旧授权。 |
+| `shelf/catalog.json` | 2 → 1 | 干净Home第六片（统筹6517794305） | 当前item/job/clipboard字段不变，外层1；旧转换工具删除，坏格式不补造；旧Home整体搬开后新建。 |
+| `connectors/connectors.db` | 2 → 1 | 干净 Home 连接库片（统筹 #1332 6520836999） | [本片规格](slices/clean-home-connectors.md)；保留现行完整DDL（含授权结果表），旧库不迁移，用户批准开始后整份Home搬开重建；当前只有代码候选和临时Home验证，真实Home未操作。 |
 
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 
@@ -1833,7 +1849,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `packages/test-kit` | 基础 | 11 | 1,242 | `boundaries.ts` 610 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
 | `packages/ui-host` | 基础 | 8 | 808 | `request-client.ts` 298 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `plugins/native/alchemist` | 内置插件 | 106 | 10,872 | `studio/server/db/pulse-repository.ts` 563 | 2 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/artifacts` | 内置插件 | 14 | 820 | `browser-ui.ts` 239 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/coding` | 内置插件 | 206 | 23,321 | `styles.ts` 749 | 3 | 2 | 2 | Runtime | 深 | 已审 |
 | `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
@@ -3432,46 +3447,46 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | R-10 | 已确认 spec 状态、索引/分类/引用门禁存在；本次纠正正文假完成，门禁不能代替内容真实性裁决。W6-06 |
 | R-11 | 已确认六个空合同 subpath 已删且零容忍门禁存在；现存 package/kernel/testing 描述符按已有决定保留，不新增删除范围 |
 | R-12 | 部分：I6 `as unknown as` 193，AST/lint 只降门禁已生效。全量清零不是用户已定目标；必要重构归 W2-10/11、W5-08 |
-| R-13 | 未解决主检出工作状态：本次看到 main `9da180833` 与未提交他人成果，不 reset/clean；当前隔离复查与受测树不依赖它。主检出整理遵循独立归属与授权 |
+| R-13 | 关：2026-10-30 统筹报主检出在 main、工作树干净；本行未留该次核对的机器、时点与未跟踪项记录，属报告来源、未独立复核 |
 | R-14 | 数量已显著缩小：I6 门禁 318 个入库 `.impeccable` 文件且只降，历史 1,085 不能当现状；保留文件仍按引用规则审查，W1-23/W6-06 |
 | 皮肤 | 已完成：W5-05 按 `quiet-paper`、`personal-shell`、`personal-workbench-v2`、`-v3`、`calm-desktop` 的顺序一片删一层，五层都已删（第 1～5 片，见 §W4-12 下的记录） |
-| Goals UI | 部分：W5-06 第 1 片（2026-10-23）删了 11 个挂载转接文件，通用挂载器（UiHost `mountDeclared`、`createSurfaceRenderers`）接上，外壳 renderer 改名 `shell-page-renderer.ts`；剩 `goals-document-routes.ts`、`goals-fragment-renderer.ts`、`goals-planning-request.ts` 三个读路由与片段组合（不是挂载转接），按 Manifest `views` 挂载的通道是第 2 片；不能把外壳错移进业务插件 |
-| Server | 按用户决定保留 IM/讨论；表归属与 Home 登记已有修复。实验的独立启动器不包装成生产入口，不删产品讨论 |
+| Goals UI | W5-06 对 Goals UI 的部分已做完；PG-060 余下 T-133 第 2、3 片与 BL-636 |
+| Server | 关：已定保留 IM/讨论，无后续动作；不删产品讨论 |
 | N-01 | 已确认遗留第二铃铛/占位已清，真实事件恢复用例消费现行唯一注意力入口；后续新 UI 以现行产品决定为准 |
 | N-02 | 已确认仅一份当前 Prologue tgz，旁置来源/摘要与历史补丁记录有门禁；不等于 N-14 上游接入完成 |
 | N-03 | 按用户决定收为平台产品服务，代码不搬；相关层规则与说明保留，W4-08 不再按旧提议迁往 modules |
 | N-04 | 部分：基本合同 C1–C8 与 G 缺口已有逐条去向；交叉声明检查/调用 id 已推进，真实生产者的新合同全生命周期仍 W4-01/02、W6-02 |
-| N-05 | 未完成代码身份收口：Characters 的 UI 在设置，Runtime/安装身份仍待按决定并入宿主。W5-01 |
+| N-05 | 第一片经 #956 完成（CHR-0）；Runtime/安装身份那一半经 #1008（CHR-1，2026-10-22，Host 自己装配、插件已删）完成；旧安装记录见 `docs/releases/CHECKLIST.md` §4.3（原「删掉 Characters 留下的安装记录（待做）」维护项已随干净重建取消） |
 | N-06 | 旧「CI 不跑产品」已失效：产品子集及 Linux 报告作业存在，Verify 的现行依赖仍按 §1 已定阶段，不擅自把非必需报告改为门槛。W2-16/W6-05 |
 | N-07 | 本机工作树仍多且有活跃归属，不按数量自动删除；原 W1-23 与各线完成后清理 |
 | N-08 | 已有按单元 AST、merge-base 只降门禁，183→157；剩余拆分未完。W4-05–07、W5-07/09/10 |
-| N-09 | 已确认协作文档、AGENTS 入口、冻结与锁规则存在；本轮实际沿用，不能代替每条在途线遵守情况的持续核对 |
+| N-09 | 已确认协作文档、AGENTS 入口、冻结与锁规则存在；本轮实际沿用，不能代替每条在途线遵守情况的持续核对；归属：统筹，每批合并时对照 `MERGE-QUEUE.md` |
 | N-10 | 部分：同口径 1,054→I6 855，内部引用/混源门禁有约束；W2-10/11 继续。用户已拒绝固定 600 目标，按「不定数字、只降不升」验收 |
 | N-11 | 部分：SDK 迁入后合同纯度剩 6、Host `export *` 11、Module Repository/Store 导出 21；W3-03、W5-08/09 |
 | N-12 | 已定对外只走动作，尚未完成：typed 引用点 244；管理 MCP、CLI、Agent/函数等分片按 §10 推进。W3-07、W6-01 |
-| N-13 | 已确认 Biome/原生静态检查、API/页面预算入 CI；存量告警未清零，Jelly Whisper 构建边界见 BL-122，不能泛称全仓无静态问题 |
+| N-13 | 现有告警只在 biome 门禁下减少；BL-122 归派单线；不能泛称全仓无静态问题 |
 | N-14 | 部分：收敛方案经用户确认，I6 仍用旧命名的当前 tgz；上游结果与本仓采用是两件事，#408 等在途接入不得记已完成。W1-20/W6-03/05 |
 | N-15 | 历史迁移/旧别名已大批删除、就地补表为 0、剩余 9 标记逐项解释；仍须核全库登记、旧服务入口与最终真实 Home，新发现历史读取分支不能用登记保留机制放行。W4-11/W6-01/05 |
 | N-16 | 已交付（2026-10-16）：隔离并发由 #497 做完；同口径测量见文首「W5-12 测量」：全量 1,017 个文件 58.2 分钟（之前串行 76–78 分钟、762 个文件），冷构建 81.9 秒、增量 10–29 秒；全量里唯一每次都红的收尾竞态（HOST-CLOSE-01）同片修掉 |
 | N-17 | 已确认 API 签名快照与动作声明快照入 CI；I6 API 60 份/2,284 声明，刷新无新增写入。实际生产输出仍须 W2-18-AC |
 | N-18 | 术语文档已存在，内部改名/界面批准边界仍 W5-14；不把旧词字符串总数当语义重复的证明 |
-| N-19 | 纠正：发布策略/版本检查已存在，内置跟随当前构建已在 Runtime 实现（#337）；原「尚未实现」、根目录 outputs/.zcode 等为历史现场。下一产品版本及最终发布未完成，W5-15；未因此授权发布 |
+| N-19 | 归用户：发版与版本号由用户定，不计入防腐完成标准；未因此授权发布 |
 | N-20 | 已确认 Rust/Swift/shell/Python 检查入 CI，有登记/覆盖边界；原「无检查」已失效。新原生文件需随实际 PR 通过对应检查，Jelly Whisper 仍 BL-122 |
-| C 组 | 方案交付，不做本步未授权的 C 端产品：现行 `c-end-readiness.md` 的里程碑/成本/依赖与尚待决定项保留；不能称自动更新、公证、多平台、观测、安装信任已经实现 |
+| C 组 | 关：方案交付已完成，不做 C 端产品，归用户；不能称自动更新、公证、多平台、观测、安装信任已经实现 |
 | 第一步交接与 PMR/AR/S 列表 | §3.4 与 §9.1 逐项历史证据保留；已删功能按用户决定退役。最终 main 的场景 1–8、能力/UI 差异和真实 Home 仍 W6-05，旧全量/截图不可直接外推到 I6；未看到新证据的行维持未验证 |
 
 ### 12.3 必须收口的遗漏与验收
 
-这些均来自原始要求，不是新增建议性重构。防腐接续会话负责整线接续，各独立片的负责人见 §12.6；各包主人负责被分派的事实/实现，协调会话维护唯一结论。P1 表示整线验收的必要缺口，不能据此推断每个包都有 P1 产品缺陷。确认的运行时缺陷须另写触发、根因和最小修复，不拿「补审查」替代修 bug。
+这些均来自原始要求，不是新增建议性重构。统筹负责整线接续，各独立片的负责人见 §12.6；各包主人负责被分派的事实/实现，协调会话维护唯一结论。P1 表示整线验收的必要缺口，不能据此推断每个包都有 P1 产品缺陷。确认的运行时缺陷须另写触发、根因和最小修复，不拿「补审查」替代修 bug。
 
 | 既有路线/验收编号 | 严重性、根因与影响 | 必须动作与验收方式 |
 | --- | --- | --- |
 | W3-09 / W2-19（S-08/S-18） | P1 授权竞态，源码已确认、复现待跑：共同 `beforeEffect` 在精确授权之后还 await 权限与 Host 可用性检查；最后只用初始 `allowed_actions`，期间撤销精确动作可能仍写。MCP 权限并集不能识别保留同权限 B、撤销 A 的差别 | 唯一 writer 优先以真实 MCP 授权文件、Form SQLite 与可控后续可用性检查复现；`form.questions.ai`（#532 起是 `form.questions.draft@1`）最后检查后写题目的路径可触发。修共同入口，断言 A 被拒、业务记录不变、B 不能替 A 授权、重新授权恢复；不要每插件补兜底。涉及 kernel/MCP，按共享核心整合验证，I6 结束前只准备源码。依据：`packages/kernel/src/action-service.ts` 119–124/446、`apps/local-host/src/mcp-action-client.ts` 16–26、`local-host.ts` 99–106、Form `actions.ts` 109–110；现 `tests/action-before-effect.test.ts` 只覆盖模型等待时撤权和授权等待时换提供方，未覆盖此窗口。 |
-| W1-18 | P1 完成声明失真：把事实表 PR 当作三阶段逐包审查，71 行全待审仍写第 1 波全完；owner/放置错误可能遗漏 | 按 §5.1 已登记的深 11、中 43、浅 17 逐包写职责、依赖方向、变化原因、代码放置、重叠和必要动作；每行有源码依据与裁决。未完成项不得改成已审。按风险读码，不靠文件数/门禁替代 |
-| W2-18-FR | P1 验收范围遗漏：首轮亮色无模型页面和部分浏览器测试被当成前端整体；暗色/英文/辅助技术/异常恢复未全覆盖 | 在已有 frontend-flow-walk 中接续同一表，复用有效截图；核关键路径的键盘/读屏、三种宽度、暗色/英文、离线/失败/无权限/部分成功、多窗口与真实模型。状态、操作、反馈及输入保持需实际操作；受限项写明，不伪装通过。接 W4-12/W6-05 |
-| W2-18-LC | P1 生命周期证据缺口：首轮差集名单过期，§11 的 15 组修复不覆盖所有插件/官方接入 | 按现行成员重对安装/启用/发现/调用/停用/撤权/卸载/升级/重启；按有意义的路径制造真实交错，验返回、持久化、副作用、重试和下次可观察状态；组合场景按原 11 条更新。已删 Experiments 明确退役，Issue 纳入。批准的例外写理由，迁移后接 W6-02 |
-| W2-18-TE | P1 测试有效性缺口：把 import 耦合下降、用例数和全绿当作需求覆盖 | 沿需求与生产路径审断言/Mock/fixture、期望的独立性、只断言不抛错、内部注入、skip/排除项；实际缺陷才补定向回归，关键疑点可变异。保留原失败分类与干净基线，不为覆盖率造矩阵、不改语义求绿。结果记回原需求/用例而不造独立进度系统 |
-| W2-18-AC | P1 契约与消费证据缺口：动作快照只有声明，不能发现无人消费或 handler 输出不符 | 从实际登记目录追到用户/工作流/Agent/MCP/插件消费者，核发现过滤、身份权限、输入输出与拒绝；“无仓内消费者”先查公开用途，不能直接删公共动作。对实际合同缺陷补真实 action/HTTP/MCP 路径测试；有意改形状按合同规则升版/更新快照。接 W3-09/W4-01 |
+| W1-18 | P1 完成声明失真：把事实表 PR 当作三阶段逐包审查，71 行全待审仍写第 1 波全完；owner/放置错误可能遗漏 | 按 §5.1 已登记的深 11、中 43、浅 17 逐包写职责、依赖方向、变化原因、代码放置、重叠和必要动作；每行有源码依据与裁决。未完成项不得改成已审。按风险读码，不靠文件数/门禁替代；归属以 `docs/SSOT-MATRIX.md` 的「归属」列为准；没有评审过的行标「未审」，不写成已评审。 |
+| W2-18-FR | P1 验收范围遗漏：首轮亮色无模型页面和部分浏览器测试被当成前端整体；暗色/英文/辅助技术/异常恢复未全覆盖 | 在已有 frontend-flow-walk 中接续同一表，复用有效截图；核关键路径的键盘/读屏、三种宽度、暗色/英文、离线/失败/无权限/部分成功、多窗口与真实模型。状态、操作、反馈及输入保持需实际操作；受限项写明，不伪装通过。接 W4-12/W6-05；最终回归检查并入 W6-05，由 Codex B 跑。 |
+| W2-18-LC | P1 生命周期证据缺口：首轮差集名单过期，§11 的 15 组修复不覆盖所有插件/官方接入 | 按现行成员重对安装/启用/发现/调用/停用/撤权/卸载/升级/重启；按有意义的路径制造真实交错，验返回、持久化、副作用、重试和下次可观察状态；组合场景按原 11 条更新。已删 Experiments 明确退役，Issue 纳入。批准的例外写理由，迁移后接 W6-02；最终回归检查并入 W6-05，由 Codex B 跑。 |
+| W2-18-TE | P1 测试有效性缺口：把 import 耦合下降、用例数和全绿当作需求覆盖 | 沿需求与生产路径审断言/Mock/fixture、期望的独立性、只断言不抛错、内部注入、skip/排除项；实际缺陷才补定向回归，关键疑点可变异。保留原失败分类与干净基线，不为覆盖率造矩阵、不改语义求绿。结果记回原需求/用例而不造独立进度系统；最终回归检查并入 W6-05，由 Codex B 跑。 |
+| W2-18-AC | P1 契约与消费证据缺口：动作快照只有声明，不能发现无人消费或 handler 输出不符 | 从实际登记目录追到用户/工作流/Agent/MCP/插件消费者，核发现过滤、身份权限、输入输出与拒绝；“无仓内消费者”先查公开用途，不能直接删公共动作。对实际合同缺陷补真实 action/HTTP/MCP 路径测试；有意改形状按合同规则升版/更新快照。接 W3-09/W4-01；最终回归检查并入 W6-05，由 Codex B 跑。 |
 | W6-04/06（本次） | P1 进度文档相互矛盾：§8 暂无、W1 全完、W3-02 未开始、历史现场混入现状 | 本次改回有基线、有证据层级的结论；本节逐条对任务书验收、补同口径数据。只代表文档整改，其他行须由对应验证结案 |
 | W2-18-FR/LC（Dataset） | P1 错目标覆盖，已由真实 Chrome/HTTP/SQLite 复现并在本地提交 `f29e7074e` 修复：旧代码在文件读取后才读可变 selected.id/version，将 A 所选 CSV 写到 B；迟到响应还会重开旧编辑器。现持有已有 busy、绑定 save 返回的目标/版本，并以 editorSeq 拒绝失效读取与回包 | W2-18-DATASET-01：两张非空表、真实文件读取屏障、指针尝试切 B，核 A 请求目标/已确认版本及 B 内容/版本不变。W2-18-DATASET-02：响应/移走时不重开旧对象，读取失败保留输入并可重选同文件，其他客户端修改导致 409 且不覆盖。六条新回归旧实现 2 通过/4 失败，修后新旧浏览器 21/21、相关 365/365；统筹已读实际 diff 与原始日志。局部验收通过，未整合；资源快照下调和最终整合检查仍待完成，详见 §12.5。 |
 | W2-18-LC/TE（Issue ISSUE-15/37） | P2 重复业务写已复现并在本地 `1d67c6408` 修复：旧 submit/Cmd-Enter 无提交锁，keep 每次新 UUID 绕过同 draft 幂等；丢回执后身份未持久，重试再新建。现一次在途保存，派发前保存原身份和输入；重试先读取同 id 的真实记录 | W2-18-ISSUE-01：真实 Chrome 阻塞 capture 回包、重复按钮/快捷键/submit，只建一条真实 SQL 记录。W2-18-ISSUE-02：已提交但丢回执的重试/刷新，以及未到 Host 的显式重试，核同一持久身份、原文、图片与无重复。四条旧实现全部失败，修后4/4、相关51/51；统筹已核实际 diff 与原始日志，局部验收通过。资源快照下调与最终整合待做，详见§12.5。 |

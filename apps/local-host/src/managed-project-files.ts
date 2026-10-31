@@ -38,7 +38,6 @@ async provisionCreatedProject<T>(
     const record = this.projects.lifecycle.prepareRecord({
       project_id: input.projectId,
       display_name: input.displayName,
-      projects_directory: this.projectsDirectory,
       data_class: "user",
     });
     const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}-${randomUUID()}`);

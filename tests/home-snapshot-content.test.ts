@@ -25,7 +25,7 @@ async function allFiles(directory: string): Promise<string[]> {
 test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, WAL facts, versions, sealed state and original-key readback", { timeout: 90_000 }, async t => {
   const f = await populatedSnapshotHome(t), ownerFile = join(f.sdkRoot, ".molis-runtime-owner.db");
   const identities = { directory: (await lstat(f.sdkRoot)).ino, lock: (await lstat(ownerFile)).ino };
-  const writer = await snapshotWalWriter(t, join(f.home, "sessions", "sessions.db"));
+  const writer = await snapshotWalWriter(t, join(f.home, "memory", "memory.db"));
   try {
     const result = await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
     assert.equal(result.status, "created");
@@ -51,17 +51,17 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
       finally { storage.close(); }
     }
     for (const [path, expected] of f.binary) assert.deepEqual(await readFile(join(f.snapshot, "data", path)), expected, path);
-    const retired = manifest.stores.find(store => store.path === "sessions")!;
-    const retiredFile = retired.entries.find(entry => entry.kind === "file" && entry.sqlite);
-    assert.ok(retiredFile?.kind === "file" && retiredFile.sqlite);
-    assert.deepEqual(retiredFile.sqlite.owner_versions, { owner: "molis-work-session-registry-v1", schema_version: 7 });
-    const retained = new DatabaseSync(join(f.snapshot, retiredFile.payload_path), { readOnly: true });
+    const memoryStore = manifest.stores.find(store => store.path === "memory")!;
+    const memoryFile = memoryStore.entries.find(entry => entry.kind === "file" && entry.sqlite);
+    assert.ok(memoryFile?.kind === "file" && memoryFile.sqlite);
+    assert.equal(memoryFile.sqlite.user_version, homeStores().get("memory")!.library!.baseline.version);
+    const captured = new DatabaseSync(join(f.snapshot, memoryFile.payload_path), { readOnly: true });
     try {
-      assert.deepEqual(retained.prepare("SELECT session_id,title FROM sessions ORDER BY session_id").all().map(row => ({ ...row })), [
-        { session_id: "retired-before", title: "Retained retired Session" }, { session_id: "wal-committed", title: "LATEST_COMMITTED_FROM_WAL" },
-      ]);
-    } finally { retained.close(); }
-    assert.ok(retired.dependencies.some(key => key.location === "home:sessions/content/content.key"));
+      assert.deepEqual(captured.prepare("SELECT actor_id,body FROM memory_markers WHERE key='snapshot-proof' ORDER BY actor_id").all().map(row => ({ ...row })), [
+        { actor_id: "wal-committed", body: JSON.stringify({ text: "LATEST_COMMITTED_FROM_WAL" }) },
+      ], "RAC-2379 committed WAL is captured and the uncommitted row is absent");
+    } finally { captured.close(); }
+    assert.equal(manifest.stores.some(store => store.path === "sessions"), false);
     const projectFile = manifest.stores.find(store => store.path === "projects")!.entries.find(entry => entry.kind === "file" && entry.path === "projects/" + f.projects[0]!.project_id + "/molis-work.db");
     assert.ok(projectFile?.kind === "file" && projectFile.sqlite);
     assert.equal(typeof projectFile.sqlite.owner_versions["plugin:io.molis.work.goals"], "number");

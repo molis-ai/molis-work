@@ -3,6 +3,7 @@ import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-
 import type { PluginConnectionServiceDeclaration, PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { isDeclaredOAuth } from "@molis-ai/molis-work-plugin-sdk/oauth";
 import { oauthMethodOption } from "./connector-oauth-declarations.js";
+import { OAUTH_CALLBACK, defaultOAuthCallbackPath } from "./connector-oauth-callback-paths.js";
 import { MCP_SERVERS } from "./connector-mcp.js";
 import { CONNECTOR_CLIS, cliAvailability } from "./connector-cli.js";
 import { connectorProductAuth, productApiLoginReady } from "./connector-product-auth.js";
@@ -68,7 +69,7 @@ export function connectorMethodsOf(declaration: PluginConnectionServiceDeclarati
 export function connectorMethodsFor(connectorId: string, oauth?: PluginOAuthMethodDeclaration): readonly ConnectorMethodOption[] {
   return HOST_METHODS[connectorId] ?? officialMethodsFor(connectorId).map(method => {
     if (method.kind === "oauth" && oauth) return { ...method, support: "in_app", login_ready: productApiLoginReady(connectorId, oauth), note: "在服务商官方页面登录并确认权限；每条连接独立刷新。",
-      oauth: oauthMethodOption(oauth) };
+      oauth: { ...oauthMethodOption(oauth), ...(defaultOAuthCallbackPath(connectorId) === OAUTH_CALLBACK ? {} : { callback_path: defaultOAuthCallbackPath(connectorId) }) } };
     if (method.kind === "cli" && CONNECTOR_CLIS[connectorId]) return { ...method, support: "in_app", note: "在这里运行官方 CLI 登录，再用真实只读请求验证并连接当前账号。", cli: cliAvailability(connectorId) };
     const mcp = MCP_SERVERS[connectorId];
     if (method.kind === "mcp" && mcp) return { ...method, support: "in_app",

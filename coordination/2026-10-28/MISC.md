@@ -165,11 +165,11 @@
 | T-340 二审 建议 5（#1658，6543825026；已合） | `mcp.grant_unavailable` 动态码 | 保留当前随 discovery 状态带 kind 的行为；后续需要统一声明时先给具体合同方案，不在T-340外无证据改语义。 | Codex 统筹 2026-10-31 |
 
 | T-366 一审建议（#1695，6546934234） | `tests/alchemist-terminal-refresh.e2e.test.ts:190–201` | 未接受旧queued任务的有界观察窗后，再断言同一job的accepted仍false与continue入口仍在；当前生产只重排读取、未新增accept/continue，不挡本单。并入下次改此回归文件的书 | Codex 统筹 |
-| T-319 增量二审建议（#1662，6546161968） | `apps/local-host/src/home-aggregate.ts` | 目录查询与后续项目阶段均失败时保留两阶段诊断，并补双重失败用例；当前仍有错误可见，不挡本单；#1662 已合入 `45be6f2e1`，可在查清文件锁后起草；关闭项目的静默规则保留 | Codex 统筹 |
+| T-319 增量二审建议（#1662，6546161968） | `apps/local-host/src/home-aggregate.ts` | 目录查询与后续项目阶段均失败时保留两阶段诊断，并补双重失败用例；当前仍有错误可见，不挡本单；#1662 已合入 `45be6f2e1`；已进 T-373，待领，19:41Z目标文件无锁；关闭项目的静默规则保留 | Codex 统筹 |
 | T-330 一审建议（#1693，6546162564） | `tests/integration-registry.test.ts` | document_source 冲突拒绝后补 rival service／pluginName 缺失与 start 计数 0，或收窄 records nothing 注释；现代码顺序正确；#1693已合 `dc75e22bb`，可在核锁后起草 | Codex 统筹 |
 
 | T-347 Full 与 main 夜间重复失败（T-366已合；#1665 6545882401） | `plugins/native/alchemist/src/client.ts` 及定向浏览器回归 | 缺模型终态刷新修复已随T-366 #1695 → `f640b5b0f`采用，因果变异/恢复及同头Full通过；剩T-347同步该修复后结算最终头，不第三次盲重跑，不回滚T-347安全语义；RAC-2752～2757 | Codex 开发线 2 |
 
 | T-360 二审建议（#1691，6546559960） | `tests/pages-materials-prompt-budget.test.ts` | 测试注释补 current default instruction 限定，与已修正文一致；下次修改该文件时带上，不单开单，不声称任意未来指令长度都满足预算。 | Codex 统筹 |
 
-| T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合，起草前重核在途文件锁。 | Codex 统筹 |
+| T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374，待领；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |

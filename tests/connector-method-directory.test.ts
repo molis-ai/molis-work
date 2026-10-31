@@ -171,3 +171,20 @@ test("composite credentials keep separate labeled inputs when adding and replaci
   assert.equal([...replace.matchAll(/data-credential-part/g)].length, 3);
   assert.match(html, /<strong>工作 Jira<\/strong>/);
 });
+
+// T-134: a connection made for a signed package's service says which package it was made for, the only one that may use it.
+test("RAC-2528 a connection pinned to a package shows 建于 and its name through the translator; one that is not pinned shows nothing", () => {
+  const pinned = { connection_id: "22222222-2222-4222-8222-222222222222", service_id: "example-feed", display_name: "Feed 账号", account_label: null, auth_method: "token" as const,
+    source: "managed" as const, state: "connected" as const, declared_by: { plugin_id: "io.molis.work.example.feed", title: "Example <Feed>" } };
+  const plain = { ...pinned, connection_id: "33333333-3333-4333-8333-333333333333", service_id: "github", display_name: "GitHub 账号", declared_by: undefined };
+  const render = (L: (value: string) => string) => renderConnectorsSettings({ connectors: [], connector_connections: [pinned, plain] },
+    { L, escapeHtml: v => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), icon: () => "" });
+  const row = (html: string, id: string) => html.match(new RegExp(`data-connection-row="${id}"[\\s\\S]*?</div>`))![0];
+  const zh = render(value => value);
+  assert.match(row(zh, pinned.connection_id), /<small data-connection-declared-by>建于 · Example &lt;Feed&gt;<\/small>/);
+  assert.doesNotMatch(row(zh, plain.connection_id), /data-connection-declared-by/);
+  // Its words go through the translator like the row's others; the translation gate (pnpm health:check) holds their English.
+  const asked: string[] = [];
+  render(value => { asked.push(value); return value; });
+  assert.ok(asked.includes("建于"));
+});

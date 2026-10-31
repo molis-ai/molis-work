@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { mcpErrors } from "./mcp-errors.js";
 import { isPlatformMcpTool, isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { RuntimeProjectConnection } from "./runtime-project-connection.js";
@@ -30,20 +30,18 @@ export function assertMcpToolAllowed(
   if (catalog && !catalog.entries.some(entry => entry.definition.name === name)) {
     const known = catalog.known_names.has(name) || isPlatformMcpTool(name);
     if (!known) {
-      throw new ActionError("mcp.tool_unknown", `未知 MCP 方法：${name}`);
+      throw mcpErrors.tool_unknown(`未知 MCP 方法：${name}`);
     }
     if (state.audience === "runtime" && isPlatformMcpTool(name) && !isRuntimeContextMcpTool(name)) {
-      throw new ActionError(
-        "mcp.authority_denied",
+      throw mcpErrors.authority_denied(
         `MCP 权限拒绝：${name} 只允许用户或管理入口调用；Runtime 应使用当前事件工具，或把决定交给用户`,
       );
     }
-    throw new ActionError("mcp.tool_disabled", `MCP 方法已关闭或当前连接不可用：${name}`);
+    throw mcpErrors.tool_disabled(`MCP 方法已关闭或当前连接不可用：${name}`);
   }
   if (state.audience === "management") return;
   if (!runtimeSurface(name, catalog)) {
-    throw new ActionError(
-      "mcp.authority_denied",
+    throw mcpErrors.authority_denied(
       `MCP 权限拒绝：${name} 只允许用户或管理入口调用；Runtime 应使用当前事件工具，或把决定交给用户`,
     );
   }
@@ -54,22 +52,20 @@ export function assertMcpToolAllowed(
   if (!state.connectionState.explicit) {
     const host = requireMcpRuntimeContextHost(state, callContext);
     if (state.connectionState.observe(host.runtimeContext) === "refresh_required") {
-      throw new ActionError(
-        "mcp.context_refresh_required",
+      throw mcpErrors.context_refresh_required(
         "MCP 当前调用的 Session 身份与已解析的项目连接不连续。请只读调用 molis_work_v1_context_resolve；若返回 bound，请使用原 idempotency_key 原样重试失败调用。不要调用 context_bind，也不要再次询问用户；若未返回 bound，则按 context_resolve 的 next_action 处理。",
-        { details: {
+        {
           next_action: "context_resolve_then_retry",
           requires_bind: false,
           requires_user_confirmation: false,
           retry_same_idempotency_key: true,
           retry_when_context_status: "bound",
-        } },
+        },
       );
     }
   }
   if (!state.runtimeConnection) {
-    throw new ActionError(
-      "mcp.connection_incomplete",
+    throw mcpErrors.connection_incomplete(
       "MCP 尚未连接项目：请先由统一 Molis Work Skill 调用 molis_work_v1_context_resolve，或由宿主提供固定连接",
     );
   }
@@ -80,8 +76,7 @@ export function requireMcpRuntimeContextHost(
   callContext: MolisWorkMcpToolCallContext = EMPTY_TOOL_CALL_CONTEXT,
 ): MolisWorkRuntimeContextHost {
   if (!state.runtimeContextHost) {
-    throw new ActionError(
-      "mcp.context_host_missing",
+    throw mcpErrors.context_host_missing(
       "MCP 宿主没有提供 Runtime 标识；无法解析 Session 或项目目录关联",
     );
   }

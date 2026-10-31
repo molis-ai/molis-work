@@ -86,11 +86,19 @@ const GOALS_CREATE_COMPOSE_SCRIPT = `    const composeExample = dialog?.querySel
     const syncExample = () => {
       if (composeExample) composeExample.hidden = Boolean(form?.elements.title.value.trim());
     };
+    // An HTML maxlength counts UTF-16 units and stopped a title of two-unit characters at 60 while the route counts 120 characters;
+    // the box is cut here, to whole characters, before the form reads it.
+    const capComposeTitle = () => {
+      const title = form?.elements.title;
+      if (!title || title.value.length <= 120) return;
+      const chars = [...title.value];
+      if (chars.length > 120) title.value = chars.slice(0, 120).join("");
+    };
     const prepareCompose = () => {
       if (composeOutcome) { composeOutcome.style.height = ""; window.molisFit?.(composeOutcome); }
       syncExample();
     };
-    form?.elements.title?.addEventListener("input", syncExample);
+    form?.elements.title?.addEventListener("input", () => { capComposeTitle(); syncExample(); });
 
 `
 

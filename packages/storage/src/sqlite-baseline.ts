@@ -68,7 +68,9 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline): void {
       if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
       return;
     }
-    if (!empty && !baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
+    // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
+    // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
+    if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
   } finally { inspection.close(); }
 }
 
@@ -82,8 +84,8 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
   const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
   if (found === baseline.version) {
-    const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
-    if (!inspect.shapeChecked && !empty && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
+    // The version mark claims the baseline's schema; missing baseline tables are damage even when no business table is left.
+    if (!inspect.shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
     return;
   }
   const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();

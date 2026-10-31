@@ -109,3 +109,40 @@ test("RAC-2720 a store at the current version whose structure changed is refused
   try { assert.throws(() => applySqliteBaseline(own, path, v1), refused); } finally { own.close(); }
   assert.deepEqual(readFileSync(path), before, "a direct baseline apply writes nothing either");
 });
+
+// RAC-2720 (T-346 review): a store at the current version whose baseline tables were dropped is damaged, not empty: the version mark
+// says which schema it claims, so every baseline table must be there. The read-only check refuses it before a writable connection, and
+// a direct applySqliteBaseline on a caller's own writable connection refuses it too; the file's bytes, mode and sidecars stay as they were.
+test("RAC-2720 a store at the current version missing its baseline tables is refused, and the file is untouched", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-baseline-dropped-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const cases = [
+    { store: "single", baseline: { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);" }, drop: "DROP TABLE notes;" },
+    { store: "multi", baseline: { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE tags (id TEXT PRIMARY KEY, name TEXT NOT NULL);" },
+      drop: "DROP TABLE notes; DROP TABLE tags;" },
+  ] as const;
+  const refused = (error: unknown) => error instanceof Error && !(error instanceof SqliteSchemaVersionError) && /结构/.test(error.message);
+  for (const { store, baseline, drop } of cases) {
+    const db = openBaselineHomeSqlite(home, store, baseline);
+    db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run();
+    db.close();
+    const path = homeSqlitePath(home, store), directory = dirname(path);
+    const damaged = new DatabaseSync(path);
+    damaged.exec(drop);
+    damaged.close();
+    chmodSync(path, 0o644);
+    const before = readFileSync(path), mode = statSync(path).mode & 0o777;
+    assert.throws(() => openBaselineHomeSqlite(home, store, baseline), refused, `${store}: the missing baseline tables are refused before a writable connection`);
+    assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
+    assert.equal(statSync(path).mode & 0o777, mode, "no writable connection opened (its chmod would have tightened the mode)");
+    assert.deepEqual(readdirSync(directory).sort(), [`${store}.db`], "no journal sidecar was created");
+    // The same check covers callers that apply a baseline on their own writable connection.
+    const own = new DatabaseSync(path);
+    try { assert.throws(() => applySqliteBaseline(own, path, baseline), refused); } finally { own.close(); }
+    assert.deepEqual(readFileSync(path), before, "a direct baseline apply writes nothing either");
+  }
+  // An empty, unversioned file is the creation path and still initializes: the version mark is what says a schema is expected.
+  const fresh = openBaselineHomeSqlite(home, "fresh", cases[0].baseline);
+  try { assert.deepEqual((fresh.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as Array<{ name: string }>).map(row => row.name), ["notes"]); }
+  finally { fresh.close(); }
+});

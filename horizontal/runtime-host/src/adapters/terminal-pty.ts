@@ -294,7 +294,8 @@ export function buildPtyEnvironment(overlay: Record<string, string> = {}): Recor
   const login = loginShellEnvironment();
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(login)) {
-    if (!isBlockedPtyEnvKey(key)) env[key] = value;
+    // The Host's own Molis Work variables (its key, secret backend, switches) stay in the Host: a terminal gets only those its overlay names (S-103).
+    if (!isBlockedPtyEnvKey(key) && !key.startsWith("MOLIS_WORK_")) env[key] = value;
   }
   env.HOME ||= os.homedir();
   env.USER ||= os.userInfo().username;

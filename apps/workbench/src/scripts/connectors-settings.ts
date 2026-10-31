@@ -159,7 +159,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           const service = button.dataset.accountLogin;
           const dedicated = service && !body.redirect_uri && !body.client_id && authorizationFlow !== 'oauth';
           const path = dedicated ? service + '/oauth/start' : 'methods/' + button.dataset.protocolStart + '/start';
-          const payload = await api(path, dedicated ? { setup_id: body.setup_id, connection_id: body.connection_id, display_name: body.display_name, ...(service === 'gmail' ? { redirect_uri: location.origin + '/api/feed/connectors/gmail/oauth/callback' } : {}) } : body);
+          const payload = await api(path, dedicated ? { setup_id: body.setup_id, connection_id: body.connection_id, display_name: body.display_name } : body);
           const url = payload.authorization_url || payload.authorizationUrl;
           const id = payload.connection_id || payload.connection?.connection_id;
           area.querySelectorAll('input[type=password]').forEach(input => { input.value = ''; });
@@ -184,7 +184,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       box.querySelectorAll('[data-oauth-callback], [data-mcp-callback]').forEach(node => {
         const kind = node.hasAttribute('data-mcp-callback') ? 'mcp' : 'oauth';
-        node.textContent = new URL('/api/settings/connectors/methods/' + kind + '/callback', location.origin).href;
+        node.textContent = new URL(node.dataset.callbackPath || '/api/settings/connectors/methods/' + kind + '/callback', location.origin).href;
       });
       const summarize = (node, result) => {
         const account = result.account || result.login || result.email;

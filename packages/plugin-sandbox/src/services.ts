@@ -97,9 +97,9 @@ export type SandboxServiceFate = 'given' | 'refused' | 'entry' | 'replaced' | 'd
 export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServices]-?: SandboxServiceFate } = Object.freeze({
   storage: 'given', project_statements: 'given', database_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
-  database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
+  database: 'entry', files: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -140,6 +140,8 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['directory:read']) },
   { service: 'localTools', services: ['localTools'], reason: 'Looking for command-line tools on this machine (local_tools in the Manifest, local-tools:read) is only given to plugins the Host runs itself: it answers with the paths of files outside the sandbox (PG-112, S-79).',
     declared: (definition, held) => definition.manifest.local_tools !== undefined || asksFor(definition, held, ['local-tools:read']) },
+  { service: 'terminal', services: ['terminal'], reason: 'Starting an interactive terminal (terminal:run) is only given to plugins the Host runs itself: the program runs outside the sandbox with all of the person\'s rights (S-103, BL-910).',
+    declared: (definition, held) => asksFor(definition, held, ['terminal:run']) },
   { service: 'sourcePull', services: ['sourcePull'], reason: 'Pulling public feeds and web queries, and reading the evidence bodies they leave (sources:pull_feed, sources:pull_query, evidence:read, sources:pull_connector, sources:read_repository), is not given to sandboxed plugins: it fetches through the Host\'s own transports and writes into the Home\'s evidence store, which the sandbox has no form for yet (FI-4 step 4c).',
     declared: (definition, held) => asksFor(definition, held, ['sources:pull_feed', 'sources:pull_query', 'evidence:read', 'sources:read_repository', 'sources:pull_connector']) },
   { service: 'evidenceCollector', services: ['evidenceCollector'], reason: 'Deleting evidence bodies nothing refers to (evidence:collect) is only given to plugins the Host runs itself in the Home: it removes files of the Home\'s evidence store, outside a sandbox.',

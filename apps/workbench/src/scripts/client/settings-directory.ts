@@ -26,6 +26,14 @@
  * - `GET forms`: A page's own filters (能力's scope and search) are GET forms: they load the filtered page in place, not a new page.
  * - `leave`: A section whose row went with its plugin (Coding's): its cached page is dropped, and a list that was showing it goes back to its first.
  */
+import {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+} from "../../settings-address-params.js";
+
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setDirectory, setExclusive, hideDirectory } = host;
   const projectId = host.projectId || (() => {
@@ -33,6 +41,24 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     catch { return ""; }
   })();
   const projectPrefix = projectId ? "/projects/" + encodeURIComponent(projectId) : "";
+  // The pages' own address declarations (settings-address-params.ts): a page that hands over a settings address can only keep what the
+  // page being opened reads. A page adds its own variables to the defaults of its kind; a plugin page has the defaults only.
+  const GLOBAL_DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.global)};
+  const PROJECT_DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.project)};
+  const GLOBAL_QUERY_EXTRAS = ${JSON.stringify(GLOBAL_SETTINGS_QUERY_EXTRAS)};
+  const PROJECT_QUERY_EXTRAS = ${JSON.stringify(PROJECT_SETTINGS_QUERY_EXTRAS)};
+  const ADDRESS_HASHES = ${JSON.stringify(SETTINGS_ADDRESS_HASHES)};
+  const PROJECT_ID_HASH_SECTION = ${JSON.stringify(PROJECT_ID_HASH_SECTION)};
+  const declared = (table, key) => Object.prototype.hasOwnProperty.call(table, key) ? table[key] : "";
+  const keptQuery = (search, defaults, extras, section) => {
+    const allowed = (defaults + " " + declared(extras, section)).trim().split(/ +/);
+    const kept = new URLSearchParams();
+    for (const [key, value] of new URLSearchParams(search || "")) if (allowed.includes(key)) kept.append(key, value);
+    const text = kept.toString();
+    return text ? "?" + text : "";
+  };
+  const keptHash = (hash, section) => !hash ? "" : declared(ADDRESS_HASHES, section).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
+  const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
   const pageOf = (root) => ({
     address: () => new URL(root.dataset.settingsSource || location.href, location.origin),
@@ -301,7 +327,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   host.registerCover?.("settings", reopen("settings", () => globalSettings, "appearance"));
   host.registerCover?.("project-settings", reopen("project-settings", () => projectSettings, "general"));
-  const openProjectSettingsFromUrl = (href) => {
+  // fromPage: a page handed this address over (filtered to what the page being opened reads); the server's boot address and a page's
+  // own GET form keep the address they built, as before.
+  const openProjectSettingsFromUrl = (href, fromPage) => {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin) return false;
     const projectSection = projectSectionFromPath(url.pathname);
@@ -309,7 +337,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const nested = /\\/settings\\/planning\\/.+/.test(url.pathname);
     projectSettings ||= bindProject();
     if (nested) projectSettings?.caches.delete("planning");
-    openProjectSettings(projectSection, nested ? url.pathname + url.search : undefined);
+    openProjectSettings(projectSection, nested ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {
@@ -338,12 +366,12 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return true;
     }
     globalSettings.caches.delete(section);
-    void globalSettings.loadSection(section, pathname + url.search + url.hash);
+    void globalSettings.loadSection(section, pathname + (fromPage === true ? keptAddress(url, GLOBAL_DEFAULTS, GLOBAL_QUERY_EXTRAS, section) : url.search + url.hash));
     return true;
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {
     const href = event.detail?.href || "";
-    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href, true);
+    if (!openProjectSettingsFromUrl(href, true)) openGlobalSettingsFromUrl(href, true);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
@@ -389,6 +417,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       return;
     }
+    // A link clicked outside the settings shell is treated like a page address too: its address is filtered before opening, so a
+    // link that is not in the shell cannot carry parameters or fragments the target page does not read.
     const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     if (openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
       event.preventDefault();

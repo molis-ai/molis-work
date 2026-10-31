@@ -13,6 +13,7 @@ import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contr
 import { artifactActionProvider } from "./artifact-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { projectPluginJudge } from "./project-action-availability.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
@@ -29,7 +30,7 @@ import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
-import { prepareMemoryHome } from "./memory/memory-adoption.js";
+import { prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
@@ -173,7 +174,8 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
-              { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, (judgment, caller) => {
+              { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read,
+                projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
@@ -399,6 +401,13 @@ export class MolisWorkLocalHost {
 
   projects(): LocalHostStatus["projects"] {
     return this.host.projects();
+  }
+
+  /** Does this project reach the plugin behind a provider? The one judgement actions use (`projectPluginJudge`), by the injected catalog. */
+  async projectPluginReach(projectId: string): Promise<(pluginId: string) => boolean | undefined> {
+    const home = this.personalPlanningHome;
+    if (!this.catalogRunner || !home) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");
+    return this.catalogRunner({ homeDirectory: home }, catalog => projectPluginJudge(catalog, projectId, home));
   }
 
   status(): LocalHostStatus {

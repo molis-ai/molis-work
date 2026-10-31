@@ -3,6 +3,7 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import type { ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 
@@ -29,8 +30,8 @@ export class IntegrationRegistry {
   private readonly runtime: PluginRuntime;
   private readonly declarations: IntegrationDeclarations;
   private readonly installs = new Map<string, string>();
-  /** The packages the Home attached: what each one's running instance contributes now (null while it is not running). */
-  private readonly attached = new Map<string, () => PluginContribution | null>();
+  /** The packages the Home attached: the installation each runs as, and what its running instance contributes now (null while it is not running). */
+  private readonly attached = new Map<string, { declarer: ConnectorConnectionDeclarer; contribution: () => PluginContribution | null }>();
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(options: { platform?: readonly PluginConnectionServiceDeclaration[]; now?: () => Date } = {}) {
@@ -70,17 +71,18 @@ export class IntegrationRegistry {
    * Holds the ids of a package running in the Home's sandbox instance and binds its sources to what that instance contributes. Goes in
    * turn with enabling, so a package and a plugin cannot both pass the check for the same id; `live` is asked in that turn, and a package
    * switched off meanwhile is not attached. A crash does not let its ids go: its sources are unavailable until it runs again.
+   * `installId` is the Home's install record for it, never anything the package says.
    */
-  attach(manifest: PluginManifest, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean> {
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean> {
     const run = this.tail.then(() => {
       const parsed = parsePluginManifest(manifest);
       if (!live()) return false;
       // The same installation enabled again: a signed package is not upgraded in place, so its declarations are the ones it holds.
-      const current = () => live() ? contribution() : null;
-      if (this.attached.has(parsed.plugin_id)) { this.attached.set(parsed.plugin_id, current); return true; }
+      const entry = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
+      if (this.attached.has(parsed.plugin_id)) { this.attached.set(parsed.plugin_id, entry); return true; }
       this.assertFree(parsed);
       this.declarations.declare(parsed);
-      this.attached.set(parsed.plugin_id, current);
+      this.attached.set(parsed.plugin_id, entry);
       return true;
     });
     this.tail = run.catch(() => undefined);
@@ -123,8 +125,22 @@ export class IntegrationRegistry {
     return { plugin_id: service.owner, install_id: installId, publisher_id: this.runtime.get(installId).publisher_id, method };
   }
 
+  /**
+   * The attached package that declares a service now, which a connection made for it is pinned to (T-134). A service the Host's build or
+   * the platform declares has none: its connections are pinned to nothing and stay usable as they are.
+   */
+  connectionDeclarer(serviceId: string): ConnectorConnectionDeclarer | undefined {
+    const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
+    return service ? this.attached.get(service.owner)?.declarer : undefined;
+  }
+
   connectionServices(): readonly RegisteredConnectionService[] {
     return this.declarations.connectionServices();
+  }
+
+  /** The name a declaring plugin's Manifest gives it, for the cards that say where a service comes from. */
+  pluginName(pluginId: string): string | undefined {
+    return this.declarations.pluginName(pluginId);
   }
 
   hasSource(serviceId: string): boolean {
@@ -153,7 +169,7 @@ export class IntegrationRegistry {
 
   private async contributionOf(pluginId: string): Promise<PluginContribution | null> {
     const attached = this.attached.get(pluginId);
-    if (attached) return attached();
+    if (attached) return attached.contribution();
     const installId = this.installs.get(pluginId)!;
     if (this.runtime.get(installId).state === "crashed") await this.runtime.recover(installId);
     return this.runtime.contribution(installId);

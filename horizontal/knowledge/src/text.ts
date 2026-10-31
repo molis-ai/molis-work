@@ -9,7 +9,7 @@ const HEADING = /^(#{1,6})[ \t]+(.+?)[ \t#]*$/u;
 const FENCE = /^(`{3,}|~{3,})/u;
 const TITLE_CHARS = 60;
 
-const firstLine = (value: string) => (value.split("\n").find(line => line.trim())?.trim() ?? "").slice(0, TITLE_CHARS);
+const firstLine = (value: string) => (value.split("\n").find(line => line.trim())?.trim() ?? "").slice(0, TITLE_CHARS).replace(/[\uD800-\uDBFF]$/u, "");
 
 const NUMBER = "[一二三四五六七八九十百千零〇\\d]+";
 /** Chinese numbered headings, by level: 第一章, 第一节, 一、, （一）, 第一条. */
@@ -26,7 +26,7 @@ function headings(content: string): Array<{ start: number; level: number; title:
     const opens = FENCE.exec(line.trimStart())?.[1];
     if (opens && (!fence || opens.startsWith(fence))) fence = fence ? null : opens.slice(0, 3);
     const heading = fence ? null : HEADING.exec(line);
-    if (heading) found.push({ start: offset, level: heading[1]!.length, title: heading[2]!.slice(0, TITLE_CHARS) });
+    if (heading) found.push({ start: offset, level: heading[1]!.length, title: heading[2]!.slice(0, TITLE_CHARS).replace(/[\uD800-\uDBFF]$/u, "") });
     // A short line of its own that starts with a Chinese section number, and is not a sentence, heads a section too.
     const bare = line.trim(), level = !fence && bare.length <= NUMBERED_TITLE_CHARS && !/[。；;，,：:]$/u.test(bare) ? NUMBERED.find(([shape]) => shape.test(bare))?.[1] : undefined;
     if (level !== undefined) numbered.push({ start: offset, level, title: bare.slice(0, TITLE_CHARS) });
@@ -107,12 +107,15 @@ export function rangeOf(content: string, anchor: string | undefined): { start: n
 
 const LINE_CHARS = 400;
 const LEAD_CHARS = 120;
-const clip = (line: string) => line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS)}…` : line;
+const clip = (line: string) => line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS).replace(/[\uD800-\uDBFF]$/u, "")}…` : line;
 /** A long matching line, cut around its first match (a long paragraph's match is often past its first 400 characters). */
 const clipAround = (line: string, at: number) => {
   if (line.length <= LINE_CHARS) return line;
   const start = Math.max(0, Math.min(at - LEAD_CHARS, line.length - LINE_CHARS));
-  return `${start ? "…" : ""}${line.slice(start, start + LINE_CHARS)}${start + LINE_CHARS < line.length ? "…" : ""}`;
+  // Both ends keep whole characters: the start may land on the low half of one, the end on the high half.
+  const head = line.slice(start, start + LINE_CHARS).replace(/^[\uDC00-\uDFFF]/u, "");
+  const kept = head.replace(/[\uD800-\uDBFF]$/u, "");
+  return `${start ? "…" : ""}${kept}${start + LINE_CHARS < line.length ? "…" : ""}`;
 };
 
 /**

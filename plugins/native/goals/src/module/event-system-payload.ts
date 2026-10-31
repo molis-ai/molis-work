@@ -18,6 +18,7 @@ import {
   type GoalEventUnmetReason,
   type GoalEventWorkStatus,
 } from "../contract/goals.js";
+import { withinCharacters } from "../text-length.js";
 
 export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalEventSystemPayload {
   const operation = raw.operation;
@@ -246,12 +247,4 @@ export function parseGoalProgressSource(raw: unknown): GoalProgressArtifactSourc
     || typeof source.origin.item_id !== "string" || !source.origin.item_id.trim() || !withinCharacters(source.origin.item_id, 1000)) return undefined;
   return { artifact_id: source.artifact_id, version: source.version!, title: source.title,
     origin: { plugin_id: source.origin.plugin_id, item_id: source.origin.item_id } };
-}
-
-/**
- * Whether `value` holds at most `limit` characters (code points): a character may take two UTF-16 units. A string of more than
- * `limit * 2` units is over the limit whatever it holds, so only a shorter one is spread; what a caller sends has no other bound.
- */
-function withinCharacters(value: string, limit: number): boolean {
-  return value.length <= limit * 2 && [...value].length <= limit;
 }

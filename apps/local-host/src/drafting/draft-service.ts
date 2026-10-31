@@ -1,7 +1,8 @@
 import type { ContextualDraft } from "@molis-ai/molis-work-contracts/services/contextual";
 import { assertActionInput, compileActionSchema } from "@molis-ai/molis-work-kernel";
 import type { HostTextRequestOptions } from "../host-complete-text.js";
-import { cutUnits, draftData, type DraftMaterial, type DraftScreen, type DraftTarget } from "./draft-data.js";
+import { draftData, type DraftMaterial, type DraftScreen, type DraftTarget } from "./draft-data.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { fillableFields, materialValue, requiredFields, type Fillable } from "./fields.js";
 
 /**
@@ -52,7 +53,11 @@ function baseInput(input: DraftInput): Record<string, unknown> {
     if (value !== undefined) base[target.material_field] = value;
   }
   const shape = properties.request_id;
-  if (isRecord(shape) && !present(base.request_id)) base.request_id = input.request_id.slice(0, typeof shape.maxLength === "number" ? Math.min(160, shape.maxLength) : 160);
+  if (isRecord(shape) && !present(base.request_id)) {
+    // The schema's maxLength counts characters (the kernel's Ajv counts code points), so cut in whole characters and never past that many.
+    const max = typeof shape.maxLength === "number" ? Math.min(160, shape.maxLength) : 160;
+    base.request_id = [...input.request_id.slice(0, 2 * max)].slice(0, max).join("");
+  }
   return base;
 }
 
@@ -98,7 +103,7 @@ const fallbackOf = (reason: keyof typeof FALLBACK_MESSAGE, prepared: boolean) =>
 
 function summaryOf(input: DraftInput, values: Record<string, unknown>, fields: Fillable): string {
   const first = fields.names.map(name => values[name]).find((value): value is string => typeof value === "string" && value.trim().length > 0);
-  return first ? `${input.target.verb}：「${first.length > 40 ? `${cutUnits(first, 39)}…` : first}」` : input.target.verb;
+  return first ? `${input.target.verb}：「${first.length > 40 ? `${cutHead(first, 39)}…` : first}」` : input.target.verb;
 }
 
 /**

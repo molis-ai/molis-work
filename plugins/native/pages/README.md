@@ -80,6 +80,6 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 上述内容与编辑状态的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/content-portable-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；受控模型与下载/打印拦截不代替真实模型、文件应用或读屏体验验收）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts`。后两项分别经过真实 Host/Prologue（本机流式模型夹具）与真实浏览器。
+评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts tests/pages-comment-draft-length.e2e.test.ts`。第二项经过真实 Host/Prologue（本机流式模型夹具），第三、四项经过真实浏览器；第四项用浏览器自己的文字输入，量评论输入框的字数口径。
 
-评论浏览器控制器位于现有 Pages 编辑器资源包。目录工厂用 getter 提供当前编辑器状态；侧栏文档在挂载前加载同一份已声明的客户端依赖，首次独立打开侧栏也可用。草稿键、所属插件请求、来源检查与上下文 epoch 保持不变（PAS-14）。
+评论浏览器控制器位于现有 Pages 编辑器资源包。目录工厂用 getter 提供当前编辑器状态；侧栏文档在挂载前加载同一份已声明的客户端依赖，首次独立打开侧栏也可用。草稿键、所属插件请求、来源检查与上下文 epoch 保持不变（PAS-14）。评论输入框不写 `maxlength`（它按 UTF-16 单元数，🟢 这样的字算两个）：`src/comment-side-client.ts` 的 `input` 处理函数先把草稿按字数封顶在 20000 个字再读它，和动作 schema（`src/comment-actions.ts`）、库（`src/comments-store.ts`）同一个单位，改这个上限三处一起改（RAC-1974～1977，`tests/pages-comment-draft-length.e2e.test.ts`）。

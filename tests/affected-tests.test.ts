@@ -603,6 +603,20 @@ test("shared core (contracts, kernel, plugin-sdk, a module) recommends the full 
   assert.deepEqual(rulesOf(select(["modules/goals/src/main.ts"])), ["shared-core"]);
 });
 
+// RAC-2401: docs/system/PARALLEL-DEVELOPMENT.md:66 counts packages/plugin-runtime as shared core (the Plugin Runtime's assembly and
+// lifecycle), so a source change there recommends the full suite exactly as contracts, kernel and plugin-sdk do.
+test("RAC-2401 only a source change under packages/plugin-runtime recommends the full suite", () => {
+  workspacePackage("packages/plugin-runtime", "@molis-ai/molis-work-plugin-runtime");
+  assert.deepEqual(rulesOf(select(["packages/plugin-runtime/src/main.ts"])), ["shared-core"]);
+});
+
+// RAC-2403: docs/system/PARALLEL-DEVELOPMENT.md:66 and the PR template count horizontal/agent-host as shared core too — it is the
+// one place model calls go through, the only package that depends on @prologue/sdk — so a source change there recommends the full suite.
+test("RAC-2403 only a source change under horizontal/agent-host recommends the full suite", () => {
+  workspacePackage("horizontal/agent-host", "@molis-ai/molis-work-service-agent-host");
+  assert.deepEqual(rulesOf(select(["horizontal/agent-host/src/main.ts"])), ["shared-core"]);
+});
+
 test("the assembly of the host recommends the full suite", () => {
   assert.deepEqual(rulesOf(select(["apps/local-host/src/web-request.ts"])), ["assembly"]);
 });
@@ -1180,6 +1194,114 @@ test("every path the rules name exists in this repository, so a rename cannot le
   assert.ok(files.has(I18N_TEST), I18N_TEST);
 });
 
+// RAC-2427: docs/system/PARALLEL-DEVELOPMENT.md section 6 names the shared core in two places — the must-run table row and the
+// full-suite condition bullet — and both must carry exactly the packages FULL_REGRESSION.corePackages counts (plus the modules/ prefix).
+// RAC-2444 pins the same parse against three in-memory mutations, and the PR template's checkbox and the selector's group label too.
+const SHARED_CORE_AREAS = new Set(["horizontal/agent-host"]);
+
+/** The shared core as the two documents write it: an area-qualified path stays whole, every other package by its own name. */
+const sharedCoreNames = (paths: readonly string[], prefixes: readonly string[]) => new Set([
+  ...paths.map((entry) => SHARED_CORE_AREAS.has(entry) ? entry : entry.split("/").pop()!),
+  ...prefixes.map((prefix) => prefix.replace(/\/$/u, "")),
+]);
+
+/** Names in a 、-separated cell or bullet, ignoring descriptive parts such as "local-host 的装配" that are not package names. */
+const writtenNames = (text: string) => new Set(text.split(/[、，,]/u).map((part) => part.trim()).filter((part) => part && !/\s/u.test(part)));
+
+const compareSharedCore = (label: string, actual: ReadonlySet<string>, expected: ReadonlySet<string>) => {
+  const missing = [...expected].filter((name) => !actual.has(name));
+  const extra = [...actual].filter((name) => !expected.has(name));
+  assert.deepEqual({ missing, extra }, { missing: [], extra: [] },
+    `${label} names exactly the shared core; missing [${missing.join(", ")}], extra [${extra.join(", ")}]`);
+};
+
+const sharedCoreDocumentLines = () => {
+  const guide = readFileSync(path.join(realRoot, "docs/system/PARALLEL-DEVELOPMENT.md"), "utf8").split("\n");
+  return {
+    mustRun: guide.find((line) => line.startsWith("| 共享核心（")),
+    condition: guide.find((line) => line.startsWith("- 改了 contracts、kernel、plugin-sdk、plugin-runtime")),
+  };
+};
+
+/** The must-run row's shared-core cell: the names between its full-width parentheses, before the other categories in that cell. */
+const mustRunNames = (line: string | undefined) => {
+  assert.ok(line, "section 6's must-run table has the shared-core row");
+  const cell = /共享核心（([^）]+)）/u.exec(line)?.[1];
+  assert.ok(cell, "the shared-core row names its packages in parentheses");
+  return writtenNames(cell);
+};
+
+/** The full-suite condition bullet: packages after "改了 ", and the modules/ prefix it writes as a glob. */
+const conditionNames = (line: string | undefined) => {
+  assert.ok(line, "section 6's full-suite condition names the shared-core packages");
+  const listed = /^- 改了 (.+?)(?: 或任一| |；|$)/u.exec(line)?.[1];
+  assert.ok(listed, "the condition lists the packages after 改了");
+  const names = writtenNames(listed);
+  // Read every glob the bullet writes, not only the first one: a second prefix in the same bullet is part of the rule too.
+  for (const glob of [...line.matchAll(/`([a-z0-9-]+)\/\*`/gu)]) names.add(glob[1]!);
+  return names;
+};
+
+test("RAC-2427 the shared-core lists in PARALLEL-DEVELOPMENT.md and the full-suite condition name exactly the rule's packages", () => {
+  const { mustRun, condition } = sharedCoreDocumentLines();
+  const expected = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  assert.ok(expected.has("horizontal/agent-host"), "agent-host is shared core, as T-271 added it to the rule");
+  compareSharedCore("section 6's must-run table", mustRunNames(mustRun), expected);
+  compareSharedCore("section 6's full-suite condition", conditionNames(condition), expected);
+});
+
+test("RAC-2444 the shared-core parse rejects an extra name, a missing one and one moved into the row's explanation", () => {
+  const { mustRun, condition } = sharedCoreDocumentLines();
+  const expected = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  compareSharedCore("the unmodified table", mustRunNames(mustRun), expected);
+  compareSharedCore("the unmodified condition", conditionNames(condition), expected);
+  // The old check: one direction, substring anywhere in the line. Both mutations below pass it — the hole this test closes.
+  const oldIncludesLoop = (line: string) => { for (const name of expected) assert.ok(line.includes(name), `${name} is missing from: ${line}`); };
+  // An extra package the rule does not count: the old `line.includes(name)` loop could not see one.
+  const extra = mustRun!.replace("contracts、", "contracts、left-pad、");
+  oldIncludesLoop(extra);
+  assert.throws(() => compareSharedCore("the table with an extra", mustRunNames(extra), expected), /left-pad/u);
+  // A rule package dropped from the list: the old loop would catch this one too, kept so the guard is known to still see it.
+  const missing = mustRun!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the table without kernel", mustRunNames(missing), expected), /missing \[kernel\]/u);
+  // A name moved into the row's trailing explanation: still a substring of the line, so the old loop stayed green.
+  const moved = mustRun!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the table with kernel moved out of the cell", mustRunNames(moved), expected), /missing \[kernel\]/u);
+  const movedLine = `${moved}（kernel 见 rules.mjs）`;
+  oldIncludesLoop(movedLine);
+  assert.throws(() => compareSharedCore("the table with kernel in the explanation", mustRunNames(movedLine), expected), /missing \[kernel\]/u);
+  // The full-suite condition bullet is parsed by the same set, so the in-memory mutations hit it too: a name dropped from the bullet and
+  // an extra name written beside the shared-core ones are both seen.
+  const conditionMissing = condition!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the condition without kernel", conditionNames(conditionMissing), expected), /missing \[kernel\]/u);
+  const conditionExtra = condition!.replace("contracts、", "contracts、left-pad、");
+  assert.throws(() => compareSharedCore("the condition with an extra", conditionNames(conditionExtra), expected), /left-pad/u);
+  const conditionGlob = condition!.replace("`modules/*`", "`modules/*` 或 `tools/*`");
+  assert.throws(() => compareSharedCore("the condition with a second glob", conditionNames(conditionGlob), expected), /tools/u);
+});
+
+test("RAC-2444 the shared core in the PR template and the selector's label is the same rule's set", () => {
+  const template = readFileSync(path.join(realRoot, ".github/pull_request_template.md"), "utf8").split("\n")
+    .find((line) => line.startsWith("- [ ] 共享核心（"))!;
+  assert.ok(template, "the PR template's merge queue section names the shared core");
+  const inside = /共享核心（([^）]+)）/u.exec(template)![1]!;
+  assert.doesNotMatch(inside, /等/u, "the template names the shared core in full, not with 等 (统筹答 T-327 6531556707)");
+  const listed = [...inside.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!);
+  assert.ok(listed.length > 0, "the template lists the shared-core packages in code spans");
+  // The template mixes both forms (`packages/contracts` and `plugin-sdk`), so compare by the name each entry means.
+  const expectedShort = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  const meaning = (name: string) => name.replace(/^packages\//u, "").replace(/\/\*$/u, "");
+  compareSharedCore("the PR template", new Set(listed.map(meaning)), expectedShort);
+
+  const select = readFileSync(path.join(realRoot, "scripts/affected-tests/select.mjs"), "utf8").split("\n")
+    .find((line) => line.includes('group("shared-core", "shared core ('))!;
+  assert.ok(select, "the selector has a shared-core group");
+  const label = /shared core \(([^)]+)\)/u.exec(select)![1]!;
+  const expectedLabel = new Set([...FULL_REGRESSION.corePackages.map((entry: string) => entry.split("/").pop()!),
+    ...FULL_REGRESSION.corePackagePrefixes.map((prefix: string) => prefix.replace(/\/$/u, ""))]);
+  compareSharedCore("the selector's group label", new Set(label.split(", ").map((name) => name.trim())), expectedLabel);
+});
+
 test("in this repository, a change to a package selects every test its README lists as must-run, and each of them exists", () => {
   const files = listFiles(realRoot), packages = discoverPackages(realRoot, files), index = buildTestIndex(realRoot, files, packages);
   assert.ok(packages.length >= 60, `${packages.length} packages`);
@@ -1214,6 +1336,8 @@ test("in this repository: shared core recommends the full suite, a document alon
   assert.deepEqual(realAt("packages/contracts/src/platform/plugin.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("packages/plugin-runtime/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("horizontal/agent-host/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));

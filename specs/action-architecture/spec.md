@@ -244,6 +244,7 @@ SDK 提供规范定义、类型辅助和注册入口；manifest 引用同一份�
 | 同上 | `scheduling: "concurrent"` | 等模型或外部服务的动作必须声明；返回后 `await caller.beforeEffect()`，再按读取时的版本提交。不声明就是串行，会占住项目队列 |
 | 同上 | `authorship: "session"`、`execution`、`plugin: false` | 只能从稳定 Session 调（外部 Runtime 经 MCP）；声明式限额；不给生成插件 |
 | `ActionCallContext`（处理器拿到的调用者） | `actor_id`、`project_id`、`audience`、`permissions`、`signal` | 可信身份由宿主给，从不从业务输入读；`ActionExecutionContext` 另带 `beforeEffect()`。被取消、撤权、停用后不再写业务记录 |
+| 平台的中止点（中止 `signal` 的地方） | 中止原因 | 中止原因说明为什么停，下游据此区分取消与撤权（例如共用的 OAuth 刷新只在取消时写回轮换的令牌，S-95）。新加中止点时：人离开或调用结束（断开连接、关掉页面、页面请求结束）用 `actions.cancelled`，时限用 `actions.timeout`；撤权、停用、卸载、连接改变用别的原因（`actions.forbidden`、`actions.plugin_unavailable`、检查自己抛的错误）。人离开时调用已失去授权的，按撤权的原因中止，不写成取消。插件自己传进来的 signal 不算平台的原因：平台把它的中止换成 `actions.cancelled`，同样只在调用仍有授权时（`plugin-page-authority.ts` 的 `left`、`connections-service.ts` 的 `ownSignal`；T-218，2026-10-30） |
 | 插件 Manifest | `actions`、`action_scenes` | 插件自己提供的动作与消费场景，与运行时注册的是同一份定义 |
 | 插件 Manifest | `capabilities.consumes` + `permissions` | 要调的别家动作（`capability_id`）与它们要求的权限，两样都写才可用；`capabilities.provides` 列自己提供的 |
 

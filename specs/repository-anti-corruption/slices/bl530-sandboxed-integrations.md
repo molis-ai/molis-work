@@ -1,6 +1,6 @@
 # BL-530：装进 Home 的外部集成插件经沙箱进集成登记（设计稿）
 
-状态：已实现，待评审（2026-10-26，ac-registry 线，分支 `claude/ac-registry-bl530`，叠在 PG-046 的 `72921fbaf` 与 BL-628 的 `33dd5656c` 上）。§6 七项已定（用户 2026-10-26 弹窗定 6.1～6.4、6.7，统筹按 10-23 授权定 6.5、6.6，都是本稿的推荐），记在 §6，第二部分实现时的取舍记在 §6.1。第一部分（§7）：集成包的清单种类与合同、宿主端代理与逐条核对、按调用给的连接（S-95）与拒绝测试。第二部分（§7.1）：装进 Home 的沙箱实例、`attach/detach`、预览与确认时查撞 id、预览列出来源（BL-691）、停用与卸载的清理。余项：设置页卡片读登记（BL-740）、BL-692～694。代码事实按 main `2b3dc51de` 和 PG-046 分支 `claude/ac-registry-pg046`（头 `72921fbaf`）核过。号段 RAC-893～899、BL-691～694 已转正；新 S 号是 S-95（统筹给）。
+状态：配置字节边界与登记队列接续已随收口批 A+B（#1295，`9efbf8d04`）采用；2026-10-31 T-122 对当前 main `dc544a397` 只读核对，历史验证与当前未实跑边界见 §7.3。设置页尚未显示预览 API 返回的 origins，初装及升级的实际展示与浏览器验证归 T-141；BL-691、PG-046 不在本片整体关闭。原实现来源为 ac-registry 线的 `claude/ac-registry-bl530`（叠在 PG-046 `72921fbaf` 与 BL-628 `33dd5656c` 上）。§6 七项已定（用户 2026-10-26 弹窗定 6.1～6.4、6.7，统筹按 10-23 授权定 6.5、6.6，都是本稿的推荐），记在 §6，第二部分实现时的取舍记在 §6.1。第一部分（§7）：集成包的清单种类与合同、宿主端代理与逐条核对、按调用给的连接（S-95）与拒绝测试。第二部分（§7.1）：装进 Home 的沙箱实例、`attach/detach`、预览与确认时查撞 id、预览列出来源（BL-691）、停用与卸载的清理。余项：BL-692～694。代码事实按 main `2b3dc51de` 和 PG-046 分支 `claude/ac-registry-pg046`（头 `72921fbaf`）核过。号段 RAC-893～899、BL-691～694 已转正；新 S 号是 S-95（统筹给）。
 
 ## 1. 今天是什么样
 
@@ -87,7 +87,7 @@
 - **停用、崩溃停下**：`registry.detach(plugin_id)`，登记里的声明放掉（`IntegrationDeclarations.release`）。用它的 Feed 来源下次拉取得到 `plugin.integration_unavailable`（「集成 … 不可用：没有已启用的插件登记它」），来源上显示故障，不删来源、不删连接。再启用就能接着拉，游标还在 Feed 那里。
 - **卸载**：Home 监督器（`home-plugin-executor.ts`）照旧调 `forgetInstallationRecords({ home, project_id: null }, record)`，本片在那里加两步：
   - 登记的声明随 `detach` 放掉（监督器停实例时已做，卸载不另写）。
-  - 这个插件声明过的连接服务卡片从设置页消失；**人的连接记录不删**（连接归连接服务，不归插件；同一个账号可能还在别处用）。用这个集成的 Feed 来源留着，显示「集成不可用」，由人决定删来源还是重装。
+  - 这个插件声明过的连接服务卡片从设置页消失；**人的连接记录不删**（连接归连接服务，不归插件；同一个账号可能还在别处用）。用这个集成的 Feed 来源留着，显示「集成不可用」，由人决定删来源还是重装。记录留着，但钉在建它的那个包的安装上（§7.2，T-134）：同一发布者重装照用，换了发布者的同名包用不了。
   - 沙箱 Home 库里这个安装的数据照 `retain_private_data` 走（#1255 / `discardInstallationOwnerData`）。
   - 「按调用给的连接」不留任何绑定，所以卸载不用清它；S-71 的 `per_record` 绑定这类插件没有。
 - 是否在卸载时连同 Feed 的来源一起删，是 §6 第 5 项；推荐不删。
@@ -128,7 +128,7 @@
 ## 5. 不做的
 
 - 不改内置集成：它们仍由内置清单 `enable`、在宿主进程的共用 Runtime 里跑。
-- 不碰 `integration-providers.ts` 的三选一（等 PG-045）。
+- 不碰 `integration-providers.ts` 的三选一（等 PG-045）。（2026-10-31 改：T-120 已把按集成 id 三选一改成清单里每种内置集成各带自己种类的提供方，`integration-providers.ts` 只剩类型；三种提供方的取钥本身仍等 PG-045。）
 - 不新开「官方集成」的特殊安装路径。
 
 ## 6. 定下来的（2026-10-26）
@@ -149,12 +149,12 @@
 - **一个包一个来源**：登记 `bind` 时只给来源的绑定、不说是哪个集成，所以一个包只声明一个来源和它的一个服务，代理才知道这次调用的连接是哪个服务的。
 - **崩溃不放 id**：§2.8 原写崩溃时 `detach`。实现成登记每次 `bind` 都问 Home 实例此刻的贡献，没在运行就是 `plugin.integration_unavailable`；id 只在停用、卸载、发布者被撤销、Host 关闭时放掉。这样崩溃到恢复之间别的包抢不走它的 id，不悄悄换主人。
 - **BL-691 的「升级改了来源要重新确认」**：签名包现在不能就地升级（`installedLifecycle` 拒 `pinned` 的 upgrade，先卸载再装新包），所以另一组来源只能随另一个包和它自己的预览来；来源就在签名的包里，随固定的发布者存在 Home 的包目录、每次启动按签名重读，不另存一份。就地升级签名包时要把来源的比较加进去（随 BL-628 的升级，当前不存在）。
-- **设置页卡片**：登记的 `connectionServices()` 随 `attach/detach` 有它、放掉它，但设置页与新建连接读的是启动时由内置清单算好的 `HOST_CONNECTOR_DIRECTORY`，装上的包的服务还不出卡片。改成读登记是 BL-740，本片只断言登记里没有了。
+- **设置页卡片**：登记的 `connectionServices()` 随 `attach/detach` 有它、放掉它。设置页的卡片、粘贴凭据的新建连接、连接管理的 `catalog` 和连接设置原先读的是启动时由内置清单算好的 `HOST_CONNECTOR_DIRECTORY`，装上的包的服务不出卡片；BL-740（T-119）已改成按 Home 异步读 `homeIntegrationRegistry(home)`（`apps/local-host/src/connector-directory.ts` 的 `homeConnectorDirectory`、`listConnectorSettingsCards(home)`），那个常量已删，`tests/connector-home-directory.test.ts`（RAC-2466～2470）断言卡片与新建连接随 `attach/detach` 出现和消失；卸载不删人的连接记录。
 - **个人插件名单**：集成包不出动作和页面，不算 Home 的个人插件（`running()` 不列它）。
 
 ## 7. 已经做了的（不等 BL-628）
 
-- **集成包的格式**：`readSandboxIntegrationPackage`（`apps/local-host/src/sandbox-package.ts`）读三个文件，清单要等于 `sandboxIntegrationManifest`（`sandbox-plugin-manifest.ts`）的形状，合同的操作要等于 contracts 的 `SANDBOX_INTEGRATION_CONTRACT`（`plugin-sandbox.ts`，另有 `SANDBOX_INTEGRATION_OPERATIONS`、`SANDBOX_INTEGRATION_SOURCE_SLOT`、`SANDBOX_INTEGRATION_LIMITS`）。游标是插件自己的文字（至多 16 KB），来源设置以 JSON 文字交进去（至多 16 KB），一次拉取至多 200 条。现在的安装路径（`readSandboxPackage`）照旧只收应用包：集成包在那里被拒，等 BL-628 接上。（RAC-893）
+- **集成包的格式**：`readSandboxIntegrationPackage`（`apps/local-host/src/sandbox-package.ts`）读三个文件，清单要等于 `sandboxIntegrationManifest`（`sandbox-plugin-manifest.ts`）的形状，合同的操作要等于 contracts 的 `SANDBOX_INTEGRATION_CONTRACT`（`plugin-sandbox.ts`，另有 `SANDBOX_INTEGRATION_OPERATIONS`、`SANDBOX_INTEGRATION_SOURCE_SLOT`、`SANDBOX_INTEGRATION_LIMITS`）。游标是插件自己的文字（至多 16 KB），来源设置以 JSON 文字交进去（至多 16 KB），一次拉取至多 200 条。现行安装路径经 `readKeptSandboxPackage` 读取应用包与集成包，集成包已接入 Home 沙箱实例，随 #1295 采用；不再等待 BL-628 接线。（RAC-893；§7.1）
 - **来源的地址**：连接服务的声明多一个可选的 `origins`（contracts `plugin-integrations.ts`），SDK 的 `originProblems` 查形状；集成包里平台表有的服务不能写、没有的必须写；宿主构建的插件写了，`IntegrationRegistry.enable` 拒。（RAC-899 的声明一半；预览列出、随信任记下、升级重新确认等安装路径，BL-691）
 - **代理**：`sandboxIntegrationContribution`（`apps/local-host/src/sandbox-integration.ts`）为每个来源的每次调用开一个只活到这次调用结束的连接，答复交 SDK 新导出的 `pollingIntegrationBinding`（`definePollingIntegrationPlugin` 每个来源用的同一份），所以 Feed 拿到的与内置集成一样。成功的拉取要有 `items` 和 `cursor`、不带失败字段，失败的要有 `failure` 和 `message`、不带条目；同一次拉取里 `externalId` 重复、条目的 `url` 不是 http(s)，整轮拒（`host.integration_pull_invalid`），不合 schema 或超限的由 runner 拒（`sandbox.protocol_error`）。（RAC-895）
 - **按调用给的连接（S-95）**：插件这一侧是 `createCallConnectionsClient`（`packages/plugin-runtime/src/connections-service.ts`），宿主这一侧是 `createCallConnectionsPort`（`apps/local-host/src/connector-plugin-requests.ts`，与槽的发送共用 `sendThrough`、`usableConnection`），沙箱这一侧是 `SandboxCallControl.connections` 和 broker `invoke` 的 `connections`。SECURITY-INVARIANTS 的 S-95 行列出拒绝与测试。（RAC-896）
@@ -162,7 +162,30 @@
 ### 7.1 第二部分（叠在 BL-628 上）
 
 - **Home 实例里起**：`PluginInstallService` 按清单的种类读包（`readKeptSandboxPackage`），集成包走 Home；`SandboxPackageStore` 存、读回两种包，`packagedRelease` 给集成包空的界面和提示词。Home 的已装插件（`home-installed-plugins.ts`）给集成包起 `sandboxedIntegrationDefinition`（`sandbox-integration.ts`）：沙箱进程跑代码，进程没了下次调用再起，每次调用和请求先问安装还是不是正在跑的那个；代理的每次调用经 `createCallConnectionsPort(home)` 拿这次的连接。
-- **`attach/detach`**：集成包不出动作，原来出动作的那一步换成 `IntegrationRegistry.attach(manifest, 贡献, live)`，和启用同一个队列查 id；撤回的那一步（停用、卸载、发布者被撤销、Host 关闭）加 `detach`。`bind` 对附上的包问 Home 监督器此刻的贡献。登记自己的 Runtime 仍只装内置。
+- **`attach/detach`**：集成包不出动作，原来出动作的那一步换成 `IntegrationRegistry.attach(manifest, installId, 贡献, live)`，安装标识来自 Home 安装记录；和启用同一个队列查 id，撤回的那一步（停用、卸载、发布者被撤销、Host 关闭）加 `detach`。`bind` 对附上的包问 Home 监督器此刻的贡献。登记自己的 Runtime 仍只装内置。
 - **查撞 id**：预览与确认都调 `IntegrationRegistry.assertFree`（插件 ID、服务 ID、集成 ID），在写任何记录之前；`attach` 自己再查一次，兜住确认之后的竞争。
-- **预览列出来源**：输出多一个可选的 `origins`。原片在 `plugins.install.preview@2` 上实现；2026-10-26 Root 收口按实际 main 的合同变化统一升为 `@3`，与 BL-628 的 `runtime_scope` 同一合同，动作快照及调用方同步，不保留旧版。
+- **预览 API 返回来源**：输出多一个可选的 `origins`；这是 API 字段与包来源的证明，设置页 `settings-plugins.ts` 的 review 尚未显示它，不代表人已在界面看见（归 T-141）。原片在 `plugins.install.preview@2` 上实现；2026-10-26 Root 收口按实际 main 的合同变化统一升为 `@3`，与 BL-628 的 `runtime_scope` 同一合同，动作快照及调用方同步，不保留旧版。
 - 测试：`tests/sandbox-integration-home.test.ts`（RAC-894、RAC-897 两条、RAC-898、RAC-1000、RAC-1001、RAC-1002，跑真沙箱，要 macOS）；第一部分的 `tests/sandbox-integration.test.ts` 改了「运行范围是 Home」「一个来源」两处拒绝。`PluginInstallService.preview` 改成异步，`tests/security-invariants-plugin-install.test.ts`、`tests/plugin-trust-view.test.ts` 跟着 `await`，断言不变。
+
+### 7.2 连接绑定声明者（T-134，采用前置，S-104）
+
+- **问题**：连接只按 `service_id` 存，卸载包 A 后连接留着；另一个发布者的包 B 声明同一个 `service_id` 后，来源上选这条 `connection_id`，代理就会把 A 时期存的令牌发往 B 写的来源地址，中间没有人工步骤。
+- **钉**：为包声明的服务新建连接时，同一次写入里在连接库的 `connector_connection_declarers` 记下声明者：插件 ID、安装 ID（`install_id`，即插件 ID 加验过签名的发布者）和显示名。声明者读自 Home 的集成登记（`IntegrationRegistry.connectionDeclarer`，`attach` 由 Home 的安装记录给 `install_id`），不读请求体；服务卡片与声明者取自登记的同一次读取、中间没有 `await`，否则包在两次读取之间被卸载，连接就会不带钉建出来（二审，RAC-2522 的第三条）。只在新建时写、写了不能改（换令牌不动它）；宿主自带插件和平台的服务不钉。连接库直接写进现行版本 1 的结构，不写迁移，已有连接不补钉（干净重建口径下，包的服务现在没有连接）。
+- **拒绝**：`createCallConnectionsPort` 与 `createPluginConnectionsPort` 共用的 `usableConnection` 多收调用方的 `install_id`（来源路径取运行上下文 `context.install_id` 经 `CallConnection.install_id`，槽路径取 `target.install_id`），连接钉着别的安装就以 `connector.plugin_requests.connection_unavailable` 拒，在读令牌、发请求之前；`describe` 对这种情况答 `disconnected`、不给名字。同一发布者重装（`install_id` 相同）照用。
+- **设置页**：连接行多一行「建于 · 包名」（`ConnectorConnectionView.declared_by`，只有插件 ID 与名字，不带 `install_id`）。
+- 测试：`tests/connector-connection-declarers.test.ts`（RAC-2520）、`tests/integration-registry.test.ts`（RAC-2521）、`tests/security-invariants-connection-declarer.test.ts`（RAC-2522～2527、2529）、`tests/connector-method-directory.test.ts`（RAC-2528）。
+
+### 7.3 T-122 配置／队列采用核收（2026-10-31）
+
+本节只核收已采用的配置边界、登记队列及其工程证据，不关闭 BL-691／PG-046。准确读取基点为 main `dc544a39790c3c73cb43756ffeb847b83e960982`；本轮没有构建、测试或真实 Home 操作。
+
+| 范围 | 实际 owner 与采用 | 验证来源及局限 |
+| --- | --- | --- |
+| RAC-895-CONFIG 配置限额 | `sandboxIntegrationContribution.bind` 在 JSON 序列化后按 UTF-8 字节计限，超限在沙箱调用前拒；修复与同名测试首次随 #1295（`9efbf8d04`）进入 main | 当前 `tests/sandbox-integration.test.ts` 覆盖中文／ASCII 刚好限额和超限、拒绝时调用数为零。#1295 的最终工程验证沿用其准确头记录；本轮仅核代码与采用，不补称当前实跑 |
+| RAC-1001-QUEUE 登记接续 | Home 安装 owner 缓存同一个 registry Promise，并以激活 marker 防止旧清理撤掉新注册；`IntegrationRegistry` 的 attach/detach 进入同一队列。修复与测试首次随 #1295 进入 main | `tests/sandbox-integration-home.test.ts` 制造真实登记等待、停用后立即启用，核旧 attach=false、新 attach=true及最终停用无残留。#1295 正文记录修正后该整文件 6/6；这是原执行证据，不是本轮新跑 |
+| T-134 连接声明者前置 | #1649（`daa8fd23c`）已合；连接库记声明者，登记与平台连接端口在读令牌／发送前核当前安装（S-104） | [正式验证](https://github.com/molis-ai/molis-work/pull/1649#issuecomment-6542996661)及[合 main 等价核对](https://github.com/molis-ai/molis-work/pull/1649#issuecomment-6545745870)沿用原证据；三份沙箱文件有 Linux 分支跳过，真实签包的完整 Mac 端到端未独立实跑，不以 Full 绿补造覆盖 |
+| 当前组合 | 上述配置、队列、连接链的 13 个相关生产／测试文件，相对 #1649 合入头到本读取基点没有差异；#1295 后的调用控制与 T-134 变化保留在现行路径 | 配置／队列“尚未修复采用”的旧状态可以更正；当前源码相同只支持相关输入沿用，不代表新的 Mac 沙箱实跑、实际 UI、真实外部来源或本人验收 |
+
+#1295 的准确最终头 `63d7b896e8e50f08db6d2810ab8a5cc59a09903c`、CI／Full 与首败保留在[原 PR](https://github.com/molis-ai/molis-work/pull/1295)；原两阶段评审为 [6408543790](https://github.com/molis-ai/molis-work/pull/1311#issuecomment-6408543790)、[6410757538](https://github.com/molis-ai/molis-work/pull/1311#issuecomment-6410757538)，各自只支持原固定范围，不能替代后续组合证据。
+
+仍待：T-141 的初装／升级 origins 实际设置展示与浏览器验证；BL-692 的撞 id 启动原因展示、BL-693 的真实来源额度／超时评估、BL-694 的外部文档导入。连接事务的 secret 回滚补证与辅助函数归位按各自 MISC 接续，不从本节销账。PG-045 三种提供方取钥统一另列，不混入本配置／队列核收。

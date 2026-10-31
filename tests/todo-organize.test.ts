@@ -515,3 +515,33 @@ test("RAC-2159: the most one call carries: 40000 characters of 🟢 shared by se
     assert.ok(prompt <= HOST_PROMPT_MAX_CHARS, `${name}: the whole prompt is ${prompt} characters, within the ${HOST_PROMPT_MAX_CHARS} the Host allows`);
   }
 });
+
+test("RAC-2413: one organizing call whose data is over the prompt's data slot is refused before dispatch, saying by how much", async t => {
+  // Materials are split into 40,000-character calls, so a big batch is not refused as a whole (RAC-2158 keeps that). The data of one call
+  // also carries every existing todo, and that count has no limit: here 700 todos of 200 characters push one call's data over the 180,000
+  // the Host leaves for data. The refusal comes before any model call or batch record and counts characters, saying how much over it is.
+  const f = fixture(t, nothing);
+  for (let index = 0; index < 700; index += 1) await f.me.invoke(todoActions.create, { title: `已有待办 ${"字".repeat(190)} ${index}` });
+  const refused = await f.me.invoke(organize.extract, { materials: [ofText("请周五前发新版方案。")] })
+    .then(() => null, (caught: unknown) => caught as { code?: string; message?: string });
+  assert.ok(refused, "the call is refused instead of being sent over the Host's limit");
+  assert.equal(refused.code, "todo.invalid");
+  assert.match(refused.message ?? "", /超过数据位 180000 字，多 \d+ 个字/, "the refusal counts characters and says how much over it is");
+  assert.equal(f.prompts.length, 0, "nothing is sent to the model");
+  assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches, [], "no batch record is written");
+});
+
+test("RAC-2414: every shard is checked before the first model call, so a later shard over the data position refuses the whole call", async t => {
+  // The approved criterion (A): every organizing call's prompt.data is checked before the first model call and before a batch is written.
+  // About 150,000 characters of existing todos keep the first shard (the one small material) under the 180,000 data position; the second
+  // shard carries the 40,000-character material and is over it. The whole call is refused with nothing sent and no batch recorded.
+  const f = fixture(t, nothing);
+  for (let index = 0; index < 500; index += 1) await f.me.invoke(todoActions.create, { title: `已有待办 ${"字".repeat(190)} ${index}` });
+  const refused = await f.me.invoke(organize.extract, { materials: [ofText("先看这条。"), ofText("字".repeat(40_000))] })
+    .then(() => null, (caught: unknown) => caught as { code?: string; message?: string });
+  assert.ok(refused, "a later shard over the data position refuses the call");
+  assert.equal(refused.code, "todo.invalid");
+  assert.match(refused.message ?? "", /超过数据位 180000 字/, "the refusal names the data position it is over");
+  assert.equal(f.prompts.length, 0, "nothing is sent to the model: every shard is checked first");
+  assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches, [], "no batch record is written");
+});

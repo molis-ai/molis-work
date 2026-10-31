@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
 import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
-import { HOST_CONNECTOR_DIRECTORY, listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
+import { listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
 import { recommendedMethod, renderConnectorSetup } from "../apps/workbench/src/settings-connector-guide.ts";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts/connectors-settings.ts";
+
+// A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
+// without the three flags a listing adds from this machine's own settings.
+const HOME = "connector-method-directory-test-home";
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
 
 test("every catalog service and the two host account services have official method choices", () => {
   const ids = new Set(["github", "gmail", ...CATALOG_CONNECTORS.map((row) => row.id)]);
@@ -46,7 +51,7 @@ test("restricted or preview methods retain their real availability limits", () =
   hasNote("bitbucket", "token", /App Password 已停用/);
 });
 
-test("all current Connector cards expose a method directory with safe official links", () => {
+test("all current Connector cards expose a method directory with safe official links", async () => {
   assert.deepEqual(
     new Set(HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id)),
     new Set([...Object.keys(OFFICIAL_CONNECTOR_METHODS), "model-api", "typesafe", "image-api", "mcp-bearer"]),
@@ -57,7 +62,7 @@ test("all current Connector cards expose a method directory with safe official l
       assert.ok(method.links.every((link) => link.url.startsWith("https://")), `${row.connector_id}:${method.kind}`);
     }
   }
-  const settingsCards = listConnectorSettingsCards();
+  const settingsCards = await listConnectorSettingsCards(HOME);
   assert.deepEqual(new Set(settingsCards.map((row) => row.connector_id)), new Set(HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id)));
   assert.ok(settingsCards.every((row) => row.method_options?.length), "settings endpoint cards must forward method options");
   const html = renderConnectorsSettings({
@@ -86,8 +91,9 @@ test("every displayed official method has an executable host adapter and configu
   }
 });
 
-test("ASC-28: MCP method facts distinguish authentication from OAuth client registration", () => {
-  const mcp = (id: string) => listConnectorSettingsCards().find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
+test("ASC-28: MCP method facts distinguish authentication from OAuth client registration", async () => {
+  const cards = await listConnectorSettingsCards(HOME);
+  const mcp = (id: string) => cards.find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
   const github = mcp("github");
   assert.equal(github.mcp?.client_registration, "manual");
   assert.match(github.mcp?.note ?? "", /认证方式：OAuth 或 Bearer/);
@@ -100,15 +106,20 @@ test("onboarding prefers ready account login and keeps developer configuration o
   const p = { L: (s: string) => s, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
   for (const service of ["gmail", "notion", "github"]) {
     const entry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === service)!;
-    const ready = { ...entry, gmail_oauth_configured: true, notion_oauth_configured: true, github_client_id_configured: true };
+    // Gmail's ready login is its OAuth method's own `login_ready` (the generic flow's product client), never a per-service flag.
+    const ready = { ...entry, notion_oauth_configured: true, github_client_id_configured: true,
+      method_options: entry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: true } : m) };
     assert.equal(recommendedMethod(ready)?.kind, "oauth", service);
     const html = renderConnectorSetup(ready, p);
-    assert.ok(html.includes(`data-account-login="${service}"`));
+    // Gmail signs in through the generic flow: the same start button, with no dedicated-login marker of its own.
+    assert.equal(html.includes(`data-account-login="${service}"`), service !== "gmail", service);
+    assert.ok(html.includes("data-protocol-start=\"oauth\""), service);
     assert.match(html, /<details class="settings-connector-help"><summary>使用其他应用配置/);
     const primary = html.split('<details class="settings-connector-alternatives">')[0]!;
     assert.doesNotMatch(primary, /<input[^>]* required/);
   }
-  const gmail = { ...HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "gmail")!, gmail_oauth_configured: false };
+  const gmailEntry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "gmail")!;
+  const gmail = { ...gmailEntry, method_options: gmailEntry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: false } : m) };
   const html = renderConnectorSetup(gmail, p);
   const main = html.split('<details class="settings-connector-alternatives">')[0]!;
   assert.match(main, /登录接入准备中/);
@@ -152,4 +163,21 @@ test("composite credentials keep separate labeled inputs when adding and replaci
   assert.match(replace, /Atlassian 邮箱/);
   assert.equal([...replace.matchAll(/data-credential-part/g)].length, 3);
   assert.match(html, /<strong>工作 Jira<\/strong>/);
+});
+
+// T-134: a connection made for a signed package's service says which package it was made for, the only one that may use it.
+test("RAC-2528 a connection pinned to a package shows 建于 and its name through the translator; one that is not pinned shows nothing", () => {
+  const pinned = { connection_id: "22222222-2222-4222-8222-222222222222", service_id: "example-feed", display_name: "Feed 账号", account_label: null, auth_method: "token" as const,
+    source: "managed" as const, state: "connected" as const, declared_by: { plugin_id: "io.molis.work.example.feed", title: "Example <Feed>" } };
+  const plain = { ...pinned, connection_id: "33333333-3333-4333-8333-333333333333", service_id: "github", display_name: "GitHub 账号", declared_by: undefined };
+  const render = (L: (value: string) => string) => renderConnectorsSettings({ connectors: [], connector_connections: [pinned, plain] },
+    { L, escapeHtml: v => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), icon: () => "" });
+  const row = (html: string, id: string) => html.match(new RegExp(`data-connection-row="${id}"[\\s\\S]*?</div>`))![0];
+  const zh = render(value => value);
+  assert.match(row(zh, pinned.connection_id), /<small data-connection-declared-by>建于 · Example &lt;Feed&gt;<\/small>/);
+  assert.doesNotMatch(row(zh, plain.connection_id), /data-connection-declared-by/);
+  // Its words go through the translator like the row's others; the translation gate (pnpm health:check) holds their English.
+  const asked: string[] = [];
+  render(value => { asked.push(value); return value; });
+  assert.ok(asked.includes("建于"));
 });

@@ -4,6 +4,7 @@ import type {
   ProjectGuidanceRevisionRecord,
   ProjectGuidanceView,
 } from "../contract/goals.js";
+import { withinCharacters } from "../text-length.js";
 
 const PROJECT_GUIDANCE_KINDS = [
   "context",
@@ -33,12 +34,9 @@ export function projectGuidanceLength(value: string): number {
   return [...value].length;
 }
 
-/**
- * Whether `value` is within the entry limit. A text of more than twice the limit in UTF-16 units is over it whatever it holds,
- * so only a shorter one is counted; what a caller sends has no other bound.
- */
+/** Whether `value` is within the entry limit: the shared character check, with this entry's own limit. */
 export function withinProjectGuidanceEntryLimit(value: string): boolean {
-  return value.length <= PROJECT_GUIDANCE_ENTRY_MAX_CHARS * 2 && projectGuidanceLength(value) <= PROJECT_GUIDANCE_ENTRY_MAX_CHARS;
+  return withinCharacters(value, PROJECT_GUIDANCE_ENTRY_MAX_CHARS);
 }
 
 export function projectGuidanceView(input: {

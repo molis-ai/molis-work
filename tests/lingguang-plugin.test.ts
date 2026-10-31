@@ -96,7 +96,7 @@ function emptyView(): MolisWorkWebView {
 test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图标用 idea", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), false);
-  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"] as const;
+  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "files"] as const;
   assert.equal(railEntries([...enabled]).some((item) => item.id === "lingguang"), false);
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");

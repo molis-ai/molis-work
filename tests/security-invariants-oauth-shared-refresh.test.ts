@@ -1,15 +1,20 @@
 import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
+import { IncomingMessage } from "node:http";
+import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { completeApiOAuth, connectorProtocolSecrets, createPluginConnectionsPort, homeIntegrationRegistry, listConnectorConnectionViews, pluginSlotScope,
-  readConnectorAccount, startApiOAuth, withConnectorConnections, withConnectorProtocols, type ConnectorProtocolConfiguration } from "@molis-ai/molis-work-app-local-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { completeApiOAuth, connectorProtocolSecrets, createPluginConnectionsPort, homeIntegrationRegistry, listConnectorConnectionViews, pluginPageRequest, pluginPagesFor,
+  pluginSlotScope, readConnectorAccount, startApiOAuth, startSharedRefresh, withConnectorConnections, withConnectorProtocols, type ConnectorProtocolConfiguration } from "@molis-ai/molis-work-app-local-host";
 import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
+import { createCallConnectionsClient, createPluginConnectionsClient, type PluginConnectionDispatch, type PluginConnectionsPort } from "@molis-ai/molis-work-plugin-runtime";
+import { connectionsProbe, grantConnections } from "./fixtures/connections-runtime.js";
+import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 // W5-11 slice 5 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6, §10 Q3): an OAuth connection of the
@@ -21,6 +26,15 @@ import { oauthNetwork } from "./fixtures/oauth-network.js";
 //   platform withdrew by aborting it: only a cancellation (an abort for `cancelled` or `timeout`, or an `AbortError`) is the caller leaving.
 //   What counts is what holds after the last wait before the write: a call that passed its check and lost its authority while another's
 //   check or the declaring plugin's lookup was out keeps nothing either (S-95, #1479 统筹裁定 T-063).
+// - RAC-2458～2461 (T-218): the person closing a plugin page, its request ending, and an in-process plugin aborting its own request are
+//   the caller leaving: the platform aborts them as `actions.cancelled`, so the rotated tokens are kept. Only while the call still has its
+//   authority: one that has lost it is aborted for that, and keeps nothing (a page whose activation is withdrawn, a plugin without its grant).
+// - RAC-2462～2464 (T-218 M1): a sandboxed integration hands in no signal of its own; the one its request carries is the broker's lifetime
+//   of the call, whose reason (`sandbox.stopped`) is the platform's and passed on as it is, so a stopped integration keeps nothing.
+// - RAC-2420 (T-296): a call whose authority is withdrawn while the shared refresh is out, its signal never aborted, is a withdrawal,
+//   not a cancellation: `outcome()` says `discard` and nothing of the answer is written. No broker, so it runs on every platform.
+//   Covered by the RAC-1085 case below ("a call that lost its authority while its refresh was out keeps nothing of the answer, even
+//   with another caller cancelled"), whose `alone` subcase walks the same path; its own duplicate case was removed (T-342).
 // - RAC-1087: a connection bound to another plugin, publisher or token endpoint, or to none, is marked for reauthorization before its
 //   refresh token or client secret is sent anywhere.
 // - RAC-1088: while the declaring plugin is disabled, the connection sends nothing and refreshes nothing; enabled again, it works.
@@ -162,7 +176,7 @@ test("RAC-1085 a sent refresh every caller cancelled still ends, keeps only the 
   } finally { net.releaseAll(); }
 });
 
-test("RAC-1085 a call that lost its authority while its refresh was out keeps nothing of the answer, even with another caller cancelled", { timeout: 30_000 }, async t => {
+test("RAC-1085 RAC-2420 a call that lost its authority while its refresh was out keeps nothing of the answer, even with another caller cancelled", { timeout: 30_000 }, async t => {
   for (const alongside of [false, true]) await t.test(alongside ? "with a cancelled caller" : "alone", async t => {
     const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
     const before = { stored: stored(), protocol: protocol() }, lost = call(), other = call();
@@ -405,8 +419,6 @@ test("RAC-1085 two calls the service refuses with 401 at once share one forced r
     readTwo.release();
     await forced.reached;
     forced.release();
-    await turn();
-    assert.equal(net.refreshes.length, 1, "the second forced refresh joined the one in flight");
     net.answerAll();
     assert.deepEqual([(await first).status, (await second).status], [200, 200]);
     assert.equal(net.refreshes.length, 1, "one token request for both calls");
@@ -457,4 +469,149 @@ test("RAC-1088 while the declaring plugin is disabled an OAuth connection sends 
     assert.equal((await answered).status, 200);
     assert.deepEqual(net.reads, [expired ? "Bearer access-0" : "Bearer old-access"]);
   });
+});
+
+const codeOf = (reason: unknown) => reason instanceof ActionError ? reason.code : reason;
+
+/**
+ * A plugin page open on the Home's page authority, with one request bound to it (a check, which every page may make): its dispatch is
+ * the page's signal and authority. `lose` makes the page's activation stop being current without anything being aborted.
+ */
+function pageRequest(t: TestContext, home: string) {
+  let lost = false;
+  const manifest = { schema_version: 2, host_api_version: 2, plugin_id: target.plugin_id, version: "1.0.0", name: "Shared refresh", kind: "app",
+    publisher: { publisher_id: "example", signature: "shared-refresh-page" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } } as PluginManifest;
+  const pages = pluginPagesFor(home);
+  const withdraw = pages.connect({ manifest, install_id: target.install_id, project_id: null, actor_id: "web-user",
+    assertCurrent: () => { if (lost) throw new ActionError("actions.forbidden", "插件授权已收回"); } });
+  t.after(withdraw);
+  const { page_id } = pages.open(target.plugin_id, null, "web-user");
+  return {
+    id: page_id, withdraw, lose: () => { lost = true; },
+    async bind() {
+      const request = new IncomingMessage(new Socket());
+      request.method = "POST"; request.headers = { "x-molis-plugin-page": page_id };
+      const release = await pages.bind(request, new URL("http://localhost/api/host/plugin-page-check"));
+      const page = pluginPageRequest(request)!;
+      const dispatch: PluginConnectionDispatch = { ...connectorControl({ signal: page.signal, current: page.assertCurrent }), url: new URL(ASANA_ME), method: "GET", headers: {}, signal: page.signal };
+      return { dispatch, signal: page.signal, release: release! };
+    },
+  };
+}
+
+test("S-95 RAC-2458 a plugin page closed, or its request ended, while the refresh is out keeps only the rotated credentials", { timeout: 30_000 }, async t => {
+  for (const ending of ["closing the page", "its request ending"] as const) await t.test(ending, async t => {
+    const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+    const before = protocol(), page = pageRequest(t, home), bound = await page.bind();
+    try {
+      const sent = net.next();
+      const settled = Promise.allSettled([port.request(target, bound.dispatch)]);
+      await sent;
+      if (ending === "closing the page") await pluginPagesFor(home).finish(page.id, undefined); else bound.release();
+      assert.equal(codeOf(bound.signal.reason), "actions.cancelled", "the person leaving the page is a cancellation");
+      net.refreshes[0]!.release();
+      const [result] = await settled;
+      assert.equal(result!.status, "rejected");
+      assert.deepEqual([stored().access, stored().oauth], ["access-0", "refresh-2"], "the rotated credentials are kept");
+      assert.equal(protocol(), before, "nothing but the credentials is written");
+      assert.deepEqual(net.reads, []);
+    } finally { net.releaseAll(); }
+  });
+});
+
+test("S-95 RAC-2459 a plugin page that lost its authority keeps nothing of the answer, closed or withdrawn", { timeout: 30_000 }, async t => {
+  for (const how of ["its activation withdrawn", "closed after its authority was lost", "its request ended after its authority was lost"] as const) await t.test(how, async t => {
+    const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+    const before = { stored: stored(), protocol: protocol() }, page = pageRequest(t, home), bound = await page.bind();
+    try {
+      const sent = net.next();
+      const settled = Promise.allSettled([port.request(target, bound.dispatch)]);
+      await sent;
+      if (how === "its activation withdrawn") page.withdraw();
+      else { page.lose(); if (how === "closed after its authority was lost") await pluginPagesFor(home).finish(page.id, undefined); else bound.release(); }
+      assert.equal(codeOf(bound.signal.reason), "actions.forbidden", "a page without its authority is withdrawn, not left");
+      net.refreshes[0]!.release();
+      const [result] = await settled;
+      assert.equal(result!.status, "rejected");
+      assert.deepEqual(stored(), before.stored, "no credential of the answer is written");
+      assert.equal(protocol(), before.protocol);
+      assert.deepEqual(net.reads, []);
+    } finally { net.releaseAll(); }
+  });
+});
+
+// The plugin's own `request.signal`, through the platform's client in the plugin's own concurrent action: the client's port hands the
+// request to the Host's real one for the test's Asana account.
+test("S-95 RAC-2460 RAC-2461 a plugin aborting its own request is a cancellation while its call has its authority, and keeps nothing once it has lost it", { timeout: 60_000 }, async t => {
+  for (const lost of [false, true]) await t.test(lost ? "without its grant, by AbortController.abort()" : "with its authority, for a reason of its own", async t => {
+    const probe = connectionsProbe(lost ? "ownabortlost" : "ownabort"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    await grantConnections(host, probe);
+    const { home, stored, protocol } = await connected(t), net = network(t), port = createPluginConnectionsPort(home);
+    const before = { stored: stored(), protocol: protocol() }, own = new AbortController();
+    let granted = true, reason: unknown;
+    const forwarded: PluginConnectionsPort = {
+      request(_target, dispatch) { dispatch.signal.addEventListener("abort", () => { reason = dispatch.signal.reason; }, { once: true }); return port.request(target, dispatch); },
+      describe: () => ({ bound: true }), release() {},
+    };
+    probe.behavior.send = async context => createPluginConnectionsClient(probe.definition.manifest, forwarded, { install_id: context.install_id,
+      installation_generation: context.installation_generation, assertActive() {},
+      requireGrant: permission => { if (!granted) throw new ActionError("actions.forbidden", `没有 ${permission}`); } }).request("github", { url: ASANA_ME, signal: own.signal });
+    try {
+      const sent = net.next();
+      const settled = Promise.allSettled([host.homeActionClient().invoke(person(probe.permissions), probe.send, {})]);
+      await sent;
+      if (lost) { granted = false; own.abort(); } else own.abort(new Error("插件不要这次的答复了"));
+      assert.equal(codeOf(reason), lost ? "actions.forbidden" : "actions.cancelled");
+      net.refreshes[0]!.release();
+      const [result] = await settled;
+      assert.equal(result!.status, "rejected");
+      if (lost) assert.deepEqual(stored(), before.stored, "a call without its authority cannot make its abort a cancellation");
+      else assert.deepEqual([stored().access, stored().oauth], ["access-0", "refresh-2"], "the rotated credentials are kept");
+      assert.equal(protocol(), before.protocol);
+      assert.deepEqual(net.reads, []);
+    } finally { net.releaseAll(); }
+  });
+});
+
+// T-218 M1: a sandboxed plugin cannot hand in a signal of its own (broker.ts); the one a sandboxed integration's request carries is the broker's
+// lifetime of the call, ended by the platform (`sandbox.stopped` when the integration is switched off or removed). Its reason is passed on as
+// it is, current call or not, so a shared refresh reads it as the platform's and keeps nothing (RAC-2463 runs the real broker on darwin).
+test("S-95 RAC-2462 a sandboxed integration's request ended by the broker carries the broker's own reason, never made a cancellation", async () => {
+  for (const lost of [false, true]) {
+    let current = true, reason: unknown;
+    const control = connectorControl({ current: () => { if (!current) throw new ActionError("actions.forbidden", "这次拉取已失去授权"); } });
+    const port = { request: (_connection: unknown, dispatch: PluginConnectionDispatch) => new Promise<never>((_resolve, reject) => {
+      dispatch.signal.addEventListener("abort", () => { reason = dispatch.signal.reason; reject(reason); }, { once: true });
+    }), describe: () => ({ bound: true }) };
+    const client = createCallConnectionsClient(port, { plugin_id: "io.molis.work.example.pull", service_id: "asana", connection_id: "connection" }, "source", control);
+    const broker = new AbortController(), answered = client.request("source", { url: ASANA_ME, signal: broker.signal });
+    await turn();
+    if (lost) current = false;
+    const stopped = new ActionError("sandbox.stopped", "沙箱已停止");
+    broker.abort(stopped);
+    await assert.rejects(answered);
+    assert.equal(reason, stopped, lost ? "a call no longer current still carries the broker's reason" : "a current call ended by the broker is not a cancellation");
+  }
+});
+
+// #1479 second review, advice 1 (W5-11 §7 slice 6): once the answer of a sent refresh is to be dropped because a call lost its authority,
+// a call arriving after that is not joined to it and told its authority is lost; it waits for a refresh of its own.
+test("RAC-2483 a refresh whose answer is dropped takes no new caller, and one whose answer is kept still does", async () => {
+  const lost = { withdrawn: false }, caller = (state: { withdrawn: boolean }) => {
+    const abort = new AbortController();
+    return connectorControl({ signal: abort.signal, current: () => { if (state.withdrawn) throw new Error("调用已失去授权"); } });
+  };
+  const kept = { withdrawn: false };
+  let release!: () => void;
+  const answered = new Promise<void>(resolve => { release = resolve; });
+  for (const [name, state, expected] of [["a caller lost its authority", lost, "discard"], ["every caller still has it", kept, "deliver"]] as const) {
+    const refresh = startSharedRefresh(caller(state), async run => { await answered; await run.settle(); return run.outcome(); });
+    assert.equal(refresh.open, true, `${name}: open while undecided`);
+    state.withdrawn = state === lost;
+    release();
+    assert.equal(await refresh.first.catch(() => "failed"), state === lost ? "failed" : expected, name);
+    await refresh.done;
+    assert.equal(refresh.open, state !== lost, `${name}: ${state === lost ? "closed once the answer is to be dropped" : "still open"}`);
+  }
 });

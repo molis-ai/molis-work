@@ -8,10 +8,21 @@ export interface ConnectorPrimitives {
   icon(name: "link" | "mail" | "back" | "tree"): string;
 }
 
+/** A package declares a card's name, summary and source line with no length limit: these are the limits the card shows, in characters. */
+export const CONNECTOR_NAME_MAX_CHARS = 120;
+export const CONNECTOR_SUMMARY_MAX_CHARS = 400;
+/** The source line's package name and the card's title are both display text a package provides (the title from the service declaration, the source line from the declaring plugin's Manifest name or its id when that has no name), so they share the same limit. */
+export const CONNECTOR_SOURCE_MAX_CHARS = CONNECTOR_NAME_MAX_CHARS;
+
+/** Cut a card's words to `max` whole characters (code points, as the action schemas count), the last one 「…」; never half of one. */
+export function connectorCardText(text: string, max: number): string {
+  const characters = [...text];
+  return characters.length <= max ? text : characters.slice(0, max - 1).join("") + "…";
+}
+
 export function readyAccountLogin(card: ConnectorSettingsCardView): boolean {
-  return Boolean(card.connector_id === "gmail" ? card.gmail_oauth_configured
-    : card.connector_id === "notion" ? card.notion_oauth_configured
-      : card.connector_id === "github" && card.github_client_id_configured);
+  return Boolean(card.connector_id === "notion" ? card.notion_oauth_configured
+    : card.connector_id === "github" && card.github_client_id_configured);
 }
 
 export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMethodOption | undefined {
@@ -63,7 +74,7 @@ const CONNECTOR_PURPOSE: Record<string, string> = {
 
 /** What a connector is for: the workbench's own sentence where it has one, else the catalog's summary (the catalog's words are its own; specs/font-and-skin-system FSS-36). */
 export function connectorPurpose(card: ConnectorSettingsCardView, L: Translate): string {
-  return card.connector_id in CONNECTOR_PURPOSE ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
+  return Object.hasOwn(CONNECTOR_PURPOSE, card.connector_id) ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
 }
 
 export function officialLinks(links: readonly ConnectorSetupLink[], p: ConnectorPrimitives): string {
@@ -87,7 +98,7 @@ const COMPOSITE: Record<string, { separator: string; fields: readonly [string, s
 
 export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPrimitives): { fields: string; separator?: string } {
   const { L, escapeHtml: e } = p;
-  const composite = COMPOSITE[card.connector_id];
+  const composite = Object.hasOwn(COMPOSITE, card.connector_id) ? COMPOSITE[card.connector_id] : undefined;
   const fields = composite ? composite.fields.map(([label, type, placeholder]) => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
     : `<label class="settings-connector-field"><span>${e(L(card.token_label || "API Key / 访问令牌"))}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
   return { fields, separator: composite?.separator };
@@ -116,7 +127,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
     const ready = dedicated || Boolean(option.login_ready);
     const provider = card.connector_id === "gmail" ? "Google" : card.title;
     const config = `<ol class="settings-connector-steps"><li><strong>${L("打开官方后台，准备应用")}</strong>${officialLinks(option.links, p)}<p>${L("没有开发者权限时，请让应用管理员完成这一步，或选择下方其他连接方式。")}</p></li>
-      <li><strong>${L("登记回调地址")}</strong><p>${L("将下面的地址添加到应用的允许回调地址中。")}</p><div class="settings-connector-copy"><code data-oauth-callback${ready ? ` data-account-callback="${e(card.connector_id)}"` : ""}></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制")}</button></div></li>
+      <li><strong>${L("登记回调地址")}</strong><p>${L("将下面的地址添加到应用的允许回调地址中。")}</p><div class="settings-connector-copy"><code data-oauth-callback${option.oauth.callback_path ? ` data-callback-path="${e(option.oauth.callback_path)}"` : ""}${ready ? ` data-account-callback="${e(card.connector_id)}"` : ""}></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制")}</button></div></li>
       <li><strong>${L("填写应用信息")}</strong>${field("client_id", "应用 Client ID", "", false, "", !ready)}${field("client_secret", option.oauth.client_secret_required ? "应用 Client Secret" : "Client Secret（可选）", "", true, "", !ready && option.oauth.client_secret_required)}${option.oauth.fields.map(f => field(`setting:${f.key}`, f.label, "", false, f.placeholder, !ready && f.required)).join("")}</li></ol>`;
     body = `<p>${L(ready ? "将在浏览器打开官方登录页。选择账号并确认权限后，回到这里即可继续。" : "首次连接需要服务商的应用配置。准备完成后，即可在官方页面登录授权。")}</p>
       ${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}

@@ -251,7 +251,7 @@
 | --- | --- | --- |
 | `project_plugin_id` | 项目里启用与隐藏、插件切换器、工作面都用的短 id（`ProjectPluginId`） | `goals`、`form`、`plugin-builder` |
 | `manifest.plugin_id` | 插件的身份键，安装记录、事件订阅、发行物留存、提示词覆盖（`owner_id`）等都以它为键；签名变了同样视为另一个插件，旧授权、存储和绑定不继承（`docs/platform/PLUGIN-PLATFORM.md` §2） | `io.molis.work.todo` |
-| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口里的 `plugin_title` 取它（`apps/local-host/src/artifact-type-registry.ts:172,155,163`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:78`），动作提供方的标题也取它（`packages/plugin-runtime/src/action-provider.ts:34`），所以会出现在界面上 | `Forms`、`待办` |
+| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口（含按声明链接的插件分组的小标题）里的 `plugin_title` 取它（`apps/local-host/src/artifact-type-registry.ts:180,155,163,199`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:78`），动作提供方的标题也取它（`packages/plugin-runtime/src/action-provider.ts:34`），所以会出现在界面上 | `Forms`、`待办` |
 | 界面显示名 | `manifest.ui.views[].title`，插件切换器和标签页标题用它 | `Forms`、`角色` |
 | 目录与包名 | `plugins/native/<目录>`，`@molis-ai/molis-work-plugin-<目录>` | `plugins/native/todo` |
 
@@ -296,7 +296,7 @@
 
 表外的几处不规则：
 
-1. **Manifest 的 `plugin_id` 多一段 `.native.`**：只有工作流程（`plugins/native/workflows/src/model.ts:7`）。它是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`，`plugins/native/workflows/src/prompts.ts:5`）的键，改名属 R-B8。
+1. **Manifest 的 `plugin_id` 多一段 `.native.`**：只有工作流程（`plugins/native/workflows/src/model.ts:7`）。它是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`，`plugins/native/workflows/src/prompts.ts:5`）的键，改名属 R-B8（2026-10-26 已定不做，见 R-C）。
 2. **UI 声明里不写 `plugin_id`（PG-098，2026-10-25 已改）**：原来 5 个插件共 16 个描述写成 `io.molis.work.native.<x>`，而它们的 Manifest 是 `io.molis.work.<x>`，构建期装配的插件没有一致性检查，所以没被发现。现在插件写的 `UiContribution.descriptor` 是 `UiContributionDeclaration`，没有 `plugin_id`；平台登记时按受信任的 Manifest 填（`ownedContribution`：`ui:register` 用安装上下文的 `plugin_id`，内置的 `registration.workbench.contributions` 用登记项的 `manifest.plugin_id`），声明自己带 `plugin_id` 一律拒绝（`declaresOwner`）。所以不再有「描述里的身份与 Manifest 不一致」这件事，R-A9 作废。
 3. **存量成果版本里记着旧的生产者**：宿主时代 Feed 的出站规则自己写生产者 `FEED_ARTIFACT_PRODUCER`：版本 `0.0.0`、签名 `native:feed`，`plugin_id` 在 10-25（`6cac075ed`）之前是 `io.molis.work.native.feed`，之后是 `io.molis.work.feed`。RAC-510（2026-10-27，批 C）之后 Feed 经 `services.artifacts.join` 写，生产者由平台按 Feed 的 Manifest 盖（`io.molis.work.feed`、`0.3.0`、`official-feed-binding`），类型对照 `artifacts.produces` 检查，`FEED_ARTIFACT_PRODUCER` 已删。生产者存在成果表的 `producer_plugin_id`、`producer_binding_signature`（`modules/artifacts/src/repository.ts:52`），所以存量还是旧值，改存量属 R-B9。
 4. **贡献 id（`contribution_id`）不是插件 id**：多数内置插件的贡献 id 以 `io.molis.work.native.<x>.` 开头（如 `io.molis.work.native.todo.ui.v1`，`plugins/native/todo/src/ui.ts:4`）。这是贡献 id 的命名空间，不要拿它推 `plugin_id`；它不在改名范围内。
@@ -335,7 +335,7 @@
 **U5　Board 还出现在 4 处报错里**
 
 - 现状：「Board 已存在」「Board ID 和名称不能为空」（`plugins/native/goals/src/module/library-commands.ts`）、「Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标」（`plugins/native/goals/src/goal-tree-submission.ts`）、「项目数据库必须恰好包含一个 Board」（`apps/local-host/src/managed-project-database.ts`）。这些是动作和命令的报错，用户会在各入口看到。同日的文案改动（#299）已把「Board 不存在」和动作「初始化目标资料库」的说明改成「目标资料库」，所以这 4 处与它不一致。
-- 建议：余下的统一写「目标资料库」或「项目」，与 #299 一致：「目标资料库已存在」「项目 ID 和名称不能为空」「……必须是当前目标资料库已观察到的事件游标」「项目数据库必须恰好包含一个目标资料库」。错误码 `board.not_found` 等属合同，随第 5 节 R-B3 决定，不在这一条。
+- 建议：余下的统一写「目标资料库」或「项目」，与 #299 一致：「目标资料库已存在」「项目 ID 和名称不能为空」「……必须是当前目标资料库已观察到的事件游标」「项目数据库必须恰好包含一个目标资料库」。错误码 `board.not_found` 等属合同，R-B3 已定保持原名（2026-10-26，见 R-C），不在这一条。
 - 备选：保持现状。
 
 **U6　「角色」同时指 Character 和 Agent role；外部 AI 工具和它里面的工作者都被叫成「Agent」**
@@ -421,18 +421,18 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 ### R-B　持久化或合同里的标识符（改名等于改数据或合同）
 
-按 `AGENTS.md`：存量数据由维护改成现行形状，读取时不兜底历史取值。所以这一类每一项都要用户先确认合同变化，再由维护脚本改存量；不确认就保持原名，并在 R-C 记录。
+按 `AGENTS.md`：存量数据由维护改成现行形状，读取时不兜底历史取值。所以这一类每一项都要用户先确认合同变化，再由维护脚本改存量；不确认就保持原名，并在 R-C 记录。2026-10-26 统筹决定 R-B1～R-B8 不做（W5-14 只管内部名），已在 R-C 记为保持原名；R-B9 另行处理（源码已改，存量随真实 Home 重建，不迁移）。
 
 | # | 标识符 | 建议 | 规模 | 为什么要先问 |
 | --- | --- | --- | --- | --- |
 | R-B1 | 字段 `capability_id`（动作与宿主能力的身份字段） | 保留原名，记「`capability_id` 就是动作的 id」 | 源码 202 个文件、1,169 处 | 写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里；改名收益很小，数据和外部授权都要动 |
-| R-B2 | 判断规则：动作 id `functions.list`、`functions.describe`、`functions.invoke`、`functions.published.<function_key>`；权限串 `functions:invoke`、`functions:manage`；`FUNCTIONS_PLUGIN_ID`（`io.molis.work.functions`）；字段 `function_key`；库表 `function_judgments` 等；Home 里的 `functions` 库名（`openBaselineHomeSqlite(home, "functions", …)`） | 改成 `judgments.*` / `judgment_rule`，或保留 | `functions.*` 动作 id 源码 9 个文件，权限串 10，`function_key` 28 | 动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护 |
-| R-B3 | Board 系：事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists`；能力 id `io.molis.work.local-host.board.initialize`、`io.molis.work.local-host.board.snapshot`；动作 id `goals.board.initialize` | 动作 `goals.library.initialize`，事件与错误码 `goals_library.*`（如 `goals_library.not_found`） | 事件与错误码 7 个源码文件 | 事件与动作 id 对外可见 |
-| R-B4 | 推荐选项：结果类型 `molis.behavior-recommendation.v1`、字段 `suggested_behavior_ids`、判断规则草稿里的 `scene_map`（值是场景内的符号）、库列 `suggested_json` 里的内容 | `molis.recommendation.v1`、`suggested_option_ids` | 结果类型 6 个源码文件，`suggested_behavior_ids` 30，`scene_map` 9 | 已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量 |
-| R-B5 | Skill：Manifest 的 `methods` 键；动作 id `assistant.methods.*`（现有 `assistant.methods.read`）；助理里 Skill 的 id 字段 `method_id`（`assistant.methods.read` 的输入和输出字段，`apps/local-host/src/assistant/assistant-rule-actions.ts:61-65,86-87`；物料里的 `method.method_id`）；助理物料种类值 `"method"`（`packages/contracts/src/services/assistant.ts:199`），它存在轮次记录的 `materials` 里（`apps/local-host/src/assistant/assistant-store.ts:107`） | `skills` / `assistant.skills.*` / `skill_id` / `"skill"` | `assistant.methods` 2 个源码文件；`method_id` 在助理一侧 5 个源码文件（`apps/local-host/src/assistant/assistant-rule-actions.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`、`packages/contracts/src/services/assistant.ts`） | Manifest 是插件 SDK 的公开合同（`packages/contracts/src/platform/plugin.ts`）；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。Goals 的 `method_id` 指规划方法，不在此列（R-C）。**排序**：W4-02 让 Manifest 的 `methods` 对 Runtime 和已安装插件生效（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Runtime 与安装插件声明的 methods」），改键名与它碰同一个 Manifest 合同，应和 W4-02 一起问、或排在它之后，让合同只变一次 |
-| R-B6 | Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability` | `find-actions`、`read-action`、`change-action`（`suggest-action`、`change-reversible` 已一致） | 源码 6 个文件 46 处，测试 10 个文件 | 助理提示词引用这些名字（`apps/local-host/src/assistant/assistant-agent.ts`），提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本 |
-| R-B7 | 工作流程衔接类型 `function`（模板转换） | `template` | `plugins/native/workflows/src` 的 `actions.ts`、`client.ts`、`model.ts` | 已保存的流程和实例里存着这个值 |
-| R-B8 | 工作流程的 `plugin_id` `io.molis.work.native.workflows` | `io.molis.work.workflows` | 字面量在 `plugins/native/workflows/src/` 的 3 个源码文件（`client.ts:69,213`、`model.ts:8`、`prompts.ts:5`），常量 `WORKFLOWS_PLUGIN_ID` 另有 `actions.ts`、`manifest.ts`、`ui.ts` 引用 | `plugin_id` 是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`）的键，改名要改这些存量 |
+| R-B2 | 判断规则：动作 id `functions.list`、`functions.describe`、`functions.invoke`、`functions.published.<function_key>`；权限串 `functions:invoke`、`functions:manage`；`FUNCTIONS_PLUGIN_ID`（`io.molis.work.functions`）；字段 `function_key`；库表 `function_judgments` 等；Home 里的 `functions` 库名（`openBaselineHomeSqlite(home, "functions", …)`） | 改成 `judgments.*` / `judgment_rule`，或保留 | `functions.*` 动作 id 源码 9 个文件，权限串 10，`function_key` 28 | 动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护（2026-10-26 不做，见 R-C） |
+| R-B3 | Board 系：事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists`；能力 id `io.molis.work.local-host.board.initialize`、`io.molis.work.local-host.board.snapshot`；动作 id `goals.board.initialize` | 动作 `goals.library.initialize`，事件与错误码 `goals_library.*`（如 `goals_library.not_found`） | 事件与错误码 7 个源码文件 | 事件与动作 id 对外可见（2026-10-26 不做，见 R-C） |
+| R-B4 | 推荐选项：结果类型 `molis.behavior-recommendation.v1`、字段 `suggested_behavior_ids`、判断规则草稿里的 `scene_map`（值是场景内的符号）、库列 `suggested_json` 里的内容 | `molis.recommendation.v1`、`suggested_option_ids` | 结果类型 6 个源码文件，`suggested_behavior_ids` 30，`scene_map` 9 | 已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量（2026-10-26 不做，见 R-C） |
+| R-B5 | Skill：Manifest 的 `methods` 键；动作 id `assistant.methods.*`（现有 `assistant.methods.read`）；助理里 Skill 的 id 字段 `method_id`（`assistant.methods.read` 的输入和输出字段，`apps/local-host/src/assistant/assistant-rule-actions.ts:61-65,86-87`；物料里的 `method.method_id`）；助理物料种类值 `"method"`（`packages/contracts/src/services/assistant.ts:199`），它存在轮次记录的 `materials` 里（`apps/local-host/src/assistant/assistant-store.ts:107`） | `skills` / `assistant.skills.*` / `skill_id` / `"skill"` | `assistant.methods` 2 个源码文件；`method_id` 在助理一侧 5 个源码文件（`apps/local-host/src/assistant/assistant-rule-actions.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`、`packages/contracts/src/services/assistant.ts`） | Manifest 是插件 SDK 的公开合同（`packages/contracts/src/platform/plugin.ts`）；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。Goals 的 `method_id` 指规划方法，不在此列（R-C）。**排序**：W4-02 让 Manifest 的 `methods` 对 Runtime 和已安装插件生效（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Runtime 与安装插件声明的 methods」），改键名与它碰同一个 Manifest 合同，应和 W4-02 一起问、或排在它之后，让合同只变一次（2026-10-26 不做，见 R-C） |
+| R-B6 | Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability` | `find-actions`、`read-action`、`change-action`（`suggest-action`、`change-reversible` 已一致） | 源码 6 个文件 46 处，测试 10 个文件 | 助理提示词引用这些名字（`apps/local-host/src/assistant/assistant-agent.ts`），提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本（2026-10-26 不做，见 R-C） |
+| R-B7 | 工作流程衔接类型 `function`（模板转换） | `template` | `plugins/native/workflows/src` 的 `actions.ts`、`client.ts`、`model.ts` | 已保存的流程和实例里存着这个值（2026-10-26 不做，见 R-C） |
+| R-B8 | 工作流程的 `plugin_id` `io.molis.work.native.workflows` | `io.molis.work.workflows` | 字面量在 `plugins/native/workflows/src/` 的 3 个源码文件（`client.ts:69,213`、`model.ts:8`、`prompts.ts:5`），常量 `WORKFLOWS_PLUGIN_ID` 另有 `actions.ts`、`manifest.ts`、`ui.ts` 引用 | `plugin_id` 是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`）的键，改名要改这些存量（2026-10-26 不做，见 R-C） |
 | R-B9 | 存量捕获成果的生产者：签名 `native:feed`、版本 `0.0.0`，`plugin_id` 是 `io.molis.work.native.feed`（10-25 之前）或 `io.molis.work.feed` | 改成 Feed Manifest 的身份：`io.molis.work.feed`、`0.3.0`、`official-feed-binding`。源码已改（RAC-510，批 C：生产者由平台按 Manifest 盖，`FEED_ARTIFACT_PRODUCER` 已删） | 源码已无旧值；存量是成果表 `producer_plugin_id`、`producer_binding_signature` 与版本表 `producer_plugin_version` 里 Feed 写过的行 | 读取不兜底：成果线只认插件号和签名都相同的生产者（PG-107），存量线 Feed 认不出，同一条消息再被捕获时记 `artifact_out_failed`。存量由维护改，候选条目在 `docs/releases/CHECKLIST.md` §4.3（R-69，与项目库 v11 同一个窗口，动真实 Home 前问用户） |
 
 ### R-C　不改名（记入术语表即可）
@@ -445,6 +445,14 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - Goals 里规划方法的 `method_id`（`plugins/native/goals`（含 `src/module/`）、`apps/local-host/src/web-planning.ts` 以及 Goals 的库表与事件）：它指规划方法，写在 Goals 的库和事件里，建议不改；读到 `method_id` 时看所在包：助理一侧是 Skill（R-B5），Goals 一侧是规划方法。
 - 构建期 UI 描述和内置插件的 `contribution_id` 里的 `.native.` 段（3.3 第 4 条）：贡献 id 的命名空间，不是插件 id。
 - R-B 里用户不确认改名的项，在这里补一行。
+- R-B1 `capability_id`：保持原名——就是动作的 id；写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里，改名收益小而数据和外部授权都要动。
+- R-B2 `functions.*` 动作 id、权限串、`FUNCTIONS_PLUGIN_ID`、`function_key`、`function_judgments` 等库表与 Home 的 `functions` 库名：保持原名。动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护。
+- R-B3 Board 系的事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists` 与动作 id `goals.board.initialize`：保持原名。事件与动作 id 对外可见。两个旧宿主能力 id 已随 typed 通道退役，不在此列。
+- R-B4 推荐选项的 `molis.behavior-recommendation.v1`、`suggested_behavior_ids`、判断规则草稿里的 `scene_map`、库列 `suggested_json` 里的内容：保持原名。已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量。
+- R-B5 Skill 的 Manifest `methods` 键、`assistant.methods.*`、`method_id`、物料种类值 `"method"`：保持原名。Manifest 是插件 SDK 的公开合同；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。
+- R-B6 Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability`：保持原名。助理提示词引用这些名字，提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本。
+- R-B7 工作流程衔接类型 `function`：保持原名。已保存的流程和实例里存着这个值。
+- R-B8 工作流程的 `plugin_id` `io.molis.work.native.workflows`：保持原名。`plugin_id` 是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`）的键，改名要改这些存量。
 
 ## 6. 文档里还没统一的地方
 

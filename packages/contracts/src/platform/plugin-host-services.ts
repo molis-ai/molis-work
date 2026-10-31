@@ -109,6 +109,7 @@ export interface PluginHostServices {
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
+  /** Present when the Manifest declares terminal:run and the Host runs the plugin itself (S-103). */
   readonly terminal?: PluginTerminalClient;
   /**
    * The Host's text model, for a plugin the Host runs itself that declares `model:read` (the list and availability only) or
@@ -147,8 +148,49 @@ export interface PluginHostServices {
   readonly outputs?: PluginOutputsClient;
 }
 
-/** A user-started interactive terminal in the plugin's declared owner-files directory. */
+/**
+ * Where a plugin's terminal starts (S-103): a folder of a workspace linked to the project of the call (`workspace_id` from that project's
+ * list, or the project's preferred linked workspace without it; this root also needs workspace:read), or of the plugin's own declared owner
+ * files. `path` is relative to that root, `/`-separated.
+ */
+export type PluginTerminalDirectory =
+  | { readonly root: "workspace"; readonly workspace_id?: string; readonly path?: string }
+  | { readonly root: "owner_files"; readonly path?: string };
+
+/**
+ * What a plugin's terminal runs (S-103): one of the platform's runtime recipes by id (`codex`, `claude-code`, …), which also resumes the
+ * runtime's own session when the terminal starts again; or a program the plugin's backend chose, an absolute path or a bare name the
+ * platform finds on its PATH, with bounded arguments. Never a shell line.
+ */
+export type PluginTerminalProgram =
+  | { readonly runtime: string }
+  | { readonly command: string; readonly args?: readonly string[] };
+
+/** One of this installation's terminals, for the person and project of the call. `running` is read when asked; nothing else is kept of the process. */
+export interface PluginTerminalPanel {
+  readonly key: string;
+  readonly panelId: string;
+  readonly title: string;
+  /** The recipe id, or `command` for a program the plugin chose. */
+  readonly runtime: string;
+  readonly subject: string | null;
+  readonly running: boolean;
+  readonly created_at: string;
+}
+
+/** A user-started interactive terminal, for a plugin the Host runs itself that declares terminal:run (S-103). */
 export interface PluginTerminalClient {
-  /** Backend-selected executable; the page receives only its panel handle. Requires terminal:run. */
-  open(input: { key: string; command: string; title: string }): Promise<{ panelId: string }>;
+  /**
+   * Starts the plugin's interactive terminal for this key, or reattaches to it while it runs; a key keeps the `subject` it was opened for
+   * (another one is refused, running or not); a terminal that ended starts again with the program it was opened with (the input must then
+   * name the same one), resuming the runtime's session when one was reported. The Host takes
+   * the installation, the project and the person from the running action; `subject` is the plugin's own id for what the terminal works
+   * on (handed to the runtime as its focus, and a filter for `list`). Requires terminal:run, and workspace:read for a workspace root.
+   * The page receives only the panel handle.
+   */
+  open(input: { key: string; title?: string; program: PluginTerminalProgram; subject?: string; directory: PluginTerminalDirectory }): Promise<{ panelId: string; started: boolean }>;
+  /** This installation's terminals for the person and project of the call, optionally of one subject; also from a query. Requires terminal:run. */
+  list(input?: { subject?: string }): Promise<readonly PluginTerminalPanel[]>;
+  /** Ends the terminal for this key and forgets it. Requires terminal:run. */
+  close(input: { key: string }): Promise<void>;
 }

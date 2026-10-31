@@ -3,6 +3,7 @@ import {
   SURFACE_LANDING_POSITIONS, SURFACE_PLACES, type ContextualJudgeRequest, type SurfaceActivity, type SurfaceFocus, type SurfaceFocusTarget,
   type SurfaceLanding, type SurfaceLandingPosition, type SurfacePlace,
 } from "@molis-ai/molis-work-contracts/services/contextual";
+import { cutHead, cutTail } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * What a page may claim about the context, bounded before anything else reads it. A page's focus and landing are claims:
@@ -23,13 +24,6 @@ const POSITIONS: ReadonlySet<string> = new Set(SURFACE_LANDING_POSITIONS);
 const MAX_TARGETS = 24;
 const MAX_LANDING_TARGETS = 4;
 const MAX_TARGET_TEXT = 4_000;
-
-/**
- * The limits count UTF-16 units, as `readString` does. A cut between the two halves of a character drops the lone half instead of
- * keeping it; text within the limit comes back as it was.
- */
-export const cutHead = (text: string, max: number): string => text.length <= max ? text : text.slice(0, max).replace(/[\uD800-\uDBFF]$/u, "");
-const cutTail = (text: string, max: number): string => text.length <= max ? text : text.slice(-max).replace(/^[\uDC00-\uDFFF]/u, "");
 
 export function readString(value: unknown, field: string, max: number): string {
   if (typeof value !== "string" || !value || value.length > max) throw invalid(field);

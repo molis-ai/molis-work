@@ -17,6 +17,7 @@ import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plu
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 /**
  * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
@@ -28,7 +29,10 @@ const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "p
   "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
 
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
-const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [{ id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" }];
+const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
+  { id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
+  { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
+];
 
 /** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
 function iconInventoryPlugins(): CatalogPluginIcon[] {

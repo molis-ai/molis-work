@@ -88,7 +88,7 @@ export {
 
 export { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions, type DemoFeedSourceOptions } from "./demo-feed-library.js";
 export { createNotificationDelivery, declaredNotificationReceivers } from "./plugin-notification-delivery.js";
-export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
+export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, artifactLinkSubjectActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
 export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
@@ -116,15 +116,16 @@ export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
-export { sandboxIntegrationContribution } from "./sandbox-integration.js";
+export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
+export { installedStageSection } from "./installed-stage-section.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
-export { artifactActionProvider } from "./artifact-actions.js";
+export { artifactActionProvider, artifactLinkSubjectsPort } from "./artifact-actions.js";
 export { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
@@ -132,7 +133,11 @@ export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
 export { connectorSetupIntentAction } from "./connector-setup-intent.js";
 export { connectorAuthorizationStatus, holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
-export { startApiOAuth, completeApiOAuth, type OAuthOwners } from "./connector-api-oauth.js";
+export { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, type OAuthOwners } from "./connector-api-oauth.js";
+export { resolveApiConnection } from "./connector-access.js";
+export { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
+export { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
+export { startSharedRefresh } from "./connector-shared-refresh.js";
 export { publicOAuthFetch } from "./connector-oauth-send.js";
 export { readConnectorAccount } from "./connector-account-actions.js";
 export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
@@ -141,14 +146,13 @@ export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
 
-export * from "./gmail-oauth.js";
 
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
-export { connectorDirectory } from "./connector-directory.js";
+export { connectorDirectory, connectorLoginReady } from "./connector-directory.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
@@ -165,6 +169,7 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
+export { declaredStageData } from "./project-stage-data.js";
 export { developerMode } from "./developer-mode.js";
 export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
@@ -184,6 +189,11 @@ export { createLocalWebAssets } from "./web-assets.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { MCP_TOOLS } from "./mcp-platform-tools.js";
+export { mcpErrors, mcpErrorKind, type McpErrorReason } from "./mcp-errors.js";
+export { createPresentationError } from "./mcp-v1-tool.js";
+export { assertMcpStartInput } from "./mcp-start-preflight.js";
+export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
+export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
@@ -234,7 +244,7 @@ export { LocalActionGatewayClient } from "./action-gateway.js";
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
 // Home stores' one current schema each (repository-anti-corruption §4.1); compared with the stores' fixtures by tests/home-store-baselines.test.ts.
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
-export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
+export { CONTEXT_ONBOARDING_BASELINE, withContextJourneys } from "./context-onboarding-store.js";
 // An onboarding round run with the caller's own ports (a stub model), for checking the page while it organizes.
 export { startContextJourney, waitContextJourney } from "./context-onboarding-service.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
@@ -263,7 +273,6 @@ export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/mem
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
-export { adoptMemoryHome, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
@@ -306,7 +315,8 @@ export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
+export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
-export { pluginPagesFor } from "./plugin-page-authority.js";
+export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
 export { entryUserAction } from "./entry-user-action.js";

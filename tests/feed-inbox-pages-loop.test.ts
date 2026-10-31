@@ -233,10 +233,12 @@ test("RAC-2409: the information planner cuts feed titles and source names to 200
   const title = "😀".repeat(250), sourceName = "😀".repeat(250);
   let shown = "";
   const result = await planInformationWork({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
-    feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }], inbox_entries: [] }, "project-a", { prompt: "整理" },
+    feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
+    inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }] }, "project-a", { prompt: "整理" },
     async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
   const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
-  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[] };
-  assert.deepEqual([context.items[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200)], "the prompt carries 200 whole characters of each, not 250");
-  assert.deepEqual(result.context, { project_id: "project-a", items: 1, inbox: 0 });
+  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
+  assert.deepEqual([context.items[0]!.title, context.inbox[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
+    "the prompt carries 200 whole characters of the feed title, the inbox entry's feed title and the source name, not 250");
+  assert.deepEqual(result.context, { project_id: "project-a", items: 1, inbox: 1 });
 });

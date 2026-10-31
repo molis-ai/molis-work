@@ -121,4 +121,3 @@ export { catalogCloudOrigin } from "./targets.js";
 export type { CatalogFetch } from "./types.js";
 export { readExternalDocument, externalDocumentErrors } from "./document-import.js";
 export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";
-export { notionAuthorizationUrl, notionOAuthToken, NotionOAuthError, type NotionOAuthTokens } from "./notion-oauth.js";

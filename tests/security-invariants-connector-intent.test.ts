@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import test from "node:test";
 import { assistantConnectionCheckers, retainConnectorSetupsForSession, MolisWorkLocalHost, connectorSetupAction, connectorSetupIntentAction, connectorManagementActions, connectorRecordActions, CONNECTOR_RECORDS_READ, holdConnectorAuthorizationsForSession, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -112,26 +113,26 @@ test("S-37 ASC-34: intent received during a real OAuth completion parks its resu
   await assert.rejects(home.web.post("/api/settings/connectors/methods/oauth/complete", callback));
 });
 
-for (const service of ["gmail", "notion"]) test(`S-37 ASC-34: ${service} dedicated OAuth preserves a held completion through retain or cancel`, async t => {
+/** The provider sending the person back: the redirect address names the host the person's browser arrives at (Notion's is `localhost`), the socket is the test Host's. */
+const arrive = (home: IntentServer, returned: string) => new Promise<{ location?: string }>((resolve, reject) => {
+  const url = new URL(returned);
+  httpRequest({ host: "127.0.0.1", port: new URL(home.origin).port, path: url.pathname + url.search, method: "GET", headers: { host: url.host } },
+    response => { response.resume(); response.on("end", () => resolve({ location: response.headers.location })); }).on("error", reject).end();
+});
+
+for (const service of ["gmail", "notion"]) test(`S-37 ASC-34: ${service} OAuth preserves a held completion through retain or cancel`, async t => {
   const home = await openTestHome(t), prepared = await prepare(home, service, "oauth");
-  const realFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") return Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
-    if (url === "https://api.notion.com/v1/users/me") return Response.json({ object: "user", id: "bot", type: "bot", bot: { owner: { type: "workspace", workspace: true } } });
-    return realFetch(input, init);
-  });
-  // Gmail runs the generic flow (W5-11 slice 6): its requests leave by `sendPublicHttps`, and its registered callback is the service's alias.
-  if (service === "gmail") oauthNetwork(t, url => url === "https://oauth2.googleapis.com/token" ? Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600 })
+  // Both run the generic flow (W5-11 slices 6, 7): their requests leave by `sendPublicHttps`, and their registered callbacks are the services' aliases.
+  oauthNetwork(t, url => url === "https://oauth2.googleapis.com/token" ? Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600 })
+    : url === "https://api.notion.com/v1/oauth/token" ? Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" })
+    : url === "https://api.notion.com/v1/users/me" ? Response.json({ object: "user", id: "bot", type: "bot", bot: { owner: { type: "workspace", workspace: true } } })
     : Response.json({ sub: "google-account", email: "work@example.test" }));
-  const started = service === "gmail"
-    ? await home.web.post<{ authorization_url: string }>("/api/settings/connectors/methods/oauth/start", { service_id: "gmail", client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id })
-    : await home.web.post<{ authorizationUrl: string }>("/api/settings/connectors/notion/oauth/start", { client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id,
-      redirect_uri: `${home.origin}/api/feed/connectors/gmail/oauth/callback` });
-  const consent = new URL("authorization_url" in started ? started.authorization_url : started.authorizationUrl), redirect = consent.searchParams.get("redirect_uri")!;
+  const started = await home.web.post<{ authorization_url: string }>("/api/settings/connectors/methods/oauth/start",
+    { service_id: service, client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id });
+  const consent = new URL(started.authorization_url), redirect = consent.searchParams.get("redirect_uri")!;
   hold(home.home, "latest");
-  const response = await fetch(`${redirect}?state=${consent.searchParams.get("state")}&code=fixture-code`, { redirect: "manual" });
-  assert.equal(response.headers.get("location"), `/capabilities/connections?setup=${prepared.authorization_id}`);
+  const response = await arrive(home, `${redirect}?state=${consent.searchParams.get("state")}&code=fixture-code`);
+  assert.equal(response.location, `/capabilities/connections?setup=${prepared.authorization_id}`);
   assert.equal((await read(home, prepared.authorization_id)).completion_ready, true);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
   const result = await decide(home, prepared.authorization_id, "latest", service === "gmail" ? "retain" : "cancel");

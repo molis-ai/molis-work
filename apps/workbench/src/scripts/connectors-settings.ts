@@ -156,11 +156,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
             if (!area.closest('[data-connector-detail]').querySelector('[data-connector-new-name]')?.value.trim()) body.display_name = existing.connection.display_name;
           }
           if (button.dataset.accountLogin === 'github' && !body.client_id && authorizationFlow !== 'oauth') { await deviceFlow(area, body, popup); return; }
-          const service = button.dataset.accountLogin;
-          const dedicated = service && !body.redirect_uri && !body.client_id && authorizationFlow !== 'oauth';
-          const path = dedicated ? service + '/oauth/start' : 'methods/' + button.dataset.protocolStart + '/start';
-          const payload = await api(path, dedicated ? { setup_id: body.setup_id, connection_id: body.connection_id, display_name: body.display_name } : body);
-          const url = payload.authorization_url || payload.authorizationUrl;
+          const payload = await api('methods/' + button.dataset.protocolStart + '/start', body);
+          const url = payload.authorization_url;
           const id = payload.connection_id || payload.connection?.connection_id;
           area.querySelectorAll('input[type=password]').forEach(input => { input.value = ''; });
           if (url) {
@@ -184,7 +181,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       box.querySelectorAll('[data-oauth-callback], [data-mcp-callback]').forEach(node => {
         const kind = node.hasAttribute('data-mcp-callback') ? 'mcp' : 'oauth';
-        node.textContent = new URL(node.dataset.callbackPath || '/api/settings/connectors/methods/' + kind + '/callback', location.origin).href;
+        const address = new URL(node.dataset.callbackPath || '/api/settings/connectors/methods/' + kind + '/callback', location.origin);
+        address.hostname = node.dataset.callbackHost || address.hostname;
+        node.textContent = address.href;
       });
       const summarize = (node, result) => {
         const account = result.account || result.login || result.email;

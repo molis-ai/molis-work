@@ -410,6 +410,27 @@ test("Alchemist abort while shared inference returns cannot publish its complete
   assert.equal(requests, 1, "a request already dispatched before abort is neither repeated nor presented as a cancelled success");
 });
 
+test("RAC-2724: a prompt over twice the limit is refused by unit count, without building a code-point array", { timeout: 30_000 }, async t => {
+  // The port's own promptTooLong has the same fast path: a prompt whose UTF-16 length already exceeds twice the limit cannot be within
+  // the limit in characters either, so it is refused on the unit count without spreading the whole string into code points.
+  const f = await configuredAi(t);
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => textInference(async input => ({ state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 },
+    value: '{"reply":"ok"}', configuredModel: input.model, reportedModels: [], usage: [] })) });
+  const schema = { type: "object", properties: { reply: { type: "string" } } };
+  const prefix = alchemistPromptText("检查长度", schema, "").length;
+  const userPrompt = "😀".repeat(ALCHEMIST_PROMPT_MAX_CHARS + 10);
+  const prompt = alchemistPromptText("检查长度", schema, userPrompt);
+  assert.ok(prompt.length > 2 * ALCHEMIST_PROMPT_MAX_CHARS, "the test input is over twice the limit in UTF-16 units");
+  await assert.rejects(port.generate({ operationId: "over-twice", purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt, jsonSchema: schema }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, "alchemist.prompt_too_long");
+      assert.equal((error as { kind?: string }).kind, "invalid");
+      assert.match((error as Error).message, /至少多 \d+ 个 UTF-16 单元/u, "the fast path says it is at least the unit excess over the limit, without counting characters");
+      return true;
+    });
+  assert.ok(prompt.length > prefix, "the prefix is part of the prompt");
+});
+
 test("RAC-2410: the Alchemist prompt is refused whole over the port's limit, and the limit counts whole characters", { timeout: 30_000 }, async t => {
   // The prompt is the JSON Schema and the task materials (the instructions ride in `system`, so this prompt may be as long as the port's
   // own PROMPT_MAX_CHARS, re-exported by this port as ALCHEMIST_PROMPT_MAX_CHARS). The prompt is refused whole — not cut — because a cut would break the

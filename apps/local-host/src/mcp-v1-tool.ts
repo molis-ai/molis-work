@@ -4,12 +4,16 @@ import { readProductEnv } from "@molis-ai/molis-work-storage";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { mcpErrorKind, mcpErrors } from "./mcp-errors.js";
 import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
 import { bindGoalsManagementActions } from "./goal-callers.js";
 import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import path from "node:path";
 
-export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new ActionError(code, message, { details });
+export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => {
+  const kind = mcpErrorKind(code);
+  return new ActionError(code, message, { ...(kind ? { kind } : {}), ...(details ? { details } : {}) });
+};
 
 /** Who is calling a v1 project tool, and on what. A Runtime call runs in its bound project; a management call names its own database. */
 interface McpV1ToolCaller {
@@ -31,6 +35,8 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     ? runtimeConnection!.databasePath
     : namedDatabasePath(arguments_.database_path) ?? namedDatabasePath(readProductEnv("DATABASE"));
   if (!location) {
+    // Pinned by scripts/gates/goals-management-wiring.mjs, which checks this refusal's AST shape (a bare ActionError with the code
+    // literal); changing it needs a gate change, so it is the one mcp.* throw outside the declaration (its kind is the default invalid).
     throw new ActionError("mcp.path_required",
       "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
   }
@@ -44,7 +50,7 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
-    throw new ActionError("mcp.not_found", `Molis Work 数据库不存在: ${databasePath}`);
+    throw mcpErrors.not_found(`Molis Work 数据库不存在: ${databasePath}`);
   }
   const projectId = String(
     audience === "runtime"

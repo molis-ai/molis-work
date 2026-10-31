@@ -79,5 +79,6 @@ test("RAC-2417 a cli connection whose service id names a prototype member has no
     return { code: error.code, message: error.message };
   };
   const missing = await refusal(unknown!.connection_id);
+  assert.equal(missing.code, "connector.records.unsupported", "a CLI without a record adapter is refused by the records contract");
   assert.deepEqual(await refusal(prototype!.connection_id), missing);
 });

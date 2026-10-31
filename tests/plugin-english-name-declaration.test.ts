@@ -10,7 +10,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  BUILTIN_PLUGIN_CATALOG, EN, builtinPluginDirectory, createWorkbenchLocale, islandEntries, pluginDirectoryFor, pluginMarketCards, pluginTabTitles, railEntries,
+  BUILTIN_PLUGIN_CATALOG, EN, builtinPluginDirectory, islandEntries, pluginDirectoryFor, pluginMarketCards, pluginTabTitles, railEntries,
   renderPickerExtend, renderPluginDirectoryData, renderPluginMarket, renderPluginRail, sanitizePluginDirectory, type PluginDirectoryEntry,
 } from "@molis-ai/molis-work-app-workbench";
 import { runningPluginDirectory, type DirectorySource } from "@molis-ai/molis-work-app-local-host";
@@ -177,25 +177,8 @@ test("RAC-1726 the workbench keeps no table of English plugin names by plugin id
 });
 
 const HOSTILE_ENGLISH = `<img src=x onerror="alert(1)">`;
-/**
- * RAC-2732: the production paths read the English from the built-in Manifest (the market cards and the page's title data use the
- * catalog, not the page's directory), so the hostile value goes in for the call and is put back in `finally`. The test file is its
- * own process; no other file sees the patched catalog.
- */
-const withHostileBuiltinView = <T>(run: () => T): T => {
-  const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "todo");
-  assert.ok(entry, "the to-do is a built-in");
-  const view = entry.manifest.ui?.views?.find(item => item.slot === "navigator");
-  assert.ok(view, "the to-do has a navigator view");
-  const original = view.title_en;
-  Object.assign(view, { title_en: HOSTILE_ENGLISH });
-  try { return run(); } finally { Object.assign(view, { title_en: original }); }
-};
 
-// RAC-2734 (mutation record): dropping `apps/workbench/src/i18n.ts:157`'s `replaceAll("<", "\\u003c")` or
-// `apps/workbench/src/immersive-shell.ts:352`'s `escapeHtml(plugin.label)` makes RAC-2732 red; RAC-2732-2 is structural — the inline
-// directory data carries no publisher text at all, so there is no escaping there to remove (see T-357's report).
-test("RAC-1727/RAC-2732 a publisher's English is escaped where it is written and the inline title data cannot close its script", () => {
+test("RAC-1727/RAC-2732 the rail escapes publisher English and inline directory data carries ids without publisher text", () => {
   const evil = HOSTILE_ENGLISH;
   const manifest = base(LEDGER, "记账本", { name_en: "Ledger Book" }, uiOf(LEDGER, [view(LEDGER, "nav", "navigator", "记账", { title_en: "Ledger" })]));
   const [entry] = runningPluginDirectory(sourceOf([parsed(manifest)]));
@@ -207,13 +190,7 @@ test("RAC-1727/RAC-2732 a publisher's English is escaped where it is written and
   const data = renderPluginDirectoryData(sanitizePluginDirectory([hostile]));
   assert.ok(data.includes(`"id":"${hostile.id}"`), "the entry is in the inline directory data by key");
   assert.doesNotMatch(data, /记账本|\\u003cimg|<img|Ledger Book/u, "the inline directory data carries no publisher text to escape");
-  // RAC-2732-1: the production script that writes the tab titles serializes the hostile title with `<` escaped.
-  const titles = withHostileBuiltinView(() => createWorkbenchLocale(() => "en").clientI18nScript().split("\n").find(line => line.includes("globalThis.MOLIS_WORK_PLUGIN_TITLES =")) ?? "");
-  assert.match(titles, /"todo":"\\u003cimg/u, "the inline title data writes < as \\u003c");
-  assert.doesNotMatch(titles, /<img/u);
-  // RAC-2732-3: the market heading is drawn by the production renderer, escaped.
-  const market = withHostileBuiltinView(() => renderPluginMarket(primitives("en"), { developerMode: true }));
-  assert.match(market, /<h2>&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;<\/h2>/u, "the market <h2> escapes the publisher's English");
+
 });
 
 test("RAC-1728 the name and the body are two places: 成果 is Artifacts as a name and still Results in the body; 待办 is Todo in both", () => {

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { dispatchMcpProjectTool } from "@molis-ai/molis-work-app-mcp";
+import { dispatchMcpProjectTool, formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
@@ -102,3 +102,28 @@ function kindOfError(run: () => unknown): Error {
   assert.fail("the code did not throw");
   return new Error("unreachable");
 }
+
+test("RAC-2713 the five codes whose kind changed carry it where the error leaves the Host, and the MCP wire carries no kind", () => {
+  // The one transport that reads a kind is the HTTP edge (`actionErrorResponse`); these five leave through the MCP JSON-RPC
+  // error text instead, which `formatMcpToolError` builds from code, message and details only (apps/mcp/src/tool-error.ts →
+  // actionErrorBody). Their declared kinds therefore change no wire value: the statuses below are what they were (invalid 400 /
+  // not_found 404 fallback before) only where the JSON-RPC text carries no status at all. The abort reason used by
+  // mcp-server.ts:47 is re-thrown unchanged by `throwIfAborted`, so its kind is the declared one too.
+  const changed: [McpErrorReason, string, number][] = [
+    ["context_changed", "conflict", 409],
+    ["context_refresh_required", "conflict", 409],
+    ["tool_disabled", "unavailable", 503],
+    ["connection_incomplete", "unavailable", 503],
+    ["not_found", "not_found", 404],
+  ];
+  for (const [reason, kind, status] of changed) {
+    const error = mcpErrors[reason]("message");
+    assert.equal((error as { kind?: string }).kind, kind, reason);
+    assert.equal(actionHttpStatus(error), status, reason);
+    const wire = JSON.parse(formatMcpToolError(error)) as Record<string, unknown>;
+    assert.deepEqual(Object.keys(wire).sort(), ["code", "error"], `${reason}: the MCP wire carries code and message, not kind`);
+  }
+  const controller = new AbortController();
+  controller.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
+  assert.equal(kindOf(() => controller.signal.throwIfAborted()), "conflict", "the abort reason keeps its declared kind");
+});

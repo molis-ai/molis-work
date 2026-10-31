@@ -170,7 +170,7 @@ async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
   try {
     await ctx.spawner.spawnPanel(record);
     options.showTerminal(state.activeId);
-    } catch (error) {
+  } catch (error) {
     options.setStatus(options.errorText(error), "error");
     options.showTerminal(state.activeId);
   }

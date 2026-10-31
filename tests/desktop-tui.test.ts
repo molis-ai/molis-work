@@ -1185,6 +1185,14 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.doesNotMatch(pageAfterInbox, /data-feed-entry-id="inbox:/);
     assert.match(pageAfterInbox, /data-inbox-detail="/);
 
+    const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(missingRevision.status, 400);
+    assert.match(await missingRevision.text(), /刷新 Item/);
+
     const promoted = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1856,6 +1864,11 @@ test("the workbench client and terminal no longer carry the removed Feed start c
   assert.doesNotMatch(client, /feed-start|feedStartRequested|molis-work-feed-runtime-autofill:/u);
   assert.doesNotMatch(terminalSource("client-prompt.ts"), /feed_item_id/u);
   assert.doesNotMatch(terminalSource("panels.ts"), /afterOpened/u);
+  // The prompt writer is unchanged: a newline folds to ` ⏎ `, control characters become spaces, and it types without sending unless
+  // asked to send (these lived in the deleted Feed-processing case, but they pin writePrompt itself).
+  assert.match(PTY_CLIENT_SOURCE, /replace\(\/\[\\r\\n\]\+\/g, " ⏎ "\)/);
+  assert.match(PTY_CLIENT_SOURCE, /replace\(\/\[\\u0000-\\u001f\\u007f\]\/g, " "\)/);
+  assert.match(PTY_CLIENT_SOURCE, /data: send \? `\$\{fillText\}\\r` : fillText/);
 });
 
 test("Inbox Message save and promote survives a Web restart without duplicating its Goal", async () => {

@@ -130,7 +130,7 @@ function panelsFixture(t: TestContext) {
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
     request,
     controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
-    showTerminal: (id) => shown.push(id), afterOpened: async () => {},
+    showTerminal: (id) => shown.push(id),
   };
   return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, resets: () => resets };
 }

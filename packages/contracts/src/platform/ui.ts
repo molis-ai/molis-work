@@ -168,11 +168,40 @@ export interface UiSettingsDataDeclaration {
 /**
  * Where a plugin's stage gets what it shows (T-133, PG-060): the same rule as `settings_data`. `action` is the `capability_id` of one of
  * the same Manifest's own actions, a query for the person (audience `user`) that only reads, with one version. The Host calls it with no
- * input, as the person in the project and with only that action's own permissions, and the stage receives the answer as
+ * input (or with the request parameters `input` names), as the person in the project and with only that action's own permissions, and the stage receives the answer as
  * `StagePageModel.data`; the Host knows no plugin by name for it. A stage that needs nothing of its own declares none.
  */
 export interface UiStageDataDeclaration {
   readonly action: string;
+  /**
+   * The request parameters the stage reads (T-116, PG-060): names of parameters the same Manifest's `page_routes` declare, in a path
+   * (`:name`) or in a query. When the page was opened by one of those routes, the Host takes exactly these parameters from the request,
+   * each as a string of at most {@link UI_PAGE_ROUTE_PARAM_LIMIT} characters, calls `action` with them as its input (`{ name: value }`,
+   * the ones the request carries) and hands them to the stage as `StagePageModel.request`. A parameter the Manifest does not name
+   * is never given, whatever the request carried, and nor is the path, the query string, the project's trusted identity or a one-time
+   * key. Omitted means the stage reads nothing from the request.
+   */
+  readonly input?: readonly string[];
+}
+
+/**
+ * The longest a parameter of a declared page route may be, in characters (Unicode code points). The Host refuses a longer one with the
+ * route's own rejection and never cuts it: a cut identifier would name another object.
+ */
+export const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
+
+/**
+ * A page the plugin answers at a GET path of the project (T-116, PG-060), declared as data so that the Host matches it with one matcher
+ * and knows no plugin by name for it. `path` is "/" or segments joined by "/", each a lowercase literal or `:name` (one non-empty,
+ * once-decoded segment, `name` in lowercase letters, digits and underscores); the Host takes the project's scope off first. `query`
+ * names the query parameters the route reads. The route's parameters are exactly the names in `path` and `query`; no other part of
+ * the request reaches the plugin through it. Two routes of one Manifest never answer the same path.
+ */
+export interface UiPageRouteDeclaration {
+  /** The route's name in this Manifest: lowercase letters, digits and hyphens. The plugin tells its routes apart by it. */
+  readonly route_id: string;
+  readonly path: string;
+  readonly query?: readonly string[];
 }
 
 /** What the Host writes text and markup with on a plugin's stage, in the page's locale. */
@@ -192,6 +221,11 @@ export interface StagePageModel<Data = unknown> {
   readonly shown_plugins: readonly string[];
   /** The `stage_data` action's answer; absent when the view declares none, or when the plugin is not there to answer. */
   readonly data?: Data;
+  /**
+   * The request parameters the view's `stage_data.input` names that the request carried, as strings; never any other part of the request
+   * (T-116). Absent when the stage names none, or the page was not opened by one of the plugin's `page_routes`.
+   */
+  readonly request?: Readonly<Record<string, string>>;
   readonly primitives: StagePagePrimitives;
 }
 

@@ -25,6 +25,11 @@ export function stageDataAction(manifest: PluginManifest): ActionDefinition | un
   return declared ? manifest.actions?.find(item => item.capability_id === declared) : undefined;
 }
 
+/** The request parameters the stage-opening view names in `stage_data.input` (T-116): the only part of a request its stage is given. */
+export function stageDataInput(manifest: PluginManifest): readonly string[] | undefined {
+  return stageOpeningView(manifest)?.stage_data?.input;
+}
+
 /** The contribution that draws a plugin's stage; a host path that draws the stage itself reports this id. */
 export function stageContributionId(manifest: PluginManifest): string | undefined {
   const view = stageOpeningView(manifest);

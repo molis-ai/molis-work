@@ -5,6 +5,7 @@ import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { GOALS_MESSAGES } from "./messages.js";
+import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_CONTEXT_EN } from "./context-en.js";
 import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
 import { GOALS_DOCUMENT_EN } from "./document-en.js";
@@ -131,6 +132,7 @@ export const goalsManifest: PluginManifest = {
       ...GOALS_PROPOSAL_EN,
     },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
+    page_routes: GOALS_PAGE_ROUTES,
     views: [
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
         start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" } },

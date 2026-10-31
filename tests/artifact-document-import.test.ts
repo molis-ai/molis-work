@@ -636,7 +636,7 @@ test("RAC-2426 the document import reads the Home registry's document_import int
       permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }], capabilities: { provides: [], consumes: [] },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, runtime: { scope: "home" as const }, connection_services: [service],
       integrations: [{ integration_id: "docimport", kind: "document_import" as const, service_id: "docimport-service", document_source: "docimport", connection_methods: ["token"] }] };
-    assert.equal(await registry.attach(manifest, () => null, () => true), true);
+    assert.equal(await registry.attach(manifest, "fixture-docimport-install", () => null, () => true), true);
     const attached = await sources();
     assert.equal(attached.sources.docimport, false, "the attached package's source is listed by the action, with no connection yet");
     const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "docimport-service", displayName: "Doc import", token: "docimport-token" }).connection_id);

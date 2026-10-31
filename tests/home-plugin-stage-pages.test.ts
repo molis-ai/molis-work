@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MolisWorkLocalHost, installedStageSection } from "@molis-ai/molis-work-app-local-host";
@@ -49,4 +51,23 @@ test("RAC-2621.4 a page key nothing registers has no page, framed or not, even a
     const builtin = await (await fetch(`${served.origin}/plugins/todo?frame=workbench`)).text();
     assert.ok(!builtin.includes('"mode":"installed"') && !builtin.includes("?frame=workbench"), "the answer is not an installed package's page");
   } finally { await served.close(); await host.close(); }
+});
+
+test("RAC-2621.5 a Home whose plugin library breaks after it started offers no package on the tool bar, and the tool bar's call does not throw", async t => {
+  const first = await openTestHome(t);
+  await first.close(); await first.host.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: first.home, completeText: null });
+  try {
+    const homePlugins = host.homePlugins!;
+    await homePlugins.ready();
+    assert.deepEqual(await homePlugins.navigation(), [], "a Home that started and holds no package offers none");
+    // The library breaks while the Home runs: the next read of its installations fails, and the tool bar has nothing to offer for them.
+    const library = new DatabaseSync(join(first.home, "plugin-runtime", "plugin-runtime.db"));
+    const away = (from: string, to: string) => library.exec(`ALTER TABLE ${from} RENAME TO ${to}`);
+    try {
+      away("plugin_runtime_installs", "plugin_runtime_installs_away");
+      assert.throws(() => homePlugins.registered(), "the library really is unreadable now");
+      assert.deepEqual(await homePlugins.navigation(), []);
+    } finally { away("plugin_runtime_installs_away", "plugin_runtime_installs"); library.close(); }
+  } finally { await host.close(); }
 });

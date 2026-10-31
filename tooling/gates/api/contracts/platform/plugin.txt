@@ -3355,6 +3355,7 @@ export interface PluginManifest {
     plugin_id: string;
     version: string;
     name: string;
+    name_en?: string;
     kind: PluginKind;
     publisher: {
         publisher_id: string;

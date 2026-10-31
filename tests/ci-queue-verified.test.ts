@@ -127,8 +127,11 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 });
 
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
-const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks"];
-const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS"];
+/** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
+const TEST_JOBS = ["security-invariants", "product-subset"];
+const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS];
+const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
+const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
 const steps = (job: string) => jobBlock(job).split("\n      - ").slice(1);
 const scratch = () => { const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-check-")); directories.push(directory); return directory; };
 /**
@@ -158,7 +161,12 @@ const CASES: Case[] = [
     { event, result: "success", verified: "true", skip: false },
   ]),
 ];
-const contexts = (item: Case) => ({ "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified });
+// The two test jobs also read `test-selection`; here it chose some of their files, so on a pull request they run and only `queue-check`
+// decides (what they do for every other way the selection ends is tests/ci-test-selection.test.ts, RAC-1764).
+const contexts = (item: Case) => ({
+  "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified,
+  "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
+});
 
 test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {
   const check = jobBlock(QUEUE_CHECK_JOB);
@@ -168,17 +176,15 @@ test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothin
   assert.match(check, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(check, /PUSH_BEFORE: \$\{\{ github\.event\.before \}\}/, "the base the push's own gates would compare with");
   assert.doesNotMatch(check, /pnpm install/, "no dependencies");
-  assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the seven of today");
+  assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the nine of today");
   for (const name of BLOCKING) {
     const job = jobBlock(name);
-    assert.match(job, /^    needs: \[queue-check\]$/m, name);
+    assert.match(job, TEST_JOBS.includes(name) ? /^    needs: \[test-selection, queue-check\]$/m : /^    needs: \[queue-check\]$/m, name);
     const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(job)?.[1];
     assert.ok(condition, name);
     assert.ok(condition.startsWith("!cancelled() && "), `${name}: a cancelled run stops as before`);
     for (const item of CASES) assert.equal(Boolean(evaluateExpression(condition, contexts(item))), !item.skip, `${name} on ${item.event}, queue-check ${item.result}, verified ${JSON.stringify(item.verified)}`);
   }
-  // The jobs that do not block are not touched by it (decision #14: they run on every push).
-  for (const name of ["security-invariants", "product-subset"]) assert.doesNotMatch(jobBlock(name), /queue-check/, name);
 });
 
 test("RAC-1902 ci.yml: in the merge queue every blocking job first checks that its entry still exists, and only a missing branch stops it", () => {
@@ -214,10 +220,13 @@ test("RAC-1902 ci.yml: in the merge queue every blocking job first checks that i
   }
 });
 
-test("RAC-1903 ci.yml: Verify records the queue's base, waits for the same seven jobs and judges them as before, except where they were skipped", () => {
+test("RAC-1903 ci.yml: Verify records the queue's base, waits for the nine blocking jobs and judges them, except where they may be skipped", () => {
   const verify = jobBlock("verify");
   assert.match(verify, /^    name: Verify$/m, "the required check keeps its name");
-  assert.match(verify, /^    needs: \[gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, queue-check\]$/m);
+  assert.match(verify, /^    needs: \[gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check\]$/m);
+  for (const [name, job] of [["SECURITY_INVARIANTS", "security-invariants"], ["PRODUCT_SUBSET", "product-subset"]]) {
+    assert.ok(verify.includes(`          ${name}_RESULT: \${{ needs.${job}.result }}`), `${job}'s result reaches the last step`);
+  }
   assert.match(verify, /^    if: \$\{\{ always\(\) \}\}$/m);
   // The base step's name, as GitHub shows it, is what queue-check looks for on the push that follows.
   const [baseStepText, judge] = steps("verify");
@@ -236,13 +245,21 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the same seven
     const skipped = judged(item.event, item.result, item.verified, "skipped");
     assert.equal(skipped.status === 0, item.skip, `${item.event}, ${item.result}, ${JSON.stringify(item.verified)}, the seven skipped: ${skipped.stdout}${skipped.stderr}`);
     if (item.skip) { assert.match(skipped.stdout, /passed Verify in the merge queue \(https:\/\/example\/7\)/); continue; }
-    assert.equal(judged(item.event, item.result, item.verified, "success").status, 0, `${item.event}, ${item.result}: seven successes pass`);
+    assert.equal(judged(item.event, item.result, item.verified, "success").status, 0, `${item.event}, ${item.result}: nine successes pass`);
+    const withOne = (name: string, result: string) => runStep(script, { GITHUB_EVENT_NAME: item.event, QUEUE_CHECK_RESULT: item.result, QUEUE_VERIFIED: item.verified, ...Object.fromEntries(RESULTS.map((other) => [`${other}_RESULT`, other === name ? result : "success"])) });
     for (const name of RESULTS) {
-      const one = runStep(script, { GITHUB_EVENT_NAME: item.event, QUEUE_CHECK_RESULT: item.result, QUEUE_VERIFIED: item.verified, ...Object.fromEntries(RESULTS.map((other) => [`${other}_RESULT`, other === name ? "failure" : "success"])) });
-      assert.notEqual(one.status, 0, `${item.event}, ${item.result}: ${name} failing fails Verify`);
+      for (const result of ["failure", "cancelled"]) assert.notEqual(withOne(name, result).status, 0, `${item.event}, ${item.result}: ${name} ${result} fails Verify`);
+      // A skip passes only for the two test jobs and only on a pull request: there they run just the files the change touches, and
+      // the merge queue runs them whole. In the queue, on a push and at night a skipped one fails Verify, as a skipped package job does.
+      const skipPasses = item.event === "pull_request" && TEST_RESULTS.includes(name);
+      assert.equal(withOne(name, "skipped").status === 0, skipPasses, `${item.event}, ${item.result}: ${name} skipped ${skipPasses ? "passes" : "fails Verify"}`);
+    }
+    if (item.event === "pull_request") {
+      const bothSkipped = runStep(script, { GITHUB_EVENT_NAME: item.event, QUEUE_CHECK_RESULT: item.result, QUEUE_VERIFIED: item.verified, ...Object.fromEntries(RESULTS.map((name) => [`${name}_RESULT`, TEST_RESULTS.includes(name) ? "skipped" : "success"])) });
+      assert.equal(bothSkipped.status, 0, `a pull request that touches none of their files, or all of the list, passes with both skipped: ${bothSkipped.stderr}`);
     }
   }
-  // A failed queue-check is not a check of its own: with the seven green, Verify passes.
+  // A failed queue-check is not a check of its own: with the nine green, Verify passes.
   assert.equal(judged("push", "failure", "", "success").status, 0);
 });
 
@@ -252,7 +269,7 @@ test("RAC-1904 ci.yml: queue-check's word reaches nothing but the blocking jobs'
   assert.deepEqual([...new Set(readers.map((line) => /needs\.queue-check\.([a-z_.]+)/.exec(line)![1]))].sort(), ["outputs.run_url", "outputs.verified", "result"]);
   const outputs = [...jobBlock(QUEUE_CHECK_JOB).matchAll(/^      ([a-z_]+): \$\{\{ steps\.check\.outputs\.([a-z_]+) \}\}$/gm)].map((match) => [match[1], match[2]]);
   assert.deepEqual(outputs, [["verified", "verified"], ["run_url", "run_url"]]);
-  // The jobs that read it are exactly the seven and verify.
+  // The jobs that read it are exactly the nine and verify.
   const jobsReading = [...workflow.slice(workflow.indexOf("\njobs:\n")).matchAll(/^  ([A-Za-z0-9_-]+):\s*$/gm)].map((match) => match[1]!).filter((name) => /needs\.queue-check\./.test(jobBlock(name)));
   assert.deepEqual(jobsReading.sort(), [...BLOCKING, "verify"].sort());
   // Verify's three conditions are the jobs' three: the push, success, true (RAC-1901 and RAC-1903 evaluate both over the same cases).

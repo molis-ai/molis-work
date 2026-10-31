@@ -428,7 +428,11 @@ test("RAC-2724: a prompt over twice the limit is refused by unit count, without 
   // the prompt (what the slow path does) must be counted (a positive control for the observer), and the production call must count zero.
   const iterator = String.prototype[Symbol.iterator];
   let observed = 0;
-  const counting = function* counting(this: string) { for (let index = 0; index < this.length; index += 1) { observed += 1; yield this[index]!; } };
+  // It counts only characters of a string over the port's limit: a small string spread elsewhere is not what this observes. It also
+  // cannot see an expansion done without the string iterator (e.g. indexing), which is why the source shape is checked too.
+  const counting = function* counting(this: string) {
+    for (let index = 0; index < this.length; index += 1) { if (this.length > ALCHEMIST_PROMPT_MAX_CHARS) observed += 1; yield this[index]!; }
+  };
   Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, writable: true, value: counting });
   try {
     assert.equal([...prompt].length, prompt.length, "the observer's expansion gives the same characters as before");

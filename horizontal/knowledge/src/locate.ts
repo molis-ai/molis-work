@@ -1,6 +1,7 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { KNOWLEDGE_LOCATE_MAX_SUBJECTS, type KnowledgeLocateResponse, type KnowledgeLocatedSection, type KnowledgeOutline } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { knowledgeErrors } from "./errors.js";
 import { knowledgeRef } from "./refs.js";
 
@@ -33,8 +34,8 @@ export function knowledgeLocateData(input: KnowledgeLocateDraftInput): string {
  * those past `TREE_SECTIONS` included.
  */
 function shownPieces(question: string, trees: readonly KnowledgeOutline[]): { pieces: KnowledgeLocateDraftInput["pieces"]; omitted: number } {
-  const pieces = trees.map((tree, index) => ({ piece: index + 1, title: tree.title.slice(0, TITLE_CHARS).replace(/[\uD800-\uDBFF]$/u, ""), sections: [] as ShownSection[] }));
-  const candidates = trees.map(tree => tree.sections.slice(0, TREE_SECTIONS).map(section => ({ anchor: section.anchor, title: section.title.slice(0, TITLE_CHARS).replace(/[\uD800-\uDBFF]$/u, ""), level: section.level, summary: section.summary })));
+  const pieces = trees.map((tree, index) => ({ piece: index + 1, title: cutHead(tree.title, TITLE_CHARS), sections: [] as ShownSection[] }));
+  const candidates = trees.map(tree => tree.sections.slice(0, TREE_SECTIONS).map(section => ({ anchor: section.anchor, title: cutHead(section.title, TITLE_CHARS), level: section.level, summary: section.summary })));
   // A section adds its own JSON to the data, and a comma after the piece's first: the sum is exactly what is sent.
   let size = chars(knowledgeLocateData({ question, pieces }));
   const open = new Set(pieces.keys());

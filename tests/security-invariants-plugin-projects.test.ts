@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { PLUGIN_PROJECTS_EXIST_LIMITS, PLUGIN_PROJECTS_EXIST_PERMISSION, SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -126,14 +126,29 @@ test("S-96 RAC-2735 a project catalog that cannot be read is answered as actions
   assert.deepEqual(await f.exist([project.project_id]), { [project.project_id]: true }, "the service answers while the catalog is readable");
   const restore = breakProjectCatalog(f.home);
   try {
-    await assert.rejects(f.exist([project.project_id]), (error: unknown) => {
-      assert.ok(error instanceof ActionError, "the plugin sees an ActionError, not the raw SQLite error");
-      assert.equal(error.code, "actions.unavailable");
-      assert.equal(error.message, "项目目录暂时读不到");
-      assert.doesNotMatch(error.message, /catalog\.db|home-runtime-|\/(?:Users|private|var)\//u, "no local path reaches the plugin");
-      return true;
-    });
+    const logged: HostLogEntry[] = [], stopCapturing = captureHostLog(logged);
+    try {
+      await assert.rejects(f.exist([project.project_id]), (error: unknown) => {
+        assert.ok(error instanceof ActionError, "the plugin sees an ActionError, not the raw SQLite error");
+        assert.equal(error.code, "actions.unavailable");
+        assert.equal(error.message, "项目目录暂时读不到");
+        assert.doesNotMatch(error.message, /catalog\.db|home-runtime-|\/(?:Users|private|var)\//u, "no local path reaches the plugin");
+        return true;
+      });
+    } finally { stopCapturing(); }
+    assert.equal(logged.length, 1, "a failed catalog read writes exactly one Host warning");
+    const [warning] = logged;
+    assert.equal(warning!.level, "warn");
+    assert.equal(warning!.area, "plugins");
+    assert.equal(warning!.event, "projects_catalog_unreadable");
+    assert.deepEqual(Object.keys(warning!.error!).sort(), ["code", "name"], "the logged error has only name and code");
+    assert.equal(typeof warning!.error!.name, "string");
+    assert.equal(warning!.error!.code, "SQLITE_ERROR");
+    assert.equal(warning!.fields, undefined, "the warning has no path-bearing fields");
+    assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|home-runtime-|\/(?:Users|private|var)\//u, "no local path reaches the Host log");
   } finally { restore(); }
+  assert.deepEqual(await f.exist([project.project_id, "no-such-project"]), { [project.project_id]: true, "no-such-project": false },
+    "the same plugin action answers again after the catalog is restored");
 });
 
 // RAC-2736 (T-358): "a catalog that cannot be read says nothing" — the call rejects instead of answering any id as gone: the plugin never
@@ -146,6 +161,8 @@ test("S-96 RAC-2736 a failed catalog read reports no id as gone", async t => {
     assert.deepEqual(Object.keys(outcome), ["error"], "the failed read is not answered as booleans, so no id is reported gone");
     assert.ok(outcome.error instanceof ActionError && outcome.error.code === "actions.unavailable", "the one answer is the plugin-facing availability error");
   } finally { restore(); }
+  assert.deepEqual(await f.exist([kept.project_id, "no-such-project"]), { [kept.project_id]: true, "no-such-project": false },
+    "the same plugin action answers both ids after the catalog is restored");
 });
 
 test("S-96 RAC-1064 a grant revoked while the Host is looking, and a plugin that is stopped, get no answer", async t => {

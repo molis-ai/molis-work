@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -53,4 +53,27 @@ test("RAC-2380 a preexisting empty server file initializes the complete current 
   const directory = mkdtempSync(join(tmpdir(), "server-existing-empty-")), file = join(directory, "server.sqlite");
   try { writeFileSync(file, ""); openServerDatabase(directory).close(); openServerDatabase(directory).close(); }
   finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+// RAC-2717: the same refusal on a database in WAL mode, with its WAL file holding pages: the database and its WAL keep the same bytes.
+// -shm is SQLite's shared-memory lock state (a WAL database's read-only inspection may touch its lock bytes), so it is checked as
+// present but not byte-compared: it is not business data and no schema is ever opened from it.
+test("RAC-2717 a server database at another version in WAL mode is refused with its database and WAL left byte-identical", () => {
+  const directory = mkdtempSync(join(tmpdir(), "server-database-wal-"));
+  try {
+    openServerDatabase(directory).close();
+    const path = join(directory, "server.sqlite"), wal = `${path}-wal`, shm = `${path}-shm`;
+    const writer = new DatabaseSync(path);
+    try {
+      writer.exec("PRAGMA journal_mode = WAL");
+      writer.exec("INSERT INTO mw_events(scope_kind,scope_id,kind,entity_id) VALUES ('probe','r','kind','e')");
+      writer.exec(`PRAGMA user_version = ${SERVER_DATABASE_BASELINE.version + 1}`);
+      assert.ok(existsSync(wal), "the WAL file holds this write");
+      const before = readFileSync(path), beforeWal = readFileSync(wal);
+      assert.throws(() => openServerDatabase(directory), (error: unknown) => error instanceof SqliteSchemaVersionError);
+      assert.deepEqual(readFileSync(path), before, "the version check writes nothing to the database");
+      assert.deepEqual(readFileSync(wal), beforeWal, "and nothing to its WAL");
+      assert.ok(existsSync(shm), "the shared-memory file is there; its lock bytes are the database's runtime state, not content");
+    } finally { writer.close(); }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

@@ -14,9 +14,9 @@ interface GoalInputsItem {
 }
 
 interface GoalInputsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
-  escapeHtml(value: unknown): string;
-  renderReference(value: string, label?: string): string;
+  L: (text: string, values?: Record<string, string | number>) => string;
+  escapeHtml: (value: unknown) => string;
+  renderReference: (value: string, label?: string) => string;
   /** Runs `run` in the words of one plugin: a creatable kind's title is translated by the plugin that declares it. */
   inPluginWords<T>(pluginId: string, run: () => T): T;
 }

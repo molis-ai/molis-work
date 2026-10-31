@@ -3,8 +3,8 @@ import { matchGoalsPlanningRoute, selectGoalsPlanningPageMethod, type GoalsPlann
 
 export interface GoalsPlanningPageOwners {
   methods: readonly PlanningMethodPack[];
-  library(): string;
-  method(value: PlanningMethodPack | null, mode: "detail" | "edit" | "new"): string;
+  library: () => string;
+  method: (value: PlanningMethodPack | null, mode: "detail" | "edit" | "new") => string;
 }
 
 /** HTTP-neutral read composition; Host supplies scoped methods and mounted UI owners. */

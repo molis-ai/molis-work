@@ -1,4 +1,4 @@
-import { DEFAULT_GOAL_POLICY } from "../module/index.js";
+import { DEFAULT_GOAL_POLICY } from "../module/default-policy.js";
 import { createGoalsDocuments } from "./documents.js";
 import { createGoalsRendererFactories } from "./factories.js";
 import { createGoalsRenderers } from "./renderers.js";
@@ -12,7 +12,7 @@ export { createProjectGuidanceDocumentRenderer } from "./guidance-document.js";
 export { renderGoalDetailsAside, renderImmersiveGoalHeader, renderImmersiveWorkTabs, type GoalChromePrimitives } from "./chrome.js";
 export { renderGoalFrameStage } from "./frame-stage.js";
 export { createGoalsRendererFactories, type GoalsRendererFactories } from "./factories.js";
-export { surfaceRenderer, surfaceRenderers } from "./surfaces.js";
+export { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "./surfaces.js";
 export type { GoalsHintOptions, GoalsPagePorts, GoalsTerminalPaneModel, GoalsTranslate, MountSurface } from "./ports.js";
 export type { GoalsPageView } from "./view.js";
 export type { GoalInputsCreatableKind } from "./inputs.js";

@@ -12,7 +12,7 @@ import type { GoalsPageView } from "./view.js";
 
 /** A Goal's document, its fragments, dialogs and terminal pane, composed from the Goals owners' renderers. */
 export function createGoalsDocuments<TView extends GoalsPageView>(
-  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "formatDate" | "prefixLocalLinks" | "creatableKinds" | "inPluginWords" | "renderTerminalPane" | "renderReference">
+  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "formatDate" | "prefixLocalLinks" | "creatableKinds" | "inPluginWords" | "renderTerminalPane">
     & { goals: ReturnType<typeof createGoalsRenderers<TView>> },
   factories: GoalsRendererFactories,
 ) {

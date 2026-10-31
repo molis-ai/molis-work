@@ -41,15 +41,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
-  let registered = host.homePlugins.registered();
-  let entry = page ? registered.find(item => item.key === page[1]) : undefined;
-  if (page && !entry) {
-    // An installed package's page is registered once the Home has started, so the first request after a start may be that page (BL-713).
-    try { await host.homePlugins.ready(); }
-    catch (error) { sendLocalWebJson(response, 503, { error: error instanceof Error ? error.message : String(error) }); return true; }
-    registered = host.homePlugins.registered();
-    entry = registered.find(item => item.key === page[1]);
-  }
+  const found = page ? await registeredPage(host.homePlugins, page[1]!) : {};
+  if (found.failure !== undefined) { sendLocalWebJson(response, 503, { error: found.failure }); return true; }
+  const entry = found.entry;
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
   if (!host.homePlugins.manifest(pluginId)) return false;
@@ -157,7 +151,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
   const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
-  const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }, pageAuthority?.assertCurrent), page_context: homePageContext(request, url, registered), project_title: project?.display_name };
+  const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }, pageAuthority?.assertCurrent), page_context: homePageContext(request, url, host.homePlugins.registered()), project_title: project?.display_name };
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
@@ -181,6 +175,19 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
+}
+
+/**
+ * The registered page for `key`. An installed package's page is registered once the Home has started, so the first request after a start
+ * may be that page: a key nothing registers yet waits for the Home and looks again (BL-713).
+ */
+async function registeredPage(homePlugins: HomePluginHost, key: string): Promise<{ entry?: ReturnType<HomePluginHost["registered"]>[number]; failure?: string }> {
+  const find = () => homePlugins.registered().find(item => item.key === key);
+  const known = find();
+  if (known) return { entry: known };
+  try { await homePlugins.ready(); }
+  catch (error) { return { failure: error instanceof Error ? error.message : String(error) }; }
+  return { entry: find() };
 }
 
 /**

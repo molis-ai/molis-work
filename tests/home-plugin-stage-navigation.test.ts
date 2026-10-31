@@ -4,14 +4,15 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { HomeConsentLedger, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, installedStageSection, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
-import { renderHomePluginNavigation } from "@molis-ai/molis-work-app-workbench";
+import { HomeConsentLedger, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, mac, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 // BL-713 (PG-011; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): a signed package installed in the Home draws
 // its stage in the Home: a page of its own, a stage in every project's workbench, and a place on the tool bar that follows its state.
+// Every case here installs a signed package and runs it in the sandbox, which only macOS has (`mac`); what needs no package (the stage markup,
+// the tool bar's entries, the pages nothing registers) is in `home-plugin-stage-pages.test.ts`, which Linux CI runs.
 
 /** A Home with one project, and installs the person confirms into it. A package has one stage view; `glyph` is the icon it picked, if any. */
 async function navHome(t: TestContext) {
@@ -164,7 +165,7 @@ test("RAC-2621.1 the first request after a start can be a package's page: the Ho
   } finally { await served.close(); await host.close(); }
 });
 
-test("RAC-2621.2 a framed page is the page of a package running in this Home and nothing else: not an absent, switched-off or removed one, a built-in Home plugin's key, or a forged generated id", mac, async t => {
+test("RAC-2621.2 a framed page is the page of a package running in this Home and nothing else: not a switched-off or removed one", mac, async t => {
   const h = await navHome(t);
   await h.install(PACKAGE_PLUGIN_ID);
   await h.install(SECOND_PLUGIN_ID);
@@ -172,18 +173,16 @@ test("RAC-2621.2 a framed page is the page of a package running in this Home and
   const gone = "io.molis.work.example.gone";
   await h.install(gone);
   await h.home.web.post(`/api/plugins/${gone}/uninstall`, { keep_data: false });
-  const forged = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
-  // The running package answers, so the markers below are known to be what a framed page carries.
+  // The running package answers, so the marker below is known to be what a framed page carries.
   const running = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
   assert.equal(running.status, 200);
   assert.match(running.text, /"mode":"installed"/u);
-  const refusals = { absent: "io.molis.work.example.absent", "switched off": SECOND_PLUGIN_ID, uninstalled: gone, "a built-in Home plugin's key": "todo", "a forged generated id": forged };
-  for (const [what, key] of Object.entries(refusals)) {
+  // The keys nothing registers (absent, forged, a built-in's) need no package: `home-plugin-stage-pages.test.ts`.
+  for (const [what, key] of Object.entries({ "switched off": SECOND_PLUGIN_ID, uninstalled: gone })) {
     const framed = await h.page(`/plugins/${key}?frame=workbench`);
     assert.ok(!framed.text.includes('"mode":"installed"'), `${what}: the answer is not an installed package's page`);
-    // A built-in Home plugin answers with its own page, which has its own page token; every other key has no page at all.
-    if (what === "a built-in Home plugin's key") assert.ok(!framed.text.includes("?frame=workbench"), `${what}: and it frames no package`);
-    else { assert.ok(!framed.text.includes("page_id"), `${what}: no page token is given out`); assert.equal(framed.status, 404, `${what}: there is no such page`); }
+    assert.ok(!framed.text.includes("page_id"), `${what}: no page token is given out`);
+    assert.equal(framed.status, 404, `${what}: there is no such page`);
   }
 });
 
@@ -201,22 +200,4 @@ test("RAC-2621.3 the framed page carries the Home page's policy, and neither the
     assert.ok(tag, `${where} has the frame`);
     assert.ok(!/\bsandbox\b/u.test(tag), `${where}: the frame is not sandboxed by its markup (the package's page is the document that is isolated)`);
   }
-});
-
-test("RAC-2620.1 an installed stage is drawn with the string a project's agent plugin has always had, and the tool bar's entry is a link on the arrival page and a stage button in a project", () => {
-  const pluginId = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
-  assert.equal(installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p" }),
-    '<section class="desktop-work-surface pb-surface" data-work-surface="app-b1" data-work-surface-label="Notes &amp; &lt;Tasks&gt;" data-installed-plugin="' + pluginId + '" hidden>'
-    + '<iframe src="/projects/p/plugins/' + pluginId + '?frame=workbench" title="Notes &amp; &lt;Tasks&gt;" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>');
-  const installed = [
-    { plugin_id: "io.molis.work.example.notes", name: "Notes <1>", surface: "io.molis.work.example.notes" },
-    { plugin_id: "io.molis.work.example.books", name: "Books", icon: "book", surface: "io.molis.work.example.books" },
-  ];
-  const arrival = renderHomePluginNavigation(path => path, installed), inProject = renderHomePluginNavigation(undefined, installed);
-  const notes = entryOf(arrival, "io.molis.work.example.notes")!, books = entryOf(arrival, "io.molis.work.example.books")!;
-  assert.ok(notes.startsWith("<a ") && notes.includes('href="/plugins/io.molis.work.example.notes"') && !notes.includes("data-work-surface-open"), "a link to the package's page");
-  assert.ok(notes.includes(icon("package")) && notes.includes("Notes &lt;1&gt;"), "the default icon, the name escaped");
-  assert.ok(books.includes(icon("book")) && !books.includes(icon("package")), "the icon the package picked");
-  const openStage = entryOf(inProject, "io.molis.work.example.books")!;
-  assert.ok(openStage.startsWith("<button ") && openStage.includes('type="button"') && openStage.includes('data-work-surface-open="io.molis.work.example.books"') && !openStage.includes('href="/plugins/'), "a button that opens the stage, not a link");
 });

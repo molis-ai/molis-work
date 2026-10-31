@@ -1129,9 +1129,11 @@ for (const [order, gonePluginId, keptPluginId] of [
   try {
     const installed = await rig.control(), platform = installed.platform;
     assert.deepEqual(installed.installations().map(entry => entry.state), ['running', 'running'], 'both installations run before the close');
-    // The close walks enabledPluginIds (sorted ascending), so naming the place pins this run as the first or the last case.
+    assert.ok(platform.runtime.contribution(gone.installId), 'the installation whose record goes has a contribution before the close');
+    // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, ascending. `order` decides which of the
+    // two goes; comparing the whole array also fails when the close order is empty (an indexOf would see -1 === -1).
     const closeOrder = platform.supervisor.enabledPluginIds();
-    assert.equal(closeOrder.indexOf(gone.pluginId), order === 'first' ? 0 : closeOrder.length - 1, `the record that goes is ${order} in the close order`);
+    assert.deepEqual(closeOrder, [fixture.release.pluginId, gone.pluginId].sort(), `the close order is exactly both plugin ids, ascending (the ${order} one goes)`);
     saved = await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('SELECT * FROM plugin_runtime_installs WHERE install_id = ?').get(gone.installId) as Record<string, unknown> | undefined);
     assert.ok(saved, 'the second record exists before the close');
     await rig.host.withProject(fixture.ref, runtime => { runtime.store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(gone.installId); });

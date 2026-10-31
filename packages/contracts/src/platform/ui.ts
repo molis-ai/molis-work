@@ -244,8 +244,8 @@ export interface UiViewDeclaration {
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**
-   * Icon name from the Host's own catalog. The Host resolves it and falls back
-   * to a default when it does not know the name; a Plugin never ships artwork
+   * Icon name from the platform's icon set (the SDK's `PLUGIN_ICON_NAMES`). The
+   * Manifest reader refuses a name outside the set; a Plugin never ships artwork
    * into the shell.
    */
   readonly icon?: string;

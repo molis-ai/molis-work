@@ -158,6 +158,54 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
   assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/list"/);
   assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/set", \{ body: payload \}\)/);
-  assert.match(script, /home\.plugins\.map\(\(plugin\) => installed\(plugin, homeSend\)\)/, "the Home's rows send their switch to the Home door");
-  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null\)/, "a project's rows send theirs to the project's route");
+  assert.match(script, /home\.plugins\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeAct\)\)/, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
+  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act\)/, "a project's rows send theirs to the project's route");
+});
+
+test("RAC-2604 S-94 the Host settings door's disable, enable and uninstall are guarded like its switch, and reach only a package installed in the Home: a plugin of the Host's build keeps running, and the project's door cannot reach the Home's", { timeout }, async t => {
+  const probe = homeProbe("lifecycleprobe");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await f.host.homePlugins!.ready();
+  const project = await f.project("个人空间停用"), prefix = `/projects/${project.project_id}`;
+  const state = () => f.host.homePlugins!.installation(probe.id)?.state;
+  assert.equal(state(), "running");
+  for (const step of ["disable", "enable", "uninstall"] as const) {
+    const path = `/api/settings/plugin-permissions/${step}`, body = { plugin_id: probe.id, ...(step === "uninstall" ? { keep_data: true } : {}) };
+    const call = (input: unknown, init: { authorized?: boolean; headers?: Record<string, string> } = {}) => f.request(path, { method: "POST", body: input, ...init });
+    assert.equal((await call(body, { authorized: false })).status, 403, `${step}: no control token`);
+    assert.equal((await call(body, { headers: { origin: "http://127.0.0.1:1" } })).status >= 400, true, `${step}: another origin`);
+    assert.equal((await f.request(path)).status >= 400, true, `${step}: a read of it`);
+    for (const extra of [{ project_id: project.project_id }, { user_action: { source: "web", conversation_ref: "a", message_ref: "b" } }, { actor_id: "someone" }]) {
+      const refused = await call({ ...body, ...extra });
+      assert.equal(refused.status, 400, `${step}: ${JSON.stringify(extra)}`); assert.equal((await refused.json()).code, "actions.input_invalid");
+    }
+    // A plugin's own page is not the person.
+    const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+    assert.equal(opened.status, 200, await opened.clone().text());
+    const page = { "x-molis-plugin-page": (await opened.json()).page_id as string };
+    assert.equal((await call(body, { headers: page })).status, 403, `${step}: the plugin's page`);
+    // The probe is a plugin of the Host's build, not a signed package installed in the Home: the door does not reach it.
+    const reached = await call(body);
+    assert.equal((await reached.json()).code, "plugin.state_invalid", `${step}: a plugin that is not an installed package`);
+    // The project's door does not reach the Home's package either.
+    const viaProject = await f.request(`${prefix}/api/plugin-trust/installed/${step}`, { method: "POST", body });
+    assert.equal((await viaProject.json()).code, "plugin.state_invalid", `${step}: the project's door`);
+    assert.equal(state(), "running", `${step}: it is still running`);
+  }
+});
+
+test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and uninstall to the Host settings door, a project row's to the project's route, and draws the recovery error and the revoked publisher with textContent", { timeout }, async t => {
+  const f = await setup(t);
+  const html = await (await f.request(f.prefix + "/settings/plugins")).text();
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
+  assert.match(script, /installed\(plugin, homeSend, revoked, homeAct\)/, "a Home row is given the revoked publishers and the Home door's act");
+  assert.match(script, /const homeAct = \(name, payload\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\)/, "its act goes to the Host settings door");
+  assert.match(script, /act = \(name, payload\) => api\("\/installed\/" \+ name, payload\)/, "a project row's act defaults to the project's route");
+  assert.match(script, /body\.append\(controls\(plugin, revoked, act\)\)/, "the row hands its act to the buttons");
+  assert.match(script, /el\("span", "settings-form-error", L\("没能启动：\{error\}"/, "the recovery error is drawn by el");
+  assert.match(script, /el\("span", "settings-muted", L\("发布者的信任已撤销：它不再运行，只能卸载"\)\)/, "so is the revoked publisher");
+  // The part of the page program that draws the rows and their buttons: from the buttons to the end of the list's loader.
+  const from = script.indexOf("const controls = "), rows = script.slice(from, script.indexOf("const preview = ", from));
+  assert.ok(rows.includes("const load = "), "the slice holds the rows and the loader");
+  assert.doesNotMatch(rows, /innerHTML/);
 });

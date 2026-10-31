@@ -251,7 +251,10 @@ const headErrors = (measured, budget, base) => {
 // deleted with this change.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [190760, 190838],
-  "/assets/molis-work-workbench.js": [1148277, 1150072],
+  // The assets-1031 entry (1148277 → 1150072) is consumed: main's budget already equals its ceiling. This one is T-362 (BL-543, S-47):
+  // a plugin settings page declares the address parameters it reads and the shell keeps them for that page; the client filter grows by
+  // the row lookup (+421 B), while the server-rendered row is markup and costs no script bytes.
+  "/assets/molis-work-workbench.js": [1150072, 1150493],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -296,12 +296,12 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-353 | 统一“整字且不超过 N 单元”的截法：一个公开小函数，各处改调它（甲，先出【方案】定放哪层，等统筹答） | 甲 | 池 | 2.1 | — | `apps/local-host/src/whole-units.ts`、新函数所在包、各就地截法文件 |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | A | 2.2 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
 | T-355 | 急：`form.fill.too-long` 的英文改成 fill-message 测试认可的写法（main 红 VUX-40，挡集成分支 Full） | 丙 | A | 0.1 | — | `plugins/native/form/src/messages.ts` |
-| T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 2.3 | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |
+| T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 已合（10-31，#1685 → `a9fbdf756`；Codex 统筹） | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |
 | T-357 | 插件英文名的测试要证明它说的事：RAC-1727 调生产函数并补变异，RAC-1729 真比版本 | 乙 | B | 2.4 | — | `tests/plugin-english-name-declaration.test.ts` |
 | T-358 | services.projects 读项目目录库失败时转 `actions.unavailable`，不把原始错误交给插件 | 乙 | B | 2.5 | — | `apps/local-host/src/plugin-projects-service.ts` |
 | T-359 | 搜索读取器被弃的记录：钉住 details／cause 不外带（两个现在不红的变异），注明 plugin_id 展开写法 | 乙 | B | 2.6 | — | `horizontal/search/src/index.ts`、`tests/system-search.test.ts` |
 | T-360 | Pages 材料 JSON 预算 175,800 与 Host 提示上限的关系由端到端用例钉在 Host 真常量上 | 乙 | B | 2.7 | — | Pages 材料预算用例（`git grep -ln RAC-2286 -- tests`） |
-| T-361 | 两处测试小补：RAC-2446 钉发出数据的键只有 question／pieces；RAC-2706 注释改准 | 丙 | B | 2.8 | — | `tests/security-invariants-knowledge-lifecycle.test.ts`、`tests/artifact-links.test.ts` |
+| T-361 | 两处测试小补：RAC-2446 钉发出数据的键只有 question／pieces；RAC-2706 注释改准 | 丙 | B | 已合（10-31，#1689 → `f8de25546`；Codex 统筹） | — | `tests/security-invariants-knowledge-lifecycle.test.ts`、`tests/artifact-links.test.ts` |
 | T-362 | 插件的设置页在 Manifest 里声明自己认哪些地址参数（查询参数与 hash），外壳按声明过滤（改合同） | 乙 | A | 2.9 | — | `packages/contracts/src/platform/ui.ts`、`apps/workbench/src/settings-address-params.ts`、`apps/workbench/src/scripts/client/settings-directory.ts`、`tests/security-invariants-plugin-pages.test.ts` |
 | T-363 | BACKLOG 七行（BL-090／092／094／095／096／099／114）对着 main 核一遍，做完的删行，没做完的只写没做的 | 丙 | A | 3.0 | — | `specs/BACKLOG.md`（这七行） |
 | T-364 | 平台 artifact 路由例外必须有仍开放的 BACKLOG 出处（T-147 二审②；RAC-2746～2748） | 甲 | Codex 待分配 | 待领 | T-147 已合；统筹已批限定收紧 | `tests/builtin-plugin-assembly-gate.test.ts` |

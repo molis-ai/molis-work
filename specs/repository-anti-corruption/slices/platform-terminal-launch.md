@@ -41,7 +41,7 @@
 2. 只能在本安装（同一半、同一世代）当次的、受众为 `user`、command、非只读、自己声明了 `terminal:run` 的动作里调用，否则 `actions.forbidden`；没批准的 `terminal:run` 让人的调用在内核就被拒；每次核安装在跑、持有 `terminal:run`、原调用没取消没撤权，`beforeEffect` 前后与每次等待之后都核，任何一处失败都不起进程。
 3. 安装、项目、人只从调用上下文取；输入只认 `key`、`title`、`command`、`args`、`directory`，多一个键整个拒；面板号由平台按身份与 key 派生，页面只能附着同一身份的面板（S-47）。
 4. 工作目录只能在两种根里：本次调用所在项目已关联的工作目录（另要 `workspace:read`；没有项目的调用、别的项目的 `workspace_id`、不存在的都拒），或本插件声明的主人文件目录（项目实例没有）；相对路径的空段、`.`、`..`、绝对路径、NUL、反斜杠拒，解析真实路径后逃出根（符号链接）、首尾有空白（终端宿主会 trim，`<root>/sub ` 会落到 `<root>/sub`）或不是目录拒。
-5. 程序是不含 NUL、首尾无空白的绝对路径；参数先读一次长度、按下标拷成普通数组，检查这份拷贝（至多 32 项、每项是至多 4096 字符、无 NUL 的字符串），起进程也用它（稀疏数组、自定义迭代器、下标 getter 换不掉）；否则 `actions.input_invalid`。
+5. 程序是不含 NUL、首尾无空白的绝对路径；参数先读一次长度（须是 0 到 32 的整数：Proxy 过得了 `Array.isArray`，它的 `length` 每次读可以答不同的值），循环只用这个值，按下标拷成普通数组，检查这份拷贝（至多 32 项、每项是至多 4096 字符、无 NUL 的字符串），起进程也用它（稀疏数组、自定义迭代器、下标 getter 换不掉）；否则 `actions.input_invalid`。
 6. 停用、撤权、卸载、项目实例停止时，本激活经该服务起的进程全部结束；停了的激活留下的句柄：在动作之外调不回答也不起进程（BL-411），在新激活的动作里调以 `actions.forbidden` 拒。
 
 **不覆盖**：`realpath` 与 `stat` 核过之后、`spawn` 之前，路径里的某一段被换成链接，进程可能落到根外。这是检查与使用之间的竞态，本片不修，测试也测不住；`spawn` 用的是解析后的真实路径。
@@ -57,7 +57,7 @@
 | RAC-2552 | 撤掉 `terminal:run`、停用、卸载、项目实例停止，各一例，之后面板不在了；旧激活的句柄在动作之外调不回答、在新激活的动作里调被拒，都不起进程 | 新文件 |
 | RAC-2553 | 查询动作、只读调用（`query_only`、`read_only_effects` 各一例，内核在分派时就拒，到不了服务）、受众 `agent` / `workflow` / `mcp` / `plugin`（`plugin` 是本安装在任何动作之外调自己的动作，由服务拒）、动作没声明 `terminal:run`、在任何动作之外、在本插件另一个安装的动作里调，各一例，`actions.forbidden`，不起进程 | 新文件 |
 | RAC-2554 | 别的项目的、不存在的 `workspace_id`；`..`、`sub/../..`、`/etc`、NUL、空段、`./sub`；链到根外的符号链接；名字以空格结尾的目录 `trail `（旁边的 `trail` 链到根外）；文件；不存在的目录；没有主人文件；没持有 `workspace:read`；Home 实例无项目的调用——按第 4 条的码拒，不起进程 | 新文件 |
-| RAC-2555 | 多一个键（`cwd`、`project_id`、`actor_id`、`install_id`、`env`，以及 `directory` 里多一个键）、相对、含 NUL 或首尾带空白（空格、换行）的程序、超过 32 项或含 NUL、非字符串、超长、稀疏的参数、不合格式的 key、空或超长的标题、没有 `directory`、别的 `root`——`actions.input_invalid`，不起进程；自定义迭代器（产出 1000 个含 NUL 的参数）、第二次读答 NUL 的下标 getter——照检查过的参数起进程；两个不同的人、同一 key，面板号不同 | 新文件 |
+| RAC-2555 | 多一个键（`cwd`、`project_id`、`actor_id`、`install_id`、`env`，以及 `directory` 里多一个键）、相对、含 NUL 或首尾带空白（空格、换行）的程序、超过 32 项或含 NUL、非字符串、超长、稀疏的参数、`length` 先答 0 后答 40 的 Proxy 参数、不合格式的 key、空或超长的标题、没有 `directory`、别的 `root`——`actions.input_invalid`，不起进程；自定义迭代器（产出 1000 个含 NUL 的参数）、第二次读答 NUL 的下标 getter——照检查过的参数起进程；两个不同的人、同一 key，面板号不同 | 新文件 |
 | RAC-2556 | 目录解析卡在读项目目录库这一处等待时，撤 `terminal:run`、撤 `workspace:read`、取消原调用，各一例，`open` 被拒（撤权两例答实例已停止的 `actions.forbidden`，取消一例答原调用的中止），不起进程；中间各次检查是纵深防御，这里证明 `spawn` 之前至少有一道会拒 | 新文件 |
 | RAC-2557 | 沙箱包声明必需的、或人批准了可选的 `terminal:run`，项目与 Home 两种启动都以 `sandbox.service_not_given` 拒、代码不跑；`HOST_SERVICE_PERMISSIONS` 的 `terminal` 被 S-60 的分类用例认作拒绝 | 新文件；`tests/security-invariants-sandbox-services.test.ts`（S-60 RAC-238 表里的两例） |
 | RAC-2558 | 双实例插件：项目一半的句柄在 Home 一半的动作里调被拒；本半自己的动作越过实例检查、停在输入检查 | `tests/dual-instance-services.test.ts` |

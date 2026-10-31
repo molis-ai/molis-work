@@ -14,7 +14,7 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 
 // The device authorization grant of the generic OAuth flow (RFC 8628, W5-11 §2.5). The service's declaration says where to ask for the
 // code and where to poll; the platform does the rest: it keeps the device code, rate-limits the polling itself, and judges the
-// declaring plugin and the authorization on every poll, the way a callback does (S-101, S-109). The page gets the user code, the
+// declaring plugin and the authorization on every poll, the way a callback does (S-101, S-104). The page gets the user code, the
 // address to type it at and a state to poll with, never the device code.
 
 /** A pending device authorization: the OAuth configuration of a callback flow plus what polling needs. */

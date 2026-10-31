@@ -155,7 +155,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
             authorizationFlow = existing.authorization_flow;
             if (!area.closest('[data-connector-detail]').querySelector('[data-connector-new-name]')?.value.trim()) body.display_name = existing.connection.display_name;
           }
-          if (button.hasAttribute('data-device-login') && !body.client_id && authorizationFlow !== 'oauth') { await deviceFlow(area, body, popup); return; }
+          if ('deviceLogin' in button.dataset && !body.client_id && authorizationFlow !== 'oauth') { await deviceFlow(area, body, popup); return; }
           const payload = await api('methods/' + button.dataset.protocolStart + '/start', body);
           const url = payload.authorization_url;
           const id = payload.connection_id || payload.connection?.connection_id;

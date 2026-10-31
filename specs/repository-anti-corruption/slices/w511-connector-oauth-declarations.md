@@ -471,7 +471,7 @@
 - **留给后面的**：`ConnectorAuthKind` 里的按服务取值（`github`、`gmail`、`notion`）随第 8 片收窄；Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 不在本片也不在第 8 片，留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/notion-oauth.test.ts`（RAC-2533～2539，其中 RAC-2538 是原 `connector-oauth-choice.test.ts` “FI-C-02 … Notion” 一组搬过来，断言不放宽）；`connector-oauth-choice`、`security-invariants-oauth-shared-refresh`、`connector-connections`、`connector-setup`、`security-invariants-connector-intent`、`connector-method-directory`、`security-invariants-oauth-non-protocol` 里的 Notion 专门流程用例改成通用流程上的同一组。
 
-**第 8 片落地的写法**（2026-10-31，T-066，分支 `task/T066-ca`，叠在第 7 片（#1669）上，方案经统筹核准：issue #1332 评论 6540397434；S 号暂定 S-109）
+**第 8 片落地的写法**（2026-10-31，T-066，分支 `task/T066-ca`，叠在第 7 片（#1669）上，方案经统筹核准：issue #1332 评论 6540397434；S 号暂定 S-104）
 
 - **设备授权是平台的 grant**：新 `connector-device-oauth.ts`：`startDeviceOAuth`、`pollDeviceOAuth`、`registerConnectorDevicePolling`。路由是通用的 `methods/device/start`、`methods/device/poll`；GitHub 的 `github/device/*`、`github/client` 路由与 `github-oauth.ts`、`connector-github-device.ts`、github 包的 `oauth.ts` 删除。`device_code` 存在记录的 `device` 秘密里（`clear()` 一并清掉），页面拿到 `user_code`、验证地址和 state。
 - **提交只有一份**：回调的收尾抽成 `commitApiOAuth`（令牌检查、账号、第 9、8 条、凭据、本人意图确认、返回页），回调与设备授权共用；回调的用例一条没放宽。

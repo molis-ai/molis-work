@@ -389,7 +389,6 @@ tests/generated-plugin-prompts.test.ts
 tests/git-operation-review.test.ts
 tests/git-operations.test.ts
 tests/git-plugin.test.ts
-tests/github-device-flow.test.ts
 tests/governance-collaboration-module.test.ts
 tests/governance-provenance.test.ts
 tests/home-flow.test.ts

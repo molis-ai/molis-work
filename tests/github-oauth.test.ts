@@ -13,7 +13,7 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 
 // W5-11 slice 8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.5 "GitHub"): GitHub signs in through the
 // generic OAuth flow by what its declaration says: the web flow for a client of the person's own, the device grant (RFC 8628) for the
-// product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-109).
+// product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-104).
 // - RAC-2540: GitHub connects by the device grant: the page gets a user code and an address, never the device code; the connection is the generic shape.
 // - RAC-2541: the verification address must be https, without an account, port or fragment, and the origin the request went to, compared as parsed origins.
 // - RAC-2542: polling is rate-limited per authorization: early polls send nothing, `slow_down` moves only that authorization's interval.

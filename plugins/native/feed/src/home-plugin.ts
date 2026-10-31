@@ -14,17 +14,13 @@ export function createFeedHomePlugin(options: { manifest?: PluginManifest; evide
   const manifest = options.manifest ?? feedManifest;
   return { manifest, async start(context) {
     for (const permission of manifest.permissions) if (permission.required) context.requireGrant(permission.permission);
-    const database = context.services?.database, installations = context.services?.installations;
-    if (!database || !installations) throw new ActionError("actions.unredeemed", "Feed 的 Home 一半需要 Home 库与安装目录服务");
+    const database = context.services?.database;
+    if (!database) throw new ActionError("actions.unredeemed", "Feed 的 Home 一半需要 Home 库");
     const collector = options.evidence ? options.evidence(context) : context.services?.evidenceCollector;
     if (!collector) throw new ActionError("actions.unredeemed", "Feed 的 Home 一半需要证据回收服务");
     const ledger = createFeedContentLedger({ read: database, write: (beforeEffect, body) => database.transaction(beforeEffect, body) }, collector);
-    // A Home that has no installation of Feed anywhere has no body to miss: its ledger is complete from the start. Any other waits for the
-    // maintenance that reads each project once, and until then releases nothing; "the ledger is empty" is not "nobody holds it".
-    if (!ledger.isComplete()) {
-      const where = installations.projects();
-      if (where.complete && where.project_ids.length === 0) await ledger.markComplete(async () => {}, new Date().toISOString());
-    }
+    // The ledger is complete from the start: the maintenance that read every project once (and only then let it release) is gone with the clean
+    // rebuild, so a Home that has Feed installed somewhere does not wait for a mark nothing writes any more.
     return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) };
   } };
 }

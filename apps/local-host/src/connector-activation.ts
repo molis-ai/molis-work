@@ -1,6 +1,6 @@
 import { cleanupConnectorInstallation } from "./connector-tool-cleanup.js";
 import type { LocalMcpConfiguration } from "./connector-local-mcp.js";
-import { normalizeConnectorTokenInput } from "@molis-ai/molis-work-service-connector-host";
+import { normalizeConnectorTokenInput, type ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
@@ -13,7 +13,8 @@ type Input<K extends "createToken" | "upsertOAuth" | "saveProtocol" | "saveCli">
 type Target = { connectionId: string; expectedRevision?: string };
 /** Private completion material. Stored only in the encrypted authorization record; never an action input or output. */
 export type ConnectorActivation =
-  | { kind: "token"; input: Input<"createToken">; target?: Target }
+  /** `declarer`: the signed package that declared the service when this was prepared, which a new connection is pinned to (T-134). */
+  | { kind: "token"; input: Input<"createToken">; target?: Target; declarer?: ConnectorConnectionDeclarer }
   | { kind: "oauth"; input: Input<"upsertOAuth">; target: Target; credentials: Record<string, string | null>; protocol?: ConnectorProtocolConfiguration;
     /** The generic flow's pins (W5-11 §3.2), judged again before a held result takes effect; never saved with the connection. */
     declaration?: { plugin: Omit<OAuthServiceOwner, "method">; fingerprint: string } }
@@ -56,7 +57,9 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
     if (completion.kind === "oauth") return store.upsertOAuth(completion.input);
     if (completion.kind === "mcp") return store.saveProtocol(completion.input);
     if (completion.kind === "cli") return store.saveCli({ ...completion.input, expectedRevisions: new Map(completion.revisions) });
-    if (!completion.target) return store.createToken(completion.input);
+    // A package's service: the connection and its pin to the package that declared the service are written together (T-134). A new token for
+    // a connection that is already made (`target`) never moves the pin.
+    if (!completion.target) return store.createToken(completion.input, completion.declarer);
     const current = store.require(completion.target.connectionId, completion.input.serviceId);
     if (completion.input.accountLabel && current.account_label && completion.input.accountLabel !== current.account_label) throw connectorErrors["connector.connection.invalid"]("授权账号与原连接不同，请新增连接");
     if (completion.input.displayName !== current.display_name) store.rename(current.connection_id, completion.input.displayName);

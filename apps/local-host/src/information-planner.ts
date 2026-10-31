@@ -2,6 +2,9 @@ import { composeInstructedPrompt, instructed, type InstructedPrompt } from "@mol
 import { INFORMATION_PLANNER } from "./agent-definitions/system-prompts.js";
 import { textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 
+/** At most `max` whole characters: a two-unit character is never cut in half. */
+const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max)].slice(0, max).join("");
+
 /** What the plan reads from Inbox's list. */
 export interface InformationPlanEntry {
   entry_id: string;
@@ -25,11 +28,11 @@ export async function planInformationWork(snapshot: InformationPlanSnapshot, pro
   if (!prompt || prompt.length > 4000) throw new Error("请用 1–4000 字说明要筛选或整理什么");
   if (!completeText) throw textModelRequired();
   const sourceIds = new Set(snapshot.sources.filter(source => source.enabled).map(source => source.source_id));
-  const items = snapshot.feed_items.slice(0, 20).map(item => ({ id: item.item_id, source_id: item.source_id, title: item.title, summary: item.summary.slice(0, 1000) }));
+  const items = snapshot.feed_items.slice(0, 20).map(item => ({ id: item.item_id, source_id: item.source_id, title: wholeCharacters(item.title, 200), summary: item.summary.slice(0, 1000) }));
   const inbox = snapshot.inbox_entries.filter(entry => entry.subject_type === "feed_item" && ["open", "in_progress"].includes(entry.status))
-    .slice(0, 20).map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: snapshot.feed_items.find(item => item.item_id === entry.subject_id)?.title ?? "" }));
+    .slice(0, 20).map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(snapshot.feed_items.find(item => item.item_id === entry.subject_id)?.title ?? "", 200) }));
   const context = { project_id: projectId, selected_item_id: items.some(item => item.id === body.selected_item_id) ? body.selected_item_id : null,
-    sources: snapshot.sources.filter(source => sourceIds.has(source.source_id)).map(source => ({ source_id: source.source_id, name: source.name })), items, inbox };
+    sources: snapshot.sources.filter(source => sourceIds.has(source.source_id)).map(source => ({ source_id: source.source_id, name: wholeCharacters(source.name, 200) })), items, inbox };
   await authority?.beforeDispatch?.();
   const result = await completeText((resolve ?? (value => composeInstructedPrompt(value.instruction.body, value.data)))(
     instructed(INFORMATION_PLANNER, ["当前范围：" + JSON.stringify(context), "用户请求：" + prompt].join("\n\n"))), authority);

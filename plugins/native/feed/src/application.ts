@@ -247,7 +247,7 @@ export class FeedApplication {
     projectId: string,
     itemId: string,
     goalId: string,
-    disposition: "promoted" | "processing",
+    disposition: "promoted",
   ): FeedItemRecord {
     const item = this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition);
     return feedItemRecord(item);

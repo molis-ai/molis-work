@@ -45,9 +45,21 @@ export class IntegrationDeclarations {
       const holder = this.services.get(service.service_id);
       if (holder && holder.owner !== manifest.plugin_id) throw conflict("连接服务", service.service_id, holder.owner);
     }
+    // T-302 二审登记 (T-330): a document import is known by its document_source, which the Home's `documentImports` reads as a table.
+    // Two plugins writing one source would silently replace the first (an artifact document import would read with the later plugin's
+    // service); one Manifest writing it twice is the same collision one step earlier.
+    const documentSources = new Map<string, string>();
     for (const integration of manifest.integrations ?? []) {
       const holder = this.integrations.get(integration.integration_id);
       if (holder && holder.plugin_id !== manifest.plugin_id) throw conflict("集成", integration.integration_id, holder.plugin_id);
+      if (integration.kind !== "document_import" || integration.document_source === undefined) continue;
+      const declared = documentSources.get(integration.document_source);
+      if (declared) throw pluginErrors.integration_declaration_conflict(
+        `文档来源 ${integration.document_source} 在同一个 Manifest 里声明了两次（${declared} 与 ${integration.integration_id}）`);
+      documentSources.set(integration.document_source, integration.integration_id);
+      const owner = [...this.integrations.values()].find(entry => entry.declaration.kind === "document_import"
+        && entry.declaration.document_source === integration.document_source && entry.plugin_id !== manifest.plugin_id);
+      if (owner) throw conflict("文档来源", integration.document_source, owner.plugin_id);
     }
   }
 

@@ -18,6 +18,7 @@ export type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js"
 export type { ManageMolisWorkDemoProjectInput } from "./project-catalog-contract.js";
 export type { MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { assertCurrentCatalog, assertOwnedCatalog, initializeCatalog } from "./catalog-schema.js";
+import { PluginTerminalPanels } from "./plugin-terminal-panels.js";
 import { catalogErrors, catalogFailure } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 import { promises as fs } from "node:fs";
@@ -189,6 +190,8 @@ export class MolisWorkProjectCatalog {
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   readonly desktopPanels: DesktopPanelCatalogApi;
+  /** The terminals plugins start through `services.terminal`. */
+  readonly terminalPanels: PluginTerminalPanels;
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
@@ -217,7 +220,7 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
-      removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
+      removePanels: projectId => { this.desktopPanels.deleteForProject(projectId); this.terminalPanels.deleteForProject(projectId); },
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
@@ -227,31 +230,14 @@ export class MolisWorkProjectCatalog {
       contextBindingValidation,
       this.commit, projectDeletedHooksFor(homeDirectory),
     );
+    // Both kinds of terminal record bind a runtime's work context and journal into the project the same way.
+    const terminals = { bind: terminalContextBinder(this.runtimeContexts),
+      appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) };
     this.desktopPanels = platform.createPanels(db, {
       errorFactory: catalogFailure,
-      context: {
-        assertProject: (projectId) => { this.getProject(projectId); },
-        bind: (input) => {
-          const workspace = input.cwd
-            ? normalizeRuntimeWorkspaceContext({ canonical_path: input.cwd, realpath_verified: false })
-            : undefined;
-          this.runtimeContexts.commands.bindRuntimeContextInTransaction({
-            normalized: {
-              runtime_id: input.runtime_id,
-              stable_work_context_id: input.stable_work_context_id,
-              ...(workspace ? { workspace } : {}),
-            },
-            projectId: input.project_id,
-            actorId: input.actor_id,
-            rebindConfirmed: true,
-            bindingScope: "session",
-          });
-        },
-        appendProjectEvent: (projectId, type, actorId, payload) => {
-          this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
-        },
-      },
+      context: { assertProject: (projectId) => { this.getProject(projectId); }, ...terminals },
     });
+    this.terminalPanels = new PluginTerminalPanels(db, terminals);
   }
 
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
@@ -450,3 +436,14 @@ const contextBindingValidation = createRuntimeProjectBindingValidation({
 });
 export const { normalizeRuntimeWorkContext } = contextBindingValidation;
 const { normalizeRuntimeWorkspaceContext } = contextBindingValidation;
+
+/** A terminal's runtime work context belongs to its project for this session; called inside the catalog's transaction. */
+function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeContextModule>) {
+  return (input: { runtime_id: string; stable_work_context_id: string; project_id: string; actor_id: string; cwd?: string }): void => {
+    const workspace = input.cwd ? normalizeRuntimeWorkspaceContext({ canonical_path: input.cwd, realpath_verified: false }) : undefined;
+    runtimeContexts.commands.bindRuntimeContextInTransaction({
+      normalized: { runtime_id: input.runtime_id, stable_work_context_id: input.stable_work_context_id, ...(workspace ? { workspace } : {}) },
+      projectId: input.project_id, actorId: input.actor_id, rebindConfirmed: true, bindingScope: "session",
+    });
+  };
+}

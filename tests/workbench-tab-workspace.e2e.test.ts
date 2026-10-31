@@ -8,7 +8,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, openGoalFrame, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "inbox", "artifacts"] as const) {
+  for (const plugin_id of ["feed", "inbox"] as const) {
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "tab-workspace" });
   }
   catalog.close();

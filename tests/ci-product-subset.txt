@@ -240,7 +240,7 @@ tests/goals-stored-json.test.ts
 tests/goals-tree-ui.test.ts
 
 # memory
-tests/memory-adoption.test.ts
+tests/memory-initialization.test.ts
 tests/memory-learning.test.ts
 tests/memory-plugin-save.test.ts
 tests/memory-runtime-policy.test.ts

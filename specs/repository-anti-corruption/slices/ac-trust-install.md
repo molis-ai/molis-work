@@ -353,7 +353,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 本轮只处理固定 `d4dee51fa` 的首评 `6390022295`：移除 `tests/plugin-trust-rules.test.ts` 新增的双重断言，用 `Object.assign` 保留 Manifest 自称等级的真实额外字段和原拒绝断言；补包信封拒绝、T1 调用点、维护后真实临时 Host 启动的证据，并补齐 S-34 既有测试引用和同意跨库写入的说明。完成标准是本片修后必要定向及门禁通过、独立增量审验通过；不以作者原 334 项摘要代替本轮实跑，也不冒称整条 ac-trust 或实际合入完成。
 
 - **RAC-382-T1**：`tests/plugin-package.test.ts` 通过公开函数验证未签名包带公钥、签名包缺少或带非法公钥均准确拒为 `plugin.package_invalid`，随包公钥指纹不符和 signer 身份与公钥不符准确拒为 `plugin.signer_mismatch`；保留真实 Ed25519 的合法签名、解析和验签对照。这是 T1 的 C9 信封检查，完整 RAC-382 的安装、升级、回滚验签仍随 T2。
-- **RAC-381-T1**：`tests/plugin-install-trust-call-sites.test.ts` 找到生产代码中实际解析为 `PluginRuntime.install` 的调用，检查传入类型有必填、非空的 `trust` 且没有 `bundled`；不写固定调用数或调用点白名单。它与 `tests/plugin-trust-rules.test.ts` 的 Runtime 缺信任拒绝、`tests/plugin-runtime-maintenance-v3.test.ts` 的真实 Host 启动一起证明 T1，不新增全局门禁。§8 RAC-381 的完整目标保留：所有来源经 `resolvePluginTrust` 的安装服务、预览和确认属于 T2，本轮不以编号或文字改成已经实现。
+- **RAC-381-T1**：`tests/plugin-install-trust-call-sites.test.ts` 找到生产代码中实际解析为 `PluginRuntime.install` 的调用，检查传入类型有必填、非空的 `trust` 且没有 `bundled`；不写固定调用数或调用点白名单。它与 `tests/plugin-trust-rules.test.ts` 的 Runtime 缺信任拒绝、`tests/home-runtime-trust-records.test.ts` 的真实 Host 启动一起证明 T1，不新增全局门禁。§8 RAC-381 的完整目标保留：所有来源经 `resolvePluginTrust` 的安装服务、预览和确认属于 T2，本轮不以编号或文字改成已经实现。
 - **RAC-397-HOST**：维护后的隔离 Home 经真实 `MolisWorkLocalHost` 启动后，Shelf 的 `always_on` 同意实际落账，发布者、Manifest 与 `host_build` 来源正确；关闭后再次启动不重复，持久撤回后再次启动不复活。不因此声明 T3 的常开名单与移除限制、T5 的撤回入口已实现。
 - **RAC-398-T1**：S-34 仅补现有 `plugin.state_invalid`、`plugin.grant_denied`、`plugin.definition_conflict` 的文件与真实测试名引用，不新增 S 号；在 `recordInstallConsents` 旁说明安装记录与 Home 同意可能跨库部分成功、账本失败原样传播及下一次 replay 补账，失败策略与权限不变。
 
@@ -370,7 +370,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 3. **FIRST-3（说明由修复13；实现 owner 原 ac-trust T2）**：T2 接账本时，生成插件的停用、卸载必须在撤授权和删密钥之前检查。T2 已做（上文「T2 落地」）。
 4. **FIRST-4（Codex 修复13）**：两条 RAC-386 的暂定 `S-X1` 改为 `S-34`，同步安全表中的真实测试名，不改原断言或其他 S 号。
 
-RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本：缺库答案；合法空账本不补账；撤回后反复读取不复活、人重新同意即时生效；安装状态变化即时生效；第三方未同意不被构建担保；现有非法库明确拒绝且不写。Host 启动仍落账、重启与撤回不复活复用 `tests/plugin-runtime-maintenance-v3.test.ts` 的真实 Host 路径。验证用整体 `pnpm build`（公共机器槽）、`node scripts/run-tests.mjs tests/security-invariants-always-on-records.test.ts tests/security-invariants-always-on.test.ts tests/plugin-runtime-maintenance-v3.test.ts tests/home-store-baselines.test.ts tests/project-plugins.test.ts`，以及改动包 README 必跑、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check` 和 fresh-fetch 后 `pnpm secrets:check`；只有实际合同变化才刷新快照。full 仍由唯一 Claude 组批，当前未操作真实 Home。
+RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本：缺库答案；合法空账本不补账；撤回后反复读取不复活、人重新同意即时生效；安装状态变化即时生效；第三方未同意不被构建担保；现有非法库明确拒绝且不写。Host 启动仍落账、重启与撤回不复活复用 `tests/home-runtime-trust-records.test.ts` 的真实 Host 路径。验证用整体 `pnpm build`（公共机器槽）、`node scripts/run-tests.mjs tests/security-invariants-always-on-records.test.ts tests/security-invariants-always-on.test.ts tests/home-runtime-trust-records.test.ts tests/home-store-baselines.test.ts tests/project-plugins.test.ts`，以及改动包 README 必跑、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check` 和 fresh-fetch 后 `pnpm secrets:check`；只有实际合同变化才刷新快照。full 仍由唯一 Claude 组批，当前未操作真实 Home。
 
 整体构建、直接 5 文件 / 44 项、最终健康门禁（真实 merge-base `584112c6`）、严格测试类型检查通过；包边界在整体构建已生成 test-kit 后运行 `check-package-boundaries.mjs`，70 包无错。本次只新增 Plugin Runtime 的公开只读函数 `readPluginRuntimeRecords`，消费者是宿主名单适配器；contracts、SDK、动作形状和快照相对源头均无变化。
 
@@ -444,7 +444,7 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-407 | 插件的网页路由（S-85）要控制令牌与页面来源，只认它们列出的步骤（概览、预览、确认），请求里自称是谁的一律拒 | `tests/security-invariants-plugin-trust-http.test.ts` |
 | RAC-408 | 签名包先预览（什么也不写），再按人给的固定名安装，概览里列出它要的东西 | 同上 |
 | RAC-409 | 页面经宿主设置入口（`/api/settings/plugin-consents/revoke`，S-77，插件页自己的路由上没有这一步）撤回一项同意，写下 `revoked_at`，概览显示已撤回 | 同上 |
-| RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/plugin-runtime-maintenance-v3.test.ts` |
+| RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/home-runtime-trust-records.test.ts` |
 | RAC-402 | 已撤回、停用及移除/隐藏后再破坏 Home 版本或完整结构，授权仍拒绝、原记录不变；恢复页只显示存储事实，不提供插件内容 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-402；原页面与 retry 不变量见 `tests/home-plugin-private-store.test.ts` 的 W3-06-F-05/F-08 |
 | RAC-403 | 只处理 Home store 自己的明确拒绝，同码/同消息的其他错误继续传播；合法结构恢复后即时复查，撤回不复活 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-403 |
 | RAC-404 | 坏库恢复是单一 Host 故障文档，没有插件客户端或独立整页；原字节、状态与重试保留，健康整页门禁不放宽 | `tests/home-plugin-private-store.test.ts` 的 RAC-404；`tests/shell-page-gate.test.ts` |

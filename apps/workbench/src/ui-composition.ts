@@ -1,5 +1,7 @@
-import type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
+import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "./artifacts/index.js";
+import { ownedContribution, type UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "./artifacts/index.js";
 import {
   FEED_UI_CONTRIBUTION_ID,
   type FeedUiModel,
@@ -44,6 +46,8 @@ import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
  */
 export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): UiHost {
   const host = new UiHost({ slots: Object.values(WORKBENCH_UI_SLOTS), drawingAs: withPluginWords });
+  host.register(ownedContribution(artifactReferenceUiContribution, ARTIFACTS_PROVIDER_ID));
+  host.register(ownedContribution(artifactBrowserUiContribution, ARTIFACTS_PROVIDER_ID));
   for (const pack of packs) {
     for (const contribution of pack.contributions) host.register(contribution);
   }

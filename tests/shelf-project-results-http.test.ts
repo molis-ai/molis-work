@@ -17,7 +17,8 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const catalogStore=await openMolisWorkProjectCatalog({homeDirectory:home});
   const project=await catalogStore.createProject({display_name:'成果回流验证',actor_id:'web-user'});
   catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'web-user'});
-  catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'artifacts',actor_id:'web-user'});catalogStore.close();
+  assert.throws(()=>catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'artifacts',actor_id:'web-user'}),
+    (error:unknown)=>error instanceof Error && 'code' in error && error.code==='catalog.plugin_not_found');catalogStore.close();
   const databasePath=project.database_path,projectId=project.project_id,prefix='/projects/'+project.project_id;
   const store = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   await codingSessions(store).create(noEffect, { project_id: projectId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });

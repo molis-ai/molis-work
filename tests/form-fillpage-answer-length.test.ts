@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import vm from "node:vm";
-import { transformSync } from "esbuild";
-import { formFillPageHtml, FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
+import { formFillPageHtml, FORM_ANSWER_FORMAT, FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
 import type { FormQuestion, FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 
@@ -18,7 +17,7 @@ import { openFormStore } from "./fixtures/plugin-home-stores.js";
 // Both are then driven with the same emoji / ASCII / mixed boundary answers, so a page whose `input` handler is gone fails here
 // instead of being covered by a text match on the template (the text match is kept as structural evidence only).
 
-type Listener = (event: { preventDefault(): void }) => void;
+type Listener = (event: { preventDefault(): void; stopPropagation(): void; target?: FakeElement }) => void;
 
 /** The few DOM properties the two scripts touch, with listeners that a test can fire itself. */
 class FakeElement {
@@ -38,6 +37,11 @@ class FakeElement {
   title = "";
   maxLength = 0;
   lang = "";
+  placeholder = "";
+  disabled = false;
+  inert = false;
+  scrollTop = 0;
+  offsetWidth = 0;
   dataset: Record<string, string> = {};
   style: Record<string, string> = {};
   readonly attributes: Record<string, string> = {};
@@ -52,13 +56,19 @@ class FakeElement {
   append(...nodes: Array<FakeElement | { textContent: string }>) { for (const node of nodes) this.appendChild(node); }
   appendChild(node: FakeElement | { textContent: string }) { if (node instanceof FakeElement) { node.parent = this; this.children.push(node); } return node; }
   replaceChildren(...nodes: Array<FakeElement | { textContent: string }>) { this.children.length = 0; this.append(...nodes); }
-  setAttribute(name: string, value: string) { this.attributes[name] = value; }
+  setAttribute(name: string, value: string) {
+    this.attributes[name] = value;
+    if (name.startsWith("data-")) {
+      const key = name.slice(5).replace(/-([a-z])/gu, (_match, letter: string) => letter.toUpperCase());
+      (this.dataset as Record<string, string>)[key] = value;
+    }
+  }
   getAttribute(name: string) { return this.attributes[name] ?? null; }
   removeAttribute(name: string) { delete this.attributes[name]; }
   addEventListener(type: string, fn: Listener) { const list = this.listeners.get(type) ?? []; list.push(fn); this.listeners.set(type, list); }
   removeEventListener() {}
   /** Fire what the browser would fire, onto the handlers the page registered. */
-  fire(type: string) { for (const fn of this.listeners.get(type) ?? []) fn({ preventDefault() {} }); }
+  fire(type: string, target: FakeElement = this) { for (const fn of this.listeners.get(type) ?? []) fn({ target, preventDefault() {}, stopPropagation() {} }); }
   hasListeners(type: string) { return (this.listeners.get(type) ?? []).length > 0; }
   querySelectorAll(selector: string) { return descendants(this).filter(node => matchSelector(node, selector)); }
   querySelector(selector: string) { return this.querySelectorAll(selector)[0] ?? null; }
@@ -67,11 +77,30 @@ class FakeElement {
   remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
   reset() { for (const node of descendants(this)) if (node instanceof FakeInput) node.value = ""; }
   click() {}
+  focus() {}
+  scrollIntoView() {}
+  /** Only the editor's question rows use innerHTML; parse their tags into stub children so their fields can be found. */
+  set innerHTML(html: string) {
+    this.children.length = 0;
+    const stack: FakeElement[] = [this];
+    for (const token of html.matchAll(/<\/?([a-zA-Z][\w-]*)((?:\s+[\w:-]+(?:="[^"]*")?)*)\s*\/?>|([^<]+)/gu)) {
+      const [raw, tag, attributes, text] = token;
+      if (text !== undefined) { if (text.trim()) stack.at(-1)!.textContent += text; continue; }
+      if (!tag) continue;
+      if (raw.startsWith("</")) { if (stack.length > 1) stack.pop(); continue; }
+      const node = createFakeElement(tag);
+      for (const attribute of attributes!.matchAll(/([\w:-]+)(?:="([^"]*)")?/gu)) node.setAttribute(attribute[1]!, attribute[2] ?? "");
+      stack.at(-1)!.appendChild(node);
+      if (!["input", "br", "img"].includes(tag.toLowerCase()) && !raw.endsWith("/>")) stack.push(node);
+    }
+  }
+  get innerHTML() { return ""; }
 }
 class FakeInput extends FakeElement { constructor() { super("input"); } }
 class FakeSelect extends FakeElement { constructor() { super("select"); } }
 class FakeLabel extends FakeElement { constructor() { super("label"); } }
 class FakeOption { constructor(readonly text: string, readonly value: string) {} }
+const createFakeElement = (tag: string): FakeElement => tag === "input" ? new FakeInput() : tag === "select" ? new FakeSelect() : tag === "label" ? new FakeLabel() : new FakeElement(tag);
 class FakeBlob { constructor(readonly parts: unknown[]) {} }
 
 const descendants = (root: FakeElement): FakeElement[] => root.children.flatMap(child => [child, ...descendants(child)]);
@@ -138,28 +167,88 @@ const runFillPage = (form: FormRecord) => {
   return { html, input, error: page.byId("e") };
 };
 
-/** Run the unmodified `buildFields` source of the workbench fields (src/browser/fields.ts) against the same stub DOM. */
-const runWorkbenchFields = async (questions: readonly FormQuestion[], limit: number) => {
-  const source = await readFile(new URL("../plugins/native/form/src/browser/fields.ts", import.meta.url), "utf8");
-  const code = transformSync(source, { loader: "ts", format: "cjs", target: "node22" }).code;
-  const page = pageDocument("{}");
-  const module = { exports: {} as Record<string, unknown> };
-  const requireModule = (specifier: string) => {
-    if (specifier === "../fillpage.js") return { FORM_ANSWER_LIMIT: limit };
-    if (specifier === "./dom.js") return { make: (tag: string, className?: string, text?: string) => {
-      const node = page.document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node;
-    } };
-    throw new Error(`unexpected import in fields.ts: ${specifier}`);
+/**
+ * Drive the workbench's own Forms page from the build the package ships: `FORM_CLIENT_FACTORY_SCRIPT` is `dist/form-client.js`,
+ * the client bundle the workbench mounts (the same build the other exports above come from). It paints the workbench DOM on a
+ * stub document, opens a form from its list and hands back the answer box of the form's fill fields (`src/browser/fill-page.ts`
+ * → `fields.ts`, bundled). No source file of the package is executed here.
+ */
+const runWorkbenchFillPage = async (record: FormRecord) => {
+  const bench = new FakeElement("div");
+  bench.setAttribute("data-form", "workbench");
+  const node = (tag: string, attributes: ReadonlyArray<readonly [string, string?]> = [], parent: FakeElement = bench) => {
+    const element = createFakeElement(tag);
+    for (const [name, value] of attributes) element.setAttribute(name, value ?? "");
+    parent.appendChild(element);
+    return element;
   };
-  new Function("require", "module", "exports", "document", "crypto", "Option", "HTMLLabelElement", "HTMLInputElement", "HTMLSelectElement", code)(
-    requireModule, module, module.exports, page.document, { randomUUID: () => "00000000-0000-4000-8000-000000000001" },
-    FakeOption, FakeLabel, FakeInput, FakeSelect);
-  const container = new FakeElement("div");
-  (module.exports.buildFields as (L: (key: string) => string, target: FakeElement, questions: readonly FormQuestion[]) => void)((key: string) => key, container, questions);
-  const input = container.querySelectorAll("input").find(node => node.type === "text");
-  assert.ok(input instanceof FakeInput, "the workbench fields built the answer box");
-  return { input };
+  node("div", [["data-form", "directory"]]);
+  const rows = node("div", [["data-form-rows"]]);
+  node("div", [["data-form-empty"]]);
+  const workspace = node("div", [["data-form-stage-workspace"]]);
+  node("h2", [["data-form-editor-title"]], workspace);
+  node("span", [["data-form-editor-status"]], workspace);
+  node("input", [["data-form-title"]], workspace);
+  node("textarea", [["data-form-description"]], workspace);
+  node("div", [["data-form-questions"]], workspace);
+  node("select", [["data-form-question-type"]], workspace);
+  node("textarea", [["data-form-ai-prompt"]], workspace);
+  node("p", [["data-form-note"]], workspace);
+  const previewForm = node("form", [["data-form-pane", "preview"]], workspace);
+  const preview = node("div", [["data-form-preview"]], previewForm);
+  node("div", [["data-form-result-summary"]], workspace);
+  node("div", [["data-form-result-list"]], workspace);
+  node("div", [["data-form-result-stats"]], workspace);
+  node("button", [["data-form-generate-ai"]], workspace);
+  node("p", [["data-form-ai-reason"]], workspace);
+  node("p", [["data-form-publication-note"]], workspace);
+  node("div", [["data-form-draft-ask"]], workspace);
+
+  const requests: Array<{ method: string; path: string }> = [];
+  const document = {
+    querySelector: (selector: string) => selector === "[data-form=workbench]" ? bench : null,
+    createElement: (tag: string) => createFakeElement(tag),
+    createTextNode: (text: string) => ({ textContent: text }),
+    addEventListener() {},
+    body: new FakeElement("body"), documentElement: new FakeElement("html"),
+  };
+  const listeners = new Map<string, Array<(event: unknown) => void>>();
+  const window = {
+    addEventListener(type: string, fn: (event: unknown) => void) { const list = listeners.get(type) ?? []; list.push(fn); listeners.set(type, list); },
+    dispatchEvent(event: { type: string }) { for (const fn of listeners.get(event.type) ?? []) fn(event); },
+    molisReflow: undefined,
+  };
+  const molisWorkRequest = async (url: string, init?: { method?: string }) => {
+    const method = init?.method ?? "GET";
+    requests.push({ method, path: url });
+    if (method === "GET" && url.includes("/forms/")) return { form: record };
+    if (method === "GET") return { forms: [record], ai_available: false };
+    return {};
+  };
+  const names = ["document", "window", "molisWorkRequest", "HTMLElement", "HTMLInputElement", "HTMLLabelElement", "HTMLSelectElement", "requestAnimationFrame"] as const;
+  const saved = new Map<string, unknown>(names.map(name => [name, (globalThis as Record<string, unknown>)[name]]));
+  Object.assign(globalThis, { document, window, molisWorkRequest, HTMLElement: FakeElement, HTMLInputElement: FakeInput,
+    HTMLLabelElement: FakeLabel, HTMLSelectElement: FakeSelect, requestAnimationFrame: (callback: () => void) => callback() });
+  try {
+    const factory = new Function(`return (${FORM_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
+    factory({ translate: (text: string) => text, download: async () => {}, pluginId: "io.molis.work.form", projectId: () => "p",
+      route: (path: string) => path, pluginRoute: (path: string) => path, confirmBox: async () => false });
+    await settle();
+    const row = rows.querySelectorAll("button").find(candidate => candidate.dataset.formId === record.id);
+    assert.ok(row, "the workbench list rendered the form");
+    bench.fire("click", row);
+    await settle();
+    const input = preview.querySelectorAll("input").find(candidate => candidate.type === "text");
+    assert.ok(input instanceof FakeInput, "the workbench's own fill fields built the answer box");
+    return { input, requests };
+  } finally {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete (globalThis as Record<string, unknown>)[name];
+      else (globalThis as Record<string, unknown>)[name] = value;
+    }
+  }
 };
+const settle = async () => { for (let index = 0; index < 20; index += 1) await new Promise(resolve => setImmediate(resolve)); };
 
 const textQuestion = (): FormQuestion => ({ id: "words", title: "备注", type: "text" });
 
@@ -174,14 +263,14 @@ test("RAC-2725 the shipped fill page handlers and the workbench fields cap the s
   const page = runFillPage(form);
   const limit = Number(/每题回答最多 (\d+) 个字/u.exec(page.html)?.[1]);
   assert.equal(limit, 4000, "the page names FORM_ANSWER_LIMIT");
-  const fields = await runWorkbenchFields(form.questions, limit);
+  const workbench = await runWorkbenchFillPage(form);
   const inputs = ["", "a", "🟢", "a".repeat(limit - 1), "a".repeat(limit), "a".repeat(limit + 1),
-    "🟢".repeat(limit / 2), "🟢".repeat(limit / 2 + 1), "a".repeat(limit - 1) + "🟢", "🟢" + "a".repeat(limit),
-    "a".repeat(limit * 2) + "🟢", "混🟢".repeat(limit / 2)];
+    "🟢".repeat(limit / 2), "🟢".repeat(limit / 2 + 1), "🟢".repeat(limit), "🟢".repeat(limit + 1),
+    "a".repeat(limit - 1) + "🟢", "🟢" + "a".repeat(limit), "a".repeat(limit * 2) + "🟢", "混🟢".repeat(limit / 2)];
   for (const text of inputs) {
     page.input.value = text; page.input.fire("input");
-    fields.input.value = text; fields.input.fire("input");
-    const fromPage = page.input.value, fromFields = fields.input.value;
+    workbench.input.value = text; workbench.input.fire("input");
+    const fromPage = page.input.value, fromFields = workbench.input.value;
     assert.equal(fromPage, fromFields, `the page and the fields agree on ${[...text].length} characters (${JSON.stringify(text.slice(0, 8))}…)`);
     assert.equal(fromPage, [...text].slice(0, limit).join(""), `the same characters the form keeps: ${[...text].length} in`);
     assert.ok([...fromPage].length <= limit, "at most the form's characters");

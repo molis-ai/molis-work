@@ -18,4 +18,4 @@
 
 工程候选结果（2026-10-30，冻结main946cf30e2a）：变更前后整体build通过；新用例红2/2→绿2/2，核心4文件38项+README/直接影响其余67文件全部通过，共71个不同文件703项。health/base、boundary、40项版本表、48项资源7,493,290B通过。初次文档门因新spec未加入Git索引而拒绝，加入后按原门禁重新通过，未改门禁或基线。生产代码只有版本常量一行变化，DDL/操作/合同/Scope和其他分支未改；当前只有作者工程候选，B/Opus high/Full、合入、新Home实测和用户验收仍未完成。
 
-后续（T-134，2026-10-30）：本片合入后，`connector_connection_declarers` 已按上面的约定直接写进版本 1 的现行结构，冻结夹具 `tests/fixtures/home-store-schemas/connectors.sql` 同步加了这张表，不写迁移（`slices/bl530-sandboxed-integrations.md` §7.2，S-103）。
+后续（T-134，2026-10-30）：本片合入后，`connector_connection_declarers` 已按上面的约定直接写进版本 1 的现行结构，冻结夹具 `tests/fixtures/home-store-schemas/connectors.sql` 同步加了这张表，不写迁移（`slices/bl530-sandboxed-integrations.md` §7.2，S-105）。

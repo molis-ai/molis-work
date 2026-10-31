@@ -95,10 +95,17 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
     await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
     await waitFor("document.querySelector('[data-coding-task]')");
+    // T-338: the child frame's own bootstrap sets globalThis.fetch to its bridge (plugin-frame/child.ts:43) and only then defines
+    // molisWorkRequest and body.dataset.routePrefix. Installing the request observer before that would be overwritten by the child's
+    // assignment — the recorded array would stay empty while the page kept sending through the bridge — so wait for those marks first.
+    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix)", 10_000);
     // What the page sends: each request's path and body, to tell which session a draft or an answer went to.
     await evaluate(`(() => { if (window.__sent) return; window.__sent = []; const original = window.fetch; window.fetch = async (...args) => {
       const sent = args[1] && typeof args[1].body === 'string' ? { url: String(args[0]), method: args[1].method || 'GET', body: args[1].body } : null; if (sent) window.__sent.push(sent);
       const response = await original(...args); if (sent && sent.method === 'POST') response.clone().text().then(text => { sent.status = response.status; sent.reply = text.slice(0, 300); }, () => {}); return response; }; })()`);
+    // RAC-2710: the observer is the page's fetch now, so what the page sends is recorded; the child bootstrap marks awaited above
+    // are what makes that ordering safe (installing before them lets the child's own assignment take the observer off the page).
+    assert.equal(await evaluate<boolean>("String(window.fetch).includes('__sent')"), true, "the request observer is the page's fetch");
   };
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
@@ -159,6 +166,8 @@ test("AC-05: a question's draft and answer stay in the session it was asked in; 
 
   const first = await ask(LOGIN.task);
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
+  // RAC-2710 (T-338): after the pick, this session's draft save must reach the observer installed over the child's fetch bridge; a
+  // missed record here is what the ordering in enter() exists to prevent.
   await waitFor(`${savedDraftKeys(first)}.length > 0`, 10_000);
   const firstKey = (await evaluate<string[]>(savedDraftKeys(first)))[0]!;
 

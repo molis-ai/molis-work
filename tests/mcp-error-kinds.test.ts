@@ -21,6 +21,13 @@ const DECLARED: Readonly<Record<McpErrorReason, string>> = {
   context_changed: "invalid", context_refresh_required: "conflict", tool_disabled: "unavailable", connection_incomplete: "unavailable",
   not_found: "not_found", path_required: "invalid", url_invalid: "invalid", runtime_decide_unsupported: "invalid",
 };
+/**
+ * The one throw site that cannot go through the declaration: `scripts/gates/goals-management-wiring.mjs` pins the exact AST shape
+ * of `mcp-v1-tool.ts`'s `mcp.path_required` refusal (a bare `new ActionError` with the code literal and two arguments). The task
+ * record carries it as an approved acceptance exception; closing it needs a gate change (MISC). Its `actionErrorKind` is the
+ * default `invalid`, which is what the declaration says too, so nothing behaves differently without the explicit kind.
+ */
+const PINNED_BARE_THROW = { path: "apps/local-host/src/mcp-v1-tool.ts", code: "mcp.path_required" };
 const CALL_CONTEXT = { runtimeSessionId: null, runtimeSessionIdSource: null };
 const RUNTIME_STATE = { audience: "runtime", connectionState: {}, runtimeConnection: null, runtimeContextHost: null };
 const EMPTY_CATALOG = { entries: [], known_names: new Set<string>(), home_scoped_names: new Set<string>() };
@@ -49,10 +56,8 @@ test("RAC-2713 every declared mcp code raises with its declared kind, and no thr
   for (const source of sources) {
     for (const match of source.text.matchAll(/new ActionError\(\s*"mcp\.([a-z0-9_]+)"/gu)) {
       const code = `mcp.${match[1]}`;
-      // scripts/gates/goals-management-wiring.mjs pins this one refusal's AST shape (a bare ActionError with the code literal
-      // mcp.path_required); changing it needs a gate change, and its kind is the default invalid, which is what it declares.
-      assert.ok(source.path.endsWith("apps/local-host/src/mcp-v1-tool.ts") && code === "mcp.path_required",
-        `${source.path}: a bare mcp code is raised by hand (${code})`);
+      assert.equal(source.path.endsWith(PINNED_BARE_THROW.path) && code === PINNED_BARE_THROW.code, true,
+        `${source.path}: a bare mcp code is raised by hand (${code}); only the gate-pinned exception may be`);
       assert.equal(actionErrorKind(new ActionError(code, "message")), DECLARED.path_required);
       pinned += 1;
     }

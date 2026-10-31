@@ -115,7 +115,8 @@ export class HomePluginHost {
     await this.ready();
     const installed = this.installed, record = installed?.recordFor(pluginId);
     if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
-    const release = installed.releaseFor(pluginId);
+    // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one, and can still take it off.
+    const release = installed.packageOf(pluginId);
     if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
     await installed.lifecycle(action, release, input);
     await installed.refreshPublicActions();

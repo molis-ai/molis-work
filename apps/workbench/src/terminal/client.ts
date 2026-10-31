@@ -1,5 +1,4 @@
 import xtermCss from "@xterm/xterm/css/xterm.css";
-import { createTerminalAutofill } from "./autofill.js";
 import { createPageToast, errorText, paintTerminalStatus, queryTerminalPane, type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import { listenGoalEvents } from "./client-goal-events.js";
 import { createTerminalGuard } from "./client-guard.js";
@@ -52,7 +51,6 @@ function mountGoalTerminal(pane: HTMLElement) {
     setStatus, setMenuOpen: (open) => menu.setMenuOpen(open),
     renderTabs: () => view.renderTabs(),
     showTerminal: (panelId) => view.showTerminal(panelId),
-    afterOpened: () => fillPendingFeedContext(),
   });
   const menu = createTerminalMenu({ els, text: L, route, request, guard, setStatus, openPanel: panelController.openPanel });
   const view = createTerminalView({ els, text: L, screens, guard, goalId, setStatus, panels: () => panelController });
@@ -60,17 +58,6 @@ function mountGoalTerminal(pane: HTMLElement) {
     text: L, route, request, goalId, guard, current: panelController.current,
     sendPty: panelController.send, copyBtn: els.copyBtn, showToast: showPageToast,
   });
-  const { fillPendingFeedContext } = createTerminalAutofill({
-    goalId, text: L, errorText,
-    terminal: {
-      current: panelController.current,
-      isAlive: (panelId) => panelController.isAlive(panelId),
-      output: (panelId) => screens.get(panelId),
-      writePrompt: prompt.writePrompt,
-    },
-    setStatus, setMenuOpen: menu.setMenuOpen, showToast: showPageToast,
-  });
-
   menu.listen();
   listenPaneButtons(els, setStatus, panelController, prompt);
   listenGoalEvents({ els, goalId, guard, panelController, resetPrompt: prompt.resetCache });

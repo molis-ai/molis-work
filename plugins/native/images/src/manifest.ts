@@ -27,6 +27,7 @@ export const imagesManifest: PluginManifest = {
   plugin_id: IMAGES_PLUGIN_ID,
   version: "0.3.0",
   name: "图片",
+  name_en: "Images",
   summary: "连接生图服务，按描述生成图片。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
@@ -50,6 +51,6 @@ export const imagesManifest: PluginManifest = {
     messages: IMAGES_MESSAGES,
     translations: IMAGES_EN,
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
-    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
+    views: [{ view_id: "directory", slot: "navigator", title: "图片", title_en: "Images", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },
 };

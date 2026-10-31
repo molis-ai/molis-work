@@ -55,7 +55,6 @@ export interface FeedGoalPromotionInput {
   projectId: string;
   routePrefix: string;
   itemId: string;
-  startProcessing: boolean;
   expectedRevision?: number;
 }
 
@@ -68,7 +67,7 @@ export interface FeedGoalPromotionInput {
  */
 export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: FeedGoalPromotionInput) {
   const { feed, goals } = ports;
-  const { itemId, startProcessing, expectedRevision } = input;
+  const { itemId, expectedRevision } = input;
   // The checks read the stored item; they run again inside the write, where nothing can be awaited.
   const check = (revision: number | undefined) => {
     const stored = feed.getItem(input.projectId, itemId);
@@ -84,15 +83,7 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
   const item = await ports.hydrateItem(check(expectedRevision));
   const existing = item.linked_goal_id ? await goals.active(item.linked_goal_id) : null;
   if (existing) {
-    if (!startProcessing || item.disposition === "processing") {
-      return { item, goal_id: existing.goal_id, goal_path: goalPath(existing.goal_id), created: false, runtime_autofill: startProcessing };
-    }
-    await ports.beforeEffect();
-    return await ports.transaction(() => {
-      check(item.revision);
-      return { item: feed.linkGoal(input.projectId, itemId, existing.goal_id, "processing"), goal_id: existing.goal_id,
-        goal_path: goalPath(existing.goal_id), created: false, runtime_autofill: true };
-    });
+    return { item, goal_id: existing.goal_id, goal_path: goalPath(existing.goal_id), created: false };
   }
   const sourceTitle = wholeCharacters(item.title.trim().replace(/[\u0000-\u001f\u007f]/gu, " "), 104) || "未命名内容";
   const itemTypeLabel = "Feed Item";
@@ -118,8 +109,8 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
   await ports.beforeEffect();
   return await ports.transaction(() => {
     check(item.revision);
-    return { item: feed.linkGoal(input.projectId, item.item_id, goalId, startProcessing ? "processing" : "promoted"),
-      goal_id: goalId, goal_path: goalPath(goalId), created: true, runtime_autofill: startProcessing };
+    return { item: feed.linkGoal(input.projectId, item.item_id, goalId, "promoted"),
+      goal_id: goalId, goal_path: goalPath(goalId), created: true };
   });
 }
 

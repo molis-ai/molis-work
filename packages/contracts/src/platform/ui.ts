@@ -241,11 +241,17 @@ export interface UiViewDeclaration {
   readonly view_id: string;
   readonly slot: UiViewSlot;
   readonly title: string;
+  /**
+   * `navigator` and `island` views only: the title in the English interface (BL-636), one line of English of at most 80 characters.
+   * Left out, the English interface shows `title`; the Chinese interface always does. A view that opens nothing from the rail has
+   * no title the shell draws, so a `side`, `settings` or `stage` view that declares it is refused.
+   */
+  readonly title_en?: string;
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**
-   * Icon name from the Host's own catalog. The Host resolves it and falls back
-   * to a default when it does not know the name; a Plugin never ships artwork
+   * Icon name from the platform's icon set (the SDK's `PLUGIN_ICON_NAMES`). The
+   * Manifest reader refuses a name outside the set; a Plugin never ships artwork
    * into the shell.
    */
   readonly icon?: string;

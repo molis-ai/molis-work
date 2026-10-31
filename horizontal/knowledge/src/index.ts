@@ -100,7 +100,7 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
 const cardHit = (card: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title,
-  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
+  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS).replace(/[\uD800-\uDBFF]$/u, ""), brief: card.brief || null, keywords: card.keywords, open: card.open });
 
 /** A card as `list` shows it: no text, and section notes only when organized from this revision. */
 const entryOf = (card: KnowledgeCardRecord): KnowledgeListEntry => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title, plugin_id: card.plugin_id,
@@ -152,7 +152,7 @@ export class KnowledgeService {
       const stored = this.stored(project, hit.subject, hit.plugin_id);
       if (stored?.excluded) continue;
       cards.push({ subject: hit.subject, ref: knowledgeRef(hit.subject), revision: hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
-        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
+        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS).replace(/[\uD800-\uDBFF]$/u, ""), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
     }
     // What only a card's own words match (its brief, keywords, section notes), for a caller who may see the piece.
     const more = this.options.cards.search(project, input.query, limit * 2).map(match => this.options.cards.get(project, match.subject))
@@ -170,7 +170,7 @@ export class KnowledgeService {
     const near = new Map(ranked.map(item => [`${item.kind}\u0000${item.id}`, item.snippet ?? ""]));
     for (const card of relatedCards(shown, [ranked, this.options.cards.related(project, input.query, RELATED_POOL)]).slice(0, limit - cards.length)) {
       const hit = cardHit(card, "related"), snippet = near.get(`${card.subject.kind}\u0000${card.subject.id}`);
-      cards.push(snippet ? { ...hit, hint: snippet.slice(0, HINT_CHARS) } : hit);
+      cards.push(snippet ? { ...hit, hint: snippet.slice(0, HINT_CHARS).replace(/[\uD800-\uDBFF]$/u, "") } : hit);
     }
     return { status: found.status, cards };
   }

@@ -114,7 +114,7 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
  * status; a request that cannot be made or answered (no connection, a timeout, an answer with no code in it) is tried again after a
  * longer wait, until the authorization expires (RFC 8628 §3.5).
  */
-export async function pollDeviceOAuth(home: string, input: { origin: string; state: string }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
+export async function pollDeviceOAuth(home: string, input: { origin: string; state: string; signal?: AbortSignal }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
   const origin = localOrigin(input.origin), state = input.state;
   const read = () => {
     const config = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin)).configuration;
@@ -146,18 +146,19 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
       const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
       let tokens: Json;
       try {
-        const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: AbortSignal.timeout(25_000) });
+        const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000) });
         tokens = object(await response.json().catch(() => undefined));
       } catch (error) {
         // The checks that run around the request refuse with the flow's own errors; anything else is the network.
         if (error instanceof ApiOAuthError || error instanceof ActionError) throw error;
-        return later();
+        // The Host stopping is not the service failing: nothing is written for it.
+        return input.signal?.aborted ? { status: "pending" as const } : later();
       }
       assertConnectorAuthorizationPending(home, state);
       if (!text(tokens.access_token)) {
         const reason = text(tokens.error);
-        if (!reason || reason === "authorization_pending") return { status: "pending" as const };
-        if (reason === "slow_down") return later();
+        if (reason === "authorization_pending") return { status: "pending" as const };
+        if (!reason || reason === "slow_down") return later();
         terminal = true;
         const status = reason === "expired_token" ? "expired" as const : reason === "access_denied" ? "cancelled" as const : "failed" as const;
         finishConnectorAuthorization(home, state, status);
@@ -178,10 +179,12 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
 /**
  * Device polling is protocol work on the Host's timer registry, independent of any open page or model; it covers every service that
  * declares the grant. Each authorization polls on its own: a tick starts the ones not already in flight and does not wait for them, so
- * a service whose endpoint hangs holds up only its own authorization.
+ * a service whose endpoint hangs holds up only its own authorization. Stopping the timer registry aborts the requests in flight and
+ * waits for those polls to finish, so nothing is committed or written once `stop()` has returned.
  */
 export function registerConnectorDevicePolling(home: string, periodic: PeriodicTasks): void {
-  const inFlight = new Set<string>();
+  const inFlight = new Map<string, Promise<unknown>>();
+  const stopping = new AbortController();
   periodic.every({ id: "connector-device-authorization", title: "完成设备登录授权", owner: "connectors", intervalMs: 2000,
     run: () => runWithMolisWorkHome(home, async () => {
       expireConnectorAuthorizations(home);
@@ -189,9 +192,10 @@ export function registerConnectorDevicePolling(home: string, periodic: PeriodicT
         const ui = readConnectorAuthorizationPresentation(home, request.id);
         if (!ui?.device_state || !ui.origin || inFlight.has(ui.device_state)) continue;
         const { device_state: state, origin } = ui;
-        inFlight.add(state);
-        void runWithMolisWorkHome(home, () => pollDeviceOAuth(home, { state, origin })).catch(() => undefined).finally(() => inFlight.delete(state));
+        if (stopping.signal.aborted) return;
+        inFlight.set(state, runWithMolisWorkHome(home, () => pollDeviceOAuth(home, { state, origin, signal: stopping.signal })).catch(() => undefined).finally(() => inFlight.delete(state)));
       }
     }),
+    onStop: () => { stopping.abort(); return Promise.all(inFlight.values()); },
   });
 }

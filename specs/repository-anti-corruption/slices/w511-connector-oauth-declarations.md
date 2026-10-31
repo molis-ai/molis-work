@@ -476,8 +476,8 @@
 - **设备授权是平台的 grant**：新 `connector-device-oauth.ts`：`startDeviceOAuth`、`pollDeviceOAuth`、`registerConnectorDevicePolling`。路由是通用的 `methods/device/start`、`methods/device/poll`；GitHub 的 `github/device/*`、`github/client` 路由与 `github-oauth.ts`、`connector-github-device.ts`、github 包的 `oauth.ts` 删除。`device_code` 存在记录的 `device` 秘密里（`clear()` 一并清掉），页面拿到 `user_code`、验证地址和 state。
 - **提交只有一份**：回调的收尾抽成 `commitApiOAuth`（令牌检查、账号、第 9、8 条、凭据、本人意图确认、返回页），回调与设备授权共用；回调的用例一条没放宽。
 - **每条记录各自限速**：`nextPollAt`、`interval` 在 `DeviceConfiguration` 里；间隔没到回 `pending` 不发请求；一次 poll 不论成败都把下一次推后一个间隔；`slow_down` 只加这一条记录的间隔（+5 秒，上限 60 秒）。
-- **队列里重读、轮询各自启动**（#1672 二审）：`pollDeviceOAuth` 在连接的队列里面重新读记录与 `nextPollAt`，两路同时 poll 在间隔内只发一次；`registerConnectorDevicePolling` 对每条授权各自启动、不整轮等待（在途的记在 `inFlight`），一个服务的端点挂 25 秒只拖住它自己的授权。
-- **网络抖动不结束授权**：取不到应答、超时、没有错误码的应答（HTTP 5xx 的网页）按 `slow_down` 的退避（+5 秒，上限 60 秒）继续试，直到授权过期；只有服务明确的错误码（`expired_token`、`access_denied`、其他 `error`）才终止；声明、取消等检查的拒绝照旧终止。
+- **队列里重读、轮询各自启动**（#1672 二审）：`pollDeviceOAuth` 在连接的队列里面重新读记录与 `nextPollAt`，两路同时 poll 在间隔内只发一次；`registerConnectorDevicePolling` 对每条授权各自启动、不整轮等待（在途的记在 `inFlight`），一个服务的端点挂 25 秒只拖住它自己的授权。**Host 停止时**：`PeriodicTasks.stop()` 新增对任务 `onStop` 的等待；轮询器的 `onStop` 中止在途请求（Host 停止不是服务失败，不写退避）并等在途的 poll 结束（含已到账号请求、正在提交的），`stop()` 返回之后不再有提交或写入，也不再启动新的 poll。
+- **网络抖动不结束授权**：取不到应答、超时、没有错误码的应答（HTTP 5xx 的网页，代码里走 `later()`，RAC-2543 断言下一次要等间隔 + 5 秒）按 `slow_down` 的退避（+5 秒，上限 60 秒）继续试，直到授权过期；只有服务明确的错误码（`expired_token`、`access_denied`、其他 `error`）才终止；声明、取消等检查的拒绝照旧终止。
 - **`device_code` 在授权记录写成功之后才存**（放进同一个 try），记录失败不留孤立的秘密；`verification_uri` 与 `_complete` 封顶 2048 字符。
 - **设置页的名字**：设备码提示改成“在 {name} 输入设备码”，名字来自按钮上的 `data-device-login="<服务名>"`（请求页用卡片标题），通用脚本里不再写死 GitHub。
 - **验证地址按 origin 全等**：`verificationAddress` 用解析后的 `URL.origin` 与设备授权请求地址的 origin 比；https、不带账号密码、端口、片段；`verification_uri_complete` 同样判。`user_code` 只收字母数字空格连字符。
@@ -487,7 +487,7 @@
 - **没碰的**：Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/github-oauth.test.ts`（RAC-2540～2549）；`connector-setup`、`security-invariants-connector-intent`、`security-invariants-connector-scope` 里的 GitHub 设备授权用例改走通用路由与 `oauthNetwork`；`connector-method-directory`、`connector-oauth-choice`、`connectors-settings-behaviors`、`plugin-global-settings` 的 `auth_kind` 与按钮断言随之更新；`tests/github-device-flow.test.ts` 删除（内容并入上面几份）。
 - **和方案不一样的**：方案里的 RAC-2549 是设置页设备授权的 UI 动线，实际落地的是源码扫描（递归扫 Host、GitHub 包、catalog、工作台，含页面脚本目录）加一条不开浏览器的断言：卡片按钮带 `data-device-login="GitHub"`，页面脚本从它走 `methods/device/start`（`tests/connector-method-directory.test.ts`）。设备授权的整条 UI 动线没有现成的浏览器用例（设备码要在 GitHub 的页面输入，浏览器用例里没有 GitHub），由 `tests/connector-setup.test.ts`「ASC-18 ASC-36: GitHub device authorization finishes on the restarted Host」从路由开始走到连接建立覆盖。
-- **第 8 片变异表**（每条改源码、重建、跑所点名的测试，再还原重建；构建有类型错误时不算，要改到编译通过再跑）：15 条全红。(1) 验证地址 origin 全等去掉 → RAC-2541、2548；(2) 地址长度上限去掉 → RAC-2541；(3) 间隔没到仍发请求 → RAC-2540、2542、2543；(4) `slow_down` 不加间隔 → RAC-2542、2543；(5) 队列里不重读记录 → RAC-2542「two polls arriving together」；(6) 轮询器等每条授权 → RAC-2542「a service whose token endpoint hangs」；(7) `device_code` 在记录之前存 → RAC-2541「a device code is stored only after」；(8) 网络失败结束授权 → RAC-2543「a request that cannot be made」；(9) 没有错误码的应答结束授权 → 同；(10) 重新授权不比账号（规则 8） → RAC-2544「a reauthorization」；(11) `oauthOwner` 不看 grant → `github-oauth` 12 条和 `connector-setup` 3 条；(12) 请求前不复判声明 → RAC-2544；(13) `user_code` 不检查 → RAC-2541；SDK：(14) 按 kind 判重 → RAC-2547「one oauth method per grant」；(15) `auth_kind` 放回按服务取值 → RAC-2547「auth_kind is oauth, feishu, token or none」。
+- **第 8 片变异表**（每条改源码、重建、跑所点名的测试，再还原重建；构建有类型错误时不算，要改到编译通过再跑）：17 条全红。(1) 验证地址 origin 全等去掉 → RAC-2541、2548；(2) 地址长度上限去掉 → RAC-2541；(3) 间隔没到仍发请求 → RAC-2540、2542、2543；(4) `slow_down` 不加间隔 → RAC-2542、2543；(5) 队列里不重读记录 → RAC-2542「two polls arriving together」；(6) 轮询器等每条授权 → RAC-2542「a service whose token endpoint hangs」；(7) `device_code` 在记录之前存 → RAC-2541「a device code is stored only after」；(8) 网络失败结束授权 → RAC-2543「a request that cannot be made」；(9) 没有错误码的应答不退避（原先直接返回 pending） → 同；(10) 重新授权不比账号（规则 8） → RAC-2544「a reauthorization」；(11) `oauthOwner` 不看 grant → `github-oauth` 12 条和 `connector-setup` 3 条；(12) 请求前不复判声明 → RAC-2544；(13) `user_code` 不检查 → RAC-2541；(16) 停止时不等在途的 poll → RAC-2542「stop() waits for a poll」；(17) 停止时不中止请求 → RAC-2542「stopping the Host's periodic tasks aborts」；SDK：(14) 按 kind 判重 → RAC-2547「one oauth method per grant」；(15) `auth_kind` 放回按服务取值 → RAC-2547「auth_kind is oauth, feishu, token or none」。
 - **改了也不会红的三处，各自为什么**：`store.consume`（令牌领取）——领取之后 `terminal = true`，`finally` 会丢记录，再来一次 poll 也过不了“授权仍在等待”（提交时已写成 `connected`）；`finally` 里的 `secrets.clear()`——授权结束时 `finishConnectorAuthorization` 与记录的丢弃已经清掉同一批秘密（RAC-2543 直接读了这批秘密）；请求前先推后 `nextPollAt`——现在队列里重读，第二路 poll 要等第一路结束才进来，而第一路结束时 `nextPollAt` 已经是新值。三处都是纵深防御，保留。
 
 ### 2.7 `auth_kind` 收窄
@@ -751,7 +751,7 @@
 | RAC-2539 | Host 和 catalog 里没有只给 Notion 的 OAuth 代码、路由和密钥名 | 同上，读源码 |
 | RAC-2540 | GitHub 走设备授权：页面只拿到 `user_code`、验证地址和 state，拿不到 `device_code`；间隔没到的 poll 不发请求；授权后连接是通用形状（`connector-protocol:` 引用、账号是登录名） | `tests/github-oauth.test.ts` |
 | RAC-2541 | 验证地址（含 `verification_uri_complete`）不是 https、带账号密码、端口、片段或不是请求地址的 origin，`user_code` 不合格，都在存任何东西之前结束授权 | 同上 |
-| RAC-2542 | 限速按每条授权各自算：`slow_down` 只加大这一条的间隔，别的授权仍按自己的间隔被问 | 同上 |
+| RAC-2542 | 限速按每条授权各自算：`slow_down` 只加大这一条的间隔，别的授权仍按自己的间隔被问；`stop()` 中止并等到在途的 poll，返回后无写入 | 同上 |
 | RAC-2543 | 过期、被拒、其他回答都只写状态，不建连接，`device_code` 不留 | 同上 |
 | RAC-2544 | 声明的插件停用、换了安装或发布者、方法指纹变了，请求之前就拒，不发请求；令牌请求期间失去声明，账号不读、不提交 | 同上 |
 | RAC-2545 | 令牌只领一次，第二次 poll 找不到记录；没发出的 state、别的来源的 state 什么都读不到 | 同上；`tests/connector-setup.test.ts`、`tests/security-invariants-connector-scope.test.ts` 的取消用例 |

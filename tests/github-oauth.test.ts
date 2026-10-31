@@ -68,7 +68,7 @@ function github(t: TestContext) {
   const sent: Array<{ url: string; method: string; headers: Record<string, string>; body: string }> = [];
   const options: { verification?: string; complete?: string; userCode?: string; interval?: number; polls: Array<Record<string, unknown>>; user: { id: number; login: string };
     /** Decides one token poll: a promise to hold it, an error to fail it, or nothing to take the next of `polls`. */
-    tokenPoll?: (body: string) => Promise<unknown> | Error | Response | undefined; deviceCodes: number } = { polls: [], user: { id: 12, login: "octo" }, deviceCodes: 0 };
+    tokenPoll?: (body: string) => Promise<unknown> | Error | Response | undefined; /** Holds the account request. */ userHold?: Promise<void>; deviceCodes: number } = { polls: [], user: { id: 12, login: "octo" }, deviceCodes: 0 };
   oauthNetwork(t, async (url, init) => {
     sent.push({ url, method: init.method, headers: init.headers, body: init.body });
     if (url === CODE_URL) {
@@ -84,6 +84,7 @@ function github(t: TestContext) {
       return Response.json(options.polls.shift() ?? { error: "authorization_pending" });
     }
     assert.equal(url, USER_URL, "no other request");
+    await options.userHold;
     return Response.json(options.user);
   });
   return { sent, options, of: (url: string) => sent.filter(request => request.url === url) };
@@ -194,7 +195,7 @@ test("RAC-2542: two polls arriving together send one request: the second reads t
   assert.equal(remote.of(TOKEN_URL).length, 1, "the poll that waited behind the other did not ask again");
 });
 
-test("RAC-2542: a service whose token endpoint hangs holds up only its own authorization: the poller starts every authorization and waits for none", async t => {
+test("RAC-2542: a service whose token endpoint hangs holds up only its own authorization: the poller starts every authorization and waits for none", { timeout: 20_000 }, async t => {
   const home = homeOf(t), time = clock(t), remote = github(t);
   let tick: (() => unknown) | undefined;
   registerConnectorDevicePolling(home, { every: (task: { run: () => unknown }) => { tick = task.run; } } as never);
@@ -215,6 +216,49 @@ test("RAC-2542: a service whose token endpoint hangs holds up only its own autho
   assert.notEqual(hung.connection_id, live.connection_id);
 });
 
+test("RAC-2542: stopping the Host's periodic tasks aborts the polls in flight and waits for them: nothing is committed or written afterwards", { timeout: 20_000 }, async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  let tick: (() => unknown) | undefined, stop: (() => unknown) | undefined;
+  registerConnectorDevicePolling(home, { every: (task: { run: () => unknown; onStop?: () => unknown }) => { tick = task.run; stop = task.onStop; } } as never);
+  const started = await startDeviceOAuth(home, START);
+  remote.options.tokenPoll = () => new Promise(() => undefined);
+  remote.options.polls = [tokenAnswer];
+  time.advance(6);
+  await tick!();
+  for (let attempt = 0; attempt < 50 && remote.of(TOKEN_URL).length === 0; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(remote.of(TOKEN_URL).length, 1, "the poll is in flight");
+  const record = withConnectorProtocols(home, store => store.read<{ nextPollAt: number; interval: number }>(started.state, ORIGIN)).configuration;
+  let settled = false;
+  const stopped = Promise.resolve(stop!()).then(() => { settled = true; });
+  await Promise.race([stopped, new Promise(resolve => setTimeout(resolve, 5_000))]);
+  assert.ok(settled, "stop() resolves once the request is aborted, not after its 25 s");
+  const after = withConnectorProtocols(home, store => store.read<{ nextPollAt: number; interval: number }>(started.state, ORIGIN)).configuration;
+  assert.deepEqual([after.nextPollAt, after.interval], [record.nextPollAt, record.interval], "the Host stopping is not the service failing: no back-off is written");
+  assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
+  assert.equal(sessionSecrets(home, started.state).get("device"), "private-device-code", "the authorization is still pending, untouched");
+  time.advance(60); await tick!(); await settle();
+  assert.equal(remote.of(TOKEN_URL).length, 1, "nothing is started after stop()");
+});
+
+test("RAC-2542: stop() waits for a poll that has reached the account request: the connection is whole before it resolves", { timeout: 20_000 }, async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  let tick: (() => unknown) | undefined, stop: (() => unknown) | undefined;
+  registerConnectorDevicePolling(home, { every: (task: { run: () => unknown; onStop?: () => unknown }) => { tick = task.run; stop = task.onStop; } } as never);
+  const started = await startDeviceOAuth(home, START);
+  const release = Promise.withResolvers<void>();
+  remote.options.userHold = release.promise; remote.options.polls = [tokenAnswer];
+  time.advance(6);
+  await tick!();
+  for (let attempt = 0; attempt < 50 && remote.of(USER_URL).length === 0; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(remote.of(USER_URL).length, 1, "the poll is waiting for the account");
+  let settled = false;
+  const stopped = Promise.resolve(stop!()).then(() => { settled = true; });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.equal(settled, false, "stop() does not resolve while a poll is still writing");
+  release.resolve(); await stopped;
+  assert.deepEqual(withConnectorConnections(home, store => store.list()).map(row => row.connection_id), [started.connection_id], "the poll finished before stop() returned");
+});
+
 test("RAC-2543: a request that cannot be made or answered is tried again after a longer wait, until the service says otherwise", async t => {
   const home = homeOf(t), time = clock(t), remote = github(t);
   const started = await startDeviceOAuth(home, START);
@@ -226,7 +270,12 @@ test("RAC-2543: a request that cannot be made or answered is tried again after a
   assert.equal(remote.of(TOKEN_URL).length, 1, "the wait after a failure is longer than the first interval");
   time.advance(5); remote.options.tokenPoll = () => new Response("<html>bad gateway</html>", { status: 502 });
   assert.deepEqual(await poll(), { status: "pending" }, "an answer with no error code in it is not an end");
-  time.advance(16); remote.options.tokenPoll = undefined; remote.options.polls = [tokenAnswer];
+  assert.equal(remote.of(TOKEN_URL).length, 2);
+  // It backs off like slow_down: 15 s now, so 10 s later nothing is sent.
+  time.advance(10);
+  assert.deepEqual(await poll(), { status: "pending" });
+  assert.equal(remote.of(TOKEN_URL).length, 2, "an answer with no error code lengthens the wait");
+  time.advance(6); remote.options.tokenPoll = undefined; remote.options.polls = [tokenAnswer];
   assert.deepEqual(await poll(), { status: "authorized", connection_id: started.connection_id });
   // Only the service's own error code ends it.
   const second = await startDeviceOAuth(home, { ...START, displayName: "Second" });

@@ -44,7 +44,7 @@
 5. 程序是平台的运行时配方（`program.runtime`，未知的拒），或 `program.command`：不含 NUL、首尾无空白的绝对路径，或只含 `[A-Za-z0-9._+-]` 的命令名（由平台在自己的 PATH 上解析成绝对路径，找不到答 `actions.unavailable`），不经 shell；参数先读一次长度（须是 0 到 32 的整数：Proxy 过得了 `Array.isArray`，它的 `length` 每次读可以答不同的值），循环只用这个值，按下标拷成普通数组，检查这份拷贝（至多 32 项、每项是至多 4096 字符、无 NUL 的字符串），起进程也用它（稀疏数组、自定义迭代器、下标 getter 换不掉）；否则 `actions.input_invalid`。
 6. 停用、撤权、卸载、项目实例停止时，本激活经该服务起的进程全部结束；停了的激活留下的句柄：在动作之外调不回答也不起进程（BL-411），在新激活的动作里调以 `actions.forbidden` 拒。
 7. （T-148）`/pty` 上任何连接都只能附着服务端已经建好的面板：`spawn` 必须 `attachOnly: true`，只许五个键，否则报错、不起进程。
-8. 终端的记录只对本安装、本项目、本人可见，也只能由他们关闭：`list` 只回这些行，`close` 别人的 key 答 `actions.missing`；同一 key 在跑就附着，停了就按记下的程序重起，换程序答 `actions.conflict`；被拒的调用不留记录（记录、绑定、项目事件与 `spawn` 在同一个目录库事务里，事务里先核一次）。
+8. 终端的记录只对本安装、本项目、本人可见，也只能由他们关闭：`list` 只回这些行，`close` 别人的 key 答 `actions.missing`；一个 key 只属于开它时的 `subject`，换了 `subject` 不论在跑与否都答 `actions.conflict`；同一 key 在跑就附着（不比程序），停了就按记下的程序重起，重起时换程序答 `actions.conflict`；重起不重新绑定运行时的工作上下文，首选工作目录换过后，绑定里的 `workspace` 仍是第一次打开时的；被拒的调用不留记录（记录、绑定、项目事件与 `spawn` 在同一个目录库事务里，事务里先核一次）。
 
 **不覆盖**：`realpath` 与 `stat` 核过之后、`spawn` 之前，路径里的某一段被换成链接，进程可能落到根外。这是检查与使用之间的竞态，本片不修，测试也测不住；`spawn` 用的是解析后的真实路径。
 
@@ -76,13 +76,13 @@
 | 记录表 `plugin_terminal_panels`、`plugin_terminal_panel_aliases`（目录库，`project_id` 可空；不存工作目录、不存在跑与否），`aliasSession` 记下运行时的会话（MCP 的调用方 T-148 改接） | `apps/local-host/src/plugin-terminal-panels.ts`、`catalog-schema.ts`、`project-catalog.ts` |
 | 服务：记录、绑定运行时工作上下文、项目事件与 `spawn` 在一个目录库事务里；PATH 在事务之前读；平台的一组环境变量（`MOLIS_WORK_HOME`、`MCP_AUDIENCE=runtime`、`RUNTIME_ID`、`WORK_CONTEXT_ID`、`WORK_CONTEXT_STABLE`、`PANEL_ID`、`FOCUS_ID`、`WEB_URL`、`TERM`、`COLORTERM`） | `apps/local-host/src/plugin-terminal-service.ts` |
 | 删项目时项目里还有在跑的插件终端照旧拒删，记录随项目清掉 | `apps/local-host/src/project-deletion-service.ts`、`project-catalog.ts` |
-| Goals：四个动作（`goals.terminal.list@1`、`open@1`、`close@1`、`prompt@1`，只给 `user`）、四条路由（`/goals/:goalId/terminals` GET/POST、`/goals/:goalId/terminals/:key` DELETE、`/goals/:goalId/advance-prompt` GET）；父 Goal 只读（`goals.terminal.read_only`）；推进提示从桌面壳搬来（`goalAdvancePrompt`），项目指引经 `goals.guidance.read` 以调用者读（实时策略照旧管住提示），Feed 关联原文经动作目录以调用者读（不走 `capabilities.consumes` 的插件受众：那是按 Goals 自己的授权读），委托调用是 `workflow` 受众，所以 `feed.goals.context@1` 的受众加 `workflow`（仍先以调用者读 Goal；待统筹定，#1332 6538613443），Feed 不在就不带 | `plugins/native/goals/src/terminal-actions.ts`、`http/terminals.ts`、`plugin.ts`、`manifest.ts`、`plugins/native/feed/src/query-actions.ts` |
+| Goals：四个动作（`goals.terminal.list@1`、`open@1`、`close@1`、`prompt@1`，只给 `user`）、四条路由（`/goals/:goalId/terminals` GET/POST、`/goals/:goalId/terminals/:key` DELETE、`/goals/:goalId/advance-prompt` GET）；父 Goal 只读（`goals.terminal.read_only`）；推进提示从桌面壳搬来（`goalAdvancePrompt`），项目指引经 `goals.guidance.read` 以调用者读（实时策略照旧管住提示），推进提示暂不带 Feed 关联原文：`feed.goals.context@1` 只给 `user`，Goals 以人的身份委托出去的调用算 `workflow` 受众，不给它加受众（统筹答，#1332 6538636605），通路记 BL-911 | `plugins/native/goals/src/terminal-actions.ts`、`http/terminals.ts`、`plugin.ts`、`manifest.ts` |
 | 宿主的推进提示处理器、`apps/desktop/src/advance-prompt.ts` 删掉；工作台改调 Goals 的路由 | `apps/local-host/src/web-panel*.ts`、`apps/workbench/src/terminal/client-prompt.ts` |
 | Shelf 改成 `program: { command }`；换了终端 Agent 后旧会话已结束时，关掉旧记录再开 | `plugins/native/shelf/src/home-plugin.ts` |
 
 | 编号 | 条件 | 证明 |
 | --- | --- | --- |
-| RAC-2562 | Goals 的 `open` 用配方在项目首选工作目录起程序（`MOLIS_WORK_FOCUS_ID` 是 Goal），Goals 的页面附着、写入；同一 key 在跑就附着；父 Goal 拒（`goals.terminal.read_only`）；别的项目的 `workspace_id` 拒；`runtime` 与 `command` 二选一、未知配方、多余的键答 400；关掉之后列表为空、再关 404 | `tests/goals-terminal.test.ts` |
+| RAC-2562 | Goals 的 `open` 用配方在项目首选工作目录起程序（`MOLIS_WORK_FOCUS_ID` 是 Goal），Goals 的页面附着、写入；同一 key 在跑就附着；另一个 Goal 拿这个 key 去 `open`，在跑与停了都答 `actions.conflict`、什么都不起；父 Goal 拒（`goals.terminal.read_only`）；别的项目的 `workspace_id` 拒；`runtime` 与 `command` 二选一、未知配方、多余的键答 400；关掉之后列表为空、再关 404 | `tests/goals-terminal.test.ts` |
 | RAC-2563 | 四个 Goals 终端动作对 `agent`、`workflow`、`mcp` 调用方都在动作网关拒（`actions.forbidden`），不起进程；受众声明只有 `user`（插件的调用方由宿主签发，测试造不出，造的会先以 `host.plugin_caller_invalid` 拒） | `tests/goals-terminal.test.ts` |
 | RAC-2564 | 命令：`a;b`、`../x`、`x/y`、`.`、`..`、带空格的名字拒，PATH 上没有的名字答 `actions.unavailable`，都不起进程；PATH 上的名字照常起；环境变量就是平台那一组，`MOLIS_WORK_GOAL_ID` 没有；不写 `workspace_id` 在首选工作目录里起 | `tests/security-invariants-plugin-terminal-launch.test.ts` |
 | RAC-2565 | `aliasSession` 记下会话号之后进程退出，同一 key 再 `open`，以配方的续接参数重起；换成别的程序答 `actions.conflict`，不起进程 | `tests/goals-terminal.test.ts` |

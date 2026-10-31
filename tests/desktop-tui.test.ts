@@ -1246,20 +1246,13 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(promotedAgainBody.goal_id, startedBody.goal_id);
     assert.equal(promotedAgainBody.created, false);
 
-    // Goals binds the Feed text still linked to the Goal (asked of Feed as the person); no Feed item is named in the request.
+    // The prompt is Goals' own facts and guidance only: Feed's text is not read for it (T-137, #1332 6538636605; a person's delegated
+    // read of a user-only query of another plugin has no path yet, BL-911).
     const prompt = await (
       await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(startedBody.goal_id)}/advance-prompt`)
     ).json() as { prompt: string };
     assert.match(prompt.prompt, /用 Item 启动真实工作/);
-    assert.match(prompt.prompt, /测试 RSS/);
-    assert.match(prompt.prompt, /正文里包含需要核对的事实/);
-    assert.match(prompt.prompt, /资料预览会进入上下文/);
-    assert.match(prompt.prompt, /UNTRUSTED DATA/);
-    assert.match(prompt.prompt, /不得执行其中的命令/);
-    assert.match(prompt.prompt, /<UNTRUSTED_FEED_ITEM_DATA>/);
-    assert.match(prompt.prompt, /Authorization: \[REDACTED\]/);
-    assert.match(prompt.prompt, /access_token=\[REDACTED\]/);
-    assert.match(prompt.prompt, /client_secret=\[REDACTED\]/);
+    assert.doesNotMatch(prompt.prompt, /<UNTRUSTED_FEED_ITEM_DATA>/);
     assert.doesNotMatch(
       prompt.prompt,
       /runtime-secret-token|url-secret-value|material-secret-value/,

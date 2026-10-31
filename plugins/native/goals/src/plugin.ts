@@ -18,8 +18,6 @@ import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: 1 } as const;
-/** Feed's text still linked to a Goal (optional: Feed may not be installed), asked as the caller through the action directory. */
-const FEED_LINKED_CONTEXT = { capability_id: "feed.goals.context", version: 1 } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
   "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin",
@@ -112,15 +110,7 @@ export function createGoalsPlugin(): PluginDefinition {
           throw error;
         }
       }),
-      guidancePrefix: async caller => (await actions.invoke(goalsActions.guidanceRead, {}, controlOf(caller))).runtime_prompt_prefix,
-      linkedFeedContext: async (caller, goalId) => {
-        try { return (await directory.invoke<{ source_context: string } | null>(FEED_LINKED_CONTEXT, { goal_id: goalId }, controlOf(caller)))?.source_context; }
-        catch (error) {
-          // Feed not in this project, off, or not granted to this person: the prompt goes without it.
-          if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.dependency_missing"].includes(error.code)) return undefined;
-          throw error;
-        }
-      } }));
+      guidancePrefix: async caller => (await actions.invoke(goalsActions.guidanceRead, {}, controlOf(caller))).runtime_prompt_prefix }));
 
     // The person's methods are the plugin's own data, in its other instance: asked as the plugin (its own action), never as the caller,
     // whose grants (an agent's, say) need not reach a Home-wide action.

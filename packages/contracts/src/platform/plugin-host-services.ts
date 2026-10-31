@@ -181,8 +181,9 @@ export interface PluginTerminalPanel {
 /** A user-started interactive terminal, for a plugin the Host runs itself that declares terminal:run (S-103). */
 export interface PluginTerminalClient {
   /**
-   * Starts the plugin's interactive terminal for this key, or reattaches to it while it runs; a terminal that ended starts again with the
-   * program it was opened with (the input must name the same one), resuming the runtime's session when one was reported. The Host takes
+   * Starts the plugin's interactive terminal for this key, or reattaches to it while it runs; a key keeps the `subject` it was opened for
+   * (another one is refused, running or not); a terminal that ended starts again with the program it was opened with (the input must then
+   * name the same one), resuming the runtime's session when one was reported. The Host takes
    * the installation, the project and the person from the running action; `subject` is the plugin's own id for what the terminal works
    * on (handed to the runtime as its focus, and a filter for `list`). Requires terminal:run, and workspace:read for a workspace root.
    * The page receives only the panel handle.

@@ -38,7 +38,7 @@ export const goalsTerminalActions = {
     "goals.terminal.close", "关闭目标的工作终端", "结束这个目标上的一个工作终端并忘掉它", "command",
     ["goals:write", "terminal:run"], object({ ...goal, key }), object({ closed: { const: true } })),
   prompt: terminalAction<{ goal_id: string; onboarding?: boolean }, { goal_id: string; title: string; prompt: string }>(
-    "goals.terminal.prompt", "读取推进目标的提示词", "给终端里的编程 Agent 的推进提示：目标的当前事实、项目指引，以及仍与它关联的 Feed 原文（作为不可信数据）", "query",
+    "goals.terminal.prompt", "读取推进目标的提示词", "给终端里的编程 Agent 的推进提示：目标的当前事实与项目指引", "query",
     ["goals:read"], object({ ...goal, onboarding: boolean }, ["goal_id"]), object({ goal_id: text, title: text, prompt: text })),
 } as const;
 export const GOALS_TERMINAL_ACTIONS: readonly ActionDefinition[] = Object.values(goalsTerminalActions);
@@ -50,8 +50,6 @@ export interface GoalsTerminalPorts {
   goal(goalId: string): { record: GoalRecord; state: GoalEventStateView | null } | null;
   /** The project guidance for runtimes, read through `goals.guidance.read` as the caller, so its live policy holds for the prompt too. */
   guidancePrefix(caller: ActionExecutionContext): Promise<string>;
-  /** The Feed text still linked to the Goal, asked of Feed as the caller; undefined when Feed is not there or has none. */
-  linkedFeedContext(caller: ActionExecutionContext, goalId: string): Promise<string | undefined>;
 }
 
 /**
@@ -100,8 +98,8 @@ export function createGoalsTerminalActionHandlers(ports: GoalsTerminalPorts): Ac
       const { goal_id, onboarding } = input as { goal_id: string; onboarding?: boolean };
       const { record, state, parent } = readGoal(goal_id);
       if (parent) throw terminalErrors.read_only("这条上层 Goal 由子 Goal 共同完成，不能直接推进。请选择一个具体的子 Goal。");
-      const source_context = await ports.linkedFeedContext(caller, goal_id);
-      return { goal_id, title: record.title, prompt: goalAdvancePrompt({ goal_id, title: record.title, source_context,
+      // Goals' own facts and guidance only: a person's delegated read of Feed's user-only text has no path yet (BL-911).
+      return { goal_id, title: record.title, prompt: goalAdvancePrompt({ goal_id, title: record.title,
         project_guidance_prefix: await ports.guidancePrefix(caller), onboarding: onboarding === true, current_facts: state?.owner ? goalFacts(state) : undefined }) };
     } },
   ];

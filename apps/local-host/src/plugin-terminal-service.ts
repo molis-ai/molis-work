@@ -73,6 +73,8 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
         // Everything below is one transaction: a call stopped here (revoked, cancelled, stopped) leaves no record and starts nothing.
         check();
         const existing = projects.terminalPanels.get(panelId);
+        // A key stays with what it was opened for, running or not: another subject neither starts nor attaches it.
+        if (existing && existing.subject !== request.subject) throw new ActionError("actions.conflict", "这个终端属于另一个对象，请换一个 key");
         // A running terminal is attached as it is; one started again keeps the program it was recorded with.
         if (existing && host.alive(panelId)) return false;
         if (existing && !sameProgram(existing, request.program)) throw new ActionError("actions.conflict", "这个终端记录的是另一个程序，请先关掉它");

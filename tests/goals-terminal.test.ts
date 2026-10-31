@@ -121,6 +121,21 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   assert.deepEqual((await json(await api("/CHILD/terminals"))).body.panels, [], "another Goal's terminals are its own");
   const again = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", key: opened.body.key } }));
   assert.deepEqual(again.body, { panel_id: panelId, key: opened.body.key, started: false }, "the same key attaches to the running terminal");
+  // A key stays with its Goal: another Goal's open neither attaches the running terminal nor starts a stopped one again.
+  const conflict = async (key: unknown, why: string) => {
+    const stolen = await api("/CHILD/terminals", { method: "POST", body: { runtime: "codex", key } });
+    assert.equal(stolen.status, 409, why);
+    assert.match(await stolen.text(), /actions\.conflict/, why);
+  };
+  await conflict(opened.body.key, "running");
+  const spare = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", key: "spare" } }));
+  assert.equal(spare.status, 200, JSON.stringify(spare.body));
+  await logged(2);
+  page.send({ type: "spawn", panelId: String(spare.body.panel_id), attachOnly: true }); await page.wait(message => message.type === "spawned");
+  page.send({ type: "kill", panelId: String(spare.body.panel_id) }); await page.wait(message => message.type === "exit");
+  await conflict("spare", "stopped");
+  assert.equal((await logged(2)).length, 2, "neither attempt started anything");
+  assert.equal((await api("/LEAF/terminals/spare", { method: "DELETE" })).status, 200);
 
   const parent = await api("/PARENT/terminals", { method: "POST", body: { runtime: "codex" } });
   assert.equal(parent.status, 409);
@@ -132,7 +147,7 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   for (const body of [{}, { runtime: "codex", command: "sh" }, { runtime: "codex", args: [] }, { runtime: "nope" }, { command: "sh", cwd: "/" }]) {
     assert.equal((await api("/LEAF/terminals", { method: "POST", body })).status, 400, JSON.stringify(body));
   }
-  assert.equal((await logged(1)).length, 1, "nothing else ran");
+  assert.equal((await logged(2)).length, 2, "nothing else ran");
   const closed = await json(await api(`/LEAF/terminals/${opened.body.key}`, { method: "DELETE" }));
   assert.deepEqual(closed, { status: 200, body: { closed: true } });
   await page.wait(message => message.type === "exit");

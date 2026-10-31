@@ -1130,6 +1130,7 @@ for (const [order, gonePluginId, keptPluginId] of [
     const installed = await rig.control(), platform = installed.platform;
     assert.deepEqual(installed.installations().map(entry => entry.state), ['running', 'running'], 'both installations run before the close');
     assert.ok(platform.runtime.contribution(gone.installId), 'the installation whose record goes has a contribution before the close');
+    assert.ok(platform.runtime.contribution(kept.install_id), 'the installation that stays keeps its contribution before the close');
     // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, ascending. `order` decides which of the
     // two goes; comparing the whole array also fails when the close order is empty (an indexOf would see -1 === -1).
     const closeOrder = platform.supervisor.enabledPluginIds();

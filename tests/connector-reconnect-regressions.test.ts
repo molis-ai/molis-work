@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -40,10 +40,11 @@ test("product-configured OAuth can reconnect the disconnected account without as
 test("generic OAuth reconnect restores its bound Feed source after disconnect", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-review-feed-"));
   mkdirSync(join(home, "projects"));
-  const path = join(home, "projects", "review.db");
+  const path = join(home, "projects", "review", "molis-work.db");
   const catalog = new DatabaseSync(join(home, "projects", "catalog.db"));
-  catalog.exec("CREATE TABLE projects (database_path TEXT NOT NULL)");
-  catalog.prepare("INSERT INTO projects VALUES (?)").run(path); catalog.close();
+  catalog.exec("CREATE TABLE projects (project_id TEXT NOT NULL)");
+  catalog.prepare("INSERT INTO projects VALUES (?)").run("review"); catalog.close();
+  mkdirSync(dirname(path), { recursive: true });
   seedDemoBoard(path);
   const board = new LocalProjectDatabase(path);
   try {

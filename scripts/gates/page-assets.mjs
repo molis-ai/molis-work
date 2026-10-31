@@ -243,12 +243,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 // T-320 (R-65, MISC 风险登记), RAC-2439: the home "下一步" panel says, when the current item has no automatic judgment
-// result, that automatic judgment only considers the actions Feed has been granted, +283 B on this one asset (one note and the
-// condition that shows it, reusing the panel's existing note structure). Tried: no new structure, no new asset, no new component; the
-// English is in the workbench's own HOME_EN dictionary. 统筹答 6532325725 approved +283 B (< 1 KB) over the merge-base 1148549
-// (main's T-183 already added +96 after the reviewed number); the entries main inherited are used up and deleted with this change.
+// result, that automatic judgment only considers the actions Feed has been granted: one note and the condition that shows it,
+// reusing the panel's existing note structure (its unused data attribute is dropped), +254 B on this one asset. Tried: no new
+// structure, no new asset, no new component; the English is in the workbench's own HOME_EN dictionary. 统筹答 6532134256
+// approved +283 B (< 1 KB) over the merge-base 1148388; this change measures 1148642 (+254, under that ceiling). The T-115
+// entries (workbench.css +24, workbench.js +51) are used up and deleted with this change.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1148549, 1148832],
+  "/assets/molis-work-workbench.js": [1148388, 1148642],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

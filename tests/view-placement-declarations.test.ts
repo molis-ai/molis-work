@@ -198,6 +198,7 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   assert.deepEqual(sections.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
   for (const { heading, tiles } of sections) {
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
+      if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
       const group = declaredGroups.get(tile);
       assert.equal(heading, group ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
     }

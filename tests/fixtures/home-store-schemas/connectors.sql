@@ -1,6 +1,12 @@
 CREATE TABLE connector_authorization_sessions
         (state TEXT PRIMARY KEY, origin TEXT NOT NULL, created_at INTEGER NOT NULL, configuration_json TEXT NOT NULL);
 
+-- Current owner DDL: included for a new Home, independent of whether an old Home had used authorization yet.
+CREATE TABLE connector_authorization_results (
+  id TEXT PRIMARY KEY, state_hash TEXT UNIQUE NOT NULL, connection_id TEXT NOT NULL,
+  service_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL,
+  setup_json TEXT, initiator_json TEXT);
+
 CREATE TABLE connector_bindings (
         scope_id TEXT NOT NULL,
         plugin_id TEXT NOT NULL,
@@ -42,7 +48,7 @@ CREATE UNIQUE INDEX connector_connections_credential_idx
 CREATE INDEX connector_connections_service_idx
         ON connector_connections(service_id, created_at);
 
--- ASC-10: latest technical observations in the unreleased connectors v2 baseline.
+-- ASC-10: latest technical observations in the current complete connectors baseline.
 CREATE TABLE connector_observations (
   connection_id TEXT PRIMARY KEY,
   check_json TEXT,

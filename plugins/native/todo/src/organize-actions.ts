@@ -3,7 +3,7 @@ import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/m
 import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "./contract.js";
 import { localDate } from "./dates.js";
 import { todoErrors } from "./error.js";
-import { organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
+import { TODO_ORGANIZE_DATA_MAX_CHARS, organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { TodoOrganizer, validEdits, type TodoApplyResult, type TodoCandidateDecision } from "./organize.js";
 import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 import type { TodoAccess, TodoStores } from "./store.js";
@@ -115,13 +115,21 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       let unverified = 0;
       const method = input.method === "organizer" ? TODO_ORGANIZE_ORGANIZER : TODO_ORGANIZE_BASIC;
       const parts = organizeParts(input.materials);
-      for (const [part, indexes] of parts.entries()) {
+      const prompts = parts.map(indexes => organizePrompt(method, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }));
+      // One organizing call's data (its part of the materials, the existing todos, the request) over the data position would be refused by the
+      // Host only after dispatch, as a model failure; refuse it here, before any model call or batch record, saying how much over it is.
+      // Materials are split into parts by organizeParts, so a large batch still works unless one part's data cannot fit.
+      for (const prompt of prompts) {
+        const chars = [...prompt.data].length;
+        if (chars > TODO_ORGANIZE_DATA_MAX_CHARS) throw todoErrors.invalid(`这批材料与已有待办转成提示后 ${chars} 字，超过数据位 ${TODO_ORGANIZE_DATA_MAX_CHARS} 字，多 ${chars - TODO_ORGANIZE_DATA_MAX_CHARS} 个字；请减少材料，或先整理、归档一些已有待办后重试`);
+      }
+      for (const [part] of parts.entries()) {
         caller.signal?.throwIfAborted();
         caller.on_progress?.({ stage: "organizing", progress: part / Math.max(parts.length, 1) });
         let parsed;
         // A reply that is not the requested JSON is asked for once more before giving up.
         for (let attempt = 0; !parsed; attempt += 1) {
-          const raw = await ports.completeText(organizePrompt(method, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }), { signal: caller.signal });
+          const raw = await ports.completeText(prompts[part]!, { signal: caller.signal });
           try { parsed = parseOrganizeOutput(raw, input.materials, byId, today); }
           catch { if (attempt >= 1) throw todoErrors.model_invalid("模型没有给出可用的整理结果，请再试一次"); }
         }

@@ -20,7 +20,7 @@ export function createLocalUninstallService(options: Omit<MolisWorkUninstallServ
         storage = new LocalSqliteStorage(databasePath, { readonly: true });
         // The catalog's metadata table is storage's; only a catalog that names this product as its owner has its project list read.
         if (!isOwnedCatalogOwner(new LocalCatalogMetadata(storage.db).owner())) return { projects: [], conflict: `项目 catalog 不属于 Molis Work：${databasePath}` };
-        return { projects: listCatalogProjectsForUninstall(storage.db), conflict: null };
+        return { projects: listCatalogProjectsForUninstall(storage.db, path.join(homeDirectory, "projects")), conflict: null };
       } catch (error) {
         return { projects: [], conflict: `无法安全读取项目 catalog：${error instanceof Error ? error.message : String(error)}` };
       } finally { storage?.close(); }

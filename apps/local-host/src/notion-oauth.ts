@@ -156,7 +156,7 @@ export async function resolveUsableNotionToken(connectionId: string, control: Co
   if (!forceRefresh || !store.get(refs.refresh)) return current;
   const key = JSON.stringify([resolveMolisWorkHome(), refs.refresh]);
   const inFlight = refreshInFlight.get(key);
-  if (inFlight) return inFlight.join(control);
+  if (inFlight?.open) return inFlight.join(control);
   const shared = startSharedRefresh(control, async refresh => {
     const refreshToken = store.get(refs.refresh)?.trim();
     const snapshot = store.get(`${refs.access}:client`);

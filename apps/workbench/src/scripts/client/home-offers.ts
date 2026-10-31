@@ -27,7 +27,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     const node = root.querySelector('[data-home-offers]'), state = currentState(); if (!node || !state) return;
     const recommended = current()?.suggested_behavior_ids || [];
     // R-65: without an automatic judgment result the panel says what automatic judgment can see; a result shows itself by its offers.
-    const hint = recommended.length ? '' : '<p class="home-offers-note" data-home-offers-no-judgment>' + L('自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断') + '</p>';
+    const hint = recommended.length ? '' : '<p class="home-offers-note">' + L('自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断') + '</p>';
     if (!state.offers.length && !state.issues.length && !state.loading && !state.busy && !state.pending && !state.error && !state.result) {
       if (hint) { node.innerHTML = hint; rendered.set(node, { html: hint, key: state.key }); } else { node.replaceChildren(); rendered.delete(node); }
       return;

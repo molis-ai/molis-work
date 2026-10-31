@@ -17,7 +17,7 @@ test("图片插件通过Manifest进入个人导航和市场，客户端可解析
   assert.equal(parsePluginManifest(imagesManifest).plugin_id, "io.molis.work.images");
   assert.ok(PERSONAL_PLUGIN_IDS.includes("images"));
   assert.equal(pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
-  assert.equal(railEntries(["images"])[0]?.label, "图片");
+  assert.equal(railEntries(["images"]).find(entry => entry.id === "images")?.label, "图片");
   assert.equal(imagesUiContribution.descriptor.navigation_id, "images");
   assert.doesNotThrow(() => new Function(`return (${IMAGES_CLIENT_FACTORY_SCRIPT});`));
 });

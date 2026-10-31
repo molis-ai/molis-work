@@ -451,11 +451,9 @@
   },
   "typedCapabilitiesTotal": 0,
   "typedCapabilities": {},
-  "hostPluginFilesTotal": 3,
+  "hostPluginFilesTotal": 1,
   "hostPluginFiles": {
-    "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/artifact-actions.ts#actions": 1,
-    "apps/local-host/src/artifact-native-plugin-http.ts#native-plugin-http": 1
+    "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1
   },
   "registerProviderSitesTotal": 15,
   "registerProviderSites": {
@@ -473,10 +471,9 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 73,
+  "pluginOutsideMentionsTotal": 70,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
-    "artifacts#outside-files": 3,
     "coding#outside-files": 3,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,

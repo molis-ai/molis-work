@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 
-// Only the current AES-GCM file (format 2) is read. An older secrets file, such as the v0.3 flat map of reversible
+// Only the current AES-GCM file (format 1) is read. An older secrets file, such as the v0.3 flat map of reversible
 // envelopes, is refused rather than upgraded, and nothing is written over it (repository-anti-corruption §9.5 #4).
 test("an older secrets file is refused rather than upgraded, and is left as it was", t => {
   const home = mkdtempSync(join(tmpdir(), "molis-secret-format-"));
@@ -22,7 +22,7 @@ test("an older secrets file is refused rather than upgraded, and is left as it w
   mkdirSync(join(home, "feed"), { recursive: true });
   const file = join(home, "feed", "secrets.json");
   const reversible = Buffer.from(JSON.stringify({ v: Buffer.from("old credential").toString("base64") })).toString("base64");
-  for (const older of [{ "model:text:api_key": reversible }, { version: 1, backend: "aes-gcm-file", entries: { "model:text:api_key": reversible } }]) {
+  for (const older of [{ "model:text:api_key": reversible }, { version: 2, backend: "aes-gcm-file", entries: { "model:text:api_key": reversible } }]) {
     writeFileSync(file, JSON.stringify(older));
     for (const use of [(store: SecretStore) => store.get("model:text:api_key"), (store: SecretStore) => store.put("new", "value")]) {
       resetSecretStoreCache();
@@ -31,7 +31,7 @@ test("an older secrets file is refused rather than upgraded, and is left as it w
     assert.equal(readFileSync(file, "utf8"), JSON.stringify(older));
   }
   // The current format still works in the same Home.
-  writeFileSync(file, JSON.stringify({ version: 2, backend: "env-key+aes-gcm", entries: {} }));
+  writeFileSync(file, JSON.stringify({ version: 1, backend: "env-key+aes-gcm", entries: {} }));
   resetSecretStoreCache();
   const store = runWithMolisWorkHome(home, () => createFileSecretStore());
   runWithMolisWorkHome(home, () => store.put("new", "value"));

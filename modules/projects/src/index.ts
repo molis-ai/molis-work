@@ -23,6 +23,8 @@ import { ProjectDeletionSteps } from "./deletion-steps.js";
 
 export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
+  /** Where the Host keeps the project databases. The catalog stores no path: a project's is `<projects_directory>/<project_id>/molis-work.db` (W5-17). */
+  projects_directory: string;
   now?: () => string;
   id?: (prefix: string) => string;
   /** The Plugins a project may enable and their companions; the Host derives it from what it ships. */
@@ -73,14 +75,13 @@ export class ProjectsModule implements ProjectsApplicationApi {
     normalizeWorkspace: typeof normalizeProjectWorkspace;
     upsertWorkspaceMembership: ProjectWorkspaceService["upsertMembership"];
     unlinkWorkspaceMembership: ProjectWorkspaceService["unlink"];
-    updateDatabasePath: ProjectService["updateDatabasePath"];
   };
 
   constructor(options: ProjectsModuleOptions) {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
-    const repository = new ProjectsRepository(options.db);
-    this.records = new ProjectService(repository, now, id, options.plugins);
+    const repository = new ProjectsRepository(options.db, options.projects_directory);
+    this.records = new ProjectService(repository, options.projects_directory, now, id, options.plugins);
     this.workspaces = new ProjectWorkspaceService(repository, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
@@ -138,7 +139,6 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.workspaces.upsertMembership(workspace, projectId, actorId),
       unlinkWorkspaceMembership: (workspaceId, projectId, actorId) =>
         this.workspaces.unlink(workspaceId, projectId, actorId),
-      updateDatabasePath: (projectId, databasePath) => this.records.updateDatabasePath(projectId, databasePath),
     };
   }
 }
@@ -156,4 +156,5 @@ export type {
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
+export { projectDatabasePath, projectDirectoryPath } from "./project-paths.js";
 export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";

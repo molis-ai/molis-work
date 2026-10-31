@@ -221,7 +221,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const demoId = created.project.project_id;
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        ["artifacts", "coding", "feed", "goals", "inbox", "schedule"],
+        ["coding", "feed", "goals", "inbox", "schedule"],
       );
       const existing = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(existing.status, "existing");
@@ -919,5 +919,21 @@ test("opening a desktop TUI panel binds that work context to the Goal and aliase
     } finally {
       catalog.close();
     }
+  });
+});
+
+// RAC-2374 RAC-800: current structural refusal retained when the offline personal-method move was removed.
+test("RAC-800 a current catalog refuses a personal planning table without dropping it", async () => {
+  await withTemporaryDirectory(async directory => {
+    const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
+    const file = join(home, "projects", "catalog.db"), db = new Database(file);
+    assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get(), undefined);
+    db.exec("CREATE TABLE personal_planning_method_packs (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)");
+    db.close();
+    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
+      error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
+    const kept = new Database(file, { readonly: true });
+    try { assert.ok(kept.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get()); }
+    finally { kept.close(); }
   });
 });

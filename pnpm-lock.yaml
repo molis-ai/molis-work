@@ -88,9 +88,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:plugins/native/plugin-builder
@@ -362,9 +359,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
@@ -552,12 +546,12 @@ importers:
       '@molis-ai/molis-work-integration-rss':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/rss
+      '@molis-ai/molis-work-module-artifacts':
+        specifier: workspace:*
+        version: link:../../modules/artifacts
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
@@ -890,15 +884,6 @@ importers:
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@22.20.1)(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(tsx@4.23.11))
-
-  plugins/native/artifacts:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
 
   plugins/native/coding:
     dependencies:

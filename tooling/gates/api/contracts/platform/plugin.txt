@@ -584,7 +584,6 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
-    readonly words_of?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -3356,6 +3355,7 @@ export interface PluginManifest {
     plugin_id: string;
     version: string;
     name: string;
+    name_en?: string;
     kind: PluginKind;
     publisher: {
         publisher_id: string;
@@ -4057,12 +4057,23 @@ export interface PluginStartContext {
 export interface PluginTerminalClient {
     open(input: {
         key: string;
-        command: string;
         title: string;
+        command: string;
+        args?: readonly string[];
+        directory: PluginTerminalDirectory;
     }): Promise<{
         panelId: string;
     }>;
 }
+
+export type PluginTerminalDirectory = {
+    readonly root: "workspace";
+    readonly workspace_id: string;
+    readonly path?: string;
+} | {
+    readonly root: "owner_files";
+    readonly path?: string;
+};
 
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 

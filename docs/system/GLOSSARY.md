@@ -447,7 +447,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - R-B 里用户不确认改名的项，在这里补一行。
 - R-B1 `capability_id`：保持原名——就是动作的 id；写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里，改名收益小而数据和外部授权都要动。
 - R-B2 `functions.*` 动作 id、权限串、`FUNCTIONS_PLUGIN_ID`、`function_key`、`function_judgments` 等库表与 Home 的 `functions` 库名：保持原名。动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护。
-- R-B3 Board 系的事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists` 与动作 id `goals.board.initialize`：保持原名。事件与动作 id 对外可见。
+- R-B3 Board 系的事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists` 与动作 id `goals.board.initialize`：保持原名。事件与动作 id 对外可见。两个旧宿主能力 id 已随 typed 通道退役，不在此列。
 - R-B4 推荐选项的 `molis.behavior-recommendation.v1`、`suggested_behavior_ids`、判断规则草稿里的 `scene_map`、库列 `suggested_json` 里的内容：保持原名。已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量。
 - R-B5 Skill 的 Manifest `methods` 键、`assistant.methods.*`、`method_id`、物料种类值 `"method"`：保持原名。Manifest 是插件 SDK 的公开合同；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。
 - R-B6 Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability`：保持原名。助理提示词引用这些名字，提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本。

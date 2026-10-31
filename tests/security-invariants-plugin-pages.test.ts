@@ -521,6 +521,8 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
   // parameter stays while an undeclared one does not.
   assert.equal(openSettingsAddress("/settings/projects?project=p1&x=1#p1.2_x~y-3"),
     "/settings/projects?project=p1#p1.2_x~y-3", "the projects page keeps the picked project's id in the fragment and drops x");
+  assert.equal(openSettingsAddress(`/settings/projects?project=p1#${"x".repeat(200)}`),
+    `/settings/projects?project=p1#${"x".repeat(200)}`, "a project id of exactly 200 characters is kept");
   for (const bad of ["#.hidden", "#bad id", "#a/b", "#%2e", `#${"x".repeat(201)}`]) {
     assert.equal(openSettingsAddress(`/settings/projects?project=p1${bad}`), "/settings/projects?project=p1",
       `the projects page drops a fragment that is not a project id: ${bad.slice(0, 20)}`);

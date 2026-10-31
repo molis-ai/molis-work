@@ -23,7 +23,7 @@ const secretStore = (): SecretStore => {
   const secrets = new Map<string, string>();
   return { get: ref => secrets.get(ref) ?? null, put: (ref, value) => { secrets.set(ref, value); }, delete: ref => { secrets.delete(ref); },
     createIfAbsent(ref, value) { if (secrets.has(ref)) return false; secrets.set(ref, value); return true; }, deleteIfPresent: ref => secrets.delete(ref),
-    backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 2 }) };
+    backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 1 }) };
 };
 const refused = (found: number, expected: number, path: string) => (error: unknown) => {
   assert.ok(error instanceof SqliteSchemaVersionError, String(error));

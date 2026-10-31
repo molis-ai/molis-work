@@ -130,7 +130,7 @@ function releaseSourceHistory(
     "feed_source",
     sourceId,
     "feed_source.history_released",
-    outcome.complete ? "来源的本地正文与检索记录已清理" : "来源的本地正文未能确认无人引用，已保留",
+    outcome.complete ? "来源的本地正文与检索记录已清理" : "来源的本地历史未能全部清理",
     { ...outcome },
     new Date().toISOString(),
   );

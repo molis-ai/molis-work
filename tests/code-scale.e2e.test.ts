@@ -307,22 +307,26 @@ test("SYS-49 RAC-2729: a laid-out block grown past the slice colours the next fr
       return (${createCodingCodePaint.toString()})(tokensOf, ${growCodeTokens.toString()}, hint => hint); })();
     window.small = ${JSON.stringify("const stable = 1;\nconst value = compute(1);\n")};
     window.big = small + ${JSON.stringify(textOf(60_000))};`);
-  const grown = await evaluate<{ observers: number; reads: boolean; box: number; syncFrames: number; queued: number; next: number }>(`(async () => {
+  const grown = await evaluate<{ observers: number; reads: boolean; box: number; syncFrames: number; queued: number; next: number; colouredBefore: number; colouredOnReturn: number }>(`(async () => {
     const pre = document.body.appendChild(document.createElement('pre')), code = pre.appendChild(document.createElement('code')); window.code = code;
     paint.paintInto(code, small, 'ts');
     // RAC-2729 ③: the block has a real layout before the growth, the condition the shortcut asks for; a block without one takes the
     // waiting path (the case below).
     await new Promise((resolve) => nativeFrame(resolve));
     const box = code.getBoundingClientRect().height, before = observerRefs.length, syncFrames = frames.length;
+    const colouredBefore = code.querySelectorAll('[class^=tok-]').length;
     paint.paintInto(code, big, 'ts');
+    // Count colouring before yielding: a synchronous first slice bypasses the rAF timing wrapper.
+    const colouredOnReturn = code.querySelectorAll('[class^=tok-]').length;
     const queued = frames.length;
     await new Promise((resolve) => nativeFrame(resolve));
-    return { observers: observerRefs.length - before, reads: code.textContent === big, box, syncFrames, queued, next: frames.length }; })()`);
+    return { observers: observerRefs.length - before, reads: code.textContent === big, box, syncFrames, queued, next: frames.length, colouredBefore, colouredOnReturn }; })()`);
   t.diagnostic("RAC-2729 grown: " + JSON.stringify(grown));
   assert.ok(grown.box > 0, "the block really is laid out before it grows");
   assert.equal(grown.observers, 0, "a block that was already laid out needs no layout observer for its longer text");
   assert.equal(grown.reads, true, "the longer text reads at once");
-  assert.equal(grown.queued, grown.syncFrames, "no colouring slice starts synchronously");
+  assert.equal(grown.colouredOnReturn, grown.colouredBefore, "no colouring piece is added synchronously before paintInto returns");
+  assert.equal(grown.queued, grown.syncFrames, "no scheduled colouring frame runs synchronously");
   assert.ok(grown.next > grown.syncFrames, "the growth starts in the next frame");
   await waitFor("matchesColour(code, big)", 30_000);
   const frames = await evaluate<number[]>("frames.slice()");

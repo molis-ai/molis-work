@@ -9,7 +9,7 @@ import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactLinkSubjectsPort, artifactProducerSources, captureHostLog, type ArtifactProducerSource, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
-import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactBrowserUiContribution } from "@molis-ai/molis-work-app-workbench";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the objects that use a version, by how. An Agent's proposal to use a version
@@ -111,7 +111,7 @@ function linkedVersion(t: { after(fn: () => void): void }, sources: readonly Art
   return {
     edge: (module: string, type: string, id: string) => ledger.commands.put(at, { key: `${type}:${id}:a@1`, type, cause: "reason",
       source: { module, id, version: null, scope: at.scope }, target: { module: "artifacts", id: "a", version: 1, scope: at.scope } }),
-    links: () => actions.invoke(person, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }),
+    links: (caller: ActionCallContext = person) => actions.invoke(caller, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }),
   };
 }
 const notesSource: ArtifactProducerSource = { plugin_id: "example.notes", name: "Notes", surface: "notes",
@@ -204,7 +204,7 @@ test("RAC-2089 a refusal (forbidden, not found, an MCP client not granted the ac
   try {
     const failing = (error: unknown) => artifactLinkSubjectsPort({ invoke: async () => { throw error; } } as never, declarer)("example.notes", ["N1"], caller);
     for (const refusal of [new ActionError("actions.forbidden", "not yours"), new ActionError("actions.subject_unavailable", "gone", { kind: "not_found" }),
-      new ActionError("mcp.action_revoked", "this client was not granted it")]) {
+      new ActionError("mcp.action_revoked", "this client was not granted it", { kind: "forbidden" })]) {
       assert.deepEqual([...await failing(refusal)], []);
     }
     assert.deepEqual(entries, [], "refusals write nothing");
@@ -213,4 +213,68 @@ test("RAC-2089 a refusal (forbidden, not found, an MCP client not granted the ac
   assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
     [["warn", "artifacts", "link_subjects_failed", { name: "Error" }, { plugin_id: "example.notes" }]]);
   assert.doesNotMatch(JSON.stringify(entries), /secret body text/u, "the failure's text is not written");
+});
+
+test("RAC-2493 a refusal is told by its kind, not by its code: the same code without a kind is a failure like any other", async () => {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    const failing = (error: unknown) => artifactLinkSubjectsPort({ invoke: async () => { throw error; } } as never, declarer)("example.notes", ["N1"], caller);
+    assert.deepEqual([...await failing(new ActionError("mcp.action_revoked", "not granted", { kind: "forbidden" }))], []);
+    assert.deepEqual(entries, [], "a refusal writes nothing");
+    assert.deepEqual([...await failing(new ActionError("mcp.action_revoked", "not granted"))], []);
+  } finally { restore(); }
+  assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
+    [["warn", "artifacts", "link_subjects_failed", { name: "ActionError", code: "mcp.action_revoked" }, { plugin_id: "example.notes" }]]);
+});
+
+// RAC-2705 (T-113 二审增量 ①): the audience that reads 「被谁引用」 is passed on, so a workflow caller is answered as the workflow
+// caller. There is no independent test entry for a workflow caller after #1552, so this goes through the same port and action as the
+// MCP case, in process, without inventing a Host entry.
+const notesDeclarer = () => new Map([["example.notes", { capability_id: "notes.artifacts.link_subjects", version: 1 }]]);
+const workflowCaller: ActionCallContext = { ...person, audience: "workflow" };
+const notesRow = { id: "N1", title: "Note N1", role: "output", proposal: false, open: { surface: "notes", id: "N1" } };
+const notesIdRow = { id: "N1", title: "N1", role: "output", proposal: false, open: { surface: "notes", id: "N1" } };
+
+test("RAC-2705 a workflow caller reads 「被谁引用」 named by the declaring Plugin, asked as that caller; a refusal falls back to the ids", async t => {
+  const asked: ActionCallContext[] = [];
+  const client = { invoke: async (caller: ActionCallContext, _action: unknown, input: { ids: string[] }) => {
+    asked.push(caller);
+    return { objects: input.ids.map(id => ({ id, title: `Note ${id}`, open: { surface: "notes", id } })) };
+  } };
+  const r = linkedVersion(t, declarers(), artifactLinkSubjectsPort(client as never, notesDeclarer));
+  r.edge("notes", "note.cites", "N1");
+  assert.deepEqual(await r.links(workflowCaller), { plugins: [{ plugin_id: "example.notes", plugin_title: "Notes", objects: [notesRow] }], other: 0 });
+  assert.deepEqual(asked.map(caller => [caller.audience, caller.actor_id, caller.project_id]), [["workflow", "web-user", projectId]],
+    "the declaring Plugin is asked as the workflow caller, not as a person or an MCP client");
+
+  // A refusal is the workflow caller's answer: the object keeps its id, and nothing is written.
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    const refusing = { invoke: async () => { throw new ActionError("actions.forbidden", "not for this caller"); } };
+    const removed = linkedVersion(t, declarers(), artifactLinkSubjectsPort(refusing as never, notesDeclarer));
+    removed.edge("notes", "note.cites", "N1");
+    assert.deepEqual(await removed.links(workflowCaller), { plugins: [{ plugin_id: "example.notes", plugin_title: "Notes", objects: [notesIdRow] }], other: 0 });
+  } finally { restore(); }
+  assert.deepEqual(entries, [], "a refused read is an answer, not a failure to log");
+});
+
+// RAC-2706 (T-113 二审增量 ②): the Host's half when a declaring Plugin cannot name its objects. Answers are not failures; anything
+// else is one line with the plugin, never the request's content (ids, titles) or the error's text. `logLinkSubjectsFailure` is not a
+// public entry of the Host, so this goes through the exported port that calls it, as the workflow caller.
+test("RAC-2706 a refused read is not logged; any other failure writes one line with the plugin and none of the content", async () => {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    const failing = (error: unknown) => artifactLinkSubjectsPort({ invoke: async () => { throw error; } } as never, notesDeclarer)("example.notes", ["N1"], workflowCaller);
+    for (const refusal of [new ActionError("actions.forbidden", "not yours"), new ActionError("actions.subject_unavailable", "gone", { kind: "not_found" })]) {
+      assert.deepEqual([...await failing(refusal)], []);
+    }
+    assert.deepEqual(entries, [], "forbidden and not found are answers, not failures");
+    assert.deepEqual([...await failing(new Error("the notes store broke: N1 Field notes"))], []);
+  } finally { restore(); }
+  assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
+    [["warn", "artifacts", "link_subjects_failed", { name: "Error" }, { plugin_id: "example.notes" }]]);
+  assert.doesNotMatch(JSON.stringify(entries), /N1|Field notes|notes store/u, "no id, title or error text is written");
 });

@@ -1,4 +1,5 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { KNOWLEDGE_LOCATE_MAX_SUBJECTS, type KnowledgeLocateResponse, type KnowledgeLocatedSection, type KnowledgeOutline } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { knowledgeErrors } from "./errors.js";
 import { knowledgeRef } from "./refs.js";
@@ -17,11 +18,42 @@ const TREE_SECTIONS = 300;
 const TITLE_CHARS = 120;
 const REASON_CHARS = 200;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
+const chars = (text: string) => [...text].length;
+type ShownSection = KnowledgeLocateDraftInput["pieces"][number]["sections"][number];
+
+/** The data the Host's text model reads after the locate instruction: the input as one JSON line. What is measured is what is sent. */
+export function knowledgeLocateData(input: KnowledgeLocateDraftInput): string {
+  return JSON.stringify(input);
+}
+
+/**
+ * The trees as the model is shown them, within the data the Host's text model takes (`MODEL_DATA_MAX_CHARS`): whole sections go in
+ * by turns (every piece's first, then every piece's second, …) while they fit, and a piece whose next section does not fit shows no
+ * more, so each shows the start of its tree and no section is cut. `omitted` counts the sections of the trees that are not shown,
+ * those past `TREE_SECTIONS` included.
+ */
+function shownPieces(question: string, trees: readonly KnowledgeOutline[]): { pieces: KnowledgeLocateDraftInput["pieces"]; omitted: number } {
+  const pieces = trees.map((tree, index) => ({ piece: index + 1, title: tree.title.slice(0, TITLE_CHARS).replace(/[\uD800-\uDBFF]$/u, ""), sections: [] as ShownSection[] }));
+  const candidates = trees.map(tree => tree.sections.slice(0, TREE_SECTIONS).map(section => ({ anchor: section.anchor, title: section.title.slice(0, TITLE_CHARS).replace(/[\uD800-\uDBFF]$/u, ""), level: section.level, summary: section.summary })));
+  // A section adds its own JSON to the data, and a comma after the piece's first: the sum is exactly what is sent.
+  let size = chars(knowledgeLocateData({ question, pieces }));
+  const open = new Set(pieces.keys());
+  for (let turn = 0; open.size; turn++) {
+    for (const index of [...open]) {
+      const section = candidates[index]![turn];
+      const added = section ? chars(JSON.stringify(section)) + (turn ? 1 : 0) : 0;
+      if (!section || size + added > MODEL_DATA_MAX_CHARS) { open.delete(index); continue; }
+      pieces[index]!.sections.push(section);
+      size += added;
+    }
+  }
+  return { pieces, omitted: trees.reduce((sum, tree, index) => sum + tree.sections.length - pieces[index]!.sections.length, 0) };
+}
 
 /**
  * `knowledge.locate` (specs/project-knowledge §6.4, PMAT-38): the model reads up to five section trees, PageIndex-style, and names
  * the sections likely to hold the answer. Only sections that are there come back, with the line `read` starts from; nothing of the
- * text is sent or returned. `outline` reads each tree with the caller's authority; `beforeEffect` is checked before answering, so
+ * text is sent or returned. The trees go as whole sections within the data the Host's model takes; `omitted` says how many it did not see. `outline` reads each tree with the caller's authority; `beforeEffect` is checked before answering, so
  * a call cancelled or revoked while the model thought answers nothing.
  */
 export async function locateSections(input: { question: string; subjects: readonly ActionSubject[] }, outline: (subject: ActionSubject) => Promise<KnowledgeOutline>, locator: KnowledgeLocator | null,
@@ -35,9 +67,9 @@ export async function locateSections(input: { question: string; subjects: readon
     catch (error) { unread.push({ subject, reason: (error instanceof Error ? error.message : String(error)).slice(0, REASON_CHARS) }); }
   }
   const unsummarized = trees.filter(tree => !tree.sections.some(section => section.summary)).map(tree => tree.subject);
-  if (!trees.length) return { sections: [], unread, unsummarized };
-  const draft = await locator({ question: input.question, pieces: trees.map((tree, index) => ({ piece: index + 1, title: tree.title.slice(0, TITLE_CHARS),
-    sections: tree.sections.slice(0, TREE_SECTIONS).map(section => ({ anchor: section.anchor, title: section.title.slice(0, TITLE_CHARS), level: section.level, summary: section.summary })) })) });
+  if (!trees.length) return { sections: [], unread, unsummarized, omitted: 0 };
+  const shown = shownPieces(input.question, trees);
+  const draft = await locator({ question: input.question, pieces: shown.pieces });
   const sections: KnowledgeLocatedSection[] = [];
   for (const chosen of Array.isArray(draft?.sections) ? draft.sections : []) {
     const tree = trees[Number(chosen?.piece) - 1], section = tree?.sections.find(item => item.anchor === chosen.anchor);
@@ -47,5 +79,5 @@ export async function locateSections(input: { question: string; subjects: readon
     if (sections.length === MAX_SECTIONS) break;
   }
   await beforeEffect?.();
-  return { sections, unread, unsummarized };
+  return { sections, unread, unsummarized, omitted: shown.omitted };
 }

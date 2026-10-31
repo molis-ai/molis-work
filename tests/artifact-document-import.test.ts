@@ -316,7 +316,8 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
   const alpha = await catalog.createProject({ display_name: "Alpha imports", actor_id: "fixture-user" });
   const beta = await catalog.createProject({ display_name: "Beta imports", actor_id: "fixture-user" });
   for (const project of [alpha, beta]) {
-    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "fixture-user" });
+    assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "fixture-user" }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
   }
   catalog.close();
   await writeFile(join(directory, "result.txt"), "Explicit configured workspace result");

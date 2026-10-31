@@ -31,7 +31,6 @@ export const BUILTIN_DEFINITIONS: readonly PluginDefinition[] = [createCogniaPlu
 export const BUILTIN_WITHOUT_DEFINITION: Readonly<Record<string, string>> = {
   "io.molis.work.alchemist": "Host 承载（PG-051：它的指令在 Host 自己的列表里）",
   "io.molis.work.plugin-builder": "平台能力（PG-051 Q2：题面与 Agent 由 Host 登记）",
-  "io.molis.work.artifacts": "包里没有 PluginDefinition",
   "io.molis.work.feed": "包里没有 PluginDefinition",
   "io.molis.work.goals": "包里没有 PluginDefinition",
   "io.molis.work.inbox": "包里没有 PluginDefinition",

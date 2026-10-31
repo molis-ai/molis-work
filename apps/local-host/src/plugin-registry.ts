@@ -4,6 +4,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import type { HomePluginEntry } from "./home-plugins.js";
 import { declaresProjectCoordination } from "./plugin-project-coordination.js";
+import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 
 // The platform's facts about the plugins this build ships, derived in this one place from the plugins' own registrations
 // (W5-02 PR-B, PG-065 in specs/repository-anti-corruption/privileges.md). scripts/generate-plugin-registry.mjs writes the list
@@ -31,6 +32,7 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   once("the catalog position", catalog.map(entry => entry.catalog_order));
   const listed = new Set(catalog.map(entry => entry.project_plugin_id));
   for (const entry of catalog) {
+    if (entry.project_plugin_id === ARTIFACTS_PROJECT_PLUGIN_ID) problems.push("artifacts: the project key belongs to the platform, not a Plugin");
     if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
       problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
     }
@@ -87,9 +89,7 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
   const next = [...enabled];
   for (const personal of PERSONAL_PLUGIN_IDS) {
     if (excluded.has(personal) || next.includes(personal)) continue;
-    const artifactsAt = next.indexOf("artifacts");
-    if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
-    else next.push(personal);
+    next.push(personal);
   }
   return next;
 }

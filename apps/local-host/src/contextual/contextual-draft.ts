@@ -3,7 +3,8 @@ import { CONTEXTUAL_DRAFT_LIMITS, type ContextualCandidate, type ContextualDraft
 import type { DraftMaterial, DraftTarget } from "../drafting/draft-data.js";
 import { draftIntake, type DraftInput, type DraftPorts } from "../drafting/draft-service.js";
 import { chosenCandidate } from "./contextual-choice.js";
-import { contextualErrors, cutHead, invalid, readEntry, readJudgeRequest, readString } from "./contextual-request.js";
+import { contextualErrors, invalid, readEntry, readJudgeRequest, readString } from "./contextual-request.js";
+import { cutHead } from "../whole-units.js";
 import { fragmentOffersInput, type ContextualDirectory } from "./contextual-service.js";
 
 /**

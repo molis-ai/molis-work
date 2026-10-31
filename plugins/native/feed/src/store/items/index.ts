@@ -39,7 +39,7 @@ export class FeedModule implements FeedApi {
       restore: (projectId: string, itemId: string, expectedRevision?: number) =>
         dispositions.restore(projectId, itemId, expectedRevision),
       markRead: (projectId: string, itemId: string) => dispositions.markRead(projectId, itemId),
-      linkGoal: (projectId: string, itemId: string, goalId: string, disposition: "promoted" | "processing") =>
+      linkGoal: (projectId: string, itemId: string, goalId: string, disposition: "promoted") =>
         dispositions.linkGoal(projectId, itemId, goalId, disposition),
       deleteBySource: (projectId: string, sourceId: string) => dispositions.deleteBySource(projectId, sourceId),
     };

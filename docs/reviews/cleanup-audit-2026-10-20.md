@@ -382,6 +382,8 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 置信度：**高** = 有 open PR、现行 spec 或未合入提交的直接证据；**中** = 只有同包活动/间接证据，删前要 owner 确认。
 
+本表是 2026-10-20 的快照：各行的“为什么现在不能删 / 再删的时点”写的是当时的状态，之后合入的改动不回改本表（例外：Jelly 行的「再删的时点」日期已按 T-194 #1492 的实际删除更正）；要删时按各行的证据和现行 spec 重新核一遍。
+
 | 候选 | 为什么现在不能删 | 证据 | 再删的时点 | 置信度 |
 | --- | --- | --- | --- | --- |
 | Alchemist 的 38 个死导出、`bootstrap.ts`、`job.ts` | Studio 的 `/bootstrap`、任务事件、ALC-LIFE/ALC-RES 和 Runtime 迁移仍在做；这些 DTO 是同一接口层的类型，今天没被 import 不等于接口不再要 | `specs/repository-anti-corruption/spec.md` W5-01 ALC-LIFE/ALC-RES；`plugins/native/alchemist/src/studio/server/api/action-routes.ts:28`；#867 改 Alchemist 测试夹具 | Alchemist Runtime/ALC-RES 合入、owner 确认后 | 高 |
@@ -391,7 +393,7 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 | `apps/workbench` 的 3 个死导出 | 15 个视觉 UX PR 正在改 workbench；`sideViewKeys` 所在文件被 #864/#851 直接改；`renderShelfSettingsContribution`/`ArrivalShell` 附近的页面还在视觉线里 | open PR #851/#864 等；未合入的 `a754b1b8f`、`fbb90b892` | 视觉线合入后；`renderPluginRailAccountFooter` 已被 spec 点名无调用方，可随那一批删 | 高 |
 | Feed 的投影死导出 | #867 正改 Feed 的数据库、索引与注册；投影层与它们同包 | open PR #867 | #867 合入后 | 高 |
 | `apps/mcp/src/tool-schemas.ts:v1PayloadTool` | #881 正改 `apps/mcp` 的 Goals 工具与分发；MCP 工具 schema 是同一块 | open PR #881 | #881 合入后，由 MCP owner 确认 | 中 |
-| Jelly 的 `ownJellyStores` 等公开面无消费者导出 | 当时不删：`ownJellyStores` 已被 spec 记为死导出，但 Jelly 的 Runtime/数据库迁移（#743、PG-023）当时还在进行；它当时算公开面无消费者，不是 §3.2 的 54 个死导出 | `specs/repository-anti-corruption/privileges.md` PG-023；#743 | 已做（PG-023，2026-10-25） | 中 |
+| Jelly 的 `ownJellyStores` 等公开面无消费者导出 | 当时不删：`ownJellyStores` 已被 spec 记为死导出，但 Jelly 的 Runtime/数据库迁移（#743、PG-023）当时还在进行；它当时算公开面无消费者，不是 §3.2 的 54 个死导出 | `specs/repository-anti-corruption/privileges.md` PG-023；#743 | 已做（PG-023；`ownJellyStores` 到 T-194 #1492，2026-10-29 才删） | 中 |
 | plugin-builder 的 `parseBuilderJson`、`BUILDER_PROJECT_PLUGIN_ID`（公开面无消费者） | 创作台/Studio 仍在线上，manifest 与 agent validation 还在改 | `specs/repository-anti-corruption` 的 Studio 线；open PR 无直接冲突，但属于活动包 | Studio 迁移/收口后 | 中 |
 | `packages/design-system` 的 `validatePluginComponentNodes`（公开面无消费者） | 视觉 UX/设计系统 15 个 PR 正在改；组件校验属于这条线 | open PR #851/#861/#864 等 | 视觉线合入后 | 高 |
 | RSS 的 3 个公开面无消费者导出 | 没有 open PR 直接改，但 integration 目录仍在维护；低优先，不是“绝对安全” | `plugins/official-integrations/rss/README.md`、SSOT 官方集成行 | 找 RSS owner 确认后 | 中 |

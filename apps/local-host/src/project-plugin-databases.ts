@@ -94,9 +94,3 @@ export function withoutRefusedPlugins<Entry>(db: object, entries: readonly Entry
     return !pluginId || !projectPluginDatabaseRefusal(db, pluginId);
   });
 }
-
-/** Before a plugin's Host path touches its tables: throws the refusal recorded when the library opened, so only that plugin stops. */
-export function assertProjectPluginDatabase(db: object, pluginId: string): void {
-  const refusal = projectPluginDatabaseRefusal(db, pluginId);
-  if (refusal) throw refusal;
-}

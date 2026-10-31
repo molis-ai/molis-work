@@ -22,7 +22,7 @@ import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js"
 export const MEMORY_LEDGER_STORE = "memory";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 4, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 1, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -63,8 +63,10 @@ const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? J
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
-  db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-  try { applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE); } catch (error) { db.close(); throw error; }
+  try {
+    applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE);
+    db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+  } catch (error) { db.close(); throw error; }
   let depth = 0;
   const retention = createMemoryLedgerRetention(db, work => ledger.transaction(work));
   const ledger: MemoryLedgerPort = {

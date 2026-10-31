@@ -147,7 +147,7 @@ knowledge.cards	1	system.knowledge	query	query	project	read	-	user	knowledge:man
 knowledge.glob	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	52b3aedc093e	95ec33fe4a14	-
 knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	174b52327e5d	3a6a8294b57c	-
 knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	bbbe6be930a8	9ed5d657f112	-
-knowledge.locate	2	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read,model:invoke	-	-	-	2a5016a73c94	c273aa268581	613063238287
+knowledge.locate	3	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read,model:invoke	-	-	-	2a5016a73c94	af979e68adcd	613063238287
 knowledge.organize	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	7a78f5bbadf8	a38e109b5b03	-
 knowledge.outline	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	b743888f6375	3f0c83a834b4	-
 knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	0503b82b3a62	5b425e35cc2d	-
@@ -175,6 +175,7 @@ memory.signals.report	1	system.memory	command	operation	home	write	concurrent	us
 memory.upkeep.run	1	system.memory	command	operation	home	write	-	user	memory:configure	-	-	-	99334726611c	4cbea3fe09c1	-
 memory.write	2	system.memory	command	operation	home	write	-	agent,user	memory:write	-	-	-	1bab46e4dc03	eeafb042c3ee	5e0374458cf9
 model.generate	1	plugin-platform	command	operation	project	read	concurrent	plugin	-	-	-	-	3b1535dcc4d4	54669b5e6a1b	6a3e5b336e38
+model.generate.home	1	plugin-platform.home	command	operation	home	read	concurrent	plugin	-	-	-	-	3b1535dcc4d4	54669b5e6a1b	6a3e5b336e38
 models.connection.usages	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
 placement.convert	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	850deba8577c	0fac34ae8b8f	-
 placement.copy	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	c5d3f5ab6119	c8f6063885fc	-
@@ -190,13 +191,16 @@ placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
 plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-consents:read	-	-	-	0f4df4950e13	c45142d1cf02	-
 plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	2d423fd6db8e	-
-plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	b17be5fb03b5	-
+plugins.home.installed.disable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
+plugins.home.installed.enable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
+plugins.home.installed.list	2	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	b4019f3390f0	-
+plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	fd1414242068	-
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
 plugins.install.preview	3	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	da2e9ff3ba28	3f8556bc9fab	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.installed.list	2	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	b17be5fb03b5	-
+plugins.installed.list	3	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	b4019f3390f0	-
 plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.permissions.set	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	a84e21e82492	fd1414242068	-
 plugins.publishers.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	a19dca1e2764	-

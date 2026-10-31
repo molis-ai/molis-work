@@ -80,7 +80,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     renderPersistedFeedItemDetail: stages.renderPersistedFeedItemDetail,
     renderFeedWorkbenchFragment: stages.renderFeedWorkbenchFragment,
     renderInboxWorkbenchFragment: stages.renderInboxWorkbenchFragment,
-    renderScheduleWorkbenchFragment: stages.renderScheduleWorkbenchFragment,
+    declaredStageFragment: stages.declaredStageFragment,
     renderGoalDocumentFragment: documents.renderGoalDocumentFragment,
     renderMolisWorkMomentumFragment: documents.renderMolisWorkMomentumFragment,
     renderMolisWorkOnboarding,

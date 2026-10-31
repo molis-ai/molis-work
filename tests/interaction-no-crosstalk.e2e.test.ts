@@ -94,11 +94,10 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     }
     await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
     await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
-    await waitFor("document.querySelector('[data-coding-task]')");
-    // T-338: the child frame's own bootstrap sets globalThis.fetch to its bridge (plugin-frame/child.ts:43) and only then defines
-    // molisWorkRequest and body.dataset.routePrefix. Installing the request observer before that would be overwritten by the child's
-    // assignment — the recorded array would stay empty while the page kept sending through the bridge — so wait for those marks first.
-    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix)", 10_000);
+    // T-338: the child frame's own bootstrap may set globalThis.fetch to its bridge (plugin-frame/child.ts:43) after defining
+    // molisWorkRequest and body.dataset.routePrefix. Installing the request observer before those marks risks the child's later
+    // assignment replacing it, so the one existing readiness wait also requires them (same wait, same 10 s budget as before).
+    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix) && Boolean(document.querySelector('[data-coding-task]'))", 10_000);
     // What the page sends: each request's path and body, to tell which session a draft or an answer went to.
     await evaluate(`(() => { if (window.__sent) return; window.__sent = []; const original = window.fetch; window.fetch = async (...args) => {
       const sent = args[1] && typeof args[1].body === 'string' ? { url: String(args[0]), method: args[1].method || 'GET', body: args[1].body } : null; if (sent) window.__sent.push(sent);

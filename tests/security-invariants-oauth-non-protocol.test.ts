@@ -10,10 +10,10 @@ import { completeApiOAuth, connectorProtocolSecrets, handleLocalConnectorsSettin
   withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
-// W5-11 slice 6 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6 "旧的 OAuth 连接", §10 Q2 "10-27 用户改定"):
-// a Gmail connection made by the dedicated flow it replaced is `auth_method: "oauth"` with credentials that are not the generic flow's.
+// W5-11 slices 6 and 7 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6 "旧的 OAuth 连接", §10 Q2 "10-27 用户改定"):
+// a Gmail or Notion connection made by the dedicated flow it replaced is `auth_method: "oauth"` with credentials that are not the generic flow's.
 // It is not read, not refreshed and not sent anywhere; reconnecting it ends with "add a new connection" and writes nothing of it. A
-// connection of another shape, and the services whose flows are still their own (Notion, GitHub), are not touched.
+// connection of another shape, and the service whose flow is still its own (GitHub), are not touched.
 // - RAC-2479: the non-protocol connection says reauth_required and why, and no request leaves for it.
 // - RAC-2480: reconnecting it writes only what §3.4 allows on its left, never the connection, its credentials or its bindings.
 // - RAC-2482: the Gmail package has no secret store and the Host no longer has Gmail's own routes.
@@ -60,14 +60,14 @@ test("RAC-2479: a Gmail connection of the dedicated flow's shape is reauth_requi
   assert.equal(f.everything(), before, "reading it changes nothing, and does not fall into the token branch");
 });
 
-test("RAC-2479: only the non-protocol shape is marked: a token connection, and a Notion connection until its own slice, are read as before", async t => {
+test("RAC-2479: only the non-protocol shape is marked: a token connection, and a GitHub connection until its own slice, are read as before", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-oauth-nonprotocol-")); t.after(() => rmSync(home, { recursive: true, force: true }));
   silent(t);
   const token = withConnectorConnections(home, store => store.createToken({ serviceId: "gmail", displayName: "Gmail token", token: "pasted-token", authMethod: "token" }));
-  const notion = withConnectorConnections(home, store => store.createToken({ serviceId: "notion", displayName: "Notion", token: "notion-access", authMethod: "oauth" }));
+  const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-access", authMethod: "oauth" }));
   assert.deepEqual(listConnectorConnectionViews(home).map(view => view.state), ["connected", "connected"]);
   assert.equal((await resolveApiConnection(home, token.connection_id, connectorControl(), "gmail")).token, "pasted-token");
-  assert.equal((await resolveApiConnection(home, notion.connection_id, connectorControl(), "notion")).token, "notion-access");
+  assert.equal((await resolveApiConnection(home, github.connection_id, connectorControl(), "github")).token, "github-access");
 });
 
 test("RAC-2480: reconnecting a non-protocol Gmail connection ends with \"add a new connection\" and writes only the consumed state, whatever account comes back", async t => {

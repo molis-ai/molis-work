@@ -59,13 +59,20 @@ test("RAC-2220: the outline box takes 20000 two-unit characters, the same count 
   await open.waitFor(`document.querySelector('[data-ppt-outline-text]').value.length === ${2 * LIMIT}`);
   assert.deepEqual(await open.box(), { units: 2 * LIMIT, characters: LIMIT, only: true }, "20000 whole characters (40000 units) fit in the box");
   assert.equal(await open.noteHidden(), true, "the box was not capped, so nothing says it was");
-  // A flat run of 20000 emoji has no heading, and the outline action makes one slide per heading; replace it with a one-heading outline
-  // through the browser's own input, then submit: the deck must gain a slide, which one already has before submitting.
+  // The full-size input is submitted first: the dialog closes only after the action accepted it, which is what "the same count the action
+  // takes" means; the deck must gain a slide, which one already has before submitting.
+  await open.click("[data-ppt-outline-submit]");
+  await open.waitFor("!document.querySelector('[data-ppt-outline-dialog]').open", 20_000);
+  const full = open.slides();
+  assert.ok(full >= 1, `the action took the full 20000-character outline and made slides (${full})`);
+  // A flat run of 20000 emoji has no heading, and the outline action makes one slide per heading; a second, one-heading outline submitted
+  // through the browser's own input must add slides, which one already exists before it.
+  await open.openDialog();
   await open.replaceWith("# 标题\n## 第一节\n大字内容\n## 第二节\n更多内容");
   const before = open.slides();
   await open.click("[data-ppt-outline-submit]");
   await open.waitFor("!document.querySelector('[data-ppt-outline-dialog]').open", 20_000);
-  assert.ok(open.slides() > before, `the action took the outline and made slides (${before} before, ${open.slides()} after; a draft already has one blank page)`);
+  assert.ok(open.slides() > before, `the second outline also made slides (${before} before, ${open.slides()} after)`);
 });
 
 test("RAC-2221: typing past 20000 characters stops at 20000 whole characters and says the limit the action uses", { timeout: 60_000 }, async t => {

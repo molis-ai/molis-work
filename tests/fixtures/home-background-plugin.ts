@@ -53,6 +53,8 @@ export async function backgroundRig(t: TestContext, plugin: BackgroundPlugin, na
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [plugin.definition] },
     actionAvailability: (caller, view) => view.provider.plugin_id === BACKGROUND_PLUGIN_ID && offIds.has(caller.project_id ?? "")
       ? { available: false, code: "actions.plugin_disabled", reason: "这个项目里停用了" } : { available: true } });
+  // The Home reads each project's plugin manifest by the catalog the product binds before serving; without it the lookup refuses.
+  host.configurePersonalPlanning(home, withCatalog);
   t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
   for (const [name, reference] of references) if (!closed.includes(name)) await startProjectPlugins(host, reference);
   return { host, catalog, project: (name: string) => references.get(name)! };

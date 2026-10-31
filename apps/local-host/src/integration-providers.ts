@@ -1,6 +1,5 @@
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { isGmailTokenRefs } from "@molis-ai/molis-work-integration-gmail";
 import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { createGithubConnector } from "./github-connector.js";
 import { createGmailConnector } from "./gmail-connector.js";
@@ -22,12 +21,10 @@ export const defaultIntegrationProvider: IntegrationProviderFactory = (integrati
     });
   }
   if (integrationId === "gmail") {
-    const tokenRefs = binding.config.token_refs;
     return createGmailConnector({
       allowFixture: false,
       scope: normalizeGmailScope(binding.config.scope),
-      ...(binding.connection_id && isGmailTokenRefs(tokenRefs) ? { tokenRefs } : {}),
-      ...(binding.connection_id && binding.credential_ref && !isGmailTokenRefs(tokenRefs) ? { authRef: binding.credential_ref } : {}),
+      ...(binding.connection_id && binding.credential_ref ? { authRef: binding.credential_ref } : {}),
     });
   }
   return createCatalogConnector({ connectorId: integrationId, ...(binding.connection_id !== null ? { connectionId: binding.connection_id } : {}) });

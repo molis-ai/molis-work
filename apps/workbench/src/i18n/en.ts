@@ -2944,6 +2944,7 @@ Object.assign(EN, {
   "每 30 分钟": "Every 30 minutes",
   "Notifications · PR · Review requests": "Notifications · PR · Review requests",
   "需重新授权": "Reauthorization required",
+  "这条连接是用旧的授权方式建立的，不能再使用：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接": "This connection was made with an older way of signing in and can no longer be used. Add a new connection and bind the sources that used this one to the new connection.",
   "今天 13:06 · 失败": "Today at 13:06 · Failed",
   "授权恢复后补拉": "Catch up after authorization is restored",
   "每小时 · 工作时段": "Hourly · Working hours",

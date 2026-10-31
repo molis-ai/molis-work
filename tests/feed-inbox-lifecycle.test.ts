@@ -125,14 +125,14 @@ test("archiving a Feed item settles every active Inbox entry of that item and re
   });
 });
 
-test("starting work on and then promoting a Feed item moves every active Inbox entry of that item along", async () => {
+test("promoting a Feed item settles every active Inbox entry of that item and keeps it settled on repeats", async () => {
   await withProject("molis-work-feed-two-promoted-", async store => {
     const feed = createLocalFeedApplication(store.db);
     const item = await itemWithTwoActiveEntries(feed);
-    assert.equal(feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "processing").disposition, "processing");
-    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:in_progress", "source_rule:in_progress"]);
     assert.equal(feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted").disposition, "promoted");
     assert.deepEqual(entriesOf(feed, item.item_id), ["manual:done", "source_rule:done"]);
+    assert.equal(feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted").disposition, "promoted");
+    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:done", "source_rule:done"], "a repeat promotion leaves the settled entries settled");
   });
 });
 

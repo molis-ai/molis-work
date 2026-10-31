@@ -82,3 +82,22 @@ test("RAC-2499 knowledge.locate@3 answers with omitted, and its output schema re
   assert.throws(() => assertActionInput(schema, older), "the @2 shape, without omitted, is not this version's answer");
   assert.throws(() => assertActionInput(schema, { ...found, omitted: -1 }));
 });
+
+/** A half of a two-unit character whose other half is missing: what a cut in the middle of one leaves behind (as in tests/contextual-draft.test.ts). */
+const LONE_HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+
+test("RAC-2445: the tree title and the section title shown to the locator are cut between whole characters", async () => {
+  // TITLE_CHARS is 120 and one 🙂 is two UTF-16 units: a title of 119 x's plus 🙂 cuts at unit 120, in the middle of 🙂. Without the trim the
+  // model reads a lone high half (written in the JSON as \ud83d); with it, the title is 119 whole x's.
+  const title = `${"x".repeat(119)}🙂`;
+  const outline = tree("p1", 1, () => title, () => null);
+  outline.title = title;
+  const { shown } = await locate([outline]);
+  const piece = shown.pieces[0]!;
+  assert.equal(piece.title, "x".repeat(119), "the tree title keeps 119 whole characters and drops the half of 🙂");
+  assert.equal(piece.sections[0]!.title, "x".repeat(119), "the section title keeps 119 whole characters and drops the half of 🙂");
+  for (const shownTitle of [piece.title, piece.sections[0]!.title]) {
+    assert.equal([...shownTitle].length, 119, "119 characters");
+    assert.equal(LONE_HALF.test(shownTitle), false, "no half of a character");
+  }
+});

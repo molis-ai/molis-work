@@ -18,6 +18,7 @@ export const todoManifest: PluginManifest = {
   plugin_id: TODO_PLUGIN_ID,
   version: "0.3.0",
   name: "待办",
+  name_en: "Todo",
   summary: "记下要做的事，分清今天、在等谁。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-todo-binding" },
@@ -59,7 +60,7 @@ export const todoManifest: PluginManifest = {
     translations: TODO_EN,
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "todo", slot: "navigator", title: "待办", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },
+      { view_id: "todo", slot: "navigator", title: "待办", title_en: "Todo", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },
     ],
   },
 };

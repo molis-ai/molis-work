@@ -75,6 +75,8 @@ export interface HomeSceneServices {
   actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
   /** A running Host owns this connection; standalone scene callers use a scoped service. */
   readFunctions?: FunctionsActionPorts["read"];
+  /** Whether the project reaches the plugin behind a provider (`projectPluginJudge`), so an unavailable source the project lists is shown instead of taken for one it does not have. */
+  projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>;
 }
 
 export function homeActionProvider(home: string, projectId: string, services: HomeSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
@@ -184,7 +186,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
   return { provider: { provider_id: HOME_PROVIDER_ID, title: "首页", kind: "system", project_id: projectId },
     definitions: Object.values(homeActions), scenes: [homeDockScene], scene_handlers: [handler], handlers: [
       ...createHomeOfferHandlers(services.actions),
-      ...createHomeEventHandlers(services.actions, homeActions.recommendations),
+      ...createHomeEventHandlers(services.actions, homeActions.recommendations, services.projectPlugins),
       bind(homeActions.readJudgment, async (_input, caller) => {
         const capabilities: ActionView[] = [];
         for (const action of (await services.actions.discover(caller)).filter(action => action.action.kind === "judgment")) {

@@ -79,7 +79,7 @@ test("RAC-2424 an orphan connection row replaces its token and removes itself fr
     }
   };
   const registry = await homeIntegrationRegistry(homeDirectory);
-  assert.equal(await registry.attach(packageManifest(), () => null, () => true), true);
+  assert.equal(await registry.attach(packageManifest(), "install-orphan-probe", () => null, () => true), true);
   const made = await web.post<{ connection: { connection_id: string } }>("/api/settings/connectors/connections",
     { service_id: SERVICE, display_name: "Orphan probe account", token: probeToken(1) });
   const id = made.connection.connection_id;

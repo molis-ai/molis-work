@@ -1,3 +1,4 @@
+import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../functions/en.js";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
@@ -17,6 +18,7 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  ...ARTIFACT_EN,
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
   ...SHARED_WORDS_EN,
@@ -32,6 +34,8 @@ export const EN: Record<string, string> = {
   "可在应用内连接": "Connect in Molis Work",
   "可在此粘贴凭据": "Paste credential here",
   "Molis Work 尚未接入": "Not yet integrated in Molis Work",
+  "来自 {package}": "From {package}",
+  "Molis Work（内置）": "Molis Work (built in)",
   "更多官方配置入口": "More official setup links",
   "步骤回报与验收": "Step reports and acceptance",
   "模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。": "A model report is not user acceptance. Review the actual actions and results in the original run before assessing.",
@@ -661,9 +665,6 @@ export const EN: Record<string, string> = {
   "来源更新与发现": "Source updates and discoveries",
   "选择一个 Runtime；打开后会自动填入这条 Item 的上下文。": "Choose a Runtime. This item's context will be filled in after it opens.",
   "正在填入 Item 上下文…": "Filling in item context…",
-  "Item 上下文已填入，检查后再发送。": "Item context is filled in. Review it before sending.",
-  "Item 上下文已填入 Terminal": "Item context filled into Terminal",
-  "这条 Item 已不再关联当前 Goal，请返回 Inbox 或 Feed 重新开始处理。": "This item is no longer linked to the current Goal. Return to Inbox or Feed and start processing again.",
   "等待你验收": "Waiting for your acceptance",
   "完成验收": "Complete acceptance",
   "界面语言": "Language",
@@ -2940,6 +2941,7 @@ Object.assign(EN, {
   "每 30 分钟": "Every 30 minutes",
   "Notifications · PR · Review requests": "Notifications · PR · Review requests",
   "需重新授权": "Reauthorization required",
+  "这条连接是用旧的授权方式建立的，不能再使用：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接": "This connection was made with an older way of signing in and can no longer be used. Add a new connection and bind the sources that used this one to the new connection.",
   "今天 13:06 · 失败": "Today at 13:06 · Failed",
   "授权恢复后补拉": "Catch up after authorization is restored",
   "每小时 · 工作时段": "Hourly · Working hours",
@@ -3042,7 +3044,6 @@ Object.assign(EN, {
   "完整消息、来源和已有资料保持关联": "The full message, source, and existing materials remain linked",
   "Goal 使用这条消息作为可追溯输入": "The Goal uses this message as a traceable input",
   "正在处理": "In progress",
-  "关联 Goal 已打开，原消息仍保留": "The related Goal is open and the original message is retained",
   "默认列表不再显示，仍可从状态筛选恢复": "Hidden from the default list; restore it with the status filter",
   "原消息仍然保留": "Original message retained",
   "查看原消息": "View original message",
@@ -3088,7 +3089,6 @@ Object.assign(EN, {
   "没有已完成或已忽略的事项": "No completed or ignored items",
   "完成或忽略的事项会留在这里，原对象不会被删除。": "Completed or ignored items stay here. The original object is not deleted.",
 });
-
 Object.assign(EN, {
   "未命名消息": "Untitled message",
   "可以重新打开，原消息仍保留在 Feed。": "You can reopen it; the original message remains in Feed.",
@@ -3261,5 +3261,4 @@ Object.assign(EN, {
   "打开工作区": "Open workspace",
   "在关系画布中定位": "Locate on the relation canvas",
 });
-
 Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

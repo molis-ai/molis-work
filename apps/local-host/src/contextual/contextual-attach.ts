@@ -1,7 +1,8 @@
 import type { ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { chosenCandidate } from "./contextual-choice.js";
-import { contextualErrors, cutHead } from "./contextual-request.js";
+import { contextualErrors } from "./contextual-request.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * 「放进左边」 (specs/context-program §3.4, §21.8 steps 4–6): what is in hand goes into the object open on the left, at the

@@ -436,6 +436,7 @@
       "feed",
       "feed_source_catalog",
       "goals",
+      "home_plugin_nav",
       "inbox_judgment",
       "input_bindings",
       "plugin_directory",
@@ -444,11 +445,9 @@
       "project",
       "projects",
       "route_prefix",
-      "schedule_jobs",
-      "schedule_operations",
-      "schedule_tasks",
       "shown_plugins",
       "snapshot",
+      "stage_data",
       "trashed_goals",
       "unavailable_plugin_stages"
     ]
@@ -896,6 +895,7 @@
       "feed",
       "feed_source_catalog",
       "goals",
+      "home_plugin_nav",
       "inbox_judgment",
       "input_bindings",
       "plugin_directory",
@@ -904,11 +904,9 @@
       "project",
       "projects",
       "route_prefix",
-      "schedule_jobs",
-      "schedule_operations",
-      "schedule_tasks",
       "shown_plugins",
       "snapshot",
+      "stage_data",
       "trashed_goals",
       "unavailable_plugin_stages"
     ]

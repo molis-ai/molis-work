@@ -36,50 +36,6 @@ export interface SqliteSnapshotInfo {
   readonly foreign_key_check: "ok";
 }
 
-export interface SqliteSnapshotMetadata {
-  readonly table: string;
-  readonly owner: string;
-  readonly version: number;
-}
-
-/** A storage owner's literal metadata declaration; only owner/schema_version, never business rows. */
-export function readSqliteSnapshotMetadata(
-  database: SqliteDatabase,
-  expected: SqliteSnapshotMetadata,
-): Readonly<Record<string, string | number>> {
-  if (
-    !/^[a-z][a-z0-9_]*$/u.test(expected.table) ||
-    !Number.isSafeInteger(expected.version) ||
-    expected.version < 1
-  )
-    throw invalid("快照版本元数据声明无效");
-  let rows: Array<{ key: string; value: string }>;
-  try {
-    rows = database
-      .prepare(
-        `SELECT key, value FROM "${expected.table}" WHERE key IN ('owner', 'schema_version')`,
-      )
-      .all() as Array<{ key: string; value: string }>;
-  } catch (error) {
-    if (
-      error instanceof Database.SqliteError &&
-      (error.code === "SQLITE_ERROR" ||
-        error.code === "SQLITE_CORRUPT" ||
-        error.code === "SQLITE_NOTADB")
-    )
-      throw invalid("快照版本元数据表无效");
-    throw error;
-  }
-  const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
-  if (
-    rows.length !== 2 ||
-    values.owner !== expected.owner ||
-    Number(values.schema_version) !== expected.version
-  )
-    throw invalid("退役存储的 owner 或版本不符，未生成快照");
-  return { owner: values.owner, schema_version: Number(values.schema_version) };
-}
-
 function inspect(
   database: SqliteDatabase,
   file: string,

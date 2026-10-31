@@ -8,7 +8,7 @@
  * Each optional permission an installed plugin asked for is a switch (`permissions/set`, PG-002, S-94); turning on one of the four that reach out or
  * spend (`actions:delegate`, `network:*`, `secret:*`, `model:invoke`) asks first, in the platform's own words for it. The plugins that run as the
  * Home's own instance, shared by every project, are listed below the project's with the same rows; their switch goes through the Host settings
- * door for them, `/api/settings/plugin-permissions/set` (BL-700, S-94), as an agreement is taken back through the Host's.
+ * door for them, `/api/settings/plugin-permissions/set` (BL-700, S-94), as an agreement is taken back through the Host's, and so do switching a signed one off and on and taking it off (`/api/settings/plugin-permissions/{disable,enable,uninstall}`, BL-715).
  */
 export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
@@ -129,15 +129,15 @@ item.append(revoke);
 }
 return item;
 }));
-// A signed plugin is switched off and on and taken off here (BL-623); a publisher taken back leaves only taking it off.
-const controls = (plugin, revoked) => {
+// A signed plugin is switched off and on and taken off here (BL-623), one of the Home's through the Host settings door (BL-715); a publisher taken back leaves only taking it off.
+const controls = (plugin, revoked, act = (name, payload) => api("/installed/" + name, payload)) => {
 const box = el("div", "plugin-trust-actions");
 const step = (text, variant, name, payload, done, title, detail) => {
 const node = button(text, variant);
 node.addEventListener("click", async () => {
 if (title && !await ask(title, detail, text)) return;
 error.hidden = true;
-try { await api("/installed/" + name, { plugin_id: plugin.plugin_id, ...payload }); toast(done); await load(); } catch (failure) { fail(failure); }
+try { await act(name, { plugin_id: plugin.plugin_id, ...payload }); toast(done); await load(); } catch (failure) { fail(failure); }
 });
 box.append(node);
 };
@@ -148,15 +148,17 @@ step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true
 step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
 return box;
 };
-const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null) => {
+const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
 copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", L(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + L(STATE[plugin.state] || plugin.state)));
 summary.append(copy); const mark = $("[data-plugin-trust-chevron]"); if (mark) summary.append(mark.content.cloneNode(true));
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
+if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
-body.append(consents(plugin)); if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked)); box.append(summary, body);
+body.append(consents(plugin)); if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;
 };
 const publisher = (pin) => {
@@ -180,7 +182,8 @@ const revoked = new Set(data.publishers.filter((pin) => pin.revoked_at).map((pin
 draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin, undefined, revoked)));
 const home = await molisWorkRequest("/api/settings/plugin-permissions/list", { body: {} });
 const homeSend = (payload) => molisWorkRequest("/api/settings/plugin-permissions/set", { body: payload });
-draw($("[data-plugin-trust-home]"), L("个人空间里没有插件"), home.plugins.map((plugin) => installed(plugin, homeSend)));
+const homeAct = (name, payload) => molisWorkRequest("/api/settings/plugin-permissions/" + name, { body: payload });
+draw($("[data-plugin-trust-home]"), L("个人空间里没有插件"), home.plugins.map((plugin) => installed(plugin, homeSend, revoked, homeAct)));
 draw($("[data-plugin-trust-publishers]"), L("你还没有固定过发布者"), data.publishers.map(publisher));
 };
 const preview = $("[data-plugin-trust-preview]");

@@ -242,12 +242,18 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-281, RAC-2076 (user 2026-10-29 chose to keep colouring off the frame that first lays a large block out): Coding's painter waits for
-// the block's first layout (a non-zero height) through a resize observer it releases when the job is replaced or stopped, +202 B on this one asset.
-// Tried: a helper outside the painter is smaller to read but the painter is injected with toString() and must stay self-contained;
-// dropping the two releases saves about half, but VUX-36 asks that observers be releasable; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [289674, 289876],
+  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
+  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
+  // T-354 一审 P1 keeps the shortcut but asks first that what is rendered is not a skipped subtree (`checkVisibility`, style only) and
+  // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
+  // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
+  "/assets/molis-work-plugins/coding.js": [289876, 290029],
+  // T-204: whole-character Pages excerpts and export names, +80 B / +198 B; approved by 6542200551.
+  // Tried inline regexes: +64 B / +450 B; the shared local helper saves 252 B in the editor.
+  // Recomputed after main sync: preserve the current merge-base and freeze each at its measured size.
+  "/assets/molis-work-plugins/pages.js": [38946, 39026],
+  "/assets/molis-work-pages-editor.js": [707886, 708084],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

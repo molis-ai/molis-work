@@ -118,6 +118,20 @@ export interface SettingsPagePrimitives {
     text(value: string, values?: Record<string, string | number>): string;
 }
 
+export interface StagePageModel<Data = unknown> {
+    readonly route_prefix: string;
+    readonly shown_plugins: readonly string[];
+    readonly data?: Data;
+    readonly primitives: StagePagePrimitives;
+}
+
+export interface StagePagePrimitives {
+    escape(value: unknown): string;
+    text(value: string, values?: Record<string, string | number>): string;
+    icon(name: string): string;
+    formatDate(value: string): string;
+}
+
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
 
 export declare const UI_VIEW_HUES: readonly ["gray", "brown", "orange", "yellow", "green", "mint", "cyan", "blue", "indigo", "purple", "pink", "red", "steel", "slate"];
@@ -376,6 +390,10 @@ export interface UiSlotDescriptor {
     readonly accepts: readonly string[];
 }
 
+export interface UiStageDataDeclaration {
+    readonly action: string;
+}
+
 export interface UiStreamRequestInit extends Omit<UiRequestInit, "method" | "as" | "accept"> {
     readonly onProgress?: (event: import("@molis-ai/molis-work-contracts/platform/actions").ActionProgressEvent) => void;
 }
@@ -463,6 +481,7 @@ export interface UiViewDeclaration {
     readonly view_id: string;
     readonly slot: UiViewSlot;
     readonly title: string;
+    readonly title_en?: string;
     readonly contribution_id?: string;
     readonly icon?: string;
     readonly accepts_objects?: boolean;
@@ -475,6 +494,7 @@ export interface UiViewDeclaration {
     readonly pinned_default?: true;
     readonly settings_data?: UiSettingsDataDeclaration;
     readonly settings_runtimes?: true;
+    readonly stage_data?: UiStageDataDeclaration;
     readonly creates?: UiViewCreateEntry;
     readonly start?: UiViewStartEntry;
 }

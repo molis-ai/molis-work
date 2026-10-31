@@ -8,7 +8,7 @@
 
 人盯着一条 `feed_item`。详情上四条竞争处置：加入 Inbox、保存、升格 Goal、忽略。
 
-Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `routes`，页面 HTML 是外壳的舞台（`/api/stage/feed`、`/api/stage/inbox`）；宿主里给它们写的代码只剩冻结名单（`tests/builtin-plugin-assembly-gate.test.ts`）记着的那些，不要抄。对照产品行为（动作、场景、不进池的规则、搜索）；新插件按 [host.md](host.md) 必改第 6、8 步。
+Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `routes`，页面 HTML 是外壳的舞台（`/api/stage/feed`、`/api/stage/inbox`）；宿主里给它们写过的旧代码不要抄。对照产品行为（动作、场景、不进池的规则、搜索）；新插件按 [host.md](host.md) 必改第 6、8 步。
 
 - UI：plugin-stage 外壳里的文章列 + 阅读页：来源收在列顶的来源菜单，时间线 + 全部 / 未读 / 已保存，点卡片在右侧读。
 - HTTP：Manifest `routes`，`/api/plugins/io.molis.work.feed/items/:item_id/:action`（`inbox|save|promote|archive|…`）；阅读页是外壳的舞台 `/api/stage/feed/items/<item_id>`。
@@ -75,7 +75,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认来源写在各输入口的 `default_source`；还有事件、`agent` 角色。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执按 Goals 动作的 id 与版本调用（`plugins/native/coding/src/goals-actions.ts` 的 `GOALS_ACTIONS`），用到的字段就地声明，不 import Goals 的合同；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`。
+`kind: "app"`。3 个 Artifact 输出口（changeset、report、diagram；report 是成果，changeset 与 diagram 是过程项），没有输入口（`ports.inputs` 为空；一轮要的材料来自项目资料，不靠口接线）；还有事件、`agent` 角色。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执按 Goals 动作的 id 与版本调用（`plugins/native/coding/src/goals-actions.ts` 的 `GOALS_ACTIONS`），用到的字段就地声明，不 import Goals 的合同；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`。
 
 ## GitHub / Gmail 等接入
 

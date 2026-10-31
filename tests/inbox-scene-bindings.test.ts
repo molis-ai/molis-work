@@ -7,7 +7,7 @@ import { INBOX_PROJECT_DATABASE, InboxSceneBindings, inboxManifest } from "@moli
 /**
  * FI-6 P3 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §1.2.6): the binding of Inbox's next-step scene is Inbox's
  * own row in the project's library, written with the optimistic revision the Functions store used to give it. The end-to-end cases through
- * the scene client are `inbox-action-scenes.test.ts` and `functions-scene-configuration.test.ts`; the maintenance is `inbox-binding-maintenance.test.ts`.
+ * the scene client are `inbox-action-scenes.test.ts` and `functions-scene-configuration.test.ts`; no offline binding move remains after the clean Home decision.
  */
 const SCENE = "inbox.next", PROJECT = "project";
 

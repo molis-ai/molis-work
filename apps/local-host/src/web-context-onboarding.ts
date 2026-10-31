@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import { sendLocalWebJson as json } from "./web-http.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
-import { gmailOAuthConfigured } from "./gmail-oauth.js";
+import { connectorLoginReady } from "./connector-directory.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
 import { adoptContextJourney, contextReferenceText, stageContextFile, updateContextDraft, contextModel, readContextJourney, reopenContextJourney, selectContextSources, startContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
 
@@ -13,7 +13,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts) {
     try {
       if (req.method === "GET" && url.pathname === prefix) {
         const model = await contextModel(home, ports);
-        json(res, 200, { gmail_configured: gmailOAuthConfigured(), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete()) }); return true;
+        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete()) }); return true;
       }
       if (req.method === "POST" && url.pathname === prefix) {
         const input = await readNativePluginJsonBody(req);

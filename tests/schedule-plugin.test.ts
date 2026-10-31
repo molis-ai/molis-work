@@ -7,6 +7,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
+import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
   SCHEDULE_UI_CONTRIBUTION_ID,
@@ -15,6 +16,7 @@ import {
   createSchedulePlugin,
   scheduleUiContribution,
   type ScheduleConversationTaskView,
+  type ScheduleStageData,
   type ScheduleUiModel,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { railEntries } from "@molis-ai/molis-work-app-workbench";
@@ -93,13 +95,13 @@ function task(overrides: Partial<ScheduleConversationTaskView> = {}): ScheduleCo
   };
 }
 
-function model(overrides: Partial<ScheduleUiModel> = {}): ScheduleUiModel {
+/** The stage model the Host gives Schedule: its own `schedule.tasks.list` answer as `data` (`stage_data`, T-133). */
+function model(overrides: Partial<ScheduleStageData> = {}): StagePageModel<ScheduleStageData> {
   return {
     route_prefix: "/projects/project-test",
-    jobs: [],
-    tasks: [],
+    shown_plugins: ["schedule"],
+    data: { jobs: [], tasks: [], ...overrides },
     primitives,
-    ...overrides,
   };
 }
 
@@ -218,6 +220,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
     ["inbox", "Inbox", "inbox"],
     ["schedule", "Schedule", "timer"],
     ["feed", "Feed", "rss"],
+    ["artifacts", "成果", "package"],
   ]);
   const view = {
     snapshot: {
@@ -253,9 +256,8 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
       runs: [],
       out_rules: [],
     },
-    enabled_plugins: ["goals", "inbox", "schedule", "feed", "artifacts"],
-    schedule_jobs: [job()],
-    schedule_tasks: [],
+    enabled_plugins: ["goals", "inbox", "schedule", "feed", "files"],
+    stage_data: { schedule: { jobs: [job()], tasks: [] } },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
   assert.match(html, /data-plugin-id="schedule"[^>]*data-work-surface-open="schedule"/);

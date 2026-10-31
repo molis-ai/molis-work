@@ -21,11 +21,10 @@ import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
 import { contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { handleConnectorApiMethodsHttp, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/dist/web-connectors-settings.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { recordingTextModel, wireText } from "./fixtures/recording-text-model.js";
-import { storeGmailOAuthClient } from "../apps/local-host/dist/gmail-oauth.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 
 const withCatalog = withMolisWorkProjectCatalog;
@@ -375,7 +374,7 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     const authorize = async (account: string) => {
       const begun = await served.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start",
         { service_id: "gmail", display_name: account, client_id: `fixture-app-${account}`, client_secret: "fixture-only" });
-      const returned = new URL("/api/settings/connectors/methods/oauth/callback", origin);
+      const returned = new URL("/api/feed/connectors/gmail/oauth/callback", origin);
       returned.searchParams.set("state", new URL(begun.authorization_url).searchParams.get("state")!); returned.searchParams.set("code", `code-${account}`);
       await served.web.post("/api/settings/connectors/methods/oauth/complete", { returned_url: returned.href });
       return withConnectorConnections(dir, store => store.require(begun.connection_id, "gmail"));
@@ -411,33 +410,34 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
 test('HTTP control gate, persisted selection, Google PKCE start, cancellation and callback resume correct journey',async t=>{
   const dir=await home(t),id=randomUUID(),token='onboarding-control-test';const handle=createContextOnboardingHttp({...pagesPorts(dir),model:async()=>({})});
   const keys=new Map<string,LocalMutationState>();
-  const server=createServer((req,res)=>{const url=new URL(req.url!,'http://127.0.0.1');if(!authorizeLocalWebRequest(req,res,url,token,keys))return;void runWithMolisWorkHome(dir,async()=>{if(await handle(req,res,url,dir))return;if(await handleLocalConnectorsSettingsHttp(req,res,url,dir))return;res.writeHead(404);res.end();}).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}));});});
+  const server=createServer((req,res)=>{const url=new URL(req.url!,'http://127.0.0.1');if(!authorizeLocalWebRequest(req,res,url,token,keys))return;void runWithMolisWorkHome(dir,async()=>{if(await handle(req,res,url,dir))return;if(await handleConnectorApiMethodsHttp(req,res,url,dir,()=>{},async()=>{}))return;if(await handleLocalConnectorsSettingsHttp(req,res,url,dir))return;res.writeHead(404);res.end();}).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));const address=server.address() as {port:number};const origin='http://127.0.0.1:'+address.port;
   const post=async(path:string,body:unknown)=>fetch(origin+path,{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify(body)});
+  /* The generic flow's authorization and token requests leave by sendPublicHttps; only Google's answers are faked. */
+  oauthNetwork(t,asOAuthAnswer(async input=>{const url=new URL(String(input));if(url.origin==='https://oauth2.googleapis.com')return Response.json({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600});if(url.origin==='https://openidconnect.googleapis.com')return Response.json({sub:'account-test',email:'test@example.com'});return Response.json({emailAddress:'test@example.com'});}));
+  const start=async(name:string)=>{const response=await post('/api/settings/connectors/methods/oauth/start',{service_id:'gmail',display_name:name,client_id:'fixture.apps.googleusercontent.com',client_secret:'fixture-only',onboarding_id:id});assert.equal(response.status,200);const begun=await response.json() as {authorization_url:string;connection_id:string};return {...begun,state:new URL(begun.authorization_url).searchParams.get('state')!};};
+  const callback='/api/feed/connectors/gmail/oauth/callback';
   assert.equal((await fetch(origin+'/api/onboarding/context',{method:'POST',body:'{}'})).status,403);
   await post('/api/onboarding/context',{id});await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'gmail',selected:true,days:7}],auto_start:true});
-  runWithMolisWorkHome(dir,()=>storeGmailOAuthClient({clientId:'fixture.apps.googleusercontent.com'}));
   const metadata=await(await fetch(origin+'/api/onboarding/context')).json();assert.equal(metadata.resume.id,id);assert.equal(metadata.resume.title,'未完成的整理');
-  const begun=await(await post('/api/settings/connectors/gmail/oauth/start',{onboarding_id:id,manage_connection:true})).json();
-  const consent=new URL(begun.authorizationUrl);assert.equal(consent.hostname,'accounts.google.com');assert.equal(consent.searchParams.get('code_challenge_method'),'S256');assert.equal(begun.redirectUri,origin+'/api/feed/connectors/gmail/oauth/callback');
-  const cancelled=await fetch(origin+'/api/feed/connectors/gmail/oauth/callback?error=access_denied&state='+begun.state,{redirect:'manual'});assert.equal(cancelled.status,302);assert.match(cancelled.headers.get('location')!,new RegExp('journey='+id+'&oauth=cancelled'));assert.equal(readContextJourney(dir,id).auto_start,false);/* A late code for a finished state is refused before any exchange; the browser returns to settings with the reason. */const late=await fetch(origin+'/api/feed/connectors/gmail/oauth/callback?code=late-code&state='+begun.state,{redirect:'manual'});assert.equal(late.status,302);assert.match(late.headers.get('location')!,/connection_error=failed/);assert.equal(readContextJourney(dir,id).auto_start,false);assert.equal(readContextJourney(dir,id).oauth_status,'cancelled');
-  const begun2=await(await post('/api/settings/connectors/gmail/oauth/start',{onboarding_id:id,manage_connection:true})).json();
-  const realFetch=globalThis.fetch;
-  globalThis.fetch=(async(input,init)=>{const url=String(input);if(url.startsWith('https://oauth2.googleapis.com/'))return Response.json({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600});if(url.endsWith('/gmail/v1/users/me/profile'))return Response.json({emailAddress:'test@example.com'});return realFetch(input,init);}) as typeof fetch;
-  try {const done=await realFetch(origin+'/api/feed/connectors/gmail/oauth/callback?code=fixture-code&state='+begun2.state,{redirect:'manual'});assert.equal(done.status,302);assert.match(done.headers.get('location')!,/oauth=connected/);assert.equal(readContextJourney(dir,id).sources[0]!.connection_id,begun2.connection_id);}
-  finally{globalThis.fetch=realFetch;}
+  const begun=await start('One');
+  const consent=new URL(begun.authorization_url);assert.equal(consent.hostname,'accounts.google.com');assert.equal(consent.searchParams.get('code_challenge_method'),'S256');assert.equal(consent.searchParams.get('redirect_uri'),origin+callback);
+  const cancelled=await fetch(origin+callback+'?error=access_denied&state='+begun.state,{redirect:'manual'});assert.equal(cancelled.status,302);assert.match(cancelled.headers.get('location')!,new RegExp('journey='+id+'&oauth=cancelled'));assert.equal(readContextJourney(dir,id).auto_start,false);/* A late code for a finished state is refused before any exchange; the browser returns to settings with the reason. */const late=await fetch(origin+callback+'?code=late-code&state='+begun.state,{redirect:'manual'});assert.equal(late.status,302);assert.match(late.headers.get('location')!,/connection_error=failed/);assert.equal(readContextJourney(dir,id).auto_start,false);assert.equal(readContextJourney(dir,id).oauth_status,'cancelled');
+  const begun2=await start('Two');
+  const done=await fetch(origin+callback+'?code=fixture-code&state='+begun2.state,{redirect:'manual'});assert.equal(done.status,302);assert.match(done.headers.get('location')!,/oauth=connected/);assert.equal(readContextJourney(dir,id).sources[0]!.connection_id,begun2.connection_id);
   // Replaying a completed callback exchanges nothing and keeps the connection it already made.
-  const replay=await fetch(origin+'/api/feed/connectors/gmail/oauth/callback?code=fixture-code&state='+begun2.state,{redirect:'manual'});assert.equal(replay.status,302);assert.match(replay.headers.get('location')!,/connection_error=failed/);assert.equal(readContextJourney(dir,id).sources[0]!.connection_id,begun2.connection_id);
-  const expired=await(await post('/api/settings/connectors/gmail/oauth/start',{onboarding_id:id,manage_connection:true})).json();
-  runWithMolisWorkHome(dir,()=>{const store=createFileSecretStore(),ref='connector:gmail:oauth:connection-target:'+expired.state,pending=JSON.parse(store.get(ref)!);pending.createdAt=Date.now()-11*60_000;store.put(ref,JSON.stringify(pending));});
-  const timedOut=await fetch(origin+'/api/feed/connectors/gmail/oauth/callback?code=unused&state='+expired.state,{redirect:'manual'});
+  const replay=await fetch(origin+callback+'?code=fixture-code&state='+begun2.state,{redirect:'manual'});assert.equal(replay.status,302);assert.match(replay.headers.get('location')!,/connection_error=failed/);assert.equal(readContextJourney(dir,id).sources[0]!.connection_id,begun2.connection_id);
+  const expired=await start('Three');
+  const clock=t.mock.method(Date,'now',(now=>()=>now()+11*60_000)(Date.now.bind(Date)));
+  const timedOut=await fetch(origin+callback+'?code=unused&state='+expired.state,{redirect:'manual'});
+  clock.mock.restore();
   assert.equal(timedOut.status,302);assert.match(timedOut.headers.get('location')!,new RegExp('journey='+id+'&oauth=failed'));assert.match(readContextJourney(dir,id).error!,/过期/);
-  const older=await(await post('/api/settings/connectors/gmail/oauth/start',{onboarding_id:id,manage_connection:true})).json();
-  const newer=await(await post('/api/settings/connectors/gmail/oauth/start',{onboarding_id:id,manage_connection:true})).json();
-  await fetch(origin+'/api/feed/connectors/gmail/oauth/callback?error=access_denied&state='+older.state,{redirect:'manual'});
+  const older=await start('Four');
+  const newer=await start('Five');
+  await fetch(origin+callback+'?error=access_denied&state='+older.state,{redirect:'manual'});
   assert.equal(readContextJourney(dir,id).oauth_state,newer.state);assert.equal(readContextJourney(dir,id).oauth_status,'pending');
   await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'gmail',selected:false,days:7}],auto_start:false});
-  await fetch(origin+'/api/feed/connectors/gmail/oauth/callback?code=unused&state='+newer.state,{redirect:'manual'});
+  await fetch(origin+callback+'?code=unused&state='+newer.state,{redirect:'manual'});
   assert.equal(readContextJourney(dir,id).oauth_status,'cancelled');assert.equal(readContextJourney(dir,id).sources[0]!.selected,false);
 });
 
@@ -772,4 +772,46 @@ for (const c of ROUND_FITS) test(`RAC-2121 a failed round keeps an error of 600 
 
 test("RAC-2124 a failed round whose error is not an Error keeps the plain text of its own, not a cut of the value", async t => {
   assert.equal((await failedRound(t, "x".repeat(700))).error, "整理失败，材料已保留");
+});
+
+// RAC-2250 RAC-2252: the onboarding's 120 limit on a project's name counts characters (码点), not UTF-16 units, so the message
+// "1–120 字" is what the check is; the projects module's create action takes the same name (it has no limit of its own).
+test('RAC-2250 RAC-2252 a 120-character project name of two-unit characters is taken by the start and by the project, and 121 is refused',async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({homeDirectory:dir,completeText:null}).close();
+  withContextJourneys(dir,store=>store.create(id));
+  const wide='🟢'.repeat(120);assert.equal([...wide].length,120);assert.equal(wide.length,240,'one character, two UTF-16 units');
+  const adopted=await adoptContextJourney(dir,id,{title:wide,blank:true},{...pagesPorts(dir)});assert.equal(adopted.phase,'complete',adopted.error??'');
+  await withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().find(project=>project.project_id===adopted.project_id)?.display_name,wide,'the started project carries the name'));
+  const over=randomUUID();withContextJourneys(dir,store=>store.create(over));
+  await assert.rejects(adoptContextJourney(dir,over,{title:'🟢'.repeat(121),blank:true},{...pagesPorts(dir)}),/请输入 1–120 字的项目名称/);
+});
+
+// RAC-2253: a 120-character project name with a non-empty summary also saves the derived summary artifact: its title is cut to
+// at most 200 UTF-16 units (the artifacts contract), after a whole character, so the review adoption completes instead of failing
+// after the project is created.
+test('RAC-2253 a 120-character project name saves the summary artifact title within 200 units, whole',async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,store=>{const journey=store.create(id);journey.phase='review';journey.summary={title:'草稿',body:'正文',references:[]};store.save(journey);});
+  const wide='🟢'.repeat(120);
+  const adopted=await adoptContextJourney(dir,id,{title:wide,body:'正文'},{...pagesPorts(dir)});
+  assert.equal(adopted.phase,'complete',adopted.error??'');
+  assert.equal(adopted.artifact_references!.length,1);
+  const actions=await pagesPorts(dir).actions(dir,adopted.project_id);
+  const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});
+  const title=(stored.selected as {title:string}).title;
+  assert.ok(title.length<=200,`${title.length} UTF-16 units`);
+  assert.ok(title.endsWith('…'));
+  assert.equal(title.isWellFormed(),true,'no lone half character');
+  assert.equal([...title].length,100,'99 two-unit characters and the ellipsis');
+});
+
+// RAC-2250: the draft's rename check counts the same way (the same message is kept).
+test('RAC-2250 the draft\'s rename check counts 120 characters too',async t=>{
+  const dir=await home(t),id=randomUUID();
+  withContextJourneys(dir,store=>{const journey=store.create(id);journey.phase='review';journey.summary={title:'草稿',body:'正文',references:[]};store.save(journey);});
+  const wide='🟢'.repeat(120);
+  assert.equal(updateContextDraft(dir,id,{title:wide,body:'正文'}).summary?.title,wide);
+  assert.throws(()=>updateContextDraft(dir,id,{title:'🟢'.repeat(121),body:'正文'}),/摘要内容过长或无效/);
 });

@@ -1,4 +1,4 @@
-import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
 import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
 
 /** Coded failures while preparing or reading a Goal terminal's launch. */
@@ -21,23 +21,11 @@ export function desktopLaunchArgs(value: unknown): string[] {
   throw desktopLaunchErrors.launch_args_input_invalid("终端启动参数必须是字符串数组。");
 }
 
-export const DESKTOP_RUNTIME_KINDS = [
-  "codex",
-  "claude-code",
-  "opencode",
-  "pi-agent",
-  "grok-build",
-  "generic",
-] as const;
+export const DESKTOP_RUNTIME_KINDS = [...TERMINAL_RUNTIMES, "generic"] as const;
 export type DesktopRuntimeKind = (typeof DESKTOP_RUNTIME_KINDS)[number];
-type NamedDesktopRuntimeKind = Exclude<DesktopRuntimeKind, "generic">;
 
 export function isDesktopRuntimeKind(value: string): value is DesktopRuntimeKind {
   return (DESKTOP_RUNTIME_KINDS as readonly string[]).includes(value);
-}
-
-function isNamedDesktopRuntimeKind(value: string): value is NamedDesktopRuntimeKind {
-  return value !== "generic" && isDesktopRuntimeKind(value);
 }
 
 export interface DesktopLaunchSpec {
@@ -47,19 +35,6 @@ export interface DesktopLaunchSpec {
   title: string;
 }
 
-interface DesktopRuntimeRecipe {
-  command: string;
-  resumeArgs: (sessionId: string) => string[];
-}
-
-const DESKTOP_RUNTIME_RECIPES: Record<NamedDesktopRuntimeKind, DesktopRuntimeRecipe> = {
-  codex: { command: "codex", resumeArgs: (sessionId) => ["resume", sessionId] },
-  "claude-code": { command: "claude", resumeArgs: (sessionId) => ["--resume", sessionId] },
-  opencode: { command: "opencode", resumeArgs: (sessionId) => ["--session", sessionId] },
-  "pi-agent": { command: "pi", resumeArgs: (sessionId) => ["--session", sessionId] },
-  "grok-build": { command: "grok", resumeArgs: (sessionId) => ["--resume", sessionId] },
-};
-
 export function desktopLaunchSpec(input: {
   runtime_kind: string;
   command?: string;
@@ -68,9 +43,9 @@ export function desktopLaunchSpec(input: {
 }): DesktopLaunchSpec {
   const args = desktopLaunchArgs(input.args);
   const resume = input.resume_session_id?.trim() || null;
-  if (isNamedDesktopRuntimeKind(input.runtime_kind)) {
-    const recipe = DESKTOP_RUNTIME_RECIPES[input.runtime_kind];
-    const title = RUNTIME_DISPLAY_NAMES[input.runtime_kind];
+  if (isTerminalRuntime(input.runtime_kind)) {
+    const recipe = terminalRuntimeRecipe(input.runtime_kind);
+    const title = recipe.title;
     return {
       runtime_kind: input.runtime_kind,
       command: input.command?.trim() || recipe.command,
@@ -99,7 +74,7 @@ export function desktopPanelEnv(input: {
     MOLIS_WORK_WORK_CONTEXT_ID: input.workContextId,
     MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     MOLIS_WORK_PANEL_ID: input.panelId,
-    MOLIS_WORK_GOAL_ID: input.goalId,
+    MOLIS_WORK_FOCUS_ID: input.goalId,
     MOLIS_WORK_WEB_URL: webUrl,
     TERM: "xterm-256color",
     COLORTERM: "truecolor",

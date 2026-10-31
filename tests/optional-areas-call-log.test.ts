@@ -15,7 +15,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /**
- * Optional areas (Feed, Inbox, Schedule, Artifacts) are looked for on every page of a project; a project without them must not be
+ * Optional plugins (Feed, Inbox, Schedule) are looked for on every page of a project; a project without them must not be
  * told "no" in its call log by its own pages, or the rows a person asked for are lost among rows nobody asked for.
  */
 interface Fixture { home: string; base: string; host: MolisWorkLocalHost; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>; projectId: string; reference: ReturnType<typeof molisWorkHostProjectReference> }
@@ -78,7 +78,7 @@ test("OPTAREA-02 a person's own call to a plugin the project does not have is st
 });
 
 test("OPTAREA-03 a project that has the optional plugins still shows them on its page, and the page load records no failure", { timeout: 60_000 }, async () => {
-  await withProject(["feed", "inbox", "schedule", "artifacts"], async ({ base, host, projectId }) => {
+  await withProject(["feed", "inbox", "schedule"], async ({ base, host, projectId }) => {
     const { status } = await get(`${base}/projects/${projectId}/`);
     assert.equal(status, 200);
     assert.equal(((await (await fetch(`${base}/projects/${projectId}/api/board`)).json()) as { feed_source_catalog: unknown[] }).feed_source_catalog.length > 0, true, "Feed is asked for and answers");
@@ -107,7 +107,7 @@ test("OPTAREA-05 a Goal reads the platform Artifacts with or without its project
     assert.equal(without.status, 200);
     assert.doesNotMatch(without.text, /data-artifact-unavailable/);
     assert.deepEqual(rowsOf(host, projectId), [[goalsActions.create.capability_id, "ok", false]]);
-    catalog.addProjectPlugin({ project_id: projectId, plugin_id: "artifacts", actor_id: "test" });
+    assert.throws(() => catalog.addProjectPlugin({ project_id: projectId, plugin_id: "artifacts", actor_id: "test" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     const withShell = await get(`${base}/projects/${projectId}/goals/G1`);
     assert.equal(withShell.status, 200);
     assert.doesNotMatch(withShell.text, /data-artifact-unavailable/);
@@ -119,9 +119,14 @@ test("OPTAREA-06 advancing a Goal in a project without Feed leaves no row about 
   await withProject([], async ({ base, host, projectId, reference }) => {
     const goals = bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: ["goals:read", "goals:write"] }));
     await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create" });
-    const advanced = await get(`${base}/projects/${projectId}/api/goals/G1/advance-prompt`);
+    // The prompt is a Goals route: the project's plugin platform is opened by an earlier route first, so the rows its one-time opening
+    // announcement may leave (`announceProjectOpened`; this Host has no folders) are not counted against the prompt.
+    assert.equal((await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/directory`)).status, 200);
+    const before = rowsOf(host, projectId);
+    assert.ok(before.some(row => row[0] === goalsActions.create.capability_id));
+    const advanced = await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/G1/advance-prompt`);
     assert.equal(advanced.status, 200, advanced.text);
-    assert.deepEqual(rowsOf(host, projectId).map(row => row[0]), [goalsActions.create.capability_id]);
+    assert.deepEqual(rowsOf(host, projectId), before);
   });
 });
 

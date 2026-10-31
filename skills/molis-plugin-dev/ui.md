@@ -38,15 +38,16 @@
 
 视图上还有几项可选的声明，宿主照着放，不另写名单（W5-06 第 2b 片，合同在 `packages/contracts/src/platform/ui.ts`）：
 
-- `icon`：图标名（设计系统里登记的名字）。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写、或宿主不认识这个名字，就用 `settings`。
+- `icon`：图标名，限平台图标集（SDK `/ui` 的 `PLUGIN_ICON_NAMES`，设计系统逐个画）；写了集合外的名字、不是字符串或是空白，`parsePluginManifest` 当场拒绝，不回退。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写就用 `settings`。
 - `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
+- `title_en`（只用于 `navigator`、`island`）和 Manifest 顶层的 `name_en`：英文界面里这个入口的名字（BL-636）。一行英文，至多 80 个字符（按 Unicode 码点数），不能是空白、首尾不能有空白、不含控制字符和汉字；写在别的槽的视图上被拒，`name_en` 只用于 `schema_version: 2`。外壳按入口自己的来源取：导航或岛视图取它的 `title_en`，只有舞台的插件（外壳画的是 Manifest 的 `name`）取 `name_en`，两者不互相兜底；没写就在英文界面里显示原名，中文界面始终显示原名。内置和装进来的插件走同一条路，外壳没有按插件 id 写的英文名表。
 - `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
 - `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
 - `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
 
 写错的（不认识的组、`creates` 指向本 Manifest 没有的站或不能新建的站、缺 `title` 或 `hint`、用在别的槽上）`parsePluginManifest` 当场拒绝（`molis-work-plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
 
-这些声明对运行时装进项目的插件和随宿主发布的插件**同样生效**：宿主每次读页面时，从项目 Runtime（与 Home 级插件）里运行中的 Manifest 现取 `ui.views` 的 `slot`、`group`、`icon`、`order`、`creates`、`start`、`accepts_objects`，写进页面的插件目录（`plugin_directory`），外壳（插件切换列表、目标里的「新建」、项目首页的起点、按对象开标签）都读它。停用、卸载或撤回同意的插件下一次读页面就没有入口。插件的名称和这些视图文字是你写的文字：页面一律当文本转义显示，名称和标题只取一行（名称、标题 80 字，`creates.title` 40 字，`start.hint` 200 字），`icon` 只认设计系统里登记的名字，URL、SVG 或别的写法都用默认图标；不是由项目的插件选择决定的插件（运行时装的），列在它 `group` 的位置或「更多」，只有「常驻 Dock」，没有添加或移除按钮。
+这些声明对运行时装进项目的插件和随宿主发布的插件**同样生效**：宿主每次读页面时，从项目 Runtime（与 Home 级插件）里运行中的 Manifest 现取 `ui.views` 的 `slot`、`group`、`icon`、`order`、`creates`、`start`、`accepts_objects`，写进页面的插件目录（`plugin_directory`），外壳（插件切换列表、目标里的「新建」、项目首页的起点、按对象开标签）都读它。停用、卸载或撤回同意的插件下一次读页面就没有入口。插件的名称和这些视图文字是你写的文字：页面一律当文本转义显示，名称和标题只取一行（名称、标题 80 字，`creates.title` 40 字，`start.hint` 200 字），视图的 `icon` 在 Manifest 读取时就限平台图标集（集合外整份清单被拒），所以这里读到的总是集合内的名字；`start.icon` 只认设计系统里登记的名字，URL、SVG 或别的写法都用默认图标；不是由项目的插件选择决定的插件（运行时装的），列在它 `group` 的位置或「更多」，只有「常驻 Dock」，没有添加或移除按钮。
 
 全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、侧栏按钮与项目）。侧栏在工作右边打开，放讨论、浏览器、文件和插件声明的 `side` 标签。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 
@@ -66,6 +67,8 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
 `settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+
+舞台要自己的数据时，在打开舞台的那个 view（有 `stage` view 就是它，否则是第一个 `navigator` view）上写 `stage_data: { action: "<本 Manifest 里只读、面向 user、只有一个版本的查询>" }`，规则与 `settings_data` 相同，写在别的 view 上或指向别人的动作，Manifest 当场被拒。宿主按页面上的这个人、只带这个动作自己声明的权限调用它（不带输入），结果放在 `StagePageModel.data` 里，连同 `route_prefix`、`shown_plugins` 和 `primitives`（`escape`、`text`、`icon`、`formatDate`）交给舞台的 `workbench` surface；插件不在、未启用或被拒时没有 `data`，按空的舞台画。页面整页画一次，`GET /api/stage/<project_plugin_id>` 原地重画一次，都走同一条路，宿主里没有按插件名的分支（T-133，Schedule 是第一个这样画的）。**目前这条路只对内置目录兑现**，已安装插件的舞台仍由运行中的实例按原来的通用模型画。
 
 设置页实际需要平台的 Agent 运行时列表时，在同一个 `settings` view 声明 `settings_runtimes: true`（例如 Coding）。不声明时宿主不查询，`context.runtimes` 是未请求的空集合；声明后查询失败会走原 HTTP 错误链，不会伪装成「没有运行时」。这个声明独立于 `settings_data`，值只许 `true`，其他槽不能使用。现有内置设置接线范围同上，未扩为已安装 Runtime 插件的动态设置支持。
 

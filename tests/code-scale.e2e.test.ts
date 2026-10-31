@@ -72,6 +72,8 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   // (T-281, Chrome on an Apple-silicon dev machine): 16–20 ms; 55–57 ms at 4× CPU throttling, 74–95 ms at 6×. CI's Linux runners run the
   // colouring frames 4–5 times slower than here, so about 55–75 ms there; 150 ms leaves twice that. A block put in or laid out in a way that
   // grows faster than its size passes it many times over.
+  // If this goes red once on a machine throttled 6×, look at GC before the product: the 6× first layout is 74–95 ms here, and a MajorGC
+  // seen once in the probes took about 60 ms, which gets close to 150 ms. The bound is not to be raised for that (T-281 二审 建议 5).
   assert.ok(first.laidOut < FIRST_LAYOUT_MS, `putting the whole text in and laying it out once: ${first.laidOut.toFixed(1)} ms`);
   // Done when the slices end on what colouring it whole gives.
   await waitFor("matchesColour(code, text)", 30_000);
@@ -211,4 +213,182 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
   assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("assistant-code-scale.json", evidence), JSON.stringify({ characters: code.length, frames: painting.length, longest: Math.round(longest) }, null, 2));
+});
+
+// RAC-2422/RAC-2423: T-281's ResizeObserver makes a large block wait for its first layout, so a block that has none yet is not coloured.
+// Two layout situations it changes, measured in the product page: attached inside a display:none subtree (coloured after it is shown), and
+// inside a content-visibility:auto subtree the browser skips until it is scrolled near (coloured then). Both keep SYS-49's per-frame bound:
+// every colouring frame, with its forced layout and the page's observers of what it put in, stays a frame's work (50 ms).
+const OBSERVER_SETUP = `window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
+  const expected = new Map(); window.matchesColour = (code, text) => {
+    if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
+    return JSON.stringify(colourParts(code)) === expected.get(text); };
+  window.steps = []; window.stamps = []; window.sliceCosts = []; const frame = window.requestAnimationFrame.bind(window); window.nativeFrame = frame;
+  window.grown = 0; const grow = ${growCodeTokens.toString()};
+  window.paint = (() => {
+    const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); const painted = performance.now(); window.code?.getBoundingClientRect(); const laid = performance.now();
+      queueMicrotask(() => { const end = performance.now(); window.stamps.push(stamp); window.steps.push(end - start); window.sliceCosts.push({ js: painted - start, layout: laid - painted, observers: end - laid, total: end - start }); }); });
+    return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
+  window.makeBlock = (host, styles = {}) => { document.querySelector('#scale')?.remove(); const pre = host.appendChild(document.createElement('pre')); pre.id = 'scale'; Object.assign(pre.style, styles); const code = pre.appendChild(document.createElement('code')); window.code = code; return code; };
+  window.waitFrames = (count) => new Promise((resolve) => { let left = count; const tick = () => (--left <= 0 ? resolve() : nativeFrame(tick)); nativeFrame(tick); });`;
+
+test("SYS-49 RAC-2422: a large block attached while display:none is coloured only after it is shown, a slice a frame", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(OBSERVER_SETUP);
+  const text = textOf(120_000);
+  const hidden = await evaluate<{ started: boolean; coloured: number; frames: number }>(`(async () => {
+    window.text = ${JSON.stringify(text)};
+    const box = document.body.appendChild(document.createElement('div')); box.id = 'scale-box'; box.style.display = 'none'; window.scaleBox = box;
+    const code = makeBlock(box); steps.length = 0;
+    const started = paint.paintInto(code, text, 'ts'); await waitFrames(5);
+    return { started, coloured: code.querySelectorAll('[class^=tok-]').length, frames: steps.length }; })()`);
+  t.diagnostic("RAC-2422 hidden: " + JSON.stringify(hidden));
+  assert.equal(hidden.started, true, "the job starts while the block is attached but display:none");
+  assert.equal(hidden.coloured, 0, "attached inside display:none: it is not coloured before it has a layout");
+  assert.equal(hidden.frames, 0, "no colouring frame runs while it is hidden");
+  await evaluate("window.scaleBox.style.display = '';");
+  await waitFor("matchesColour(code, text)", 30_000);
+  const shown = await evaluate<{ steps: number[]; same: boolean }>("({ steps: steps.slice(), same: code.textContent === text })");
+  t.diagnostic("RAC-2422 shown: " + JSON.stringify({ frames: shown.steps.length, longest: Math.max(...shown.steps) }));
+  assert.equal(shown.same, true, "shown: it reads whole from the start");
+  assert.ok(shown.steps.length >= 8, `shown over ${shown.steps.length} colouring frames`);
+  assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is shown stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
+});
+
+test("SYS-49 RAC-2423: a large block in a content-visibility:auto subtree is coloured only once scrolled near, a slice a frame", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(OBSERVER_SETUP);
+  const text = textOf(120_000);
+  const skipped = await evaluate<{ started: boolean; coloured: number; frames: number; top: number; viewport: number }>(`(async () => {
+    window.text = ${JSON.stringify(text)};
+    const spacer = document.body.appendChild(document.createElement('div')); spacer.style.height = '3000px';
+    const section = document.body.appendChild(document.createElement('section')); section.id = 'scale-section';
+    section.style.contentVisibility = 'auto'; section.style.containIntrinsicSize = '0 800px'; window.scaleSection = section;
+    const code = makeBlock(section); steps.length = 0;
+    const started = paint.paintInto(code, text, 'ts'); await waitFrames(5);
+    return { started, coloured: code.querySelectorAll('[class^=tok-]').length, frames: steps.length, top: Math.round(section.getBoundingClientRect().top), viewport: innerHeight }; })()`);
+  t.diagnostic("RAC-2423 skipped: " + JSON.stringify(skipped));
+  assert.equal(skipped.started, true, "the job starts while its subtree is render-skipped");
+  assert.ok(skipped.top > skipped.viewport, `the block starts below the viewport: top ${skipped.top}, viewport ${skipped.viewport}`);
+  assert.equal(skipped.coloured, 0, "content-visibility:auto off the viewport: it is not coloured before it is scrolled near");
+  assert.equal(skipped.frames, 0, "no colouring frame runs while the browser skips the subtree");
+  await evaluate("window.scaleSection.scrollIntoView({ block: 'center' });");
+  await waitFor("matchesColour(code, text)", 30_000);
+  const shown = await evaluate<{ steps: number[]; spans: number; same: boolean }>("({ steps: steps.slice(), spans: code.querySelectorAll('[class^=tok-]').length, same: code.textContent === text })");
+  t.diagnostic("RAC-2423 shown: " + JSON.stringify({ frames: shown.steps.length, longest: Math.max(...shown.steps) }));
+  assert.equal(shown.same, true, "scrolled near: it reads whole from the start");
+  assert.ok(shown.spans > 0, "scrolled near: it is coloured");
+  assert.ok(shown.steps.length >= 8, `coloured over ${shown.steps.length} frames after scrolled near`);
+  assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
+});
+
+// RAC-2729 (T-354) ②: a block that really is laid out and grows past the slice is coloured in the next frame, without asking a layout
+// observer; its colouring frames stay a frame's work (the 50 ms bound the other large-block cases use). The shortcut asks the block's
+// own box for a layout; RAC-2729's hidden/skipped case below is the same growth without one and must keep waiting.
+test("SYS-49 RAC-2729: a laid-out block grown past the slice colours the next frame without a layout observer", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
+    const expected = new Map(); window.matchesColour = (code, text) => {
+      if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
+      return JSON.stringify(colourParts(code)) === expected.get(text); };
+    window.observerRefs = []; const Native = window.ResizeObserver;
+    window.ResizeObserver = class Tracking extends Native { constructor(changed) { super(changed); observerRefs.push(new WeakRef(this)); } };
+    window.frames = []; const nativeFrame = window.requestAnimationFrame.bind(window);
+    window.paint = (() => { const requestAnimationFrame = (step) => nativeFrame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); queueMicrotask(() => frames.push(performance.now() - start)); });
+      return (${createCodingCodePaint.toString()})(tokensOf, ${growCodeTokens.toString()}, hint => hint); })();
+    window.small = ${JSON.stringify("const stable = 1;\nconst value = compute(1);\n")};
+    window.big = small + ${JSON.stringify(textOf(60_000))};`);
+  const grown = await evaluate<{ observers: number; reads: boolean; box: number; syncFrames: number; queued: number; next: number; colouredBefore: number; colouredOnReturn: number }>(`(async () => {
+    const pre = document.body.appendChild(document.createElement('pre')), code = pre.appendChild(document.createElement('code')); window.code = code;
+    paint.paintInto(code, small, 'ts');
+    // RAC-2729 ③: the block has a real layout before the growth, the condition the shortcut asks for; a block without one takes the
+    // waiting path (the case below).
+    await new Promise((resolve) => nativeFrame(resolve));
+    const box = code.getBoundingClientRect().height, before = observerRefs.length, syncFrames = frames.length;
+    const colouredBefore = code.querySelectorAll('[class^=tok-]').length;
+    paint.paintInto(code, big, 'ts');
+    // Count colouring before yielding: a synchronous first slice bypasses the rAF timing wrapper.
+    const colouredOnReturn = code.querySelectorAll('[class^=tok-]').length;
+    const queued = frames.length;
+    await new Promise((resolve) => nativeFrame(resolve));
+    return { observers: observerRefs.length - before, reads: code.textContent === big, box, syncFrames, queued, next: frames.length, colouredBefore, colouredOnReturn }; })()`);
+  t.diagnostic("RAC-2729 grown: " + JSON.stringify(grown));
+  assert.ok(grown.box > 0, "the block really is laid out before it grows");
+  assert.equal(grown.observers, 0, "a block that was already laid out needs no layout observer for its longer text");
+  assert.equal(grown.reads, true, "the longer text reads at once");
+  assert.equal(grown.colouredOnReturn, grown.colouredBefore, "no colouring piece is added synchronously before paintInto returns");
+  assert.equal(grown.queued, grown.syncFrames, "no scheduled colouring frame runs synchronously");
+  assert.ok(grown.next > grown.syncFrames, "the growth starts in the next frame");
+  await waitFor("matchesColour(code, big)", 30_000);
+  const frames = await evaluate<number[]>("frames.slice()");
+  t.diagnostic("RAC-2729 grown frames: " + JSON.stringify({ frames: frames.length, longest: Math.max(...frames) }));
+  assert.ok(frames.length >= 2, `coloured over ${frames.length} frames`);
+  assert.ok(Math.max(...frames) < 50, `each colouring frame stays a frame's work: the longest ${Math.max(...frames).toFixed(1)} ms`);
+});
+
+// RAC-2729 ③ (T-354 一审 P1): the shortcut may not take `framed` (fonts set on a connected node) for a layout. A small block that grows
+// past the slice while it is display:none, or inside a content-visibility:auto subtree the browser skips, has no box yet: it is not
+// coloured until it has one, and then goes on in slices like any other large block. The same two layout situations as RAC-2422/2423.
+test("SYS-49 RAC-2729: a hidden or render-skipped block grown past the slice waits for its layout, then colours in slices", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(OBSERVER_SETUP);
+  const small = "const stable = 1;\nconst value = compute(1);\n";
+  const hidden = await evaluate<{ afterSmall: number; frames: number; coloured: number; reads: boolean; height: number }>(`(async () => {
+    window.text = ${JSON.stringify(small)} + ${JSON.stringify(textOf(60_000))};
+    const box = document.body.appendChild(document.createElement('div')); box.id = 'scale-box'; box.style.display = 'none'; window.scaleBox = box;
+    const code = makeBlock(box); paint.paintInto(code, ${JSON.stringify(small)}, 'ts');
+    const afterSmall = code.querySelectorAll('[class^=tok-]').length; steps.length = 0;
+    paint.paintInto(code, text, 'ts'); await waitFrames(5);
+    return { afterSmall, frames: steps.length, coloured: code.querySelectorAll('[class^=tok-]').length, reads: code.textContent === text,
+      height: code.getBoundingClientRect().height }; })()`);
+  t.diagnostic("RAC-2729 hidden growth: " + JSON.stringify(hidden));
+  assert.ok(hidden.afterSmall > 0, "the small block is coloured before it is hidden and grows");
+  assert.equal(hidden.frames, 0, "no colouring frame starts while the grown block has no layout");
+  assert.equal(hidden.coloured, hidden.afterSmall, "no colouring piece is added while the grown block has no layout");
+  assert.equal(hidden.reads, true, "the longer text reads at once even with no layout");
+  assert.equal(hidden.height, 0, "display:none: the grown block has no box");
+  await evaluate("window.scaleBox.style.display = '';");
+  await waitFor("matchesColour(code, text)", 30_000);
+  const shown = await evaluate<{ steps: number[]; same: boolean }>("({ steps: steps.slice(), same: code.textContent === text })");
+  t.diagnostic("RAC-2729 hidden shown: " + JSON.stringify({ frames: shown.steps.length, longest: Math.max(...shown.steps) }));
+  assert.equal(shown.same, true, "shown: the grown block reads whole");
+  assert.ok(shown.steps.length >= 2, `shown over ${shown.steps.length} colouring frames`);
+  assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is shown stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
+
+  const skipped = await evaluate<{ afterSmall: number; frames: number; coloured: number; reads: boolean; visible: boolean; top: number; viewport: number }>(`(async () => {
+    window.text = ${JSON.stringify(small)} + ${JSON.stringify(textOf(60_000))};
+    const spacer = document.body.appendChild(document.createElement('div')); spacer.style.height = '3000px';
+    const section = document.body.appendChild(document.createElement('section')); section.id = 'scale-section';
+    section.style.contentVisibility = 'auto'; section.style.containIntrinsicSize = '0 800px'; window.scaleSection = section;
+    const code = makeBlock(section); paint.paintInto(code, ${JSON.stringify(small)}, 'ts');
+    const afterSmall = code.querySelectorAll('[class^=tok-]').length; steps.length = 0;
+    paint.paintInto(code, text, 'ts'); await waitFrames(5);
+    return { afterSmall, frames: steps.length, coloured: code.querySelectorAll('[class^=tok-]').length, reads: code.textContent === text,
+      visible: code.checkVisibility({ contentVisibilityAuto: true }), top: Math.round(section.getBoundingClientRect().top), viewport: innerHeight }; })()`);
+  t.diagnostic("RAC-2729 skipped growth: " + JSON.stringify(skipped));
+  assert.ok(skipped.afterSmall > 0, "the small block is coloured before it is skipped and grows");
+  assert.ok(skipped.top > skipped.viewport, `the block starts below the viewport: top ${skipped.top}, viewport ${skipped.viewport}`);
+  assert.equal(skipped.frames, 0, "no colouring frame starts while the browser skips the subtree");
+  assert.equal(skipped.coloured, skipped.afterSmall, "no colouring piece is added while the browser skips the subtree");
+  assert.equal(skipped.reads, true, "the longer text reads at once even while the subtree is skipped");
+  assert.equal(skipped.visible, false, "content-visibility:auto off the viewport: the grown block is not rendered");
+  await evaluate("window.scaleSection.scrollIntoView({ block: 'center' });");
+  await waitFor("matchesColour(code, text)", 30_000);
+  const near = await evaluate<{ steps: number[]; same: boolean }>("({ steps: steps.slice(), same: code.textContent === text })");
+  t.diagnostic("RAC-2729 skipped shown: " + JSON.stringify({ frames: near.steps.length, longest: Math.max(...near.steps) }));
+  assert.equal(near.same, true, "scrolled near: the grown block reads whole");
+  assert.ok(near.steps.length >= 2, `coloured over ${near.steps.length} frames after scrolled near`);
+  assert.ok(Math.max(...near.steps) < 50, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...near.steps).toFixed(1)} ms`);
 });

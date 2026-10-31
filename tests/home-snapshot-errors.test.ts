@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
-import { createHomeSnapshot, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, homeStores, CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { changeSnapshotSource, type InjectedSnapshotChange } from "./fixtures/home-snapshot-error-change.js";
@@ -26,8 +26,8 @@ async function fixture(t: TestContext, kind: string, changing = false) {
     return { ...f, source };
   }
   const memory = kind === "sqlite-version" || kind === "sqlite-schema" && !changing;
-  const store = homeStores().get(memory ? "memory" : "sessions")!;
-  const source = join(f.home, store.path, memory ? store.library!.file ?? "memory.db" : store.snapshot.retained!.database.file);
+  const store = homeStores().get(memory ? "memory" : "projects")!;
+  const source = join(f.home, store.path, memory ? store.library!.file ?? "memory.db" : "catalog.db");
   await mkdir(dirname(source), { recursive: true });
   const db = new DatabaseSync(source);
   try {
@@ -35,20 +35,19 @@ async function fixture(t: TestContext, kind: string, changing = false) {
       db.exec(kind === "sqlite-schema" ? "CREATE TABLE wrong_shape (id TEXT)" : store.library!.baseline.schema);
       db.exec("PRAGMA user_version=" + store.library!.baseline.version);
     } else {
-      const meta = store.snapshot.retained!.database.metadata;
-      db.exec('CREATE TABLE session_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE sessions (id TEXT PRIMARY KEY,title TEXT CHECK(length(title)>0));');
-      db.prepare("INSERT INTO session_meta VALUES (?,?)").run("owner", kind === "metadata-owner" ? "wrong-owner" : meta.owner);
-      db.prepare("INSERT INTO session_meta VALUES (?,?)").run("schema_version", kind === "metadata-version" ? String(meta.version - 1) : String(meta.version));
-      db.prepare("INSERT INTO sessions VALUES (?,?)").run("retained", "Business content must not enter error output");
-      if (kind === "sqlite-integrity") db.exec("PRAGMA ignore_check_constraints=ON; INSERT INTO sessions VALUES ('broken','')");
-      if (kind === "sqlite-foreign-key") db.exec("PRAGMA foreign_keys=OFF; CREATE TABLE child (id TEXT REFERENCES sessions(id)); INSERT INTO child VALUES ('missing')");
+      db.exec('CREATE TABLE catalog_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE snapshot_probe (id TEXT PRIMARY KEY,title TEXT CHECK(length(title)>0));');
+      db.prepare("INSERT INTO catalog_meta VALUES (?,?)").run("owner", kind === "metadata-owner" ? "wrong-owner" : CATALOG_OWNER);
+      db.prepare("INSERT INTO catalog_meta VALUES (?,?)").run("schema_version", kind === "metadata-version" ? String(CATALOG_SCHEMA_VERSION + 1) : String(CATALOG_SCHEMA_VERSION));
+      db.prepare("INSERT INTO snapshot_probe VALUES (?,?)").run("retained", "Business content must not enter error output");
+      if (kind === "sqlite-integrity") db.exec("PRAGMA ignore_check_constraints=ON; INSERT INTO snapshot_probe VALUES ('broken','')");
+      if (kind === "sqlite-foreign-key") db.exec("PRAGMA foreign_keys=OFF; CREATE TABLE child (id TEXT REFERENCES snapshot_probe(id)); INSERT INTO child VALUES ('missing')");
       if (kind === "sqlite-foreign-schema") db.exec("CREATE TABLE parent (id TEXT); CREATE TABLE child (id TEXT REFERENCES parent(id))");
       if (kind === "sqlite-integrity-function") {
         db.function("fixture_check", () => 1);
         db.exec("CREATE TABLE checked (value TEXT CHECK(fixture_check())); INSERT INTO checked VALUES ('retained')");
       }
-      if (kind === "metadata-missing-table") db.exec("DROP TABLE session_meta");
-      if (kind === "metadata-missing-column") db.exec("ALTER TABLE session_meta RENAME COLUMN value TO wrong_column");
+      if (kind === "metadata-missing-table") db.exec("DROP TABLE catalog_meta");
+      if (kind === "metadata-missing-column") db.exec("ALTER TABLE catalog_meta RENAME COLUMN value TO wrong_column");
     }
   } finally { db.close(); }
   if (kind === "sqlite-corrupt-page") {

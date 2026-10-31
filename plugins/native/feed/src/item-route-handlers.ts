@@ -4,7 +4,7 @@ import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 import { feedItemActions } from "./item-actions.js";
 
-const ITEM_ACTIONS = new Set(["read", "inbox", "save", "archive", "restore", "promote", "start"]);
+const ITEM_ACTIONS = new Set(["read", "inbox", "save", "archive", "restore", "promote"]);
 
 export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
   return {
@@ -17,8 +17,8 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
       const revision = integerRevision(request.body.expected_revision);
       if (revision == null) throw feedErrors.request_invalid("请刷新 Item 后再操作");
       const at = { item_id: itemId, expected_revision: revision };
-      if (action === "promote" || action === "start") {
-        return { status: 200, body: await options.actions.invoke(feedItemActions.promote, { ...at, ...(action === "start" ? { start_processing: true } : {}) }) };
+      if (action === "promote") {
+        return { status: 200, body: await options.actions.invoke(feedItemActions.promote, at) };
       }
       const result = action === "restore" ? await options.actions.invoke(feedItemActions.restore, at)
         : action === "inbox" ? await options.actions.invoke(feedItemActions.inbox, at)

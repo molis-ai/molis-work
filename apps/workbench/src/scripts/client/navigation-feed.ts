@@ -32,7 +32,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true, intent = "open") => {
       if (!desktopWorkSurfaces.length) return false;
       if (surface === "sources") {
-        setFeedTask(selectedSource || selectedFeedTask || "all", persist);
+        setFeedTask(selectedSource || selectedFeedTask || "all", persist, intent);
         surface = "feed";
       }
       const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
@@ -41,7 +41,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         return false;
       }
       const surfaceChanged = activeDesktopSurface !== surface;
-      // Restoring the current location after a data refresh is not a request to retry its failed client.
+      // Passive restore must not retry the current failed client.
       if (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed") void deferredClients?.prepare(nextSurface);
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
@@ -73,7 +73,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       pluginWorkbench?.open(surface);
       if (surface === "feed") {
         void ensureFeedWorkbenchLoaded();
-        setFeedTask(selectedFeedTask || "all", false);
+        setFeedTask(selectedFeedTask || "all", false, intent);
       }
       frameContainer?.sync();
       if (persist) queueSave();

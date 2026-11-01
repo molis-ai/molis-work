@@ -155,7 +155,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-205 | RAC-1452 的下界改成「不早于同一时刻起的普通定时器」，不再按 performance.now() 猜毫秒数（防腐清理，统筹 main 红 · run 40850221824） | 丙 | 池 | 0 | — | `packages/test-kit/tests/browser.test.mjs`（只 `:506-568` 那一例；`cdp.ts` 只在本机变异、还原，不入提交） |
 | T-206 | Workflows 的交接模板与动作字段名按整字截，不再留下半个字（防腐清理，MISC「T-189 发布」行） | 乙 | 池 | 105 | T-189（#1471） | `plugins/native/workflows/src/model.ts`（只 `:273` 一行）、`plugins/native/workflows/src/step-runner.ts`（只 `:40` 一行）、`tests/workflows-whole-character-text.test.ts`（新） |
 | T-207 | 六处过时的措辞改成现状：`shared` 已空、BL-802 已做、双实例舞台「在跑」的口径、扩展点清单头（防腐清理，MISC「T-125 二审 建议」「T-191 发布」，T-127 二审建议 2） | 丙 | B | 106 | — | `scripts/gates/README.md`、`tooling/gates/README.md`、`tooling/gates/table-owners.json`（只 `areas` 下 Feed 那条的 `reason`，不改任何 owner 条目）、`specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md`（只第 3 行）、`specs/dual-instance-plugins/spec.md`（只 §12）、`docs/system/EXTENSION-POINTS.md`（只第 3 行） |
-| T-208 | Images 页面按整字截提示词：下载名、Shelf 来源说明、助理上下文标题不再留下半个字，含两单元字的提示词不再让结果页画不出来（防腐清理，MISC「T-186 发布」） | 乙 | 原开发线4，根明确交开发线2接资源同步；验证线1/二审线3 | #1562 @3b1402546；既有审验/Verify通过，开发线2准备最小同步计划 | full=false；资源顺序T351采用→T377→本单；不重跑旧4/4与M2 | `plugins/native/images/src/browser/dom.ts`、`plugins/native/images/src/browser/result.ts`、`plugins/native/images/src/browser/page.ts`、`tests/images-result-whole-characters.e2e.test.ts`（新）、`scripts/gates/page-assets.mjs`（只 APPROVED_CEILINGS，与 T-176、T-183、T-203 互锁）、`tooling/gates/page-assets.json`（只经 --update --base）；page-assets 两份文件与 T-203 同文件不同资源：可并行，后合者在合并结果上重算放行（统筹 10-30 6516737203） |
+| T-208 | Images 页面按整字截提示词：下载名、Shelf 来源说明、助理上下文标题不再留下半个字，含两单元字的提示词不再让结果页画不出来（防腐清理，MISC「T-186 发布」） | 乙 | Codex 开发线2（前轮开发线4）；验证线1/二审线4 | 已合 #1562 → 3fd857792；准确H树及patch-id核同 | full=false；资源窗已交T362，审计6551822367 | 已释放；后继README仍受保护#1101锁 |
 | T-209 | 桌面入口用例的 PTY 夹具读 pid 前先等文件里真有数字，不再读到空串（防腐清理，MISC「T-199 发布」行） | 丙 | 池 | 108 | — | `tests/fixtures/desktop-entry-streams.ts` |
 | T-212 | 图片服务自己查的长度（提示词、请求号、尺寸、宽高比、服务名称、模型名）按字数数，与动作 schema 一致，含两单元字的内容不再被多拒（防腐清理，MISC「T-208 起草」service.ts 一行） | 乙 | 池 | 111 | T-213 | `plugins/native/images/src/service.ts`、`tests/images-service.test.ts` |
 | T-213 | 平台生图端口的提示词与请求字段按字数查，与 Images 动作 schema 一致（防腐清理，T-212 起草时发现；T-212 的平台一半） | 甲 | Claude（设备 A） | 112 | — | `packages/plugin-runtime/src/image-generation.ts`、`tests/plugin-image-generation.test.ts` |
@@ -240,7 +240,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-296 | RAC-2463 补 `tokenAbandoned` 断言并补不依赖 darwin 的撤权中途用例（防腐清理，MISC「T-218 二审复核 建议」N1/N2；短任务书；SI 测试，统筹手查） | 丙 | 池 | 192 | T-218（#1558）合入 | `tests/security-invariants-oauth-shared-refresh.test.ts` |
 | T-297 | 连接绑定的插件号、用途号长度判断改按字数 160，不再按 UTF-16 单元数（防腐清理，MISC「T-213 二审 登记」；短任务书） | 丙 | B | 193 | — | `horizontal/connector-host/src/connection-store.ts`、其 bind 既有测试 |
 | T-298 | Coding 着色两种延迟排版情形补成入库浏览器用例，GC 注意事项写进注释（只补用例，需 Chrome ≥153；防腐清理，MISC「T-281 二审 建议」①③；短任务书） | 乙 | 池 | 194 | — | `tests/code-scale.e2e.test.ts` |
-| T-299 | renderPluginRail 的原 JSDoc 迁位 | 丙 | Codex 开发线2；二审线5 | #1671 @6e4cb0ac7；原四项文本验证沿用，增量二审通过；待准确头CI/Full | 正常合main含T355；full=true按6548760051 | `apps/workbench/src/immersive-shell.ts` |
+| T-299 | renderPluginRail 的原 JSDoc 迁位 | 丙 | Codex 开发线2；本轮验证线1/二审线5 | #1671 @afbcdaad6已普通推送；匹配构建与增量门禁通过 | full=true；原四项文本结论保来源，增量审验/新CI待结 | `apps/workbench/src/immersive-shell.ts` |
 | T-300 | 孤儿连接更换令牌、移除、重开持久化浏览器证据 | 乙 | Codex 开发线2；验证线5/二审线3 | #1598已合77f4fd172；patch-id同，审计6550081671；自有临时树已清 | full=false；原B导航UNKNOWN保留 | `tests/connector-orphan-connection.e2e.test.ts` |
 | T-301 | ci-timeouts 的作业时限读法认得行尾注释（防腐清理，T-287 二审建议；短任务书） | 丙 | B | 197 | — | `tests/ci-timeouts.test.ts` |
 | T-302 | 文档来源导入从Home集成登记取连接 | 乙 | Codex 统筹；原独立审验线 | 已合 #1605 → ddac3a308；patch-id核同 | full=true，准确Full41234302181成功；自有树/分支已清理 | 已释放 |
@@ -285,9 +285,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-342 | 两条弱断言收紧：安装插件关闭顺序数组 deepEqual；去掉 RAC-2420 与已有用例重复的用例 | 丙 | Codex 统筹 | 已合 #1651 c95f6f305 | — | `tests/installed-plugin-host.test.ts`、`tests/security-invariants-oauth-shared-refresh.test.ts` |
 | T-343 | 两处文档状态句改成现状：bl588 状态句的 BL-739、privileges PG-026-S1 行里已删的维护脚本 | 丙 | B | 已合（10-31，#1650 → `9e7d0533b`） | — | `specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`、`specs/repository-anti-corruption/privileges.md` |
 | T-344 | server 包两处收口：加入邀请只接受 64 位十六进制；补 WAL 下错版本的基线用例 | 乙 | B | 已合（10-31，#1657 → `bc986379c`） | — | `server/src/im/writes.ts`、`tests/server-database-baseline.test.ts` |
-| T-345 | Feed新Home内容台账完整性与旧维护文书收口 | 乙 | Codex 开发线2；一审线1/验证线5/二审线3 | #1663 @ec0cc0a8a；增量三阶段通过；待准确头CI/Full | 原63例沿用，新组合作者runtime54/54；真实Home未验 | Feed实现与FI-C-07文书 |
+| T-345 | Feed新Home内容台账完整性与旧维护文书收口 | 乙 | Codex 开发线3；一审线1/本轮验证线4/二审线3 | #1663 @4e6055767已普通推送；7blob及patch保持 | full=true；原63/作者54保来源；增量审验/新CI待结 | Feed实现与FI-C-07文书 |
 | T-346 | Home SQLite只读预检，错版本文件不变 | 乙 | Codex 原开发线；验证线4；二审线1 | #1664 @b4f7e598e；一审/验证/二审通过，待Full | 新十一完整文件B/H各116/116；旧223根因UNKNOWN保留 | storage实现与相关测试 |
-| T-347 | 密钥库坏封条读写与快照一致拒绝（RAC-2721/2722） | 乙 | Codex 开发线4；一审线1诊断 | #1665 @a8608b3e6；Full41240351080失败，根6549753855已核 | 13成功/1失败/2 matrix取消；RAC1490 main也首败，等T377修复，不盲重跑 | `packages/storage/src/adapters/file-secret-store.ts`、`tests/secret-store-format.test.ts` |
+| T-347 | 密钥库坏封条读写与快照一致拒绝（RAC-2721/2722） | 乙 | Codex 开发线3；独立核收线2/二审线5 | #1665 @170777c2a；正常合M、增量审验已核并推送；新CI待结 | full=true；旧10/10沿用，旧Full失败/上游UNKNOWN保留 | `packages/storage/src/adapters/file-secret-store.ts`、`tests/secret-store-format.test.ts` |
 | T-348 | docs/system 等七处小修：ARCHITECTURE／examples／GLOSSARY／roadmap 旧说法，PACKAGE-BOUNDARIES、ci.yml、PARALLEL-DEVELOPMENT 的“约 5 分钟”“每个同时只跑 2 个”“共享核心名单” | 丙 | B | 1.4 | — | `docs/system/*.md`、`specs/post-anticorruption-roadmap/spec.md`、`.github/workflows/ci.yml`（只注释） |
 | T-349 | 四处文档小修：功能盘点 :452、pg031 :29、清理报告“不回改本表”、CHECKLIST／spec N-05／BACKLOG 归属列 | 丙 | 池 | 1.9 | — | `docs/product-operations/research/2026-10-18-功能盘点.md`、`specs/repository-anti-corruption/slices/pg031-goals-imports.md`、`docs/reviews/cleanup-audit-2026-10-20.md` |
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
@@ -302,7 +302,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-359 | 搜索读取器被弃错误不外带details/cause | 乙 | Codex 统筹 | 已合 #1690 → `edb257e0b`；patch-id核同 | — | 已释放 |
 | T-360 | 当前默认指令下的 Pages 材料预算，经 Host 真实校验与模型桩调用次数证明边界 | 乙 | Codex 统筹 | 已合 #1691 378687f6a | — | `tests/pages-materials-prompt-budget.test.ts` |
 | T-361 | 两处测试小补：RAC-2446 钉发出数据的键只有 question／pieces；RAC-2706 注释改准 | 丙 | B | 已合（10-31，#1689 → `f8de25546`；Codex 统筹） | — | `tests/security-invariants-knowledge-lifecycle.test.ts`、`tests/artifact-links.test.ts` |
-| T-362 | 插件设置地址参数声明与外壳透传（合同） | 乙 | Codex 开发线3；一审线1/验证线5/二审线4 | #1694 @8914e7034；三必修关闭，独立4完整50/50已核6549699377 | full=true；准确Verify绿，SI/Full另结；Full排期等T377 | 原合同/Workbench/测试；不采#1672/#1680未合代码 |
+| T-362 | 插件设置地址参数声明与外壳透传（合同） | 乙 | Codex 开发线3；一审线1/验证线5/二审线4 | #1694旧8914e7034冻结；现获唯一资源窗口，正常同步实际M3fd857792 | full=true；只核真实增量/实际served；原50/147/四M保来源 | 原合同/Workbench/测试；不采#1672/#1680未合代码 |
 | T-363 | BACKLOG 七行（BL-090／092／094／095／096／099／114）对着 main 核一遍，做完的删行，没做完的只写没做的 | 丙 | A | 3.0 | — | `specs/BACKLOG.md`（这七行） |
 | T-364 | artifact路由例外必须有仍开放的BACKLOG出处（RAC-2746～2748） | 甲 | Codex 开发线4 | 已合 #1697 → `b0bb12d61`；patch-id核同；自有树/分支已清理 | — | 已释放 |
 | T-365 | 删除项目复核父目录遇 ENOENT 跳过，EACCES 仍回滚（T-318 二审④⑤测试部分；RAC-2749～2751） | 丙 | Codex 待分配 | WAIT，不计待领 | 唯一测试被 #1101 锁；不碰保护分支 | `tests/project-rows-deletion.test.ts` |
@@ -314,11 +314,12 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-370 | W6-04可比度量方法与中间点（RAC-2767～2770） | 丙 | Codex 开发线3；验证线1/二审线1 | 修订2独立数据核收和二审通过；持久材料见evidence/T-370/ | 仅冻结B/M中间点，最终W6-04单头仍未完成 | 自有测量脚本/证据；共享spec根串行 |
 | T-371 | PG-111 Feed合同采用文档核收（RAC-2771～2774） | 丙 | Codex 开发线1 | 已合 #1698 → `194431901`；patch-id核同 | 共享PG-111行由根串行核收 | slice锁已释放 |
 | T-372 | PG-077/078成果库采用与A7/A8旧等待链文档核收（RAC-2775～2778） | 丙 | Codex 开发线4 | 已合 #1699 → `717d14f2a`；patch-id核同；自有树/分支已清理 | 共享三行由根串行；真实Home验收另账 | 两slice锁已释放 |
-| T-373 | 首页聚合双阶段code-only诊断（RAC-2779～2782；full=true） | 乙 | Codex 开发线1；一审线3/验证线3/二审线4 | #1700 @ba1a7aaed；三阶段/Verify/两片SI通过，已ready；待Full | T319已合；旧作者与新独立closing变异分源 | `apps/local-host/src/home-aggregate.ts`、`tests/home-aggregate.test.ts` |
+| T-373 | 首页聚合双阶段code-only诊断（RAC-2779～2782；full=true） | 乙 | Codex 开发线4；一审线3/验证线3/二审线4 | #1700 @c52dcc200已普通推送；两blob及patch保持 | full=true；原独立7与负控保来源，增量审验/新CI待结 | `apps/local-host/src/home-aggregate.ts`、`tests/home-aggregate.test.ts` |
 | T-374 | 真实Host事项经项目Catalog的listed/bare回归（RAC-2783～2786） | 丙 | Codex 开发线1 | #1703已合973063c79；patch-id同，审计6549696515 | full=false；自有树/本地分支已清，锁释放 | 仅 `tests/home-event-actions.test.ts` |
 | T-377 | 主区失败重试身份与加载时序加急（RAC-2794～2797） | 乙 | Codex 开发线4；一审线1/验证线5/二审线5 | #1707已实际采用8a46c2cb7；原H95ea9f1f6与采用patch-id同832459dc | full=true；准确Verify、独立9/9、二审、SI及Full41253219144的16片/聚合通过；原67/A-B与Pages首败UNKNOWN保持来源 | 自有临时树/本地分支已清；原件保留，源码锁释放 |
 | T-378 | W6-03历史扩展步骤与本次Full授权两文档澄清（RAC-2798～2799） | 甲 | Codex 开发线3；验证线1；二审线4 | #1708已采用main b6f92222f；准确adf31b2a2的审验/CI齐，patch-id与整树同，合入6550884059 | full=false；原通用Full规则不改，W6动态/RAC11不签完成 | EXTENSION-POINTS §3.1；PARALLEL本次覆盖说明/短引用；根显式分段交接，保留#1654 §3.5和#1673长段 |
-| T-379 | iframe内全局搜索快捷键（RAC-2800～2803） | 甲 | Codex 开发线4；验证线3/二审线4 | 本地ea67075d1冻结；作者先红有效、两完整7/7及README188/188，根核原件 | full=true；独立验证计划/二审进行，最终产物及CI未签；资源窗T208→T362→本单→T065 | 两生产/两浏览器文件见tasks/T-379.md；README/S-30根串行，+179/+360B未冻结许可 |
+| T-379 | iframe内全局搜索快捷键（RAC-2800～2803） | 甲 | Codex 开发线4；验证线3/二审线4 | 本地ea67075d1冻结；独立两完整7/7及Todo/嵌套Issue原生K/F实操已核，二审无必修 | full=true；资源/共享文档/最终CI未结；运行中xterm未验；资源窗T208→T362→本单→T065 | 两生产/两浏览器文件见tasks/T-379.md；README/S-30根串行，+179/+360B未冻结许可 |
+| T-380 | 右分屏Goals首页可见状态接线修复（RAC-2804～2806） | 甲 | Codex 开发线1；验证线4/二审线1 | 已接受书审两修订，冻结B3fd857792；先动态诊断后范围内最小修复 | full=true；源码与真实验证可继续，最终资源窗口另交；不签W6整体 | 客户端tab-workspace/panes/plugins、frame-container、initialization、editing-graph；必要Goals momentum；原三份标签浏览器文件择实际范围 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
@@ -433,3 +434,9 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 00:57Z：T377已核无占用并正常清理自有树与本地分支；T379实际四文件候选根已核diff/原生回执/作者红绿，独立验证线3先出最小计划、二审线4只读审；开发线4已接T065准确main最小同步，6551433802留审计，四writer不增员。资源窗口T208→T362→T379→T065；T065先匹配构建/实测但不抢账本冻结。其余后继Full的必要同步由补充线只读核最小差集，不重演旧有效整批。
 
 2026-11-01 01:03Z：根核收[T379独立计划](plans/T379/INDEPENDENT-PLAN.md)并授权复用准确H产物、两完整文件及一次无模型实操；[候选二审](plans/T379/CANDIDATE-SECOND.md)源码/测试无必修，资源/共享文档/最终CI仍未结。T208新M实际images.js19877→19897已由根6551488553核准准确许可，开发线2收最终门禁。T116 PR1a新7977190e1的独立验证线5/二审线5分别核金样实际增量。Functions管理权A/B已按用户产品取舍规则弹窗，等待明确选择，通用接线准备继续；未发grant。
+
+2026-11-01 01:28Z：T208新e51457d57、T116 PR1a新7977190e1、T143新420e6c7c8、T347新170777c2a均已由根普通推送并核收增量审验，PR正文保留原失败/原头来源。T208准确Verify通过且已按§8入队，未提前扣账；T116 Full41260457165与T143新Full已排，最多两份，适用SI/Full原件待结。T148当前正常同步计划已核并交开发线1，desktop-tui增量优先核新组合CI整文件。T299/373/345分别由开发线2/4/3在独立树做无语义增量的最小合流，不重演旧批次。
+
+2026-11-01 01:28Z：T379独立7/7及覆盖路径真实K/F实操经根和独立二审核收，仍待资源与最终组合；W6场景5实际执行部分通过，右分屏Goals组头首页空白首败保留，根因未动态闭合，窄修复候选T380起草中。已核候选运行文件/原e2e与全部23个open PR无文件交集，PR2未来接续须串行；未把迁移计划当修复。T121只读同步PLAN正独立核父锁/资源与真实declarer差集，未实施；Functions A/B明确用户WAIT保持。
+
+2026-11-01 01:44Z：T208于01:30:14Z实际采用main3fd857792，完整树/patch-id相同，已交T362开发线3准确资源窗口；T379→T065次序保持。T148 b35298d08、T299 afbcdaad6、T345 4e6055767、T373 c52dcc200四新候选已由根先核原远端/全部旧CI终态，再各自fetch+secrets后普通推送，PR当前证据与历史来源已分开。各份匹配构建、health/boundary/48资源零增量已核，独立增量审验与准确新CI/Full仍结算中。

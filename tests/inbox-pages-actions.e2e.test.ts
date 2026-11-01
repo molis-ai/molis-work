@@ -19,6 +19,7 @@ for (const width of [1440, 390]) {
     });
     if (!browser) return;
     const child=await pluginFrameBrowser(t,browser,"pages");
+    const inbox=await pluginFrameBrowser(t,browser,"inbox");
     const { store, command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, homeDirectory } = browser;
     const projectId = browser.projectId!;
     const feed = createLocalFeedApplication(store.db);
@@ -34,26 +35,26 @@ for (const width of [1440, 390]) {
         await click('[data-plugin-strip] [data-plugin-id=inbox]');
       }
       await waitFor("document.body.dataset.desktopSurface === 'inbox'");
-      await click('[data-inbox-compose-open=""]');
-      await waitFor("document.querySelector('[data-inbox-compose]').open");
+      await inbox.click('[data-inbox-compose-open=""]');
+      await inbox.waitFor("document.querySelector('[data-inbox-compose]').open");
     };
     await openInbox();
-    await click(`[data-inbox-compose] input[name=entry_id][value="${entry.entry_id}"]`);
-    await evaluate(`(() => { const form = document.querySelector('[data-inbox-compose-form]'); form.elements.title.value = '研究观察草稿'; form.elements.instructions.value = '区分摘要观察和未核验信息，保留材料边界'; form.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-    await click('[data-inbox-compose-submit]');
+    await inbox.click(`[data-inbox-compose] input[name=entry_id][value="${entry.entry_id}"]`);
+    await inbox.evaluate(`(() => { const form = document.querySelector('[data-inbox-compose-form]'); form.elements.title.value = '研究观察草稿'; form.elements.instructions.value = '区分摘要观察和未核验信息，保留材料边界'; form.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await inbox.click('[data-inbox-compose-submit]');
     // W5-01-SHM-01: Pages asks the model through the Runtime, which shows its public failure and keeps the injected provider message private.
-    await waitFor("document.querySelector('[data-inbox-compose-status]').textContent.includes('模型请求失败，请重试')");
-    assert.equal(await evaluate("document.querySelector('[data-inbox-compose-status]').textContent.includes('测试模型暂时不可用')"), false);
+    await inbox.waitFor("document.querySelector('[data-inbox-compose-status]').textContent.includes('模型请求失败，请重试')");
+    assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose-status]').textContent.includes('测试模型暂时不可用')"), false);
     const pages = openPagesStore(homeDirectory);
     try {
       const failed = pages.generations(projectId!)[0]!;
       assert.equal(failed.status, "failed"); assert.equal(failed.error, "模型请求失败，请重试"); assert.equal(failed.inputs[0]!.item_id, item.item_id); assert.equal(pages.list(projectId!).length, 0);
       await reloadPage();
       await openInbox();
-      await waitFor("document.querySelector('[data-inbox-compose-results]').textContent.includes('恢复处理')");
-      await click('[data-inbox-compose-results] .inbox-compose-result button');
-      assert.equal(await evaluate("document.querySelector('[data-inbox-compose-form]').elements.title.value"), "研究观察草稿");
-      await click('[data-inbox-compose-submit]');
+      await inbox.waitFor("document.querySelector('[data-inbox-compose-results]').textContent.includes('恢复处理')");
+      await inbox.click('[data-inbox-compose-results] .inbox-compose-result button');
+      assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose-form]').elements.title.value"), "研究观察草稿");
+      await inbox.click('[data-inbox-compose-submit]');
       await child.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('全文仍待核对')", 12_000);
       assert.equal(calls, 2);
       const record = pages.generation(projectId!, failed.request_id)!;

@@ -18,7 +18,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
     : [...document.querySelectorAll('[data-work-surface="' + plugin + '"]')]
       .find((node) => !node.closest("[data-goal-canvas-shell]")) || null;
-  const topLevelSurface = plugin => { const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface; };
+  const topLevelSurface = plugin => { const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface, "restore"); return surface; };
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
     const row = ((spec) => spec && [...document.querySelectorAll(spec[1])].find((el) => el.dataset[spec[2]] === itemId))(RECORD_ROWS.find(([id]) => id === plugin));
@@ -28,6 +28,13 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (!surface) return;
     const last = lastSelection.get(surface), now = Date.now();
     if (last && last.itemId === itemId && last.view === view && intent === "restore" && now - last.at < 250 && (itemId || surface.getAttribute("data-expanded") !== "true")) return;
+    const preview = surface.querySelector(':scope > [data-own-surface-preview]:not([hidden])');
+    if (preview && intent === "restore" && surface.dataset.previewView === (view || "")) {
+      const pane = paneById(surface.closest('[data-tab-pane]')?.dataset.tabPane) || (embedded ? state.panes[0] : null);
+      const tab = pane && (pane.tabs.find(tab => tab.id === pane.activeTabId) || pane.tabs.find(tab => tab.kind === "plugin" && tab.plugin === pane.viewPlugin));
+      if (tab?.id === surface.dataset.previewTab) { preview.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { view, intent } })); return; }
+    }
+    if (preview) { preview.hidden = true; delete surface.dataset.previewTab; delete surface.dataset.previewView; const frame = surface.querySelector(':scope > iframe[data-plugin-frame]'); if (frame) frame.hidden = false; }
     lastSelection.set(surface, { itemId, view, at: now });
     surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId, view, intent, panel } }));
   };
@@ -78,6 +85,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const pane = ops.focused(state);
     apply();
     persist();
+    host.prepareSurface?.(findTopLevelSurface(plugin), "open");
     if (typeof view === "string") selectPluginView(pane, plugin, { id: view, panel, intent: "open" });
   };
   const openPluginRecord = (plugin, itemId) => {
@@ -170,6 +178,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
     apply();
     persist();
+    host.prepareSurface?.(findTopLevelSurface(plugin), "open");
   };
   // An item (or a plugin's own view) in the pane beside this one; a narrow window has no room, so it opens in place.
   const openBeside = (plugin, itemId, title) => {
@@ -198,38 +207,59 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   // The mount names its owner and surface. Layout remains the only owner of pane/tab selection.
   const ownSurfaces = (origin) => origin.dataset.pluginOwner && origin.dataset.pluginContribution
     ? [...document.querySelectorAll('[data-plugin-owner][data-plugin-contribution]')].filter(node => node.dataset.pluginOwner === origin.dataset.pluginOwner && node.dataset.pluginContribution === origin.dataset.pluginContribution) : [];
-  const invalidateLocal = (origin) => ownSurfaces(origin).forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } })));
+  const invalidateLocal = () => [...document.querySelectorAll('[data-plugin-contribution][data-ui-client-state="ready"]')].forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } })));
   const invalidateView = (origin, relay = true) => {
     if (!origin?.isConnected) return;
     invalidateLocal(origin);
     if (!relay) return;
     if (embedded) { notifyParent("workbench-pane-invalidate"); return; }
-    const plugin = origin.dataset.pluginClient;
     panesEl.querySelectorAll('iframe[data-pane-tab]').forEach(frame => {
-      const pane = paneById(frame.dataset.paneOwner), tab = pane?.tabs.find(tab => tab.id === frame.dataset.paneTab);
-      if (tab?.plugin === plugin || frame.dataset.paneKey === "plugin:" + plugin) frame.contentWindow?.postMessage({ type: "workbench-view-invalidate" }, location.origin);
+      frame.contentWindow?.postMessage({ type: "workbench-view-invalidate" }, location.origin);
     });
+  };
+  const projectOwnSurface = (pane, plugin, selection, tab) => {
+    const base = topLevelSurface(plugin); if (!base) return false;
+    const candidates = ownSurfaces(base).filter(node => node.dataset.pluginSurface === (selection.surface || base.dataset.pluginSurface)
+      && node.dataset.pluginSlot === "workbench.main" && (!node.closest('[data-tab-pane]') || node.closest('[data-tab-pane]').dataset.tabPane === pane.id));
+    if (candidates.length !== 1) return false;
+    const target = candidates[0];
+    base.querySelectorAll(':scope > [data-own-surface-preview]').forEach(node => { node.hidden = node !== target; });
+    const frame = base.querySelector(':scope > iframe[data-plugin-frame]');
+    if (target !== base) {
+      if (target.parentElement !== base) base.append(target);
+      target.dataset.ownSurfacePreview = "true"; target.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:1"; target.hidden = false;
+      base.dataset.previewTab = tab.id; base.dataset.previewView = selection.id || ""; if (frame) frame.hidden = true;
+      host.prepareSurface?.(target, selection.intent === "restore" ? "restore" : "open");
+    } else { delete base.dataset.previewTab; delete base.dataset.previewView; if (frame) frame.hidden = false; }
+    target.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { ...(target === base ? { itemId: tab.kind === "item" ? tab.itemId : null } : {}), view: selection.id, panel: selection.panel, intent: selection.intent || "open" } }));
+    return true;
   };
   const selectPluginView = (pane, plugin, selection) => {
     const tab = pane.tabs.find(tab => tab.id === pane.activeTabId) || pane.tabs.find(tab => tab.kind === "plugin" && tab.plugin === plugin);
-    if (!tab || tab.plugin !== plugin || !writeView(pane.id, selection.id, tab.id)) return false;
-    const target = topLevelSurface(plugin), frame = panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(paneFrameKey(pane)) + '"]');
+    if (!tab || tab.plugin !== plugin) return false;
+    // An in-place preview changes this tab's view, without reopening its directory or restoring its main page.
+    if (selection.intent === "select") { if (!ops.writeView(state, pane.id, selection.id, tab.id)) return false; persist(); }
+    else if (!writeView(pane.id, selection.id, tab.id)) return false;
+    const frame = panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(paneFrameKey(pane)) + '"]');
     if (frame) {
-      const project = () => { if (frame.isConnected && paneById(pane.id) === pane && (pane.tabs.find(item => item.id === pane.activeTabId) || pane.tabs.find(item => item.kind === "plugin" && item.plugin === pane.viewPlugin)) === tab) frame.contentWindow?.postMessage({ type: "workbench-view", view: selection.id, panel: selection.panel, intent: selection.intent || "open" }, location.origin); };
+      const project = () => { if (frame.isConnected && paneById(pane.id) === pane && (pane.tabs.find(item => item.id === pane.activeTabId) || pane.tabs.find(item => item.kind === "plugin" && item.plugin === pane.viewPlugin)) === tab) frame.contentWindow?.postMessage({ type: "workbench-view", view: selection.id, surface: selection.surface, panel: selection.panel, intent: selection.intent || "open" }, location.origin); };
       if (frame.contentDocument?.body?.hasAttribute("data-pane-embedded")) project(); else frame.addEventListener("load", project, { once: true });
-    } else selectItem(target, tab.kind === "item" ? tab.itemId : null, selection.id, selection.intent || "open", selection.panel);
+    } else return projectOwnSurface(pane, plugin, selection, tab);
     return true;
   };
   const openView = (origin, selection) => {
     if (!origin?.isConnected || origin.closest('[hidden]')) return false;
-    const target = ownSurfaces(origin).find(node => node.dataset.pluginSurface === selection.surface && node.dataset.pluginSlot === "workbench.main");
-    if (!target) return false;
+    const targets = ownSurfaces(origin).filter(node => node.dataset.pluginSurface === selection.surface && node.dataset.pluginSlot === "workbench.main");
+    if (!targets.length) return false;
     const pane = embedded ? state.panes[0] : paneById(origin.closest('[data-tab-pane]')?.dataset.tabPane) || ops.focused(state);
     if (!pane) return false;
-    const plugin = target.dataset.workSurface;
-    if (embedded && (selection.intent !== "select" || ops.shownPlugin(pane) !== plugin)) { notifyParent("workbench-pane-open", { plugin, view: selection.id, panel: selection.panel, viewIntent: selection.intent || "open" }); return true; }
-    // A select previews the declared default page; it never creates an object tab.
-    if (selection.intent !== "select" || ops.shownPlugin(pane) !== plugin) { state.focusedPaneId = pane.id; ops.openPlugin(state, plugin); }
+    const plugin = origin.dataset.pluginClient;
+    const active = pane.tabs.find(tab => tab.id === pane.activeTabId);
+    if (selection.intent === "select" && ops.shownPlugin(pane) !== plugin) return false;
+    const navigate = ops.shownPlugin(pane) !== plugin || selection.intent !== "select" && active?.kind === "item";
+    if (embedded && navigate) { notifyParent("workbench-pane-open", { plugin, view: selection.id, panel: selection.panel, surface: selection.surface, viewIntent: selection.intent || "open" }); return true; }
+    // A selection already in this owner's page keeps its actual pane, even if focus moved meanwhile.
+    if (navigate) { state.focusedPaneId = pane.id; ops.openPlugin(state, plugin); }
     const result = selectPluginView(pane, plugin, selection);
     if (result && embedded) notifyParent("workbench-pane-view", { view: selection.id });
     return result;

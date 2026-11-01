@@ -4,6 +4,11 @@ import type { FeedPage } from "./factory.js";
 export function feedStage(page: FeedPage) {
   const { host, q, all } = page, L = host.translate;
   let selected = "", quick = "all", detailRequest: AbortController | null = null;
+  const query = new URLSearchParams(host.search), preferences = "feed:filters:" + (host.mount?.surface || "workbench") + ":" + (query.get("workbenchPane") || "main") + ":" + (query.get("paneItem") || "default");
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(preferences) || "null") as { quick?: string; fields?: Record<string, string> } | null;
+    if (saved) { quick = ["unread", "saved"].includes(saved.quick || "") ? saved.quick! : "all"; for (const [name, text] of Object.entries(saved.fields || {})) { const field = q<HTMLInputElement | HTMLSelectElement>("[data-feed-" + name + "]"); if (field && typeof text === "string") field.value = text; } }
+  } catch { /* A missing preference never blocks the owner-rendered page. */ }
   const value = (name: string, fallback: string) => q<HTMLInputElement | HTMLSelectElement>("[data-feed-" + name + "]")?.value || fallback;
   const expanded = (open: boolean) => { host.root.dataset.expanded = String(open); const area = q("[data-feed-stage-workspace]"); if (area) area.hidden = !open; };
   const collapse = () => { selected = ""; detailRequest?.abort(); expanded(false); all("[data-feed-entry-detail], [data-feed-detail]").forEach(node => node.hidden = true); all("[data-feed-entry-id]").forEach(node => { node.classList.remove("is-selected", "is-open"); node.setAttribute("aria-selected", "false"); node.setAttribute("aria-expanded", "false"); }); host.root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.feed", surface_title: "Feed" })); };
@@ -29,7 +34,7 @@ export function feedStage(page: FeedPage) {
     if (!detail && persisted && slot) {
       placeholder(L("正在载入 Item…"));
       try {
-        const html = await page.text("/api/stage/feed/objects/" + encodeURIComponent(itemId) + "?surface=persisted-detail", controller.signal); check();
+        const html = await host.view.readDocument({ object: { id: itemId, surface: "persisted-detail" }, signal: AbortSignal.any([controller.signal, page.signal()]) }); check();
         if (selected !== id || detailRequest !== controller) return;
         detail = new DOMParser().parseFromString(html, "text/html").querySelector('[data-feed-detail="' + CSS.escape(id) + '"]');
         if (!detail) throw new Error(L("Item 详情响应不完整")); slot.replaceChildren(detail); publish();
@@ -63,7 +68,11 @@ export function feedStage(page: FeedPage) {
     const first = visible.find(row => row.dataset.feedEntryId === selected) || visible[0]; rows.forEach(row => row.tabIndex = row === first ? 0 : -1);
     all("[data-feed-quick]").forEach(button => { button.classList.toggle("is-current", button.dataset.feedQuick === quick); button.setAttribute("aria-pressed", String(button.dataset.feedQuick === quick)); });
     const values: Record<string, string> = { source, type: provider, time, status, sort };
-    all("[data-feed-filter-option]").forEach(option => option.setAttribute("aria-checked", String(values[option.dataset.feedFilterOption!] === option.dataset.feedFilterValue)));
+    all("[data-feed-filter-option]").forEach(option => { const active = values[option.dataset.feedFilterOption!] === option.dataset.feedFilterValue; option.setAttribute("aria-checked", String(active)); option.tabIndex = active ? 0 : -1; });
+    const activeCount = Number(source !== "all") + Number(provider !== "all") + Number(time !== "all") + Number(status !== "active") + Number(sort !== "newest"), badge = q("[data-feed-filter-badge]"), reset = q<HTMLButtonElement>("[data-feed-filter-reset]");
+    if (badge) { badge.textContent = String(activeCount); badge.hidden = activeCount === 0; } if (reset) reset.disabled = activeCount === 0;
+    q("[data-feed-filter-trigger]")?.classList.toggle("is-active", activeCount > 0);
+    if (q("[data-feed-list]") && host.scope.alive && host.scope.visible) try { sessionStorage.setItem(preferences, JSON.stringify({ quick, fields: { search: value("search", ""), "source-filter": source, "type-filter": provider, "time-filter": time, "status-filter": status, sort } })); } catch { /* Keep the current controls even when storage is unavailable. */ }
   };
   page.listen("input", event => { if (event.target instanceof Element && event.target.matches("[data-feed-search]")) filter(); });
   page.listen("change", event => { if (event.target instanceof Element && event.target.matches("[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]")) filter(); });
@@ -78,16 +87,25 @@ export function feedStage(page: FeedPage) {
     if (target.closest("[data-feed-filter-reset],[data-feed-clear-filters]")) { quick = "all"; for (const kind of ["source", "type", "time", "status", "sort", "search"]) { const control = q<HTMLInputElement | HTMLSelectElement>("[data-feed-" + (["source", "type", "time", "status"].includes(kind) ? kind + "-filter" : kind) + "]"); if (control) control.value = kind === "sort" ? "newest" : kind === "status" ? "active" : kind === "search" ? "" : "all"; } filter(); return; }
     const action = target.closest<HTMLButtonElement>("[data-feed-action]");
     if (action) {
-      event.preventDefault(); if (action.disabled) return; const check = page.guard(); action.disabled = true;
+      event.preventDefault(); if (action.disabled) return; const check = page.guard(); action.disabled = true; const release = page.pending(() => { if (action.isConnected) action.disabled = false; });
       try { const result = await page.api<{ goal_id?: string }>("/items/" + encodeURIComponent(action.dataset.feedItemId!) + "/" + action.dataset.feedAction, "POST", { expected_revision: Number(action.dataset.feedRevision) || undefined, ...(action.dataset.feedRestoreTarget ? { restore_target: action.dataset.feedRestoreTarget } : {}) }); check(); host.invalidateView(); if (result.goal_id) host.openItem("goals", result.goal_id); else await page.refresh(); }
       catch (error) { try { check(); page.error(error, q("[data-feed-action-status]", action.closest("[data-feed-detail]") || host.root)); } catch { /* Old selection. */ } }
-      finally { try { check(); action.disabled = false; } catch { /* Old selection. */ } } return;
+      finally { try { check(); release(); } catch { /* Old selection. */ } } return;
     }
     const row = target.closest<HTMLElement>("[data-feed-entry-id]"); if (!row) return;
     const id = row.dataset.feedEntryId!;
     if (host.mount?.target_slot_id === "workbench.directory") host.openItem("feed", id, row.querySelector("strong")?.textContent || undefined);
     else await select(id, true);
   };
+  page.listen("keydown", event => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (event.key === "Escape") { const panel = q("[data-feed-filter-panel]"); if (panel && !panel.hidden) { panel.hidden = true; q("[data-feed-filter-trigger]")?.focus(); event.preventDefault(); } return; }
+    const row = target?.closest<HTMLElement>("[data-feed-entry-id]");
+    if (!row || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const rows = all("[data-feed-entry-id]").filter(node => !node.hidden && !node.closest<HTMLElement>("[data-feed-item-wrap]")?.hidden), index = rows.indexOf(row);
+    const next = event.key === "Home" ? rows[0] : event.key === "End" ? rows.at(-1) : rows[index + (event.key === "ArrowDown" ? 1 : -1)];
+    if (next) { event.preventDefault(); next.focus(); void select(next.dataset.feedEntryId!, true).catch(error => page.error(error)); }
+  });
   host.scope.own(() => detailRequest?.abort());
   return { select, collapse, filter, click, scroll: () => q(".feed-stage-tree")?.scrollTop ?? 0, restoreScroll: (top: number) => { const list = q(".feed-stage-tree"); if (list) list.scrollTop = top; if (selected) void select(selected).catch(error => page.error(error)); } };
 }

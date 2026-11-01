@@ -172,6 +172,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     frameContainer = (${FRAME_CONTAINER_FACTORY_SCRIPT})({
       translate: L, showToast,
+      frameAssets: () => deferredClients.frameAssets(),
+      visible: () => boardLifetime?.visible === true,
       visibleGoals: () => visibleGoals(),
       getSurface: () => activeDesktopSurface,
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -194,7 +196,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     });
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
-        prepareSurface: surface => deferredClients?.prepare(surface),
+        prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
         showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,

@@ -39,7 +39,7 @@ Feed 创建 Attention 时，通过注入的 `createInboxJudgmentTrigger`（宿�
 
 当前仍有迁移边界：旧 Functions 编辑器的场景选择、完整系统能力页面、其他直接创建 Attention 的业务方，以及中断后尚未执行的自动事件恢复待迁移。不能把本路径通过视为插件全量完成。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。
 
 文稿生成通过插件的 `pages.ts` 解析 Inbox 材料，再调用 Pages 注册动作；Host 只注入同作用域动作客户端与材料读取端口。`required_actions` 固定所需 Pages 能力的版本和提供方，目录自动反映下游权限、模型配置及文档存储状态。移除 Inbox 自己重复判断模型配置的逻辑。原请求、材料快照与文稿结果仍由 Pages 保存，失败可恢复，成功重试保留后续手工修改；生成不会自动完成 Inbox 事项。
 
@@ -63,7 +63,7 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - 负责：需要介入的事项列表、详情与处置（完成、忽略）。
 - 不负责：Feed 与 Goal 的事实和 Store、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-inbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不直接读 Feed 或 Goals 表，不依赖 Feed、Goals、Functions 插件的实现。
   - 失败都是 `ActionError`：码是 `inbox.<原因>`（`inboxErrors`，声明在合同 `modules/attention-resumption`，因为 Feed 插件找不到 Inbox 事项时也用它）；状态只由 kind 推出，本插件没有错误类和状态表。

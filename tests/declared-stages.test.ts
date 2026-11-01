@@ -74,6 +74,8 @@ const stages = (html: string, surface: string) => (html.match(new RegExp(`\\sdat
 
 /** One stage page's markup in the owner document, up to the next stage page. */
 function stage(html: string, surface: string): string {
+  const own = pluginDocuments(html).find(body => body.includes('data-work-surface="' + surface + '"'));
+  if (own) return own;
   const start = html.indexOf(` data-work-surface="${surface}"`);
   assert.ok(start >= 0, `${surface} has a stage`);
   const next = html.indexOf(" data-work-surface=", start + 1);
@@ -133,8 +135,8 @@ test("W5-06 Feed and Inbox draw their stage from this page's view, not the share
     feed: { ...view.feed, feed_items: [item] },
     inbox_judgment: { name: "Pinned judgment", enabled: true, available: true, reason: null },
   } as MolisWorkWebView);
-  assert.match(pluginDocuments(stage(html, "feed")).join("\n"), /data-feed-item-id="stage-pin-item"/, "Feed's stage lists the view's feed items");
-  const inbox = pluginDocuments(stage(html, "inbox")).join("\n");
+  assert.match(stage(html, "feed"), /data-feed-item-id="stage-pin-item"/, "Feed's stage lists the view's feed items");
+  const inbox = stage(html, "inbox");
   assert.match(inbox, /data-inbox-functions/, "Inbox's stage reads the view's judgment");
   assert.match(inbox, /Pinned judgment/);
 });

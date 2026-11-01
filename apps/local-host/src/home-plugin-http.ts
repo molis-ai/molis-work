@@ -285,7 +285,7 @@ function homeViewModel(pluginId: string) {
  * stages do not draw it again.
  */
 export async function renderHomePluginStages(host?: HomePluginHost, options?: { project_id?: string; page_owner?: string; model(projectPluginId: string): unknown;
-  shown?: readonly string[]; views?: Readonly<Record<string, UiContribution | null>> }) {
+  shown?: readonly string[]; views?: Readonly<Record<string, UiContribution & { readonly producer?: string } | null>> }) {
   const html: string[] = [], overlays: string[] = [], panels: Record<string, string> = {};
   const surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [], unavailable: UnavailablePluginStage[] = [];
   let page: RenderedStagePage | undefined;
@@ -300,9 +300,10 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
   });
   const sideOnly = sideOpenedPlugins(registered);
-  const draw = (entry: (typeof registered)[number], view: UiContribution) => {
+  const draw = (entry: (typeof registered)[number], view: UiContribution & { readonly producer?: string }) => {
     const result = renderStagePage(view, options?.model(entry.project_plugin_id) ?? homeViewModel(entry.manifest.plugin_id), entry.project_plugin_id,
-      options?.page_owner === entry.manifest.plugin_id, request => view.render(request), { manifest: platform?.supervisor.manifest(entry.manifest.plugin_id) ?? entry.manifest, client: entry.workbench });
+      options?.page_owner === entry.manifest.plugin_id, request => view.render(request), { manifest: platform?.supervisor.manifest(entry.manifest.plugin_id) ?? entry.manifest, client: entry.workbench,
+        producer: view.producer ?? captureRuntimeStageOwner(platform, "home", entry)?.producer });
     if (result.page) page = result.page;
     if (result.html) html.push(result.html);
     if (result.panels) panels[entry.project_plugin_id] = result.panels;

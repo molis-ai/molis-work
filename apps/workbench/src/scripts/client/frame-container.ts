@@ -24,6 +24,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   let blockSeq = 1;
   let ignoreClick = false;
   let ready = false;
+  let assetServiceStarted = false;
+  let receivingKey = "", receivingVersion = 0;
   const enabled = () => document.body.dataset.boardView === "current" && Boolean(shell);
   const isFrameTabActive = () => enabled() && getSurface() === "goals" && !boardTab(curTab);
   const isKanbanTabActive = () => enabled() && getSurface() === "goals" && curTab === KANBAN_TAB;
@@ -72,12 +74,20 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const applySurface = () => {
     const onGoal = getSurface() === "goals";
     const showFrame = onGoal && !boardTab(curTab);
+    const receiving = showFrame ? curTab : "";
+    if (receivingKey !== receiving) { receivingKey = receiving; receivingVersion++; }
     shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
     if (tabRoot) tabRoot.hidden = false;
     surfaceEl.hidden = !showFrame;
     if (onGoal && !showFrame) shell.dataset.boardView = boardTab(curTab) ? curTab : LIST_TAB;
-    if (showFrame) drawFrame();
+    if (showFrame) {
+      drawFrame();
+      if (!assetServiceStarted) {
+        assetServiceStarted = true;
+        queueMicrotask(() => { void host.frameAssets().catch(() => { /* The explicit picker can retry the shared bridge. */ }); });
+      }
+    }
   };
   const setCamera = () => {
     if (boardTab(curTab)) return;
@@ -444,23 +454,36 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       state.textContent = button.disabled ? L("已添加") : "+";
       state.setAttribute("aria-hidden", "true");
       button.append(title, caption, state);
-      button.addEventListener("click", () => {
-        picker.close();
+      button.addEventListener("click", async event => {
+        if (asset.source && !event.isTrusted) return;
         const rect = canvasEl.getBoundingClientRect();
-        addBlock(asset, rect.left + rect.width / 2 - 70, rect.top + Math.min(rect.height / 2, 120));
+        const accept = captureAsset(rect.left + rect.width / 2 - 70, rect.top + Math.min(rect.height / 2, 120));
+        if (!accept) return;
+        button.disabled = true;
+        try {
+          const fresh = asset.source ? await (await host.frameAssets()).resolve(asset, pickerRead?.signal) : asset;
+          if (!fresh || !accept(fresh)) { button.remove(); return; }
+          picker.close();
+        } catch { button.remove(); return; }
         requestAnimationFrame(() => worldEl.lastElementChild?.focus({ preventScroll: true }));
       });
       pickerList.append(button);
     }
   };
-  surfaceEl.querySelectorAll("[data-frame-add-content]").forEach((button) => button.addEventListener("click", () => {
+  let pickerRead = null;
+  surfaceEl.querySelectorAll("[data-frame-add-content]").forEach((button) => button.addEventListener("click", async () => {
     if (!isFrameTabActive()) return;
+    pickerRead?.abort(); pickerRead = new AbortController();
+    const signal = pickerRead.signal, target = curTab, version = receivingVersion;
     pickerOpener = button;
     const assets = new Map();
     document.querySelectorAll("[data-frame-asset]").forEach((row) => {
       const asset = readAsset(row);
       if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
+    try { for (const asset of await (await host.frameAssets()).list(signal)) assets.set(asset.kind + ":" + asset.id, asset); }
+    catch { if (!signal.aborted) showToast(L("无法加载界面，请重试"), true); return; }
+    if (signal.aborted || !isFrameTabActive() || curTab !== target || version !== receivingVersion) return;
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";
     drawPicker(); picker.showModal();
@@ -468,7 +491,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   pickQuery.addEventListener("input", drawPicker);
   pickerKind.addEventListener("change", drawPicker);
   picker.querySelectorAll("[data-frame-picker-close]").forEach((button) => button.addEventListener("click", () => picker.close()));
-  picker.addEventListener("close", () => pickerOpener?.focus({ preventScroll: true }));
+  picker.addEventListener("close", () => { pickerRead?.abort(); pickerOpener?.focus({ preventScroll: true }); });
   canvasEl.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key) || !event.target.matches("[data-frame-block]")) return;
     event.preventDefault(); event.target.click();
@@ -480,6 +503,15 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (boardTab(curTab)) { rejectCanvas(); return true; }
     addBlock(asset, clientX, clientY);
     return true;
+  };
+  const captureAsset = (x, y) => {
+    const current = () => isFrameTabActive() && surfaceEl.checkVisibility({ visibilityProperty: true }) && host.visible?.() !== false;
+    if (!current()) return null;
+    const target = curTab, version = receivingVersion;
+    return asset => {
+      if (!current() || curTab !== target || version !== receivingVersion || !knownIds().has(target)) return false;
+      return routeAsset(asset, x, y);
+    };
   };
   const restore = () => {
     try {
@@ -562,6 +594,13 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     canvasEl.classList.remove("is-drop");
     const asset = readTransfer(event) || dragAsset;
     if (!asset) return;
+    if (asset.handle) {
+      if (!event.isTrusted) return;
+      const accept = captureAsset(event.clientX, event.clientY);
+      if (accept) void host.frameAssets().then(service => service.drag(asset)).then(fresh => { if (fresh) accept(fresh); }).catch(() => { /* An old source cannot add a block. */ });
+      return;
+    }
+    if (["feed", "inbox"].includes(asset.kind)) return;
     if (asset.kind === "goal") { rejectGoal(); return; }
     routeAsset(asset, event.clientX, event.clientY);
   });

@@ -12,8 +12,9 @@ export interface FeedPage {
   listen<K extends keyof HTMLElementEventMap>(type: K, handler: (event: HTMLElementEventMap[K]) => void): void;
   guard(): () => void;
   change(): void;
+  signal(): AbortSignal;
+  pending(cleanup: () => void): () => void;
   api<T = Record<string, unknown>>(path: string, method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", body?: unknown): Promise<T>;
-  text(path: string, signal?: AbortSignal): Promise<string>;
   selection: string;
   panel: string;
   refresh(): Promise<void>;
@@ -24,6 +25,7 @@ export interface FeedPage {
 /** Each declared surface has its own root, requests and selection; only the Host owns pane/tab state. */
 export function feedClient(host: FeedHost): void {
   let epoch = 0, reads = new AbortController();
+  const pending = new Set<() => void>();
   const { root, scope } = host;
   const page: FeedPage = {
     host, selection: "all", panel: "messages",
@@ -34,13 +36,12 @@ export function feedClient(host: FeedHost): void {
       const original = epoch;
       return () => { scope.assertCurrent(); if (!scope.visible || !root.isConnected || original !== epoch) throw new DOMException("View changed", "AbortError"); };
     },
-    change: () => { epoch++; reads.abort(); reads = new AbortController(); },
+    change: () => { epoch++; reads.abort(); for (const cleanup of [...pending]) cleanup(); reads = new AbortController(); },
+    signal: () => reads.signal,
+    pending: cleanup => { let alive = true; const finish = () => { if (!alive) return; alive = false; pending.delete(finish); cleanup(); }; pending.add(finish); return finish; },
     api: async <T>(path: string, method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE" = "GET", body?: unknown): Promise<T> => {
       const check = page.guard();
       const result = await molisWorkRequest<T>(host.pluginRoute(path), { method, body, scope, signal: reads.signal }); check(); return result;
-    },
-    text: async (path, signal) => {
-      const check = page.guard(); const result = await molisWorkRequest<string>(host.route(path), { as: "text", scope, signal: signal ? AbortSignal.any([signal, reads.signal]) : reads.signal }); check(); return result;
     },
     refresh: async () => {}, select: () => {},
     error: (error, element) => { if (!scope.alive || !scope.visible || error instanceof DOMException && error.name === "AbortError") return; if (element?.isConnected) molisWorkRequest.show(element, error); else host.showToast(molisWorkRequest.text(error), true); },
@@ -49,7 +50,9 @@ export function feedClient(host: FeedHost): void {
   let refreshSequence = 0;
   page.refresh = async () => {
     const check = page.guard(), sequence = ++refreshSequence;
-    const html = await host.view.readDocument(); check(); if (sequence !== refreshSequence) return;
+    const html = await host.view.readDocument({ signal: page.signal() }); check(); if (sequence !== refreshSequence) return;
+    const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]").map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
+    const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
     if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
     // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
@@ -75,11 +78,15 @@ export function feedClient(host: FeedHost): void {
       nextMenu.replaceWith(menu);
     }
     const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
-    if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
+    if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); for (const account of page.all<HTMLFormElement>("[data-feed-add-account]", dialog)) { const replacement = page.q<HTMLFormElement>('[data-feed-add-account="' + CSS.escape(account.dataset.feedAddAccount!) + '"]', nextDialog); if (replacement) replacement.replaceWith(account); } dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
     const scroll = stage.scroll(); root.replaceChildren(...next.childNodes);
+    for (const saved of controls) { const control = page.q<HTMLInputElement | HTMLSelectElement>("[" + saved.attr + "]"); if (control) control.value = saved.value; }
+    const filterPanel = page.q("[data-feed-filter-panel]"); if (filterPanel) filterPanel.hidden = !filterOpen;
+    page.q("[data-feed-filter-trigger]")?.setAttribute("aria-expanded", String(filterOpen));
     page.select(page.selection, "restore", page.panel); stage.restoreScroll(scroll); rules.hydrate();
   };
   page.select = (id, intent = "restore", panel) => {
+    if (host.mount?.surface === "workbench" && !page.all("[data-feed-task]").some(node => node.dataset.feedTask === id)) id = "all";
     if (id !== page.selection) page.change();
     page.selection = id; if (panel) page.panel = panel; else if (intent !== "restore") page.panel = "messages";
     sources.select(id, intent); stage.filter();
@@ -97,8 +104,8 @@ export function feedClient(host: FeedHost): void {
     const target = event.target instanceof Element ? event.target : null; if (!target) return;
     void (async () => { if (await rules.click(target)) return; if (await sources.click(target, event)) return; await stage.click(target, event); })().catch(error => page.error(error));
   });
-  scope.whenVisible(() => { page.change(); page.all("[data-feed-rule-composer][aria-busy]").forEach(composer => { composer.inert = false; composer.removeAttribute("aria-busy"); }); return () => page.change(); });
-  scope.own(() => reads.abort());
+  scope.whenVisible(() => { page.change(); page.all("[data-feed-rule-composer][aria-busy]").forEach(composer => { composer.inert = false; composer.removeAttribute("aria-busy"); }); scope.frame(() => { if (scope.visible) void page.refresh().catch(error => page.error(error)); }); return () => page.change(); });
+  scope.own(() => page.change());
   page.select("all");
   const requested = new URLSearchParams(host.search).get("feedRule");
   if (requested && host.mount?.surface === "workbench") {

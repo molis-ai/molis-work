@@ -26,7 +26,7 @@ interface Page {
   expiresAt: number;
   closing?: boolean;
   assertScope?(): Promise<void>;
-  selection?: { assertCurrent(): void };
+  selection?: { project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void };
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
@@ -58,7 +58,7 @@ export class PluginPageAuthority {
   }
 
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
-    selected?: { install_id: string; project_id: string | null; assertCurrent(): void }): { page_id: string; storage_scope: string } {
+    selected?: { install_id: string; project_id: string | null; project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void }): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
     const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id)
       : candidates.find(item => item.project_id === null && item.resolveFiles)
@@ -200,9 +200,16 @@ export function pluginPageRequest(request: IncomingMessage) {
   const authority = requests.get(request);
   if (!authority) return undefined;
   authority.check();
-  return { plugin_id: authority.page.activation.manifest.plugin_id, project_id: authority.page.project_id,
+  return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
     async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
+    objectPresentation(surface: string) {
+      authority.check();
+      const declaration = authority.page.selection?.objectPresentation;
+      if (!declaration?.surfaces.includes(surface)) throw refused();
+      for (const permission of declaration.permissions) authority.page.activation.assertCurrent(permission);
+      authority.check();
+    },
     connectionSlot(slotId: string) {
       authority.check();
       const slot = authority.page.activation.manifest.connections?.slots?.find(item => item.slot_id === slotId && item.binding === "per_record");

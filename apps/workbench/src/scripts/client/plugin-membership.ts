@@ -65,18 +65,21 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   };
   // The stage pages that came with a plugin are put in the pool (they load their client when first shown, as every deferred
   // page does); the ones that went with a plugin are taken out. Pages the page already has are never replaced.
+  const stageKey = node => node.dataset.pluginOwner && node.dataset.pluginContribution && node.dataset.pluginSurface
+    ? [node.dataset.pluginOwner, node.dataset.pluginContribution, node.dataset.pluginSurface].join(":") : node.dataset.workSurface;
+  const ownerStages = (root, id) => [...root.querySelectorAll('[data-work-surface]')].filter(node => node.dataset.pluginSlot === "workbench.main" ? node.dataset.pluginClient === id : topLevel(node) && node.dataset.workSurface === id);
   const patchStages = (next, came, gone) => {
     const livePool = document.querySelector('[data-surface-pool]'); if (!livePool) return;
-    for (const id of gone) if (!stageOf(next, id)) livePage(id).forEach((node) => { host.untrackSurface?.(node); node.remove(); });
-    const nextNodes = poolOf(next);
+    for (const id of gone) {
+      const keys = new Set(ownerStages(next, id).map(stageKey));
+      ownerStages(document, id).forEach(node => { if (!keys.has(stageKey(node))) { host.untrackSurface?.(node); node.remove(); } });
+    }
     for (const id of came) {
-      const theirs = stageOf(next, id);
-      if (!theirs || livePage(id).length) continue;
-      const later = nextNodes.slice(nextNodes.indexOf(theirs) + 1).map((node) => node.dataset.workSurface).find((key) => livePool.querySelector(':scope > [data-work-surface="' + CSS.escape(key) + '"]'));
-      const node = document.importNode(theirs, true);
-      livePool.insertBefore(node, later ? livePool.querySelector(':scope > [data-work-surface="' + CSS.escape(later) + '"]') : null);
-      // The page keeps a list of its stage pages from when it loaded; a page that came since must be on it to be opened.
-      host.trackSurface?.(node);
+      const keys = new Set(ownerStages(document, id).map(stageKey));
+      for (const theirs of ownerStages(next, id)) {
+        if (keys.has(stageKey(theirs))) continue;
+        const node = document.importNode(theirs, true); livePool.append(node); host.trackSurface?.(node); keys.add(stageKey(node));
+      }
     }
   };
   // The sections a plugin has in the directory (Feed's, with its source directory), keyed by plugin; each goes where the server puts it.

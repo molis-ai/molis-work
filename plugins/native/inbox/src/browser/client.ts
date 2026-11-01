@@ -49,7 +49,7 @@ export function inboxClient(host: InboxHost): void {
   const refresh = async () => {
     const check = guard(), sequence = ++refreshSequence, scroll = q("[data-inbox-list]")?.scrollTop || 0;
     const group = q("[data-inbox-row].is-selected")?.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
-    const html = await host.view.readDocument(); check(); if (sequence !== refreshSequence) return;
+    const html = await host.view.readDocument({ signal: reads.signal }); check(); if (sequence !== refreshSequence) return;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(L("无法更新 Inbox 列表"));
     const dialog = q<HTMLDialogElement>("[data-inbox-compose]"), replacement = q<HTMLDialogElement>("[data-inbox-compose]", next); if (dialog && replacement) replacement.replaceWith(dialog);
     const config = q<HTMLDetailsElement>(".inbox-next-config"), nextConfig = q<HTMLDetailsElement>(".inbox-next-config", next); if (config && nextConfig) nextConfig.open = config.open;
@@ -98,6 +98,6 @@ export function inboxClient(host: InboxHost): void {
       finally { try { check(); composeBusy = false; controls.forEach(control => control.disabled = false); } catch { /* No late UI or draft writes. */ } }
     })();
   });
-  scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); } return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
+  scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); } scope.frame(() => { if (scope.visible) void refresh().catch(failure => error(failure)); }); return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
   scope.own(() => reads.abort());
 }

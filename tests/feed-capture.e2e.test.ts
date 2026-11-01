@@ -1,4 +1,6 @@
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import type { TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -13,6 +15,51 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+
+test("RAC-2518 a late authoring create cannot revive an old source, and an explicit retry recovers that exact draft after hide/reopen", { timeout: 90000 }, async t => {
+  const provider: TypeSafeProvider = { async evaluate(_key, record) { return { primitive: record.primitive, choice: null, noul: .8, score: null, legend: null, probabilities: {}, confidence: null, model: "fixture-judgment" }; } };
+  const b = await openGoalBrowser(t, true, undefined, null, { env: { TYPESAFE_API_KEY: "test-only-not-a-real-key" }, provider }); if (!b) return;
+  const { store, localHost, projectId, homeDirectory, command, sessionId } = b; assert.ok(localHost); assert.ok(projectId);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory }); catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
+  const sourceService = createLocalFeedSourceService(store.db, projectId), feed = createLocalFeedApplication(store.db);
+  const a = sourceService.register({ kind: "web_query", query: "late-authoring-A", name: "Late authoring A" }).source;
+  const other = sourceService.register({ kind: "web_query", query: "late-authoring-B", name: "Late authoring B" }).source;
+  for (const source of [a, other]) feed.ingestItem({ source, externalId: "authoring-material", title: "需要关注的消息", summary: "候选材料", body: "需要关注的真实测试材料", occurredAt: new Date().toISOString(), attention: false });
+  await pluginFrameInitScript(t, b, `window.t403Calls=[];window.t403Reads={total:0,pending:0};window.t403HoldCreate=true;window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{window.t403Host=host;const invoke=host.invokeAction;host.invokeAction=async(reference,input)=>{t403Calls.push(reference.capability_id);const result=await invoke(reference,input);if(t403HoldCreate&&reference.capability_id==='functions.authoring.create'){window.t403CreateEntered=true;await new Promise(resolve=>window.t403CreateRelease=resolve);window.t403CreateReturned=true;}return result;};const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403Reads.total++;t403Reads.pending++;try{return await read(...args)}finally{t403Reads.pending--}};return value(host)}:value;return true}});`);
+  const child = await pluginFrameBrowser(t, b, "feed");
+  await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/?openPlugin=feed` }, sessionId));
+  await child.waitFor("window.t403Host && t403Reads.total>0 && t403Reads.pending===0");
+  const section = (id: string) => '[data-feed-out-rules="' + id + '"]';
+  const select = async (id: string) => {
+    await child.evaluate(`t403Host.openView({surface:'workbench',id:${JSON.stringify(id)},panel:'rules',intent:'open'})`);
+    await child.waitFor(`document.querySelector('[data-feed-workbench]').dataset.selectedSource===${JSON.stringify(id)} && !document.querySelector('[data-feed-sources-dialog]').hidden && !document.querySelector('[data-feed-task-config="${id}"]').hidden`);
+  };
+  await select(a.source_id); await child.click(section(a.source_id) + ' [data-feed-rule-mode="natural"]');
+  await child.evaluate(`(() => { const section=document.querySelector(${JSON.stringify(section(a.source_id))}); for(const [attr,value] of [['data-feed-out-rule-name','Delayed create rule'],['data-feed-rule-instructions','捕捉需要关注的消息']]){const field=section.querySelector('['+attr+']');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));} })()`);
+  await child.click(section(a.source_id) + ' [data-feed-rule-preview-run]'); await child.waitFor("window.t403CreateEntered");
+  const draftKey = `/projects/${projectId}/:feed-rule:${a.source_id}`;
+  const savedBefore = await child.evaluate<string>(`sessionStorage.getItem(${JSON.stringify(draftKey)})`);
+  assert.ok(JSON.parse(savedBefore).functionKey); assert.equal(await child.evaluate(`document.querySelector('${section(a.source_id)} [data-feed-rule-composer]').inert`), true);
+  await b.click('[data-plugin-strip] [data-plugin-id="home"]'); await b.click('[data-plugin-strip] [data-plugin-id="feed"]');
+  await child.waitFor(`t403Host.scope.visible && !document.querySelector('${section(a.source_id)} [data-feed-rule-composer]').inert && t403Reads.pending===0`);
+  await select(other.source_id);
+  await child.evaluate(`(() => { const field=document.querySelector('${section(other.source_id)} [data-feed-out-rule-name]');field.value='Source B draft';field.dispatchEvent(new Event('input',{bubbles:true}));t403CreateRelease(); })()`);
+  await child.waitFor("window.t403CreateReturned"); await child.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.deepEqual(await child.evaluate("t403Calls"), ["functions.authoring.create"], "no list/update/preview or Feed bind follows the old completion");
+  assert.equal(await child.evaluate(`sessionStorage.getItem(${JSON.stringify(draftKey)})`), savedBefore, "the old callback does not overwrite its saved draft");
+  assert.equal(await child.evaluate(`document.querySelector('${section(other.source_id)} [data-feed-out-rule-name]').value`), "Source B draft");
+  assert.equal(feed.outRules.list(projectId).some(rule => rule.match.source_id === a.source_id), false);
+  await child.evaluate("window.t403HoldCreate=false"); await select(a.source_id);
+  await child.click(section(a.source_id) + ' [data-feed-rule-preview-run]');
+  try { await child.waitFor(`document.querySelector('${section(a.source_id)} [data-feed-rule-preview]')?.textContent.includes('匹配')`); }
+  catch (error) { t.diagnostic(JSON.stringify(await child.evaluate(`({calls:t403Calls,status:document.querySelector('${section(a.source_id)} [data-feed-rule-status]')?.textContent,draft:sessionStorage.getItem(${JSON.stringify(draftKey)})})`))); throw error; }
+  const owner = new LocalHostHttpClient({ origin: b.origin, controlToken: b.controlToken });
+  const functions = await owner.get<{ functions: Array<{ function_key: string; status: string }> }>("/api/functions");
+  assert.equal(functions.functions.filter(fn => fn.function_key === JSON.parse(savedBefore).functionKey).length, 1, "lost-response recovery uses the original key");
+  await child.click(section(a.source_id) + ' [data-feed-out-rule-create]');
+  await child.waitFor(`document.querySelector('${section(a.source_id)} [data-feed-out-rule-row]')?.textContent.includes('Delayed create rule')`);
+  assert.equal(feed.outRules.list(projectId).filter(rule => rule.match.source_id === a.source_id).length, 1, "one explicit save creates one binding");
+});
 
 test("Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
@@ -90,7 +137,9 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(reviewEvidenceUrl("feed-capture/unavailable-narrow.png"), Buffer.from(screenshot.data, "base64"));
   } catch (error) {
-    t.diagnostic(await evaluate(`JSON.stringify({ section: document.querySelector('${section}')?.innerText, busy: document.querySelector('${section} [data-feed-rule-composer]')?.getAttribute('aria-busy') })`));
+    t.diagnostic(await b.evaluate("JSON.stringify({url:location.href,surface:document.body.dataset.desktopSurface,roots:[...document.querySelectorAll('[data-plugin-contribution]')].map(root=>({...root.dataset,hidden:root.hidden,text:root.innerText.slice(-400)})),toast:document.querySelector('[data-toast]')?.innerText})"));
+    const failure = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile("/private/tmp/t403-evidence/feed-capture-failure.png", Buffer.from(failure.data, "base64"));
+    t.diagnostic(await evaluate(`JSON.stringify({ section: document.querySelector('${section}')?.innerText, busy: document.querySelector('${section} [data-feed-rule-composer]')?.getAttribute('aria-busy') })`).catch(() => "child unavailable"));
     t.diagnostic(JSON.stringify(feed.outRules.list(projectId).filter(rule => rule.match.source_id === source.source_id)));
     throw error;
   } finally { await runtime.stop(install.install_id); }

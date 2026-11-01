@@ -12,7 +12,8 @@ type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
 /** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
 export interface UiPageView<Element = unknown> {
-  readDocument(): Promise<string>;
+  /** An object's HTML uses this same owner and one declared main surface; the Host chooses its address. */
+  readDocument(query?: { object?: { id: string; surface: string }; signal?: AbortSignal }): Promise<string>;
   /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */
   onClosing(action: { reference: ActionReference; input: unknown } | null): void;
   refreshShell(): void;
@@ -31,6 +32,16 @@ export interface UiClientMount {
   readonly contribution_id: string;
   readonly surface: string;
   readonly target_slot_id: string;
+}
+
+/**
+ * Public object reference on an owner's `data-frame-asset` row (`data-frame-subject-kind` and `data-frame-asset-id`).
+ * The Host takes only the original finite Frame display fields from authorized owner HTML. A reference or row box
+ * grants no Frame write; adding requires the person's Host picker or native Host drop.
+ */
+export interface UiFrameAssetReference {
+  readonly kind: string;
+  readonly id: string;
 }
 
 /** A finite same-owner navigation intent; the Host chooses the pane and installation. */
@@ -52,6 +63,7 @@ export interface UiConnectionSlotChoice {
 export type UiConnectionSlotRequest<Element = unknown> = {
   readonly slot_id: string;
   readonly record_key: string;
+  readonly signal?: AbortSignal;
 } & ({ readonly mode: "read" } | { readonly mode: "choose"; readonly anchor: Element });
 
 /** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */

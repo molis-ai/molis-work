@@ -1,4 +1,5 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
@@ -130,5 +131,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config); context(); send({ type: "ready" });
 }

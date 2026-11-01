@@ -18,9 +18,9 @@ function sheetLinks(bundle: string): string {
 }
 
 /** HTML from a plugin remains inert data until placed in its opaque frame, including closing-script sequences. */
-export function renderPluginFrameSurface(html: string, id: string, title: string, hidden = true, settings = false, bundle = id, mount?: UiClientMount, pluginId?: string): string {
+export function renderPluginFrameSurface(html: string, id: string, title: string, hidden = true, settings = false, bundle = id, mount?: UiClientMount, pluginId?: string, producer?: string): string {
   const directory = mount?.target_slot_id === "workbench.directory";
-  const metadata = mount ? ` data-plugin-client="${escapeHtml(bundle)}" data-plugin-owner="${escapeHtml(pluginId ?? "")}" data-plugin-contribution="${escapeHtml(mount.contribution_id)}" data-plugin-surface="${escapeHtml(mount.surface)}" data-plugin-slot="${escapeHtml(mount.target_slot_id)}"` : "";
+  const metadata = mount ? ` data-plugin-client="${escapeHtml(bundle)}" data-plugin-owner="${escapeHtml(pluginId ?? "")}" data-plugin-contribution="${escapeHtml(mount.contribution_id)}" data-plugin-surface="${escapeHtml(mount.surface)}" data-plugin-slot="${escapeHtml(mount.target_slot_id)}"${producer ? ` data-plugin-producer="${escapeHtml(producer)}"` : ""}` : "";
   const content = mount ? html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1 data-ui-client-root") : html;
   return `<section class="${directory ? "desktop-directory-panel" : "desktop-work-surface"} plugin-stage-shell" ${directory ? "data-directory-panel" : "data-work-surface"}="${escapeHtml(id)}" data-work-surface-label="${escapeHtml(title)}"${metadata}${directory ? ' style="position:relative;height:100%;overflow:hidden"' : ""}${settings ? ` data-settings-page="${escapeHtml(id)}"` : ""} data-deferred-surface${hidden ? " hidden" : ""}><script type="application/json" data-plugin-document>${JSON.stringify(sheetLinks(bundle) + content).replaceAll("<", "\\u003c")}</script></section>`;
 }

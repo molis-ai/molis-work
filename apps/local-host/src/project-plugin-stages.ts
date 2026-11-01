@@ -60,7 +60,7 @@ export interface ProjectRuntimeStageOptions {
   /** Exact contribution/surface pairs another stage path has already drawn. */
   drawn: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
   /** Prepared once before reads; each wrapper retains its actual running owner. */
-  views?: Readonly<Record<string, UiContribution | null>>;
+  views?: Readonly<Record<string, UiContribution & { readonly producer?: string } | null>>;
   /** The model a plugin's stage is drawn with: the one the shell would give the same stage. */
   model(projectPluginId: string): unknown;
   /** The Home halves of dual-instance plugins; without them every stage here is its project half's, as on a page with no Home. */
@@ -120,7 +120,7 @@ function stageView(state: ProjectPluginState, pluginId: string, contributionId: 
 }
 
 function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, entry: StageEntry, contributionId: string,
-  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared?: UiContribution | null): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
+  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared?: UiContribution & { readonly producer?: string } | null): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
   const pluginId = entry.manifest.plugin_id;
   const contribution = state.platform?.supervisor.contribution(pluginId);
   if (!contribution) {
@@ -135,7 +135,8 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
     const manifest = state.platform?.supervisor.manifest(pluginId) ?? entry.manifest;
     return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, pageOwner,
-      request => view.render(request), { manifest, rendered: drawn, client: entry.workbench });
+      request => view.render(request), { manifest, rendered: drawn, client: entry.workbench,
+        producer: prepared?.producer ?? captureRuntimeStageOwner(state.platform, "project", entry)?.producer });
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
     return unavailableStage(state, entry, L("插件页面读取失败"));
@@ -195,6 +196,8 @@ export interface RuntimeStageOwner {
   readonly scope: "home" | "project";
   readonly entry: StageEntry;
   readonly install_id: string;
+  /** Public instance binding, not a page credential. Reusing a logical name never revives old rendered references. */
+  readonly producer: string;
   readonly view: UiContribution;
   assertCurrent(): void;
 }
@@ -221,7 +224,8 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
       || JSON.stringify(view.descriptor) !== descriptor) throw new ActionError("actions.provider_changed", "原舞台实例、声明或授权已变化，请重新读取");
   };
   assertCurrent();
-  return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id, view, assertCurrent };
+  return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id,
+    producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent };
 }
 
 /** The chosen half, without reading either half's data or rendering it. */
@@ -257,7 +261,7 @@ export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (act
 /** Choose once, read once, and keep only request-local guarded view references for later synchronous rendering. */
 export async function readRuntimeStageData(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined,
   bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient, requests: Readonly<Record<string, Readonly<Record<string, string>>>> = {}) {
-  const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, UiContribution | null> = {};
+  const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, UiContribution & { readonly producer?: string } | null> = {};
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
     ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];
   for (const entry of entries) {
@@ -272,7 +276,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
       owner.assertCurrent();
       if (result === undefined && stageDataAction(owner.entry.manifest)) continue;
       if (result !== undefined) data[entry.project_plugin_id] = result;
-      views[key] = { get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); } };
+      views[key] = { producer: owner.producer, get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); } };
     } catch (error) {
       if (!(error instanceof ActionError) || !["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.provider_changed"].includes(error.code)) throw error;
     }

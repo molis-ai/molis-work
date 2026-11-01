@@ -481,7 +481,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (event.data.type === "workbench-view-invalidate") { const surface = topLevelSurface(ops.shownPlugin(ops.focused(state))); if (surface) invalidateView(surface, false); return; }
       if (event.data.type !== "workbench-view") return;
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
-      if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); selectItem(topLevelSurface(ops.shownPlugin(ops.focused(state))), tab?.kind === "item" ? tab.itemId : null, event.data.view, event.data.intent, event.data.panel); }
+      if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); if (tab) projectOwnSurface(ops.focused(state), tab.plugin, { id: event.data.view, surface: event.data.surface, panel: event.data.panel, intent: event.data.intent }, tab); }
       return;
     }
     const frame = panes.from(event);
@@ -512,7 +512,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       state.focusedPaneId = pane.id;
       if (event.data.background === true && event.data.itemId) pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
       else if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
-      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view); else { openPlugin(event.data.plugin); if (Object.hasOwn(event.data, "view")) selectPluginView(pane, event.data.plugin, { id: event.data.view, panel: event.data.panel, intent: event.data.viewIntent || "open" }); }
+      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view); else { openPlugin(event.data.plugin); if (Object.hasOwn(event.data, "view")) selectPluginView(pane, event.data.plugin, { id: event.data.view, panel: event.data.panel, surface: event.data.surface, intent: event.data.viewIntent || "open" }); }
     }
   });
   document.addEventListener("click", (event) => {

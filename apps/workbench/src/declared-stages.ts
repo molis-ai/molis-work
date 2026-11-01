@@ -100,7 +100,7 @@ export function withoutPagePublisher(model: unknown): unknown {
 export function renderStagePage(contribution: UiContribution, model: unknown, owner: string, pageOwner: boolean,
   draw: (request: UiRenderRequest) => string = request => contribution.render(request),
   options?: { manifest?: PluginManifest; rendered?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
-    client?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts"> }) {
+    client?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts">; producer?: string }) {
   const contribution_id = contribution.descriptor.contribution_id;
   const client = options?.client;
   const selected = options?.manifest ? stageSurfaceDescriptors(options.manifest, contribution)
@@ -131,7 +131,7 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
           const id = html.match(/\bdata-(?:work-surface|directory-panel)="([^"]+)"/)?.[1] ?? owner;
           const title = html.match(/\bdata-work-surface-label="([^"]+)"/)?.[1] ?? options?.manifest?.name ?? owner;
           return renderPluginFrameSurface(html, id, title, true, false, owner,
-            { contribution_id, surface, target_slot_id: descriptor.target_slot_id }, options?.manifest?.plugin_id);
+            { contribution_id, surface, target_slot_id: descriptor.target_slot_id }, options?.manifest?.plugin_id, options?.producer);
         }
       }
       return html;

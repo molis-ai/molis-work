@@ -115,6 +115,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
     const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
+      paneMessages,
       openView: (root, selection) => tabWorkspace?.openView(root, selection),
       invalidateView: root => tabWorkspace?.invalidateView(root),
       openBehind: (...args) => tabWorkspace?.openBehind(...args),

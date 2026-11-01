@@ -211,14 +211,8 @@ test("RAC-2518 S-47 page availability uses the same caller and grants, executes 
   target.state.action.audiences.push("plugin");
   source.definition.manifest.capabilities.consumes.push(target.state.capability_id);
   source.definition.manifest.permissions.push({ permission: target.permissions[1]!, required: false, reason: "Read declared availability" });
-  const start = target.definition.start!;
-  target.definition.start = async context => {
-    const result = await start(context);
-    if (!result || result.kind !== "app") return result;
-    return { ...result, actions: result.actions?.map(binding => binding.capability_id === target.state.capability_id
-      ? { ...binding, availability: async () => { if (block) { entered.resolve(); await release.promise; } return { available: true as const }; } } : binding) };
-  };
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [source.definition, target.definition] } });
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [source.definition, target.definition] },
+    actionAvailability: async (_caller, view) => { if (block && view.capability_id === target.state.capability_id) { entered.resolve(); await release.promise; } return { available: true }; } });
   await grantHomeProbe(f.host, target); await grantHomeProbe(f.host, source, [...source.permissions, target.permissions[1]!]);
   const response = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: source.id } });
   assert.equal(response.status, 200, await response.clone().text());
@@ -235,6 +229,70 @@ test("RAC-2518 S-47 page availability uses the same caller and grants, executes 
   finally { release.resolve(); }
   const refused = await pending; assert.equal(refused.status, 403, await refused.clone().text());
   assert.equal(target.seen.length, 0, "withdrawal during the await releases no business data and executes nothing");
+});
+
+test("RAC-2516 S-47 own object presentation checks exactly the selected declaration and grants, while raw Host stage reads remain refused", async t => {
+  const probe = homeProbe("pageobject"), contribution_id = probe.id + ".stage";
+  const reader = { ...probe.state, capability_id: "pageobject.reader", action: { ...probe.state.action, input_schema: { type: "object", properties: { object_id: { type: "string" } }, required: ["object_id"], additionalProperties: false } } };
+  probe.definition.manifest.actions!.push(reader);
+  probe.definition.manifest.ui = { contributions: [contribution_id], views: [{ view_id: "stage", slot: "stage", title: "Object presentation", stage_data: { action: probe.state.capability_id, object_action: reader.capability_id } }] };
+  let reads = 0;
+  const start = probe.definition.start;
+  probe.definition.start = async context => {
+    const value = await start(context); if (value.kind !== "app") throw new Error("Expected app");
+    return { ...value, actions: [...value.actions ?? [], { ...reader, handle: () => { reads++; return {}; } }], views: [{ descriptor: { contribution_id, kind: "embedded", label: "Object presentation", surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }, { surface_id: "detail", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] }, render: () => "<section>Object presentation</section>" }] };
+  };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Object presentation");
+  const prefix = `/projects/${project.project_id}`, mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
+  const open = async () => {
+    const response = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
+    assert.equal(response.status, 200, await response.clone().text()); return (await response.json()).page_id as string;
+  };
+  const check = (page: string, object_surface: string) => f.request(prefix + "/api/host/plugin-page-check", { method: "POST", headers: { "x-molis-plugin-page": page }, body: { object_surface } });
+  await grantHomeProbe(f.host, probe);
+  const granted = await open();
+  assert.equal((await check(granted, "detail")).status, 200);
+  assert.equal((await check(granted, "foreign-surface")).status, 403);
+  assert.equal((await f.request(prefix + `/api/stage/${probe.id}/objects/one?surface=detail`, { headers: { "x-molis-plugin-page": granted } })).status, 403);
+  assert.equal(reads, 0, "a presentation check never executes the object reader");
+  await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== probe.permissions[1]));
+  const limited = await open();
+  assert.equal((await check(limited, "detail")).status, 403, "a current page still needs the actual object action's read grant");
+});
+
+test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility at open, invoke and discovery completion", { timeout: 30000 }, async t => {
+  const probe = homeProbe("pageshown"), entered = deferred(), release = deferred(); let block = false;
+  const contribution_id = probe.id + ".stage";
+  probe.state.action.audiences.push("plugin");
+  probe.definition.manifest.ui = { contributions: [contribution_id], views: [{ view_id: "stage", slot: "stage", title: "External Home stage" }] };
+  const start = probe.definition.start;
+  probe.definition.start = async context => {
+    const value = await start(context); if (value.kind !== "app") throw new Error("Expected app");
+    return { ...value, views: [{ descriptor: { contribution_id, kind: "embedded", label: "External Home stage", surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] }, render: () => "<section>External Home stage</section>" }] };
+  };
+  t.after(() => release.resolve());
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] }, actionAvailability: async (caller, view) => {
+    if (block && caller.allowed_actions && view.capability_id === probe.state.capability_id) { entered.resolve(); await release.promise; } return { available: true };
+  } });
+  await grantHomeProbe(f.host, probe);
+  const project = await f.project("External page visibility"), prefix = `/projects/${project.project_id}`;
+  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(shown.status, 200, await shown.clone().text());
+  const mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
+  const open = () => f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
+  const first = await open(); assert.equal(first.status, 200, await first.clone().text()); const { page_id } = await first.json();
+  const action = (mode?: "availability") => f.request(prefix + "/api/host/plugin-page-actions", { method: "POST", headers: { "x-molis-plugin-page": page_id },
+    body: mode ? { mode, reference: probe.state } : { reference: probe.state, input: {} } });
+  const allowed = await action(); assert.equal(allowed.status, 200, await allowed.clone().text()); assert.equal((await allowed.json()).value, null);
+  block = true; const pending = action("availability");
+  try {
+    await entered.promise;
+    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+    assert.equal(hidden.status, 200, await hidden.clone().text());
+    assert.equal(f.host.homePlugins!.installation(probe.id)!.state, "running", "hiding this project does not stop the Home instance");
+  } finally { release.resolve(); }
+  assert.equal((await pending).status, 403, "the same Home instance cannot publish metadata after project hiding");
+  assert.equal((await action()).status, 403); assert.equal((await open()).status, 403);
 });
 
 for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transport} accepted background work outlives the page but retains installation authority`, async t => {

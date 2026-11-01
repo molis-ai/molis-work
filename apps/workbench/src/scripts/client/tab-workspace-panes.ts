@@ -170,7 +170,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     const focusedView = ops.focused(state)?.viewPlugin;
     if (focusedTab && focusedTab.kind !== "system") {
       const surface = focusedTab.plugin;
-      if (getSurface() !== surface) setWorkSurface(surface, false, false);
+      if (getSurface() !== surface) setWorkSurface(surface, false, false, "restore");
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedTab.plugin), false, false);
       }
@@ -178,7 +178,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       document.title = tabLabel(focusedTab) + " · Molis Work";
     } else if (focusedView) {
       const surface = focusedView;
-      if (getSurface() !== surface) setWorkSurface(surface, false, false);
+      if (getSurface() !== surface) setWorkSurface(surface, false, false, "restore");
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedView), false, false);
       }

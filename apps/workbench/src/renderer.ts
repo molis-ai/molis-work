@@ -1,14 +1,7 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderHint, renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { shownPagePlugins } from "./page-plugin-visibility.js";
-import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
-import { renderTerminalPane } from "./terminal/pane.js";
+import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import type { FeedSupplementalEntry } from "./feed-projection-ui.js";
-import { GOALS_PLUGIN_ID, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
-import { composePlanningMethodPacks } from "@molis-ai/molis-work-plugin-goals/module";
-import { createGoalsPage } from "@molis-ai/molis-work-plugin-goals/page";
 import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
-import { inWordsOf, withPluginWords } from "./i18n.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
   renderMolisWorkArrivalStylesheet as renderArrivalCss,
@@ -23,7 +16,7 @@ import { controlTokenMeta, createRendererHelpers, type RendererLocale } from "./
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
 import { createWorkbenchStageRenderers } from "./stage-renderers.js";
-import { createArtifactReferenceRenderer, mountContributionsOf, renderWorkbenchDocument } from "./ui-composition.js";
+import { renderWorkbenchDocument } from "./ui-composition.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: RendererLocale;
@@ -32,20 +25,14 @@ export interface WorkbenchRendererPorts {
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
 export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
-  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale, goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
+  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale;
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
-  const { formatDate, renderList, prefixLocalLinks } = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
-  const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, prefixLocalLinks });
-  const { goals, documents, planningRenderer } = createGoalsPage<MolisWorkWebView>({
-    mount: mountContributionsOf(GOALS_PLUGIN_ID), L, goalsL, currentLocale, listJoin, formatDate, renderList, prefixLocalLinks,
-    renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L }),
-    creatableKinds: view => creatableKinds(shownPagePlugins(view), pluginDirectoryFor(view.plugin_directory)),
-    inPluginWords: withPluginWords, renderTerminalPane, renderHint,
-  });
-
+  const helpers = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
+  const { prefixLocalLinks } = helpers;
   const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}`;
 
   const { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation } = createWorkbenchSettingsNavigation({ L, escapeHtml, icon, withDesktopQuery });
+  const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, currentLocale, listJoin, helpers, withDesktopQuery, settingsContextHref });
 
   const projectChooserRenderer = createWorkbenchProjectChooserRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT, dateTimeLocale });
 
@@ -63,20 +50,15 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   });
 
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
-    L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery,
+    L, escapeHtml, icon, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation }, renderProjectPolicyDocument: goals.renderProjectPolicyDocument, composePlanningMethodPacks, planningRenderer,
+    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface,
   });
 
-  const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
-    createWorkbenchGoalsPageRenderer<WebGoalView, MolisWorkWebView, FeedSupplementalEntry>({
+  const { renderMolisWorkWeb } =
+    createWorkbenchGoalsPageRenderer<MolisWorkWebView, FeedSupplementalEntry>({
       L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
-      renderIconSprite, clientI18nScript, dataJson: documents.dataJson, prefixLocalLinks, renderWorkbenchDocument,
-      renderGoalDocument: documents.renderGoalDocument, renderTrashGoalDocument: documents.renderTrashGoalDocument,
-      goalsDocumentRenderer: documents.goalsDocumentRenderer, goalsTreeRenderer: goals.goalsTreeRenderer,
-      renderGoalProposals: (view) => goals.renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view),
-      renderCreateDialog: documents.renderCreateDialog, renderGoalTrashDialog: documents.renderGoalTrashDialog,
-      renderMomentumPlaceholder: goals.renderMomentumPlaceholder, renderGoalKanban: goals.renderGoalKanban, renderTuiPane: documents.renderTuiPane,
+      renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument,
       renderDesktopProjectChrome, renderProjectSwitcher,
       renderFeedNativePluginSurface: stages.renderFeedNativePluginSurface, stageModel: stages.declaredStageModel,
     });
@@ -88,8 +70,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     renderFeedWorkbenchFragment: stages.renderFeedWorkbenchFragment,
     renderInboxWorkbenchFragment: stages.renderInboxWorkbenchFragment,
     declaredStageFragment: stages.declaredStageFragment,
-    renderGoalDocumentFragment: documents.renderGoalDocumentFragment,
-    renderMolisWorkMomentumFragment: documents.renderMolisWorkMomentumFragment,
+    declaredPageSurface: stages.declaredPageSurface,
     renderMolisWorkOnboarding,
     renderMolisWorkProjectSettingsHub,
     renderMolisWorkProjectGeneralSettings,
@@ -103,7 +84,6 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
     renderMolisWorkWeb,
-    renderMolisWorkRefreshFragment,
     declaredStageModel: stages.declaredStageModel,
     /** One plugin tab of the side panel, or null when that view is not declared by a plugin enabled here. */
     renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript" | "translate"> & { controlToken: string }): string | null =>

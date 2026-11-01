@@ -100,7 +100,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3270
+      "size": 3208
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -152,15 +152,10 @@
       "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
       "size": 151
     },
-    "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": {
+    "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
       "kind": "cohesive-unit",
       "reason": "胶囊条目的投影：由目标与状态推出决定、可做、阻塞、进行中、等待、最近完成六类条目，共用 itemBase 与排序；一个投影按条目类别分支，每类 14 到 19 行。",
       "size": 229
-    },
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": {
-      "kind": "cohesive-unit",
-      "reason": "外壳整页的渲染（名字沿用旧称）：renderMolisWorkWeb 的 140 行主要是一个 HTML 模板，加 22 行的刷新片段；一页一个模板，超 150 行 26 行。",
-      "size": 176
     },
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",

@@ -1,4 +1,4 @@
-import type { MethodHandoff } from "./assistant-work-reads.js";
+import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
 import { assistantFailure } from "./assistant-error.js";

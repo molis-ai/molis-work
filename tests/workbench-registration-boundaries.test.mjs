@@ -19,6 +19,7 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   sources.push(builtinCatalogText(root));
   const pageDirectory = new URL("../plugins/native/goals/src/page/", import.meta.url);
   sources.push(readdirSync(pageDirectory).filter(name => name.endsWith(".ts")).map(name => readFileSync(new URL(name, pageDirectory), "utf8")).join("\n"));
+  sources.push(readFileSync(new URL("../apps/workbench/src/stage-renderers.ts", import.meta.url), "utf8"));
   assert.deepEqual(checkProposalUiOwnership(...sources), []);
   for (const name of ["renderGoalTreeProposalDecision", "renderContractProposal", "recentDecisionResults"]) {
     const changed = [...sources]; changed[0] += `\nfunction ${name}(view) { return oldRenderer(view); }`;
@@ -31,8 +32,28 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   const legacy = [...sources]; legacy[4] += '\nconst goalTreeDecisionForm = form.closest("[data-goal-tree-decision-form]");';
   assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals client factory/);
   // The chain from the Goals page to the registered contribution is pinned at each link (T-116 review): swapping any one is refused.
-  const otherMount = [...sources]; otherMount[0] = otherMount[0].replace("mount: mountContributionsOf(GOALS_PLUGIN_ID)", "mount: renderWorkbenchContribution");
-  assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /created with mount: mountContributionsOf\(GOALS_PLUGIN_ID\)/);
+  const replaced = (index, before, after) => {
+    assert.ok(sources[index].includes(before), `the actual chain contains ${before}`);
+    const changed = [...sources]; changed[index] = changed[index].replace(before, after);
+    assert.notEqual(changed[index], sources[index], "the negative changes the actual chain");
+    return changed;
+  };
+  const otherMount = replaced(8, "mount: mountContributionsOf(pluginId)", "mount: renderWorkbenchContribution");
+  assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /must bind and forward mountContributionsOf\(pluginId\)/);
+  const otherOwner = replaced(8, "?.manifest.plugin_id ?? projectPluginId", "?.manifest.name ?? projectPluginId");
+  assert.match(checkProposalUiOwnership(...otherOwner).join("\n"), /pluginId from this projectPluginId's Manifest/);
+  const lostPort = replaced(7, "return { ...drawing, L, goalsL: L", "return { L, goalsL: L");
+  assert.match(checkProposalUiOwnership(...lostPort).join("\n"), /this model's drawing/);
+  const foreignDrawing = replaced(7, "const { drawing } = model;", "const { drawing } = otherModel;");
+  assert.match(checkProposalUiOwnership(...foreignDrawing).join("\n"), /this model's drawing/);
+  const overwritten = replaced(7, "return { ...drawing, L, goalsL: L", "return { ...drawing, mount: otherMount, L, goalsL: L");
+  assert.match(checkProposalUiOwnership(...overwritten).join("\n"), /without replacing mount/);
+  const bypassedPorts = replaced(7, "const page = createGoalsPage(ports);", "const page = createGoalsPage(otherPorts);");
+  assert.match(checkProposalUiOwnership(...bypassedPorts).join("\n"), /actual stage render/);
+  const bypassedPage = replaced(7, "const page = createGoalsPage(ports);", "const page = createOtherPage(ports);");
+  assert.match(checkProposalUiOwnership(...bypassedPage).join("\n"), /actual stage render/);
+  const bypassedFactory = replaced(7, "createGoalsRendererFactories(ports.mount)", "createGoalsRendererFactories(otherMount)");
+  assert.match(checkProposalUiOwnership(...bypassedFactory).join("\n"), /native factories from ports.mount/);
   const unowned = [...sources]; unowned[1] = unowned[1].replace("}, pluginId).html", "}).html");
   assert.match(checkProposalUiOwnership(...unowned).join("\n"), /mountContributionsOf must mount through the workbench host with the plugin's id as owner/);
   const notDeclared = [...sources]; notDeclared[1] = notDeclared[1].replace("workbenchUiHost.mountDeclared(", "workbenchUiHost.render(");

@@ -299,6 +299,26 @@ test('RAC2874 real cancellation, grant withdrawal and disable stop installed wor
   assert.notEqual(r.read("SELECT pid FROM jobs WHERE job_id='new'")[0]!.pid,pid);
 });
 
+test('RAC2874 cancelling or revoking only queued signed B preserves executing A, skips B and permits explicit C on the same process',mac,async t=>{
+  for(const reason of ['cancel','caller-authority'] as const)await t.test(reason,async s=>{
+    const observed=observeBackground(s),r=await backgroundRig(s);await r.h.install(signedBackgroundPackage());await r.approve();
+    let authorized=true;const who=r.caller({assert_authority_current(){if(!authorized)throw new ActionError('actions.forbidden','Only B lost its retained caller authority')}});
+    await r.launch('A','hold');await r.until(()=>r.read("SELECT state FROM jobs WHERE job_id='A'")[0]?.state==='running');
+    const pid=Number(r.read("SELECT pid FROM jobs WHERE job_id='A'")[0]!.pid),b=await r.launch('B','fast',who) as Job;
+    assert.equal(r.read("SELECT pid FROM jobs WHERE job_id='B'")[0]!.pid,null,'B has not entered the sandbox operation');
+    if(reason==='cancel')assert.equal((await r.call('job.cancel',{job_id:'B',execution_id:b.execution_id}) as Job).cancelled,true);
+    else authorized=false;
+    await r.until(()=>observed.results.length===2);assert.ok((await observed.results[1]!).error);
+    assert.equal(processGone(pid),false,'refusing queued B cannot terminate executing A');
+    await r.call('job.release',{job_id:'A'});assert.equal((await observed.results[0]!).value,true);
+    assert.equal((await r.status('A')).state,'done');assert.equal(r.read("SELECT * FROM results WHERE id LIKE 'A:%'").length,2);
+    assert.equal(r.read("SELECT pid FROM jobs WHERE job_id='B'")[0]!.pid,null);assert.equal(r.read("SELECT * FROM results WHERE id LIKE 'B:%'").length,0);
+    await r.launch('C');await r.until(async()=> (await r.status('C')).state==='done');
+    assert.equal(Number(r.read("SELECT pid FROM jobs WHERE job_id='C'")[0]!.pid),pid,'C uses the same surviving lane process');
+    assert.deepEqual(observed.targetStarts,['A','C']);assert.equal(r.read("SELECT * FROM jobs WHERE state='failed'").length,0);
+  });
+});
+
 test('RAC2875 actual background cancellation before COMMIT rolls back, explicit COMMIT failure rolls back, and lost replies retain trusted unknown through the background handle and expose',mac,async t=>{
   const observed=observeBackground(t),r=await backgroundRig(t);await r.h.install(signedBackgroundPackage());await r.approve();
   const emit=ChildProcess.prototype.emit,transactions=new WeakMap<ChildProcess,{job?:string;lastInsert?:number;commits:Map<number,string>}>();

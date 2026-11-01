@@ -240,3 +240,15 @@ T403可按原mount合同增加packages/contracts/src/platform/plugin-registratio
 落实用户18:05Z开发与采用分开要求：T118原三文档范围与验收保持，解除“只有三父实际main才可准备实施”的排程等待。起草线已完成T067，可从T403准确冻结8b04d7385bb71015d15ccb6481eaf4d368149591/treece8cb28df9e8d7295962b1e01fa6b6a703e4dd34在独立树先完成T118候选；根已核其含T399/PR2最终2ca，三目标文档相对2ca均未改，不消费T403 dirty。T403修复仍由原writer，文档作者不改源码、测试、门禁或代签其未完成RAC。T403当前六P1、资源最终结算和CI/Full仍未完成，三新URL已获用户具体批准。
 
 候选仅修当前已核的入口/owner/取型/客户端指引和本链状态分界；明确候选来源与待采用，不先关闭整行、PG094⑤或本人/真实Home验收。T118原PLAN/REVIEW完整范围直接沿用，含host.md第5步Feed/Inbox factory旧句，BACKLOG默认零diff；最终T403冻结及实际采用后只合真实父和回填已核状态，不因状态文案重新跑父产品矩阵。旧实际main等待仅约束最终发布/签结。三目标文件、coord由各自owner负责，无共享写入。
+
+
+2026-11-01 19:29Z T403 必要链接调用者窗口：根核原Feed capture真实规则链接失败、独立二审同一入口缺口及scene-link.candidate.patch，新增允许plugins/native/feed/src/scenes.ts仅两处现行href补openPlugin=feed，保feedRule/project编码及其原绑定身份，沿现有通用唤起与owner内部规则定位，不回填壳层Feed逻辑、不改公开授权。fresh 11 open PR文件列表无该路径；非产品语义新选择，不需另问。补丁与此前准确owner shown、toolbar条件恢复、目录添加及账号请求代次等必修一起收齐；保原失败，必要完整浏览器及负控，不重跑父有效矩阵。原三新URL具体批准保持。
+
+19:38Z排程改为tasks/T395/T399同次采用：已完整审验2ca随T395当前修复由#1724一次最终CI/Full，不另排T399/PR2重复轮；T403、T118仍沿最终冻结父普通合流与各自验收。
+
+
+2026-11-01 19:48Z T403 Frame 原交互接缝：根核旧 frame-container 的全 DOM picker/点击/drag 与 opaque 新边界，接受 /tmp/t403-evidence/FRAME-SEAM.md 的最小方向。仅恢复原添加范围与一步操作，不加业务 list/action、第二事实账或新确认。owner 行明确公共 ref；可信已授权 HTML 在 detached template 提取原固定展示字段，picker 保未 mount/隐藏/历史候选的原范围；每次使用复核同一实际 producer/项目/现行授权，失效不回退旧 payload。原生 dragstart 同步写有限 ref/Host 短 source 句柄，真实 Host drop 复核后调用原 routeAsset/addBlock；child 普通消息不新增 Frame 写权限。原接收模式单击用同位置 Host 命中控件，复用现有 placement/reviews 的几何与生命周期机制，退出模式还原 owner 操作。
+
+唯一 writer 开发3可在原范围外按实际必要差量补 frame-container/editing-graph、通用 plugin-frame wrapper/declared-stages、browser/plugin-frame 内共用 helper/types/parent/child/view、Feed/Inbox ui ref 标记；实际 producer 绑定只沿已存在 project-plugin-stages/plugin-page-http 捕获链补最小传递，不另猜 half 或新建注册表。公共 ui/dom-events 合同及 API 生成按实际新增部分同步，跨 pane 只复用现有 pane-messages 的来源检查。保 Frame 存储/相机/布局、artifact 和 Goal 拒绝语义；不扩大第三方业务能力或放松安全边界。
+
+验证沿原完整文件增补真正缺口：冷启动 picker 不先 mount Feed/Inbox，含 archived/history/Goal待决定范围及重载；真实原生跨 opaque/pane拖入；原接收模式真实点击且普通child消息不能添加；一组来源失效/迟到响应/目标切换交错。synthetic click/drop 旧证据仍只证目标handler，不冒充迁移端到端。候选设计仅线索，作者按当前代码可收小；超出该行为/信任范围先交具体缺口，不照报告机械造全套框架。

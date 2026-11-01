@@ -1,5 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { lstat, readFile, realpath, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open, readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { assertPluginPackagePath, parsePluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -18,10 +19,11 @@ export async function writePluginPackageFile(file: string, bundle: PluginPackage
   await writeFile(file, encoded, { flag: "wx" });
 }
 
-export async function packPluginProject(directory: string, output: string): Promise<PluginPackageBundle> {
+/** Reads only explicitly named regular files below one package root. */
+export async function packageFileReader(directory: string): Promise<(name: string, limit?: number) => Promise<Buffer>> {
   const root = await realpath(directory);
   let bytesRead = 0;
-  const read = async (name: string): Promise<Buffer> => {
+  return async (name: string, limit = MAX_BUNDLE_BYTES): Promise<Buffer> => {
     assertPluginPackagePath(name);
     const parts = name.split("/");
     let location = root;
@@ -32,12 +34,23 @@ export async function packPluginProject(directory: string, output: string): Prom
         throw pluginErrors.package_invalid("打包不接受 symlink 或非普通文件");
       }
       if (index === parts.length - 1) {
-        bytesRead += stat.size;
-        if (bytesRead > MAX_BUNDLE_BYTES) throw pluginErrors.package_invalid("Plugin 文件总量超过 64 MiB");
+        if (stat.size > limit) throw pluginErrors.package_invalid("Plugin 文件超过大小限制：" + name);
       }
     }
-    return readFile(location);
+    const handle = await open(location, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size > limit || bytesRead + stat.size > MAX_BUNDLE_BYTES) throw pluginErrors.package_invalid("Plugin 文件或总量超过大小限制");
+      const buffer = Buffer.alloc(stat.size + 1), { bytesRead: length } = await handle.read(buffer, 0, buffer.length, 0);
+      if (length !== stat.size) throw pluginErrors.package_invalid("Plugin 文件在读取时改变");
+      bytesRead += length;
+      return buffer.subarray(0, length);
+    } finally { await handle.close(); }
   };
+}
+
+export async function packPluginProject(directory: string, output: string): Promise<PluginPackageBundle> {
+  const read = await packageFileReader(directory);
   const packageBytes = await read("package.json");
   const packageJson = JSON.parse(packageBytes.toString("utf8")) as { files?: unknown };
   if (!Array.isArray(packageJson.files) || !packageJson.files.every(file => typeof file === "string")) {

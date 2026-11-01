@@ -1,5 +1,10 @@
-import { studioFrameAsset } from "./fixtures/studio-framed-page.js";
-import { pluginPagesFor, sendLocalWebJson } from "@molis-ai/molis-work-app-local-host";
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { serveHomeRuntime } from './fixtures/home-runtime.js';
+import { ActionService } from '@molis-ai/molis-work-kernel';
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { pluginPagesFor, sendLocalWebJson, authorizeLocalWebRequest, HomeConsentLedger, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -7,7 +12,7 @@ import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-wo
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
@@ -20,6 +25,8 @@ import { releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugi
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
+
+const publicationAuthority = { signal: new AbortController().signal, beforeEffect: async () => {}, assert_authority_current() {} };
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
 
@@ -64,7 +71,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
     },
     selectionAvailable: () => true,
     browserAcceptance: async () => ({ passed: true, cases: [{ id: 'add-note', passed: true, detail: 'hello visible' }], at: new Date().toISOString() }),
-    publish: async () => ({ directory: '/tmp/release', bundlePath: '/tmp/release/plugin.mjs', packagePath: '/tmp/release.tgz' }),
+    publish: async (_build, _manifest, _bundle, version, control) => control.commit({ directory: '/tmp/release/v' + version, bundlePath: '/tmp/release/v' + version + '/plugin.mjs', packagePath: '/tmp/release/v' + version, prompts: [] }),
     installations: async () => [], lifecycle: async () => {},
   };
   return state;
@@ -109,9 +116,9 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     assert.equal(build.browserResult?.passed, true);
     assert.deepEqual(h.requests.filter(request => request.role === 'coder').map(request => request.operationIds), [['notes.add'], ['notes.list']], 'one operation per code run; the one that writes the data goes first');
 
-    const release = await workflow.action(created.id, { action: 'publish', revision: build.revision });
+    const release = await workflow.action(created.id, { action: 'publish', revision: build.revision }, publicationAuthority);
     assert.equal((release as { version: number }).version, 1);
-    await assert.rejects(workflow.action(created.id, { action: 'publish', revision: workflow.store.require(created.id).revision }), /没有新的改动/, 'an unchanged build is not published twice');
+    await assert.rejects(workflow.action(created.id, { action: 'publish', revision: workflow.store.require(created.id).revision }, publicationAuthority), /没有新的改动/, 'an unchanged build is not published twice');
   } finally { await workflow.close(); }
 });
 
@@ -738,14 +745,14 @@ test('whole-page design survives Jev failure; visual revision and undo keep the 
     assert.equal(build.visualResult?.status, 'unavailable');
     assert.equal(build.visualResult?.structural, true);
     const original = structuredClone(build), counts = [prepared, checked, h.requests.filter(r => r.role === 'coder').length];
-    await workflow.action(id, { action: 'publish', revision: build.revision });
+    await workflow.action(id, { action: 'publish', revision: build.revision }, publicationAuthority);
     await workflow.action(id, { action: 'visual', revision: workflow.store.require(id).revision, message: '收紧间距' });
     build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
     assert.deepEqual([prepared, checked, h.requests.filter(r => r.role === 'coder').length], counts, 'no new backend directory, build or coder');
     assert.deepEqual(build.design!.contract, original.design!.contract);
     assert.deepEqual(build.connected, original.connected);
     assert.notDeepEqual(build.design!.presentation, original.design!.presentation);
-    await workflow.action(id, { action: 'publish', revision: build.revision });
+    await workflow.action(id, { action: 'publish', revision: build.revision }, publicationAuthority);
     assert.deepEqual(workflow.store.versions(id)[0]!.design.presentation, build.design!.presentation);
     await workflow.action(id, { action: 'undo', revision: workflow.store.require(id).revision });
     assert.deepEqual(workflow.store.require(id).design!.presentation, original.design!.presentation);
@@ -1147,4 +1154,101 @@ for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset c
     release.resolve(); await paused;
     assert.deepEqual(workflow.store.require(created.id), snapshot, 'old token changes neither revision, steps, code/contract nor connected list');
   } finally { release.resolve(); await workflow.close(); }
+});
+
+
+test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed download/import/pin reaches a working Home plugin', { skip: process.platform !== 'darwin', timeout: 240_000 }, async t => {
+  const cleanups: Array<() => Promise<unknown>> = []; t.after(async () => { for (const close of cleanups) await close(); });
+  const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Signed publishing');
+  const store = await f.host.withProject(project.reference, runtime => runtime.store), directory = join(f.home, 'browser-test');
+  const browser = await openStudioChrome(directory); assert.ok(browser, 'dedicated browser is required'); cleanups.push(() => browser.close());
+  const fixture = agentStudioFixture(0), actions = new ActionService(), seen: Array<string | null> = [];
+  const probe = (scope: 'project' | 'home'): ActionDefinition => ({ capability_id: 'scope.read', version: 1, operation: 'query',
+    action: { title: 'Scope read', description: 'Observe trusted scope', kind: 'query', scope, audiences: ['user', 'plugin'], permissions: [], subject_kinds: [],
+      input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false }, output_schema: { type: 'string' }, execution: { cost: 'none' } } });
+  const projectProbe = probe('project');
+  actions.registerProvider({ provider: { provider_id: 't149-project', title: 'Project only', kind: 'system', project_id: project.project_id }, definitions: [projectProbe],
+    handlers: [{ ...projectProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
+  let modelCalls = 0, enabledProjectPlugins = 0;
+  const options = { store, projectId: project.project_id, homeDirectory: f.home, routePrefix: '/projects/' + project.project_id,
+    ...fixture, actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: actions, project_id: project.project_id },
+    homeActions: { registry: f.host.actionRegistry(), client: f.host.homeActionClient(), inspect: f.host.inspectActions.bind(f.host), project_id: null },
+    enablePlugin: async () => { enabledProjectPlugins++; throw new Error('A Home check cannot enable a project plugin'); },
+    agents: async (build: AgentBuild) => { const agent = fixture.agents(build); return { ...agent, async run(request: BuilderAgentRequest) {
+      modelCalls++; const record = await agent.run(request);
+      if (request.role === 'designer') { const answer = JSON.parse(record.output);
+        if (answer.design) { answer.design.operations = answer.design.operations.filter((operation: { id: string }) => operation.id !== 'notes.expand');
+          answer.design.operations.find((operation: { id: string }) => operation.id === 'notes.list').effects.capabilities = ['scope.read'];
+          answer.design.pages[0].parts = answer.design.pages[0].parts.filter((part: { id: string }) => part.id !== 'expand');
+          answer.design.acceptance = answer.design.acceptance.filter((item: { id: string }) => item.id !== 'expand'); record.output = JSON.stringify(answer); }
+      } else if (request.operationIds?.includes('notes.list')) { const task = JSON.parse(request.task), file = join(build.directory!, task.implementation);
+        await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace('  const rows =', "  await sdk.capability.call('scope.read', {});\n  const rows =")); }
+      return record;
+    } }; } };
+  const mutations = new Map<string, LocalMutationState>();
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (studioFrameAsset(response, url.pathname)) return;
+    if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, f.token)); return; }
+    if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
+    void pluginPagesFor(f.home).bind(request, url).then(release => { if (release) response.once('close', release);
+      const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + '/')) local.pathname = local.pathname.slice(options.routePrefix.length);
+      return handleAgentStudioHttp(request, response, local, options, f.token);
+    }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  cleanups.push(async () => { await releaseAgentStudio(store, project.project_id); await releaseInstalledPlugins(store, project.project_id);
+    await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); });
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port, raw = await browser.page(), page = await framedStudioPage(t, browser, raw);
+  await raw.command('Page.navigate', { url: origin + '/__t149_studio' });
+  await page.wait(`document.querySelector('[data-as-model] option[value^="fixture"]')`);
+  await page.evaluate(`(()=>{const select=document.querySelector('[data-as-model]');select.value=[...select.options].find(option=>option.value.startsWith('fixture')).value;select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await page.fill('[data-as-input]', '创建一个可以保存并阅读笔记的插件'); await page.click('.as-send');
+  await page.wait(`document.querySelector('[data-as-choose="board"]')`); await page.click('[data-as-choose="board"]');
+  await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='ready'`, { timeoutMs: 100_000 });
+  assert.ok(seen.includes(project.project_id)); const before = modelCalls;
+  const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`), info = async () => await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + buildId)).json() as { build: AgentBuild; versions: AgentRelease[] };
+  await page.click('[data-as-scope="home"]'); await page.wait(`!!document.querySelector('[data-as-action="recheck"]')`);
+  assert.equal((await info()).build.browserResult, undefined); assert.deepEqual((await info()).build.checks, {});
+  await page.click('[data-as-action="recheck"]');
+  await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='failed'`);
+  assert.match((await info()).build.error ?? '', /目标范围.*scope.read/);
+  assert.equal((await info()).versions.length, 0); assert.equal(enabledProjectPlugins, 0); assert.equal(modelCalls, before);
+  assert.equal(await fs.stat(join(f.home, 'config', 'plugin-publisher.json')).then(() => true, () => false), false);
+  const homeProbe = probe('home');
+  f.host.actionRegistry().registerProvider({ provider: { provider_id: 't149-home', title: 'Home read', kind: 'system' }, definitions: [homeProbe],
+    handlers: [{ ...homeProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
+  seen.length = 0; await page.click('[data-as-action="recheck"]');
+  await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='ready'`, { timeoutMs: 60_000 });
+  assert.ok(seen.length); assert.ok(seen.every(id => id === null), 'Home checks and live preview calls carry the trusted null project identity');
+  assert.equal(modelCalls, before, 'scope checks never call a model');
+  await page.click('[data-as-action="publish"]'); await page.wait(`!!document.querySelector('[data-as-download]')`);
+  const downloaded = join(directory, 'downloads'); await fs.mkdir(downloaded);
+  await browser.command('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloaded, eventsEnabled: true });
+  const completed = browser.event('Browser.downloadProgress', params => params.state === 'completed');
+  await page.click('[data-as-download]'); await completed;
+  const files = await fs.readdir(downloaded); assert.equal(files.length, 1);
+  const file = join(downloaded, files[0]!), bundle = verifyPluginPackageSignature(JSON.parse(await fs.readFile(file, 'utf8'))).bundle;
+  assert.equal(bundle.payload.manifest.runtime?.scope, 'home'); const pluginId = bundle.payload.manifest.plugin_id;
+  assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []);
+  await raw.command('Page.navigate', { url: f.origin + '/projects/' + project.project_id + '/settings/plugins' });
+  await raw.wait(`!!document.querySelector('[data-plugin-trust-pick]')`);
+  const select = async () => { const doc = await raw.command<{ root: { nodeId: number } }>('DOM.getDocument');
+    const input = await raw.command<{ nodeId: number }>('DOM.querySelector', { nodeId: doc.root.nodeId, selector: '[data-plugin-trust-pick]' });
+    await raw.command('DOM.setFileInputFiles', { nodeId: input.nodeId, files: [file] }); await raw.wait(`document.querySelector('[data-plugin-trust-preview]')?.hidden===false`); };
+  await select(); const shown = await raw.evaluate<string>(`document.querySelector('[data-plugin-trust-preview]').innerText`);
+  assert.ok(shown.includes(bundle.payload.manifest.publisher.signature)); assert.match(shown, /个人|Home/);
+  await raw.click('[data-plugin-trust-preview] .mw-btn--secondary'); await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
+  assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []); assert.equal(f.host.homePlugins!.installation(pluginId), undefined);
+  await select(); await raw.fill('[data-plugin-trust-preview] input', 'My local publisher'); await raw.click('[data-plugin-trust-preview] .mw-btn--primary');
+  await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
+  assert.equal(f.host.homePlugins!.installation(pluginId)!.execution, 'sandbox');
+  await raw.command('Page.navigate', { url: f.origin + '/plugins/' + pluginId + '?frame=workbench' });
+  const installed = await framedStudioPage(t, browser, raw);
+  await installed.wait(`!!document.querySelector('[data-pc-open="editor"]')`); await installed.click('[data-pc-open="editor"]');
+  await installed.fill('[data-component-id="editor"] [data-field]', 'Saved through the signed Home plugin');
+  await installed.click('[data-component-id="editor"] [type=submit]');
+  await installed.wait(`document.querySelector('[data-component-id="notes"]')?.innerText.includes('Saved through the signed Home plugin')`);
+  await raw.command('Page.reload');
+  await installed.wait(`document.querySelector('[data-component-id="notes"]')?.innerText.includes('Saved through the signed Home plugin')`);
 });

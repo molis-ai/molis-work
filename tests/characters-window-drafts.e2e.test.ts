@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
@@ -57,10 +61,63 @@ test("RAC-1607 RAC-1608: Characters keeps a tab's unsaved edit across a reload, 
   // 重新读取 gives the edit up for the saved revision, and only once the person confirms.
   await click("[data-character-reload]"); await waitFor("document.querySelector('[data-character-dialog]')?.open === true");
   assert.equal(await text("[data-character-dialog-title]"), "重新读取草稿");
+  // RAC-2852: the confirmation dialog still receives the Characters page rules.
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-character-dialog] .mw-form__body')).display"), "flex");
   assert.equal(await value("[data-character-title]"), "窗口里的名字", "RAC-1608: opening the dialog alone changes nothing");
   await click("[data-character-confirm]");
   await waitFor("document.querySelector('[data-character-notice]')?.textContent === '已读取最新草稿。'");
   assert.equal(await value("[data-character-title]"), "另一个窗口的名字", "RAC-1608: 重新读取 shows the newer revision");
   assert.equal(await text("[data-character-draft-note]"), "已保存。发布会固定这份内容，已有执行保持原版本。");
   assert.ok(!(await text(row)).includes("有未保存的修改"), "RAC-1608: nothing unsaved is left in this tab");
+});
+
+test("RAC-2851 RAC-2852 Characters keeps its own styles on first open, cached reopen and project changes", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded"); if (!b) return;
+  const personal = openCharacters(b.homeDirectory, "web-user"); t.after(() => personal.close());
+  const configuration = join(b.homeDirectory, "character-source"); await mkdir(configuration);
+  const source = join(configuration, "AGENTS.md"); await writeFile(source, "Read the fixture before editing.\n");
+  const { draft } = personal.service.import({ runtime_id: "codex", config_root: configuration, captured_at: new Date().toISOString(), rules: [{ path: source, scope: "global", content: "Read the fixture before editing." }], skills: [] }, { rule_paths: [source], skill_ids: [] });
+  const saved = personal.service.update(draft.character_id, draft.revision, { title: "PG070 personal role", instructions: "Original fixture instructions", host_tools: null });
+  const second = await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, catalog => catalog.createProject({ display_name: "PG070 second project", actor_id: "web-user" }));
+  const row = `[data-character-list] [data-character-id="${draft.character_id}"]`;
+  const directory = join(REVIEW_EVIDENCE, "pg070-current"); await mkdir(directory, { recursive: true });
+  const shot = async (name: string) => { const image = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(image.data, "base64")); };
+  const open = async (project: string) => {
+    await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${project}/?settings=characters` }, b.sessionId));
+    await b.surfaceReady("characters"); await b.waitFor(`!!document.querySelector(${JSON.stringify(row)})`);
+  };
+  const editor = async () => { await b.click(row); await b.waitFor("document.querySelector('[data-character-workspace]')?.hidden===false && document.querySelector('[data-character-title]')?.disabled===false"); };
+  const styled = async () => {
+    assert.equal(await b.evaluate("document.querySelector('[data-characters]').querySelectorAll(':scope > style').length"), 1);
+    assert.equal(await b.evaluate("getComputedStyle(document.querySelector('.characters-row')).display"), "grid");
+    // The unchanged settings-stage selector has higher specificity than the Character's 200px declaration.
+    assert.equal(await b.evaluate("getComputedStyle(document.querySelector('[data-character-instructions]')).minHeight"), "36px");
+  };
+  await b.setViewport(1440, 1000); await open(b.projectId!);
+  await b.click("[data-character-import-open]"); await b.waitFor("document.querySelector('[data-character-import-dialog]')?.open===true");
+  assert.equal(await b.evaluate("getComputedStyle(document.querySelector('[data-character-import-dialog]')).width"), "992px");
+  await shot("characters-import-desktop");
+  await b.waitFor("!document.querySelector('[data-character-import-close]')?.disabled"); await b.click("[data-character-import-close]");
+  await b.waitFor("!document.querySelector('[data-character-import-dialog]')?.open");
+  await editor(); await styled();
+  assert.equal(await b.evaluate("document.querySelector('[data-character-source-detail]').hidden"), false);
+  await b.evaluate("(()=>{const field=document.querySelector('[data-character-instructions]');field.value='Saved PG070 instructions';field.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await b.click("[data-character-save]"); await b.waitFor("document.querySelector('[data-character-draft-note]')?.textContent.includes('已保存')");
+  assert.equal(personal.service.get(draft.character_id)?.instructions, "Saved PG070 instructions");
+  assert.equal(personal.service.get(draft.character_id)?.revision, saved.revision + 1);
+  await b.evaluate("globalThis.t393CharacterSection=document.querySelector('[data-characters]')"); await shot("characters-first-open");
+  await b.click("[data-cover-close]"); await b.waitFor("!document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  await b.click("[data-directory-open=settings]"); await b.waitFor("document.querySelector('[data-characters]').closest('[data-work-surface=settings]')!==null");
+  assert.equal(await b.evaluate("globalThis.t393CharacterSection===document.querySelector('[data-characters]')"), true, "cached reopen moves the same section with its style");
+  await styled(); await shot("characters-cached-reopen");
+  await open(second.project_id); await editor(); await styled();
+  assert.equal(await b.evaluate("document.querySelector('[data-character-instructions]').value"), "Saved PG070 instructions");
+  await b.setViewport(390, 500);
+  await b.click("[data-character-back]"); await b.waitFor("document.querySelector('[data-characters]').dataset.expanded==='false'");
+  assert.equal(await b.evaluate("getComputedStyle(document.querySelector('.characters-steps')).gridTemplateColumns.split(' ').length"), 1);
+  assert.equal(await b.evaluate("getComputedStyle(document.querySelector('.characters-block-head')).flexDirection"), "column");
+  await shot("characters-second-project-narrow");
+  await b.setViewport(1440, 1000); await open(b.projectId!); await editor(); await styled();
+  assert.equal(await b.evaluate("document.querySelector('[data-character-instructions]').value"), "Saved PG070 instructions");
+  await shot("characters-returned-project");
 });

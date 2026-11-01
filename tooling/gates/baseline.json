@@ -90,7 +90,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 412,
+  "testInternalImports": 410,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -147,7 +147,7 @@
     "tests/connector-account-actions.test.ts": 1,
     "tests/connector-api-oauth.test.ts": 6,
     "tests/connector-authorization-recovery.test.ts": 3,
-    "tests/connector-cli.test.ts": 2,
+    "tests/connector-cli.test.ts": 1,
     "tests/connector-connections.test.ts": 2,
     "tests/connector-document-import.test.ts": 1,
     "tests/connector-mcp.test.ts": 9,
@@ -480,10 +480,10 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 55,
+  "pluginOutsideMentionsTotal": 52,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
-    "coding#outside-files": 2,
+    "coding#outside-files": 0,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,
     "diff#outside-files": 0,
@@ -501,7 +501,7 @@
     "plugin-builder#outside-files": 13,
     "ppt#outside-files": 0,
     "schedule#outside-files": 1,
-    "shelf#outside-files": 2,
+    "shelf#outside-files": 1,
     "text-stats#outside-files": 0,
     "todo#outside-files": 0,
     "workflows#outside-files": 0

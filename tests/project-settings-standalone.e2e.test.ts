@@ -1,8 +1,12 @@
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { defaultShelfHotKeys } from "@molis-ai/molis-work-module-shelf";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { boardSnapshot } from "./fixtures/goal-application.js";
+import { boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 
 // It walks every settings category in two layouts: about 27 s on a development Mac, about 60 s on the Linux CI runner.
 test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 120_000 }, async t => {
@@ -221,4 +225,170 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.equal(await evaluate("document.querySelectorAll('[data-planning-method]:not([hidden])').length"), 0);
   await fill('[data-planning-search]', "");
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-planning-fold]').length") > 0);
+});
+
+type SettingsBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+interface SettingsSurface {
+  frameId: string;
+  evaluate<T = unknown>(expression: string): Promise<T>;
+  waitFor(expression: string): Promise<void>;
+  click(selector: string): Promise<void>;
+}
+
+/** RAC-2849: complete same-origin HTTP documents execute their own scripts; B uses the actual shell. */
+async function settingsSurface(b: SettingsBrowser, path: string, embedded: boolean): Promise<SettingsSurface> {
+  if (embedded) {
+    // Use the actual directory control: a top-level redirect intentionally drops the global page's project query.
+    if (!await b.evaluate("!!document.querySelector('[data-tab-workspace]')")) await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/" }, b.sessionId));
+    if (await b.evaluate("!!document.querySelector('[data-tab-workspace]').dataset.exclusive")) await b.click("[data-cover-close]");
+    if (new URL(path, b.origin).pathname.startsWith("/projects/")) {
+      await b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
+    } else {
+      await b.click("[data-directory-open=settings]");
+      const row = `[data-directory-panel=settings] [data-settings-section="${new URL(path, b.origin).pathname.split("/").pop()}"]`;
+      await b.waitFor(`!!document.querySelector(${JSON.stringify(row)})`); await b.click(row);
+    }
+    assert.equal(await b.evaluate("!!document.querySelector('[data-tab-workspace]')"), true);
+    const tree = await b.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree", {}, b.sessionId);
+    return { frameId: tree.frameTree.frame.id, evaluate: b.evaluate, waitFor: b.waitFor, click: b.click };
+  }
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/" }, b.sessionId));
+  await b.evaluate(`new Promise((resolve,reject)=>{const f=document.createElement('iframe');f.id='t393-setting-frame';f.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:9999;background:white';f.onload=()=>resolve(true);f.onerror=reject;f.src=${JSON.stringify(path)};document.body.append(f)})`);
+  const tree = await b.command<{ frameTree: { childFrames: { frame: { id: string; url: string } }[] } }>("Page.getFrameTree", {}, b.sessionId);
+  const frameId = tree.frameTree.childFrames.find(item => item.frame.url === b.origin + path)?.frame.id;
+  assert.ok(frameId, "the loaded HTTP frame has the exact address");
+  const evaluate = async <T = unknown>(expression: string): Promise<T> => {
+    const { executionContextId } = await b.command<{ executionContextId: number }>("Page.createIsolatedWorld", { frameId, worldName: "T393 DOM inspection" }, b.sessionId);
+    const result = await b.command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression, contextId: executionContextId, returnByValue: true, awaitPromise: true }, b.sessionId);
+    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails)); return result.result.value;
+  };
+  assert.deepEqual(await evaluate("({origin:location.origin,path:location.pathname,search:location.search,settings:document.body.classList.contains('settings-page'),workbench:!!document.querySelector('[data-tab-workspace]')})"),
+    { origin: b.origin, path: new URL(path, b.origin).pathname, search: new URL(path, b.origin).search, settings: true, workbench: false });
+  const waitFor = async (expression: string) => {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      try { if (await evaluate<boolean>(expression)) return; }
+      catch (error) { if (!/Cannot find context|Execution context was destroyed/u.test(String(error))) throw error; }
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.fail("Child document condition timed out: " + expression);
+  };
+  const click = async (selector: string) => {
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center',behavior:'instant'})`);
+    await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    const point = await b.evaluate<{ x: number; y: number; hit: boolean }>(`(()=>{const f=document.getElementById('t393-setting-frame'),d=f.contentDocument,n=d.querySelector(${JSON.stringify(selector)}),r=n.getBoundingClientRect(),p=f.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return {x:p.x+x,y:p.y+y,hit:!!r.width&&!!r.height&&n.contains(d.elementFromPoint(x,y))}})()`);
+    assert.equal(point.hit, true, "the actual child control is visible and hit-testable: " + selector);
+    for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }, b.sessionId);
+  };
+  return { frameId, evaluate, waitFor, click };
+}
+
+async function settingsTraffic(b: SettingsBrowser) {
+  const requests: { url: string; method: string; frame: string }[] = [], errors: string[] = [];
+  const responses: { url: string; status: number; frame: string }[] = [];
+  const offRequest = b.on("Network.requestWillBeSent", event => {
+    const request = event.request as { url: string; method: string };
+    requests.push({ method: request.method, url: new URL(request.url).pathname, frame: String(event.frameId ?? "") });
+  });
+  const offResponse = b.on("Network.responseReceived", event => {
+    const response = event.response as { url: string; status: number };
+    responses.push({ url: response.url, status: response.status, frame: String(event.frameId ?? "") });
+  });
+  const offError = b.on("Runtime.exceptionThrown", event => errors.push(JSON.stringify(event.exceptionDetails)));
+  await b.command("Network.enable", {}, b.sessionId); await b.command("Runtime.enable", {}, b.sessionId);
+  return { requests, responses, errors, close: () => { offRequest(); offResponse(); offError(); }, posts: (url: string, frame: string) => requests.filter(item => item.method === "POST" && item.url === url && item.frame === frame) };
+}
+
+async function settingsShot(b: SettingsBrowser, name: string) {
+  const directory = join(REVIEW_EVIDENCE, "pg070-current"); await mkdir(directory, { recursive: true });
+  const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
+  await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64"));
+}
+
+async function fillSettings(surface: SettingsSurface, selector: string, value: string) {
+  await surface.evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});n.value=${JSON.stringify(value)};n.dispatchEvent(new Event('input',{bubbles:true}));n.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+}
+
+for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 ${mode}: real Coding and Shelf settings save once and survive reopening`, { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded"); if (!b) return;
+  const traffic = await settingsTraffic(b); t.after(traffic.close); await b.setViewport(1440, 1000);
+  const workspace = join(b.homeDirectory, "method-workspace"); await mkdir(join(workspace, "skills", "pg070-method"), { recursive: true });
+  await writeFile(join(workspace, "skills", "pg070-method", "SKILL.md"), "---\nname: pg070-method\ndescription: PG070 browser fixture\n---\nRead the specified local file before editing.\n");
+  await b.web.post("/projects/" + b.projectId + "/api/workspaces", { workspace_path: workspace, user_confirmed: true });
+  const prefix = "/projects/" + b.projectId, api = prefix + "/api/plugins/io.molis.work.coding";
+  let surface = await settingsSurface(b, "/settings/coding-settings?project=" + b.projectId, mode === "B");
+  if (mode === "A") assert.ok(traffic.responses.some(item => item.frame === surface.frameId && item.status === 200 && item.url === b.origin + "/settings/coding-settings?project=" + b.projectId));
+  await surface.waitFor("document.querySelector('[data-method-discover]')?.disabled===false");
+  assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
+  await fillSettings(surface, "[data-method-path]", "skills"); await surface.click("[data-method-discover]");
+  await surface.waitFor("!!document.querySelector('[data-method-candidates] summary')");
+  await surface.click("[data-method-candidates] summary"); await surface.click("[data-method-candidates] button");
+  await surface.waitFor("document.querySelector('[data-installed-methods]')?.textContent.includes('pg070-method')");
+  assert.equal(traffic.posts(api + "/methods/install", surface.frameId).length, 1);
+  const installed = await b.web.get<{ methods: { name: string; source: string }[] }>(api + "/state");
+  assert.equal(installed.methods.filter(item => item.name === "pg070-method" && item.source === "installed").length, 1);
+  await surface.click("[data-installed-methods] summary");
+  await surface.waitFor("document.querySelector('[data-installed-methods] .coding-method-body')?.textContent.includes('Read the specified local file')");
+  const styles = await surface.evaluate<{ whiteSpace: string; size: string; lineHeight: string; margin: string; cursor: string }>("(()=>{const p=document.querySelector('[data-installed-methods] .coding-method-body'),d=p.closest('details');return {whiteSpace:getComputedStyle(p).whiteSpace,size:getComputedStyle(p).fontSize,lineHeight:getComputedStyle(p).lineHeight,margin:getComputedStyle(d).marginBlockStart,cursor:getComputedStyle(d.querySelector('summary')).cursor}})()");
+  assert.deepEqual(styles, { whiteSpace: "pre-wrap", size: "12px", lineHeight: "19.8px", margin: "12px", cursor: "pointer" });
+  await fillSettings(surface, "[data-mcp-config] [name=transport]", "stdio");
+  await fillSettings(surface, "[data-mcp-config] [name=label]", "PG070 saved server " + mode);
+  await fillSettings(surface, "[data-mcp-config] [name=executable]", "/bin/cat"); await fillSettings(surface, "[data-mcp-config] [name=argv]", "[]");
+  await surface.evaluate("document.querySelector('[data-mcp-config] [name=enabled]').checked=false");
+  await surface.click("[data-mcp-config] [type=submit]");
+  await surface.waitFor("document.querySelector('[data-mcp-status]')?.textContent.includes('已保存')");
+  assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 1);
+  const state = await b.web.get<{ mcp: { label: string; enabled: boolean }[] }>(api + "/state");
+  assert.equal(state.mcp.filter(item => item.label === "PG070 saved server " + mode && !item.enabled).length, 1);
+  await settingsShot(b, mode + "-coding");
+  surface = await settingsSurface(b, "/settings/coding-settings?project=" + b.projectId, mode === "B");
+  await surface.waitFor("document.querySelector('[data-installed-methods]')?.textContent.includes('pg070-method') && document.querySelector('[data-mcp-servers]')?.textContent.includes('PG070 saved server')");
+  assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
+  const defaults = defaultShelfHotKeys().toggle;
+  const shelfRoot = "/api/plugins/io.molis.work.shelf/settings";
+  await b.web.post(shelfRoot, { hotkeys: { toggle: { ...defaults, key_code: defaults.key_code === 122 ? 120 : 122 } } });
+  surface = await settingsSurface(b, "/settings/shelf?project=" + b.projectId, mode === "B");
+  const shelfApi = await surface.evaluate<string>("(document.body.dataset.routePrefix || '') + '/api/plugins/io.molis.work.shelf/settings'");
+  assert.equal(await surface.evaluate("typeof globalThis.__TAURI__?.core?.invoke"), "undefined", "the fixture cannot change desktop hotkeys");
+  const reset = '[data-shelf-hotkey-slot="toggle"] [data-shelf-hotkey-reset]';
+  await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===false`);
+  await surface.click(reset); await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===true`);
+  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 1);
+  const shelf = await b.web.get<{ hotkeys: { toggle: typeof defaults } }>(shelfApi);
+  assert.deepEqual(shelf.hotkeys.toggle, defaults);
+  await settingsShot(b, mode + "-shelf");
+  surface = await settingsSurface(b, "/settings/shelf?project=" + b.projectId, mode === "B");
+  await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===true`);
+  assert.equal(await surface.evaluate("Number(document.querySelector('[data-shelf-hotkey-slot=toggle] [data-shelf-hotkey-record]').dataset.keyCode)"), defaults.key_code);
+  assert.deepEqual(traffic.errors, []);
+  await writeFile(join(REVIEW_EVIDENCE, "pg070-current", mode + "-traffic.json"), JSON.stringify(traffic.requests, null, 2));
+});
+
+for (const mode of ["B", "C"] as const) test(`RAC-2849 ${mode}: registered Goals rules save once; absent Coding and Shelf cause no new writes`, { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const traffic = await settingsTraffic(b); t.after(traffic.close); await b.setViewport(1440, 1000);
+  const path = "/projects/" + b.projectId + "/settings/rules";
+  const surface = await settingsSurface(b, path, mode === "B");
+  if (mode === "C") assert.ok(traffic.responses.some(item => item.frame === surface.frameId && item.status === 200 && item.url === b.origin + path));
+  await surface.waitFor("!!document.querySelector('[data-project-rules-form] [name=human_approval]')");
+  assert.equal(await surface.evaluate("!!document.querySelector('[data-coding-method-library],[data-coding-mcp-settings],[data-shelf-settings]')"), false);
+  const before = boardSnapshot(b.store, b.projectId!);
+  const current = await surface.evaluate<boolean>("document.querySelector('[data-project-rules-form] [name=human_approval]').checked");
+  await surface.evaluate(`document.querySelector('[data-project-rules-form] [name=human_approval]').checked=${!current}`);
+  if (mode === "B") await b.navigate(() => surface.click("[data-project-rules-form] [type=submit]"));
+  else {
+    await surface.evaluate("globalThis.t393BeforeRulesSave=true");
+    await surface.click("[data-project-rules-form] [type=submit]");
+    await surface.waitFor("!globalThis.t393BeforeRulesSave && !!document.querySelector('[data-project-rules-form]')");
+  }
+  await surface.waitFor(`document.querySelector('[data-project-rules-form] [name=human_approval]')?.checked===${!current}`);
+  const api = "/projects/" + b.projectId + "/api/plugins/io.molis.work.goals/policy-bindings";
+  assert.equal(traffic.posts(api, surface.frameId).length, 1, "one intent reaches the registered rules client once");
+  const after = boardSnapshot(b.store, b.projectId!);
+  assert.ok(after.cursor > before.cursor);
+  assert.ok(goalsQueryOf(b.store).listPolicyHistory(b.projectId!).some(binding => binding.scope === "project_default" && binding.state === "active" && binding.policy.human_approval === !current));
+  assert.equal(traffic.requests.filter(item => item.method === "POST" && /\/api\/plugins\/io\.molis\.work\.(coding|shelf)\//u.test(item.url)).length, 0);
+  assert.deepEqual(traffic.errors, []);
+  await settingsShot(b, mode + "-goals-rules");
+  await writeFile(join(REVIEW_EVIDENCE, "pg070-current", mode + "-rules-traffic.json"), JSON.stringify({ requests: traffic.requests, existingShelfGets: traffic.requests.filter(item => item.method === "GET" && item.url.endsWith("/io.molis.work.shelf/settings")) }, null, 2));
 });

@@ -11,12 +11,13 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前优先W5实际落地（用户11-01最新纠正）：必要build/门禁/相关回归/准确最终Full；不重复逐文件核日志、证据矩阵和多轮复核。T394三片合成候选090fcfa4已冻结，关键五文件370/370、普通工程门通过，独立合成验证/二审各一轮进行；资源+1390B待T386实际采用后一次最终结算。CI#1673、T386#1721、T385#1713均已入正常队列，后两者自身Full通过，autoMergeRequest均null。开发3继续PR1c，开发2继续T393；Coding四规则改为随既有贡献section携带，门禁不放宽。后续T145执行窗口准备中；计划/在途不减剩余本数。
+当前优先W5实际落地（用户11-01效率纠正）：必要build/门禁/相关回归/准确最终Full，沿用未变旧证据。CI#1673、T386#1721、T385#1713已正常队列采用，main e4bf46ca；T385两来源PR已按承载关闭，两个自有树/分支已清。T394现承载PR1b/T141/T144/T353B/T387，原合成独立验证及二审通过，最终主干只发生资源冲突，build/普通门禁和准确资源结算已过，待发布及一次Full。开发3继续PR1c、开发2冻结T393、开发1实施T145；T065最终同步23ec21f8在公共槽验证，T066/T121等其采用。计划和局部候选不算整体完成。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-149 | BL589完整签名发布与SDK Manifest唯一主人 | 甲 | Codex开发线4；独立验证/加强二审另派 | 已交完整实施；准确父T394 H3878296ad；发布采用排父后 | full=true；三共享hunk等PR1c/T145短窗口，其他独立实现现在推进 | plans/T149/ENGINEERING.md末尾执行窗口；不迁旧项目/不自动pin/无真实Home |
 | T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1接手；验证/加强二审另派 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，两个stage共享接缝等PR1c冻结串接 | plans/T145/PLAN.md §5及末尾窗口；S106，原RAC2644～2649完整范围 |
-| T-394 | W5三片合成：PR1b、Home升级、签名正文 | 甲 | Codex开发线4；独立验证5/加强二审另派 | M be0，合成H090fcfa4冻结；独立验证5/二审5进行 | full=true；组合build/关键370已过；待最终主干资源窗口及一次Full | tasks/T-394.md成员精确范围与必要冲突；共享状态根串行 |
+| T-394 | W5与已审候选五成员合成：PR1b、Home升级、签名正文、T353B、T387 | 甲 | Codex开发线4；独立验证5/加强二审5 | 最终M e4bf46ca，H3878296ad；原组合审验通过，最终main仅资源冲突根核 | full=true；370有效沿用；最终build/门禁/48资源已过，待普通PR与一次Full | tasks/T-394.md五个冻结成员；workbench +1390B、Jelly +33B准确tuple，算法不动 |
 | T-393 | PG070完整后继：Coding登记与Characters随内容样式 | 乙 | Codex开发线2；一审线3/验证线2/二审线5 | accepted WO，M be0；开发窗口已交 | T146已采用，full=true；完整两部分同验同交 | tasks/T-393及CURRENT精确生产/测试hunk；共享文档/预算根串行，保护#1101不动 |
 | T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |
 | T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1；队列观察二审线5 | #1719实际采用6cdb21830，完整binary diff/patch-id同 | full=false；准确CI/手查SI、queue Verify通过，catalog16/16 | 自有树/分支已清；SI76项原因UNKNOWN保留 |
@@ -24,9 +25,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | #1718已采用f47fa0da，七路径完整patch及patch-id核同 | 本单工程完成；旧LinuxUNKNOWN和Full retry/skip原状态保留 | 后继T385/T386/T387解除T389前置；树暂供资源基准 |
 | T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | #1715实际采用820d9a0f5，补丁核同；自有作者树已清 | full=false；旧CI首败因果UNKNOWN保留 | 已释放；仅一行await |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712实际采用15ad4f397；原四PR已按承载采用关闭 | Verify/SI/Full16片+聚合及队列通过；两retry-only保留UNKNOWN | 生产writer释放；冻结构建/金样原件暂供后继核抵 |
-| T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线2；原验证1/本轮一审3；二审4 | #1713 @2b3910ef，§8齐，正常队列position3 | full=true；常规CI/SI及自身Full41294121273已通过，独立收尾核收；未实际采用 | 原10路径/48资源全同；旧UNKNOWN保留 |
-| T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线6；原验证3/本轮一审1；二审5 | #1714 @03c712aa已推，本地增量核收 | full=true；常规CI41290038889已核，自身首次Full待预算 | 原10路径/48资源全同；三原PR采用后才关 |
-| T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线4；原验证3/本轮验证4；一审2承担二审 | #1721 @9214e97b，§8齐，正常队列position2 | full=true；新H CI/SI及Full41293422614通过；仅Verify汇总重跑恢复latest检查 | 六行为+四配套；旧及本轮boundary槽偏差保留 |
+| T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线2；原验证1/本轮一审3；二审4 | #1713已采用main e4bf46ca；零上下文patch-id同；#1664/#1665按承载关闭 | full=true；准确CI/SI、自身Full41294121273及正常queue通过 | 原UNKNOWN和恢复范围保留；自有树/分支已清 |
+| T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线6；原验证3/本轮一审1；二审5 | #1714冻结03c712aa，已零冲突并入T394候选 | full=true；原本地审验/常规CI有效，准确组合Full统一由T394承担 | 采用后才关#1714及三个来源；不另排重复Full |
+| T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线4；原验证3/本轮验证4；一审2承担二审 | #1721已采用main107f952e；零上下文patch-id同，未覆盖T146资源下降 | full=true；准确CI/SI、Full41293422614及正常queue通过 | 自有树/分支已清；page-interaction-flow首败UNKNOWN仍归T384；W6整体开放 |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710实际采用main4b04947e7；patch-id同、原树/分支已清 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
 | T-383 | Pages父上下文保存完成后再刷新 | 丙 | Codex开发线2；验证线3/二审线5 | #1711已实际采用main6729a2d46；完整patch/patch-id同，full=false | full=false；初轮私有槽不合格保留，历史Linux因果UNKNOWN | 仅tests/pages-actions.e2e.test.ts；保护#1101共享fixture不交写 |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
@@ -307,7 +308,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
 | T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4；原二审线5交线4接资源增量 | #1661 已合 a1117b3ba；整树与稳定patch-id已核同，审计6550512963 | full=false；准确CI四完整59/59已核；原Mac/DOM UNKNOWN保留；原作者树清理被自动审批拦截，等具体确认 | 原产品/测试及资源锁释放；本地task/T351-a与原树保留 |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
-| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex统筹；B开发线2/原验证一审线2/二审线1；C开发线2/验证线1/二审线5 | A已合；B #1682已推45b3dbff，正常合M f47且独立增量核收；C #1683@07592仍待B采用 | B准确CI41291345137已核，Full待预算，旧失败保留；C正文已纠正并发布新版gate独立补证6555971100，full=true | B30路径，非资源patch保持、registry合成main；48资源仅Jelly+33B，171/171；C不提前retarget；Pages既有wholeEnds按精准单声明处理，见同单补记 |
+| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex统筹；B开发线2/原验证一审线2/二审线1；C后继另派 | A已合；B #1682冻结45b3dbff已零冲突并T394；C #1683@07592等B实际采用 | B本地/常规CI沿用，T394准确Full须核完整alchemist-workbench.e2e；C门禁原反证有效，旧UNKNOWN保留 | C不提前retarget；Pages wholeEnds仅精准单声明例外，见同单补记 |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
 | T-355 | 急：`form.fill.too-long` 的英文改成 fill-message 测试认可的写法（main 红 VUX-40，挡集成分支 Full） | 丙 | A | 0.1 | — | `plugins/native/form/src/messages.ts` |
 | T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 已合（10-31，#1685 → `a9fbdf756`；Codex 统筹） | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |

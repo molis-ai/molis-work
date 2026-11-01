@@ -155,3 +155,13 @@ RAC 2656–2658 使用已预留号；以下 BL589/工程条目只是本文标签
 5. 最终 scope 下的 UI owner/授权入口、Home可信目录/服务注入接缝与检查结果绑定、持续执行控制到发布owner的传递、Home导航依赖、源码/测试文件清单，和新分发字段/发布参数是否触及注册动作 schema；触及时依现行规则升版本并同改调用方，不能以“只是 UI 参数”逃过合同检查。
 
 没有从 accepted 中发现必须重新向用户裁定的产品矛盾。当前待项是共享锁和采用基点，不是 unsigned 的新选择。独立准备已经完成；可以作为根起同一完整交付正式任务书的工程输入，**仍不得据此启动实现、改协调表、宣告 READY 或消耗构建测试槽**。
+
+## 2026-11-01 11:35Z 根执行窗口
+
+用户已要求加速W5、增加开发并行。原方案与三必修复核采纳，完整T149＋BL589交给开发线4实施；这取代旧书仅WAIT/不得实施的排期，不改产品语义。实际main M=e4bf46ca920e72fd54cb4dc83f2f41e6d3b04485，冻结父输入T394 H=3878296adf2dbf12c809c79e093b3410d22a4658（含准确PR1b、T141、T143已采用输入和完整T144）。从M建立独立feature工作树并普通merge该冻结父；T394未采用前可做独立候选，最终发布/采用在父后，不把父候选称main能力。
+
+实施读同目录ENGINEERING-REVIEW-INCREMENT.md及/private/tmp/t149-next/EXECUTION.md现行hunk交接：SDK唯一Manifest/effects、CLI pack-sandbox、完整发布owner、同Home签名身份、真实scope检查/试用、CAS/中断恢复和实际下载导入链一起完成。T143派生权限与T144正文声明/路径规则全部随唯一Manifest主人迁入，使用真实preview@4；BL916未实现五项不提前开放。旧项目不迁移、Home首次发布scope固定、无自动pin/unsigned例外等原合同不变。
+
+开发4现在拥有其余允许路径；contracts/platform/ui.ts的presentation常量hunk、plugin-builder/installed.ts和home-plugins.ts的imports/必要接线暂只出候选补丁，根待PR1c/T145相关hunk冻结后串行接入。不要将这三处短等待扩为整Host/SDK锁；SDK index具名导出可实施，PR1c的page-routes/view-placement校验不重做。共享API/actions、SI、基线、总词典和状态文档只交窄候选给根。保护#1101等分支不碰、任何产品语义新取舍才报根。
+
+按原书有区分度的完整相关文件和必要真实UI闭环验证，沿用未变父证据；公共build/test槽、jobs1/retries0、独立测试浏览器，子代理不跑本机Full。无额外固定README矩阵、哈希账本或多轮复核；准确最终H的full=true仍由根排。作者先实现完整路径后交一页报告，不以SDK搬迁或可生成JSON提前结单。真实Home/4207/Keychain/真凭据/真模型不动，测试只在隔离Home与file secrets里进行。

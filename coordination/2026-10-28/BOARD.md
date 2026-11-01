@@ -15,8 +15,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | 根已核方案/两接缝P1，授权本地合成，原四PR只读 | full=true；最终推送/新Full等T383，T143旧Full已终态 | 原T362/T148/T116/T143合成+hunk；自行修复仅ports.ts与golden.json |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710 @4f3d4d03e；本地增量核收，准确CI/SI待结 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
-| T-383 | Pages重复reload首败有界诊断 | 丙（产品/共享改动另裁） | Codex开发线2；验证线3/二审线5 | 根已接受五项书审修订，冻结E328d5b612 | 新Full等处置；两历史首败/重试UNKNOWN保留 | 仅Pages测试本地临时观测；保护#1101共享fixture不交写 |
+| T-383 | Pages父上下文保存完成后再刷新 | 丙 | Codex开发线2；验证线3/二审线5 | 初轮证据限定核收；第二阶段受控消息交错+最小测试同步修复已授权 | full=false；初轮私有槽不合格保留，历史Linux因果UNKNOWN | 仅tests/pages-actions.e2e.test.ts；保护#1101共享fixture不交写 |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
 | T-002 | privileges 状态列收口与 BACKLOG 清理 | 丙 | B | 1 | — | `specs/repository-anti-corruption/privileges.md` |
 | T-003 | 给 Feed、Inbox 各加一项生命周期用例 | 乙 | A | 2 | — | `tests/shipped-plugin-lifecycle-feed.test.ts`、`tests/fixtures/shipped-lifecycle.ts`（只改 `declared()`，与 T-005 共改，后合的解冲突） |
@@ -455,3 +456,7 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 02:22Z：T381首轮3/3未复现30秒超时，真实事件已证两次测试返回覆盖产品新Goal导航；根接受独立窄审并更新同一书，开发线2仅修完整提交等待及目标页面断言，旧Linux因果仍UNKNOWN，不做概率重跑。T382已接受独立书审唯一类型修订并派开发线4，承接已有BL926，三项验收2810–2812；具体artifact路径hunk交接，未开PR、不减少在途或后继估算。
 
 2026-11-01 02:44Z：T381完成上述采用；T382已从BL926后继转在途#1710，根核实uncovered仅两条改import路径而非空，既有HTTP/Goal context与build证据核抵。Pages同一reload在T377/T116的1440/390首败由T383承接一次有界观测，不预认同根；新Full等待处置，现有T143不取消。W6场景6项目签包安装/停用/恢复/兼容升级/卸载子链经实际Host API执行与独立二审核收，修正签包确落隔离Home后清理的报告事实；仅该子链通过。W4当前差量保存，真实模型仍未授权。
+
+2026-11-01 03:02Z：T143准确Full16片及聚合success，goals-dialogs与ui-client-lifecycle各内部retry通过，旧因果UNKNOWN保留。T383初轮Mac4/4但公共槽失败，根接受两份独立审查确认的父context异步边界缺口，授权同书第二阶段受控证明和两宽度最小等待；不跑第三次概率Full。四片承载草案独立审查发现并确认端口必填字段与golden参照两P1，准备正式书；T382尚等SI1终态。
+
+2026-11-01 03:09Z：用户已批准Feed页面内创作与API-PLAN A的Home范围Functions管理权（五动作、后台可调用、试跑费用、现行默认开启/可关闭），该选择不再WAIT；T402/完整PR1/T121与文件锁仍待。T351原作者树mw-T351及task/T351-a已按本次明确授权删除：再次核clean/无占用/整树及patch-id同，临时原件保留。T380待发布审计经明确批准已发#1332 comment6552637741，附独立3/3已完成的时间补记；T381两审计此前已在#1709，核对后不重复发。

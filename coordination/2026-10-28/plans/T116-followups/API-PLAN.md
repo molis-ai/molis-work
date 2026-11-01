@@ -2,7 +2,7 @@
 
 负责人：Codex 起草线；接续API-MAP，不重做七行扫描、不加任务/RAC号。只读绑定main `b6f92222fce89dfba756a580768889292cfe9967`。本轮只写此文件，无源码/测试/coord/GH/真实Home/凭据操作、构建或动态验证。T402/完整PR1/PR2/T148及文件锁仍WAIT，资源审批不变。
 
-结论：可以复用真实Runtime page activation、已有Functions动作和availability。**不能把原shell页面有权限推导为Feed安装已有管理权限**。五个Functions动作的plugin准入仍须根对下面具体权限选项作决定；连接账号列表/绑定保留可信Host本人选择面，不授予插件全Home管理读。账户流程还须等待T121 #1677实际采用和最终slot合同，不能按本书原基点旧“换账号创建新来源/暂停旧来源”语义设计第二套绑定。其余接线可以按以下范围准备，不能先加HTTP放行或伪装user。
+结论：可以复用真实Runtime page activation、已有Functions动作和availability。**不能把原shell页面有权限推导为Feed安装已有管理权限**。用户2026-11-01已明确批准下文A：保留Feed页面内创作，授予所列Home范围管理能力及现行默认开启/可关闭的发放方式；五个Functions动作的plugin准入按A实施；连接账号列表/绑定保留可信Host本人选择面，不授予插件全Home管理读。账户流程还须等待T121 #1677实际采用和最终slot合同，不能按本书原基点旧“换账号创建新来源/暂停旧来源”语义设计第二套绑定。其余接线可以按以下范围准备，不能先加HTTP放行或伪装user。
 
 ## 1. native clientFactory的page action activation：复用真实安装
 
@@ -20,12 +20,12 @@ API-MAP已给准确schema，直接复用 `functions.authoring.{create,list,updat
 
 **真实缺口**：authoring-actions.ts的define统一排除plugin，五个动作需要functions:manage（preview还需functions:invoke）；Feed只有invoke、未声明五个consume。函数记录归Home Functions；现有list是全部draft/published完整记录，update/publish按id取记录，**没有“此Feed创建的记录”owner字段**。因此“只加plugin受众”会使持manage的插件获得Home范围现有记录管理能力，不能声称它仅能碰本Feed草稿。发布输入可包含scene/action映射，既有validatePublication/caller检查必须保留。
 
-供根裁定的两个具体选择（当前均未授权实施）：
+已由用户选择A；以下保留原两选项及准确边界，B不采用：
 
-- **A：复用现有管理权限（最小代码，用户明确批准完整范围后才可实施）**。只为这五个动作加plugin受众，define不能使get/delete/sample/context等一起开放；Feed精确声明五个consume、可选functions:manage用途，保留invoke。可选允许本人沿现有权限设置关闭，但**不等于默认关闭或逐安装先确认**：host-build首次安装会给全部声明权限，跟随构建新增声明按现行hostBuildGrants政策打开新可选权限；consent账本不是functions:manage授权确认器，不能声称当前流程会为每台安装弹新增权限确认。required=true又不能被单项关闭，因此建议optional，仍默认开启。用户必须先明确批准这次新增Home管理能力及该发放方式，不能用自动grant倒推同意。关闭此可选grant时，需管理权的创作操作按真实拒绝保输入，Feed其余已授权功能不因该项变成必停；继续用真实plugin caller，不伪造user或改host信任规则。
+- **A：复用现有管理权限（用户已明确批准完整范围及发放方式）**。只为这五个动作加plugin受众，define不能使get/delete/sample/context等一起开放；Feed精确声明五个consume、可选functions:manage用途，保留invoke。可选允许本人沿现有权限设置关闭，但**不等于默认关闭或逐安装先确认**：host-build首次安装会给全部声明权限，跟随构建新增声明按现行hostBuildGrants政策打开新可选权限；consent账本不是functions:manage授权确认器，不能声称当前流程会为每台安装弹新增权限确认。required=true又不能被单项关闭，因此建议optional，仍默认开启。用户已明确批准这次新增Home管理能力及该发放方式；不能用自动grant倒推其他未授权能力。关闭此可选grant时，需管理权的创作操作按真实拒绝保输入，Feed其余已授权功能不因该项变成必停；继续用真实plugin caller，不伪造user或改host信任规则。
 - **B：不授Home管理权**。把这段authoring留给Functions owner的可信本人编辑/预览/发布面，Feed仅给合成输入，用户在该可信面确认，返回已发布ActionReference，Feed再保存自己out-rule。这保留权限边界，但会把现有内嵌预览/保存变成跨面交接，属于可见产品流程取舍，并非本次纯搬迁可自动采用。不要为了避免选A临时新增record_owner/私有草稿表/平台代持授权或五个受限代理动作。
 
-A若获准，精确文件增量：`modules/functions/src/authoring-actions.ts`按五项显式audience开放；`plugins/native/feed/src/permissions.ts`声明optional functions:manage，manifest/runtime-actions精确consume；权限说明沿现有permission设置入口准确展示，不改consent种类、不改install-rules自动发放政策；`tooling/gates/actions/host-actions.tsv`等实际动作快照与合同要求同步。无输入/输出schema变化时不复制@2别名；必要版本变更按现行合同一次处理全部真实调用者，不留双路径。API-MAP的宽last_preview schema不能冒称严格保证outcome/noul，不借机重写整schema。
+A已获准，精确文件增量：`modules/functions/src/authoring-actions.ts`按五项显式audience开放；`plugins/native/feed/src/permissions.ts`声明optional functions:manage，manifest/runtime-actions精确consume；权限说明沿现有permission设置入口准确展示，不改consent种类、不改install-rules自动发放政策；`tooling/gates/actions/host-actions.tsv`等实际动作快照与合同要求同步。无输入/输出schema变化时不复制@2别名；必要版本变更按现行合同一次处理全部真实调用者，不留双路径。API-MAP的宽last_preview schema不能冒称严格保证outcome/noul，不借机重写整schema。
 
 **动作拒绝与await点**：调用前page当前/consumes/明确grant/plugin受众/唯一provider/availability全部满足；create/list/update都是Functions同步owner操作，dispatcher最后授权复核到业务写之间不能插异步；preview已有concurrent且service.preview在evaluate await后调用caller.beforeEffect、signal检查，再savePreview；publish已有validatePublication await后beforeEffect再publish，保原CAS/试跑/scene限制。撤权、停用或page关闭后的晚到结果不能保存preview/publish或Feed绑定，原合法草稿保留，不能失败后重新生成function_key造成重复。发布成功但Feed规则保存失败时重试复用同已发布reference，不自动再发布/重复规则。
 
@@ -63,23 +63,26 @@ A若获准，精确文件增量：`modules/functions/src/authoring-actions.ts`�
 
 ## 5. 冻结次序与证据要求
 
-先核实际Runtime activation/舞台owner绑定及通用page调用/availability入口；根对§2 Functions权限选项及§4可信账号控件作有限裁定；T121 #1677实际采用及准确slot合同/文件锁成为账户分支前置，再在最终T402/PR2合同上适配。未获Functions新增授权前不改audience/发grant或伪装user，A/B仍候选，不开放全Home管理。原MOUNT/PORT-MAP负责视图消息与mount；模型/Keychain/真实账号不参与当前准备。
+先核实际Runtime activation/舞台owner绑定及通用page调用/availability入口；§2 Functions已选A；§4可信账号控件保持原工程边界；T121 #1677实际采用及准确slot合同/文件锁成为账户分支前置，再在最终T402/PR2合同上适配。Functions按用户已批准A开放精确五动作与可选管理grant，不伪装user、不开放其余动作；实际实现仍须遵守当前父片/文件锁。原MOUNT/PORT-MAP负责视图消息与mount；模型/Keychain/真实账号不参与当前准备。
 
 原验收的必要证据：同一真实Feed安装→frame page→plugin audience调用5动作（未consume/未grant/停用/不同provider拒；若选A，Home记录管理范围明确证明）；无模型预检零create/preview写、输入保留/真实提示，恢复后重试；preview/publish真实等待中撤权零晚写/零Feed绑定；账号控件无列表/secret泄露、跨service/record/过时状态拒，按T121最终合同验证选择即保存、已有选择disabled、换账号先断开、断开后另点恢复，不沿旧main断言新来源/暂停旧来源；page关闭撤销在途请求、双实例不串activation。不得用源码扫描或T134 token绿代签这些链。
 
 按实际合同改动同步API/动作快照、文档、安全拒绝证据与原RAC，不占新号；共享核心Full由根安排CI，本轮未运行任何检查。资源三项具体审批仍待实际产物，不由此书代批。
 
-## 根裁定附录｜安全修订与一项用户WAIT
+## 根裁定附录｜安全修订与已获用户授权
 
 依据同目录API-SECURITY-REVIEW及根独立复核：审查旧08c到方案E=b6f的Functions/install-rules/核心caller未变；authority的S95 own leave与withdraw区分、Host services终端释放finally均保留。本轮不重审MOUNT、T121或已有安装信任政策，不追加安全产品方案/接口分支，也不请求第二轮安全评审。
 
 根接受的工程边界：真实Runtime activation接线及精确舞台owner绑定、同page caller的availability共享解析、调用前/await后/返回前page与grant检查均为原迁移补齐；现有UiHost invoke尚无availability，须补adapter，不能宣称已有。services.actions.availability不是等价安全备选，已删除。S95本人离页cancelled、withdraw forbidden原样贯穿元数据与调用链，不改成统一错误。
 
-**当前具体WAIT是一项用户选择、两个选项**，由根与准备齐的产品事项合批提交，不在本书直接问用户或发grant：
+**用户已明确选择A**：2026-11-01本统筹聊天的原弹窗回复为“保留页面内创作，授予上述管理权（推荐）”。A的完整Home管理范围、插件后台可调用、试跑可能产生模型费用、按现行host-build默认开启且可在权限设置关闭均在用户看到的问题中，现已获准；B仅保历史比较，不再等待此选择：
 
-- **A：批准Feed安装取得Home判断规则管理能力**。精确五动作开放plugin；可读本Home全部定义、草稿/已发布记录、样本及试跑，修改任意可编辑草稿、试跑并发布，不限当前项目/自己创建/某次本人点击。持同grants的Runtime代码也可调用，preview可产生判断服务费用但不执行建议业务操作。functions:manage声明可选、依现行host-build政策默认开启，之后本人可在权限设置关闭；不承诺逐安装先弹窗。其他满足相同声明/授权的插件也遵循同一plugin受众合同，不按Feed白名单开放。不开放delete/sample/context等其余动作。只有明确批准这完整范围及发放方式后实施，批准后不重复索取同一授权。
-- **B：不给Feed这项Home管理权**。改由Functions可信本人编辑面完成编辑/预览/发布，再带回已发布引用供Feed保存规则；这改变原内嵌创作体验，也须用户明确接受，不能自行用B绕过A的权限选择。未选前两者均候选，原搬迁授权不自动包含任一新增含义。
+- **A：批准Feed安装取得Home判断规则管理能力**。精确五动作开放plugin；可读本Home全部定义、草稿/已发布记录、样本及试跑，修改任意可编辑草稿、试跑并发布，不限当前项目/自己创建/某次本人点击。持同grants的Runtime代码也可调用，preview可产生判断服务费用但不执行建议业务操作。functions:manage声明可选、依现行host-build政策默认开启，之后本人可在权限设置关闭；不承诺逐安装先弹窗。其他满足相同声明/授权的插件也遵循同一plugin受众合同，不按Feed白名单开放。不开放delete/sample/context等其余动作。该完整范围及发放方式已明确获准，不重复索取同一授权。
+- **B：不给Feed这项Home管理权**。改由Functions可信本人编辑面完成编辑/预览/发布，再带回已发布引用供Feed保存规则；这改变原内嵌创作体验，也须用户明确接受，不能自行用B绕过A的权限选择。B未采用；不据本次A批准改变账号选择或其它权限合同。
 
 “只允许Feed自己的草稿”或“每台安装先弹新增权限、默认拒绝”都不是A的当前含义/现成机制，本书不新增第三分支、不造record owner/第二授权账。账号选择仍依T121实际采用及原user-only slot合同；资源审批独立WAIT。修订完成仅表示书面边界准确，无权限开放、实现、运行或安全通过结论。
 
 2026-11-01 01:03Z 根已向用户提交上述A/B完整范围弹窗，默认候选为A但尚无答复；沉默不作批准。本节的授权等待只约束新增Functions管理权/改创作流程，已授权且不依赖该选择的其他工作继续。
+
+
+2026-11-01 03:09Z 授权更新（覆盖上面的01:03Z等待历史）：用户已选择A，Functions产品选择不再WAIT。这项新增能力须写进最终T403/PR2实施书及权限文案、五动作受众/consume/可选grant、真实撤权零晚写测试；不表示已经实现、运行或通过验收。T402/完整PR1、T121账号slot实际采用与准确文件锁、资源窗口仍按各自条件等待；不将产品试跑费用说明当作本轮测试读取真凭据或操作真实Home的授权。根继续推进不依赖未合父片的工程准备。

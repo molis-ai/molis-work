@@ -943,7 +943,12 @@ test("RAC-2834 RAC-2836 S-103 invalid sessions leave no alias or binding, includ
     } finally { db.close(); }
     const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
-      for (const session of invalid) assert.equal(reopened.resolveRuntimeContext(stableContext("codex", session)).status, "unbound");
+      for (const session of invalid) {
+        const resolution = reopened.resolveRuntimeContext(stableContext("codex", session));
+        assert.equal(resolution.project, null);
+        assert.equal(resolution.connection, null);
+        assert.equal(reopened.listRuntimeContextBindings().some(row => row.runtime_id === "codex" && row.stable_work_context_id === session), false);
+      }
       assert.equal(reopened.resolveRuntimeContext(stableContext("codex", prebound)).project?.project_id, projectA);
       assert.equal(reopened.listRuntimeContextBindings().find(row => row.runtime_id === "codex" && row.stable_work_context_id === prebound)?.bound_by, "owner-a");
       assert.equal(reopened.terminalPanels.get("invalid-session-panel")?.host_session_id, null);

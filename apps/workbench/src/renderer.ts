@@ -23,7 +23,7 @@ import { controlTokenMeta, createRendererHelpers, type RendererLocale } from "./
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
 import { createWorkbenchStageRenderers } from "./stage-renderers.js";
-import { createArtifactReferenceRenderer, renderWorkbenchContribution, renderWorkbenchDocument } from "./ui-composition.js";
+import { createArtifactReferenceRenderer, mountContributionsOf, renderWorkbenchDocument } from "./ui-composition.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: RendererLocale;
@@ -37,7 +37,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { formatDate, renderList, prefixLocalLinks } = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
   const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, prefixLocalLinks });
   const { goals, documents, planningRenderer } = createGoalsPage<MolisWorkWebView>({
-    mount: renderWorkbenchContribution, L, goalsL, currentLocale, listJoin, formatDate, renderList, prefixLocalLinks,
+    mount: mountContributionsOf(GOALS_PLUGIN_ID), L, goalsL, currentLocale, listJoin, formatDate, renderList, prefixLocalLinks,
     renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L }),
     creatableKinds: view => creatableKinds(shownPagePlugins(view), pluginDirectoryFor(view.plugin_directory)),
     inPluginWords: withPluginWords, renderTerminalPane, renderHint,

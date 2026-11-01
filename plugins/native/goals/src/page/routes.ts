@@ -1,16 +1,18 @@
-import { goalsReadRouteNotFound, resolveGoalsReadRoute, resolveGoalsPageRoute, resolveGoalsPageCollection,
+import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
+import { goalsReadRouteNotFound, goalsReadRouteOf, goalsPageRouteOf, resolveGoalsPageCollection,
   type GoalsPageCollections, type GoalsRouteError, type GoalsReadRoute, type GoalDocumentCollection } from "../document-routes.js";
 
 type HtmlResult = { status: 200; html: string } | GoalsRouteError;
 
-/** Invalid/unrelated requests do not load a view or instantiate its owner renderers. */
-export function renderGoalsReadRequest(
-  method: string | undefined, pathname: string, params: URLSearchParams, createRenderers: () => GoalsReadRenderers,
-): HtmlResult | null {
+/** The Host's match of a fragment route, answered. Invalid or unrelated requests do not load anything or instantiate the owner renderers. */
+export async function renderGoalsReadRequest<TLoaded>(
+  method: string | undefined, match: DeclaredPageRouteMatch | null, load: (route: GoalsReadRoute) => TLoaded | Promise<TLoaded>,
+  createRenderers: (loaded: TLoaded, route: GoalsReadRoute) => GoalsReadRenderers,
+): Promise<HtmlResult | null> {
   if (method !== "GET") return null;
-  const resolved = resolveGoalsReadRoute(pathname, params);
+  const resolved = goalsReadRouteOf(match);
   if (!resolved || "error" in resolved) return resolved;
-  return renderGoalsReadRoute(resolved.route, createRenderers());
+  return renderGoalsReadRoute(resolved.route, createRenderers(await load(resolved.route), resolved.route));
 }
 
 export interface GoalsPageSelection {
@@ -21,11 +23,11 @@ export interface GoalsPageSelection {
 
 /** Page composition only; the Host retains scoped reads and the asynchronous Project operations provider. */
 export async function renderGoalsPageRequest<TView extends GoalsPageCollections>(
-  method: string | undefined, pathname: string, readView: () => TView | Promise<TView>,
+  method: string | undefined, match: DeclaredPageRouteMatch | null, readView: () => TView | Promise<TView>,
   render: (view: TView, selection: GoalsPageSelection) => string | Promise<string>,
 ): Promise<HtmlResult | null> {
   if (method !== "GET") return null;
-  const parsed = resolveGoalsPageRoute(pathname);
+  const parsed = goalsPageRouteOf(match);
   if (!parsed) return null;
   if ("error" in parsed) return parsed;
   const view = await readView();

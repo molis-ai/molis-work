@@ -18,10 +18,31 @@ export const servicesAgentDefinitionsContract = {
 /** Longest prompt the person may save. Long enough for any shipped prompt; short enough to stay a prompt. */
 export const AGENT_PROMPT_MAX_CHARS = 20_000;
 
+/** The exact signed default. A user edit is identified separately, never attributed to this signature. */
+export interface SignedAgentReference {
+  source: { kind: "plugin"; plugin_id: string; plugin_version: string; publisher_signature: string };
+  kind: "role" | "method";
+  entry_id: string;
+}
+
+/** Current installation selected by the Host, checked again at each new handoff. */
+export interface SignedAgentInstallation {
+  install_id: string;
+  installation_generation: string;
+  project_id: string | null;
+}
+
+export interface SignedAgentMaterial {
+  default_ref: SignedAgentReference;
+  effective: "default" | "user";
+  user_revision: number | null;
+  body: string;
+}
+
 /** Who a definition comes from. */
 export type AgentDefinitionSource =
   | { kind: "system"; module: string; title: string }
-  | { kind: "plugin"; plugin_id: string; plugin_version: string; title: string;
+  | { kind: "plugin"; plugin_id: string; plugin_version: string; title: string; publisher_signature?: string;
       /** How the Plugin came to be here: shipped with the system, or made in the Plugin Builder and installed. */
       origin?: "builtin" | "generated";
       /** An installed Plugin the person has stopped: its prompts stay visible and editable, but nothing calls them. */
@@ -34,6 +55,7 @@ export type AgentDefinitionSource =
 export type AgentPromptKind = "agent" | "instruction";
 
 export interface AgentPromptRegistration {
+  default_ref?: SignedAgentReference;
   prompt_id: string;
   /** The shipped default's version. A newer default after the person's edit is shown as “default updated”. */
   version: number;
@@ -84,6 +106,9 @@ export interface AgentSkillRegistration {
 
 /** A registered method as a round finds it: its owner, identity and when it applies (the body is read by id). */
 export interface AgentSkillView {
+  kind?: "role" | "method";
+  default_ref?: SignedAgentReference;
+  install_id?: string;
   /** `<owner_id>/<skill_id>`. */
   key: string;
   owner_id: string;
@@ -106,15 +131,16 @@ export interface AgentPromptView {
   title: string;
   purpose: string;
   used_by: string[];
+  default_ref?: SignedAgentReference;
   default_version: number;
   default_body: string;
   /** What runs now: the person's version when there is one, otherwise the default. */
   effective: "default" | "user";
   body: string;
-  user?: { revision: number; base_version: number; updated_at: string };
+  user?: { revision: number; base_version: number; default_ref?: SignedAgentReference; updated_at: string };
   /** The shipped default moved on after the person's edit; their version still runs until they choose. */
   default_updated: boolean;
-  last_used?: { at: string; version: number; user_revision: number | null; caller: string };
+  last_used?: { source_ref?: SignedAgentReference; at: string; version: number; user_revision: number | null; caller: string };
 }
 
 export interface AgentRoleView {
@@ -135,6 +161,7 @@ export interface AgentRoleView {
 
 /** A saved edit, for history and restore. */
 export interface AgentPromptRevision {
+  default_ref?: SignedAgentReference;
   revision: number;
   body: string | null;
   base_version: number;
@@ -146,6 +173,7 @@ export interface AgentPromptRevision {
 
 /** What a model call used: the registered prompt, and whether it was the person's version. */
 export interface AgentPromptUse {
+  source_ref?: SignedAgentReference;
   key: string;
   version: number;
   user_revision: number | null;

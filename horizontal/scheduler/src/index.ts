@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createActionWakeups, SCHEDULE_ACTION_BINDINGS_SCHEMA, type ScheduleActionBinding } from "./action-wakeups.js";
 export type { ScheduleActionBinding, ScheduleActionOwner } from "./action-wakeups.js";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -400,12 +401,12 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
       const reply = await lifetime.wait(options.invoke(input, control));
       control.beforeEffect();
       const replied = reply?.detail;
-      detail = replied == null ? null : wholeCharactersWithin(replied, 500);
+      detail = replied == null ? null : cutHead(replied, 500);
       status = reply?.status ?? "ok";
     } catch (error) {
       const code = error instanceof ActionError && error.code.startsWith("scheduler.") && Object.hasOwn(schedulerErrors, error.code.slice("scheduler.".length)) ? error.code : "";
       status = code === "scheduler.handler_missing" ? "plugin_unavailable" : "failed";
-      detail = wholeCharactersWithin(error instanceof Error ? error.message : String(error), 500);
+      detail = cutHead(error instanceof Error ? error.message : String(error), 500);
     }
     const finishedAt = iso(now());
     if (token && !lifetime.signal.aborted) {
@@ -455,17 +456,6 @@ function invalid(message: string): ActionError {
 
 function iso(value: Date): string {
   return value.toISOString();
-}
-
-/** The first characters of `text` that fit in `limit` UTF-16 units: a character of two units is never cut between them. */
-function wholeCharactersWithin(text: string, limit: number): string {
-  if (text.length <= limit) return text;
-  let cut = "";
-  for (const character of text) {
-    if (cut.length + character.length > limit) break;
-    cut += character;
-  }
-  return cut;
 }
 
 function normalizeIdentity(value: string, label: string): string {

@@ -433,6 +433,9 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     capabilities: [
       "knowledge.recall.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("horizontal/search", "@molis-ai/molis-work-contracts/services/search", {

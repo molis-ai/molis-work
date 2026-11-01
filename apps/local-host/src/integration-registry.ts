@@ -77,10 +77,10 @@ export class IntegrationRegistry {
     const run = this.tail.then(() => {
       const parsed = parsePluginManifest(manifest);
       if (!live()) return false;
-      // The same installation enabled again: a signed package is not upgraded in place, so its declarations are the ones it holds.
+      // Validate the replacement before releasing anything the current installation holds. The queue keeps this change atomic.
       const entry = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
-      if (this.attached.has(parsed.plugin_id)) { this.attached.set(parsed.plugin_id, entry); return true; }
       this.assertFree(parsed);
+      if (this.attached.has(parsed.plugin_id)) this.declarations.release(parsed.plugin_id);
       this.declarations.declare(parsed);
       this.attached.set(parsed.plugin_id, entry);
       return true;
@@ -156,13 +156,24 @@ export class IntegrationRegistry {
   }
 
   /** The driver and adapter of one source of an integration. A missing integration, or one of another kind, is unavailable. */
-  async bind(integrationId: string, kind: IntegrationKind, binding: IntegrationBinding): Promise<ReturnType<PluginIntegrationContribution["bind"]>> {
+  async bind(integrationId: string, kind: IntegrationKind, binding: IntegrationBinding,
+    retain?: (validate: () => void) => void): Promise<ReturnType<PluginIntegrationContribution["bind"]>> {
     const entry = this.declarations.integration(integrationId);
     if (!entry) throw pluginErrors.integration_unavailable(`集成 ${integrationId} 不可用：没有已启用的插件登记它`);
     if (entry.declaration.kind !== kind) {
       throw pluginErrors.integration_unavailable(`集成 ${integrationId} 是 ${entry.declaration.kind}，不能当 ${kind} 用`);
     }
-    const contribution = await this.contributionOf(entry.plugin_id);
+    const attached = this.attached.get(entry.plugin_id), installId = this.installs.get(entry.plugin_id);
+    let contribution: PluginContribution | null | undefined;
+    const current = () => {
+      const active = attached ? attached.contribution() : this.installs.get(entry.plugin_id) === installId && installId ? this.runtime.contribution(installId) : null;
+      if (this.declarations.integration(integrationId) !== entry || this.attached.get(entry.plugin_id) !== attached
+        || !active || (contribution !== undefined && active !== contribution)) throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的原提供实例已变化`);
+    };
+    // Capture before provider recovery or binding can wait: even its failure belongs to this producer instance.
+    retain?.(current);
+    contribution = await this.contributionOf(entry.plugin_id);
+    current();
     if (!contribution || contribution.kind !== "integration") throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的插件没有在运行`);
     return contribution.bind(binding);
   }

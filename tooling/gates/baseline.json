@@ -24,7 +24,7 @@
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "file apps/workbench/src/i18n/en.ts": 3208,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
       "lines": 1015,

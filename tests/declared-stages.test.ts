@@ -93,6 +93,7 @@ test("W5-06 a plugin the project does not show has no stage, and one a host path
   assert.equal(stages(owner, "ppt"), 0, "a hidden personal plugin has no stage");
   assert.equal(stages(owner, "schedule"), 0, "a project plugin the project has not added has no stage");
   assert.equal(stages(owner, "inbox"), 0, "a project plugin the project has not added has no stage");
+  assert.equal(stages(owner, "sources"), 0, "RAC-2508 an unshown Feed owner does not draw its Sources stage");
   assert.equal(stages(owner, "pages"), 1, "a shown personal plugin keeps its stage");
   assert.equal(stages(owner, "todo"), 1, "the host's stage is the only one");
   assert.match(owner + pluginDocuments(owner).join("\n"), /data-stage="host"/);

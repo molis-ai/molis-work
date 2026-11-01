@@ -111,7 +111,10 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       await page.command("Page.enable");
       await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
       await Promise.all([chrome.event("Page.domContentEventFired"), page.command("Page.navigate", { url })]);
-      await page.wait("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item'))");
+      // A restored split draws tabs in each pane, while a single pane uses the titlebar strip.
+      await page.wait("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
+        describe: "JSON.stringify({url:location.href,title:document.title,readyState:document.readyState,body:document.body?.innerText.slice(0,1200),panes:document.querySelectorAll('[data-tab-pane]').length})",
+      });
     };
     await load(prefix);
     const key = "molis-work-tab-workspace:" + project.project_id, ui = "molis-work-ui:" + project.project_id, history = "molis-work-tab-history:" + project.project_id;
@@ -138,6 +141,12 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
 
     await load(prefix + "?openPlugin=goals&openItem=CORE&openView=work");
     await page.wait("document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+    if (await page.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=feed]')?.closest('[data-plugin-picker-popover]')?.hidden === true")) {
+      await page.click('[data-plugin-picker-toggle]');
+    }
+    if (!await page.evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]')?.getClientRects().length)")) {
+      await page.click('.plugin-rail-items [data-rail-tools-toggle]');
+    }
     await page.click('[data-plugin-strip] [data-plugin-id="feed"]');
     await page.wait(`Boolean(document.querySelector('[data-feed-task="${source.source_id}"]'))`);
     await page.evaluate(`document.querySelector('[data-feed-task="${source.source_id}"]').click()`);

@@ -173,4 +173,3 @@ export function effectsFromContract(contract: SandboxPluginContract): SandboxEff
   for (const operation of contract.operations) for (const [key, values] of Object.entries(operation.effects)) result[key] = [...new Set([...(result[key] ?? []), ...(values ?? [])])].sort();
   return result as SandboxEffects;
 }
-

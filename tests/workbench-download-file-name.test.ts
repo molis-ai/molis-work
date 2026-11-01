@@ -11,6 +11,8 @@ import { buildSync } from "esbuild";
 
 const LINKS = buildSync({ entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/links.ts", import.meta.url))],
   bundle: true, write: false, format: "iife", globalName: "Links", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
+const FILES = buildSync({ entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/files.ts", import.meta.url))],
+  bundle: true, write: false, format: "iife", globalName: "Files", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
 
 type Scope = { signal: undefined; assertCurrent(): void; own(release: () => void): void };
 type Links = { downloadPageBlob(blob: Blob, filename: string, scope: Scope): void; downloadFrameFile(url: URL, pageId: string, scope: Scope): Promise<void> };
@@ -80,4 +82,32 @@ test("RAC-2162 the limit is 200 characters, not 200 UTF-16 units: a name that fi
   ];
   await both(t, fits.map(([name, given]) => [name, given, given]));
   await t.test("link: no Content-Disposition, the name is download", async () => assert.equal(await shell().byLink(null), "download"));
+});
+
+test("PUB-2 UI-1 the actual host.download port refuses a signed-package Blob that resolves after its page scope closes", async () => {
+  const started = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>(), messages: unknown[] = [];
+  let alive = true;
+  const scope = { signal: undefined, assertCurrent() { if (!alive) throw new Error("Page closed"); }, own() {}, observe() {} };
+  const context = vm.createContext({ URL, Blob, document: { body: {} }, MutationObserver: class {} });
+  vm.runInContext(FILES, context);
+  const files = vm.runInContext("Files", context) as { pageFiles(port: object, scope: object, request: object, copy: object): { download(blob: Blob, name: string): Promise<void> } };
+  const download = files.pageFiles({ postMessage: (message: unknown) => messages.push(message) }, scope, {}, {});
+  const blob = new Blob(['{"payload":{},"signature":"fixture"}'], { type: "application/json" }), read = blob.arrayBuffer.bind(blob);
+  Object.defineProperty(blob, "arrayBuffer", { value: async () => { started.resolve(); await resume.promise; return read(); } });
+  const pending = download.download(blob, "signed-package.json"); await started.promise;
+  alive = false; resume.resolve();
+  await assert.rejects(pending, /Page closed/);
+  assert.deepEqual(messages, [], "no download bytes reach the owner after the real port's await");
+});
+
+test("PUB-2 UI-1 the actual owner download releases its Blob URL when the page scope releases owned resources", () => {
+  const owned: Array<() => void> = [], revoked: string[] = [], saved: string[] = [];
+  const scope: Scope = { signal: undefined, assertCurrent() {}, own: release => { owned.push(release); } };
+  const context = vm.createContext({ Blob, URL: { createObjectURL: () => "blob:signed-package", revokeObjectURL: (url: string) => revoked.push(url) },
+    document: { createElement: () => ({ download: "", click() { saved.push(this.download); }, remove() {} }), body: { append() {} } } });
+  vm.runInContext(LINKS, context); const links = vm.runInContext("Links", context) as Links;
+  links.downloadPageBlob(new Blob(['{"payload":{}}'], { type: "application/json" }), "signed-package.json", scope);
+  assert.deepEqual(saved, ["signed-package.json"]); assert.deepEqual(revoked, []);
+  for (const release of owned) release();
+  assert.deepEqual(revoked, ["blob:signed-package"]);
 });

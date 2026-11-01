@@ -20,10 +20,12 @@ import { join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
-import { releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
+import { syncBuiltinESMExports } from 'node:module';
+import { readyPublication } from './fixtures/studio-publishing.js';
 
 const publicationAuthority = { signal: new AbortController().signal, beforeEffect: async () => {}, assert_authority_current() {} };
 
@@ -80,6 +82,9 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 
 test('designer answer wrapped in reasoning and broken JSON goes back once with the reason, then the build reaches ready and publishes', async () => {
   const h = harness(['<think>先想想用户要什么</think>{"candidates":[{"id":"quick",', '<think>修正</think>\n' + PROPOSALS, detail('笔记板')]);
+  let preparedManifest: Parameters<AgentBuilderPorts['prepareBuild']>[2] | undefined;
+  const prepare = h.ports.prepareBuild;
+  h.ports.prepareBuild = async (...args) => { preparedManifest = structuredClone(args[2]); return prepare(...args); };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
     const created = workflow.create('做一个随手记笔记的插件');
@@ -102,6 +107,8 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     const detailTask = JSON.parse(h.requests.filter(request => request.role === 'designer').at(-1)!.task);
     assert.equal(detailTask.mode, 'detail'); assert.equal(detailTask.proposal.id, 'board', 'only the chosen proposal is designed in full');
     assert.deepEqual(build.design!.contract.operations[1]!.effects, { storage: ['read', 'write'] }, 'a command that writes also reads its storage');
+    // SDK-1: real adopt -> prepareBuild receives this fixed oracle, not an expectation computed by the SDK under test.
+    assert.deepEqual(preparedManifest, { version: 1, pluginId: build.design!.contract.pluginId, revision: build.design!.contract.revision, effects: { storage: ['read', 'write'] } });
     // Parts are UI catalog components; the fixture Jev takes the last legal one.
     assert.deepEqual(build.nodes.map(node => [node.id, node.kind]), [['title', 'frame'], ['editor', 'dialog'], ['notes', 'accordion']]);
     const collection = build.steps.find(step => step.target === 'notes' && step.action === 'place');
@@ -1155,6 +1162,64 @@ for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset c
   } finally { release.resolve(); await workflow.close(); }
 });
 
+
+for (const withdrawal of ['disconnect', 'page'] as const) test('PUB-2 actual HTTP ' + withdrawal + ' during a publication write leaves no late release or final directory', { timeout: 30_000 }, async t => {
+  const held = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
+  const controller = new AbortController(), cleanups: Array<() => void | Promise<unknown>> = [];
+  const home = await fs.mkdtemp(join(tmpdir(), 't149-http-publish-'));
+  t.after(async () => {
+    resume.resolve(); controller.abort(); const failures: unknown[] = [];
+    for (const close of [...cleanups.reverse(), () => fs.rm(home, { recursive: true, force: true })]) {
+      try { await close(); } catch (error) { failures.push(error); }
+    }
+    if (failures.length) throw new AggregateError(failures, 'HTTP publication fixture cleanup failed');
+  });
+  // Fixed checked source is only the precondition; publication, HTTP control and page cancellation below are production paths.
+  const source = readyPublication(home, DEMO_PROJECT_ID, 'project'); cleanups.push(() => source.workflow.close());
+  const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file); cleanups.push(() => store.close());
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) };
+  const installed = await ensureInstalledPlugins(options);
+  installed.storage.set('plugin-builder:agent-built:v1', source.storage.get('plugin-builder:agent-built:v1')!);
+  cleanups.push(() => releaseInstalledPlugins(store, DEMO_PROJECT_ID), () => releaseAgentStudio(store, DEMO_PROJECT_ID));
+  const token = crypto.randomUUID(), mutations = new Map<string, LocalMutationState>(), pages = pluginPagesFor(home);
+  const pageId = /"page_id":"([^"]+)"/.exec(isolatedStudioHarness(home, DEMO_PROJECT_ID, token))![1]!;
+  cleanups.push(() => pages.close(pageId));
+  let handled: Promise<unknown> = Promise.resolve();
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost'); response.once('close', () => disconnected.resolve());
+    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+    handled = pages.bind(request, url, response).then(async () => {
+      const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix.length);
+      await handleAgentStudioHttp(request, response, local, options, token);
+    });
+    void handled.catch(error => response.destroy(error as Error));
+  });
+  cleanups.push(async () => { server.closeAllConnections(); await Promise.all([handled, new Promise<void>(resolve => server.close(() => resolve()))]); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port, writes: string[] = [];
+  const write = fs.writeFile, writing = t.mock.method(fs, 'writeFile', async (...args: Parameters<typeof fs.writeFile>) => {
+    await write(...args);
+    if (typeof args[0] === 'string' && args[0].startsWith(join(source.root, 'releases') + '/')) {
+      writes.push(args[0]); held.resolve(); await resume.promise;
+    }
+  });
+  syncBuiltinESMExports(); cleanups.push(() => { writing.mock.restore(); syncBuiltinESMExports(); });
+  const result = fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + source.build.id + '/action', {
+    method: 'POST', signal: controller.signal, headers: { origin, 'content-type': 'application/json', 'x-molis-work-control-token': token,
+      'x-molis-work-idempotency-key': crypto.randomUUID(), ...(withdrawal === 'page' ? { 'x-molis-plugin-page': pageId } : {}) },
+    body: JSON.stringify({ action: 'publish', revision: source.build.revision }),
+  }).then(async response => ({ status: response.status, body: await response.text() }), error => ({ error: error as Error }));
+  await Promise.race([held.promise, result.then(value => { throw new Error('Publication did not reach its actual write: ' + JSON.stringify(value)); })]);
+  if (withdrawal === 'disconnect') { controller.abort(); await disconnected.promise; }
+  else pages.close(pageId);
+  resume.resolve(); await handled; const outcome = await result;
+  if (withdrawal === 'disconnect') assert.ok('error' in outcome);
+  else assert.equal('status' in outcome ? outcome.status : undefined, 400);
+  assert.equal(writes.length, 1, 'the invalidated HTTP call performs no next publication write');
+  assert.deepEqual(installed.releases.versions(source.build.id), []);
+  assert.deepEqual(await fs.readdir(join(source.root, 'releases', source.build.id)), [], 'no final version or staging directory survives');
+  assert.ok(await fs.stat(join(home, 'config', 'plugin-publisher.json')), 'the identity created while authorized is preserved');
+});
 
 test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed download/import/pin reaches a working Home plugin', { skip: process.platform !== 'darwin', timeout: 240_000 }, async t => {
   const cleanups: Array<() => Promise<unknown>> = []; t.after(async () => { for (const close of cleanups) await close(); });

@@ -3,6 +3,7 @@ import type { UiSideContext, UiPageMessage } from "@molis-ai/molis-work-contract
 import type { PagesCommentThread } from "./contract.js";
 import type { CommentSideHost, CommentDraft, CommentElements, CommentOpening, CommentCommandResult, PendingCommentCommand } from "./comment-browser-types.js";
 import { commentErrorMessage } from "./comment-browser-types.js";
+import { firstCharacters } from "./browser/dom.js";
 
 /** Side document client. Drafts and pending sends are keyed by project, document and thread. */
 export function mountComments(host: CommentSideHost): void {
@@ -38,7 +39,7 @@ export function mountComments(host: CommentSideHost): void {
   const paintRun=()=>{q('run').textContent=handed;};
   const paint=()=>{
     q('threads').replaceChildren();
-    for(const thread of threads){const node=button((thread.anchor.kind==='text'?thread.anchor.excerpt:thread.messages.find(message=>message.author==='user')?.body)?.slice(0,36)||L('pages.comments.whole-doc'),()=>choose(thread.thread_id));node.setAttribute('aria-current',String(thread.thread_id===active));q('threads').append(node);}
+    for(const thread of threads){const node=button(firstCharacters((thread.anchor.kind==='text'?thread.anchor.excerpt:thread.messages.find(message=>message.author==='user')?.body)||'',36)||L('pages.comments.whole-doc'),()=>choose(thread.thread_id));node.setAttribute('aria-current',String(thread.thread_id===active));q('threads').append(node);}
     const thread=threads.find(t=>t.thread_id===active);
     q('quote').hidden=!thread&&!draft().anchor;q('quote').textContent=thread?(thread.detached?L('pages.comments.detached')+'\n':'')+thread.anchor.excerpt:draft().excerpt||context?.object_ref.title||'';
     q('locate').hidden=!thread?.anchor.mark_id||thread.detached;

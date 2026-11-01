@@ -26,7 +26,7 @@ export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publ
     design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
     nodes: app.nodes, manifest: { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
-    packaged: { manifest, trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
+    packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }
 

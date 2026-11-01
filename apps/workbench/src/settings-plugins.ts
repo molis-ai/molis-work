@@ -189,11 +189,21 @@ draw($("[data-plugin-trust-publishers]"), L("你还没有固定过发布者"), d
 const preview = $("[data-plugin-trust-preview]");
 const close = () => { preview.replaceChildren(); preview.hidden = true; };
 const review = (shown) => {
-const view = shown.preview, panel = el("div", "plugin-trust-review");
-panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + L("签名者 {id}", { id: short(shown.publisher.key_id) })));
+const view = shown.preview, panel = el("div", "plugin-trust-review"); panel.style.overflowWrap = "anywhere";
+panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + L("签名者 {id}", { id: shown.publisher.key_id })));
 const was = current.find((plugin) => plugin.plugin_id === view.plugin_id);
 if (was) panel.append(el("span", "", L("已装的是 {from}，装上后升级到 {to}；数据保留。", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));
+if (shown.agent_bodies && shown.agent_bodies.length) {
+const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料与方法")));
+shown.agent_bodies.forEach((item) => {
+const body = el("div", "plugin-trust-agent-body");
+body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
+if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
+const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
+body.append(excerpt); bodies.append(body);
+}); panel.append(bodies);
+}
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);
 panel.append(group(L("它的代码能做的事"), L("不读写任何东西"), effects.map((key) => row(L(EFFECT[key] || key), shown.effects[key].join("、")))));
 let label = null;
@@ -203,6 +213,7 @@ const field = el("label", "plugin-trust-pin"); label = el("input", "mw-input"); 
 field.append(el("span", "", L("你还没有信任这个发布者。给它起个名字，才会固定它；固定后它之后签的包都会按这份信任安装。")), label); panel.append(field);
 }
 const footer = el("div", "plugin-trust-actions"), cancel = button(L("取消"), "mw-btn--secondary"), install = button(L("同意这些权限并安装"), "mw-btn--primary");
+footer.style.flexWrap = "wrap"; install.style.maxWidth = "100%"; install.style.whiteSpace = "normal";
 cancel.addEventListener("click", close);
 install.addEventListener("click", async () => {
 const name = label ? label.value.trim() : "";

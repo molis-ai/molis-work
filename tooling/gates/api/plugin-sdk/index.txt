@@ -382,6 +382,8 @@ export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/a
 
 export declare function assertManifest(manifest: PluginManifest): void;
 
+export declare function assertSandboxAgentDefinition(definition: Pick<PluginDefinition, "manifest" | "agent_prompts" | "agent_prompt_names" | "agent_skills" | "methods">): void;
+
 export { bindArtifactCompare } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactContinue } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactPreview } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -491,6 +493,8 @@ export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
+export declare function parsePluginPackageManifest(input: unknown): PluginPackageManifest;
+
 export declare function parsePorcelainStatus(input: PorcelainInput): GitStatus;
 
 export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
@@ -542,6 +546,14 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
 }, ports: ActionCardPorts<Card>): Promise<Card>;
 
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" | "method", name: string): {
+    entry_id: string;
+    prompt_id: string;
+};
+
+export declare function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods">;
+
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";

@@ -106,8 +106,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       });
       startPop.append(btnEl);
     };
-    methods.forEach((row) => pick(L("方法") + "：" + row.name + " · " + row.plugin_title, row.summary || row.name, "method-",
-      (file) => file.method.method_id === row.method_id, { kind: "method", title: L("方法") + "：" + row.name, method: { method_id: row.method_id } }));
+    methods.forEach((row) => {
+      const label = L(row.kind === "role" ? "角色资料" : "方法") + "：" + row.name;
+      pick(label + " · " + row.plugin_title, row.summary || row.name, "method-",
+        (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation?.install_id,
+        { kind: "method", title: label, method: { method_id: row.method_id, version: row.version, ...(row.default_ref ? { default_ref: row.default_ref, installation: row.installation } : {}) } });
+    });
     rows.forEach((row) => {
       const title = row.provider + " · " + row.title;
       pick(L("用") + "：" + title, row.description || title, "cap-", (file) => file.capability.capability_id === row.capability_id,

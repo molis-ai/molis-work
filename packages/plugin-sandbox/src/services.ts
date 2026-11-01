@@ -1,3 +1,4 @@
+import { assertSandboxAgentDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -87,7 +88,7 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
 }
 
 /** What a definition says it needs of the Host: its Manifest, and the bodies that ride on the definition rather than the Manifest. */
-export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructions' | 'methods' | 'agent_prompts' | 'agent_skills'>;
+export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructions' | 'methods' | 'agent_prompts' | 'agent_prompt_names' | 'agent_skills'>;
 
 /**
  * What the sandbox does with each member of the Host's services (`PluginHostServices`), so none is left without a decision: `given` is forwarded
@@ -140,8 +141,6 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: definition => definition.manifest.image_generation !== undefined },
   { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',
     declared: definition => !!definition.manifest.background?.jobs.length },
-  { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',
-    declared: definition => !!(definition.methods?.length || definition.manifest.methods?.length || definition.agent_prompts?.length || definition.agent_skills?.length || definition.manifest.agent) },
   { service: 'directory', services: ['directory'], reason: 'A person-authorized directory (directory:read) is not given to sandboxed plugins: it hands the plugin a folder of the person\'s, and has no form without paths yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['directory:read']) },
   { service: 'localTools', services: ['localTools'], reason: 'Looking for command-line tools on this machine (local_tools in the Manifest, local-tools:read) is only given to plugins the Host runs itself: it answers with the paths of files outside the sandbox (PG-112, S-79).',
@@ -180,6 +179,8 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
  * the first time the plugin reaches for the service.
  */
 export function assertSandboxDeclarations(definition: SandboxDeclarations, held: readonly string[]): void {
+  try { assertSandboxAgentDefinition(definition); }
+  catch (error) { throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for agent: ${error instanceof Error ? error.message : '沙箱文字声明无效'}`); }
   for (const row of SANDBOX_NOT_GIVEN) {
     if (row.declared(definition, held)) {
       throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for ${row.service}: ${row.reason}`);

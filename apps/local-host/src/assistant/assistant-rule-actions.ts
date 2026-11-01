@@ -1,5 +1,5 @@
 import { checkedMethodSelection } from "./assistant-send-materials.js";
-import { SIGNED_MATERIAL_NOTICE } from "./assistant-work-reads.js";
+import { SIGNED_MATERIAL_NOTICE } from "./assistant-signed-materials.js";
 /**
  * The person's attention rules as actions of the Assistant itself, in the Home's directory. The person can say
  * "写文档时不要提醒，失败除外" and the Assistant finds these like any capability; adding or removing a rule is a

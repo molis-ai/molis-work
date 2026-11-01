@@ -7,12 +7,13 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 /** A catalog connector reads through its source's connection; without one it has no account to read. */
 export function createCatalogConnector(opts: {
   connectorId: string;
+  home?: string;
   connectionId?: string;
   token?: string;
   fetchImpl?: CatalogFetch;
   now?: () => Date;
 }) {
-  const home = resolveMolisWorkHome();
+  const home = opts.home ?? resolveMolisWorkHome();
   const id = opts.connectionId;
   const oauthId = id ? apiOAuthConnectionId(withConnectorConnections(home, store => store.get(id))?.credential_ref ?? undefined) : undefined;
   return createCatalogProvider({

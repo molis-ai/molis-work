@@ -1,4 +1,4 @@
-import { signedMethodData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-work-reads.js";
+import { signedMethodData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
 import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";

@@ -13,6 +13,7 @@ export function pluginEntryIdentity() {
   const images = new WeakMap<PluginDefinition, PluginImageGenerationDeclaration>();
   const projectData = new WeakMap<PluginDefinition, PluginProjectCleanup>();
   const dual = new WeakSet<PluginDefinition>();
+  const dualIds = new Set<string>();
   return {
     providerFor: (definition: PluginDefinition, installId: string) => hostBuilt.has(definition) ? definition.manifest.plugin_id : installId,
     /** The library its Manifest declares, for a definition object the Host's start list holds; none for any other. */
@@ -23,12 +24,13 @@ export function pluginEntryIdentity() {
     projectDataFor: (definition: PluginDefinition) => projectData.get(definition),
     /** Whether the Host's start list said this definition is one half of a dual-instance plugin; nothing the plugin declares does. */
     dualInstance: (definition: PluginDefinition) => dual.has(definition),
+    dualInstanceId: (pluginId: string) => dualIds.has(pluginId),
     /** The files its Manifest declares, for a definition object the Host's start list holds. */
     remember(entries: readonly (PluginOwnerFilesEntry & { trust?: PluginTrust;
       project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.trust && isHostTrust(entry.trust)) hostBuilt.add(entry.definition);
-        if (entry.dual_instance) dual.add(entry.definition);
+        if (entry.dual_instance) { dual.add(entry.definition); dualIds.add(entry.definition.manifest.plugin_id); }
         listed.add(entry.definition);
         const owned = entry.definition.manifest.owner_files;
         if (owned) ownerFiles.set(entry.definition, Object.freeze({

@@ -9,7 +9,7 @@ import { verifiedCaller } from "./plugin-callers.js";
 /** What the scene client asks of the Host that hands it out. */
 export interface SceneHost {
   readonly actionService: ActionService;
-  readonly options: Pick<LocalHostOptions<unknown>, "sceneAvailability">;
+  readonly options: Pick<LocalHostOptions<unknown>, "sceneAvailability" | "retainSceneAuthority">;
   assertRunning(): void;
   /** The Host runs, the project (when there is one) is not closing, and neither is the project the running call belongs to. */
   authorityCurrent(project: LocalHostProjectReference | undefined): boolean;
@@ -101,18 +101,25 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
       });
     },
     runScene: async (caller, scene, bindingId, event) => {
-      const bound = await prepare(caller);
+      const original = await prepare(caller);
       return queue(scene.scene_id, scene.version, async () => {
+        const sources = host.actionService.discoverScenes(original).filter(view => view.definition.scene_id === scene.scene_id && view.definition.version === scene.version);
+        const source = sources.find(view => view.provider.project_id === project?.project_id) ?? sources.find(view => !view.provider.project_id);
+        const sourceCheck = source ? await host.options.retainSceneAuthority?.(source, project) : undefined;
+        sourceCheck?.();
+        const bound: ActionCallContext = { ...original, assert_authority_current: (reference, permissions) => { original.assert_authority_current?.(reference, permissions); sourceCheck?.(); } };
         const binding = (await host.actionService.usages(bound)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
         await check(bound, scene.scene_id, scene.version, binding?.function);
         const client = host.stepClient(project);
-        return host.actionService.runScene(bound, scene, bindingId, event, {
+        const result = await host.actionService.runScene(bound, scene, bindingId, event, {
           invoke: (context, fn, input) => client.invoke(context, fn, input),
           beforeConsume: async judgment => {
+            sourceCheck?.();
             await check(bound, scene.scene_id, scene.version, judgment);
             await host.checkActionAvailability(bound, judgment);
           },
         });
+        sourceCheck?.(); return result;
       });
     },
   };

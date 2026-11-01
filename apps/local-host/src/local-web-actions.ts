@@ -1,11 +1,12 @@
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pageLocale } from "./web-locale.js";
 import { localOwnerPermissionsOver } from "./local-owner-permissions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { runningProjectPlatform } from "./project-plugins.js";
 
 /** Host-issued request-local owner fence; never populated from page input. */
 export interface LocalWebStageRead {
@@ -13,10 +14,21 @@ export interface LocalWebStageRead {
   readonly install_id: string;
   readonly scope: "home" | "project";
   assertCurrent(): void;
+  capturePermission(permission: string): () => void;
 }
 
 /** What the Host's own entry adds to the person's call: the file the person handed it (an import), never any authority. */
 export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction; readonly stage_read?: LocalWebStageRead };
+
+/** One scene run keeps its actual plugin owner's checks, including while a different provider judges its input. */
+export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view: ActionSceneView, reference?: LocalHostProjectReference): Promise<() => void> {
+  const provider = view.provider, installId = provider.plugin_install_id;
+  if (!installId || !provider.project_id || !reference) return () => {};
+  const platform = await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  const checks = provider.plugin_id && platform?.dualInstance(provider.plugin_id)
+    ? view.definition.permissions.map(permission => platform.runtime.capturePermission(installId, permission)) : [];
+  return () => { for (const check of checks) check(); };
+}
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
@@ -30,6 +42,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const catalog = await host.inspectActions(base, reference);
   signal?.throwIfAborted();
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
+  const platform = reference ? await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id)) : null;
   signal?.throwIfAborted();
   // A plugin that runs as the Home's instance and as a project's has one install_id in both databases (a hash of its id and publisher),
   // each record with its own generation and grants. The two tables are never merged: an instance reads the record of its own database.
@@ -41,6 +54,13 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const inProject = (provider: ActionProvider) => Boolean(provider.project_id);
   const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined
     : (inProject(provider) ? projectRecords : homeRecords).get(provider.plugin_install_id);
+  const capturePermission = (provider: ActionProvider, permission: string): (() => void) | undefined => {
+    const install = installOf(provider);
+    if (!install) return undefined;
+    if (!inProject(provider)) return undefined;
+    return platform?.dualInstance(install.plugin_id) ? platform.runtime.capturePermission(install.install_id, permission) : undefined;
+  };
+  const checks = new Map<ActionView, Array<() => void>>();
   // The person's own permissions reach only what the Host registers itself, and over each such provider only what the person holds
   // over that provider (PG-007): a permission held over Characters is not held over another Host action that asks for it. A
   // provider the Plugin Runtime registered, built in or not, names its installation, and is reached through its grants alone.
@@ -55,9 +75,12 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     if (!scopeMatches(view.provider, view.action.scope)) return false;
     if (ownerReaches(view)) return true;
     const install = installOf(view.provider);
-    return view.provider.kind === "plugin"
+    const own = view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
       && view.action.permissions.every(permission => install.grants.includes(permission));
+    if (!own) return false;
+    try { checks.set(view, view.action.permissions.flatMap(permission => capturePermission(view.provider, permission) ?? [])); return true; }
+    catch { return false; }
   });
   // Scene-only plugins have no action from which to infer their local-user permissions.
   // Inspect actual registrations using installed grants, then accept only the matching running owner.
@@ -68,17 +91,33 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     const install = installOf(view.provider);
     if (!scopeMatches(view.provider, view.definition.scope) || view.provider.kind !== "plugin"
       || !install || install.plugin_id !== view.provider.plugin_id) return [];
-    return [...view.definition.permissions, ...view.definition.configuration_permissions ?? []].filter(permission => install.grants.includes(permission));
+    return [...view.definition.permissions, ...view.definition.configuration_permissions ?? []].filter(permission => {
+      if (!install.grants.includes(permission)) return false;
+      try { capturePermission(view.provider, permission)?.(); return true; } catch { return false; }
+    });
   });
   const owner = entry.stage_read, ownActions = new Set(owner?.manifest.actions?.map(action => `${action.capability_id}@${action.version}`));
   owner?.assertCurrent();
+  const sourceChecks = new Map<ActionView, Array<() => void>>();
   const authority = owner ? accepted.filter(view => ownActions.has(`${view.capability_id}@${view.version}`)
     ? view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
       && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)
-    : owner.manifest.capabilities.consumes.includes(view.capability_id)) : accepted;
+    : owner.manifest.capabilities.consumes.includes(view.capability_id) && (() => {
+      try { sourceChecks.set(view, view.action.permissions.map(permission => owner.capturePermission(permission))); return true; } catch { return false; }
+    })()) : accepted;
+  const assertCurrent = (action?: ActionReference) => {
+    owner?.assertCurrent();
+    if (!action) return;
+    for (const view of authority) {
+      if (action && (view.capability_id !== action.capability_id || view.version !== action.version || action.provider_id && view.provider.provider_id !== action.provider_id)) continue;
+      try { for (const check of [...checks.get(view) ?? [], ...sourceChecks.get(view) ?? []]) check(); }
+      catch { throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态"); }
+    }
+  };
   return { ...base, permissions: [...new Set([...builtinPermissions, ...accepted.flatMap(view => view.action.permissions), ...scenePermissions])],
     allowed_actions: authority.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
     validate_authority: async (action: ActionReference) => {
+      assertCurrent(action);
       const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
         && (!action.provider_id || view.provider.provider_id === action.provider_id));
       const original = matches.length === 1 ? matches[0] : undefined;
@@ -94,7 +133,9 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
         || !original.action.permissions.every(permission => install.grants.includes(permission))) {
         throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
       }
+      assertCurrent(action);
     },
+    assert_authority_current: assertCurrent,
   };
 }
 
@@ -158,6 +199,7 @@ function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProje
       if (entry.stage_read && !entrance(caller, definition)) throw new ActionError("actions.forbidden", "页面只能调用此次绑定的舞台入口及原提供方");
       const call = asEntry(caller);
       const result = await bindActionClient(client, () => call).invoke(definition, input, control, transport);
+      caller.assert_authority_current?.(definition);
       entry.stage_read?.assertCurrent();
       return result;
     },

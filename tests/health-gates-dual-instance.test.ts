@@ -72,9 +72,9 @@ test("DUAL-12 both halves ship with the Host: a project half that is not bundled
   }
 });
 
-test("DUAL-11 a dual-instance Manifest with an optional permission, or one the gate cannot read, fails", () => {
+test("DUAL-11 RAC-2911 readable required and optional permissions pass; an unreadable declaration fails", () => {
+  assert.deepEqual(dualInstanceProblems(snapshot(dualTree({ permissions: `{ permission: "probe:read", required: false, reason: "读" }` }))), []);
   const optional = [
-    `{ permission: "probe:read", required: false, reason: "读" }`,
     `{ permission: "probe:read", reason: "读" }`,
     `{ permission: "probe:read", required: name === "probe:read", reason: "读" }`,
     `...READS`,
@@ -83,7 +83,7 @@ test("DUAL-11 a dual-instance Manifest with an optional permission, or one the g
   for (const permission of optional) {
     const problems = dualInstanceProblems(snapshot(dualTree({ permissions: `{ permission: "storage:private", required: true, reason: "库" }, ${permission}` })));
     assert.equal(problems.length, 1, `${permission}: ${problems.join("\n")}`);
-    assert.match(problems[0], /has a permission that is not `required: true` as a literal/u, permission);
+    assert.match(problems[0], /required flag is not a true\/false literal/u, permission);
   }
   assert.match(dualInstanceProblems(snapshot(dualTree({ manifest: "defineManifest({})" })))[0], /cannot read the Manifest of the dual-instance plugin/u);
   // An unmarked Home plugin may keep optional permissions: the rule is only for dual-instance plugins.
@@ -104,13 +104,13 @@ test("DUAL-11 a dual-instance Manifest whose permissions the gate cannot follow 
   for (const body of unreadable) {
     const problems = dualInstanceProblems(snapshot(manifest(body)));
     assert.equal(problems.length, 1, `${body}${problems.join("\n")}`);
-    assert.match(problems[0], /cannot read the (Manifest|permissions) of the dual-instance plugin|has a permission that is not `required: true`/u, body);
+    assert.match(problems[0], /cannot read the (Manifest|permissions) of the dual-instance plugin|required flag is not a true\/false literal/u, body);
   }
   // The shorthand `{ permissions }` is followed as `{ permissions: permissions }`.
   const shorthand = (required: string) => manifest(lines(`const permissions = [{ permission: "probe:read", required: ${required}, reason: "读" }];`,
     `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions };`));
   assert.deepEqual(dualInstanceProblems(snapshot(shorthand("true"))), []);
-  assert.match(dualInstanceProblems(snapshot(shorthand("false")))[0], /has a permission that is not `required: true`/u);
+  assert.deepEqual(dualInstanceProblems(snapshot(shorthand("false"))), []);
   // Two files that `export *` each other end the search, which says it cannot read the Manifest, instead of recursing forever.
   const cycle: Tree = { ...dualTree(), "plugins/native/probe/src/manifest.ts": lines(`export * from "./index.js";`) };
   assert.match(dualInstanceProblems(snapshot(cycle))[0], /cannot read the Manifest of the dual-instance plugin/u);
@@ -155,7 +155,7 @@ before(() => {
 });
 after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 
-test("DUAL-11 DUAL-12 health:check passes a well-formed dual-instance plugin and fails a lonely half or an optional permission", () => {
+test("DUAL-11 DUAL-12 RAC-2911 health:check accepts explicit optional flags and rejects a lonely half or unreadable permission", () => {
   git("checkout", "-q", "-f", "main");
   const clean = gate();
   assert.equal(clean.code, 0, clean.out);
@@ -165,6 +165,9 @@ test("DUAL-11 DUAL-12 health:check passes a well-formed dual-instance plugin and
   assert.match(lonely.out, /starts no project half of it/u);
   branch("optional-permission", dualTree({ permissions: `{ permission: "probe:read", required: false, reason: "读" }` }));
   const optional = gate();
-  assert.equal(optional.code, 1, optional.out);
-  assert.match(optional.out, /has a permission that is not `required: true` as a literal/u);
+  assert.equal(optional.code, 0, optional.out);
+  branch("unreadable-permission", dualTree({ permissions: `{ permission: "probe:read", required: Boolean(0), reason: "读" }` }));
+  const unreadable = gate();
+  assert.equal(unreadable.code, 1, unreadable.out);
+  assert.match(unreadable.out, /required flag is not a true\/false literal/u);
 });

@@ -49,7 +49,7 @@ import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } 
 import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { installedConnectionSlots, installedPluginManifest } from "./plugin-installation-directory.js";
-import { localWebActionContext } from "./local-web-actions.js";
+import { capturePluginSceneAuthority, localWebActionContext } from "./local-web-actions.js";
 import { HomePluginHost } from "./home-plugins.js";
 import { homePackageProjectActions, homeProjectReach, projectReachDetails } from "./project-reach.js";
 import { assertFixtureScopes } from "./plugin-scope-entries.js";
@@ -149,6 +149,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
+      retainSceneAuthority: (scene, project) => capturePluginSceneAuthority(this, scene, project),
       actionSettled: this.settleAction,
       admitActionProvider: (provider, scenes) => admitProviderRules(options.homeDirectory, provider, scenes),
       actionProvidersChanged: (provider, scenes) => {

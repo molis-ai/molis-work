@@ -25,11 +25,11 @@ Shelf 迁到 Plugin Runtime 时，用户已定「同一个 `plugin_id` 双实例
 
 P1 放宽的只有：`assertContributionMatchesManifest` 的 `partial` 参数、Runtime 只登记这一半提供了处理器的动作与场景（`offeredManifest`，内核 `exactBindings` 仍整套精确匹配）、`HomePluginExecutor` 对带标记条目不再因端口等声明拒绝、启动名单对显式双实例放行、Home 路由对带标记插件回落。Home 实例仍拿不到项目的成果库、端口和事件服务。实现层取舍由 ② 定，不放宽信任边界。
 
-不变的约定：两个实例 `plugin_id`、`install_id`、`provider_id` 相同（两份名单里都标 `bundled`）；动作 id、路由 id、路径加方法互不相交，每个 Manifest 动作恰好由一个实例提供；记录各归各库，一个实例的授权、停用、重装、世代不影响另一个。
+不变的约定：两个实例 `plugin_id`、`install_id`、`provider_id` 相同（两份名单里都标 `bundled`）；动作 id、路由 id、路径加方法互不相交，每个 Manifest 动作恰好由一个实例提供；记录各归各库；必需能力、项目生命周期与世代独立，可选能力另外受 U1 的 Home 上限约束。
 
 ## 3. 决策记录
 
-- **U1 授权（用户 2026-10-20 定，选方案 A）**：每个实例各一条授权记录，人只在 Home 那条上看和管；双实例插件的 Manifest 权限全部 `required: true`，由门禁检查（必需权限人关不掉，两条记录不会分叉）；一个实例的授权不借给另一个。项目记录会持有只有 Home 一半才用到的权限，这一点写进 host.md 和 S-15 那一行。「项目记录 ∩ Home 记录」的交集方案等真有带可选权限的双实例插件再做。
+- **U1 授权（2026-11-01 Functions A / T406 更新）**：每个实例各一条授权记录，人只在 Home 那条上管理双实例插件的可选权限。项目可选权限必须同时满足自己的 grant 与同 Home、同插件/发布者/安装身份的 Home 现行授权；不补项目缺权，不同步写两库。Home 缺失、停用、换代只拒可选能力，必需权限与项目生命周期仍各自独立。实际使用权限时捕获原 Home 激活的撤销检查，关→开只让新调用使用新授权，旧动作、场景回调、作业、后台执行、route 及无外层动作的 SDK 消费调用仍拒绝。门禁要求 `required` 明写 `true` 或 `false`，不可读声明仍拒。原 2026-10-20 全部必需的限制是当时尚无可选权限双实例插件的暂定合同，由本次真实需求替换。
 - **U2 范围（用户 2026-10-20 定，选方案 A）**：先只给宿主装配的插件（目录条目带可信标记），第三方和沙箱插件不能声明。这与用户 2026-10-18「插件待遇一样」之间的差距，是同一个平台缺口（外部插件还装不了 Home 实例），不是给内置插件开的私路；要写进 `skills/molis-plugin-dev/host.md` 和[防腐 spec](../repository-anti-corruption/spec.md) §1，在 S0-2b-2 做。
 - **U3 服务 gate 加实例区分（② 定：做）**：模型、主人文件、材料、后台四个服务只比 `install_id`，两个实例相同，分不出；`PluginActionScope` 带上实例的 `installation_generation` 再比。读代码推断的缺口，未实测；写测试找不到这条拒绝就是缺陷，先补最小的拒绝。放进 S0-2b-3，等 #812 合入后做（理由见下条）。**范围（① 2026-10-22 定：全范围，不收窄）**：不止这四个服务，凡是按 `install_id` 核对正在运行的动作的地方都连世代一起比——私有存储、文件、数据库、项目库、成果与端口输出、事件、动作与能力调用、动作目录与查询、图片、模型设置、后台作业；宿主据此要知道实例的世代，`PluginStartContext` 加 `installation_generation`（改合同，按 `docs/system/CONTRACT-CHANGES.md` 不留兼容期）。
 - **S0-2b-1 只做 Runtime 一层（② 2026-10-20 定）**：
@@ -81,7 +81,7 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
 | DUAL-08 | 工作流精确引用钉着 `plugin_id`，Home 动作和项目动作各自解析到自己的提供方，不报 `provider_changed`；钉着别的提供方仍报 | S0-2c：`tests/dual-instance-actions.test.ts` |
 | DUAL-09 | HTTP：项目路径下 Home 实例绑定的路由由 Home 实例答（S-31 的项目核对不变）；项目实例的路由不被 Home 的 404 盖住；不带前缀的项目路由不由任何实例答（和别的不带项目的项目路由一样答 400）；Manifest 没声明的路径仍由 Home 答 404；Home 实例停了，它的路由不由项目实例代答；不带标记的插件对未声明的路径仍答 404；两边绑定同一条路由由 S0-2c 的覆盖测试查 | S0-2b-2 |
 | DUAL-10 | 项目实例调 Home 实例动作：Manifest 自有路径到得了只给 `user` 的动作，`consumes` 路径只到受众含 `agent` 的动作；Home 实例动作内部（无项目）调项目范围动作被拒（`actions.scope_mismatch`）；Home 路由在项目路径下被调时可以调，不带项目前缀时答 `actions.project_required` | S0-2c：`tests/dual-instance-actions.test.ts`（`consumes` 一条见第 10 节） |
-| DUAL-11 | 授权不互借：撤掉项目记录的某必需权限，项目实例的相应动作不可用，即使 Home 记录持有；Home 记录撤掉同理；带标记的 Manifest 含可选权限时门禁失败 | S0-2c：`tests/dual-instance-lifecycle.test.ts`（Home 记录一侧）；项目记录一侧由 S0-2a 的 DUAL-06 证；门禁由 S0-2b-2 |
+| DUAL-11 | 授权不互借：撤掉项目记录的某必需权限，项目实例的相应动作不可用，即使 Home 记录持有；Home 记录撤掉同理；可选权限按 U1 取项目与 Home 交集；声明的 required 必须是可读布尔字面量 | S0-2c：`tests/dual-instance-lifecycle.test.ts`（Home 记录一侧）；项目记录一侧由 S0-2a 的 DUAL-06 证；门禁由 S0-2b-2 |
 | DUAL-12 | 启动名单：同一 `plugin_id` 在两份名单里，只有 Home 一侧显式声明且两边 `bundled` 一致才放行；只标项目一侧、带标记却没有项目一半、`bundled` 不一致、夹具未声明，启动前抛错；沙箱定义标 `bundled` 仍以 `plugin.grant_denied` 拒绝 | S0-2b-2 |
 | DUAL-13 | 生命周期：停用或重装 Home 实例，项目实例的旧句柄不受影响、Home 的旧句柄不能复活；项目删除后 Home 实例的数据保留，项目实例的记录随项目走；关闭 Home 先使全部 Home 句柄失效 | S0-2c：`tests/dual-instance-lifecycle.test.ts`（重装见第 10 节） |
 | DUAL-14 | 视图只出现一次：Manifest 的每个视图在 `plugin_stages` 和项目侧栏里只由一个实例提供 | S0-2c：`tests/dual-instance-coverage.test.ts`（贡献一层）；`plugin_stages` 的页面一层由第 12 节的 RAC-1740～1745 证，项目侧栏见第 10 节「未覆盖」 |
@@ -224,3 +224,17 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
   - 浏览器里的可见性、点击、重新加载与框架隔离：HTTP 断言证不了这些。同文件已有的浏览器用例照旧在验证或 CI 里跑。
   - 「失败、崩溃或隔离」的项目一半给哪个按钮：`restartOffer` 没改，由 W5-06 的既有用例管。
 
+
+
+## T406 可选权限验收（2026-11-01，在做）
+
+目标是在隔离环境中功能完整；真实 Home、用户体验认可、最终同提交 CI/Full 与采用另计。复用原激活撤销 cell、调用局部闭包及 held results，不增加授权镜像库、服务白名单或后台重放。项目权限 setter 拒绝双实例可选权限修改；settings 用可信启动身份投影的内部安装 ID 定位 Home，disabled/crashed 仍配对，Home 缺失只显示不可用说明；公开动作 schema 不变。
+
+- RAC-2906：通用双实例、两个项目，各自 grant 与 Home 上限同时成立才放行；Home 不改项目记录。
+- RAC-2907：动作、scene 回调、保留作业与后台执行接受后发生 Home off→on，旧调用拒绝且效果与失败记录均不新增，新调用成功；服务首次使用额外可选权限同样捕获。
+- RAC-2908：route 在启动等待前以及 SDK 消费在目录等待前捕获，等待后、效果前、结果交付前复核；旧 local-user 上下文不借重新授权复活。
+- RAC-2909：Home 缺失、停止、重装或换激活只拒可选能力；必需能力继续，项目状态与世代不变，冷启动保持关闭。
+- RAC-2910：本人 Home 设置关/开并回读；项目 setter 不写两库，页面无第二开关，停止/崩溃/缺失状态准确。
+- RAC-2911：显式 true/false 可读，缺失、表达式、spread、未知构造、可信配对负控保持拒绝。
+
+真实接受点由 `tests/dual-instance-optional-permissions.test.ts` 验证；设置页面由 `tests/plugin-permission-switch.e2e.test.ts`，静态声明由 `tests/health-gates-dual-instance.test.ts`。验证命令：整体 `pnpm build` 后用 `node scripts/run-tests.mjs` 跑上述完整文件及影响的双实例/撤权/作业/场景回归，jobs=1、retries=0，公共构建/浏览器窗口与隔离 Home；作者不跑本机 Full。

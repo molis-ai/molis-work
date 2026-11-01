@@ -53,6 +53,7 @@ interface PluginJobScope extends PluginInstance {
   readonly job: string;
   readonly caller: ActionCallContext;
   readonly begun: number;
+  readonly permission_checks?: object;
 }
 
 type PluginInvocationScope = PluginActionScope | PluginSceneScope | PluginJobScope;
@@ -78,8 +79,10 @@ const place = (begun: number | undefined) => begun ?? running.getStore()?.begun 
  */
 export interface PluginRouteCall {
   readonly route_id: string;
+  readonly instance?: PluginInstance;
 }
 const routes = new AsyncLocalStorage<PluginRouteCall>();
+const permissionCalls = new AsyncLocalStorage<PluginInstance>();
 
 /** Calls whose handler has returned, thrown or settled (`pluginInvocationOpen`), and routes ended before theirs did. */
 const ended = new WeakSet<object>();
@@ -88,7 +91,7 @@ const ended = new WeakSet<object>();
 function runOpen<S extends object, T>(store: AsyncLocalStorage<S>, scope: S, handle: () => T): T {
   const end = () => { ended.add(scope); };
   let result: T;
-  try { result = store.run(scope, handle); } catch (error) { end(); throw error; }
+  try { result = checkedPermissionResult(scope, store.run(scope, handle)) as T; } catch (error) { end(); throw error; }
   if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") void (result as PromiseLike<unknown>).then(end, end);
   else end();
   return result;
@@ -126,7 +129,7 @@ export function insideOpenPluginCall(): boolean {
  * its scene's writes need (`pluginSceneEffectPassed`).
  */
 export function pluginSceneBeforeEffect(before: () => Promise<void>, effect: { passed: boolean }): () => Promise<void> {
-  return async () => { await before(); effect.passed = true; };
+  return async () => { await before(); assertHeldPluginResults(effect); effect.passed = true; };
 }
 
 /** Whether the callback `scope` runs for is a scene callback whose `beforeEffect` already returned. */
@@ -180,7 +183,7 @@ export function runInPluginJob<T>(scope: Omit<PluginJobScope, "begun"> & { reado
  * caller, and a timer set up in a lazily started Plugin's `start` would answer to it for good.
  */
 export function outsidePluginAction<T>(run: () => T): T {
-  return running.exit(() => routes.exit(run));
+  return running.exit(() => routes.exit(() => permissionCalls.exit(run)));
 }
 
 /** The action the calling code is running for, or nothing outside every action (`start`, a route, a timer set up elsewhere). */
@@ -224,7 +227,61 @@ export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope |
  * the call's `checked` record where it has one, which work that carries the call on shares, else under the scope itself.
  */
 const heldResults = new WeakMap<object, Array<() => void>>();
-const heldKey = (scope: PluginInvocationScope): object => ("checked" in scope && scope.checked) || scope;
+const heldKey = (scope: object): object => {
+  if ("checked" in scope && scope.checked && typeof scope.checked === "object") return scope.checked;
+  if ("effect" in scope && scope.effect && typeof scope.effect === "object") return scope.effect;
+  if ("permission_checks" in scope && scope.permission_checks && typeof scope.permission_checks === "object") return scope.permission_checks;
+  return scope;
+};
+const permissionResults = new WeakMap<object, Map<string, () => void>>();
+
+function permissionScope(instance: PluginInstance): object | undefined {
+  const invocation = running.getStore(), route = routes.getStore(), call = permissionCalls.getStore();
+  return inPluginInstance(invocation, instance) ? invocation : inPluginInstance(route?.instance, instance) ? route : inPluginInstance(call, instance) ? call : undefined;
+}
+
+/** A permission's producer check is captured once for this source call; later grants cannot replace it. */
+export function requirePluginPermission(instance: PluginInstance, permission: string, capture: () => (() => void) | undefined): void {
+  const scope = permissionScope(instance);
+  if (!scope) { capture()?.(); return; }
+  const key = heldKey(scope);
+  assertPluginPermissionChecks(key);
+  let held = permissionResults.get(key);
+  const previous = held?.get(permission);
+  if (previous) { previous(); return; }
+  const check = capture();
+  if (!check) return;
+  check();
+  if (!held) { held = new Map(); permissionResults.set(key, held); }
+  held.set(permission, check);
+  const results = heldResults.get(key);
+  if (results) results.push(check); else heldResults.set(key, [check]);
+}
+
+export function assertPluginPermissionChecks(key: object): void {
+  for (const check of permissionResults.get(key)?.values() ?? []) check();
+}
+
+/** The Host's original route control retains its identity and asks the active request's permission fence. */
+export function assertPluginRoutePermissions(): void {
+  const route = routes.getStore();
+  if (route) assertPluginPermissionChecks(route);
+}
+
+function checkedPermissionResult(scope: object, result: unknown): unknown {
+  const check = () => assertPluginPermissionChecks(heldKey(scope));
+  if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") {
+    return Promise.resolve(result).then(value => { check(); return value; }, error => { check(); throw error; });
+  }
+  check(); return result;
+}
+
+/** An SDK consume call outside an action/scene/job/route still owns a request-local permission fence. */
+export function withPluginPermissionChecks<T>(instance: PluginInstance, run: () => T): T {
+  const scope = permissionScope(instance);
+  if (scope) return checkedPermissionResult(scope, run()) as T;
+  return runOpen(permissionCalls, { install_id: instance.install_id, installation_generation: instance.installation_generation }, run);
+}
 
 /**
  * Holds a provider's outcome for this invocation, including a pending request or an ordinary failure. Every platform write and nested

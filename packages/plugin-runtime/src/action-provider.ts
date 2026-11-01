@@ -31,12 +31,12 @@ export interface PluginRuntimeActions {
  * `instance` is the activation's record as it started: its calls run as that instance, and only its services serve them.
  */
 export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, instance: PluginInstance, providerId: string, projectId: string | undefined,
-  state: { record(): PluginInstanceRecord | null; live(): boolean }, projectReach?: PluginProjectReach): ActionProviderRegistration {
+  state: { record(): PluginInstanceRecord | null; live(): boolean; bounded: boolean; checkGrant(permission: string): void; capturePermissions(permissions: readonly string[]): void }, projectReach?: PluginProjectReach): ActionProviderRegistration {
   const installId = instance.install_id, { installation_generation } = instance;
   const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
     (context: ActionCallContext): ActionAvailability => {
-      const grants = state.record()?.grants ?? [];
-      if (permissions.some(p => !grants.includes(p))) return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" };
+      try { for (const permission of permissions) state.checkGrant(permission); }
+      catch { return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" }; }
       return own?.(withoutIssuedIdentity(context)) ?? { available: true };
     };
   return {
@@ -48,20 +48,24 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       // returning is one way it passes its last authority check (`PluginActionScope.checked`).
       return { ...h, handle: (context, input) => {
         const begun = reservePluginInvocationPlace();
+        const checked = { passed: false };
         const run = (readable?: readonly string[]) => {
-          const checked = { passed: false }, view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}), ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}) }, before = view.beforeEffect;
-          return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked, begun },
-            () => h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input));
+          state.capturePermissions(definition.action.permissions);
+          const view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}), ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}) }, before = view.beforeEffect;
+          return h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input);
         };
         // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-74).
         const reaches = projectReach && definition.action.project_reach === "person" && context.audience === "user"
           && state.record()?.grants.includes(PROJECT_REACH_PERMISSION) === true;
-        return reaches ? projectReach(manifest, context).then(run) : run();
+        return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked, begun }, () => {
+          state.capturePermissions(definition.action.permissions);
+          return reaches ? projectReach(manifest, context).then(run) : run();
+        });
       }, availability: grantAvailability(definition.action.permissions, h.availability ? caller => pluginActionAvailability(instance, definition, caller, h.availability!) : undefined) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
-      return pluginSceneHandler(declaration, h, instance, grantAvailability);
+      return pluginSceneHandler(declaration, h, instance, grantAvailability, state.capturePermissions, state.bounded);
     }),
     availability: () => {
       const current = state.record();

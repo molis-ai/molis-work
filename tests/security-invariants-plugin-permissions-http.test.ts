@@ -161,7 +161,7 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   assert.match(script, /^current = data\.plugins; personal = homeData;/m, "the latest complete response supplies those Home rows");
   assert.match(script, /^const homeSend = \(payload\) => homeApi\("set", payload\);$/m, "the permission switch forwards its payload through that door's set");
   assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
-  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act\)/, "a project's rows send theirs to the project's route");
+  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act, managed\)/, "a project's rows keep their own route; trusted dual rows separately have a read-only Home location");
 });
 
 test("RAC-2604 S-94 the Host settings door's disable, enable and uninstall are guarded like its switch, and reach only a package installed in the Home: a plugin of the Host's build keeps running, and the project's door cannot reach the Home's", { timeout }, async t => {

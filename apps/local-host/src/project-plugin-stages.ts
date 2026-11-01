@@ -195,6 +195,7 @@ export interface RuntimeStageOwner {
   readonly install_id: string;
   readonly view: UiContribution;
   assertCurrent(): void;
+  capturePermission(permission: string): () => void;
 }
 
 /** Capture the running Manifest, contribution, installation generation and permissions together. */
@@ -219,7 +220,8 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
       || JSON.stringify(view.descriptor) !== descriptor) throw new ActionError("actions.provider_changed", "原舞台实例、声明或授权已变化，请重新读取");
   };
   assertCurrent();
-  return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id, view, assertCurrent };
+  return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id, view, assertCurrent,
+    capturePermission: permission => platform.runtime.capturePermission(record.install_id, permission) };
 }
 
 /** The chosen half, without reading either half's data or rendering it. */

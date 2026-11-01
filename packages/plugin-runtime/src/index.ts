@@ -44,7 +44,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginActionBeforeEffect, reservePluginInvocationPlace, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginActionBeforeEffect, reservePluginInvocationPlace, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction, withPluginPermissionChecks, assertPluginRoutePermissions } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
@@ -139,8 +139,8 @@ export interface PluginInstallInput {
 
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
-  private readonly contributions = new OfferedContributions();
-  private readonly contexts = new Map<string, { context: PluginStartContext; definition: PluginDefinition; revoke(): void; revoked(): boolean }>();
+  private readonly contributions = new OfferedContributions(installId => this.contexts.get(installId)?.context);
+  private readonly contexts = new Map<string, ReturnType<typeof createActivationContext>>();
   private readonly locks = new InstallLocks();
   /** Concurrent `start` calls share one attempt and therefore one registration. */
   private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
@@ -152,10 +152,33 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
+      /** A trusted project half's optional permissions may be bounded by its Home owner. Captures no caller identity. */
+      permissionBound?(record: PluginInstanceRecord, definition: PluginDefinition): ((permission: string) => () => void) | undefined;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
       actions?: PluginRuntimeActions },
   ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); }
+
+  /** Capture the original activation, grants and optional upper bound; used by owners and route admission. */
+  capturePermission(installId: string, permission: string): () => void {
+    const record = this.repository.get(installId);
+    if (!record || !record.grants.includes(permission) || !["installed", "starting", "running"].includes(record.state)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+    const definition = requireDefinition(this.definitions, record), activation = this.contexts.get(installId);
+    const check = activation?.capturePermission(permission) ?? this.permissionBound(record, definition, permission);
+    const current = () => {
+      const now = this.repository.get(installId);
+      if (!now || now.installation_generation !== record.installation_generation || now.plugin_id !== record.plugin_id || now.publisher_id !== record.publisher_id || now.publisher_signature !== record.publisher_signature
+        || !now.grants.includes(permission) || !["installed", "starting", "running"].includes(now.state)
+        || activation && this.contexts.get(installId) !== activation) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+      check?.();
+    };
+    current(); return current;
+  }
+
+  private permissionBound(record: PluginInstanceRecord, definition: PluginDefinition, permission: string): (() => void) | undefined {
+    return definition.manifest.permissions.some(item => item.permission === permission && item.required === false)
+      ? this.options.permissionBound?.(record, definition)?.(permission) : undefined;
+  }
 
   register(definition: PluginDefinition): void {
     validateManifest(definition.manifest);
@@ -703,7 +726,14 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
         const registration = pluginActionProvider(manifest, contribution, record,
-          actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) }, actions.projectReach);
+          actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
+            bounded: Boolean(this.options.permissionBound?.(record, definition)),
+            checkGrant: permission => this.capturePermission(record.install_id, permission)(), capturePermissions: permissions => {
+              if (!this.options.permissionBound?.(record, definition)) return;
+              const context = this.liveContext(record.install_id);
+              if (!context) throw pluginErrors.grant_denied("插件激活已失效");
+              for (const permission of permissions) context.requireGrant(permission);
+            } }, actions.projectReach);
         this.actionDisposers.set(record.install_id, actions.register?.(definition, contribution, record, registration) ?? actions.registry.registerProvider(registration));
       }
     } catch (error) {
@@ -738,7 +768,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition));
+    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition), permission => this.permissionBound(record, definition, permission));
     this.contexts.set(record.install_id, activation);
     return activation.context;
   }

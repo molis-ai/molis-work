@@ -64,6 +64,8 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 
 ## 开发要求
 
+可信双实例的项目可选权限由 permissionBound 只读捕获同 Home 的原激活检查，与项目自己的 grant 同时成立；必需权限与生命周期独立。动作/场景/作业/route/SDK 消费调用在实际接受权限时保留检查，await 后、beforeEffect 与结果交付时复核，regrant 不变世代也不能使旧调用复活。回归：`tests/dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2909）。
+
 `listPluginProjectDatabases(database)` 只读项目库的现行插件 ledger，沿该 owner 的严格 parser 返回插件 id、库名、版本与发布者，用于离线快照子版本记录；不激活插件、不迁移或初始化账本，不向 Host 暴露跨 owner SQL。回归包含 `tests/home-snapshot-content.test.ts`。
 
 显式解除隔离时，Runtime 先把安装转为可恢复状态，再启动新激活，使启动期间声明的常驻作业接受同一安装检查；启动失败恢复隔离。普通恢复仍拒绝隔离安装，不能绕过用户决定。验证见 `tests/plugin-compatible-recovery-http.test.ts` 与 `tests/plugin-host-executor.test.ts`。

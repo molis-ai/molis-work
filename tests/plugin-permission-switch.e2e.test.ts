@@ -20,7 +20,7 @@ const viewOf = (name: string, installId: string, permissions: Array<{ permission
 
 interface Seen { url: string; body: unknown }
 
-async function openPluginPage(t: TestContext) {
+async function openPluginPage(t: TestContext, dual = false) {
   const executable = locateTestChrome();
   if (!executable) { t.skip("Chrome is required for the plugin permission switches"); return null; }
   if (process.platform === "darwin") {
@@ -39,7 +39,10 @@ async function openPluginPage(t: TestContext) {
   ]);
   const homePlugin = viewOf("个人空间的插件", "home-install", [{ permission: "surface:browser", required: false, granted: true },
     { permission: "owner-files:write", required: false, requested: false, granted: false }]);
-  const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin]]);
+  const dualProject = viewOf("双实例插件", "dual-install", [{ permission: "dual:optional", required: false, granted: true }]);
+  const dualHome = { ...dualProject, state: "disabled", permissions: dualProject.permissions.map(item => ({ ...item })) };
+  const model = { home: true };
+  const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin], [dualHome.install_id, dualHome]]);
   const seen: Seen[] = [];
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -48,8 +51,9 @@ async function openPluginPage(t: TestContext) {
       const url = request.url ?? "", text = Buffer.concat(chunks).toString();
       const json = (status: number, value: unknown) => { response.writeHead(status, { "content-type": "application/json" }); response.end(JSON.stringify(value)); };
       if (request.method === "GET" && url.startsWith(`${prefix}/settings/plugins`)) { response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(html); return; }
-      if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin], publishers: [] }); return; }
-      if (url === "/api/settings/plugin-permissions/list") { json(200, { plugins: [homePlugin] }); return; }
+      if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin, ...dual ? [dualProject] : []], publishers: [], home_managed_install_ids: dual ? [dualProject.install_id] : [] }); return; }
+      if (url === "/api/settings/plugin-permissions/list") { json(200, { plugins: [homePlugin, ...dual && model.home ? [dualHome] : []] }); return; }
+      if (url === `${prefix}/api/settings/plugin-project-reach/list`) { json(200, { project_name: "权限开关页面", plugins: [], capabilities: [] }); return; }
       if (url === `${prefix}/api/plugin-trust/permissions/set` || url === "/api/settings/plugin-permissions/set") {
         const body = JSON.parse(text) as { install_id: string; permission: string; granted: boolean };
         seen.push({ url, body });
@@ -77,7 +81,7 @@ async function openPluginPage(t: TestContext) {
   const page = await harness.page();
   await page.command("Runtime.enable");
   await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}${prefix}/settings/plugins` });
-  await page.wait("document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === 1",
+  await page.wait(`document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === ${dual ? 2 : 1}`,
     { describe: "document.querySelector('[data-plugin-trust-error]')?.textContent" });
   await page.evaluate("document.querySelectorAll('details.plugin-trust-item').forEach(item => { item.open = true; })");
   const switchOf = (permission: string) => `input[role=switch][aria-label="${permission}"]`;
@@ -87,8 +91,28 @@ async function openPluginPage(t: TestContext) {
     while (seen.length < count && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 40));
     return seen;
   };
-  return { page, seen, requests, switchOf, checked, prefix };
+  return { page, seen, requests, switchOf, checked, prefix, model, dualHome };
 }
+
+test("RAC-2910 dual optional permissions have one Home switch, including stopped/crashed and missing Home states", { timeout: 120_000 }, async t => {
+  const browser = await openPluginPage(t, true); if (!browser) return;
+  const { page, requests, seen, model, dualHome } = browser;
+  const project = "[data-plugin-trust-list]", personal = "[data-plugin-trust-home]";
+  const optional = 'input[role=switch][aria-label="dual:optional"]';
+  assert.equal(await page.evaluate(`document.querySelectorAll('${project} ${optional}').length`), 0);
+  assert.match(await page.evaluate<string>(`document.querySelector('${project}').innerText`), /请在个人空间里管理这个插件的可选权限/u);
+  await page.click(`${personal} ${optional}`);
+  await requests(1); assert.deepEqual(seen[0], { url: "/api/settings/plugin-permissions/set", body: { install_id: "dual-install", permission: "dual:optional", granted: false } });
+  await page.wait(`document.querySelector('${personal} ${optional}').disabled === false`);
+  dualHome.state = "crashed";
+  await page.evaluate("location.reload()");
+  await page.wait(`document.querySelectorAll('${personal} ${optional}').length === 1`);
+  assert.equal(await page.evaluate(`document.querySelectorAll('${project} ${optional}').length`), 0);
+  model.home = false;
+  await page.evaluate("location.reload()");
+  await page.wait(`document.querySelector('${project}')?.textContent.includes('个人空间插件权限当前不可用')`);
+  assert.equal(await page.evaluate(`document.querySelectorAll('${optional}').length`), 0);
+});
 
 test("RAC-959 S-94 the 插件 page's switches, run in a browser, send the project's switch to the project's door and the Home plugin's to the Host settings door, and a wide permission waits for its confirmation", { timeout: 120_000 }, async t => {
   const browser = await openPluginPage(t); if (!browser) return;

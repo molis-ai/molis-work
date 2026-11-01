@@ -151,14 +151,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       showToast,
       projectId: state.project?.project_id || "",
     });
-    bindGoalCreateEvents();
+    if (goalData) bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
       if (localPathname() === "/" && !collectionView) {
         setDesktopDirectory("root", false, false);
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
-      } else handleGoalPopState(event);
+      } else if (goalData) handleGoalPopState(event);
     });
-    addEventListener("hashchange", handleGoalHashChange);
+    if (goalData) addEventListener("hashchange", handleGoalHashChange);
     addEventListener("pagehide", saveUiState);
     addEventListener("keydown", (event) => {
       if (event.defaultPrevented || event.isComposing) return;
@@ -179,13 +179,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         nextTrigger.focus();
         return;
       }
-      if (handleGoalFactorKeyboard(event)) return;
-      if (handleTreeKeyboard(event)) return;
+      if (goalData && handleGoalFactorKeyboard(event)) return;
+      if (goalData && handleTreeKeyboard(event)) return;
       if (event.key === "Escape" && feedFilterPanel?.hidden === false) {
         event.preventDefault();
         setFeedFilterOpen(false);
         feedFilterTrigger?.focus();
-      } else handleGoalDialogEscape(event);
+      } else if (goalData) handleGoalDialogEscape(event);
     });
     addEventListener("resize", () => {
       const nextCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
@@ -232,10 +232,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     } catch {}
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
-      bindGoalEventDocument();
-      openEventReaderFromHash();
-      const initialFactor = goalFactorFromHash();
-      if (initialFactor) setGoalFactor(initialFactor, false);
+      if (goalData) {
+        bindGoalEventDocument();
+        openEventReaderFromHash();
+        const initialFactor = goalFactorFromHash();
+        if (initialFactor) setGoalFactor(initialFactor, false);
+      }
       if (feedDirectory) setFeedPreset("feed", false);
       if (desktopDirectoryPanels.length) {
         setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
@@ -391,8 +393,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
-    updateRelationPreviews();
-    updateAllRelationFormPreviews();
+    if (goalData) {
+      updateRelationPreviews();
+      updateAllRelationFormPreviews();
+    }
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
     const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
     boardLifetime.poll(async signal => {

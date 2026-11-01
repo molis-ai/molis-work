@@ -1,13 +1,17 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_REGISTRY, DEMO_PROJECT_ID, PROJECT_SCOPED_PLUGIN_IDS, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { goalEventHistoryKinds, materializeGoalEventHistory } from "./goal-event-history-fixture.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 /**
  * Reads echo what is stored. One historical record that an output contract no longer admits makes the whole read
@@ -29,28 +33,49 @@ const unavailableInFixture: Record<string, string> = {
 };
 
 async function probe(t: test.TestContext, databasePath: string, projectId: string) {
-  const home = mkdtempSync(join(tmpdir(), "action-read-compatibility-"));
-  t.after(() => rmSync(home, { recursive: true, force: true }));
-  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const copy = join(home, "project.sqlite"); copyFileSync(databasePath, copy);
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: copy, projectId });
-  const broken: string[] = [], read = new Set<string>();
+  const web = await serveHomeRuntime(t, { workspacesFor: undefined });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: web.home });
+  let copy: string;
+  const projectName = `Read historical project ${projectId}`;
   try {
-    const base = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: [] };
-    for (const view of (await host.inspectActions(base, ref)).filter(needsNothing)) {
-      const caller = { ...base, permissions: view.action.permissions };
-      const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
-      try { await client.invoke(view.action.scope === "home" ? { ...caller, project_id: null } : caller, view, {}); read.add(view.capability_id); }
-      catch (error) {
-        const code = (error as { code?: string }).code;
-        if (code && unavailableInFixture[`${view.capability_id}@${view.version}`] === code) continue;
-        broken.push(`${view.capability_id}@${view.version}: ${code ?? "unexpected_error"}: ${(error as Error).message}`);
+    // Restore the dump under its own id, through the catalog table's owner; neither data nor identity is rewritten.
+    const storage = new LocalSqliteStorage(catalog.databasePath);
+    try {
+      const projects = new ProjectsModule({ db: storage.db, projects_directory: catalog.projectsDirectory, plugins: BUILTIN_PLUGIN_REGISTRY });
+      const record = projects.lifecycle.prepareRecord({ project_id: projectId, display_name: projectName, data_class: "user" });
+      copy = record.database_path;
+      mkdirSync(dirname(copy), { recursive: true }); copyFileSync(databasePath, copy);
+      projects.lifecycle.register(record, "project.created", "fixture-restore");
+      for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "fixture-restore" });
+    } finally { storage.close(); }
+    assert.equal(catalog.getProject(projectId).database_path, copy);
+  } finally { catalog.close(); }
+  const host = web.host, ref = molisWorkHostProjectReference({ databasePath: copy, projectId });
+  const broken: string[] = [], read = new Set<string>();
+  const base = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: [] };
+  for (const view of (await host.inspectActions(base, ref)).filter(needsNothing)) {
+    const caller = { ...base, permissions: view.action.permissions };
+    const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
+    try {
+      if (view.capability_id === "plugins.project_reach.list" && view.version === 2) {
+        // T145: even a read needs the project's actual settings door, not an invented user_action or a forbidden allowlist.
+        await assert.rejects(client.invoke(caller, view, {}), { code: "actions.forbidden", message: "项目同意只接受本人在对应项目设置里的操作" });
+        const response = await web.request(`/projects/${encodeURIComponent(projectId)}/api/settings/plugin-project-reach/list`, { method: "POST", body: {} });
+        assert.equal(response.status, 200, await response.clone().text());
+        assert.deepEqual(await response.json(), { plugins: [], project_name: projectName, capabilities: [] });
+      } else {
+        await client.invoke(view.action.scope === "home" ? { ...caller, project_id: null } : caller, view, {});
       }
+      read.add(view.capability_id);
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code && unavailableInFixture[`${view.capability_id}@${view.version}`] === code) continue;
+      broken.push(`${view.capability_id}@${view.version}: ${code ?? "unexpected_error"}: ${(error as Error).message}`);
     }
-  } finally { await host.close(); }
+  }
   assert.deepEqual(broken, []);
   assert.ok(read.has("goals.snapshot.read"), "the historical project snapshot must actually succeed");
+  assert.ok(read.has("plugins.project_reach.list"), "the real project settings read must actually succeed");
   assert.ok(read.size > 10, "the directory must actually be read");
 }
 

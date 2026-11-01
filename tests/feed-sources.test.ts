@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +6,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 
-import { listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 
@@ -84,7 +84,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
         };
       };
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory);
-      const definition = listFeedSourceCatalog()[0]!;
+      const definition = listTestFeedSourceCatalog()[0]!;
       const firstRegistration = service.register({ kind: "rss", definition_id: definition.id });
       assert.equal(firstRegistration.registered, true);
       assert.equal(runtimeCreated, 0, "registration must not perform network/runtime setup");
@@ -163,7 +163,7 @@ test("public Feed interruption preserves current owner failures and an uncoded r
         inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; }, delete() { return false; },
         collect() { return { deleted: [], kept: [] }; } }, async shutdown() {},
     }));
-    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     for (const [error, expected, operation] of [
       [failure, "connector.needs_auth", "owner-code-1"],
       [Object.assign(new Error("Unsafe upstream value"), { code: "private detail with spaces" }), "feed.provider_interrupted", "owner-code-2"],
@@ -202,7 +202,7 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
       assert.deepEqual(refusal(() => service.register({ kind: "youtube_channel", channel_id: "not a channel" })), ["youtube.channel_invalid", 400]);
       assert.deepEqual(refusal(() => service.register({ kind: "web_query", query: "x" })), ["feed.source_query_invalid", 400]);
       assert.deepEqual(refusal(() => service.register({ kind: "rss", definition_id: "no-such-feed" })), ["feed.source_definition_unavailable", 400]);
-      const catalog = listFeedSourceCatalog()[0]!;
+      const catalog = listTestFeedSourceCatalog()[0]!;
       assert.throws(
         () => service.register({ kind: "custom_rss", feed_url: catalog.feed_url }),
         (error: unknown) => error instanceof ActionError && error.code === "feed.source_use_catalog",
@@ -284,7 +284,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
             });
           },
         }));
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const first = await service.sync(source.source_id, { idempotencyKey: "rss-http-sync-0001" }).catch((error) => {
         const failed = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
         assert.fail(`first RSS sync failed with ${failed.last_error_code}: ${String(error)}`);
@@ -305,7 +305,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
       assert.deepEqual(second.run.receipt?.rss_http, {
         status: 304,
         not_modified: true,
-        final_url: listFeedSourceCatalog()[0]!.feed_url,
+        final_url: listTestFeedSourceCatalog()[0]!.feed_url,
         validator: "etag",
       });
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
@@ -347,7 +347,7 @@ test("RSS transient failures preserve history and become actionable only after t
         },
         async shutdown() {},
       }));
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         await assert.rejects(
           service.sync(source.source_id, { idempotencyKey: `rss-recovery-000${attempt}` }),
@@ -416,7 +416,7 @@ test("RSS parse failures immediately create a configuration recovery reference",
         },
         async shutdown() {},
       }));
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const result = await service.sync(source.source_id, { idempotencyKey: "rss-parse-fault-0001" });
       assert.equal(result.run.error_code, "feed_parse_failed");
       assert.equal(result.source.status, "error");
@@ -447,7 +447,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
     try {
       let now = new Date("2026-08-30T09:00:00.000Z");
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => now);
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const scheduled = service.configureSchedule(source.source_id, {
         mode: "interval",
         enabled: true,
@@ -506,7 +506,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
     try {
       let now = new Date("2026-08-30T09:00:00.000Z");
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => now);
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
       now = new Date("2026-08-30T09:05:00.000Z");
       const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async () => {
@@ -543,7 +543,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
     const store = new LocalProjectDatabase(databasePath);
     try {
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const updated = service.update(source.source_id, {
         name: "Product RSS",
         description: "产品与 Agent 更新",
@@ -564,7 +564,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).sources.some((item) => item.source_id === source.source_id), false);
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
 
-      const replacement = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const replacement = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       service.feed.ingestItem({
         source: replacement,
         externalId: "lifecycle-item-2",
@@ -670,7 +670,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
-    const definition = listFeedSourceCatalog()[0]!;
+    const definition = listTestFeedSourceCatalog()[0]!;
     const registered = await mutate("/api/plugins/io.molis.work.feed/sources", "POST", {
       kind: "rss",
       definition_id: definition.id,
@@ -716,8 +716,8 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
       connector_auth: { github: { bound: boolean } };
     };
     assert.equal(feed.connector_auth.github.bound, true);
-    // The catalog is the shell's to give with the page, not Feed's route's (the vocabulary is read only inside Feed's own action, S-97).
-    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { feed_source_catalog: unknown[] }).feed_source_catalog.length > 0);
+    // Feed's own stage reads the instance vocabulary (S-97); the page carries that owner result.
+    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { stage_data: { feed: { source_catalog: unknown[] } } }).stage_data.feed.source_catalog.length > 0);
     assert.equal(feed.sources.some((source) => source.kind === "github"), false, "a connection alone adds no Feed source");
     assert.equal(JSON.stringify(feed).includes("github-test-token-12345"), false);
 

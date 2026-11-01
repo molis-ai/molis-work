@@ -85,14 +85,29 @@ defineRowTests(ROWS, ["RAC-2011", "RAC-2012", "RAC-2013"]);
 // T-280: the Feed and Integration sections, Goals' route mount and the proposal UI check, read the same way.
 const FEED_UI = checkMigratedFeedUiOwnership, INTEGRATION = checkMigratedIntegrationOwnership;
 const MORE_ROWS = [
-  { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "renderFeedNativePluginSurface", kind: "code" },
+  { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "createWorkbenchStageRenderers(", kind: "code" },
+  { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "stageModel: stages.declaredStageModel", kind: "code" },
+  { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "stageFragmentModel: stages.stageFragmentModel", kind: "code" },
+  { check: FEED_UI, file: "apps/workbench/src/stage-renderers.ts", needle: "sharedStageModel(projectPluginId, view)", kind: "code" },
+  { check: FEED_UI, file: "apps/workbench/src/stage-renderers.ts", needle: "sharedStageModel(projectPluginId, context)", kind: "code" },
   { check: FEED_UI, file: "plugins/native/feed/src/manifest.ts", needle: "routes: [", kind: "code" },
   { check: FEED_UI, file: "plugins/native/feed/src/plugin.ts", needle: "createFeedRouteHandlers", kind: "code" },
   { check: FEED_UI, file: "plugins/native/feed/src/plugin.ts", needle: "routes,", kind: "code" },
   { check: FEED_UI, file: "plugins/native/inbox/src/manifest.ts", needle: "routes: [", kind: "code" },
   { check: FEED_UI, file: "plugins/native/inbox/src/plugin.ts", needle: "createInboxRouteHandlers", kind: "code" },
   { check: FEED_UI, file: "plugins/native/inbox/src/plugin.ts", needle: "routes,", kind: "code" },
-  { check: FEED_UI, file: "apps/workbench/src/feed-projection-ui.ts", needle: "renderFeedContribution", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/manifest.ts", needle: "stage_data: { action: feedQueryActions.stage.capability_id", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/manifest.ts", needle: "object_action: feedQueryActions.reader.capability_id", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/plugin.ts", needle: "createFeedQueryHandlers(", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/query-actions.ts", needle: "bind(feedQueryActions.stage", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/query-actions.ts", needle: "bind(feedQueryActions.reader", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/inbox/src/manifest.ts", needle: "stage_data: { action: inboxActions.stage.capability_id", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/inbox/src/plugin.ts", needle: "createInboxActionHandlers(", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/inbox/src/actions.ts", needle: "bind(inboxActions.stage", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/stage-ui.ts", needle: "function buildFeedStageUiModel(", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/stage-ui.ts", needle: "function buildFeedReaderUiModel(", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/ui.ts", needle: "buildFeedStageUiModel(", kind: "code" },
+  { check: FEED_UI, file: "plugins/native/feed/src/ui.ts", needle: "buildFeedReaderUiModel(", kind: "code" },
   { check: FEED_UI, file: "plugins/native/feed/src/ui.ts", needle: "feedUiContribution", kind: "code" },
   { check: FEED_UI, file: "packages/ui-host/src/index.ts", needle: "class UiHost", kind: "code" },
   { check: FEED_UI, file: "packages/ui-host/src/index.ts", needle: "render<TModel>(request", kind: "code" },
@@ -107,6 +122,15 @@ const MORE_ROWS = [
 ];
 
 defineRowTests(MORE_ROWS, ["RAC-2061", "RAC-2062", "RAC-2063"]);
+
+test("RAC-2507 the retired Feed and Inbox Workbench projections cannot be restored", () => {
+  for (const retired of ["apps/workbench/src/feed-projection-ui.ts", "apps/workbench/src/inbox-projection-ui.ts"]) {
+    const original = fs.existsSync, target = path.join(repository, retired);
+    fs.existsSync = candidate => String(candidate) === target || original(candidate);
+    try { assert.ok(errorsOf(FEED_UI(repository)).some(error => error.includes(retired)), retired); }
+    finally { fs.existsSync = original; }
+  }
+});
 
 // A requirement written as a pattern: the text the pattern finds is what is taken out and written back.
 const COMPOSITION = "apps/workbench/src/ui-composition.ts", GOALS_FACTORIES = "plugins/native/goals/src/page/factories.ts", GOALS_SURFACES = "plugins/native/goals/src/page/surfaces.ts", RENDERER = "apps/workbench/src/renderer.ts", REGISTRY = "apps/workbench/src/plugin-workbench.ts", GOALS_PLUGIN = "plugins/native/goals/src/plugin.ts";

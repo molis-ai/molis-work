@@ -1,6 +1,6 @@
+import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
-import { FEED_ACTION_PERMISSIONS, feedQueryActions, feedRuleActions, promoteOffered } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
@@ -11,8 +11,7 @@ import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -23,12 +22,16 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import fs from "node:fs";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
+import { ensureProjectPlugins } from "./project-plugins.js";
+import { homeStageHalves } from "./home-plugin-http.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
+import type { InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
-import { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
+import { declaredStageRequests } from "./project-stage-data.js";
 import { matchPageRoute } from "./page-routes.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
@@ -130,6 +133,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   } },
   homePluginsRoute,
   pluginPageRoute, directoryGrantRoute,
+  { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {
@@ -153,39 +157,30 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition }: Omit<ProjectRuntimeContext, "readWebView">,
-  { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
-  const optional = (error: unknown) => {
-    if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
-  };
-  return async (): Promise<MolisWorkWebView> => {
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">) {
+  return async (): Promise<GoalsWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
-    if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
+    view = { ...view, shown_plugins: await shownPlugins(options.projectId) };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
     // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
     const pageMatch = matchPageRoute(url);
     const stage_request = declaredStageRequests(view.shown_plugins ?? [], pageMatch);
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
-      ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}), stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request) };
-    const feedActions = bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]);
-    try {
-      const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
-      view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
-        suggested_behavior_ids: recommendations.find(result => result.item_id === item.item_id)?.suggested_behavior_ids ?? [] })) } };
-    } catch (error) { optional(error); }
-    const inboxActionsClient = bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS);
-    try {
-      const [state, { judgments }] = await Promise.all([lookingForArea(() => inboxActionsClient.invoke(inboxActions.readJudgment, {})), lookingForArea(() => inboxActionsClient.invoke(inboxActions.recommendations, {}))]);
-      const byEntry = new Map(judgments.map(judgment => [judgment.subject.id, judgment]));
-      view = { ...view, inbox_judgment: state.summary, feed: { ...view.feed,
-        inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
-          return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
-    } catch (error) { optional(error); }
-    const homeStages = await renderHomePluginStages(localHost.homePlugins, { page_owner: view.page_owner, model: pluginId => composition.workbenchRenderer.declaredStageModel(pluginId, view) });
-    return { ...view, plugin_stages: homeStages.html, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable, home_plugin_nav: await localHost.homePlugins?.navigation() ?? [], plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
-      ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
+      ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
+    const prepared = await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
+      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent } }), stage_request);
+    view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
+    // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
+    const inbox = view.stage_data?.inbox as InboxStageData | undefined;
+    if (inbox?.judgment) view = { ...view, inbox_judgment: inbox.judgment };
+    const homeStages = await renderHomePluginStages(localHost.homePlugins, { project_id: hostReference.project_id, shown: view.shown_plugins, views: prepared?.views, page_owner: view.page_owner,
+      model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
+    return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
+      plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
+      home_plugin_nav: await localHost.homePlugins?.navigation() ?? [],
+      plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)) };
   };
 }
 
@@ -202,24 +197,19 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** The stages the project page redraws in place, and the home dock's judgment; both drop the page's cached view when they change it. */
 const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "plugin-stage", handle: ({ request, response, url, webViewCache, options, composition, readWebView, shownPlugins, localHost, hostReference }) =>
+  { id: "plugin-stage", handle: ({ request, response, url, webViewCache, options, composition, shownPlugins, localHost, hostReference, pluginPorts }) =>
     handlePluginStageFragmentHttp(request, response, url, { shown: () => shownPlugins(options.projectId),
-      invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer, readWebView,
-      routePrefix: options.routePrefix ?? "", feedItem: itemId => feedItemForReader(bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]), itemId, readWebView) }) },
+      invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer,
+      context: { route_prefix: options.routePrefix ?? "", project: options.project ?? null, demo: Boolean(options.demo) },
+      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent } }),
+      owner: async key => {
+        const state = await ensureProjectPlugins(pluginPorts), home = await homeStageHalves(localHost.homePlugins);
+        const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key) ?? home?.entries.find(item => item.project_plugin_id === key);
+        return entry ? runtimeStageOwner(state, entry, home).owner : undefined;
+      } }) },
   homeDockRoute,
 
 ];
-
-/**
- * One Feed item for its reader: the item through Feed's own query, its suggestions and whether it is in the Inbox from the page view (Feed's
- * recommendations and the Inbox's list, each read by its owner), and the promote button only where the action behind it is offered.
- */
-export async function feedItemForReader(actions: Pick<BoundActionClient, "invoke" | "discover">, itemId: string, readWebView: () => Promise<Pick<MolisWorkWebView, "feed">>) {
-  const [{ item }, view, offered] = await Promise.all([actions.invoke(feedQueryActions.item, { item_id: itemId }), readWebView(), actions.discover()]);
-  return { item: { ...item, suggested_behavior_ids: view.feed.feed_items.find(row => row.item_id === itemId)?.suggested_behavior_ids ?? [] },
-    inboxActive: view.feed.inbox_entries.some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId && (entry.status === "open" || entry.status === "in_progress")),
-    promoteAvailable: promoteOffered(offered) };
-}
 
 /** The capsule's snapshot of this project: the board and the Goals directory. */
 const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: async ({ request, response, url, options, goalActions, composition, readWebView, goalsHere }) => {
@@ -249,7 +239,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    projectWebView(context, { includeStageIds: true }), context.controlToken, context.goalActions,
+    projectWebView(context), context.controlToken, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];

@@ -1,5 +1,5 @@
-import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocumentView as WebGoalView, GoalsInputBinding as WebInputBinding, GoalsPolicyBinding as WebPolicyBinding, GoalsDecisionEvent as WebEventRecord } from "@molis-ai/molis-work-plugin-goals";
-import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
+import type { BoardSnapshot, GoalPolicyHistoryRecord } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import type { PluginDirectory } from "./plugin-directory.js";
@@ -9,6 +9,7 @@ export interface MolisWorkWebView {
   page_owner?: string;
   page_stage?: import("./declared-stages.js").RenderedStagePage;
   cli_availability?: Record<string, boolean>;
+  inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxStageData["judgment"];
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
@@ -24,8 +25,10 @@ export interface MolisWorkWebView {
   plugin_stages?: readonly string[];
   /** Host-owned failures render as static text, without activating a plugin page. */
   unavailable_plugin_stages?: readonly UnavailablePluginStage[];
-  /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
-  plugin_stage_ids?: readonly string[];
+  /** Request-local views retain the actual running owner selected before its single data read. */
+  plugin_stage_views?: Readonly<Record<string, UiContribution | null>>;
+  plugin_stage_surfaces?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
+  plugin_overlays?: readonly string[];
   /**
    * The declarations of the plugins the Host's Runtimes run in this project, read from their Manifests for this page: built-in
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
@@ -39,17 +42,7 @@ export interface MolisWorkWebView {
   /** Empty only for in-process test fixtures; normal Web URLs are project-scoped. */
   route_prefix: string;
   demo: boolean;
-  active_goal_id: string | null;
-  goals: WebGoalView[];
-  archived_goals: WebGoalView[];
-  trashed_goals: WebGoalView[];
-  counts: Record<WebGoalStatus, number>;
-  input_bindings: WebInputBinding[];
-  policy_bindings: WebPolicyBinding[];
-  events: WebEventRecord[];
-  feed: FeedSnapshot;
-  feed_source_catalog?: FeedSourceCatalogView[];
-  feed_connector_auth?: FeedUiModel["connector_auth"];
+  policy_bindings: GoalPolicyHistoryRecord[];
   /**
    * The answers of the plugins' declared stage reads (`stage_data`), by project plugin id, read per request as the person (T-133). A
    * plugin that is not shown, declares none, or is not there to answer has no key; its stage is drawn without `data`.
@@ -63,5 +56,4 @@ export interface MolisWorkWebView {
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
   developer_mode?: boolean;
   /** Live authorized status from the Inbox scene owner. */
-  inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxJudgmentSummary;
 }

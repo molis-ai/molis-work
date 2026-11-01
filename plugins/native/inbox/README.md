@@ -23,7 +23,7 @@
 | [src/scenes.ts](src/scenes.ts) | 判断场景、事件上下文准备和结果消费校验 |
 | [src/scene-runtime.ts](src/scene-runtime.ts) | 下一步场景的判断：哪些已发布规则可绑定、哪些建议仍成立、怎样记录；跑在 `services.scenes` 与 `services.judgments` 上，Feed 条目的正文由 `inbox.judgment.evaluate` 先读到、暂存给这一次运行的回调（PG-034） |
 
-可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与本包的 [route-handlers.ts](src/route-handlers.ts)（页面的请求只把 HTTP 转成本插件自己的动作，路由在 Manifest 的 `routes` 里声明，挂在 `/api/plugins/io.molis.work.inbox/` 下）。
+舞台由本包 [ui.ts](src/ui.ts) 按 `inbox.stage.read` 的结果绘制；[route-handlers.ts](src/route-handlers.ts) 把页面的 HTTP 请求转成本插件自己的动作，路由在 Manifest 的 `routes` 里声明，挂在 `/api/plugins/io.molis.work.inbox/` 下。
 
 ## 接入与边界
 

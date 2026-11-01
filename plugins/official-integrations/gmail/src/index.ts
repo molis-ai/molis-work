@@ -6,6 +6,10 @@ import type {
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { gmailAccountPresentation } from "./account-presentation.js";
+import { GMAIL_SCOPE_PRESETS } from "./scope.js";
+import type { SourcePresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+
+export const gmailSourcePresentation = (): SourcePresentation => ({ scope_options: GMAIL_SCOPE_PRESETS.map(({ value, label }) => ({ value, label })) });
 
 export {
   classifyGmailForbiddenPayload,
@@ -26,6 +30,7 @@ export const gmailIntegrationManifest = {
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
   host_api_version: 2,
+  source_presentations: ["gmail-scope"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:googleapis.com", required: true, reason: "读取 Gmail profile、history 和 message" },
@@ -77,6 +82,7 @@ export function createGmailIntegrationPlugin(input: {
       return input.providerFor(binding);
     },
     presentAccount: (cursor, label, binding) => gmailAccountPresentation(cursor, label, binding.config.scope),
+    presentSource: gmailSourcePresentation,
     now: input.now,
   });
 }

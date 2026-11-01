@@ -6,7 +6,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
-import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
@@ -78,6 +78,23 @@ test("W3-06-F-04 Home Runtime created by the public Host is the complete indepen
     assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
     assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")));
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
+});
+
+test("RAC-2645 the prior Runtime v1 consent shape is refused intact, with no implicit schema conversion", () => {
+  const home = mkdtempSync(join(tmpdir(), "project-reach-old-baseline-")), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
+  try {
+    mkdirSync(directory);
+    const current = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
+    const old = current.replace(", 'project_reach'", "").replace(/revoked_at TEXT,\n  approved_capability_ids TEXT,\n  CHECK \(\(kind = 'project_reach'[\s\S]*?approved_capability_ids IS NULL\)\)/u, "revoked_at TEXT");
+    assert.ok(!old.includes("approved_capability_ids"));
+    const db = new DatabaseSync(file);
+    db.exec(old + " PRAGMA user_version=1;");
+    db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "io.molis.work.example.old", "publisher", "always_on", "always_on", "old", "then", "user", null);
+    db.close();
+    const bytes = readFileSync(file), files = readdirSync(directory);
+    assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前 v1 基线不一致/u);
+    assert.deepEqual(readFileSync(file), bytes); assert.deepEqual(readdirSync(directory), files);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any

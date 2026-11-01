@@ -419,6 +419,10 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageManifest`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
 
+作者可用 `molis-work-plugin pack-sandbox <源目录> <输出.json> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 生成 wire 清单和未签名包，再沿既有 `sign` / `verify` 签验。可选图标、兼容版本和文字声明参数见 [CLI 文档](../../tooling/plugin-cli/README.md#沙箱包)。SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest` 和 `effectsFromContract` 是 Host、CLI 与创作台共用的生成实现；作者只需 contracts 和 plugin-sdk。
+
+创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
+
 包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 `agent` / `methods` 正文声明逐项引用的 `agent/` 资源；缺文件、重复路径或未声明的额外文件均拒绝：
 
 | 文件 | 内容 |
@@ -429,7 +433,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限包含 `storage:private` 以及合同声明的项目存在性、模型和生图服务所派生的可选权限，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
 
 **签名角色资料与方法**：app 包的 wire 清单可写 `agent: [{ name, purpose, body }]`、`methods: [{ name, purpose, body }]`，合计至多 64 项；每项只收这三个键。名字为 1–80、用途为 1–300 个 UTF-16 单元，`body` 是 `agent/` 下无跳转的包内相对资源路径。资源先限 32,000 字节，再按严格 UTF-8 解码，正文非空白且至多 8000 个 UTF-16 单元，保留原始文字与空白。不同条目可共用资源，同 plugin/kind 下名字不能重复。
 

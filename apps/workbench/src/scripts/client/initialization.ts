@@ -205,6 +205,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (tuiPane) setTuiWidth(tuiPane.getBoundingClientRect().width, false);
     let restoredUi = false;
     let restoredMobileView = "";
+    let resetTabLayout = false;
+    for (const key of [goalUiStorageKey, ...["current", "archive", "trash"].map(view => goalUiStorageKey + ":" + view)]) {
+      try {
+        const ui = JSON.parse(sessionStorage.getItem(key) || "null");
+        if (ui && (Object.hasOwn(ui, "feedTask") || Object.hasOwn(ui, "goalView")
+          || Object.values(ui.feedPresets || {}).some(preset => preset && Object.hasOwn(preset, "task")))) {
+          sessionStorage.removeItem(key); resetTabLayout = true;
+        }
+      } catch { /* Unreadable caches are ignored by the existing restore below. */ }
+    }
     try {
       const stored = JSON.parse(
         sessionStorage.getItem(storageKey) ||
@@ -237,7 +247,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
       performance.getEntriesByType("navigation")[0]?.type,
     );
-    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "");
+    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "", resetTabLayout);
     const restoredExclusive = tabWorkspace?.state?.()?.exclusive;
     const settingsKind = restoredExclusive === "settings" || restoredExclusive === "project-settings"
       ? restoredExclusive
@@ -387,11 +397,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
-      if (goalStageShown()) await refreshBoard(false, signal);
+      if (goalData && goalStageShown()) await refreshBoard(false, signal);
     }, 4000);
     document.addEventListener("molis-work:attention", event => {
       const cursor = event.detail?.board_cursor;
-      if (typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
+      if (goalData && typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
     });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();

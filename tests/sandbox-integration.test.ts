@@ -45,7 +45,7 @@ function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
 const SOURCE_INPUT = { source_id: "src-1", config_json: "{}", has_connection: true };
 const operation = (name: keyof typeof SANDBOX_INTEGRATION_OPERATIONS): SandboxOperationContract => ({
   id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
-  examples: [{ input: name === "health" ? SOURCE_INPUT : name === "poll" ? { ...SOURCE_INPUT, rebuild: false } : { ...SOURCE_INPUT, cursor: "c" }, outputIncludes: {} }],
+  examples: [{ input: name === "presentation" ? { presentation_id: "example-display" } : name === "health" ? SOURCE_INPUT : name === "poll" ? { ...SOURCE_INPUT, rebuild: false } : { ...SOURCE_INPUT, cursor: "c" }, outputIncludes: {} }],
 });
 function contract(names: Array<keyof typeof SANDBOX_INTEGRATION_OPERATIONS> = ["health", "poll", "account"]): SandboxPluginContract {
   return { version: 1, pluginId: PLUGIN_ID, revision: "one", entities: [], pages: [], acceptance: [], operations: names.map(operation) };
@@ -60,7 +60,7 @@ const refusedWith = (pattern: RegExp) => (error: unknown) => error instanceof Ac
 test("RAC-893: a sandboxed integration package is an Integration Plugin's Manifest, the platform's operations and the code", () => {
   const read = readSandboxIntegrationPackage(payload());
   assert.equal(read.manifest.kind, "integration");
-  assert.deepEqual(read.contract.operations.map(item => item.id), Object.values(SANDBOX_INTEGRATION_OPERATIONS));
+  assert.deepEqual(read.contract.operations.map(item => item.id), ["integration.health", "integration.poll", "integration.account"]);
   assert.deepEqual(read.permissions.connections, [SANDBOX_INTEGRATION_SOURCE_SLOT], "what the person approves: the source's account");
   // `integration.account` is the one the plugin may leave out.
   assert.doesNotThrow(() => readSandboxIntegrationPackage(payload({ contract: contract(["health", "poll"]) })));
@@ -144,12 +144,12 @@ async function proxied(body: string, names: Array<keyof typeof SANDBOX_INTEGRATI
   const declared = contract(names);
   const runner = await createSandboxRunner({ bundlePath, contract: declared, grants: { connections: [SANDBOX_INTEGRATION_SOURCE_SLOT] }, services: {},
     identity: { projectId: "home", installationId: "install-probe", pluginId: PLUGIN_ID, namespace: "installed" } });
-  const contribution = sandboxIntegrationContribution({ manifest: manifest(), operations: declared.operations.map(item => item.id),
+  const contribution = sandboxIntegrationContribution({ manifest: manifest(names.includes("presentation") ? { source_presentations: ["example-display"] } : {}), operations: declared.operations.map(item => item.id),
     call: (id, input, control) => runner.call(id, input, control),
     connections: (binding, control) => { signals.push(control.signal); return createCallConnectionsClient(port, { plugin_id: PLUGIN_ID, install_id: "install-feed", service_id: "example-feed", connection_id: binding.connection_id, origins: ["https://api.example-feed.com"] }, SANDBOX_INTEGRATION_SOURCE_SLOT, control); },
     now: () => new Date("2026-10-26T00:00:00.000Z") });
   const bound = contribution.bind({ source_id: "src-1", connection_id: "c-1", credential_ref: null, config: { repo: "a" } });
-  return { bound, sent, signals, async close() { await runner.stop(); await rm(directory, { recursive: true, force: true }); } };
+  return { bound, contribution, sent, signals, async close() { await runner.stop(); await rm(directory, { recursive: true, force: true }); } };
 }
 
 const POLL = (answer: string, account = true) => `export const operations = {
@@ -241,4 +241,32 @@ test("S-95 RAC-2464 a sandboxed integration's calls stop counting as current whe
       assert.equal(sent.length, 0, `${withdrawn}: nothing reached the Host's side`);
     } finally { await definition.stop!(); }
   }
+});
+
+test("RAC-2507 a signed source presentation redeems a closed pure query and receives no source binding or effect port", async () => {
+  const declared = manifest({ source_presentations: ["example-display"] }), fixed = contract(["health", "poll", "presentation"]);
+  assert.ok(readSandboxIntegrationPackage(payload({ manifest: declared, contract: fixed })));
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: declared })), refusedWith(/一同兑现/u));
+  assert.throws(() => readSandboxIntegrationPackage(payload({ contract: fixed })), refusedWith(/一同兑现/u));
+  const withConnections = structuredClone(fixed); withConnections.operations[2]!.effects = { connections: ["source"] };
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: declared, contract: withConnections })), refusedWith(/effects/u));
+  const seen: unknown[] = [], contribution = sandboxIntegrationContribution({ manifest: declared, operations: fixed.operations.map(op => op.id),
+    call: async (id, input, control) => { seen.push({ id, input, control }); return { presentation_json: JSON.stringify({ home_url: null, conditional_request: "not-fetched" }) }; },
+    connections: () => { throw new Error("pure presentation gets no account"); } });
+  assert.deepEqual(await contribution.presentSource!("example-display", { cursor: { position: 4 } }), { home_url: null, conditional_request: "not-fetched" });
+  assert.deepEqual(seen, [{ id: "integration.presentation", input: { presentation_id: "example-display", cursor_json: '{"position":4}' }, control: {} }]);
+  await assert.rejects(contribution.presentSource!("other", {}), { code: "host.integration_source_invalid" });
+  assert.equal(seen.length, 1);
+});
+
+test("RAC-2507 a real sandbox presentation cannot use the pull's connection effect", mac, async () => {
+  const f = await proxied(`export const operations = {
+    'integration.health': async () => ({ ok: true, status: 'connected', message: 'ok' }),
+    'integration.poll': async () => ({ ok: true, items: [], cursor: 'unused' }),
+    'integration.presentation': async (input, sdk) => {
+    await sdk.connections.request('source', { url: 'https://api.example-feed.com/me' });
+    return { presentation_json: JSON.stringify({ home_url: 'https://example-feed.com/' }) };
+  } };`, ["health", "poll", "presentation"]);
+  try { await assert.rejects(f.contribution.presentSource!("example-display", {}), { code: "sandbox.plugin_error", message: /Undeclared or unapproved connections/u }); assert.deepEqual(f.sent, []); }
+  finally { await f.close(); }
 });

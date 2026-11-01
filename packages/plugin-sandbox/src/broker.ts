@@ -14,6 +14,8 @@ import { randomUUID } from 'node:crypto';
 
 export interface SandboxServiceContext {
   readonly identity: Readonly<SandboxIdentity>; readonly signal: AbortSignal; readonly operationId: string;
+  /** The Host's opaque subject, carried only for the current runner call. */
+  readonly projectReach?: object;
   /** Recheck the original Host invocation after waits and immediately before a side effect. */
   beforeEffect?(): Promise<void>;
 }
@@ -74,7 +76,7 @@ export class SandboxBroker {
   }
   /** `connections`: the call's own (S-95), which takes the activation's place for this call; the Host's proxy alone supplies it. */
   invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs,
-    connections: PluginConnectionsClient | undefined = this.services.connections): Promise<SandboxJson> {
+    connections: PluginConnectionsClient | undefined = this.services.connections, projectReach?: object): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
@@ -87,7 +89,7 @@ export class SandboxBroker {
         lifetime.signal.addEventListener('abort', forwardAbort, { once: true });
         if (lifetime.signal.aborted) forwardAbort();
       }
-      const context: SandboxServiceContext = { identity: this.identity, signal: modelRequest?.signal ?? lifetime.signal, operationId: operation.id, beforeEffect };
+      const context: SandboxServiceContext = { identity: this.identity, signal: modelRequest?.signal ?? lifetime.signal, operationId: operation.id, beforeEffect, projectReach };
       try {
         await lifetime.wait(beforeEffect());
         const result = await lifetime.wait(this.dispatch(context, operation, method, args, connections));

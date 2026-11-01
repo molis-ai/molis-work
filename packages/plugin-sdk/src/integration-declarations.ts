@@ -17,11 +17,15 @@ const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "a
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
-export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown }): string[] {
-  const { connection_services: services, integrations } = manifest;
-  if (services === undefined && integrations === undefined) return [];
+export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
+  const { connection_services: services, integrations, source_presentations: presentations } = manifest;
+  if (services === undefined && integrations === undefined && presentations === undefined) return [];
   if (manifest.kind !== "integration") return ["只有 Integration Plugin 能声明 connection_services 和 integrations"];
   const problems: string[] = [];
+  if (presentations !== undefined && (!Array.isArray(presentations) || !presentations.length || presentations.length > 32
+    || presentations.some(id => typeof id !== "string" || !INTEGRATION_ID.test(id)) || new Set(presentations).size !== presentations.length)) {
+    problems.push("source_presentations 必须是 1 到 32 个不重复的集成名字");
+  }
   const serviceIds = new Set<string>();
   if (services !== undefined) {
     if (!Array.isArray(services) || services.length === 0) problems.push("connection_services 必须是至少一项的数组");

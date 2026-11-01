@@ -6,6 +6,7 @@
   "kind": "integration",
   "publisher": { "publisher_id": "io.adeptify", "signature": "adeptify-official-signature-v1" },
   "host_api_version": 2,
+  "source_presentations": ["gmail-scope"],
   "entrypoints": [
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
@@ -25,7 +26,7 @@
       "title": "Gmail",
       "group_id": "mail",
       "summary": "本机账号。Feed 只读收信。",
-      "auth_kind": "gmail",
+      "auth_kind": "oauth",
       "auth": {
         "methods": [
           {

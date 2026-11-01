@@ -15,7 +15,7 @@ export type PluginTrust =
   | { readonly level: "unsigned" };
 
 /** The declarations of a Manifest that change what the plugin does elsewhere; each is agreed to, or not, on its own. */
-export type PluginConsentKind = "always_on" | "default_wiring" | "default_group" | "local_directory";
+export type PluginConsentKind = "always_on" | "default_wiring" | "default_group" | "local_directory" | "project_reach";
 
 /** Who recorded a consent: a person, or the Host on a `host` install's behalf from the Manifest it ships. */
 export type PluginConsentGranter = "user" | "host_build";
@@ -31,23 +31,27 @@ export interface PluginDeclarationNeedingConsent {
 
 /** A consent given with an install: which declaration, nothing more. The plugin, publisher and Manifest digest come from the install. */
 export interface PluginConsentGrant {
-  readonly kind: PluginConsentKind;
+  readonly kind: Exclude<PluginConsentKind, "project_reach">;
   readonly subject: string;
 }
 
 /** One row of the consent ledger. Revoking writes `revoked_at`; the row is never rewritten or deleted. */
-export interface PluginConsentRecord {
+interface PluginConsentRecordFields {
   readonly consent_id: string;
   readonly plugin_id: string;
   /** The publisher signature of the Manifest the consent was given for: a plugin of another publisher under the same id has none. */
   readonly publisher_signature: string;
-  readonly kind: PluginConsentKind;
   readonly subject: string;
   readonly manifest_digest: string;
   readonly granted_at: string;
-  readonly granted_by: PluginConsentGranter;
   readonly revoked_at: string | null;
 }
+
+/** Project consent keeps the exact declaration set approved by the person; other agreements carry no such set. */
+export type PluginConsentRecord = PluginConsentRecordFields & (
+  | { readonly kind: "project_reach"; readonly granted_by: "user"; readonly approved_capability_ids: readonly string[] }
+  | { readonly kind: Exclude<PluginConsentKind, "project_reach">; readonly granted_by: PluginConsentGranter; readonly approved_capability_ids: null }
+);
 
 /** A publisher a person pinned: the key fingerprint, its public key, and when and by whom it was pinned or revoked. */
 export interface PluginPublisherPin {
@@ -77,6 +81,8 @@ export interface PluginInstallPreview {
 export interface PluginPermissionView {
   readonly permission: string;
   readonly required: boolean;
+  /** False for a resource's shape-only permission which no validated operation requests. It cannot be granted. */
+  readonly requested: boolean;
   readonly reason: string;
   readonly meaning: string | null;
 }

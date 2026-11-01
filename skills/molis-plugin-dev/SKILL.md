@@ -168,4 +168,4 @@ ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/ski
 `<release>` 来自 `~/.molis-work/config/installation.json` 的 `release_path`。npm 包在 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。
 
 
-签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览 @4、助理读取 @2 和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。
+签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览 @5、助理读取 @2 和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。

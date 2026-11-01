@@ -18,6 +18,65 @@ import { integrationPackage } from "./fixtures/home-upgrade-source.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { integrationKeyOf } from "@molis-ai/molis-work-plugin-feed";
 import { definePollingIntegrationPlugin, parsePluginManifest, pollingIntegrationBinding } from "@molis-ai/molis-work-plugin-sdk";
+import { rssIntegrationManifest, rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
+import { gmailIntegrationManifest, gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
+
+test("RAC-2507 presentation declarations use schema/API 2 and the packaged JSON keeps the same unreleased plugin identity", () => {
+  assert.equal(rssIntegrationManifest.version, "1.0.0");
+  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version: 1, host_api_version: 1 }), /source_presentations 需要 schema_version 2/u);
+  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, host_api_version: 1 }), /host_api_version 与之相同/u);
+  for (const [id, manifest] of [["rss", rssIntegrationManifest], ["gmail", gmailIntegrationManifest]] as const) {
+    assert.deepEqual(parsePluginManifest(JSON.parse(source(`plugins/official-integrations/${id}/manifest.json`))), parsePluginManifest(manifest));
+  }
+});
+
+test("RAC-2507 pure presentations use the actual declaring integration, without binding a source or reading an account", async () => {
+  const registry = new IntegrationRegistry();
+  let bound = 0, reads = 0, result: unknown = { scope_options: [{ value: "narrow", label: "Narrow scope" }] };
+  const manifest = { ...manifestOf("io.molis.work.example.pure", [], []), source_presentations: ["fixture-display"] };
+  const definition = definePollingIntegrationPlugin({ manifest, createProvider() { bound++; throw new Error("must not bind"); },
+    presentSource(id, input) { reads++; assert.equal(id, "fixture-display"); assert.deepEqual(input, { cursor: { last: "one" } }); return result as never; } });
+  await registry.enable(definition);
+  const input = { cursor: { last: "one" } }, answer = await registry.presentSource("fixture-display", input);
+  assert.deepEqual(answer, result); assert.notEqual(answer, result); assert.deepEqual(input, { cursor: { last: "one" } });
+  await assert.rejects(registry.presentSource("not-declared", input), { code: "plugin.integration_unavailable" });
+  await assert.rejects(registry.presentSource("fixture-display", { cursor: new Date() }), { code: "plugin.declaration_invalid" });
+  for (const invalid of [{ home_url: "https://user:secret@example.com" }, { home_url: "javascript:alert(1)" }, { scope_options: [{ value: "x", label: "<script>" }] }, { credential_ref: "secret" }]) {
+    result = invalid; await assert.rejects(registry.presentSource("fixture-display", input), { code: "plugin.declaration_invalid" });
+  }
+  const rival = definePollingIntegrationPlugin({ ...definition, manifest: { ...manifest, plugin_id: "io.molis.work.example.rival-pure" }, createProvider() { throw new Error("never"); }, presentSource: () => ({}) });
+  await assert.rejects(registry.enable(rival), { code: "plugin.integration_declaration_conflict" });
+  assert.equal(bound, 0); assert.equal(reads, 5);
+  await registry.disable(manifest.plugin_id);
+  await assert.rejects(registry.presentSource("fixture-display", input), { code: "plugin.integration_unavailable" });
+  const builtin = await homeIntegrationRegistry("/tmp/t402-pure-presentations-only");
+  const cursor = (fields: Record<string, unknown>) => ({ rss_http: { schema: "molis-work-rss-http-v1", consecutive_failures: 0, ...fields } });
+  for (const [fields, status] of [[{}, "not-fetched"], [{ last_success_at: "2026-10-30T10:00:00Z" }, "unvalidated"], [{ last_modified: "yesterday" }, "last-modified"], [{ etag: "v1", last_modified: "yesterday" }, "etag"]] as const) {
+    const request = { cursor: cursor({ ...fields, home_url: "https://example.com/news#top" }) };
+    const presented = await builtin.presentSource("rss-http", request);
+    assert.deepEqual(presented, rssSourcePresentation(request)); assert.equal(presented.conditional_request, status); assert.equal(presented.home_url, "https://example.com/news");
+  }
+  const scopes = await builtin.presentSource("gmail-scope", {});
+  assert.deepEqual(scopes, gmailSourcePresentation()); assert.deepEqual(scopes.scope_options, [
+    { value: "in:inbox is:unread", label: "未读收件箱" }, { value: "in:inbox", label: "全部收件箱" },
+    { value: "is:starred", label: "星标邮件" }, { value: "is:important", label: "重要邮件" }]);
+});
+
+test("RAC-2507 an attached presentation cannot return data after its original provider is replaced or withdrawn", async () => {
+  const registry = new IntegrationRegistry(), manifest = { ...manifestOf("io.molis.work.example.held-display", [], []), source_presentations: ["held-display"] };
+  let release!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const original: PluginIntegrationContribution = { kind: "integration", bind: () => { throw new Error("no binding"); },
+    async presentSource() { entered(); await held; return { home_url: "https://old.example.com" }; } };
+  let active: PluginIntegrationContribution | null = original;
+  await registry.attach(manifest, "display-install", () => active, () => active !== null);
+  const pending = registry.presentSource("held-display", {}), refused = assert.rejects(pending, { code: "plugin.integration_unavailable" });
+  await waiting; active = { ...original, presentSource: () => ({ home_url: "https://new.example.com" }) }; release(); await refused;
+  assert.equal((await registry.presentSource("held-display", {})).home_url, "https://new.example.com");
+  active = null; await assert.rejects(registry.presentSource("held-display", {}), { code: "plugin.integration_unavailable" });
+  await registry.detach(manifest.plugin_id);
+});
 
 // PG-046 (specs/repository-anti-corruption/slices/feed-inbox-integration-registry.md): the Home's integration registry is built from
 // the declarations of the plugins enabled in it. The fixtures below are plugins nothing in the repository knows by name; they take the

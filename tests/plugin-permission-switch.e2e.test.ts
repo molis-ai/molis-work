@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, normalize } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -12,10 +12,10 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 // work at all (the project's list handed the row renderer its index as the send function); this clicks the switches and reads what the page sends.
 // Only the HTTP answers are stubbed: the Host's side of both doors is in that file and in security-invariants-plugin-permissions.test.ts.
 
-const viewOf = (name: string, installId: string, permissions: Array<{ permission: string; required: boolean; granted: boolean }>) => ({
+const viewOf = (name: string, installId: string, permissions: Array<{ permission: string; required: boolean; granted: boolean; requested?: boolean }>) => ({
   install_id: installId, plugin_id: `io.molis.work.${name}`, name, version: "1.0.0", trust: "pinned", publisher_label: "example", publisher_signature: "ed25519:sha256:aa",
   state: "running", manifest_available: true, jobs: [], consents: [],
-  permissions: permissions.map(item => ({ ...item, reason: `${name} 要用它`, meaning: "" })),
+  permissions: permissions.map(item => ({ requested: true, ...item, reason: `${name} 要用它`, meaning: "" })),
 });
 
 interface Seen { url: string; body: unknown }
@@ -23,6 +23,11 @@ interface Seen { url: string; body: unknown }
 async function openPluginPage(t: TestContext) {
   const executable = locateTestChrome();
   if (!executable) { t.skip("Chrome is required for the plugin permission switches"); return null; }
+  if (process.platform === "darwin") {
+    assert.equal(executable, process.env.MOLIS_WORK_TEST_CHROME, "macOS uses the explicitly configured test browser");
+    assert.ok(isAbsolute(executable), "the dedicated test browser has an absolute path");
+    assert.doesNotMatch(normalize(executable), /^\/Applications\/Google Chrome\.app(?:\/|$)/u, "daily Chrome is not a test browser");
+  }
   const host = await serveHomeRuntime(t), project = await host.project("权限开关页面");
   const prefix = `/projects/${project.project_id}`;
   const html = await (await host.request(`${prefix}/settings/plugins`)).text();
@@ -32,7 +37,8 @@ async function openPluginPage(t: TestContext) {
     { permission: "model:read", required: false, granted: false },
     { permission: "network:api.example.com", required: false, granted: false },
   ]);
-  const homePlugin = viewOf("个人空间的插件", "home-install", [{ permission: "surface:browser", required: false, granted: true }]);
+  const homePlugin = viewOf("个人空间的插件", "home-install", [{ permission: "surface:browser", required: false, granted: true },
+    { permission: "owner-files:write", required: false, requested: false, granted: false }]);
   const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin]]);
   const seen: Seen[] = [];
   const server = createServer((request, response) => {
@@ -87,6 +93,9 @@ async function openPluginPage(t: TestContext) {
 test("RAC-959 S-94 the 插件 page's switches, run in a browser, send the project's switch to the project's door and the Home plugin's to the Host settings door, and a wide permission waits for its confirmation", { timeout: 120_000 }, async t => {
   const browser = await openPluginPage(t); if (!browser) return;
   const { page, seen, requests, switchOf, checked, prefix } = browser;
+  // RAC2865: the real renderer shows a shape-only row but gives it no granting control.
+  assert.equal(await page.evaluate(`document.querySelector('${switchOf("owner-files:write")}')`), null);
+  assert.match(await page.evaluate<string>("document.querySelector('[data-plugin-trust-home]').innerText"), /本次未请求/u);
 
   // The project's plugin: one click on an ordinary optional permission is one request to the project's door, and the switch stays on.
   await page.click(switchOf("model:read"));

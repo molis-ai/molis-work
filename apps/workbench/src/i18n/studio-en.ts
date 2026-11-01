@@ -10,6 +10,16 @@ import { BOARD_EN } from "./board-en.js";
  * name the studio's package (the assembly gate counts the files that do).
  */
 export const STUDIO_EN: Record<string, string> = {
+  "个人空间版本：下载签名包，在插件设置中导入并确认后使用。": "Personal-space version: download the signed package, then import and confirm it in plugin settings.",
+  "签名包可导入其他空间；本项目原有安装保持不变。": "Import the signed package into another space. The existing installation in this project is preserved.",
+  "安装到个人空间": "Install in personal space",
+  "发布者指纹": "Publisher fingerprint",
+  "下载签名包": "Download signed package",
+  "前往插件设置": "Open plugin settings",
+  "发布范围": "Publish to",
+  "首次发布后范围固定；要换范围，请创建新草稿。": "The first release fixes this scope. Create a new draft to publish to another scope.",
+  "切换范围后需重新检查已有代码和界面，不会调用模型。": "Changing scope requires checking the existing code and interface again. No model is called.",
+  "按此范围重新检查": "Check this scope again",
   "：": ": ",
   ...PLUGIN_COMPONENTS_EN,
   ...BOARD_EN,

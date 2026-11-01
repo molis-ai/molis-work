@@ -392,6 +392,20 @@ export function createTabWorkspaceOps(titles) {
     const pane = focused(state);
     return pane?.tabs.find((tab) => tab.id === pane.activeTabId) || null;
   };
+  const viewTab = (state, paneId, tabId) => {
+    const pane = state.panes.find((entry) => entry.id === paneId);
+    if (!pane) return null;
+    if (tabId !== undefined) return pane.tabs.find((tab) => tab.id === tabId) || null;
+    const active = pane.tabs.find((tab) => tab.id === pane.activeTabId);
+    return active?.kind === "item" ? active : pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === pane.viewPlugin) || null;
+  };
+  const readView = (state, paneId, tabId) => viewTab(state, paneId, tabId)?.view;
+  const writeView = (state, paneId, view, tabId) => {
+    const tab = viewTab(state, paneId, tabId);
+    if (!tab || view !== undefined && typeof view !== "string") return false;
+    if (view === undefined) delete tab.view; else tab.view = view;
+    return true;
+  };
   return {
     GROUP_COLORS,
     pluginTitle,
@@ -421,6 +435,8 @@ export function createTabWorkspaceOps(titles) {
     ensureHome,
     focused,
     activeTab,
+    readView,
+    writeView,
     shownPlugin,
     countTabs,
   };
@@ -445,7 +461,7 @@ export function settlePluginTabs(pane, newPluginTab, loose) {
   pane.tabs = pane.tabs.filter((tab) => tab.kind !== "plugin" || !heads.has(tab.plugin) && Boolean(heads.add(tab.plugin)));
   for (let index = 0; index < pane.tabs.length; index += 1) {
     const tab = pane.tabs[index];
-    if (tab.kind === "item" && loose(tab) && !heads.has(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); index += 1; }
+    if (tab.kind === "item" && loose(tab) && !heads.has(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); heads.add(tab.plugin); index += 1; }
   }
   if (pane.viewPlugin && pane.viewPlugin !== "home" && !heads.has(pane.viewPlugin)) pane.tabs.push(newPluginTab(pane.viewPlugin));
   const members = new Map();
@@ -568,9 +584,14 @@ export function withPluginGroups(base, settlePane, loose) {
   };
   ops.splitPane = (state, paneId, edge, mode, sourcePaneId = paneId, sourceTabId = null) => {
     const from = paneOf(state, sourcePaneId), group = movingGroup(from, sourceTabId, mode === "move");
+    const focused = base.focused(state);
+    const view = !sourceTabId && !from?.activeTabId ? base.readView(state, sourcePaneId) : undefined;
     base.splitPane(state, paneId, edge, mode, sourcePaneId, sourceTabId);
     if (group) relocate(state, from, base.focused(state), group.moving, group.followers);
-    return settle(state);
+    settle(state);
+    const next = base.focused(state);
+    if (view !== undefined && next !== focused) base.writeView(state, next.id, view);
+    return state;
   };
   ops.togglePluginGroup = (state, paneId, plugin) => {
     const head = paneOf(state, paneId)?.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
@@ -600,8 +621,8 @@ export function isCurrentTabWorkspace(value, plugins) {
       && (tab.kind === "home" && tab.plugin === "home" || tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home")
       && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")
-      && (tab.goalView === undefined || ["frame", "work"].includes(tab.goalView)) && (tab.feedTask == null || typeof tab.feedTask === "string")
-      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "goalView", "feedTask", "collapsed"].includes(key)))
+      && (tab.view === undefined || typeof tab.view === "string")
+      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "view", "collapsed"].includes(key)))
       && pane.groups.every(group => group && typeof group.id === "string" && typeof group.title === "string"
         && typeof group.color === "string" && typeof group.collapsed === "boolean"
         && Object.keys(group).every(key => ["id", "title", "color", "collapsed"].includes(key)));

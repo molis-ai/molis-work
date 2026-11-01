@@ -73,6 +73,7 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 - 公开入口：`@molis-ai/molis-work-plugin-runtime`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（Manifest 解析与版本比较，路由器的拒绝用它的 `actionErrorResponse` 答）。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 项目同意仍由同一个 consent ledger 保存：subject 是规范编码的项目与 install_id，批准集合与当时 digest 一起留存；重授在一个事务内撤旧建新。升级后的声明相同或缩小不重写旧行，声明增加须重新确认；卸载保留数据也清掉全部项目授权。
   - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
   - 每次重装已卸载的安装，都在注册代码、保存新代之前同步调用 Host 的 `PluginExecutor.prepareReinstall`，补清原文件登记、按记录连接等授权；保留私有数据也不能跳过。授权 owner 失败就拒绝发布，原卸载记录不变，关闭后新建 Runtime 也照常检查。这个端口不删私有数据；不能在同步安装中重放允许异步返回的 `uninstalled`。回归见 `tests/security-invariants-installation-records.test.ts` 的 RAC-472/473。
   - 稳定 install_id 用于私有数据；installation_generation 区分每次确认安装，重启、启停和升级不变，卸载重装生成新值。持久任务绑定二者。安装记录必有 installation_generation 与 execution（`host` 或 `sandbox`），缺的记录不是当前 schema。

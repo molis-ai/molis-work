@@ -3,6 +3,9 @@ import type { ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 
+/** A renderer contract requirement, not a callable business capability. */
+export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
+
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
@@ -187,6 +190,8 @@ export interface UiSettingsAddressParamsDeclaration {
  */
 export interface UiStageDataDeclaration {
   readonly action: string;
+  /** The same owner's read-only query for one object, called with exactly `{ object_id }`. */
+  readonly object_action?: string;
   /**
    * The request parameters the stage reads (T-116, PG-060): names of parameters the same Manifest's `page_routes` declare, in a path
    * (`:name`) or in a query. When the page was opened by one of those routes, the Host takes exactly these parameters from the request,
@@ -306,6 +311,8 @@ export interface StagePageModel<Data = unknown> {
    * (T-116). Absent when the stage names none, or the page was not opened by one of the plugin's `page_routes`.
    */
   readonly request?: Readonly<Record<string, string>>;
+  /** One explicit main surface of the same actual owner; never a raw URL or arbitrary query. */
+  readonly object?: { readonly id: string; readonly surface: string };
   readonly primitives: StagePagePrimitives;
   readonly drawing?: StagePageDrawing;
   readonly context?: StagePageContext;
@@ -406,6 +413,8 @@ export interface UiViewDeclaration {
    * data. The Host calls it as the person and hands the answer to the stage, on the page and when the stage is redrawn in place.
    */
   readonly stage_data?: UiStageDataDeclaration;
+  /** The main surfaces mounted with the stage, in order. Defaults to `["workbench"]`; must include it exactly once. */
+  readonly stage_surfaces?: readonly string[];
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */

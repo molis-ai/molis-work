@@ -213,6 +213,16 @@ export interface IntegrationAccountPresentation {
   readonly [field: string]: unknown;
 }
 
+/** Pure source display data, supplied by the integration that declares the presentation id. No account or transport is provided. */
+export interface SourcePresentationInput {
+  readonly cursor?: unknown;
+}
+export interface SourcePresentation {
+  readonly scope_options?: readonly { readonly value: string; readonly label: string }[];
+  readonly conditional_request?: "etag" | "last-modified" | "unvalidated" | "not-fetched";
+  readonly home_url?: string | null;
+}
+
 /**
  * What the platform gives an integration plugin for one source: references only, never a secret. The connection is the one the source
  * already holds, never one looked up by `service_id`.

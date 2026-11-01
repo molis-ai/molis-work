@@ -40,6 +40,20 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await click('[data-titlebar-tabs] [data-tab-split]');
   await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
+  // RAC-2687: a source choice belongs to its actual iframe, even after focus moved to its neighbour.
+  const layoutKey = "molis-work-tab-workspace:" + projectId;
+  const focusedBefore = await evaluate<string>(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).focusedPaneId`);
+  await evaluate(`(() => { const frame=document.querySelector('iframe.tab-content-frame');
+    window.pr2FirstPane=frame.dataset.paneOwner;
+    frame.contentDocument.querySelector('[data-feed-task="${source}"]').click(); })()`);
+  await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.find(p=>p.id===window.pr2FirstPane).tabs.some(t=>t.plugin==='feed'&&t.kind==='plugin'&&t.view===${JSON.stringify(source)})`);
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).focusedPaneId`), focusedBefore);
+  assert.equal(await evaluate("[...document.querySelectorAll('iframe.tab-content-frame')][1].contentDocument.querySelector('[data-feed-workbench]').dataset.selectedSource"), "all");
+  const storedViews = await evaluate<string>(`localStorage.getItem(${JSON.stringify(layoutKey)})`);
+  await evaluate(`(() => { const frame=document.querySelector('iframe.tab-content-frame'),data={type:'workbench-pane-view',view:'forged',paneId:${JSON.stringify(focusedBefore)}};
+    dispatchEvent(new MessageEvent('message',{origin:location.origin,source:window,data}));
+    dispatchEvent(new MessageEvent('message',{origin:'https://example.com',source:frame.contentWindow,data})); })()`);
+  assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(layoutKey)})`), storedViews, "S-30 refuses the wrong window and origin before changing any pane view");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden)"), true);
   const frameSelector = "document.querySelector('iframe.tab-content-frame').contentDocument";

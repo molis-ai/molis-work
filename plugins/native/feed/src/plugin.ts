@@ -10,7 +10,7 @@ import { createFeedItemHandlers, promoteOffered } from "./item-actions.js";
 import { feedGoalsThroughDirectory, promoteFeedItemToGoal } from "./goal-promotion.js";
 import { feedManifest } from "./manifest.js";
 import { FeedOutRuleStore } from "./out-rules.js";
-import { createFeedQueryHandlers } from "./query-actions.js";
+import { createFeedQueryHandlers, FEED_STAGE_INBOX_READ } from "./query-actions.js";
 import { createFeedRuleHandlers } from "./rule-actions.js";
 import { createFeedRouteHandlers } from "./route-handlers.js";
 import { createFeedRuntimePorts } from "./runtime-ports.js";
@@ -28,6 +28,9 @@ import { holdingsOfSnapshot, releaseHeldHistory, type FeedSourceHistory, type Fe
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
+import { feedSourceCatalog } from "./source-catalog.js";
+import { feedSourcePresentationId } from "./source-presentation.js";
+import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
 import { SignalsModule } from "./store/index.js";
@@ -146,7 +149,20 @@ export function createFeedPlugin(): PluginDefinition {
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
-      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext }),
+      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
+        stage: { sourceCatalog: vocabulary ? () => feedSourceCatalog(vocabulary) : noVocabulary, recommendations: sceneRuntime.selection.recommendations,
+          sourcePresentations: async sources => Object.fromEntries(await Promise.all(sources.flatMap(source => {
+            const id = feedSourcePresentationId(source);
+            return id ? [(async () => [source.source_id, await (vocabulary ?? noVocabulary()).presentation(id, { cursor: source.cursor })] as const)()] : [];
+          }))),
+          inboxEntries: async () => {
+            const actions = services.actions!;
+            const availability = actions.availability(FEED_STAGE_INBOX_READ);
+            if (!availability.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(availability.code ?? "")) return [];
+            return (await actions.invokeQuery<Record<string, never>, { entries: AttentionEntryRecord[] }>(FEED_STAGE_INBOX_READ, {})).entries;
+          },
+          promoteAvailable: async () => delegation ? promoteOffered(await delegation.discover()) : false,
+        } }),
       ...createFeedRuleHandlers(feed, projectId, hydrate, sceneRuntime.selection, (caller, body) => writer.commit(caller, body)),
       // The platform's notifications are written in one commit, as the platform's notification service; a judgment that fails afterwards keeps the item and comes back as the receipt's code.
       ...createFeedNotificationHandlers(projectId, { feed: () => feed }),

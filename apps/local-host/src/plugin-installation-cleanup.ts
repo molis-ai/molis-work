@@ -6,6 +6,7 @@ import { hostLog } from "./host-log.js";
 import { installedIdentities, pluginHeldElsewhere, type InstallScope } from "./plugin-holders.js";
 import { forgetSandboxImageBindings } from "./sandbox-image-generation.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
+import { HomeConsentLedger } from "./home-plugin-store.js";
 
 /**
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
@@ -16,6 +17,7 @@ import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-s
  */
 export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord, dataGoes: boolean = !record.retain_private_data): void {
   if (!scope.home) return;
+  if (scope.project_id === null) new HomeConsentLedger(scope.home.directory).revokeProjectReach({ install_id: record.install_id }, new Date().toISOString());
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
   forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });
   if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
@@ -43,6 +45,7 @@ export function forgetInstallationConnections(home: string, installId: string, s
  * The refusal says why, so the person mends the library rather than retrying: every attempt is refused until it can be read.
  */
 export function forgetLeftoverInstallationBindings(home: string, installId: string, scope: InstallScope): void {
+  if (scope.kind === "home") new HomeConsentLedger(home).revokeProjectReach({ install_id: installId }, new Date().toISOString());
   if (!installationIdsWithBindings(home).includes(installId)) return;
   const installed = installedIdentities(home, { scope, install_id: installId });
   if (!installed) throw pluginErrors.executor_failed("Home 里有插件库读不了（日志 installation_holders_unreadable），不能确认这个插件早先留下的连接绑定还有没有安装在用；修好那个库后再装");

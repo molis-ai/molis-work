@@ -1,3 +1,4 @@
+import { sandboxOperationPermissions } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * An installed generated plugin offers its functions to the rest of the product (D16): each operation becomes an
  * action of the project's unified directory, provided by the plugin itself, so a person, the Home AI, an external MCP
@@ -10,7 +11,7 @@ import { ActionError, type ActionAvailability, type ActionDefinition, type Actio
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { runInPluginAction, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
-import { sandboxOperationPermissions } from '../sandbox-plugin-manifest.js';
+
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
 
@@ -101,12 +102,13 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         if (previous?.cost === cost) return;
         // Per-operation replacement preserves unrelated in-flight calls and their registration tokens.
         previous?.dispose(); registrations.delete(operationId);
+        const finalDefinition = { ...definition, action: { ...definition.action, execution: { cost } } };
         const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
-          definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }],
+          definitions: [finalDefinition],
           // The target owns the private write; its Runtime scope retains the original caller checks.
           handlers: [{ ...handlers[index]!, handle: (caller, input) => {
             const execute = () => handlers[index]!.handle(caller, input);
-            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller }, execute) : execute();
+            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition: finalDefinition, caller }, execute) : execute();
           } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { cost, dispose: unregister }); changed = true;
       });

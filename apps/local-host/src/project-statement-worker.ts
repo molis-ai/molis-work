@@ -56,7 +56,8 @@ process.on("message", (request: StatementRequest) => {
   if (ending) return;
   if (pending) { end({ fatal: "process", message: "项目库进程一次只处理一个请求" }); return; }
   if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
-  if (request.op === "open") {
+  const preparation = request.op === "validate-home-schema" || request.op === "initialize-owned-home-library";
+  if (request.op === "open" || preparation) {
     if (engine) { end({ fatal: "process", message: "项目库已经打开" }); return; }
     engine = startEngine(request.limits);
   }
@@ -68,7 +69,20 @@ process.on("message", (request: StatementRequest) => {
     transaction = { id, deadline, timer };
   }
   pending = request;
-  requestTimer = setTimeout(() => { if (pending?.id === request.id) timeout(); }, request.deadline - Date.now());
-  engine.postMessage(request);
+  if (preparation) {
+    // Startup and DDL have distinct budgets. This thread remains runnable while SQLite blocks the SQL Worker or the Host.
+    requestTimer = setTimeout(() => { if (pending?.id === request.id) timeout(); }, Math.max(0, request.startDeadline - Date.now()));
+    engine.once("online", () => {
+      if (ending || pending?.id !== request.id) return;
+      clearTimeout(requestTimer);
+      const deadline = Math.min(request.deadline, Date.now() + request.executionMs);
+      pending = { ...request, deadline };
+      requestTimer = setTimeout(() => { if (pending?.id === request.id) timeout(); }, Math.max(0, deadline - Date.now()));
+      engine!.postMessage(pending);
+    });
+  } else {
+    requestTimer = setTimeout(() => { if (pending?.id === request.id) timeout(); }, request.deadline - Date.now());
+    engine.postMessage(request);
+  }
 });
 process.on("disconnect", () => end({ fatal: "process", message: "宿主已经退出" }));

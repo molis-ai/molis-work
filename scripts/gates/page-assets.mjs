@@ -243,11 +243,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-395 (RAC-2859/2860): device authorization and Feed source account selection keep their complete interactions.
-  // Removing old paths and provider-specific assembly is already reflected in the measured 1,302 B increase;
-  // neither CSS reduction is used to offset it. The coordinator authorized this exact allowance against frozen
-  // T394 (3878296adf), with no new served URL. T394's workbench and Jelly allowances have both been spent.
-  "/assets/molis-work-workbench.js": [1152663, 1153965],
+  // T395 + reviewed T399/PR2, against actual main e4e98ed331: workbench +6,106 B (reviewed +5,975 B and RAC-400 +131 B),
+  // builder +2,272 B and its stylesheet +40 B; no new URL. RAC-400 reuses the body's project id and one owner lookup,
+  // adding only the absent-owner startup and refresh guards. PR2 already removes duplicate UI/preset task storage,
+  // old source-to-task replay and separate pane view handlers. These three allowances are consumed by this combined publication.
+  "/assets/molis-work-workbench.js": [1152663, 1158769],
+  "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
+  "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

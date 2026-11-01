@@ -168,7 +168,7 @@ export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-doc
 export { feedItemForReader } from "./web-request.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
-export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
 
 export * from "./onboarding.js";
 

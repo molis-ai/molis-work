@@ -30,7 +30,7 @@ const PLUGIN_WORDS_USERS: Readonly<Record<string, readonly string[]>> = {
   // Takes a plugin's words out again; the Host has no path for it yet (an uninstalled plugin's words stay until restart), so only the tests call it.
   unregisterPluginMessages: ["tests/plugin-messages.test.ts", "tests/plugin-words-owned.test.ts"],
   // Every place the Host draws what a plugin supplies (a contribution, an action's title, a deletion dialog's data label) applies that plugin's words.
-  withPluginWords: ["apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/home-plugin-executor.ts", "apps/local-host/src/installed-plugin-host.ts",
+  withPluginWords: ["apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/home-plugin-executor.ts", "apps/local-host/src/installed-plugin-host.ts",
     "apps/local-host/src/local-plugin-development.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/web-project-deletion.ts"],
 };
 

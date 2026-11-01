@@ -1,3 +1,4 @@
+// RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -459,7 +460,7 @@ test("the mapper, the catalog class, the artifact classes and the Functions clas
   assert.deepEqual([found.status, found.stdout.trim()], [1, ""], "no source names the removed classes or the mapper");
   assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/functions-http/route-error.ts")), false);
   const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/functions-http.ts", "apps/local-host/src/web-project-reference.ts",
-    "apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/functions/src"],
+    "apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/functions/src"],
   { cwd: REPOSITORY, encoding: "utf8" });
   const bare = scan.stdout.trim().split("\n").filter(line => line && !/\/\/ .*new Error\(|object required/.test(line));
   assert.deepEqual(bare, [], "a caller's mistake on these edges has a code (a bare Error would answer 500)");

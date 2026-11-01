@@ -885,7 +885,7 @@ export function checkArtifactsOwnership(repositoryRoot) {
   if (/export function (?:buildMolisWorkWebView|cachedMolisWorkWebView)/u.test(WEB_DISPATCH_FILES.map(read).join("\n"))) {
     errors.push("apps/local-host/src/web-request.ts: Goal read projection and cache must remain outside HTTP routing");
   }
-  const artifactHttp = read("apps/local-host/src/artifact-native-plugin-http.ts");
+  const artifactHttp = read("apps/local-host/src/artifact-library-http.ts");
   if (!hasInCode(artifactHttp, "createLocalArtifactHttp") || artifactHttp.includes("@molis-ai/molis-work-app-desktop")) {
     errors.push("Artifact HTTP composition must receive Desktop bootstrap through its Host factory");
   }

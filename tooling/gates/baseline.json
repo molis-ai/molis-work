@@ -12,7 +12,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
-    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 163,
+    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 162,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 208,
       "methods": 32
@@ -476,10 +476,10 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 57,
+  "pluginOutsideMentionsTotal": 56,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
-    "coding#outside-files": 3,
+    "coding#outside-files": 2,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,
     "diff#outside-files": 0,

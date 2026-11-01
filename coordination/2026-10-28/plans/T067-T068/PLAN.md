@@ -133,3 +133,7 @@ T068准许原§4指定精确模块：contracts/platform/plugin-integrations.ts�
 完整迁入34纯远程配置与Figma远程分支，保本机例外、Microsoft36字符类iu及部署客户端原资格；稳定来源pin/在途generation、held/最终同步提交/后续发现刷新call与Agent直通同时闭合。旧配置缺pin按现行拒绝，不猜来源，不新增维护或迁移机制。所有真实验证在临时Home/file secrets/受控HTTPS及既有SDK夹具，无真实账号/密钥/模型。共享快照/安全表/基线/资源/状态根串行；原有效证据沿用，仅必要完整回归和有区分力的安全正反/交错，不重复父矩阵。公开build/test槽、jobs1/retries0；不本机Full/push/GH，准确候选交独立验证与加强二审，不为凑READY拆片。
 
 2026-11-01 12:40Z：T067七文档候选已由独立验证线（原一审1）与独立二审线（原一审2）核收通过，报告/tmp/t067-verify/REPORT.md、/tmp/t067-second/REPORT.md。最终父实际采用后根回填两处采用状态，并将继承的S101设备授权引用S105改为实际S106；此P2同文档窗口消除，不另开任务。T396若随T395采用，PG045三类取钥状态按实际事实更新，但BL790/整行剩余不提前签关。
+
+## 2026-11-01 13:57Z 同书 Agent 派发窗口修复
+
+冻结 H b327bef2 的独立验证已用真实 createPrologueNodeAdapter/mcpLibrary 复现：validate 后 beforeDispatch 等待中停用来源，仍实际远端 callCount=1 且 fulfilled；原88例通过、新增交错红。根核原件后退回本单作者，非新需求或缩减验收。原 §4.1 的来源快照须覆盖整个调用的后续 await、实际网络/业务派发和结果交付，ABA 不得靠重新捕获新世代绕过。允许新增必要 hunk：horizontal/agent-host/src/adapters/prologue-mcp.ts 与现有 adapter/connector 端口声明及具名测试；不改 vendored SDK，不动其他任务的模型/签名/权限语义。公开导出变化仍只给根生成候选。修复先简短记录设计，实施原合同，增加已复现窗口与 ABA/飞行中撤权/合法调用正控，matching build 后只跑直接受影响完整文件；原未变328等证据保留，不重做父矩阵。作者/独立验证/加强二审仍分离，原失败保留。

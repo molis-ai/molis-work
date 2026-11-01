@@ -253,11 +253,11 @@ export interface AssistantMaterial {
             id: string;
         };
     };
-    method?: {
-        method_id: string;
-        version?: number;
+    method?: AssistantMethodSelection & {
         name?: string;
         plugin_title?: string;
+        effective?: "default" | "user";
+        user_revision?: number | null;
     };
     image?: {
         resource_id: string;
@@ -319,13 +319,21 @@ export interface AssistantMemoryPrefs {
 
 export type AssistantMessagePurpose = "background" | "change" | "suggest" | "delegate" | "reply";
 
-export interface AssistantMethod {
+export interface AssistantMethod extends AssistantMethodSelection {
+    kind?: "role" | "method";
     method_id: string;
     plugin_id: string;
     plugin_title: string;
     version: number;
     name: string;
     summary: string;
+}
+
+export interface AssistantMethodSelection {
+    method_id: string;
+    version?: number;
+    default_ref?: SignedAgentReference;
+    installation?: SignedAgentInstallation;
 }
 
 export interface AssistantNotice {
@@ -564,10 +572,7 @@ export interface AssistantRoundDiagnostics {
             version: number;
             provider_id: string;
         };
-        method?: {
-            method_id: string;
-            version?: number;
-        };
+        method?: AssistantMaterial["method"];
     }>;
     usage: {
         input: number;

@@ -6,6 +6,7 @@ import test from "node:test";
 import { createLocalWebAssets } from "@molis-ai/molis-work-app-local-host";
 import {
   parseConditionFrame, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
+  renderCharacters, renderCharactersSettingsEntry, renderPluginSettingsContribution,
   pluginWorkbenchPacks, pluginWorkbenchStyles, renderMolisWorkConditionsSpecimen, renderPluginFrameSurface, selectorNames,
   splitPluginStylesheet, SETTINGS_DIRECTORY_FACTORY_SCRIPT, type BuiltinPluginWorkbenchPack, type MolisWorkSettingsView,
 } from "@molis-ai/molis-work-app-workbench";
@@ -252,7 +253,11 @@ const codingSettingsView = (): MolisWorkSettingsView => ({
   diagnostics: { home_directory: "/", installation_state: "ready", version: null, release_directory: null, project_count: 0, launchers: [] },
 });
 
-test("RAC-2590 the settings sheet carries none of Coding's styles: its settings page uses the shell's own .coding-settings rules", () => {
+const codingSettingsHtml = () => renderPluginSettingsContribution(CODING_SETTINGS_CONTRIBUTION, {
+  context: { project: null, projects: [], runtimes: [] }, primitives: { escape: String, text: String, icon: () => "" },
+});
+
+test("RAC-2590 the settings sheet carries none of Coding's styles: its settings page uses the registered .coding-settings rules", () => {
   const coding = packs.find((pack) => pack.project_plugin_id === "coding")!;
   const { scoped, shared } = splitPluginStylesheet(coding.stylesheet!, "coding", coding.stylesheetShared, coding.stylesheetPrefixes);
   const settings = renderMolisWorkSettingsStylesheet();
@@ -261,7 +266,8 @@ test("RAC-2590 the settings sheet carries none of Coding's styles: its settings 
   assert.ok(!settings.includes(scoped.trim()), "none of what coding.css brings is in the settings sheet");
   assert.ok(!settings.includes(shared.trim()), "nor the part of Coding's sheet that stays shared");
   for (const rule of [CODING_OWN_MARKER, ...CODING_SHARED_MARKERS]) assert.ok(!settings.includes(rule), `the settings sheet does not hold ${rule}`);
-  assert.ok(settings.includes(".coding-settings .coding-method-body"), "the shell's own rules for Coding's settings page are still there");
+  assert.doesNotMatch(settings, /\.coding-settings/u, "RAC-2848: the settings sheet no longer owns the four rules");
+  assert.match(codingSettingsHtml(), /<section[^>]+coding-settings[^>]*>\s*<style>[\s\S]*?\.coding-settings \.coding-method-body/u, "the real registered settings section carries the positive control");
 });
 
 test("RAC-2591 Coding's rules reach the pages that use them: its own from coding.css, the rest from the workbench sheet, and its settings page links coding.css", () => {
@@ -279,3 +285,36 @@ test("RAC-2592 the workbench's page assets no longer name Coding's package or it
   assert.doesNotMatch(source, /molis-work-plugin-coding|CODING_STYLES/u);
 });
 
+
+test("RAC-2848 Coding owns the unchanged four rules inside its registered settings section", () => {
+  const coding = packs.find(pack => pack.project_plugin_id === "coding")!;
+  const rules = [
+    ".coding-settings details { margin-block: 12px; }",
+    ".coding-settings summary { cursor: pointer; overflow-wrap: anywhere; }",
+    ".coding-settings .coding-method-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 12px; background: var(--nav-hover); }",
+    ".coding-settings .mw-select { max-width: 100%; }",
+  ];
+  assert.equal(coding.settingsStylesheet, undefined);
+  const html = codingSettingsHtml();
+  const style = /<section[^>]+coding-settings[^>]*>\s*<style>([\s\S]*?)<\/style>/u.exec(html)?.[1];
+  assert.deepEqual(style?.trim().split("\n").map(line => line.trim()), rules);
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
+    for (const rule of rules) assert.equal(sheet.includes(rule), false, rule);
+  }
+  assert.doesNotMatch(readFileSync(new URL("../apps/workbench/src/styles/settings.ts", import.meta.url), "utf8"), /\.coding-settings/u);
+});
+
+test("RAC-2850 RAC-2851 Characters carries styles inside each extracted section rather than either shared sheet", () => {
+  const entry = renderCharactersSettingsEntry({ projects: [], primitives: { escape: String } });
+  const project = renderCharacters({ route_prefix: "/projects/example", primitives: { escape: String } });
+  assert.match(entry, /<section[^>]+characters-settings-entry[^>]*>\s*<style>/u);
+  assert.match(entry, /\.characters-settings-entry \.characters-project-link/u);
+  assert.match(entry, /\.characters-hint/u);
+  assert.doesNotMatch(entry, /\.characters-(?:terminal|editor|dialog)/u);
+  assert.match(project, /<section[^>]+characters-page[^>]*>\s*<style>/u);
+  assert.match(project, /\.characters-terminal \{ height: 420px/u);
+  assert.match(project, /\.characters-terminal \{ height: 350px/u);
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
+    assert.doesNotMatch(sheet, /\.characters-(?:terminal|project-link|page|dialog|steps)/u);
+  }
+});

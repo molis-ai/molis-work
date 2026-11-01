@@ -1,5 +1,6 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
@@ -1167,4 +1168,23 @@ for (const [order, gonePluginId, keptPluginId] of [
     await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
     await rm(home, { recursive: true, force: true });
   }
+});
+
+// RAC-2615: the child hooks before any application import; this parent already imported the Host.
+test('RAC-2615 controlled real Home lifecycle replaces and restores secrets without a production testing API', { ...mac, timeout: 180_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 't141-child-'));
+  try {
+    const env = { PATH: process.env.PATH, HOME: directory, CFFIXED_USER_HOME: directory, TMPDIR: directory,
+      XDG_CONFIG_HOME: directory, XDG_CACHE_HOME: directory, XDG_DATA_HOME: directory,
+      MOLIS_WORK_HOME: join(directory, 'molis'), MOLIS_WORK_SECRET_BACKEND: 'file', MOLIS_WORK_ENCRYPTION_KEY: '',
+      MOLIS_HELPER_SIGNING_IDENTITY: '-', NODE_ENV: 'test', MOLIS_WORK_SLOT_HELD: process.env.MOLIS_WORK_SLOT_HELD };
+    const child = spawn(process.execPath, ['--unhandled-rejections=strict', '--import', 'tsx', new URL('./fixtures/home-upgrade-lifecycle.mjs', import.meta.url).pathname], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const stop = () => { if (child.pid) try { process.kill(-child.pid, 'SIGTERM'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; } };
+    t.signal.addEventListener('abort', stop, { once: true });
+    t.after(() => { t.signal.removeEventListener('abort', stop); stop(); });
+    let output = ''; child.stdout.on('data', chunk => { output += chunk; }); child.stderr.on('data', chunk => { output += chunk; });
+    const code = await new Promise<number | null>((resolve, reject) => { child.once('error', reject); child.once('exit', resolve); });
+    assert.equal(code, 0, output);
+    for (const scenario of ['success', 'failure', 'edit', 'disable', 'reenable', 'disabled']) assert.ok(output.includes('lifecycle: ' + scenario + ' passed'), output);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

@@ -156,9 +156,10 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   const html = await (await f.request(f.prefix + "/settings/plugins")).text();
   assert.match(html, /data-plugin-trust-home/);
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
-  assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/list"/);
-  assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/set", \{ body: payload \}\)/);
-  assert.match(script, /home\.plugins\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeAct\)\)/, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
+  assert.match(script, /^const homeApi = \(name, payload = \{\}\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\);$/m, "the shared Home helper uses the absolute Host door and forwards its payload");
+  assert.match(script, /^personal = \(await homeApi\("list"\)\)\.plugins;$/m, "the Home rows come from that door's list");
+  assert.match(script, /^const homeSend = \(payload\) => homeApi\("set", payload\);$/m, "the permission switch forwards its payload through that door's set");
+  assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
   assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act\)/, "a project's rows send theirs to the project's route");
 });
 
@@ -198,8 +199,8 @@ test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and unin
   const f = await setup(t);
   const html = await (await f.request(f.prefix + "/settings/plugins")).text();
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
-  assert.match(script, /installed\(plugin, homeSend, revoked, homeAct\)/, "a Home row is given the revoked publishers and the Home door's act");
-  assert.match(script, /const homeAct = \(name, payload\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\)/, "its act goes to the Host settings door");
+  assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "a Home row is given the revoked publishers and the shared Home door's act");
+  assert.match(script, /^const homeApi = \(name, payload = \{\}\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\);$/m, "its act goes to the absolute Host settings door with its payload");
   assert.match(script, /act = \(name, payload\) => api\("\/installed\/" \+ name, payload\)/, "a project row's act defaults to the project's route");
   assert.match(script, /body\.append\(controls\(plugin, revoked, act\)\)/, "the row hands its act to the buttons");
   assert.match(script, /el\("span", "settings-form-error", L\("没能启动：\{error\}"/, "the recovery error is drawn by el");

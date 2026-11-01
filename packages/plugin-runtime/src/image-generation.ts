@@ -2,6 +2,7 @@ import { ActionError, defineErrorCodes, requireSynchronous, type ActionExecution
 import type { PluginImageConnectionState, PluginImageGenerationClient, PluginImageGenerationDeclaration, PluginImageGenerationRequest, PluginImageTarget, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 const errors = defineErrorCodes("plugin", {
   image_action_required: "forbidden", image_permission_undeclared: "forbidden", image_concurrent_required: "forbidden", image_input_invalid: "invalid", image_connection_changed: "conflict",
@@ -93,14 +94,8 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
   });
 }
 function text(value: unknown, max: number): string {
-  if (typeof value !== "string" || !value.trim() || !withinCharacters(value, max)) throw errors.image_input_invalid("图片服务参数无效");
+  if (typeof value !== "string" || !value.trim() || exceedsCharacters(value, max)) throw errors.image_input_invalid("图片服务参数无效");
   return value.trim();
-}
-/** Counted in characters, like a schema's maxLength (Ajv counts code points). UTF-16 units are never fewer than characters and never more than twice as many, so only a text in between needs its characters counted, once. */
-function withinCharacters(value: string, max: number): boolean {
-  if (value.length <= max) return true;
-  if (value.length > 2 * max) return false;
-  return [...value].length <= max;
 }
 function copyTarget(target: PluginImageTarget): PluginImageTarget {
   if (!target || typeof target !== "object") throw errors.image_input_invalid("缺少图片服务目标");

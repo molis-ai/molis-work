@@ -1,7 +1,7 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** The Goal's Frame surface: its summary, the canvas of what it gathers, the picker for adding content, and the zoom tools. Hidden until the Frame opens. */
-export function renderGoalFrameStage({ L, icon }: { L(text: string): string; icon(name: PluginIconName): string }): string {
+export function renderGoalFrameStage({ L, icon }: { L: (text: string) => string; icon: (name: PluginIconName) => string }): string {
   return `<section class="goal-frame-surface" data-goal-frame-surface aria-label="Frame" hidden>
     <header class="frame-goal-summary"><div class="frame-goal-heading"><h1 data-frame-goal-title></h1><span data-frame-goal-status></span></div><p data-frame-goal-outcome></p>    <div class="frame-goal-actions mw-toolbar"><button class="mw-btn mw-btn--secondary" type="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button><button class="mw-btn mw-btn--secondary" type="button" data-frame-goal-work>${icon("terminal")}${L("打开工作区")}</button><button class="mw-btn mw-btn--ghost" type="button" data-frame-goal-locate>${icon("target")}${L("在关系画布中定位")}</button></div></header>
     <div class="goal-frame-canvas" data-frame-canvas><div class="frame-empty mw-empty" data-frame-empty><strong>${L("把这项目标需要的内容放在这里")}</strong><p>${L("从目录拖入消息、会话或资料，在同一个画布上组织工作。")}</p><button type="button" class="mw-btn mw-btn--primary" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button></div>

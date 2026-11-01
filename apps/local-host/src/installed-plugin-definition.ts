@@ -15,6 +15,8 @@ export interface InstalledDefinitionPorts {
   assertInstalled(identity: Readonly<SandboxIdentity>): void;
   /** The earlier versions of a studio release a later one is compatible with; none for a package. */
   earlier(release: InstalledRelease): readonly number[];
+  /** A project package's executor has no Home services; hold only its verified Agent declarations while this definition runs. */
+  holdAgentDefinitions?(definition: PluginDefinition, installId: string): (() => void) | undefined;
   /** An integration package's definition (BL-530): only the Home's instance runs them, so only the Home gives this. */
   integration?(release: InstalledRelease, approved: SandboxEffects, assertLive: (identity: Readonly<SandboxIdentity>) => void): PluginDefinition;
 }
@@ -42,11 +44,23 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       const guard = <Context extends { identity: Readonly<SandboxIdentity>; signal: AbortSignal; beforeEffect?(): Promise<void> | void }>(context: Context): Context & { beforeEffect(): Promise<void> } => ({ ...context, beforeEffect: async () => {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
-      const value = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
+      const sandbox = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
         capabilities: ports.catalog, assertLive: ports.assertInstalled,
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
       }, release.packaged?.manifest);
+      let withdraw: (() => void) | undefined;
+      const value: PluginDefinition = release.packaged && ports.holdAgentDefinitions ? { ...sandbox,
+        async start(context) {
+          const held = ports.holdAgentDefinitions!(value, context.install_id); withdraw = held;
+          try { return await sandbox.start(context); }
+          catch (error) { if (withdraw === held) withdraw = undefined; held?.(); throw error; }
+        },
+        async stop(context) {
+          const held = withdraw; withdraw = undefined;
+          try { await sandbox.stop?.(context); } finally { held?.(); }
+        },
+      } : sandbox;
       definitions.set(keyOf(release), { pluginId: release.pluginId, value });
       return value;
     },

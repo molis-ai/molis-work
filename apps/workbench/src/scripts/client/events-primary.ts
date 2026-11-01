@@ -371,29 +371,18 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         detail.inert = true;
         showSourceStatus(detail, L("正在保存来源配置…"));
         try {
-          const saved = await api(feedApi + "/sources/" + encodeURIComponent(sourceId), "PATCH", {
+          await api(feedApi + "/sources/" + encodeURIComponent(sourceId), "PATCH", {
             name: readField("name") === detail.querySelector('[data-source-config-field="name"]')?.defaultValue ? undefined : readField("name"),
             description: readField("description"),
             scope: detail.querySelector('[data-source-config-field="scope"]') ? readField("scope") : undefined,
             feed_url: readField("feed_url") || undefined,
-            connection_id: (() => {
-              const field = detail.querySelector('[data-source-config-field="connection_id"]');
-              return field && !field.disabled && field.value && field.value !== [...field.options].find(option => option.defaultSelected)?.value ? field.value : undefined;
-            })(),
           });
           detail.querySelectorAll("[data-source-config-field]").forEach(field => {
             if (field.tagName === "SELECT") [...field.options].forEach(option => option.defaultSelected = option.selected);
             else field.defaultValue = field.value;
           });
           showSourceStatus(detail, L("来源资料已保存。"));
-          if (await refreshFeedStage()) {
-            if (saved.source?.source_id && saved.source.source_id !== sourceId) {
-              modal?.removeAttribute("aria-busy");
-              setFeedTask(saved.source.source_id);
-              showFeedView("settings");
-            }
-            showToast(L("来源资料已保存。"));
-          }
+          if (await refreshFeedStage()) showToast(L("来源资料已保存。"));
         } catch (error) {
           showSourceStatus(detail,error);
         } finally {

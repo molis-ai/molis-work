@@ -9,7 +9,7 @@ import type { WorkflowsStore } from "./store.js";
 import type { WorkflowContentPorts, WorkflowsActionPorts } from "./actions.js";
 import { withPending } from "./continuation.js";
 import { workflowsErrors } from "./error.js";
-import { firstCharacters } from "./bounded-cut.js";
+import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type Pending = NonNullable<WorkflowInstance["steps"][number]["pending"]>;
 /** What a step needs of the handler that runs it: its project, and the one write the handler makes (authority is checked again inside it). */
@@ -38,7 +38,7 @@ function fieldsOf(view: ActionView): WorkflowActionField[] | null {
   const required = Array.isArray(schema.required) ? schema.required.filter((name): name is string => typeof name === "string") : [];
   const fields = Object.entries(schema.properties).map(([name, property]) => {
     const type = Array.isArray(property?.type) ? String(property.type.find(item => item !== "null") ?? "") : String(property?.type ?? (property?.enum ? "string" : ""));
-    return { name, type, required: required.includes(name), ...(typeof property?.title === "string" || typeof property?.description === "string" ? { title: firstCharacters(String(typeof property.title === "string" ? property.title : property.description), 120) } : {}),
+    return { name, type, required: required.includes(name), ...(typeof property?.title === "string" || typeof property?.description === "string" ? { title: cutCharacters(String(typeof property.title === "string" ? property.title : property.description), 120) } : {}),
       ...(Array.isArray(property?.enum) ? { enum: property.enum.filter((value): value is string | number | boolean => ["string", "number", "boolean"].includes(typeof value)) } : {}) };
   });
   // A step fills flat fields; a required object or list cannot be mapped from handed-over text.
@@ -146,7 +146,7 @@ export async function runActionStep(scope: RunScope, caller: ActionExecutionCont
   catch (error) {
     // A provider may write before propagating a downstream authorization/validation error.
     // Once invoked, no error code proves that nothing happened: only an explicit retry may resend.
-    const settled = { ...attempt, attempt_error: firstCharacters(error instanceof Error ? error.message : String(error), 400) };
+    const settled = { ...attempt, attempt_error: cutCharacters(error instanceof Error ? error.message : String(error), 400) };
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
     await scope.commit(caller, store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);

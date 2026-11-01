@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard input and reattachment without relaunch", { timeout: 90_000 }, async t => {
@@ -58,6 +59,26 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   };
   await open();
   assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=characters] iframe') === null"), true, "Characters retains the Host surface from CHR-1");
+  // RAC-2852: both viewports still size the actual attached xterm, using only this file's isolated CLI.
+  const evidence = join(REVIEW_EVIDENCE, "pg070-current"); await mkdir(evidence, { recursive: true });
+  for (const [width, height, terminalHeight] of [[1440, 1000, "420px"], [390, 844, "350px"]] as const) {
+    await browser.setViewport(width, height);
+    await child.evaluate("document.querySelector('[data-character-terminal]').scrollIntoView({block:'center',behavior:'instant'})");
+    assert.equal(await child.evaluate("getComputedStyle(document.querySelector('[data-character-terminal]')).height"), terminalHeight);
+    await child.waitFor("document.querySelector('[data-character-terminal] .xterm-screen')?.getBoundingClientRect().width>0");
+    await child.evaluate("document.querySelector('[data-character-terminal] .xterm-rows > div').scrollIntoView({block:'center',behavior:'instant'})");
+    await child.waitFor("(()=>{const r=document.querySelector('[data-character-terminal] .xterm-rows > div').getBoundingClientRect();return r.top>96 && r.bottom<innerHeight-100 && !!document.elementFromPoint(r.left+8,r.top+r.height/2)?.closest('[data-character-terminal]')})()");
+    const image = await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId);
+    await writeFile(join(evidence, "characters-terminal-" + width + ".png"), Buffer.from(image.data, "base64"));
+  }
+  await browser.setViewport(1440, 1000);
+  await child.click('[data-character-use]'); await child.waitFor("document.querySelector('[data-character-run-dialog]')?.open===true");
+  assert.equal(await child.evaluate("getComputedStyle(document.querySelector('.characters-run-modes')).display"), "grid");
+  const runImage = await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId);
+  await writeFile(join(evidence, "characters-run-dialog.png"), Buffer.from(runImage.data, "base64"));
+  await child.click('[data-character-run-close]'); await child.waitFor("!document.querySelector('[data-character-run-dialog]')?.open");
+  await child.evaluate("document.querySelector('[data-character-terminal]').scrollIntoView({block:'center',behavior:'instant'})");
+  await child.click('[data-character-terminal] .xterm-screen');
   await browser.command("Input.insertText", { text: "TYPED_THROUGH_RESTRICTED_CHANNEL" }, browser.sessionId);
   await browser.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" }, browser.sessionId);
   await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");

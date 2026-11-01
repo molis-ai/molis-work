@@ -90,7 +90,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 412,
+  "testInternalImports": 410,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -147,13 +147,13 @@
     "tests/connector-account-actions.test.ts": 1,
     "tests/connector-api-oauth.test.ts": 6,
     "tests/connector-authorization-recovery.test.ts": 3,
-    "tests/connector-cli.test.ts": 2,
+    "tests/connector-cli.test.ts": 1,
     "tests/connector-connections.test.ts": 2,
     "tests/connector-document-import.test.ts": 1,
     "tests/connector-mcp.test.ts": 9,
     "tests/connector-method-directory.test.ts": 4,
     "tests/connector-oauth-broker.test.ts": 3,
-    "tests/connector-oauth-choice.test.ts": 4,
+    "tests/connector-oauth-choice.test.ts": 3,
     "tests/connector-provider-contracts.test.ts": 3,
     "tests/connector-reconnect-regressions.test.ts": 1,
     "tests/connectors-settings-behaviors.test.ts": 4,
@@ -435,9 +435,9 @@
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseChangeSet": 31,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseCodingChangeSet": 23
   },
-  "hostEntryExportStarTotal": 8,
+  "hostEntryExportStarTotal": 7,
   "hostEntryExportStar": {
-    "apps/local-host/src/index.ts#export-star": 8
+    "apps/local-host/src/index.ts#export-star": 7
   },
   "layerExceptionsTotal": 10,
   "layerExceptions": {
@@ -480,10 +480,10 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 55,
+  "pluginOutsideMentionsTotal": 52,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
-    "coding#outside-files": 2,
+    "coding#outside-files": 0,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,
     "diff#outside-files": 0,
@@ -501,7 +501,7 @@
     "plugin-builder#outside-files": 13,
     "ppt#outside-files": 0,
     "schedule#outside-files": 1,
-    "shelf#outside-files": 2,
+    "shelf#outside-files": 1,
     "text-stats#outside-files": 0,
     "todo#outside-files": 0,
     "workflows#outside-files": 0
@@ -1008,7 +1008,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 25,
+  "errorSubclassTotal": 24,
   "errorSubclasses": {
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
@@ -1031,7 +1031,6 @@
     "plugins/native/alchemist/src/studio/server/sources/http-source-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/official-integrations/catalog/src/http.ts": 1,
-    "plugins/official-integrations/catalog/src/notion-oauth.ts": 1,
     "plugins/official-integrations/github/src/provider.ts": 1,
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1

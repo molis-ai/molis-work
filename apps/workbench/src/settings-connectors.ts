@@ -1,7 +1,7 @@
 import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./judgment-rules/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
+import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, loginReady } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
@@ -80,7 +80,7 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
   const { L, escapeHtml } = p;
   const placeholder = card.availability === "placeholder";
   const method = recommendedMethod(card);
-  const direct = !placeholder && !count && (method?.login_ready || readyAccountLogin(card));
+  const direct = !placeholder && !count && loginReady(method);
   // A package writes the card's words: the card shows them within its limits, cut in whole characters.
   const name = connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS);
   const purpose = connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS);

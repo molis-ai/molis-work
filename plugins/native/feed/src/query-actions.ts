@@ -1,6 +1,3 @@
-import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { feedSourceActions } from "./source-actions.js";
-import { FEED_PLUGIN_ID } from "./identity.js";
 import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
@@ -54,7 +51,6 @@ export const feedQueryActions = {
     { ...empty, properties: { object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
     { type: "object", properties: { item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },
       required: ["item", "inbox_active", "promote_available"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"]),
-  connectionUsages: defineConnectorUsagesAction("feed.connection.usages", "Feed 来源使用的连接", ["feed:read"], "project"),
   linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
     required_actions: [{ capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" }] } },
   snapshot: define<{ include_contents?: boolean }, FeedDirectorySnapshot>("feed.snapshot", "读取 Feed 面板",
@@ -109,10 +105,6 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
       return { item: { ...item, suggested_behavior_ids: recommendations.find(row => row.item_id === item.item_id)?.suggested_behavior_ids ?? [] },
         inbox_active: entries.some(entry => entry.subject_type === "feed_item" && entry.subject_id === item.item_id && (entry.status === "open" || entry.status === "in_progress")), promote_available };
     }),
-    bind(feedQueryActions.connectionUsages, input => ({ usages: feed.snapshot(projectId).sources.filter(source => source.config.connection_id === input.connection_id).map(source => ({
-      usage_id: source.source_id, title: source.name, detail: source.status === "disconnected" ? "来源账号已断开" : "拉取后按当前捕捉规则处理消息", enabled: source.enabled && source.status !== "disconnected",
-      actions: [{ action: { capability_id: feedSourceActions.sync.capability_id, version: feedSourceActions.sync.version, provider_id: FEED_PLUGIN_ID }, input: { source_id: source.source_id } }],
-    })) })),
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),
     bind(feedQueryActions.snapshot, input => snapshot(input.include_contents)),
     bind(feedQueryActions.item, async input => ({ item: await ports.hydrate(feed.getFeedItem(projectId, input.item_id)) })),

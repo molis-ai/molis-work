@@ -60,6 +60,7 @@ export const feedManifest: PluginManifest = {
     { route_id: "feed.out-rules.update", method: "PATCH", path: "/out-rules/:rule_id", permission: "feed:write" },
     { route_id: "feed.out-rules.delete", method: "DELETE", path: "/out-rules/:rule_id", permission: "feed:write" },
     { route_id: "feed.sources.create", method: "POST", path: "/sources", permission: "feed:write" },
+    { route_id: "feed.sources.add-account", method: "POST", path: "/sources/accounts", permission: "feed:write" },
     { route_id: "feed.sources.update", method: "PATCH", path: "/sources/:source_id", permission: "feed:write" },
     { route_id: "feed.sources.delete", method: "DELETE", path: "/sources/:source_id", permission: "feed:write" },
     { route_id: "feed.sources.schedule", method: "PUT", path: "/sources/:source_id/schedule", permission: "feed:write" },

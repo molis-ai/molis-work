@@ -18,6 +18,9 @@ import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
 type PluginSlotRow = NonNullable<MolisWorkSettingsView["plugin_slots"]>[number];
 const SLOTS_PATH = "/api/settings/connectors/plugin-slots";
+const RECORD_PATH = `${SLOTS_PATH}/record`;
+// The record path takes exactly these: a name more (an `install_id` the page made up, say) is refused, not ignored.
+const RECORD_QUERY = ["project", "plugin_id", "slot_id", "record_key"], RECORD_BODY = ["plugin_id", "slot_id", "service_id", "record_key", "connection_id"];
 
 /** The installations the person sees here: the Home's, then the project's; one install id once (a plugin with two instances). */
 async function installationsHere(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined) {
@@ -48,6 +51,7 @@ export async function pluginSlotRows(host: MolisWorkLocalHost, reference: LocalH
  */
 export async function handlePluginSlotsHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost,
   projectReference: (projectId: string) => Promise<LocalHostProjectReference | null>): Promise<boolean> {
+  if (url.pathname === RECORD_PATH) return await handleRecordSlotHttp(request, response, url, host, projectReference);
   if (url.pathname !== SLOTS_PATH) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "不支持的操作" }); return true; }
   try {
@@ -58,6 +62,61 @@ export async function handlePluginSlotsHttp(request: IncomingMessage, response: 
     const body = await readLocalWebBody(request) as { install_id: string; plugin_id: string; slot_id: string; service_id: string; connection_id?: string | null };
     sendJson(response, 200, await bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS).invoke(connectorPluginSlotActions.bind, {
       install_id: body.install_id, plugin_id: body.plugin_id, slot_id: body.slot_id, service_id: body.service_id, connection_id: body.connection_id ?? null }));
+  } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
+  return true;
+}
+
+const exactly = (names: readonly string[], allowed: readonly string[]) => names.length === allowed.length && allowed.every(name => names.includes(name));
+type Refusal = { status: number; error: string };
+
+/**
+ * The installation of a plugin in the project the page names: the project's own record, else the Home's. Two live installations of the
+ * same plugin there are refused rather than one picked, since the page cannot say which record it showed.
+ */
+async function recordSlotInstallation(host: MolisWorkLocalHost, reference: LocalHostProjectReference, plugin_id: string): Promise<string | Refusal> {
+  const live = (record: PluginInstanceRecord) => record.plugin_id === plugin_id && record.state !== "uninstalled";
+  const project = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list().filter(live));
+  const found = project.length ? project : (host.homePlugins?.installations() ?? []).filter(live);
+  if (found.length > 1) return { status: 409, error: "这个项目里同一个插件有多个安装，无法确定是哪一个" };
+  return found[0]?.install_id ?? { status: 404, error: "这个项目没有安装这个插件" };
+}
+
+/**
+ * 插件按记录用的账号 (T-121, FI-7b): where a plugin shows one of its records, the person reads (`GET`) or chooses (`POST`) the account bound
+ * to that record's `per_record` slot, through `connectors.plugin_slot.read@2` / `bind@2` as the person. `?project=` names the project the
+ * page is in; the installation is the Host's to find there, never the page's to say. The actions check the slot's declaration again.
+ */
+async function handleRecordSlotHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost,
+  projectReference: (projectId: string) => Promise<LocalHostProjectReference | null>): Promise<true> {
+  const refuse = (refusal: Refusal): true => { sendJson(response, refusal.status, { error: refusal.error }); return true; };
+  if (request.method !== "GET" && request.method !== "POST") return refuse({ status: 405, error: "不支持的操作" });
+  const names = [...url.searchParams.keys()];
+  if (new Set(names).size !== names.length || !exactly(names, request.method === "GET" ? RECORD_QUERY : ["project"])) return refuse({ status: 400, error: "请求参数无效" });
+  try {
+    const reference = await projectReference(url.searchParams.get("project") ?? "");
+    if (!reference) return refuse({ status: 404, error: "找不到所选项目" });
+    const actions = bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS);
+    if (request.method === "GET") {
+      const plugin_id = url.searchParams.get("plugin_id") ?? "", install_id = await recordSlotInstallation(host, reference, plugin_id);
+      if (typeof install_id !== "string") return refuse(install_id);
+      sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.readRecord, { install_id, plugin_id,
+        slot_id: url.searchParams.get("slot_id") ?? "", record_key: url.searchParams.get("record_key") ?? "" }));
+      return true;
+    }
+    // The action's schema checks each value; the names are checked here, since a name the action does not take would otherwise be dropped.
+    const body: unknown = await readLocalWebBody(request, 4_096);
+    if (!body || typeof body !== "object" || Array.isArray(body) || !exactly(Object.keys(body), RECORD_BODY)) return refuse({ status: 400, error: "请求内容无效" });
+    const input = body as { plugin_id: string; slot_id: string; service_id: string; record_key: string; connection_id: string | null };
+    const install_id = await recordSlotInstallation(host, reference, String(input.plugin_id));
+    if (typeof install_id !== "string") return refuse(install_id);
+    const record = { install_id, plugin_id: input.plugin_id, slot_id: input.slot_id, record_key: input.record_key };
+    // A record bound to one account is not moved to another here: what the plugin kept for that account (a source's cursor, say) is
+    // the plugin's to clear when the person disconnects it. Unbinding first (`connection_id: null`) is that step.
+    if (input.connection_id !== null) {
+      const { connection } = await actions.invoke(connectorPluginSlotActions.readRecord, record);
+      if (connection && connection.connection_id !== input.connection_id) return refuse({ status: 409, error: "这条记录已经选好账号；要换账号，先断开" });
+    }
+    sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: input.service_id, connection_id: input.connection_id }));
   } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
   return true;
 }

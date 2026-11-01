@@ -584,9 +584,14 @@ export function withPluginGroups(base, settlePane, loose) {
   };
   ops.splitPane = (state, paneId, edge, mode, sourcePaneId = paneId, sourceTabId = null) => {
     const from = paneOf(state, sourcePaneId), group = movingGroup(from, sourceTabId, mode === "move");
+    const focused = base.focused(state);
+    const view = !sourceTabId && !from?.activeTabId ? base.readView(state, sourcePaneId) : undefined;
     base.splitPane(state, paneId, edge, mode, sourcePaneId, sourceTabId);
     if (group) relocate(state, from, base.focused(state), group.moving, group.followers);
-    return settle(state);
+    settle(state);
+    const next = base.focused(state);
+    if (view !== undefined && next !== focused) base.writeView(state, next.id, view);
+    return state;
   };
   ops.togglePluginGroup = (state, paneId, plugin) => {
     const head = paneOf(state, paneId)?.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);

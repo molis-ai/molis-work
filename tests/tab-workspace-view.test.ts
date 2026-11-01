@@ -118,6 +118,27 @@ test("RAC-2687 fixed-pane writes cannot follow a later focus or fall back after 
   assert.equal(JSON.stringify(state), before);
 });
 
+for (const mode of ["copy", "move"]) test(`RAC-2687 splitting a default plugin head by ${mode} retains its view and independent tab identity`, () => {
+  const ops = fresh(), state = ops.create(), source = ops.focused(state);
+  const head = ops.openPlugin(state, "feed");
+  ops.writeView(state, source.id, "source-a");
+  assert.equal(source.activeTabId, null, "exercise the real layout menu's default-sourceTabId branch");
+  ops.splitPane(state, source.id, "right", mode);
+  const target = ops.focused(state), targetHead = target.tabs.find(tab => tab.kind === "plugin" && tab.plugin === "feed")!;
+  assert.notEqual(target.id, source.id);
+  assert.notEqual(targetHead.id, head.id, "the existing default-page split creates its own head");
+  assert.equal(target.activeTabId, null);
+  assert.equal(ops.readView(state, target.id), "source-a");
+  assert.equal(ops.readView(state, source.id, head.id), "source-a");
+  ops.writeView(state, target.id, "source-b");
+  assert.equal(ops.readView(state, source.id, head.id), "source-a");
+  assert.equal(ops.readView(state, target.id), "source-b");
+  const before = JSON.stringify(state);
+  ops.splitPane(state, "missing-pane", "right", mode, source.id);
+  assert.equal(JSON.stringify(state), before, "a rejected split cannot write the source view into the focused neighbour");
+  assert.equal(valid(roundTrip(state)), true);
+});
+
 test("RAC-2687 copying moving and closing then reopening a plugin group preserve each tab's own view", () => {
   const ops = fresh(), state = ops.create(), first = ops.focused(state);
   const item = ops.openItem(state, "feed", "message-1");

@@ -732,8 +732,9 @@ test("RAC-1744 both halves stopped: one project placeholder; the project half ba
 // Feed is in the build and its view is in its project half. The same Feed with the view offered by its Home half instead is drawn by
 // the Home half: being in the build no longer keeps a dual-instance plugin's stage on its project half.
 test("RAC-1745 a dual-instance plugin in the build is drawn by the half that offers its view, the same rule as one outside the build", { timeout: 60_000 }, async t => {
-  const { host, project, request } = await serveHomeRuntime(t);
+  const { home: homeDirectory, host, project, request } = await serveHomeRuntime(t);
   const one = await project("Feed stage owner");
+  await withCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: "feed", actor_id: "fixture" }));
   const page = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return response.text(); };
   const first = await page();
   const home = await host.homePlugins!.ready(), install = host.homePlugins!.installation(FEED_PLUGIN_ID);
@@ -752,7 +753,7 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
     handlers: [{ ...feedQueryActions.stage, handle(caller) { homeReads++; assert.equal(caller.project_id, one.project_id); return data; } }] });
   const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: ["workbench", "source-workbench"]
     .map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
-    render: request => { assert.equal(request.model.data, data, "the selected Home owner reads its own provider, not the project's Feed");
+    render: request => { assert.deepEqual(request.model.data, data, "the selected Home owner reads its own provider, not the project's Feed");
       return request.surface === "workbench" ? "<section>feed-home-half</section>" : ""; } };
   const homeContribution = ownHome(install.install_id), projectContribution = ownProject(FEED_PLUGIN_ID);
   assert.ok(homeContribution?.kind === "app" && projectContribution?.kind === "app");

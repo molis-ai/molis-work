@@ -716,8 +716,8 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
       connector_auth: { github: { bound: boolean } };
     };
     assert.equal(feed.connector_auth.github.bound, true);
-    // The catalog is the shell's to give with the page, not Feed's route's (the vocabulary is read only inside Feed's own action, S-97).
-    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { feed_source_catalog: unknown[] }).feed_source_catalog.length > 0);
+    // Feed's own stage reads the instance vocabulary (S-97); the page carries that owner result.
+    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { stage_data: { feed: { source_catalog: unknown[] } } }).stage_data.feed.source_catalog.length > 0);
     assert.equal(feed.sources.some((source) => source.kind === "github"), false, "a connection alone adds no Feed source");
     assert.equal(JSON.stringify(feed).includes("github-test-token-12345"), false);
 

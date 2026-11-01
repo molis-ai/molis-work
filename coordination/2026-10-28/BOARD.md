@@ -15,6 +15,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | 书审通过，WAIT当前B作者交回唯一writer窗口 | 实际M及一完整文件；旧CI首败因果UNKNOWN保留 | 仅tests/workbench-stop-feedback.e2e.test.ts的await及编号注释，无生产/超时/屏障变化 |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712 @4404e142；Verify与独立审验已核，已排自身Full | full=true；适用SI及Full在途；未采用/原四PR只读 | 原四片合成；ports与golden两自修；BACKLOG准确冲突已解；资源仅原T362+324B |
 | T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；Verify/本地审验通过，已排自身Full | full=true；两原PR只读；资源零增量 | 两原片10路径，六完整文件+README另九项逐项核抵，无第三项修复 |
 | T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；等准确CI与Full预算；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
@@ -470,4 +471,6 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 
 2026-11-01 04:01Z：根手读T384/T385准确Verify原日志后，各加一次full-suite（无既有Full/queued CI、UTC非10–15），合计最多12 runner；SI仍待手查。T146准确c35ad3036正常推原PR，根已读四对图、场景/raw、作者与独立二审；独立文档iframe证据只签CSS删减局部视觉，顶层导航首败不倒填。新准确Full仍需核七完整browser文件。
 
-2026-11-01 04:40Z：根完整核读T353-B当前接续准备、所有open PR在gate/registry/预算的实际hunk，fresh fetch main仍6729，GET原B H81955且普通CI已成功。无须等T384/T385/T387/T146全部采用；根将B的gate、knowledge登记和Jelly预算窗口串行交开发线1，T384/T146作者已通知冻结，T121/T065/T386无writer。只正常merge实际M、清已消费许可、核实测Jelly+33B；原业务与旧238/508/KP按未变输入沿用，三gate完整文件及matching build/48响应另核。独立增量验证由一审线2承担（甲无FIRST），加强二审线1；C仍等B实际采用，不造READY或销历史Full失败。
+2026-11-01 04:35Z：根完整核读T353-B当前接续准备、所有open PR在gate/registry/预算的实际hunk，fresh fetch main仍6729，GET原B H81955且普通CI已成功。无须等T384/T385/T387/T146全部采用；根将B的gate、knowledge登记和Jelly预算窗口串行交开发线1，T384/T146作者已通知冻结，T121/T065/T386无writer。只正常merge实际M、清已消费许可、核实测Jelly+33B；原业务与旧238/508/KP按未变输入沿用，三gate完整文件及matching build/48响应另核。独立增量验证由一审线2承担（甲无FIRST），加强二审线1；C仍等B实际采用，不造READY或销历史Full失败。
+
+2026-11-01 04:40Z：T388书审/真实Promise链核收并注册，fresh open PR文件检查该单一测试无占用。只修pause提交完成前就刷新这一确定测试顺序缺口；不声称它解释T385旧CI首败。开发线4/验证线4/二审线5已定，等B唯一writer交回，未实施。

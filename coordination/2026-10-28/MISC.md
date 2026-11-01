@@ -226,3 +226,5 @@
 2026-11-01 03:09Z：T351原作者树清理授权已执行，不再待确认。T380精确目的地/内容授权已到，审计6552637741已发布；对应临时冻结解除，资源窗口/Full仍未满足。T403 Functions选择A已明确批准，保留页面内创作，仍由真实plugin caller/Functions owner及当前grant控制；其它前置保持。
 
 2026-11-01 03:18Z：T382/#1710已采用，BL926及artifact旧native路由例外随路径改名消失；T147建议②的该终态已落实，通用BL出处断言保留。①EXTENSION-POINTS余项仍按原T148前置，不因本次路径改名提前关闭。
+
+2026-11-01 04:40Z：T385 Full shard7 stop-feedback首轮paused投影超时、retry绿，旧因果UNKNOWN保留。准确源码未await真实pause transaction Promise，静态排序缺口已核并由T388/RAC2829～2830承接；仅await+一完整文件，不放宽超时/断言，不将storage两片归因或记新产品语义。

@@ -17,9 +17,9 @@ import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
+import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
-import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
@@ -447,4 +447,49 @@ test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action
     assert.equal((await bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }) as { content: string }).content, "正文");
     assert.equal(reads, 1);
   } finally { if (runtime.get(installId).state === "running") await runtime.stop(installId); }
+});
+
+test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and internal declared read-only authority", { timeout: 60_000 }, async t => {
+  const ownerId = "io.molis.work.example.stage-authority", sourceId = "io.molis.work.example.stage-source";
+  const query = (capability_id: string, operation: "query" | "command" = "query", effect?: "metered"): ActionDefinition => ({ capability_id, version: 1, operation,
+    action: { title: capability_id, description: "Stage authority probe", scope: "home", kind: operation === "query" ? "query" : "operation", audiences: ["user"],
+      permissions: ["stage-source:read"], subject_kinds: [], input_schema: { type: "object" }, output_schema: {}, ...(effect ? { execution: { cost: effect } } : {}) } });
+  const entry = query("stage-authority.read"), source = query("stage-source.read"), undeclared = query("stage-source.other"), write = query("stage-source.write", "command"), metered = query("stage-source.paid", "query", "metered");
+  const counts = { entry: 0, source: 0, other: 0, write: 0, metered: 0 };
+  const manifest = (plugin_id: string, actions: ActionDefinition[]) => ({ schema_version: 2 as const, host_api_version: 2 as const, plugin_id, name: plugin_id, version: "1.0.0", kind: "app" as const,
+    publisher: { publisher_id: "example", signature: "stage-authority" }, entrypoints: [{ deployment: "local" as const, entrypoint: "./index.js" }],
+    permissions: ["stage-source:read", "actions:delegate"].map(permission => ({ permission, required: true, reason: "Read declared source" })), actions,
+    capabilities: { provides: [], consumes: [source.capability_id, write.capability_id, metered.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } });
+  const ownerManifest = manifest(ownerId, [entry]);
+  let hold: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
+  const owner = definePlugin({ manifest: ownerManifest, async start(context) { return { kind: "app", actions: [{ ...entry, handle: async (_caller, input) => {
+    counts.entry++; const mode = (input as { mode?: string }).mode;
+    if (mode === "write" || mode === "metered") return context.services!.actions!.directory!.invoke(mode === "write" ? write : metered, {});
+    return context.services!.actions!.invokeQuery(mode === "undeclared" ? undeclared : source, {});
+  } }] }; } });
+  const producer = definePlugin({ manifest: manifest(sourceId, [source, undeclared, write, metered]), async start() { return { kind: "app", actions: [source, undeclared, write, metered].map(action => ({ ...action,
+    async handle() { counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
+      const wait = hold; hold = undefined; if (wait && action === source) { wait.entered.resolve(); await wait.release.promise; } return { value: "declared source" }; } })) }; } });
+  const { host, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [owner, producer] } });
+  const one = await project("Stage authority"), platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(ownerId)!;
+  const current = () => { const row = host.homePlugins!.installation(ownerId); if (row?.state !== "running" || row.installation_generation !== installation.installation_generation) throw new ActionError("actions.provider_changed", "owner changed"); };
+  const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: { manifest: ownerManifest, scope: "home", install_id: installation.install_id, assertCurrent: current } });
+  const bound = bind(), visible = await bound.discover();
+  assert.deepEqual(visible.map(view => view.capability_id), [entry.capability_id]);
+  assert.deepEqual(await bound.invoke(entry, {}), { value: "declared source" }); assert.equal(counts.source, 1);
+  const before = { ...counts };
+  await assert.rejects(bound.invoke(source, {}), { code: "actions.forbidden" });
+  await assert.rejects(bound.invoke({ ...entry, provider_id: "wrong-provider" }, {}), { code: "actions.forbidden" });
+  assert.deepEqual(counts, before, "non-entry requests never dispatch a handler");
+  await assert.rejects(bound.invoke(entry, { mode: "undeclared" }), { code: "actions.forbidden" }); assert.equal(counts.other, 0);
+  for (const mode of ["write", "metered"]) await assert.rejects(bound.invoke(entry, { mode }), { code: "actions.forbidden" });
+  assert.equal(counts.write, 0); assert.equal(counts.metered, 0);
+  // The original person's snapshot still decides which precise child references may enter it.
+  const inspect = host.inspectActions.bind(host), mock = t.mock.method(host, "inspectActions", async (...args: Parameters<typeof inspect>) => (await inspect(...args)).filter(view => view.capability_id !== source.capability_id));
+  try { await assert.rejects(bind().invoke(entry, {})); assert.equal(counts.source, 1); } finally { mock.mock.restore(); }
+  hold = { entered: deferred(), release: deferred() }; const wait = hold;
+  const pending = bound.invoke(entry, {}), refused = assert.rejects(pending);
+  await wait.entered.promise; const sourceInstall = host.homePlugins!.installation(sourceId)!;
+  await platform.runtime.stop(sourceInstall.install_id); await platform.supervisor.restart(sourceId); wait.release.resolve(); await refused;
+  assert.equal(counts.source, 2, "the original in-flight source ran once and its replacement did not run");
 });

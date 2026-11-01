@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
@@ -148,3 +148,72 @@ for (const phase of ["dispatch", "response"] as const) {
     } finally { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
   });
 }
+
+// RAC-2507–2510: an unknown plugin exercises the actual owner binding rather than a catalog-specific test renderer.
+import { ActionError, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { StagePageModel, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { serveHomeRuntime, deferred } from "./fixtures/home-runtime.js";
+
+for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC-2509 RAC-2510 stage/objects retain the selected ${selected} owner and finite surfaces`, { timeout: 90_000 }, async t => {
+  const id = `io.molis.work.example.stage-${selected}`, contribution = `${id}.main`, foreign = `${id}.foreign`, permission = `${selected}-stage:read`;
+  const action = (suffix: string, object = false): ActionDefinition => ({ capability_id: `${id}.${suffix}`, version: 1, operation: "query", action: {
+    title: suffix, description: "Owned read", kind: "query", scope: "project", audiences: ["user"], permissions: [permission], subject_kinds: [],
+    input_schema: { type: "object", properties: object ? { object_id: { type: "string", minLength: 1 } } : {}, required: object ? ["object_id"] : [], additionalProperties: false }, output_schema: {} } });
+  const stage = action("stage"), object = action("object", true), other = action("other");
+  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Owner probe", kind: "app",
+    publisher: { publisher_id: "example", signature: "example-stage" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission, required: true, reason: "Read this owner" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: [stage, object, other],
+    ui: { contributions: [contribution, foreign], views: [{ view_id: "main", slot: "stage", title: "Owner", contribution_id: contribution,
+      stage_data: { action: stage.capability_id, object_action: object.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
+      { view_id: "foreign", slot: "side", title: "Other contribution", contribution_id: foreign }] } };
+  const reads = { stage: 0, object: 0, other: 0 }, draws: UiRenderRequest[] = [], seen: Array<{ caller: ActionExecutionContext; input: unknown }> = [];
+  let held: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
+  const owner = (half: "home" | "project"): PluginDefinition => ({ manifest, start() {
+    return { kind: "app", actions: half === selected ? [stage, object].map(definition => ({ ...definition, async handle(caller, input) {
+      reads[definition === stage ? "stage" : "object"]++; seen.push({ caller, input });
+      const wait = held; held = undefined;
+      if (wait && definition === object) { wait.entered.resolve(); await wait.release.promise; }
+      return { half, sequence: reads.stage, input };
+    } })) : [{ ...other, handle() { reads.other++; return { half }; } }], views: half === selected ? [{
+      descriptor: { contribution_id: contribution, kind: "embedded", label: "Owner", slots: [], surfaces: [
+        ...["workbench", "source-workbench", "persisted-detail", "frame-block", "workbench-fragment"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),
+        ...["directory", "source-directory"].map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
+        { surface_id: "overlay", target_slot_id: "workbench.overlay", format: "declarative-html" },
+      ] }, render(request) { draws.push(request); const model = request.model as StagePageModel<{ half: string; sequence: number }>;
+        assert.equal(model.data?.half, selected); return `<article data-owner-probe="${request.surface}">${model.data.half}:${model.data.sequence}</article>`; } },
+      { descriptor: { contribution_id: foreign, kind: "embedded", label: "Foreign", slots: [], surfaces: [{ surface_id: "foreign-object", target_slot_id: "workbench.main", format: "declarative-html" }] },
+        render() { throw new Error("foreign contribution must never render"); } }] : [] };
+  } });
+  const { host, project, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: owner("home"), dual_instance: true }], project: [owner("project")] } });
+  const one = await project("Owner surfaces"), base = `/projects/${one.project_id}`, path = `${base}/api/stage/${id}`;
+  const page = await request(base); assert.equal(page.status, 200); const html = await page.text();
+  const expected = ["workbench", "source-workbench", "directory", "source-directory", "overlay"];
+  assert.deepEqual(draws.map(draw => draw.surface), expected); assert.deepEqual(reads, { stage: 1, object: 0, other: 0 });
+  for (const surface of expected) assert.equal(html.split(`data-owner-probe="${surface}"`).length - 1, 1, surface);
+  assert.equal(new Set(draws.map(draw => (draw.model as StagePageModel).data)).size, 1, "all surfaces use the one stage read result");
+  assert.equal(seen[0]!.caller.project_id, one.project_id);
+  draws.length = 0; seen.length = 0;
+  for (const surface of ["persisted-detail", "frame-block"]) {
+    const response = await request(`${path}/objects/node%252Fone?surface=${surface}&actor_id=imposter&project_id=foreign&extra=never`);
+    assert.equal(response.status, 200); assert.match(await response.text(), new RegExp(`data-owner-probe="${surface}"`));
+    assert.deepEqual(seen.at(-1)!.input, { object_id: "node%2Fone" }); assert.equal(seen.at(-1)!.caller.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(seen.at(-1)!.caller.project_id, one.project_id);
+    const model = draws.at(-1)!.model as StagePageModel;
+    assert.deepEqual(model.object, { id: "node%2Fone", surface }); assert.equal(model.request, undefined);
+  }
+  const before = reads.object, rendered = draws.length;
+  for (const suffix of ["/objects/", "/objects/a/b?surface=persisted-detail", "/objects/%GG?surface=persisted-detail", "/objects/%2F?surface=persisted-detail",
+    "/objects/a", "/objects/a?surface=", "/objects/a?surface=frame-block&surface=persisted-detail", "/objects/a?surface=directory", "/objects/a?surface=foreign-object", "/objects/a?surface=unknown"]) {
+    const response = await request(path + suffix); assert.notEqual(response.status, 200, suffix); await response.text();
+  }
+  assert.equal(reads.object, before); assert.equal(draws.length, rendered, "invalid requests never read or render");
+  const platform = selected === "home" ? await host.homePlugins!.ready() : await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(platform); const install = platform.supervisor.state(id)!.install_id!;
+  held = { entered: deferred(), release: deferred() }; const wait = held;
+  const pending = request(`${path}/objects/held?surface=persisted-detail`);
+  await wait.entered.promise; await platform.runtime.stop(install); await platform.supervisor.restart(id); wait.release.resolve();
+  const late = await pending; assert.notEqual(late.status, 200); assert.doesNotMatch(await late.text(), /data-owner-probe/);
+  assert.equal(draws.length, rendered); assert.equal(reads.other, 0, "a late answer never revives the other half or catalog");
+});

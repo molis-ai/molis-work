@@ -45,7 +45,7 @@ function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
 const SOURCE_INPUT = { source_id: "src-1", config_json: "{}", has_connection: true };
 const operation = (name: keyof typeof SANDBOX_INTEGRATION_OPERATIONS): SandboxOperationContract => ({
   id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
-  examples: [{ input: name === "health" ? SOURCE_INPUT : name === "poll" ? { ...SOURCE_INPUT, rebuild: false } : { ...SOURCE_INPUT, cursor: "c" }, outputIncludes: {} }],
+  examples: [{ input: name === "presentation" ? { presentation_id: "example-display" } : name === "health" ? SOURCE_INPUT : name === "poll" ? { ...SOURCE_INPUT, rebuild: false } : { ...SOURCE_INPUT, cursor: "c" }, outputIncludes: {} }],
 });
 function contract(names: Array<keyof typeof SANDBOX_INTEGRATION_OPERATIONS> = ["health", "poll", "account"]): SandboxPluginContract {
   return { version: 1, pluginId: PLUGIN_ID, revision: "one", entities: [], pages: [], acceptance: [], operations: names.map(operation) };

@@ -18,6 +18,7 @@ export {
 } from "./home-sqlite.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
+  isSqliteSchemaStructureMismatch,
   SqliteSchemaVersionError,
   applySqliteBaseline,
   clearInExistingHomeSqlite,

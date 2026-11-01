@@ -32,8 +32,8 @@ jobs:
   # push's `before` (the step `Merge queue base <sha>` of `verify`: the health gates and the secret scan compare with a base, and a
   # group built on another one has another base), `verified` is true. Only then, and only when this job succeeded, the blocking jobs
   # are skipped and `verify` passes with a link to that run. Anything else (a direct push, a queue run that failed, another base, an
-  # API that cannot be read, this job failing whatever it wrote) runs everything as before. The two jobs that do not block
-  # (`security-invariants`, `product-subset`) run on every push either way (decision #14). To roll back: `if: false` here is enough,
+  # API that cannot be read, this job failing whatever it wrote) runs everything as before. `security-invariants` and `product-subset`
+  # block too (decision #14, 2026-10-31) and are skipped the same way. To roll back: `if: false` here is enough,
   # since a skipped job is not a success; removing the job means removing it from every `needs`, the conditions and `verify` too.
   queue-check:
     name: Verified in the merge queue
@@ -71,12 +71,12 @@ jobs:
   # not start last.
   # A push to main that came through the merge queue does not run them again (`queue-check`, T-129): the queue ran them on that very
   # commit, and `Verify` passed there.
-  # `gates`, `health-gate-rules`, `architecture-boundaries`, `action-contracts` and `security-invariants` have a time limit (T-128);
+  # `gates`, `health-gate-rules`, `architecture-boundaries`, `action-contracts`, `security-invariants` and `product-subset` have a time limit (T-128);
   # without one a job that hangs holds a runner for the six-hour default, and that is all the limit has to stop, so it is not tight:
   # a blocking job gets at least 30 minutes, and no job gets less than 1.8 times its longest successful run. Measured on the 344
   # completed runs from 2026-10-28 13:06Z (when the install steps got their limit) to 2026-10-29: `gates` 6.8 min, `health-gate-rules`
   # 5.2, `architecture-boundaries` 5.8, `action-contracts` 15.4 (a slow runner in the merge queue, run 40851936879, still a success),
-  # all 30 here; `security-invariants` 21.9 (40, 1.8 times), the longest job, which `product-subset` (35) is next to. A job that
+  # all 30 here; `security-invariants` 21.9 (40, 1.8 times), the longest job, and `product-subset` 15.7 (35). A job that
   # reaches its limit ends without success, so `Verify` fails. The `Install pnpm` steps have 3 minutes (the longest of 2547 took 66
   # seconds), the other install steps 5 (tests/ci-install.test.ts). tests/ci-timeouts.test.ts holds the table; raise a limit there
   # and here together, with the new measurement.
@@ -175,7 +175,7 @@ jobs:
       # inventory; translations; release versions; the document and repository-shape rules; vendored package records; the numeric
       # health gates are in `health-gate-rules`); a planted key is caught by the secret scan (the secret-scan job has no
       # dependencies installed, so its rules are tested here); the Linux probe and the product subset runners keep their rules
-      # (they only report, or do not block yet: their own jobs below), and so does the choice of their files on a pull request
+      # (the probe only reports, the subset blocks: their own jobs below), and so does the choice of their files on a pull request
       # (scripts/ci-test-selection.mjs, the `test-selection` job), and so does the skipping of a push the merge queue verified
       # (scripts/ci-queue-verified.mjs, `queue-check`), and so does the parallel test runner every step here uses
       # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
@@ -577,10 +577,10 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, queue-check]
+    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
-    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
+    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the gates, package boundaries, the contract subset, the secret scan, the Rust, Swift and shell checks, the security invariants and the product subset run here.
     runs-on: ubuntu-latest
     steps:
       # The base this run's health gates and secret scan compared with, in the step's name so the GitHub API returns it (T-129): in
@@ -599,11 +599,17 @@ jobs:
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
+          SECURITY_INVARIANTS_RESULT: ${{ needs.security-invariants.result }}
+          PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}
+          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}
+          SECURITY_MODE: ${{ needs.test-selection.outputs.security_mode }}
+          PRODUCT_MODE: ${{ needs.test-selection.outputs.product_mode }}
           QUEUE_CHECK_RESULT: ${{ needs.queue-check.result }}
           QUEUE_VERIFIED: ${{ needs.queue-check.outputs.verified }}
           QUEUE_RUN_URL: ${{ needs.queue-check.outputs.run_url }}
-        # The same three conditions as the blocking jobs' `if`, so a job is skipped exactly when it may be. A failed `queue-check` is
-        # not judged here: it only means the seven ran, and their results decide.
+        # Reuse only the trusted push the queue verified. Otherwise all nine actual results must succeed, except a PR job
+        # skipped after its own successful none selection. The selector is evidence, not a required test result; failed or
+        # stale selection outputs cannot waive a skipped security or product job.
         run: |
           if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$QUEUE_CHECK_RESULT" = "success" ] && [ "$QUEUE_VERIFIED" = "true" ]; then
             echo "This commit passed Verify in the merge queue ($QUEUE_RUN_URL); the blocking jobs were not run again."
@@ -616,17 +622,25 @@ jobs:
           test "$SECRET_SCAN_RESULT" = "success"
           test "$NATIVE_CHECKS_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success"
-          echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
+          if [ "$SECURITY_INVARIANTS_RESULT" != "success" ]; then
+            test "$GITHUB_EVENT_NAME" = "pull_request"
+            test "$TEST_SELECTION_RESULT" = "success"
+            test "$SECURITY_MODE" = "none"
+            test "$SECURITY_INVARIANTS_RESULT" = "skipped"
+          fi
+          if [ "$PRODUCT_SUBSET_RESULT" != "success" ]; then
+            test "$GITHUB_EVENT_NAME" = "pull_request"
+            test "$TEST_SELECTION_RESULT" = "success"
+            test "$PRODUCT_MODE" = "none"
+            test "$PRODUCT_SUBSET_RESULT" = "skipped"
+          fi
+          echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift, shell, security invariant and product subset verification passed."
 
-  # Which files of the two jobs below a pull request runs (T-130, scripts/ci-test-selection.mjs): the files of each job's own list
-  # that scripts/affected-tests.mjs says the change touches (`--wide`), against HEAD^1, the base branch as GitHub merged it. A job runs
-  # whole when affected-tests recommends the full suite, when a changed source file is read by no test, when a file the job runs with
-  # changed (its list, its runner and what the runners and the selection import, this workflow, package.json, the lockfile, skills/,
-  # vendor/; the security table and the security-invariants-* tests; the product list and quarantine), and when the selection fails;
-  # it is skipped when none of its files is touched. Only on a pull request: on a push to main, the nightly run and a manual run this
-  # job is skipped and both jobs run whole as before; the merge queue runs neither. The two jobs read its outputs only when it
-  # succeeded (`needs.test-selection.result`), in the `if`, the matrix and the file list alike: skipped, failed or cancelled, whatever
-  # it may have written, means the whole list on two legs. Not in `verify`'s needs: it decides nothing a merge waits for.
+  # PR selection (T-130): some runs the selected files, whole runs the full list, and only successful none skips a job.
+  # Selector failure/cancellation/empty or unknown modes fall back to both complete shards; no stale file/shard output is used.
+  # The merge queue, a direct push, nightly and manual runs run both whole. A trusted queue-verified push reuses its result.
+  # Verify directly needs this job to judge per-job PR skips, but a failed selector is not a failed required test: both jobs
+  # run whole instead. Only success + some on a PR may supply selected files and shards.
   test-selection:
     name: PR test selection
     if: ${{ github.event_name == 'pull_request' }}
@@ -660,34 +674,38 @@ jobs:
   # address that is not public; a path that leaves its directory; a secret that comes back out; a hostile text that is not data; a desktop
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
   # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
-  # Not blocking yet (decision #14: product tests do not block a merge until about two weeks of linux-probe runs and quarantine, W2-16):
-  # the set includes product tests, and the six security-invariants-* files had never run on Linux when they were added. Its own job, so
-  # it never lengthens the blocking ones: NOT in `verify`'s needs, and `continue-on-error` keeps a red run from marking the workflow red.
-  # To make it block: add `security-invariants` to `verify`'s needs (and its result to the final step), drop `continue-on-error` and
-  # "(not required yet)" from the name, when the probe has shown these files green for two weeks.
+  # Blocking (decision #14): after its observation period, one of Verify's required test results.
   # Two legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
   # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
   # its 30 s limit (half the runs on main failed). Every second file of the list (`--shard`), each file in exactly one leg.
-  # On a pull request it runs what `test-selection` chose: the whole list on two legs, the touched files on one leg (two when they are
-  # more than half the list), or nothing (skipped). A push to main and the nightly run run the whole list, so what a pull request did not
-  # run is run on main after the merge.
+  # The merge queue runs the whole list on two legs. PR some runs selected files; whole or an untrusted selector runs both
+  # complete shards. Only successful none skips the job. Direct pushes, nightly and manual runs run the complete list too.
   security-invariants:
-    name: Security invariants (not required yet) (${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: [test-selection]
-    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` lets it run when
-    # `test-selection` was skipped (not a pull request) or failed; only its success is read, and anything else means the whole list.
-    if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.security_mode != 'none') }}
+    name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [test-selection, queue-check]
+    # A push skips only when the queue verified it. Otherwise only a PR's successful none is a permitted skip.
+    # !cancelled() lets this job run when the auxiliary jobs were skipped or failed.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.security_mode != 'none') }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.security_shards || '[1, 2]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 2
     steps:
       - uses: actions/checkout@v6
+
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
       - uses: actions/setup-node@v6
         with:
@@ -717,10 +735,10 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # The files `test-selection` chose, or (empty: whole, not a pull request, or the selection did not succeed) every file of `test:security`.
+      # The files `test-selection` chose on a pull request, or (empty: not a pull request) every file of `test:security`.
       - name: Security invariants
         env:
-          SELECTED: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.security_files || '' }}
+          SELECTED: ${{ github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_files || '' }}
         run: |
           if [ -n "$SELECTED" ]; then
             read -r -a files <<< "$SELECTED"
@@ -741,13 +759,12 @@ jobs:
   # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
   # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
   # The probe stays an information job. What its first run showed became tests/ci-product-subset.txt (W2-16), run by the
-  # `product-subset` job below, which is the one that joins Verify.
+  # `product-subset` job below, which is the one that joined Verify.
   # One job no longer reaches every file (R-58, user 2026-10-26): the manual run 40219623393 spent its 85 minutes before the last 44
   # files started, so the list is spread over six jobs (`--shard k/6`, every sixth runnable file of the sorted list; the six
   # `linux-probe-k` artifacts together hold each file once). Each job installs uv, which the managed Python installer test
   # (connector-managed-install, ASC-06/17) runs for real, at the version and action pin full-suite.yml uses.
-  # It runs nightly on main and when started by hand (workflow_dispatch), not on every push (user 2026-10-14): an hour of runner
-  # on each push decided nothing, and on main the next merge usually cancelled it.
+  # It runs nightly on main and on every manual workflow_dispatch, as before. PRs and pushes do not run the probe.
   linux-probe:
     name: Linux probe ${{ matrix.shard }}/6 (not required)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
@@ -807,15 +824,12 @@ jobs:
   # Decision #14 (specs/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
   # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the
   # i18n test and 5 browser smokes); the flaky ones are in tests/quarantine.json, each with an owner and an end date.
-  # For about two weeks from its first run on main it is an information job like the probe: NOT in `verify`'s needs,
-  # `continue-on-error` keeps a red run from marking the workflow red, branch protection is untouched. At the end of that time, with the
-  # flaky files quarantined: add `product-subset` to `verify`'s needs (and its result to the two lines of the final step), drop
-  # `continue-on-error`, take "(not required yet)" out of the name, and change the one test in tests/ci-product-subset.test.ts that
-  # pins this state (the first of its two ci.yml cases). Joining Verify keeps the required check `Verify` as it is, so the repository
-  # settings are not touched.
+  # It ran as an information job for about two weeks from its first run on main (green 250 of 250 times on main from 2026-10-24) and
+  # is one of `verify`'s needs since (decision #14, user 2026-10-31). The required check is still `Verify` alone, so the repository
+  # settings were not touched.
   # Time: the job was meant to stay about as long as the blocking check (then about 20 minutes, now about 10 since it was split into
-  # parallel jobs), so it never lengthens the check. Four non-browser files at a time on these 4-core runners (user 2026-10-14, raised
-  # from 2 while the job does not block yet, to see whether the load makes any file flaky before it joins). Install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
+  # parallel jobs). Four non-browser files at a time on these 4-core runners (user 2026-10-14, raised from 2 while the job did not
+  # blocked merges, to observe whether the load made any file flaky). Install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
   # (a first run or a retry) starts after its budget, so the worst case is 2 + 8 + a 4 minute smoke attempt + 15 + a 4 minute attempt = 33
   # minutes, inside the 35 (tests/ci-product-subset.test.ts works this out from the arguments below).
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
@@ -823,24 +837,32 @@ jobs:
   # writes its report on that signal, and the upload below is `if: always()`.
   # Two disjoint shards cover the same full list once; each keeps the phase/attempt limits above.
   # fail-fast is off so one failed shard does not hide the other shard's results.
-  # On a pull request it runs what `test-selection` chose (`--only` the touched files of the list, on one shard when they fit in one,
-  # quarantined ones included and still not counted), the whole list, or nothing (skipped); a push to main and the nightly run run the
-  # whole list, as `security-invariants` does.
+  # The merge queue runs the full list on two shards. PR some runs selected files, while whole or a selector fault runs
+  # both complete shards; only successful none skips. Direct pushes, nightly and manual runs also run the full list.
+  # A trusted queue-verified push reuses that result, as the other required jobs do.
   product-subset:
-    name: Product subset (not required yet, ${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: [test-selection]
+    name: Product subset (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [test-selection, queue-check]
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}
-    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`. `!cancelled()` and a `test-selection`
-    # that did not succeed mean the whole list on two shards, as for `security-invariants`.
-    if: ${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.product_mode != 'none') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2]') }}
+    # The same condition as `security-invariants`, with this job's mode.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.product_mode != 'none') }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
+
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
       - uses: actions/setup-node@v6
         with:
@@ -877,11 +899,11 @@ jobs:
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
-      # ONLY is the files `test-selection` chose as one anchored regular expression; empty (whole, not a pull request, or the selection
-      # did not succeed) runs the list.
+      # ONLY is the files `test-selection` chose on a pull request as one anchored regular expression; empty (not a pull request) runs
+      # the list.
       - name: Run the product subset
         env:
-          ONLY: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.product_only || '' }}
+          ONLY: ${{ github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_only || '' }}
         run: |
           set --
           if [ -n "$ONLY" ]; then set -- --only "$ONLY"; fi

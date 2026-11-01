@@ -58,3 +58,8 @@ T149拥有唯一Manifest/effects迁入SDK的共享hunk，T397必须等其准确�
 2026-11-01 12:02Z：用户明确全部工作线Sol6.1Max；原Astra回合已中断，T397由Sol子代理t397_sol保留同一工作树与Runtime两文件WIP接续，范围、等待hunk和完整验收不变。
 
 2026-11-01 12:30Z准确接缝已交：T149 owner完整冻结40249032c73e84c605fe3f02ab2f33ed43a2c09e（含d3921f），独立candidate树matching整体build通过，三constants/import迁移接入且旧Host算法删除。根核提交后授权T397保存自有checkpoint后普通merge此准确父并在唯一SDK owner/reader扩四资源；不消费发布WIP。T145未改executor，T397原异步await窄hunk已获交接。整T149/T397仍未Ready/未采用，后续只追加普通合流。
+
+
+2026-11-01 13:19Z T397实际失败裁决：原four-resources合同明确ownerFiles根按install_id/scope，只有Home DB拒项目；项目沙箱原服务已存在。真签项目安装经过platform.start时，plugin-declared-services.ts把沙箱owner_files误按native Home根声明拒绝。允许仅owner_files且execution=sandbox这一分支进入原沙箱派生/装配/授权/目录检查；不得跳整个HOME_ONLY或放开native/dual、模型/生图/终端规则。真签项目正例、native项目拒绝及既有S64完整回归保持。另按原账本恢复合同补created=false严格只读核验，已有账本但业务文件缺失/空/坏时不重建、不重放DDL；真实缺失/空文件和账本不变已纳入原完整DDL用例。以上均属原四资源完整闭环，未扩大background或保护wrapper范围。
+
+2026-11-01 13:43Z：T397四资源完整候选a3b55dea20ea75445be8f3db4094490fee656d80冻结，作者真签四服务、项目/原生边界及缺失/空库只读恢复、真实discard冷重启重试原件齐；验证线1及二审线4独立核实际实现与必要原件，最后装配改动的最终matching整体build/API/actions/SI/giant/资源交后续组合。T145 afcc3de4720f13839e387632dd3b9966309d79c0也已冻结并独立核收，后续与T149准确发布候选合流由根另给一次窗口；不重复父矩阵，不提前关BL916或释放T398实际采用条件。

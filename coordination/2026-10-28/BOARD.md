@@ -13,19 +13,19 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 模型统一：用户2026-11-01再次明确所有工作线使用 **gpt-6.1-sol / max**。此前Astra回合已结束，保留代码/原件由Sol接续，不按风险自行覆盖模型。
 
-当前优先W5实际落地（用户11-01效率纠正）：必要build/门禁/相关回归/准确最终Full，沿用未变旧证据。CI#1673、T386#1721、T385#1713已正常队列采用，main e4bf46ca；T385两来源PR已按承载关闭，两个自有树/分支已清。T394现承载PR1b/T141/T144/T353B/T387，原合成独立验证及二审通过，最终主干只发生资源冲突，build/普通门禁和准确资源结算已过，已发布#1723，普通Verify/SI/Product通过；Full41303396439因本批新增Assistant跨collaborator import确定失败，窄修a563048d5已通过101/101与独立审验并普通推送，新CI41306717108及两片SI/Product通过，准确修复头Full41308464296已排；未取消CI。PR1c最终c2d96b321已冻结并交验证线1/二审线4，Capsule/规划owner、Home贡献、66HTML词典搬迁与DD2均已完成作者验证、开发2转T402、开发1实施T145、开发4实施T149；T393三代表布局对照已补，T395合OAuth/Feed/PG070候选；特权余项另开短窗口。计划和局部候选不算整体完成。
+当前优先W5实际落地：main e4bf46ca；T394 #1723两项确定Full问题已修，当前6f7808c5仅补旧精确类型断言，完整3/3及独立验证/二审通过，旧CI全部终态后普通推送，准确头CI/Full待结。T395已合T065/T066/T121/T393/T396/PR1c六个冻结成员，最终组合构建、普通门禁及48实际响应通过，资源没有PR1c新增差量；只待本次测试父合流和增量核收，仍排T394采用后。T145 afcc3de4已冻结、独立验证/二审通过；T397 a3b55dea完整四资源候选已冻结，验证线1/二审线4独立核收中。T149发布、T402 owner舞台、T068远程MCP声明继续收尾；background严格等T397采用。局部候选不算整体完成。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-068 | BL790远程MCP声明与完整来源保护 | 甲 | Codex验证线4转本单开发；独立审验另派 | 从准确T395 a5d425e5父立即实施，Sol6.1Max | 发布采用在T395后；PG045工厂与T402 UI独立，SDK出口根串行 | plans/T067-T068/PLAN.md 12:02Z窗口，RAC2878～2887；保原10类oracle |
 | T-067 | W5-11第9片文档收口 | 丙 | Codex起草线实施文档候选 | 草稿进行中，父实际采用后结准确状态 | 不抢关BL790/PG045/用户验收；full=false | 原PLAN §3六段，RAC2888～2893；共账根串行 |
 | T-396 | PG045三类集成统一取钥 | 甲 | Codex辅助开发线t396_sol；独立审验另派 | 候选b30fe249的142/142、build及验证3/二审1通过；已正式交T395作为第五成员统一采用 | 发布采用在T395后；不写resolver，不与T402抢Feed owner实现 | plans/PG045-next/PLAN.md 11:55Z窗口；四Host适配器及GitHub异步provider，完整RAC2861～2864 |
-| T-397 | BL916四资源声明授权与有界Home库 | 甲 | Codex辅助开发线t397_sol；独立审验另派 | 立即做独立DDL/现有worker准备；T394冻结父 | T149准确SDK父40249032已交并普通合流；T145 executor未改，await窄hunk已交；完整真包闭环同交 | plans/BL916-current/PLAN.md 11:55Z窗口；RAC2865～2870，background仍未完成 |
+| T-397 | BL916四资源声明授权与有界Home库 | 甲 | Codex辅助开发线t397_sol；验证线1；加强二审线4 | 完整四资源a3b55dea已冻结，独立审验中 | T149准确SDK父40249032已交并普通合流；T145 executor未改，await窄hunk已交；完整真包闭环同交 | plans/BL916-current/PLAN.md 11:55Z窗口；RAC2865～2870，background仍未完成 |
 | T-398 | BL916 background真签包完整后继 | 甲 | 保留原工程稿owner；实施待T397线续接 | 已有书、未实施，不计可并行READY | 严格等T397实际采用；RAC2871～2877预留 | 同revision-3 background书，不开第二份派生或孤立lane片 |
 | T-402 | Feed/Inbox owner数据与通用objects完整后继 | 甲 | Codex开发线2；独立验证/加强二审另派 | 原accepted书立即实施owner部分；最终发布采用在PR1c及T395后 | PR1c最终c2d96b321已交普通合流；T149 SDK依赖72727cb精确cherry-pick，T121绑定保持 | plans/T116-followups/PLAN.md §4和11:50Z窗口；两客户端URL同批切换，T403后搬家 |
-| T-395 | OAuth/Feed绑定/PG070/统一取钥五成员合成 | 甲 | Codex辅助开发线t395_sol；验证线1/二审线1 | accepted，M e4bf46ca，T394父冻结3878296ad，五次普通merge窗口 | full=true；五成员d7d88ccce无冲突合齐，最终matching build/必要门禁/48响应通过，原有效定向证据沿用；等待T394修复采用；T066=S106、T145=S107 | tasks/T-395.md，旧成员源码不重写，真实冲突/必要组合回归/一次Full |
+| T-395 | OAuth/Feed绑定/PG070/统一取钥/PR1c六成员合成 | 甲 | Codex辅助开发线t395_sol；验证线1/二审线1 | accepted，M e4bf46ca，T394父冻结3878296ad，五次普通merge窗口 | full=true；五成员d7本地通过；PR1c最终c2d双审通过后追加第六成员，一次组合构建/门禁/资源；等待T394修复采用；T066=S106、T145=S107 | tasks/T-395.md，旧成员源码不重写，真实冲突/必要组合回归/一次Full |
 | T-149 | BL589完整签名发布与SDK Manifest唯一主人 | 甲 | Codex开发线4；独立验证/加强二审另派 | 已交完整实施；准确父T394 H3878296ad；发布采用排父后 | full=true；SDK owner前缀已交T397/T402，72727cb补实际SDK依赖；签包UI真实目录判例收尾中 | plans/T149/ENGINEERING.md末尾执行窗口；不迁旧项目/不自动pin/无真实Home |
-| T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1接手；验证/加强二审另派 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，PR1c最终c2d96b321已交合流；三E2E通过，可读授权文案收尾中 | plans/T145/PLAN.md §5及末尾窗口；最终S107（T066先采用S106），原RAC2644～2649完整范围 |
+| T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1；验证线3；加强二审线1 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，PR1c最终c2d96b321已交合流；准确afcc3de4三E2E及可读授权文案完成，两独立审验通过；共享登记/组合/CI待结 | plans/T145/PLAN.md §5及末尾窗口；最终S107（T066先采用S106），原RAC2644～2649完整范围 |
 | T-394 | W5与已审候选五成员合成：PR1b、Home升级、签名正文、T353B、T387 | 甲 | Codex开发线4；独立验证5/加强二审5 | 最终M e4bf46ca，H3878296ad；原组合审验通过，最终main仅资源冲突根核 | full=true；370有效沿用；最终build/门禁/48资源已过，待普通PR与一次Full | tasks/T-394.md五个冻结成员；workbench +1390B、Jelly +33B准确tuple，算法不动 |
 | T-393 | PG070完整后继：Coding登记与Characters随内容样式 | 乙 | Codex开发线2；一审线3/验证线2/二审线5 | accepted WO，M be0；开发窗口已交 | T146已采用，full=true；完整两部分同验同交 | tasks/T-393及CURRENT精确生产/测试hunk；共享文档/预算根串行，保护#1101不动 |
 | T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |

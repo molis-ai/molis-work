@@ -43,6 +43,7 @@ test("RAC-2518 RAC-2519 a held Inbox compose response survives hide and same-mou
     await inbox.waitFor("document.querySelector('[data-inbox-compose]').open && !document.querySelector('[data-inbox-compose-form]').elements.title.disabled && !document.querySelector('[data-inbox-compose-submit]').disabled");
     assert.equal(await inbox.evaluate("t403InboxMounts"),1,"hide/reopen retains the same client rather than masking busy with a remount");
     assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose-form]').elements.title.value"),"同一份可继续编辑的草稿");
+    assert.doesNotMatch(await inbox.evaluate<string>("document.querySelector('[data-inbox-compose-status]').textContent"),/正在整理材料/,"a reopened editable draft does not retain the old busy message");
     assert.equal(await inbox.evaluate("JSON.parse(sessionStorage.getItem('molis-inbox-compose:'+t403InboxHost.route('/'))).request_id"),request.request_id);
     await inbox.click('[data-inbox-compose-form] input[name=title]');
     await barrier.close();
@@ -50,6 +51,7 @@ test("RAC-2518 RAC-2519 a held Inbox compose response survives hide and same-mou
     assert.equal(await b.evaluate("document.body.dataset.desktopSurface"),"inbox","the old response cannot navigate the reopened composer to Pages");
     assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose]').open"),true);
     assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose-form]').elements.title.value"),"同一份可继续编辑的草稿");
+    await inbox.waitFor("document.querySelector('[data-inbox-compose-results] .inbox-compose-result')");
     const output=reviewEvidenceUrl("t403-native/");await mkdir(output,{recursive:true});
     await writeFile(new URL("inbox-narrow-390.png",output),Buffer.from((await command<{data:string}>("Page.captureScreenshot",{format:"png"},sessionId)).data,"base64"));
     await inbox.click('[data-inbox-compose-submit]');

@@ -98,6 +98,6 @@ export function inboxClient(host: InboxHost): void {
       finally { try { check(); composeBusy = false; controls.forEach(control => control.disabled = false); } catch { /* No late UI or draft writes. */ } }
     })();
   });
-  scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); } scope.frame(() => { if (scope.visible) void refresh().catch(failure => error(failure)); }); return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
+  scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); const status = q("[data-inbox-compose-status]"); if (status) status.textContent = ""; } scope.frame(() => { if (scope.visible) void refresh().catch(failure => error(failure)); }); return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
   scope.own(() => reads.abort());
 }

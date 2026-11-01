@@ -168,7 +168,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
     if (!platform && !service.origins) refuse('服务 ' + service.service_id + ' 不在平台的请求表里，要写它的 origins');
   }
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
-    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations });
+    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations, source_presentations: manifest.source_presentations });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
 
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
@@ -183,6 +183,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
     }
   }
   for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!contract.operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
+  if (Boolean(manifest.source_presentations?.length) !== contract.operations.some(item => item.id === SANDBOX_INTEGRATION_OPERATIONS.presentation)) refuse('来源展示声明与 integration.presentation 操作必须一同兑现');
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
   return { manifest, contract, entrypoint, permissions };
 }

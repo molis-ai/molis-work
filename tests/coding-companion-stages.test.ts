@@ -66,9 +66,9 @@ const stageOf = (html: readonly string[], surface: string) => html.find(item => 
 
 test("RAC-433 Coding's stage is its running instance's page through the generic channel, with the embedded plugins' directories and readers in the slots in Manifest order", async () => {
   await withProject(async (store, state) => {
-    const { html, ids, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
+    const { html, surfaces, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
     assert.deepEqual(unavailable, []);
-    assert.equal(ids.length, 5, "one stage for each of the five plugins");
+    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 5, "one stage for each of the five plugins");
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
     assert.match(coding, /data-coding-directory/);
@@ -139,11 +139,11 @@ test("RAC-436 an embedded surface that fails leaves its place empty and the page
 test("RAC-437 a companion whose page is not there gets the unavailable shell with the reason, not a stage the Host made up", async () => {
   await withProject(async (store, state) => {
     const missing = withContribution(state, (pluginId, real) => pluginId === "io.molis.work.diff" ? undefined : real);
-    const { html, unavailable, ids } = renderProjectRuntimeStages(missing, store, { shown: SHOWN, drawn: [], model: model() });
+    const { html, unavailable, surfaces } = renderProjectRuntimeStages(missing, store, { shown: SHOWN, drawn: [], model: model() });
     assert.equal(stageOf(html, "diff"), "");
     assert.deepEqual(unavailable.map(stage => stage.surface), ["diff"]);
     assert.ok(unavailable[0]!.reason.length > 0);
-    assert.ok(ids.includes("io.molis.work.native.diff.ui.v1"), "the shell's declared stages do not draw it again");
+    assert.ok(!surfaces.some(item => item.contribution_id === "io.molis.work.native.diff.ui.v1"), "a missing view has no rendered pair; the unavailable stage prevents catalog recovery");
     assert.match(stageOf(html, "coding"), /data-coding-workbench/);
   });
 });

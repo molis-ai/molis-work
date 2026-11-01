@@ -227,7 +227,8 @@ export const agentReviewsRoute: WebRoute<ProjectRuntimeContext> = { id: "agent-r
 
 export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle: async ({ request, response, url, readWebView }) => {
   if (request.method !== "GET" || url.pathname !== "/api/board") return false;
-  sendJson(response, 200, await readWebView());
+  const { plugin_stage_views: _views, ...view } = await readWebView();
+  sendJson(response, 200, view);
   return true;
 } };
 

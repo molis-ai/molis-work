@@ -1069,7 +1069,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.match(page, /data-feed-entry-id="feed-item-test"/);
     assert.match(page, /用 Item 启动真实工作/);
     assert.doesNotMatch(page, /测试来源资料/);
-    const detailResponse = await webFetch(`${origin}${prefix}/api/stage/feed/items/feed-item-test`);
+    const detailResponse = await webFetch(`${origin}${prefix}/api/stage/feed/objects/feed-item-test?surface=persisted-detail`);
     assert.equal(detailResponse.status, 200);
     const detail = await detailResponse.text();
     assert.match(detail, /测试来源资料/);

@@ -3,6 +3,7 @@ import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform
 import { createCatalogIntegrationPlugin, catalogConnectorIds } from "@molis-ai/molis-work-integration-catalog";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { createGmailIntegrationPlugin } from "@molis-ai/molis-work-integration-gmail";
+import { createRssIntegrationPlugin } from "@molis-ai/molis-work-integration-rss";
 import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { createCatalogConnector } from "./catalog-connector.js";
 import { createGithubConnector } from "./github-connector.js";
@@ -34,6 +35,7 @@ export function builtinIntegrationDefinitions(override?: IntegrationProviderFact
   const providerFor = (integrationId: string, own: (binding: IntegrationBinding) => IntegrationProviderPort) =>
     (binding: IntegrationBinding): IntegrationProviderPort => override ? override(integrationId, binding) : own(binding);
   return [
+    createRssIntegrationPlugin({ now }),
     createGithubIntegrationPlugin({ providerFor: providerFor("github", binding => githubProvider(home, binding)), now }),
     createGmailIntegrationPlugin({ providerFor: providerFor("gmail", binding => gmailProvider(home, binding)), now }),
     ...catalogConnectorIds().map(connectorId => createCatalogIntegrationPlugin({

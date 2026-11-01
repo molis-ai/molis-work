@@ -96,7 +96,7 @@ export const NAVIGATION_FEED_STAGE_PART = `
         setFeedDetailPlaceholder(FL("正在载入 Item…"), "");
       }
       try {
-        const html = await molisWorkRequest(route("/api/stage/feed/items/" + encodeURIComponent(itemId)), {as:"text",signal:controller.signal,fallback:FL("无法读取这条 Item")});
+        const html = await molisWorkRequest(route("/api/stage/feed/objects/" + encodeURIComponent(itemId) + "?surface=persisted-detail"), {as:"text",signal:controller.signal,fallback:FL("无法读取这条 Item")});
         const template = document.createElement("template");
         template.innerHTML = html.trim();
         const detail = template.content.querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');

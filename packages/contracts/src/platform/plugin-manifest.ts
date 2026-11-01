@@ -234,6 +234,8 @@ export interface PluginManifest {
   connection_services?: readonly import("./plugin-integrations.js").PluginConnectionServiceDeclaration[];
   /** v2: what this plugin does with those services: pull a Feed source, or import a document (PG-046). */
   integrations?: readonly import("./plugin-integrations.js").PluginIntegrationDeclaration[];
+  /** Exclusive ids of pure source presentations supplied by this integration. */
+  source_presentations?: readonly string[];
   /** v2: kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** v2: the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */

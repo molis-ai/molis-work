@@ -1,8 +1,8 @@
 import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { shownProjectPlugins } from "./plugin-registry.js";
+import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -53,11 +53,21 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const { localHost, composition, serverOptions } = context;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
-  const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-    catalog => {
+  const shownPlugins = async (projectId: string) => {
+    const home = localHost.homePlugins;
+    try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
+    const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
+      const external = (home?.registered() ?? []).filter(entry => !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.manifest.plugin_id === entry.manifest.plugin_id)
+        && !hidden.includes(entry.key)).map(entry => entry.key);
+      return [...new Set([...shownProjectPlugins(plugins, hidden), ...external])];
+    };
+    // An explicitly served single-database fixture has the same declared default selection as its page, without a Catalog record.
+    if (!options.project) return withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []);
+    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
       const { plugins, hidden } = catalog.projectPluginMembership(projectId);
-      return shownProjectPlugins(plugins, hidden);
+      return withExternal(plugins, hidden);
     });
+  };
   const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
     catalog => catalog.listProjectPlugins(options.projectId).includes("goals"));
   return { ...context, options, hostReference, userActions, shownPlugins, goalsHere };

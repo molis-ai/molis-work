@@ -291,10 +291,12 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const renderer = read("apps/workbench/src/renderer.ts");
   const server = WEB_DISPATCH_FILES.map(read).join("\n");
-  const uiAdapter = read("apps/workbench/src/feed-projection-ui.ts");
-  for (const retired of ["src/web/feed-native-plugin-http.ts", "apps/local-host/src/feed-native-plugin-http.ts"]) {
+  const stageModels = read("apps/workbench/src/stage-renderers.ts");
+  const uiAdapter = read("plugins/native/feed/src/stage-ui.ts");
+  for (const retired of ["src/web/feed-native-plugin-http.ts", "apps/local-host/src/feed-native-plugin-http.ts",
+    "apps/workbench/src/feed-projection-ui.ts", "apps/workbench/src/inbox-projection-ui.ts"]) {
     if (fs.existsSync(path.join(repositoryRoot, retired))) {
-      errors.push(`${retired}: the Host's Feed HTTP edge was deleted (FI-7); Feed declares its routes under /api/plugins/<plugin_id>/ and must stay that way`);
+      errors.push(`${retired}: the Host/Workbench business adapter was deleted; Feed and Inbox own their declared reads, routes and UI projections`);
     }
   }
   // The Host answers no /api/feed address of Feed's. The one /api/feed path left is the Gmail OAuth callback's, which is the Host's
@@ -314,6 +316,7 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
   const inboxPlugin = read("plugins/native/inbox/src/plugin.ts");
   const inboxManifestText = read("plugins/native/inbox/src/manifest.ts");
   const pluginUi = read("plugins/native/feed/src/ui.ts");
+  const feedQueries = read("plugins/native/feed/src/query-actions.ts"), inboxActions = read("plugins/native/inbox/src/actions.ts");
   const pluginRoutes = read("plugins/native/feed/src/routes.ts");
   const workbench = read("apps/workbench/src/index.ts") + read("apps/workbench/src/ui-composition.ts");
   const uiHost = read("packages/ui-host/src/index.ts");
@@ -328,8 +331,17 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
       errors.push(`apps/workbench/src/renderer.ts: ${forbidden} must be owned by the Feed UI Contribution`);
     }
   }
-  if (!hasInCode(renderer, "renderFeedNativePluginSurface")) {
-    errors.push("apps/workbench/src/renderer.ts: Feed caller must render through the Native Plugin adapter");
+  if (!hasInCode(renderer, "createWorkbenchStageRenderers(") || !hasInCode(renderer, "stageModel: stages.declaredStageModel")
+    || !hasInCode(renderer, "stageFragmentModel: stages.stageFragmentModel")
+    || !hasInCode(stageModels, "sharedStageModel(projectPluginId, view)") || !hasInCode(stageModels, "sharedStageModel(projectPluginId, context)")) {
+    errors.push("apps/workbench: page and object callers must use the shared declared stage model/render bindings");
+  }
+  if (!hasInCode(feedManifestText, "stage_data: { action: feedQueryActions.stage.capability_id")
+    || !hasInCode(feedManifestText, "object_action: feedQueryActions.reader.capability_id")
+    || !hasInCode(feedPlugin, "createFeedQueryHandlers(") || !hasInCode(feedQueries, "bind(feedQueryActions.stage") || !hasInCode(feedQueries, "bind(feedQueryActions.reader")
+    || !hasInCode(inboxManifestText, "stage_data: { action: inboxActions.stage.capability_id")
+    || !hasInCode(inboxPlugin, "createInboxActionHandlers(") || !hasInCode(inboxActions, "bind(inboxActions.stage")) {
+    errors.push("Feed/Inbox stages and objects must declare and bind their own real read handlers");
   }
   for (const forbidden of ["/api/feed", "handleFeedNativePluginHttp", "promoteFeedItemToGoal(", "sendFeedError("]) {
     if (server.includes(forbidden)) {
@@ -345,8 +357,9 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (pluginRoutes.includes("/api/inbox/")) {
     errors.push("plugins/native/feed/src/routes.ts: /api/inbox must be owned by the Inbox Plugin");
   }
-  if (!hasInCode(uiAdapter, "renderFeedContribution") || !hasInCode(pluginUi, "feedUiContribution")) {
-    errors.push("Feed UI must cross the Workbench public contribution entrypoint");
+  if (!hasInCode(uiAdapter, "function buildFeedStageUiModel(") || !hasInCode(uiAdapter, "function buildFeedReaderUiModel(")
+    || !hasInCode(pluginUi, "buildFeedStageUiModel(") || !hasInCode(pluginUi, "buildFeedReaderUiModel(") || !hasInCode(pluginUi, "feedUiContribution")) {
+    errors.push("Feed UI Contribution must use its own stage and reader data projections");
   }
   if (!hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");

@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -10,7 +11,7 @@ import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, 
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { captureHostLog, connectorPluginSlotActions, createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, runningProjectPlatform, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, connectorPluginSlotActions, createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, LocalProjectDatabase, runningProjectPlatform, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -317,7 +318,7 @@ async function syncing(t: TestContext, options: { ledger?: boolean; clock?: bool
     return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
   };
   const f = await platform(t, { fetch, ledger: options.ledger ?? true, ...(options.clock ? { clock: true } : {}), ...(options.goals ? { goals: options.goals } : {}) });
-  const entry = listFeedSourceCatalog()[0]!;
+  const entry = listTestFeedSourceCatalog()[0]!;
   feeds.set(entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }]));
   const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
   const sourceId = registered.source.source_id;

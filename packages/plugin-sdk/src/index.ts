@@ -85,7 +85,8 @@ import type {
   PluginIntegrationContribution,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationAccountPresentation, IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationAccountPresentation, IntegrationBinding, SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+export { checkedSourcePresentation, checkedSourcePresentationInput } from "./source-presentation.js";
 
 
 
@@ -103,6 +104,7 @@ export function definePollingIntegrationPlugin(input: {
   createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
   /** How a source's account reads after a pull (the cursor it left); `null` keeps the source's label and configuration as they are. */
   presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
+  presentSource?(id: string, input: SourcePresentationInput): SourcePresentation | Promise<SourcePresentation>;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -113,6 +115,7 @@ export function definePollingIntegrationPlugin(input: {
     async start(context) {
       return {
         kind: "integration",
+        ...(input.presentSource ? { presentSource: input.presentSource } : {}),
         bind(binding) {
           const provider = input.createProvider(context, binding);
           return pollingIntegrationBinding({ manifest: input.manifest, provider, ...(input.now ? { now: input.now } : {}),

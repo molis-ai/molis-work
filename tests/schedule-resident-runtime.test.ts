@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -5,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  DEMO_PROJECT_ID, LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, listFeedSourceCatalog, molisWorkHostProjectReference, scheduleServiceFor, seedDemoBoard,
+  DEMO_PROJECT_ID, LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, scheduleServiceFor, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS, FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { reminderActions, scheduledOperationActions, getScheduledOperation, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
@@ -134,7 +135,7 @@ test("W2-18-SCHEDULE-02: a Feed wakeup waiting on its source cannot reopen a pro
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
-  const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+  const source = sources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
   sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), aborted = Promise.withResolvers<void>();
   t.mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {

@@ -1,64 +1,73 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
+import { stageObjectAction, stageDataAction } from "@molis-ai/molis-work-app-workbench";
+import { readRuntimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import { sendLocalWebJson } from "./web-http.js";
 
 export const PLUGIN_STAGE_PREFIX = "/api/stage/";
 
-type FeedItemDetail = Parameters<WorkbenchRenderer["renderPersistedFeedItemDetail"]>[0];
-
 export interface PluginStageFragmentPorts {
-  /** The plugins this project shows: a stage of one it does not have is refused, not drawn. */
   readonly shown: () => Promise<readonly string[]>;
-  readonly renderer: Pick<WorkbenchRenderer, "renderInboxWorkbenchFragment" | "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail" | "declaredStageFragment">;
-  readonly readWebView: () => Promise<MolisWorkWebView>;
-  /** Drops the page's cached view: the page asks for a stage after it changed something, and must see that change. */
+  readonly renderer: Pick<WorkbenchRenderer, "stageFragmentModel">;
   readonly invalidateWebView: () => void;
-  readonly routePrefix: string;
-  /** One Feed item as the person reads it, with what its reader offers: read through Feed's own actions, never from its library. */
-  readonly feedItem: (itemId: string) => Promise<{ item: FeedItemDetail; inboxActive: boolean; promoteAvailable: boolean }>;
+  readonly context: Pick<MolisWorkWebView, "route_prefix" | "project" | "demo">;
+  readonly owner: (projectPluginId: string) => Promise<RuntimeStageOwner | undefined>;
+  readonly bind: (action: ActionDefinition, owner: RuntimeStageOwner, signal: AbortSignal) => BoundActionClient;
 }
 
-const FEED_ITEM_STAGE = /^feed\/items\/([^/]+)$/;
+function stageRequest(url: URL): { plugin: string; object?: { id: string; surface: string } } | undefined {
+  const path = url.pathname.slice(PLUGIN_STAGE_PREFIX.length);
+  const plain = /^([a-z0-9][a-z0-9.-]*)$/u.exec(path);
+  if (plain) return { plugin: plain[1]! };
+  const object = /^([a-z0-9][a-z0-9.-]*)\/objects\/([^/]+)$/u.exec(path);
+  if (!object) return undefined;
+  let id: string;
+  try { id = decodeURIComponent(object[2]!); }
+  catch { throw new ActionError("actions.input_invalid", "对象标识编码无效"); }
+  if (!id || id.includes("/") || id.length > 256) throw new ActionError("actions.input_invalid", "对象标识必须是一个非空路径段");
+  const surfaces = url.searchParams.getAll("surface");
+  if (surfaces.length !== 1 || !surfaces[0]?.trim()) throw new ActionError("actions.input_invalid", "对象读取需要一个明确的 surface");
+  return { plugin: object[1]!, object: { id, surface: surfaces[0]! } };
+}
 
-/**
- * `GET /api/stage/<plugin>`: a stage the page redraws in place after a change, drawn by the shell from the same page view as the page
- * itself. Any plugin whose stage declares its data (`stage_data`) has one, with no row here (T-133); Feed and Inbox still have theirs
- * by name until they declare it too. `GET /api/stage/feed/items/<item_id>` is one Feed item's reader. The plugin owns what the stage shows (its actions and its
- * routes under /api/plugins/<plugin_id>/); the shell owns drawing it.
- */
+/** A stage or object is read and drawn by one actual running owner; a late reply never reaches another instance. */
 export async function handlePluginStageFragmentHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: PluginStageFragmentPorts): Promise<boolean> {
   if (request.method !== "GET" || !url.pathname.startsWith(PLUGIN_STAGE_PREFIX)) return false;
-  const stage = url.pathname.slice(PLUGIN_STAGE_PREFIX.length);
-  const itemId = FEED_ITEM_STAGE.exec(stage)?.[1];
-  const plugin = itemId !== undefined ? "feed" : stage;
-  const draw = itemId !== undefined ? () => feedItemDetail(decodeURIComponent(itemId), url, ports)
-    : stage === "inbox" ? async () => ports.renderer.renderInboxWorkbenchFragment(await ports.readWebView())
-    : stage === "feed" ? async () => ports.renderer.renderFeedWorkbenchFragment(await ports.readWebView())
-    : declared(stage, ports);
-  if (!draw) return false;
+  const abort = new AbortController();
+  const disconnected = () => { if (!response.writableEnded) abort.abort(new ActionError("actions.cancelled", "页面读取已取消")); };
+  request.once("aborted", disconnected); response.once("close", disconnected);
   try {
-    if (!(await ports.shown()).includes(plugin)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+    const target = stageRequest(url);
+    if (!target) return false;
+    const showing = await ports.shown();
+    if (!showing.includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+    const owner = await ports.owner(target.plugin);
+    if (!owner) throw new ActionError("actions.plugin_disabled", "插件舞台没有运行中的提供方");
+    owner.assertCurrent();
+    const surface = target.object?.surface ?? "workbench";
+    if (!target.object && !stageDataAction(owner.entry.manifest)) throw new ActionError("actions.missing", "插件没有声明舞台读取");
+    if (target.object && !stageObjectAction(owner.entry.manifest)) throw new ActionError("actions.missing", "插件没有声明对象读取");
+    const declared = (owner.view.descriptor.surfaces ?? []).filter(item => item.surface_id === surface);
+    if (declared.length !== 1 || declared[0]!.target_slot_id !== "workbench.main" || declared[0]!.format !== "declarative-html") {
+      throw new ActionError("actions.input_invalid", "表面必须由同一舞台贡献声明，且属于主区");
+    }
+    abort.signal.throwIfAborted();
     ports.invalidateWebView();
-    const html = await draw();
+    const data = await readRuntimeStageOwner(owner, (action, bound) => ports.bind(action, bound, abort.signal), target.object ? { object_id: target.object.id } : {}, Boolean(target.object));
+    if (!(await ports.shown()).includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
+    abort.signal.throwIfAborted(); owner.assertCurrent();
+    const model = ports.renderer.stageFragmentModel(target.plugin, { ...ports.context, shown_plugins: showing }, data, target.object);
+    owner.assertCurrent();
+    const html = owner.view.render({ contribution_id: owner.view.descriptor.contribution_id, surface, model });
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
     response.end(html);
   } catch (error) {
     const refusal = actionErrorResponse(error);
     sendLocalWebJson(response, refusal.status, refusal.body);
+  } finally {
+    request.off("aborted", disconnected); response.off("close", disconnected);
   }
   return true;
-}
-
-async function feedItemDetail(itemId: string, url: URL, ports: PluginStageFragmentPorts): Promise<string> {
-  const { item, inboxActive, promoteAvailable } = await ports.feedItem(itemId);
-  return ports.renderer.renderPersistedFeedItemDetail(item, ports.routePrefix, { entryId: itemId, inboxActive, promoteAvailable, inboxEntry: null,
-    surface: url.searchParams.get("surface") === "frame-block" ? "frame-block" : undefined });
-}
-
-/** The stage a plugin declares its data for, drawn again from a fresh page view; undefined (not this route's) for any other path. */
-function declared(stage: string, ports: PluginStageFragmentPorts): (() => Promise<string>) | undefined {
-  const draw = stage.includes("/") ? undefined : ports.renderer.declaredStageFragment(stage);
-  return draw ? async () => draw(await ports.readWebView()) : undefined;
 }

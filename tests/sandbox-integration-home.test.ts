@@ -234,9 +234,36 @@ test("RAC-2615-QUEUE an old source response cannot write Listener, Signal or Fee
   try {
     await Promise.race([entered.promise, pending.then(result => { throw new Error("source pull did not reach the real post-result barrier", { cause: "error" in result ? result.error : result.value }); })]);
     const before = snapshot();
-    await h.install(integrationPackage(publisher, { version: "1.1.0", serviceId: "github" }));
+    await h.install(integrationPackage(publisher, { version: "1.1.0", serviceId: "github", code: `export const operations = {
+      'integration.health': async () => ({ok:true,status:'connected',message:'v2'}),
+      'integration.poll': async input => {
+        if (input.source_id === 't141-current-throw') throw new Error('Fixture polling fault');
+        return input.source_id === 't141-current-failure' ? {ok:false,failure:'provider',message:'Fixture provider failed'}
+          : {ok:true,items:[{externalId:'v2',title:'Version two',summary:'current v2'}],cursor:'v2'};
+      }
+    };` }));
     release.resolve();
     const result = await pending; assert.ok("error" in result, "the old in-flight call must reject");
     assert.deepEqual(snapshot(), before, "old version results and failure bookkeeping cannot write new-version business facts");
+    const current = await client.invoke(caller, ref(feedSourceActions.sync), { source_id: source.source_id, idempotency_key: "t141-old-pull" }) as { created: number };
+    assert.equal(current.created, 1, "a fresh call can resume the same operation under the current provider");
+    assert.deepEqual(feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id).map(item => item.summary), ["current v2"]);
+    // An ordinary error from the still-current provider remains a legitimate failed sync, with its failure facts.
+    for (const outcome of ["failure", "throw"] as const) {
+      const failed = feed.sources.upsert(accountSourceRecord("github", { source_id: "t141-current-" + outcome, status: "active", config: {} }));
+      withConnectorConnections(h.home, connections => {
+        const account = connections.binding(pluginBindingScope({ install_id: view.provider.plugin_install_id!, project_id: DEMO_PROJECT_ID, record_key: source.source_id }), feedManifest.plugin_id, "github")!;
+        connections.bind({ scopeId: pluginBindingScope({ install_id: view.provider.plugin_install_id!, project_id: DEMO_PROJECT_ID, record_key: failed.source_id }),
+          pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id });
+      });
+      await assert.rejects(client.invoke(caller, ref(feedSourceActions.sync), { source_id: failed.source_id, idempotency_key: "t141-current-" + outcome }),
+        code(outcome === "failure" ? "feed.connector_failed" : "feed.source_sync_interrupted"));
+      const stored = feed.sources.get(DEMO_PROJECT_ID, failed.source_id);
+      assert.equal(stored.status, "error");
+      if (outcome === "failure") assert.equal(stored.last_outcome, "failed");
+      else assert.equal(stored.last_error_code, "listener.connector_failed");
+      assert.deepEqual(store.db.prepare("SELECT type FROM events WHERE project_id = ? AND object_id = ?").all(DEMO_PROJECT_ID, failed.source_id).map(row => row.type),
+        [outcome === "failure" ? "io.molis.work.feed:feed_connector.sync_failed" : "io.molis.work.feed:feed_connector.sync_interrupted"]);
+    }
   } finally { release.resolve(); await pending; registry.bind = original; store.close(); }
 });

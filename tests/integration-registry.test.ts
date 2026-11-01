@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import type { IntegrationProviderPort, PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginDefinition, PluginManifest, PluginStartContext, PluginIntegrationContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   IntegrationBinding,
   PluginConnectionServiceDeclaration,
@@ -13,7 +13,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { IntegrationRegistry, connectorDirectory, homeIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
 import { integrationKeyOf } from "@molis-ai/molis-work-plugin-feed";
-import { definePollingIntegrationPlugin, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { definePollingIntegrationPlugin, parsePluginManifest, pollingIntegrationBinding } from "@molis-ai/molis-work-plugin-sdk";
 
 // PG-046 (specs/repository-anti-corruption/slices/feed-inbox-integration-registry.md): the Home's integration registry is built from
 // the declarations of the plugins enabled in it. The fixtures below are plugins nothing in the repository knows by name; they take the
@@ -447,4 +447,34 @@ test("RAC-2615-REG reattaching the same installation replaces declarations atomi
   assert.deepEqual(registry.connectionServices().filter(entry => entry.owner === id), snapshot);
   assert.equal(await registry.attach(first, "same-install", () => null, () => false), false);
   assert.equal(registry.integration("new-source")?.plugin_id, id, "a stopped queued attachment cannot restore old declarations");
+});
+
+
+// RAC-2615: the retained producer check is issued before the first provider wait, and belongs to that exact attachment.
+test("RAC-2615-HELD a binding retains its provider before waiting; replacement cannot revive it and a refused replacement cannot revoke the current one", async () => {
+  const registry = new IntegrationRegistry(), id = "io.molis.work.example.heldsource";
+  const manifest = manifestOf(id, [service("held")], [{ integration_id: "held", kind: "source", service_id: "held" }]);
+  const contribution: PluginIntegrationContribution = { kind: "integration", bind: () => pollingIntegrationBinding({ manifest,
+    provider: { type: "fixture", health: async () => ({ ok: true, status: "connected", message: "ready" }),
+      sync: async () => ({ ok: true, mode: "live", items: [], cursor: "current" }) } }) };
+  let live = true;
+  await registry.attach(manifest, "same-install", () => contribution, () => live);
+  const held: Array<() => void> = [];
+  const pending = registry.bind("held", "source", binding("one"), check => held.push(check)).then(value => ({ value }), error => ({ error }));
+  try {
+    assert.equal(held.length, 1, "the check was retained synchronously, before contribution recovery/binding could wait");
+    live = false;
+    assert.ok("error" in await pending, "a stopped instance cannot finish an already-entered binding");
+    assert.throws(held[0]!, { code: "plugin.integration_unavailable" });
+    await registry.attach(manifest, "same-install", () => contribution, () => true);
+    const current: Array<() => void> = [];
+    await registry.bind("held", "source", binding("two"), check => current.push(check));
+    current[0]!();
+    assert.throws(held[0]!, { code: "plugin.integration_unavailable" }, "reenabling the same installation does not revive the old check");
+    await registry.attach(manifestOf("io.molis.work.example.rivalheld", [service("occupied")], []), "rival", () => null, () => true);
+    await assert.rejects(registry.attach(manifestOf(id, [service("occupied")], []), "same-install", () => contribution, () => true), { code: "plugin.integration_declaration_conflict" });
+    current[0]!();
+    await registry.detach(id);
+    assert.throws(current[0]!, { code: "plugin.integration_unavailable" });
+  } finally { await pending; }
 });

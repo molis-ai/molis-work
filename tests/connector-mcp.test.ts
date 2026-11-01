@@ -1635,3 +1635,99 @@ test("RAC2883 RAC2884 Figma keeps its local default and explicit HTTPS OAuth/man
     } finally { restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
   });
 });
+
+test("RAC2885 Agent source withdrawal after validate blocks cached dispatch, including same-install ABA, while a new connection works", async t => {
+  for (const change of ["disable", "reenable"] as const) await t.test(change, async t => {
+    const temp = home(), remote = await fixture({ oauth: true });
+    const host = createConnectorMcpHost({ testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" } } });
+    let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+    try {
+      const started = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "Agent source tail", origin: callbackOrigin });
+      await host.completeMcpAuthorization(temp, { state: remote.authorize(started.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+      const registry = await homeIntegrationRegistry(temp), source = registry.mcpOwner("notion")!;
+      const ports = createAgentConnectorPorts(temp, host.resolveMcpConnectionToken);
+      adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.t068-agent-source-tail", appVersion: "1.0.0" },
+        reviewQueue: new AgentReviewQueue(), storageRoot: join(temp, "runtime"), modelConfiguration: async () => null,
+        resolveMcpConnection: ports.resolveMcpConnection, resolveCredential: ports.resolveMcpCredential,
+        subscribeMcpConnections: ports.subscribeMcpConnections });
+      const owner = { project_id: "source-tail", plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
+      const saved = await library.save(owner, { expected_version: 0, label: "Cached source tools", transport: "http", enabled: true,
+        timeout_ms: 5000, endpoint: remote.endpoint, auth: { kind: "connection", connection_id: started.connectionId } });
+      await library.control(owner, saved.id, "connect");
+      const tools = (await library.list(owner))[0]!.tools, validate = library.validate.bind(library);
+      let validated = false, withdrawn = false, business = 0;
+      t.mock.method(library, "validate", async (...args: Parameters<typeof validate>) => {
+        const result = await validate(...args);
+        validated = true;
+        return result;
+      });
+      await assert.rejects(library.call!(owner, tools[0]!, { message: "must never reach the server" }, {
+        beforeDispatch: async () => {
+          if (!validated || withdrawn) return;
+          withdrawn = true;
+          await registry.disable(source.plugin_id);
+          if (change === "reenable") await registry.enable(declaredMcpPlugin("notion", source.method, { pluginId: source.plugin_id,
+            publisherId: source.publisher_id, signature: source.publisher_signature, version: "9.0.0" }));
+        },
+        onBusinessDispatch: () => { business++; },
+      }));
+      assert.equal(withdrawn, true, "the real source changes in the awaited hook after production validation");
+      assert.equal(business, 0);
+      assert.equal(remote.stats().callCount, 0, "the cached credential must not send a business request after withdrawal");
+      if (change === "disable") assert.equal(registry.mcpOwner("notion"), undefined);
+      else {
+        const current = registry.mcpOwner("notion")!;
+        assert.equal(current.install_id, source.install_id);
+        assert.notEqual(current.installation_generation, source.installation_generation);
+        const fresh = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "New source connection", origin: callbackOrigin });
+        await host.completeMcpAuthorization(temp, { state: remote.authorize(fresh.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+        const freshServer = await library.save(owner, { expected_version: 0, label: "Fresh source tools", transport: "http", enabled: true,
+          timeout_ms: 5000, endpoint: remote.endpoint, auth: { kind: "connection", connection_id: fresh.connectionId } });
+        await library.control(owner, freshServer.id, "connect");
+        const freshTool = (await library.list(owner)).find(row => row.id === freshServer.id)!.tools[0]!;
+        const outcomes: string[] = [];
+        const result = await library.call!(owner, freshTool, { message: "fresh source succeeds" }, {
+          onBusinessDispatch: () => { business++; }, onBusinessResult: outcome => { outcomes.push(outcome); },
+        });
+        assert.equal(result.text, "fresh source succeeds");
+        assert.equal(remote.stats().callCount, 1);
+        assert.equal(business, 1);
+        assert.deepEqual(outcomes, ["succeeded"]);
+      }
+    } finally { await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+  });
+});
+
+test("RAC2885 Agent source withdrawal during an actual in-flight tool never delivers its late result", { timeout: 30_000 }, async () => {
+  const temp = home(), remote = await fixture({ oauth: true, slow: true });
+  const host = createConnectorMcpHost({ testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" } } });
+  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  try {
+    const started = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "In-flight source", origin: callbackOrigin });
+    await host.completeMcpAuthorization(temp, { state: remote.authorize(started.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+    const registry = await homeIntegrationRegistry(temp), source = registry.mcpOwner("notion")!;
+    const ports = createAgentConnectorPorts(temp, host.resolveMcpConnectionToken);
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.t068-agent-source-flight", appVersion: "1.0.0" },
+      reviewQueue: new AgentReviewQueue(), storageRoot: join(temp, "runtime"), modelConfiguration: async () => null,
+      resolveMcpConnection: ports.resolveMcpConnection, resolveCredential: ports.resolveMcpCredential,
+      subscribeMcpConnections: ports.subscribeMcpConnections });
+    const owner = { project_id: "source-flight", plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
+    const saved = await library.save(owner, { expected_version: 0, label: "In-flight tools", transport: "http", enabled: true,
+      timeout_ms: 5000, endpoint: remote.endpoint, auth: { kind: "connection", connection_id: started.connectionId } });
+    await library.control(owner, saved.id, "connect");
+    const tool = (await library.list(owner))[0]!.tools[0]!, outcomes: string[] = [];
+    let business = 0;
+    const result = library.call!(owner, tool, { message: "late source content must not be delivered" }, {
+      onBusinessDispatch: () => { business++; }, onBusinessResult: outcome => { outcomes.push(outcome); },
+    });
+    const refused = assert.rejects(result);
+    await Promise.race([remote.called, result.then(() => { throw new Error("the tool finished without reaching the controlled server"); })]);
+    assert.equal(business, 1);
+    assert.equal(remote.stats().callCount, 1, "withdrawal happens after the request actually reached the server");
+    await registry.disable(source.plugin_id);
+    remote.releaseCall();
+    await refused;
+    assert.equal(outcomes.includes("succeeded"), false);
+    assert.equal(registry.mcpOwner("notion"), undefined);
+  } finally { remote.releaseCall(); await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});

@@ -33,7 +33,8 @@ export function createAgentConnectorPorts(home: string, resolveToken = resolveMc
         const token = await resolveToken(home, id, endpoint);
         check();
         if (withConnectorConnections(home, store => store.require(id)).updated_at !== row.updated_at) throw new Error("MCP 账号在检查期间已改变，请重新连接");
-        return { ...(token === null ? {} : { credentialRef: `connector-mcp:${id}` }), revision: source ? `${row.updated_at}:${source.installation_generation}` : row.updated_at };
+        return { ...(token === null ? {} : { credentialRef: `connector-mcp:${id}` }), revision: source ? `${row.updated_at}:${source.installation_generation}` : row.updated_at,
+          assertCurrent: check };
       }
       return withConnectorConnections(home, store => {
         const connection = store.require(id, "mcp-bearer");

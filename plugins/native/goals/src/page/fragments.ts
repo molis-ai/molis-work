@@ -1,18 +1,18 @@
 import { findGoalsFragmentItem, goalsReadCollection, type GoalsFragmentItem, type GoalsPageCollections,
-  type GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+  type GoalDocumentCollection } from "../document-routes.js";
 
 interface FragmentView<TItem extends GoalsFragmentItem> extends GoalsPageCollections<TItem> {
   route_prefix: string;
 }
 export interface GoalsFragmentRenderers<TItem extends GoalsFragmentItem, TView extends FragmentView<TItem>> {
-  document(item: TItem, view: TView): string;
-  trash(item: TItem): string;
-  momentum(view: TView, goalId: string, items: readonly TItem[]): string;
-  prefixLinks(html: string, routePrefix: string): string;
+  document: (item: TItem, view: TView) => string;
+  trash: (item: TItem) => string;
+  momentum: (view: TView, goalId: string, items: readonly TItem[]) => string;
+  prefixLinks: (html: string, routePrefix: string) => string;
 }
 
 /** Compose owner output; no templates, event ledger algorithm, HTTP or permission decisions. */
-export function createWorkbenchGoalsFragmentRenderer<TItem extends GoalsFragmentItem, TView extends FragmentView<TItem>>(
+export function createGoalsFragmentRenderer<TItem extends GoalsFragmentItem, TView extends FragmentView<TItem>>(
   owners: GoalsFragmentRenderers<TItem, TView>,
 ) {
   const prefix = (html: string, view: TView) => owners.prefixLinks(html, view.route_prefix);

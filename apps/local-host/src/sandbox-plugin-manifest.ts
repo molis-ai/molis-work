@@ -8,6 +8,38 @@ import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plu
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { PluginIconName } from '@molis-ai/molis-work-plugin-sdk/ui';
 
+/** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
+export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
+const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
+
+type DerivedEffects = Pick<SandboxEffects, 'projects' | 'model' | 'modelSettings' | 'imageGeneration'>;
+
+/**
+ * The Manifest's permission rows a contract's effects derive: the package writes only the effects, and the Host writes the rows (so the two never disagree).
+ * Each is optional: the person approves it at installation, and a call that needs one the person did not approve is refused by the Host's client.
+ */
+export function sandboxDerivedPermissions(effects: DerivedEffects | undefined): NonNullable<PluginManifest['permissions']> {
+  if (!effects) return [];
+  return [...(effects.projects?.includes('exist') ? [{ permission: PLUGIN_PROJECTS_EXIST_PERMISSION, reason: '检查已持有的项目编号是否仍存在', required: false }] : []), ...serviceRows(effects)];
+}
+
+/** The model and image permissions an operation's effects need: what the Runtime's scope names for its call (`exposed-actions.ts`), never what a caller must hold. */
+export function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[] { return serviceRows(effects).map(row => row.permission); }
+
+function serviceRows(effects: DerivedEffects | undefined): Array<{ permission: string; reason: string; required: false }> {
+  if (!effects) return [];
+  const rows: Array<{ permission: string; reason: string }> = [];
+  const add = (permission: string, reason: string) => { if (!rows.some(row => row.permission === permission)) rows.push({ permission, reason }); };
+  if (effects.model?.includes('read') || effects.modelSettings?.includes('read')) add(MODEL_READ, '查看有哪些模型可用，不调用模型');
+  if (effects.model?.includes('invoke')) add(MODEL_INVOKE, '调用你配置的模型');
+  if (effects.modelSettings?.includes('save')) add(MODEL_INVOKE, '在你启用的模型里选一个给它用');
+  const images = effects.imageGeneration;
+  if (images?.includes('read')) add(SANDBOX_IMAGE_PERMISSIONS.read, '查看你的图片连接');
+  if (images?.includes('bind')) add(SANDBOX_IMAGE_PERMISSIONS.write, '选择它用哪个图片连接（只能用你已经设好地址的连接）');
+  if (images?.includes('generate')) { add(SANDBOX_IMAGE_PERMISSIONS.generate, '用你的图片连接生成图片，可能产生费用'); add(MODEL_INVOKE, '生成图片会用到你的图片账户'); }
+  return rows.map(row => ({ ...row, required: false }));
+}
+
 export const sandboxUiContribution = (pluginId: string) => pluginId + '.ui.v1';
 
 export interface SandboxManifestInput {
@@ -27,8 +59,8 @@ export interface SandboxManifestInput {
   runtime?: PluginManifest['runtime'];
   /** The icon of the plugin's page in the navigation; absent means the Host's default. */
   icon?: PluginIconName;
-  /** Validated contract effects; only the supported project-id lookup derives an additional optional Manifest permission. */
-  effects?: Pick<SandboxEffects, 'projects'>;
+  /** Validated contract effects; the Manifest's optional permission rows are derived from them (`sandboxDerivedPermissions`). */
+  effects?: DerivedEffects;
 }
 
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
@@ -39,8 +71,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
     ...(input.runtime ? { runtime: input.runtime } : {}),
-    permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' },
-      ...input.effects?.projects?.includes('exist') ? [{ permission: PLUGIN_PROJECTS_EXIST_PERMISSION, required: false, reason: '检查已持有的项目编号是否仍存在' }] : []],
+    permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(input.effects)],
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],

@@ -14,32 +14,18 @@ export interface PanelSpawnOptions {
   showTerminal(panelId: string | null): void;
   connect(): Promise<unknown>;
   send(message: Record<string, unknown>): Promise<void>;
-  /** Tells the Host the panel's process is gone; never fails. */
-  markExited(panelId: string): Promise<void>;
 }
 
-const spawnMessage = (panel: PanelRecord, mode: SpawnMode, size: { cols: number; rows: number } | undefined) => {
-  const spawn = panel.spawn;
-  return {
-    type: "spawn",
-    panelId: panel.panel_id,
-    command: spawn?.command ?? panel.launch_command,
-    args: spawn?.args ?? panel.launch_args,
-    cwd: spawn?.cwd ?? panel.cwd,
-    env: spawn?.env ?? {
-      MOLIS_WORK_PANEL_ID: panel.panel_id,
-      MOLIS_WORK_FOCUS_ID: panel.goal_id,
-      MOLIS_WORK_WORK_CONTEXT_ID: panel.work_context_id,
-      MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
-      MOLIS_WORK_RUNTIME_ID: panel.runtime_kind,
-    },
-    cols: Math.max(20, size?.cols ?? 80),
-    rows: Math.max(8, size?.rows ?? 24),
-    attachOnly: mode === "attach" || mode === "reconnect",
-  };
-};
+/** The channel only attaches (S-103 ⑦): the Host started the process when Goals was asked to open it. */
+const attachMessage = (panel: PanelRecord, size: { cols: number; rows: number } | undefined) => ({
+  type: "spawn",
+  panelId: panel.panel_id,
+  attachOnly: true,
+  cols: Math.min(1000, Math.max(20, size?.cols ?? 80)),
+  rows: Math.min(1000, Math.max(8, size?.rows ?? 24)),
+});
 
-/** Own one spawn queue per panel and the answers the channel owes it; the controller owns loading and the list. */
+/** Own one attach queue per panel and the answers the channel owes it; the controller owns loading, opening and the list. */
 export function createPanelSpawner(options: PanelSpawnOptions) {
   const { state, screens, text: L, errorText, setStatus } = options;
   const pendingSpawns = new Map<string, { resolve: (value: PtyServerMessage) => void; reject: (error: Error) => void }>();
@@ -77,10 +63,9 @@ export function createPanelSpawner(options: PanelSpawnOptions) {
     });
   });
 
-  const markPanelNotRunning = async (panel: PanelRecord) => {
+  const markPanelNotRunning = (panel: PanelRecord) => {
     state.alive.delete(panel.panel_id);
     panel.status = "exited";
-    await options.markExited(panel.panel_id);
     if (state.activeId === panel.panel_id) options.showTerminal(state.activeId);
   };
 
@@ -129,14 +114,14 @@ export function createPanelSpawner(options: PanelSpawnOptions) {
         await options.connect();
         const spawned = expectSpawn(panel.panel_id);
         try {
-          await options.send(spawnMessage(panel, mode, size));
+          await options.send(attachMessage(panel, size));
         } catch (error) {
           pendingSpawns.get(panel.panel_id)?.reject(error instanceof Error ? error : new Error(String(error)));
         }
         const result = await spawned;
         if (!screens.has(panel.panel_id)) return;
         if (result.type === "spawned" && !result.attached && result.started === false) {
-          await markPanelNotRunning(panel);
+          markPanelNotRunning(panel);
           return;
         }
         showSpawned(panel, mode, session, result);

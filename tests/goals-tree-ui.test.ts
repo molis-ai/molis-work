@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -11,7 +12,7 @@ const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp
 // Goals draws in its own words, declared in its Manifest (PG-071), as the Workbench renderer wires it.
 assert.deepEqual(registerPluginMessages(goalsManifest), []);
 const goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
-const renderer = createWorkbenchGoalsTreeRenderer({ translate: goalsL, escapeHtml, icon, currentLocale, listJoin,
+const renderer = goalsRenderers.tree({ translate: goalsL, escapeHtml, icon, currentLocale, listJoin,
   renderStatus: status => `<span>${status}</span>`, renderActionStatus: status => `<span>${status}</span>`,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>`, displayStatuses: GOAL_DISPLAY_STATUSES });
 const item = (id: string, title = id, acceptedBy?: string): GoalsTreeItem => ({

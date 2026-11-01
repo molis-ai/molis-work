@@ -10,7 +10,8 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { pluginCatalogFor } from "./home-side.js";
 import { TERMINAL_RUN_PERMISSION } from "./plugin-service-permissions.js";
 import type { PluginTerminalPanelRecord, TerminalOwner } from "./plugin-terminal-panels.js";
-import { isTerminalCommand, isTerminalRuntime, terminalCommandPath, terminalRuntimeRecipe, terminalSearchPath, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
+import { hostLog } from "./host-log.js";
+import { isTerminalCommand, isTerminalRuntime, isTerminalSessionId, terminalCommandPath, terminalRuntimeRecipe, terminalSearchPath, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 interface TerminalHostBinding { readonly host: MolisWorkPtyHost; readonly webUrl: () => string }
 const hosts = new Map<string, TerminalHostBinding>();
@@ -29,7 +30,7 @@ export function bindPluginTerminalHost(home: string, host: MolisWorkPtyHost, opt
   return () => { if (hosts.get(key) === binding) hosts.delete(key); };
 }
 
-type TerminalProgram = { readonly runtime: TerminalRuntime } | { readonly command: string; readonly args: readonly string[] };
+type TerminalProgram = { readonly runtime: TerminalRuntime; readonly session?: string } | { readonly command: string; readonly args: readonly string[] };
 interface TerminalRequest {
   readonly key: string; readonly title: string | undefined; readonly program: TerminalProgram; readonly subject: string | null;
   readonly directory: PluginTerminalDirectory;
@@ -81,7 +82,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
         const launch = terminalLaunch(request.program, existing, searchPath);
         const record = existing ?? projects.terminalPanels.insert({
           ...owner, panel_id: panelId, key: request.key, subject: request.subject, runtime: launch.runtime, launch_command: launch.stored,
-          launch_args: [...launch.storedArgs], title: request.title ?? launch.title,
+          launch_args: [...launch.storedArgs], title: request.title ?? launch.title, host_session_id: launch.session,
         }, cwd);
         check();
         host.spawn({ panelId, command: launch.path, args: [...launch.args], cwd, env: terminalEnvironment({ home, record, webUrl: webUrl() }) });
@@ -99,6 +100,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       check();
       return Object.freeze(rows.map(row => Object.freeze<PluginTerminalPanel>({
         key: row.key, panelId: row.panel_id, title: row.title, runtime: row.runtime, subject: row.subject, running: host.alive(row.panel_id),
+        program: Object.freeze(row.runtime === "command" ? { command: row.launch_command, args: Object.freeze([...row.launch_args]) } : { runtime: row.runtime }),
         created_at: row.created_at,
       })));
     },
@@ -139,25 +141,31 @@ function catalogFor(home: string) {
   return catalog;
 }
 
-/** The program recorded for a terminal is the one it keeps: a different one under the same key is a conflict, not a replacement. */
+/**
+ * The program recorded for a terminal is the one it keeps: a different one under the same key is a conflict, not a replacement. A runtime
+ * named without a session resumes the recorded one; naming a session must name that one.
+ */
 function sameProgram(record: PluginTerminalPanelRecord, program: TerminalProgram): boolean {
-  if ("runtime" in program) return record.runtime === program.runtime;
+  if ("runtime" in program) return record.runtime === program.runtime && (program.session === undefined || program.session === record.host_session_id);
   return record.runtime === COMMAND_RUNTIME && record.launch_command === program.command
     && record.launch_args.length === program.args.length && record.launch_args.every((arg, index) => arg === program.args[index]);
 }
 
 /**
- * What starts: a recipe's command on the platform's PATH (with the recipe's resume arguments once the runtime reported its session), or
- * the plugin's command and arguments. What is recorded is the program as named, resolved again on every start.
+ * What starts: a recipe's command on the platform's PATH (with the recipe's resume arguments for the session the runtime reported, or the
+ * one the first start named), or the plugin's command and arguments. What is recorded is the program as named, resolved again on every start.
  */
 function terminalLaunch(program: TerminalProgram, existing: PluginTerminalPanelRecord | null, searchPath: string) {
   if ("runtime" in program) {
     const recipe = terminalRuntimeRecipe(program.runtime);
-    const session = existing?.host_session_id;
-    return { runtime: program.runtime as string, stored: recipe.command, storedArgs: [] as readonly string[], title: recipe.title,
+    const recorded = existing ? existing.host_session_id : program.session ?? null;
+    // Checked again on the way out: a recorded session that is not one (it never should be) starts a new session, with a line that says so.
+    const session = recorded !== null && isTerminalSessionId(recorded) ? recorded : null;
+    if (recorded !== null && session === null) hostLog.warn("terminal", "session_not_resumed", invalid());
+    return { runtime: program.runtime as string, stored: recipe.command, storedArgs: [] as readonly string[], title: recipe.title, session,
       path: terminalCommandPath(recipe.command, searchPath), args: session ? recipe.resumeArgs(session) : [] };
   }
-  return { runtime: COMMAND_RUNTIME, stored: program.command, storedArgs: program.args, title: basename(program.command),
+  return { runtime: COMMAND_RUNTIME, stored: program.command, storedArgs: program.args, title: basename(program.command), session: null,
     path: terminalCommandPath(program.command, searchPath), args: program.args };
 }
 
@@ -200,13 +208,16 @@ function terminalRequest(input: unknown): TerminalRequest {
     directory: terminalFolder(directory) });
 }
 
-/** A recipe id, or a command with bounded arguments. */
+/** A recipe id (with the runtime session to resume, as one argument), or a command with bounded arguments. */
 function terminalProgram(program: unknown): TerminalProgram {
   if (!plain(program)) throw invalid();
   const keys = Object.keys(program);
   if ("runtime" in program) {
-    if (keys.length !== 1 || typeof program.runtime !== "string" || !isTerminalRuntime(program.runtime)) throw invalid();
-    return Object.freeze({ runtime: program.runtime });
+    if (keys.some(name => name !== "runtime" && name !== "session") || typeof program.runtime !== "string" || !isTerminalRuntime(program.runtime)) throw invalid();
+    const { session } = program;
+    if (session === undefined) return Object.freeze({ runtime: program.runtime });
+    if (!isTerminalSessionId(session)) throw invalid();
+    return Object.freeze({ runtime: program.runtime, session });
   }
   const { command, args = [] } = program;
   // The terminal host trims the program it is given, so one that changes when trimmed is not the program checked here.

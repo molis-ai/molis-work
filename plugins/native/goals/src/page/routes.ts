@@ -1,28 +1,28 @@
 import { goalsReadRouteNotFound, resolveGoalsReadRoute, resolveGoalsPageRoute, resolveGoalsPageCollection,
-  type GoalsPageCollections, type GoalsRouteError, type GoalsReadRoute, type GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+  type GoalsPageCollections, type GoalsRouteError, type GoalsReadRoute, type GoalDocumentCollection } from "../document-routes.js";
 
 type HtmlResult = { status: 200; html: string } | GoalsRouteError;
 
 /** Invalid/unrelated requests do not load a view or instantiate its owner renderers. */
-export function renderWorkbenchGoalsReadRequest(
+export function renderGoalsReadRequest(
   method: string | undefined, pathname: string, params: URLSearchParams, createRenderers: () => GoalsReadRenderers,
 ): HtmlResult | null {
   if (method !== "GET") return null;
   const resolved = resolveGoalsReadRoute(pathname, params);
   if (!resolved || "error" in resolved) return resolved;
-  return renderWorkbenchGoalsReadRoute(resolved.route, createRenderers());
+  return renderGoalsReadRoute(resolved.route, createRenderers());
 }
 
-export interface WorkbenchGoalPageSelection {
+export interface GoalsPageSelection {
   goalId: string | undefined;
   archiveView: boolean;
   trashView: boolean;
 }
 
 /** Page composition only; the Host retains scoped reads and the asynchronous Project operations provider. */
-export async function renderWorkbenchGoalsPageRequest<TView extends GoalsPageCollections>(
+export async function renderGoalsPageRequest<TView extends GoalsPageCollections>(
   method: string | undefined, pathname: string, readView: () => TView | Promise<TView>,
-  render: (view: TView, selection: WorkbenchGoalPageSelection) => string | Promise<string>,
+  render: (view: TView, selection: GoalsPageSelection) => string | Promise<string>,
 ): Promise<HtmlResult | null> {
   if (method !== "GET") return null;
   const parsed = resolveGoalsPageRoute(pathname);
@@ -40,11 +40,11 @@ export async function renderWorkbenchGoalsPageRequest<TView extends GoalsPageCol
 
 /** Host supplies owner renderers; this composition has no Store, HTML templates or HTTP objects. */
 export interface GoalsReadRenderers {
-  refresh(goalId: string | undefined, collection: GoalDocumentCollection): string;
-  momentum(goalId: string, collection: "current" | "archive"): string | null;
-  document(goalId: string, collection: GoalDocumentCollection): string | null;
+  refresh: (goalId: string | undefined, collection: GoalDocumentCollection) => string;
+  momentum: (goalId: string, collection: "current" | "archive") => string | null;
+  document: (goalId: string, collection: GoalDocumentCollection) => string | null;
 }
-export function renderWorkbenchGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsReadRenderers): { status: 200; html: string } | { status: 404; error: string } {
+export function renderGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsReadRenderers): { status: 200; html: string } | { status: 404; error: string } {
   let html: string | null;
   switch (route.kind) {
     case "refresh": html = renderers.refresh(route.goal_id, route.collection); break;

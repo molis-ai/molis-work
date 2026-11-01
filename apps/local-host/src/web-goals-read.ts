@@ -3,7 +3,8 @@ import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
-import { renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderCharacters, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderGoalsReadRoute, renderGoalsPageRequest } from "@molis-ai/molis-work-plugin-goals/page";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -128,7 +129,7 @@ export function createLocalGoalsReadHttp(ports: {
     const route = resolved.route;
     const view = await readWebView();
     const selected = route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection);
-    const renderedGoalsRead = renderWorkbenchGoalsReadRoute(route, {
+    const renderedGoalsRead = renderGoalsReadRoute(route, {
       refresh: (goalId, collection) => renderMolisWorkRefreshFragment(selected, goalId, collection === "archive", collection === "trash"),
       momentum: (goalId, collection) => renderMolisWorkMomentumFragment(view, goalId, collection),
       document: (goalId, collection) => renderGoalDocumentFragment(selected, goalId, collection),
@@ -153,7 +154,7 @@ export function createLocalGoalsReadHttp(ports: {
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
-    const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
+    const renderedGoalsPage = await renderGoalsPageRequest(
       request.method, url.pathname, readWebView,
       async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);

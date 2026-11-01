@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsDialogsRenderer } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import type { GoalsDialogItem } from "@molis-ai/molis-work-plugin-goals";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsDialogsRenderer({ translate: L, escapeHtml, icon });
+const renderer = goalsRenderers.dialogs({ translate: L, escapeHtml, icon });
 const goal = (id: string, display_status: GoalsDialogItem["display_status"], priority: number): GoalsDialogItem => ({
   goal: { goal_id: id, title: 'Title "<safe> ' + id, created_at: "2026-09-05", priority }, status: "execution_pending", display_status,
 });

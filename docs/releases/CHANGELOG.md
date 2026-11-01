@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **Goals 工作终端的 open/list 升到 @2**（2026-10-31，T-148）：`goals.terminal.open@2` 新增可选的 `resume_session_id`，`goals.terminal.list@2` 的每行新增 `program`；`close/prompt` 仍为 @1。固定旧 open/list@1 的调用方（工作流步骤、绑定或脚本）保留原引用并收到能力未注册/版本失效，须显式重选 @2；平台不自动换号，也不提供旧版本别名。四个动作仍只给 `user`，没有 MCP 工具；HTTP 路径、权限与会话格式拒绝规则不变，产品/包版本不变。
+
 - **Feed 的「开始处理」链删除，`feed.items.promote` 与 `feed.items.offers` 升到 @2**（2026-10-31，BL-121 ② T-336）：`feed.items.promote@1` 不再存在，固定这个版本的调用方（工作流步骤与绑定、MCP 授权、脚本）要改到 `@2`；输入不再接受 `start_processing`（还发这个字段会得到 `actions.input_invalid`），输出不再有 `runtime_autofill`。`feed.items.offers@1` 不再存在，改到 `@2`（清单里 `feed.promote` 的 offer 指向 `feed.items.promote@2`）。MCP 工具名随之改变：`molis_work_v1_action_feed.items.promote__v1` 变成 `molis_work_v1_action_feed.items.promote__v2`、`molis_work_v1_action_feed.items.offers__v1` 变成 `…items.offers__v2`，旧名消失。HTTP `POST /api/feed/items/:id/start` 不再存在（400「Feed 动作不存在」）；`?feed-start=1`、终端自动填入与 `feed_item_id` 查询参数一并删除，界面上的「开始处理」入口早在此前已撤。按 CONTRACT-CHANGES 不留兼容。
 
 

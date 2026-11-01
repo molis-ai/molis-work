@@ -150,13 +150,16 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
     catch (error) { forget(); throw error; }
   };
-  const promptScope = (installId: string) => JSON.stringify([null, HOME_INSTALL_SCOPE, installId]);
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
-    registerGeneratedPrompts(home, generatedRegistration(release, [release], state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {
+    const registration = generatedRegistration(release, [release], state, installedVersion(release));
+    // Same install, source and instructions as the running definition; stopping and reopening only change its state.
+    if (registration.source.kind === 'plugin') delete registration.source.origin;
+    registerGeneratedPrompts(home, registration, recordFor(release.pluginId)!.install_id);
+  };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, promptScope(installId)); forgetDefinitions(pluginId); } });
+    forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, installId); forgetDefinitions(pluginId); } });
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
 
   try {

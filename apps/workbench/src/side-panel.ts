@@ -203,7 +203,15 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}
     if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){request(event.data);return;}
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);return;}
-    if(event.data?.type==='molis:side-key'&&event.source!==window){keyed(event.data.keys);return;}
+    if(event.data?.type==='molis:side-key'&&event.source!==window){
+      const keys=event.data.keys;
+      if(keys==='Mod+K'||keys==='Mod+F'){
+        const source=forwarded.from(event),body=source?.closest('[data-side-body]');
+        if(open&&source&&body?.dataset.sideBody===current&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true}))
+          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:true,bubbles:true}));
+      }else keyed(keys);
+      return;
+    }
     if(event.data?.type==='molis:side-status'){const body=[...panel.querySelectorAll('[data-side-body]')].find(body=>body.querySelector('iframe')?.contentWindow===event.source);
       if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]')){let ring=mark.querySelector('.side-busy-mark');if(event.data.status){mark.dataset.sideBusy=event.data.status;if(!ring){ring=document.createElement('i');ring.className='side-busy-mark';mark.append(ring);}ring.dataset.mwState=event.data.status==='attention'?'answer':'running';}else{delete mark.dataset.sideBusy;ring?.remove();}}return;}
     if(!frame||event.source!==frame.contentWindow)return;

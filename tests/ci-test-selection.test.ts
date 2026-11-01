@@ -1,8 +1,9 @@
-// T-130: which files of the two non-blocking jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull
-// request runs (scripts/ci-test-selection.mjs). The decision is checked rule by rule (every way to `whole`, `none`, `some` on one or
-// two runners), then end to end on a scratch repository with the real script and affected-tests, then the workflow that reads it: the
-// job runs on pull requests only, the two jobs fall back to their whole list whenever it did not succeed (whatever it may have
-// written before failing), and nothing a merge waits for changes.
+// T-130: which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`, blocking since decision
+// #14, 2026-10-31) a pull request runs (scripts/ci-test-selection.mjs). The decision is checked rule by rule (every way to `whole`,
+// `none`, `some` on one or two runners), then end to end on a scratch repository with the real script and affected-tests, then the
+// workflow that reads it: the selector runs on pull requests only. A successful per-job `none` skips that job; only a successful
+// `some` selects files and shards. `whole`, empty or unknown modes, and a failed, cancelled or skipped selector fall back to the full
+// list on two shards, ignoring residual outputs. Non-PR runs use the whole list, apart from the existing trusted push reuse.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -240,47 +241,61 @@ test("RAC-1763 end to end: a summary that cannot be written fails nothing, and a
 });
 
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
-test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing a merge waits for, and every job that reads it falls back to its whole list", () => {
+test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untrusted selections run the complete list", () => {
   const selection = jobBlock("test-selection");
-  assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \}\}$/m, "only on a pull request: push, nightly, manual runs and the merge queue are as before");
+  assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \}\}$/m, "only on a pull request: a push, the nightly and manual runs and the merge queue run the whole lists");
   assert.match(selection, /^    timeout-minutes: \d+$/m);
   assert.match(selection, /fetch-depth: 2/, "HEAD^1 is in the checkout");
   assert.match(selection, /run: node scripts\/ci-test-selection\.mjs --base HEAD\^1$/m);
   assert.doesNotMatch(selection, /pnpm install/, "no dependencies: it starts at once");
-  assert.ok(!blockingJobs().includes("test-selection"), "Verify does not wait for it");
-  assert.deepEqual(blockingJobs(), ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks"], "the blocking jobs are the ones of today");
+  assert.ok(!blockingJobs().includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
+  assert.match(jobBlock("verify"), /^    needs: \[.*test-selection\]$/m, "Verify directly receives the selection result and modes");
+  assert.deepEqual(blockingJobs(), ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset"], "the blocking jobs are the ones of today, the two that read the selection among them (decision #14, 2026-10-31)");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 
   for (const [name, key] of [["security-invariants", "security"], ["product-subset", "product"]] as const) {
     const job = jobBlock(name);
-    assert.match(job, /^    needs: \[test-selection\]$/m, name);
-    assert.ok(job.includes(`    if: \${{ !cancelled() && github.event_name != 'merge_group' && (needs.test-selection.result != 'success' || needs.test-selection.outputs.${key}_mode != 'none') }}`), `${name}: runs when the selection did not succeed, never in the merge queue, skipped only on a clear none`);
-    assert.ok(job.includes(`shard: \${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_shards || '[1, 2]') }}`), `${name}: two legs unless a selection that succeeded said one`);
-    assert.match(job, /^    continue-on-error: true$/m, `${name} still cannot turn the workflow red (decision #14)`);
+    assert.match(job, /^    needs: \[test-selection, queue-check\]$/m, name);
+    assert.ok(job.includes(`    if: \${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.${key}_mode != 'none') }}`), `${name}: only successful none skips on a PR; all other selections run, except a trusted verified push`);
+    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '[1, 2]') }}`), `${name}: two legs unless a selection that succeeded said one`);
+    assert.doesNotMatch(job, /^    continue-on-error:/m, `${name} blocks: a red run turns Verify red (decision #14, 2026-10-31)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
   }
   const security = jobBlock("security-invariants");
   assert.match(security, /if \[ -n "\$SELECTED" \]; then\n\s+read -r -a files <<< "\$SELECTED"\n\s+node scripts\/run-tests\.mjs --shard .+ "\$\{files\[@\]\}"\n\s+else\n\s+pnpm test:security --shard /, "an empty list never reaches run-tests.mjs (it would run every test): the whole list goes through test:security");
   const product = jobBlock("product-subset");
   assert.match(product, /set --\n\s+if \[ -n "\$ONLY" \]; then set -- --only "\$ONLY"; fi\n\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux "\$@" /, "--only only when files were chosen");
-  // What the two jobs do for each way `test-selection` can end, the expressions of ci.yml evaluated as GitHub would. A selection that
-  // failed after writing some or all of its outputs (the step died after the GITHUB_OUTPUT write, the runner was lost) is the case
-  // that matters: none of what it left is read.
+  // Evaluate the actual if/matrix/list expressions. Stale outputs from a failed selector, empty/unknown modes and
+  // non-PR events must not turn a complete run into a one-shard or selected-file run.
   const NONE = { security_mode: "none", security_shards: "[1]", security_files: "", product_mode: "none", product_shards: "[1]", product_only: "" };
   const SOME = { security_mode: "some", security_shards: "[1]", security_files: "tests/a.test.ts", product_mode: "some", product_shards: "[1]", product_only: "^(?:tests/a\\.test\\.ts)$" };
-  const WHOLE = { security_mode: "whole", security_shards: "[1,2]", security_files: "", product_mode: "whole", product_shards: "[1,2]", product_only: "" };
+  const WHOLE = { ...SOME, security_mode: "whole", product_mode: "whole" };
   const EMPTY = { security_mode: "", security_shards: "", security_files: "", product_mode: "", product_shards: "", product_only: "" };
-  const all = { runs: true, shards: [1, 2], list: "" };
-  const cases: Array<[string, string, Record<string, string>, { runs: boolean; shards?: number[]; list?: string }]> = [
-    ["pull_request", "success", NONE, { runs: false }],
-    ["pull_request", "success", SOME, { runs: true, shards: [1], list: "some" }],
-    ["pull_request", "success", WHOLE, all],
-    ["pull_request", "success", EMPTY, all],
-    ...["failure", "cancelled", "skipped"].flatMap((result) => [NONE, SOME, WHOLE, EMPTY].map((left) => ["pull_request", result, left, all] as [string, string, Record<string, string>, typeof all])),
-    ["push", "skipped", EMPTY, all],
-    ["schedule", "skipped", EMPTY, all],
-    ["merge_group", "skipped", EMPTY, { runs: false }],
-    ["merge_group", "success", SOME, { runs: false }],
+  const UNKNOWN = { ...SOME, security_mode: "unknown", product_mode: "unknown" };
+  const SECURITY_NONE = { ...SOME, security_mode: "none" };
+  const PRODUCT_NONE = { ...SOME, product_mode: "none" };
+  type Expected = { runs: boolean; shards?: number[]; list?: string };
+  const all: Expected = { runs: true, shards: [1, 2], list: "" };
+  const some: Expected = { runs: true, shards: [1], list: "some" };
+  const none: Expected = { runs: false };
+  const both = (expected: Expected) => ({ security: expected, product: expected });
+  const cases: Array<[string, string, Record<string, string>, { security: Expected; product: Expected }]> = [
+    ["pull_request", "success", NONE, both(none)],
+    ["pull_request", "success", SOME, both(some)],
+    ["pull_request", "success", WHOLE, both(all)],
+    ["pull_request", "success", EMPTY, both(all)],
+    ["pull_request", "success", UNKNOWN, both(all)],
+    ["pull_request", "success", SECURITY_NONE, { security: none, product: some }],
+    ["pull_request", "success", PRODUCT_NONE, { security: some, product: none }],
+    ...["failure", "cancelled", "skipped"].flatMap(result =>
+      [NONE, SOME, WHOLE, EMPTY, UNKNOWN, SECURITY_NONE, PRODUCT_NONE].map(left =>
+        ["pull_request", result, left, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>])),
+    ...["merge_group", "push", "schedule", "workflow_dispatch"].flatMap(event => [
+      [event, "skipped", EMPTY, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      // A selector cannot legitimately succeed on these events; even stale successful some/none outputs are ignored.
+      [event, "success", SOME, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "success", NONE, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+    ]),
   ];
   for (const [name, key, env] of [["security-invariants", "security", "SELECTED"], ["product-subset", "product", "ONLY"]] as const) {
     const job = jobBlock(name);
@@ -288,7 +303,8 @@ test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing
     const condition = expression(/^    if: \$\{\{ (.*) \}\}$/m);
     const matrix = expression(/^        shard: \$\{\{ (.*) \}\}$/m);
     const list = expression(new RegExp(`^          ${env}: \\$\\{\\{ (.*) \\}\\}$`, "m"));
-    for (const [event, result, outputs, expected] of cases) {
+    for (const [event, result, outputs, expectedJobs] of cases) {
+      const expected = expectedJobs[key];
       const scope = { event, result, outputs };
       const what = `${name} on ${event}, test-selection ${result}, outputs ${JSON.stringify(outputs)}`;
       assert.equal(Boolean(evaluate(condition, scope)), expected.runs, `${what}: runs`);
@@ -297,15 +313,20 @@ test("RAC-1764 ci.yml: the selection runs on pull requests only, decides nothing
       assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
     }
   }
-  // The merge queue still runs exactly the blocking jobs and Verify: the jobs that do not block, and the selection, stay out of it.
-  for (const name of ["security-invariants", "product-subset", "linux-probe", "test-selection"]) assert.match(jobBlock(name), /^    if: \$\{\{.*(?:!= 'merge_group'|== 'pull_request'|== 'schedule').*\}\}$/m, `${name} is not in the merge queue`);
+  // The merge queue runs exactly the blocking jobs and Verify (the two above among them, evaluated in the cases): the probe, which
+  // does not block, and the selection stay out of it.
+  for (const name of ["linux-probe", "test-selection"]) assert.match(jobBlock(name), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, `${name} is not in the merge queue`);
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
 
-/** A GitHub expression of the two jobs evaluated for one event, one result of `test-selection` and the outputs it left. */
+/**
+ * A GitHub expression of the two jobs evaluated for one event, one result of `test-selection` and the outputs it left. `queue-check`
+ * did not find the commit verified by the merge queue (it was skipped: not a push, or a push of its own); the skip it allows is
+ * tests/ci-queue-verified.test.ts.
+ */
 function evaluate(expression: string, scope: { event: string; result: string; outputs: Record<string, string> }): unknown {
   const outputs = Object.fromEntries(Object.entries(scope.outputs).map(([name, value]) => [`needs.test-selection.outputs.${name}`, value]));
-  return evaluateExpression(expression, { "github.event_name": scope.event, "needs.test-selection.result": scope.result, ...outputs });
+  return evaluateExpression(expression, { "github.event_name": scope.event, "needs.test-selection.result": scope.result, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", ...outputs });
 }
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {

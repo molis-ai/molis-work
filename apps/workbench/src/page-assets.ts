@@ -1,4 +1,4 @@
-import { FUNCTIONS_STYLES } from "./functions/styles.js";
+import { FUNCTIONS_STYLES } from "./judgment-rules/styles.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { SIDE_PANEL_STYLES, SIDE_PANEL_SCRIPT, SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { SIDE_BROWSER_STYLES, SIDE_BROWSER_SCRIPT } from "./side-panel-browser.js";
@@ -13,7 +13,6 @@ import { CONNECTOR_EXPERIENCE_STYLES } from "./styles/settings-connectors.js";
 import { MEMORY_SETTINGS_STYLES } from "./styles/settings-memory.js";
 import { KNOWLEDGE_PICKER_STYLES, KNOWLEDGE_SETTINGS_STYLES } from "./styles/settings-knowledge.js";
 import { PLUGIN_TRUST_SETTINGS_STYLES } from "./styles/settings-plugins.js";
-import { CODING_STYLES } from "@molis-ai/molis-work-plugin-coding";
 import { CHARACTERS_STYLES } from "./characters/styles.js";
 import {
   CONTEXT_TOOLBAR_STYLES,
@@ -97,7 +96,7 @@ export function renderMolisWorkArrivalStylesheet(): string {
 
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${LOCAL_DIRECTORY_SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${KNOWLEDGE_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${pluginSettingsStyles()}${VISUAL_FOUNDATION_PAGE_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CODING_STYLES}${CHARACTERS_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${LOCAL_DIRECTORY_SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${KNOWLEDGE_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${pluginSettingsStyles()}${VISUAL_FOUNDATION_PAGE_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CHARACTERS_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

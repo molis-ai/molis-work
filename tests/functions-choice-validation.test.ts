@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createFunctionsService, createTypeSafeProvider, functionsActionProvider,
-  functionsActions, publishedFunctionProvider } from "@molis-ai/molis-work-module-functions";
+  functionsActions, publishedFunctionProvider } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("W2-18-FUNCTION-CHOICE-01 raw out-of-enum answers cannot save a preview, publish, or persist a successful judgment", async () => {

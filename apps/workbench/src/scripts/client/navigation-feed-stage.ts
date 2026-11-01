@@ -462,7 +462,7 @@ export const NAVIGATION_FEED_STAGE_PART = `
       requestAnimationFrame(() => row.scrollIntoView({ block: "nearest", behavior: "instant" }));
     };
 
-    const setFeedPreset = (preset, restoreSavedState = true) => {
+    const setFeedPreset = (preset, restoreSavedState = true, intent = "open") => {
       const nextPreset = "feed";
       if (nextPreset !== activeFeedPreset) rememberFeedPresetState();
       activeFeedPreset = nextPreset;
@@ -477,9 +477,9 @@ export const NAVIGATION_FEED_STAGE_PART = `
       setFeedStatusOptionLabel("saved", FL("已保存"));
       setFeedStatusOptionLabel("archived", FL("已忽略"));
       syncFeedFilterUi();
-      setFeedTask(selectedFeedTask || "all", false);
+      setFeedTask(selectedFeedTask || "all", false, intent);
       if (activeDesktopSurface === "feed") {
-        setDesktopWorkSurface("feed", false, false);
+        setDesktopWorkSurface("feed", false, false, intent);
         immersiveNavigation?.sync();
       }
     };

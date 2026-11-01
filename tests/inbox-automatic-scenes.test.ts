@@ -15,7 +15,7 @@ import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxJudgmentTrigger, inboxNext
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
 import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
 

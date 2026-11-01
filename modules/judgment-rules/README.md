@@ -1,8 +1,8 @@
 # 判断函数与一次判断
 
-拥有草稿、不可变已发布函数、样本和判断记录。系统能力服务通过动作合同调用本模块；编辑器位于 Workbench 的 `src/functions`，没有独立 Functions 插件包。
+拥有草稿、不可变已发布函数、样本和判断记录。系统能力服务通过动作合同调用本模块；编辑器位于 Workbench 的 `src/judgment-rules`，没有独立 Functions 插件包。
 
-包名：`@molis-ai/molis-work-module-functions`。
+包名：`@molis-ai/molis-work-module-judgment-rules`。
 
 公开入口是 [src/index.ts](src/index.ts)。Host 注入 TypeSafe provider 与当前目录校验，已删除无生产调用者的 judge/行为白名单执行分支。
 
@@ -15,8 +15,8 @@
 Functions 只经动作工具对外：查询遵守公共能力及逐客户端撤权；执行必须在“能力 → 对外接入”授予该客户端 `functions.invoke` 动作；正式 stdio 入口由常驻 Host 执行，客户端授权、后端连接和版本状态一致。模型返回后，动作通过内部 `before_result` 回调复查原权限，取消或撤权后不保存判断历史、不返回成功结果。规则身份、版本与原历史保持。Agent 的 Choice/Noul 可保存可选 `action_map`，每个输出键对应 `{ capability_id, version, provider_id }`。调用返回 `recommended_actions`，不填充业务参数、不执行目标动作。未映射项只返回原判断数据；Score 暂只返回评分。发布及模型调用前后验证准确能力和当前授权，已发布能力通过 `required_actions` 声明依赖。推荐随原判断历史保存，数据库仅新增字段。旧字符串结果不推断成能力身份。
 
 ```bash
-pnpm --filter @molis-ai/molis-work-module-functions typecheck
-pnpm --filter @molis-ai/molis-work-module-functions build
+pnpm --filter @molis-ai/molis-work-module-judgment-rules typecheck
+pnpm --filter @molis-ai/molis-work-module-judgment-rules build
 node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 ```
 
@@ -28,14 +28,14 @@ node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 
 - 负责：判断规则的草稿、不可变的已发布版本、样本与判断记录。
 - 不负责：TypeSafe HTTP、插件界面、场景执行。
-- 公开入口：`@molis-ai/molis-work-module-functions`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/functions`。
+- 公开入口：`@molis-ai/molis-work-module-judgment-rules`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/functions`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store，自己的库也不出包入口（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 已发布配置与版本不可变，只能删除草稿；样本、试跑及判断记录仍独立管理。
   - TypeSafe 原生 Choice 回答在转换边界核对本次声明的 criteria；非空的非法选项拒绝，不保存试跑或成功判断，不取得发布资格。null 保持 needs_review。
   - 执行要在“能力 → 对外接入”授予该客户端 `functions.invoke`。
   - 模型返回后经 `before_result` 复查权限；取消或撤权后不保存判断历史、不返回成功。
-  - 编辑器在 Workbench 的 `src/functions`，没有独立的 Functions 插件包。
+  - 编辑器在 Workbench 的 `src/judgment-rules`，没有独立的 Functions 插件包。
   - 项目被删除时由宿主按 `functionsProjectData`（`src/project-data.ts`：确认框里的标签与 `purgeFunctionsProject`；Functions 不是插件，宿主自己列它）调用清掉这个项目的场景绑定与判断记录；规则本身是本人的，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts tests/functions-plugin.test.ts tests/functions-choice-validation.test.ts`
 - 相关手册：[specs/archive/functions-independent-authoring/spec.md](../../specs/archive/functions-independent-authoring/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -6,8 +6,8 @@ import test from "node:test";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, FunctionsService } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
+import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, FunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { homeProbe } from "./fixtures/home-runtime.js";
 

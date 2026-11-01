@@ -7,7 +7,7 @@ import { defineConnectorUsagesAction, type ConnectorUsage } from "@molis-ai/moli
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { functionAuthoringActions } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 

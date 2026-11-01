@@ -8,8 +8,8 @@ import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/b
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
-import { renderFunctionsWorkbench } from "../apps/workbench/src/functions/ui.ts";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/judgment-rules/client.ts";
+import { renderFunctionsWorkbench } from "../apps/workbench/src/judgment-rules/ui.ts";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")

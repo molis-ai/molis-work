@@ -1,5 +1,5 @@
 import { ARTIFACT_EN } from "../artifacts/en.js";
-import { FUNCTIONS_EN } from "../functions/en.js";
+import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";

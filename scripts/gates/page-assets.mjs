@@ -243,10 +243,12 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-362 (RAC-2743/2744, S-47) reads the current settings row's declared query/hash before forwarding an address.
-  // The stale row-map cache was removed, saving 97 B from the original +421 B implementation; the remaining read
-  // and filter are required. Approved in 6545370037 (<1 KB); this tuple is bound to the final main served bytes.
-  "/assets/molis-work-workbench.js": [1150291, 1150615],
+  // T-386 (RAC-2823/2824/2825, S-30): trusted frame search and Goals pane restoration reuse the existing bridge,
+  // source resolver and saved board view. The required source/visibility/terminal checks cannot be omitted;
+  // the source-level savings review found no equivalent reduction. Re-measured after T-389 adoption on
+  // 2026-11-01: +559 B workbench and +179 B plugin-frame, approved by the coordinator; no offset or slack.
+  "/assets/molis-work-plugin-frame.js": [190838, 191017],
+  "/assets/molis-work-workbench.js": [1150714, 1151273],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

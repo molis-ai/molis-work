@@ -58,7 +58,7 @@ const FACTORIES = new Set([
  * cannot see, each with where its questions come from. A new file that does is listed with its reason or the test fails.
  */
 const TYPESAFE_CALLERS: Readonly<Record<string, string>> = {
-  "apps/local-host/src/functions-host.ts": "判断规则的题面是用户自己写的规则正文（数据），不是固定文字",
+  "apps/local-host/src/judgment-rules-host.ts": "判断规则的题面是用户自己写的规则正文（数据），不是固定文字",
   "apps/local-host/src/plugin-builder-surface.ts": "创作台挑零件的两句说明（选能力、选组件）登记在创作台名下，由工作流经 instruction 端口取用户改过的文字后交给它，这里只转发",
 };
 

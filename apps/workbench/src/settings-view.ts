@@ -41,7 +41,7 @@ export interface WebPeriodicTask {
 export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
   capabilities?: import("./capabilities.js").CapabilitiesView;
-  functions_settings?: Omit<import("./functions/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
+  functions_settings?: Omit<import("./judgment-rules/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
   plugin_settings_html?: string;
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;

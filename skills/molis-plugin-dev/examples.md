@@ -40,7 +40,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 ## 判断规则（系统能力，不是插件）
 
-判断规则由 `modules/functions` 拥有，编辑器在「能力」（`apps/workbench/src/functions`）：写、试跑、发布；TypeSafe 连接在「能力 → 服务连接」。不要把它当插件模板抄。
+判断规则由 `modules/judgment-rules` 拥有，编辑器在「能力」（`apps/workbench/src/judgment-rules`）：写、试跑、发布；TypeSafe 连接在「能力 → 服务连接」。不要把它当插件模板抄。
 
 别的插件消费判断，走 [host.md](host.md#接到统一判断场景)，不要复制旧编辑器或添加新的 Host 去向白名单。
 

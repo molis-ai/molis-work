@@ -15,9 +15,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | 书审通过，WAIT当前B作者交回唯一writer窗口 | 实际M及一完整文件；旧CI首败因果UNKNOWN保留 | 仅tests/workbench-stop-feedback.e2e.test.ts的await及编号注释，无生产/超时/屏障变化 |
+| T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | 窗口已交开发线4，准确M6729本地单行修复/验证中 | 实际M及一完整文件；旧CI首败因果UNKNOWN保留 | 仅tests/workbench-stop-feedback.e2e.test.ts的await及编号注释，无生产/超时/屏障变化 |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712 @4404e142；Verify与独立审验已核，已排自身Full | full=true；适用SI及Full在途；未采用/原四PR只读 | 原四片合成；ports与golden两自修；BACKLOG准确冲突已解；资源仅原T362+324B |
-| T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；Verify/本地审验通过，已排自身Full | full=true；两原PR只读；资源零增量 | 两原片10路径，六完整文件+README另九项逐项核抵，无第三项修复 |
+| T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；本地/普通CI核收，Full41271185187失败 | 390px project-user-journey同点首跑/retry红；只读归因中，未重跑/取消 | 两原片10路径不扩修；9片成功/1失败/6矩阵取消，旧失败保持 |
 | T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；等准确CI与Full预算；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
 | T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线2；验证线3/二审线5 | 书审两项oracle已落实，WAIT不计READY | 等T384实际采用和资源窗口交接；full=true | 六原文件+README/S30精确文案+根核资源tuple；三完整e2e与窄实操 |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710实际采用main4b04947e7；patch-id同、原树/分支已清 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
@@ -300,7 +300,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
 | T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4；原二审线5交线4接资源增量 | #1661 已合 a1117b3ba；整树与稳定patch-id已核同，审计6550512963 | full=false；准确CI四完整59/59已核；原Mac/DOM UNKNOWN保留；原作者树清理被自动审批拦截，等具体确认 | 原产品/测试及资源锁释放；本地task/T351-a与原树保留 |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
-| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1/独立验证一审线2/二审线1，C开发线2 | A已合；B从81955aa93普通同步准确M6729，唯一writer已交共享窗口；C #1683待B采用 | B旧Full失败保留；新H自身CI/Full待结；C采用后再retarget | 原30路径；仅Jelly许可/预算窗口，T384/T146冻结候选不吸入 |
+| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1/独立验证一审线2/二审线1，C开发线2 | A已合；B #1682已普通推2de956e7，M6729增量审验核收；C #1683待B采用 | 新H自身CI/Full待结，旧Full失败保留；C采用后再retarget | 原30路径/28非资源blob同；三gate307/307、48资源仅Jelly+33B；作者已冻结交窗 |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
 | T-355 | 急：`form.fill.too-long` 的英文改成 fill-message 测试认可的写法（main 红 VUX-40，挡集成分支 Full） | 丙 | A | 0.1 | — | `plugins/native/form/src/messages.ts` |
 | T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 已合（10-31，#1685 → `a9fbdf756`；Codex 统筹） | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |
@@ -474,3 +474,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 04:35Z：根完整核读T353-B当前接续准备、所有open PR在gate/registry/预算的实际hunk，fresh fetch main仍6729，GET原B H81955且普通CI已成功。无须等T384/T385/T387/T146全部采用；根将B的gate、knowledge登记和Jelly预算窗口串行交开发线1，T384/T146作者已通知冻结，T121/T065/T386无writer。只正常merge实际M、清已消费许可、核实测Jelly+33B；原业务与旧238/508/KP按未变输入沿用，三gate完整文件及matching build/48响应另核。独立增量验证由一审线2承担（甲无FIRST），加强二审线1；C仍等B实际采用，不造READY或销历史Full失败。
 
 2026-11-01 04:40Z：T388书审/真实Promise链核收并注册，fresh open PR文件检查该单一测试无占用。只修pause提交完成前就刷新这一确定测试顺序缺口；不声称它解释T385旧CI首败。开发线4/验证线4/二审线5已定，等B唯一writer交回，未实施。
+
+2026-11-01 04:50Z：B准确2de956e7的作者/独立验证/加强二审原件已核；推前fresh fetch+secrets222行通过后正常push原#1682并更新正文，新CI另结，未重排Full。B已交回writer，T388作者执行单行await。T385 Full连续两次390px Feed类型按钮Hidden click target，根手查原日志并发布6553554943；新增Full先等该具体归因/修复结论，既有T384不取消。

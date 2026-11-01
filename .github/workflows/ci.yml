@@ -804,6 +804,13 @@ jobs:
           version: "0.12.19"
           enable-cache: false
 
+      # ASC-06: this probe also runs the managed Python MCP installer against a local registry.
+      - name: uv for the managed Python installer tests
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.12.19"
+          enable-cache: false
+
       # The tests import the built workspace packages and dist/; a full build, as `pnpm test` does before the suite.
       - name: Build
         run: pnpm build

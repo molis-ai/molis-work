@@ -74,6 +74,10 @@ const pages: Record<string, Draw> = {
 // Use separate TMPDIR directories for those two runs: compare their goals-golden-recorded and goals-golden-drawn directories with
 // diff -rq (66 full HTML files, including scripts, styles and JSON). On this machine, wrap builds in the build slot and all test runs
 // in the browser slot using scripts/machine-slot.mjs; set TMPDIR inside the slot so both checkouts share the machine's slot directory.
+// RAC-2680 / RAC-2508 (T402): the Goals-only view no longer draws the hidden Sources stage of an unshown Feed owner.
+// The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
+// each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.
+// Every other byte, JSON block and record stayed fixed; the candidate was not used to record these expectations.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

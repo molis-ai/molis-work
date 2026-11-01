@@ -73,7 +73,7 @@ export function pageRouteProblems(manifest: PluginManifest): string[] {
       for (const name of names) known.add(name);
     }
   }
-  for (const view of manifest.ui.views ?? []) {
+  for (const view of Array.isArray(manifest.ui.views) ? manifest.ui.views : []) {
     const input: unknown = (view.stage_data as { input?: unknown } | undefined)?.input;
     if (input === undefined) continue;
     const names = Array.isArray(input) ? input as unknown[] : null;

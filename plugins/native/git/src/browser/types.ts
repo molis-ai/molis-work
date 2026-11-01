@@ -99,7 +99,7 @@ export interface ReviewResult { readonly review: ReviewRecord; readonly outcome:
 export interface ResultRow { readonly result: ReviewResult; saved?: { readonly result: ReviewResult; readonly reference: { readonly version: number } }; readonly unavailable?: string }
 export interface ResultsAnswer { readonly results: ResultRow[] }
 
-export interface OperationRecord { readonly tool: string; readonly outcome: string; readonly detail?: string; readonly failure_reason?: string; readonly summary?: string }
+export interface OperationRecord { readonly review_id: string; readonly tool: string; readonly outcome: string; readonly detail?: string; readonly failure_reason?: string; readonly summary?: string }
 export interface Remote { readonly name: string }
 export interface SourceSummary {
   readonly branch: string | null;

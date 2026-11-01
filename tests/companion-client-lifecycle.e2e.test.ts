@@ -365,6 +365,86 @@ test("SYS-50: a Git revision waits for the open difference, then refreshes witho
   assert.deepEqual(await page.evaluate("errors"), []);
 });
 
+test("T405-GIT-01 a late index decision cannot consume a preparing or pending commit review", { timeout: 30_000 }, async t => {
+  let revision = 1, outcome = "pending";
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    window.shows=0;
+    const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;window.shows++;}}};
+    window.boot=()=>(${pageFactory("git")})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: String(revision) };
+    if (path.endsWith("/summary")) return { workspace: { workspace_id: "ws" }, summary: {
+      branch: "main", head_commit: "head", remotes: [], branches: ["main"], staged: ["note.md"], conflicted: [], merging: false, revision: "one",
+    } };
+    if (path.endsWith("/operations")) return { workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome }] };
+    return state("git");
+  }); if (!f) return;
+  const { page, count, blocked, pending } = f, post = "POST /git/operations";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("!document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
+  blocked.add(post);
+  await page.evaluate("document.querySelector('[data-git-commit-message]').value='current draft'");
+  await page.click("[data-git-commit]"); await until(() => pending.has(post));
+  const reads = count("GET /git/state"), polls = count("GET /git/view-revision"), shows = await page.evaluate<number>("shows");
+  revision++;
+  await page.evaluate("decide('rejected')");
+  await until(() => count("GET /git/view-revision") > polls + 1);
+  assert.equal(count("GET /git/state"), reads, "neither the old receipt nor revision polling invalidates an operation being prepared");
+  pending.get(post)![0]!.end(JSON.stringify({ review_id: "commit-current" }));
+  await page.wait(`shows>${shows} && document.querySelector('[data-git-sc-status]').textContent.includes('宿主审查')`);
+  await page.evaluate("decide('settled')");
+  assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "current draft", "an older success cannot clear the current pending commit draft");
+  assert.equal(count("GET /git/state"), reads, "a pending current operation keeps its review visible");
+  outcome = "running"; await page.evaluate("decide('rejected')");
+  assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "current draft", "running execution is not a rejected current operation");
+  outcome = "unknown"; await page.evaluate("decide('settled')");
+  assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "current draft", "unknown execution is not success");
+  await page.wait("!document.querySelector('[data-git-refresh]').disabled");
+  outcome = "succeeded"; await page.evaluate("decide('rejected')");
+  await page.wait("document.querySelector('[data-git-commit-message]').value===''");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-git-sc-status]').textContent"), /完成|成功/);
+  assert.equal(count(post), 1, "receipt handling never resends the write");
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
+
+test("T405-GIT-02 a failed or hidden commit-result read preserves its identity and draft until its own success", { timeout: 30_000 }, async t => {
+  let outcome = "pending", fail = false;
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
+    window.boot=()=>(${pageFactory("git")})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: "one" };
+    if (path.endsWith("/summary")) return { workspace: { workspace_id: "ws" }, summary: {
+      branch: "main", head_commit: "head", remotes: [], branches: ["main"], staged: ["note.md"], conflicted: [], merging: false, revision: "one",
+    } };
+    if (path.endsWith("/operations")) {
+      if (fail) return Promise.reject(new Error("controlled result read failure"));
+      return { review_id: "commit-current", workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome }] };
+    }
+    return state("git");
+  }); if (!f) return;
+  const { page, count, blocked, pending, aborted } = f, read = "GET /git/operations";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("!document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
+  await page.evaluate("document.querySelector('[data-git-commit-message]').value='retained draft'");
+  await page.click("[data-git-commit]");
+  await page.wait("document.querySelector('[data-git-sc-status]').textContent.includes('宿主审查')");
+  await until(() => count(read) >= 2);
+  fail = true; await page.evaluate("decide('settled')"); fail = false;
+  assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "retained draft");
+  blocked.add(read); await page.evaluate("void decide('settled');true");
+  await until(() => pending.has(read));
+  await page.evaluate("parentView.hidden=true"); await until(() => aborted.includes(read));
+  pending.get(read)![0]!.end(JSON.stringify({ workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome: "succeeded" }] }));
+  assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "retained draft", "a hidden late read cannot clear a draft");
+  blocked.delete(read); await page.evaluate("parentView.hidden=false");
+  await page.wait("!document.querySelector('[data-git-refresh]').disabled");
+  outcome = "succeeded"; await page.evaluate("decide('settled')");
+  await page.wait("document.querySelector('[data-git-commit-message]').value===''");
+  assert.equal(count("POST /git/operations"), 1, "hide and result-read failure do not repeat the operation");
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
+
 for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision preserves a new difference while ${phase}`, { timeout: 30_000 }, async t => {
   let reads = 0;
   const selected = (version: number) => ({ workspace_id: "ws", path: ["note.md"], side: version === 1 ? "worktree" : "index", revision: "r" + version,

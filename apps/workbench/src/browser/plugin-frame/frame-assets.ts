@@ -9,7 +9,7 @@ export interface FrameAsset {
   source: HTMLElement;
 }
 type PaneMessages = { from(event: { origin: string; data: { type: string }; source: Window }): HTMLIFrameElement | null };
-type DragSource = { root: HTMLElement; current(): boolean };
+type DragSource = { root: HTMLElement; current(reference: UiFrameAssetReference): boolean };
 const sources = new Map<string, DragSource>();
 let panes: PaneMessages | undefined;
 const route = (path: string) => (document.body.dataset.routePrefix ?? "") + path;
@@ -65,9 +65,9 @@ export const frameAssets = {
   },
   async localDrag(value: { handle: string; reference: UiFrameAssetReference }, signal?: AbortSignal): Promise<FrameAsset | undefined> {
     const source = sources.get(value.handle);
-    if (!source?.current()) return;
+    if (!source?.current(value.reference)) return;
     const asset = (await load(source.root, signal)).find(item => key(item.reference) === key(value.reference));
-    return source.current() ? asset : undefined;
+    return source.current(value.reference) ? asset : undefined;
   },
   async drag(value: unknown, signal?: AbortSignal): Promise<FrameAsset | undefined> {
     if (!value || typeof value !== "object" || !("handle" in value) || typeof value.handle !== "string"
@@ -111,7 +111,7 @@ export function pageFrameAssets(port: MessagePort, scope: FrameScope, root: HTML
     if (visible() && producer && typeof html === "string") {
       rows = new Map(project(html, root).map(asset => [key(asset.reference), asset]));
       handle = crypto.randomUUID(); const active = handle;
-      sources.set(active, { root, current: () => handle === active && current() });
+      sources.set(active, { root, current: ref => handle === active && current() && rows.has(key(ref)) });
     }
     publish();
   };

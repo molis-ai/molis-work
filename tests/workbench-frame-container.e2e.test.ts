@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
@@ -15,6 +17,10 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goal pane; child messages and late withdrawn sources cannot add blocks", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const { command, sessionId, projectId, origin } = b;
+  const capture = async (name: string) => {
+    const output=reviewEvidenceUrl("t403-native/"); await mkdir(output,{recursive:true});
+    await writeFile(new URL(name+".png",output),Buffer.from((await command<{data:string}>("Page.captureScreenshot",{format:"png"},sessionId)).data,"base64"));
+  };
   const owner = new LocalHostHttpClient({ origin, controlToken: b.controlToken });
   await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
   await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox" });
@@ -54,6 +60,18 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`);
   const sourceHandle = (id = item.item_id) => b.waitFor(`document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${id}"]')`);
   await sourceHandle();
+  // A fresh owner document can gain B while this still-current handle's original projection contains only A.
+  const originalHandle = await child.evaluate<string>("t403Handle");
+  const originalProjection = await b.evaluate<string>("document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench] script[data-plugin-document]').textContent");
+  const revisionHold = await sendBarrier(b,[{urlPattern:"*/api/plugins/io.molis.work.feed/view-revision",requestStage:"Request"}]);
+  try {
+    const added = feed.ingestItem({source,externalId:"fresh-outside-drag-projection",title:"Fresh owner material outside the old handle",occurredAt:new Date(Date.parse(now)-20000).toISOString(),attention:false}).item;
+    assert.equal(originalProjection.includes(added.item_id),false);
+    assert.equal(await b.evaluate(`fetch(document.querySelector('iframe[data-t403-feed-pane]').src).then(response=>response.text()).then(html=>html.includes(${JSON.stringify(added.item_id)}))`),true,"the real fresh owner HTML contains the later reference");
+    assert.equal(await child.evaluate("t403Handle"),originalHandle,"the source handle has not rotated while revision delivery is held");
+    assert.equal(await b.evaluate(`document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner="io.molis.work.feed"][data-plugin-surface=workbench] script[data-plugin-document]').textContent`),originalProjection);
+    assert.equal(await b.evaluate(`document.querySelector('iframe[data-t403-feed-pane]').contentWindow.molisPluginFrames.assets.localDrag({handle:${JSON.stringify(originalHandle)},reference:{kind:'feed_item',id:${JSON.stringify(added.item_id)}}}).then(asset=>asset?.reference??null)`),null,"production localDrag refuses a fresh-only ref absent from this handle's original projection");
+  } finally { await revisionHold.close(); }
   await child.evaluate(`document.querySelector('[data-feed-search]').value='no matching drag source';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))`);
   await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
   await child.evaluate("document.querySelector('[data-feed-search]').value='';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))");
@@ -169,11 +187,13 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
     await b.waitFor(`[...document.querySelectorAll('iframe.tab-content-frame')].some(frame=>!frame.hidden&&frame.contentDocument?.body?.dataset.desktopSurface===${JSON.stringify(plugin)})`);
     await b.evaluate(`for(const frame of document.querySelectorAll('iframe.tab-content-frame')){frame.removeAttribute('data-t403-feed-pane');if(!frame.hidden&&frame.contentDocument?.body?.dataset.desktopSurface===${JSON.stringify(plugin)})frame.setAttribute('data-t403-feed-pane','')}`);
   };
-  await focusSource(); await b.click('[data-plugin-strip] [data-plugin-id=inbox]'); await markSource("inbox");
+  await focusSource(); await sourceHandle(); await capture("feed-goal-pane");
+  await b.click('[data-plugin-strip] [data-plugin-id=inbox]'); await markSource("inbox");
   await inboxChild.waitFor("t403Reads.total>0 && t403Reads.pending===0"); await sourceHandle(inboxEntry.entry_id);
   await drop(await drag({kind:"inbox_entry",id:inboxEntry.entry_id}));
   await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelectorAll('[data-frame-block]').length===2");
   const before = await stored(); assert.equal(before.blocks[1]!.kind,"inbox"); assert.equal(before.blocks[1]!.itemId,inboxEntry.entry_id); assert.equal(before.blocks[1]!.title,item.title);
+  await capture("inbox-goal-pane");
   await b.click('[data-plugin-strip] [data-plugin-id=feed]'); await markSource("feed");
   await child.waitFor("t403Reads.pending===0");
   const settled = () => b.evaluate<number>("document.querySelector('iframe[data-t403-goal-pane]').contentWindow.t403FrameTrace.filter(event=>event.method==='drag'&&('result' in event||'error' in event)).length");
@@ -204,6 +224,15 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   assert.deepEqual(await stored(), before, "source withdrawal and a target switch discard the late add without changing the original Goal");
   await b.reloadPage();
   assert.deepEqual(await stored(), before, "the successful native drop retains its exact reference and position after reload");
+  await owner.post(`/api/settings/projects/${projectId}/plugins`,{plugin_id:"feed"});
+  await b.evaluate(`localStorage.removeItem('molis-work-tab-workspace:${projectId}')`);
+  const narrowInbox=await pluginFrameBrowser(t,b,"inbox");
+  await b.setViewport(390,844);
+  await b.navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/?openPlugin=inbox`},sessionId));
+  await narrowInbox.waitFor(`document.querySelector('[data-inbox-entry-id="${inboxEntry.entry_id}"]') && t403Reads.pending===0`);
+  await narrowInbox.click(`[data-inbox-row][data-inbox-entry-id="${inboxEntry.entry_id}"] strong`);
+  await narrowInbox.waitFor(`document.querySelector('[data-inbox-detail="${inboxEntry.entry_id}"]:not([hidden])')`);
+  await capture("inbox-narrow-390");
 });
 
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {

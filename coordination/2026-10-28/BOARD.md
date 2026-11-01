@@ -420,3 +420,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 00:17Z：根核存[T143/T065最小同步准备](plans/T143-T065-current-sync/PLAN.md)，两单仍等T377实际采用后冻结M/唯一writer；原行为证据保绑定，不重演无变化历史整批。W6[最终执行图](plans/W6-final-execution/PLAN.md)及[场景5](plans/W6-scene5/PLAN.md)、[场景7](plans/W6-scene7/PLAN.md)已存。场景7正常Todo链已授权验证线3在b6f92222f隔离实操，匹配构建及甲项目持久正控完成、全链未结；场景5由验证线4等T377采用。验证线1准备场景8无模型/无Memory最小Host重启链。T116后继A/B/C具体合同已修订，原书审窄核最后字段，T403闭包映射起草中；不新增本数/READY/完成声明。
 
 2026-11-01 00:19Z：T116后继[精确工程增量](plans/T116-followups/PLAN.md)及[独立书审](plans/T116-followups/REVIEW.md)核收。对象数据/HTML同实际owner、等待后失效拒绝；stage_surfaces仅列整页main，绘制贡献+surface对去重、stage读一次；普通reader与frame同批切objects并显式surface。PR1c/T402/T403保持原accepted范围和前置，T403端口映射正在补齐，三资源实测审批未发生。
+
+2026-11-01 00:23Z：场景7移动/权限实操已收尾、原件待根核，另发现并动态确认iframe全局搜索快捷键缺口，候选T379起草中，甲档由独立验证/二审收口，资源窗口仍根串行。验证线1[场景8正常Host重启子步](plans/W6-scene8/PLAN.md)已授权复用b6f匹配构建，独立Home/同origin，准备期driver错误不算产品结论。T377 Full当前11/16成功；Pages一文件首败retry通过仍待只读归因，不写首轮全绿。

@@ -255,3 +255,12 @@ T403可按原mount合同增加packages/contracts/src/platform/plugin-registratio
 
 
 2026-11-01 T403 原点击边界澄清：作者实查Feed/Inbox只有主区列表可见，切到Goal Frame会隐藏；根回读isFrameTabActive要求同document getSurface()===goals。原Frame用例对隐藏行的.click是合成触发，不能据此新造跨pane单击或宣称原有真实可见的一步路径。19:48窗的真实点击项据此收小：必要用户路径为冷picker与真实跨pane拖入；原测试保对象/块数/正文/持久化断言，触发改用原就存在的picker选择。只为不可达本document行点击新加的Host overlay部分可撤，不动原可见artifact路径；若发现实际可见旧路径再给证据。普通child消息仍不获直接Frame写权，不以新增接口/框架修一个不存在的用户入口。其余实际source授权/迟到/目标切换拒绝及原布局语义保持。
+
+
+## 2026-11-01 21:24Z T403可信原生拖动起点
+
+根核本机Chrome153同次真实拖动source-enter及同源/opaque隔离对照：数据、命中和CDP链可达，opaque源跨origin到可信Goal被浏览器在dragenter前拒绝，停止变换输入重跑。独立设计TRUSTED-DRAG-DESIGN已核。保留隔离、冷picker和真实跨pane拖放；将拖动起点改为每行明确的小型可信Host拖柄，原行其余点击/选择/滚动归owner。当前Feed/Inbox没有独立拖柄，此为浏览器限制下的必要交互调整，不声称整行任意点起拖不变；用户已授权后续需确认行动按推荐方案推进，根采用该最小方案。19:48/后续原点击纠偏仍有效，不恢复不可达跨pane单击或child直写。
+
+唯一writer开发3：只扩现有frame-assets.ts、types.ts、parent.ts及Feed/Inbox各ui.ts的专用span槽（必要同包样式/翻译限小柄展示），原Frame文件测试同步真实起点。复用现有sources/handle和静态授权HTML有限投影，不建新业务状态/HTTP/动作/权限。handle固定当时producer；producer/payload替换、隐藏/卸载先清旧注册/控件。只加一条当前handle+ref+可见槽box布局消息，Host必须与当前投影匹配，拒未知/过期/重复、非有限/无效尺寸；控件由Host画固定小尺寸、按frame可见交集裁剪，不整行透明遮盖/跨frame/top-layer。child滚动/遮挡/筛选更新槽，用elementFromPoint避免工具栏残留。标题/拖影只取可信投影，不采child字段。
+
+Host真实dragstart同步写原有限MIME，原target native drop→fresh source load→captureAsset仍唯一写入；普通消息/伪drop零块。dragend只清外观，不能提前撤可见source使合法异步读误拒；实际源失效、producer替换或目标Goal/view改变则尾检零晚写。保旧两Frame case/冷picker范围及对象、正文、块数、精确坐标和reload持久化断言；实际新柄可信起拖到另pane可信drop须完整通过，不能拿同源诊断代验。相关源隐藏/重挂/撤下/迟到、目标切换、几何裁剪与非柄owner点击覆盖原完整用例；已有有效浏览器矩阵不重复。安全不变量/公开API若实际变更先给根具体差量，最终资源按已批三URL与实测结算，不加新资源/放宽sandbox。

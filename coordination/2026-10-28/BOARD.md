@@ -13,11 +13,12 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 模型统一：用户2026-11-01再次明确所有工作线使用 **gpt-6.1-sol / max**。此前Astra回合已结束，保留代码/原件由Sol接续，不按风险自行覆盖模型。
 
-当前并行：T395完整13成员ad06c859已推#1724；CI41348007352已证声明桥、无票读probe和项目删除owner名单三处失败，原开发2收齐窄修，五路径源码145588152已冻结、必要验证与独立审验并行，新增名单一行随后收；全部旧CI自然终态后一次推送，Verify绿后同H integration Full。T068最终f1b752b33的120/120与双审核收；T398最终95c45c685的42/42及共享元数据双审通过；T404最终853aef869已合准确父且构建绑定通过。三者候选待父修复/最终采用。T403开发3继续来源目录入口及真实拖放；W4-01无模型runner两路径00e027f已修复漏await首败并冻结，作者验证、独立审验并行。公共build/browser各一槽，既有有效证据按实际输入保留。
+当前并行：T395最终4aeda9ffe已集中推#1724，八完整文件57/57、63包匹配与fresh-fetch secrets通过，独立双审收四行测试差量，新CI待结；main定时Full41349463387自然执行，Verify绿且预算允许后排同H integration。T405五完整已审成员已普通合成4a8dcfb，实际两文档冲突保双方语义，独立验证3/二审5窄核并行；开发1接最终4aeda父后一次matching build与四完整组合文件。T403开发3收目录真实布局及最小Host原生拖柄，隔离不放宽；W4无模型runner00e已双审核收，真实corpus生成路径只读准备。公共build/browser各一槽，未变有效原件按输入保留，不重复整批。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| W4-01 runner | 原真实corpus任务的真签包回放适配 | 甲 | Codex w401_runner；独立验证线3/w401_second | 两路径00e027f/treeab9f0c8冻结；首轮2通过/2失败保留，漏await已修，matching build及完整文件重验 | 真实模型两样本/最终W4-01仍WAIT；不新增片数 | scripts/replay-plugins.mjs、tests/replay-plugins.test.ts；机械临时包非模型产物 |
+| T-405 | 已审五成员普通合成后继 | 甲 | Codex开发线1；独立审验另派 | 五成员4a8dcfb冻结、两文档冲突已核；接4aeda最终父后matching与四文件 | 独立验证3/二审5并行；无push/CI窗口，不消费WIP | tasks/T-405.md；T068/T398/T404/W4runner/T067完整保留，carrier不另计未出业务本数 |
+| W4-01 runner | 原真实corpus任务的真签包回放适配 | 甲 | Codex w401_runner；独立验证线3/w401_second | 两路径00e027f/treeab9f0c8冻结，最终4/4、matching与两独立审验通过；已纳入T405 | 真实模型两样本/最终W4-01仍WAIT；不新增片数 | scripts/replay-plugins.mjs、tests/replay-plugins.test.ts；机械临时包非模型产物 |
 | T-404 | W6-06现行规则与两处机器输入归owner | 甲 | Codex t404_rules_migration；独立t404_verify/t404_second | 最终853aef869/tree7edf16e普通合ad06，零本片差异；135/135及双审原有效证据保留，63构建匹配 | 父新CI修复及最终CI/采用待根；历史归档仍等原W6前置 | tasks/T-404.md；表保真，判断算法/版本/保护分支不变 |
 | T-068 | BL790远程MCP声明与完整来源保护 | 甲 | Codex开发线1；独立验证一审线1；加强二审一审线2 | 本地最终f1b752b33，正常合ad06且原MCP实现未变，63构建匹配、120/120、48资源同父，双审范围PASS | #1725仍旧942be3bd；父新CI修复后最终发布/CI/Full/采用待结 | plans/T067-T068/PLAN.md；不重跑未变成员矩阵 |
 | T-116 PR2 | 工作台统一view与旧布局一次失效 | 甲 | Codex开发线1；独立验证线1；加强二审线5 | 最终2ca72c337完整75有效通过、真实跨进程恢复及matching build/171预算/必要门禁通过，双审PASS | 已作为T399第六完整成员普通ff同H同tree，不再另开Full | 原失败/批次来源保留，组合CI/Full/采用未签 |
@@ -30,7 +31,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-397 | BL916四资源声明授权与有界Home库 | 甲 | Codex辅助开发线t397_sol；验证线1；加强二审线4 | 最终e4e05dc5已独立审验，T399完成最终装配matching build与S84整文件19/19 | 组合本地门禁与双审核收，CI/Full/实际采用仍待T399 | plans/BL916-current/PLAN.md；background已按18:05Z窗口并行开发，最终采用等T399 |
 | T-398 | BL916 background真签包完整后继 | 甲 | Codex开发线4；独立增量两线 | 最终95c45c685/treeecdbdf0c，42/42与共享元数据两独立终签PASS，工作树clean | fresh main检查、父修复合流及最终CI/Full/采用待根；BL916未关 | BL916-current末窗口；不新造派生owner/job表 |
 | T-402 | Feed/Inbox owner数据与通用objects完整后继 | 甲 | Codex开发线2；独立验证t402_verify；加强二审t402_second | 最终0e3b0130已独立审验通过，完整父边界130/130通过；已入T399第四成员 | 原自身有效文件结果按来源沿用；共享登记/组合/CI/采用待T399 | plans/T116-followups/PLAN.md；T403已并行开发，最终采用等父及资源批准 |
-| T-395 | OAuth/Feed/Goals及完整T399六成员统一承载 | 甲 | 开发线2；独立验证线4/加强二审线1；根发布与采用 | #1724 ad06已推，CI三首错已证；五路径145588152冻结并验，追加删除owner精确名单修复 | 旧CI自然终态后一次推送；新Verify绿后同H integration Full | 不取消CI，不消费T403/T398 WIP；历史首败/UNKNOWN保留 |
+| T-395 | OAuth/Feed/Goals及完整T399六成员统一承载 | 甲 | 开发线2；独立验证线4/加强二审线1；根发布与采用 | #1724最终4aeda已推，五首错修齐，八完整文件57/57，63绑定与fresh secrets通过 | 旧CI自然终态后一次推送；新Verify绿后同H integration Full | 不取消CI，不消费T403/T398 WIP；历史首败/UNKNOWN保留 |
 | T-149 | BL589完整签名发布与SDK Manifest唯一主人 | 甲 | Codex开发线4；独立验证线1；加强二审线4 | 最终a95e0f2a源码完整独立审验通过，可交T399 | workflow45/45、download38/38；三项有限缺口闭合，共享门禁/Full/采用仍待组合 | plans/T149/ENGINEERING.md；原UI失败保留，全部有效结果归原输入 |
 | T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1；验证线3；加强二审线1 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，PR1c最终c2d96b321已交合流；准确afcc3de4三E2E及可读授权文案完成，两独立审验通过；共享登记/组合/CI待结 | plans/T145/PLAN.md §5及末尾窗口；最终S107（T066先采用S106），原RAC2644～2649完整范围 |
 | T-394 | W5与已审候选五成员合成：PR1b、Home升级、签名正文、T353B、T387 | 甲 | Codex开发线4；独立验证5/加强二审5；队列观察验证线2 | #1723 H6f7808c5已由正常队列采用main e4e98ed331，tree/patch-id一致；来源七PR已关闭 | Verify/SI/Product/Full及队列通过；首败/retry/UNKNOWN保留 | tasks/T-394.md；T395/T353C前置解除，两自有已合工作树及本地分支已清 |

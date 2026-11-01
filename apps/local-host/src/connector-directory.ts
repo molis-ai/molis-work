@@ -2,6 +2,7 @@ import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/ser
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
+import type { IntegrationRegistry } from "./integration-registry.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
 
 /** Where a card comes from: the plugin that declared the service and the name its Manifest gives it; null for the platform's own. */
@@ -40,10 +41,10 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, feedAva
 }
 
 /** The directory of services, in the order they were declared: built only from declarations, never from a list of names. */
-export function connectorDirectory(declarations: IntegrationDeclarationsView): readonly ConnectorDirectoryEntryWithSource[] {
+export function connectorDirectory(declarations: IntegrationDeclarationsView & Partial<Pick<IntegrationRegistry, "mcpOwner">>): readonly ConnectorDirectoryEntryWithSource[] {
   return declarations.connectionServices().map(({ declaration, owner }) => {
     const entry = directoryEntry(declaration, owner === PLATFORM_OWNER ? undefined : declarations.hasSource(declaration.service_id));
-    const method_options = connectorMethodsOf(declaration);
+    const method_options = connectorMethodsOf(declaration, declarations.mcpOwner?.(declaration.service_id));
     return {
       ...entry,
       method_options,

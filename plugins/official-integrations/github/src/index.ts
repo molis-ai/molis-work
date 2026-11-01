@@ -16,7 +16,7 @@ export const githubIntegrationManifest = {
   // 1.2.0: the account check moved to the connector action `connectors.account.read`.
   // 1.3.0: declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.4.0: declares its OAuth flow as data (W5-11).
-  version: "1.4.0",
+  version: "1.5.0",
   name: "GitHub",
   kind: "integration",
   publisher: {
@@ -51,7 +51,7 @@ export const githubIntegrationManifest = {
       kind: "oauth", grant: "device", device_authorization_url: "https://github.com/login/device/code",
       token_url: "https://github.com/login/oauth/access_token", scopes: ["notifications", "read:user"], client_secret: "optional", client_auth: "post",
       identity: { url: "{service}/user", account_id: [["identity:/id"]], label: ["identity:/login"] },
-    }] },
+    }, { kind: "mcp", endpoint: "https://api.githubcopilot.com/mcp/", auth: "either", registration: "manual" }] },
     capabilities: [
       { label: "Feed 拉未读通知", fulfillment: "live" },
       { label: "在连接设置中检查当前账号", fulfillment: "live" },

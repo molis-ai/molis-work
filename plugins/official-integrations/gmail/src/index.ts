@@ -21,7 +21,7 @@ export const gmailIntegrationManifest = {
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.2.0: declares its OAuth flow as data (W5-11).
-  version: "1.2.0",
+  version: "1.3.0",
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
@@ -48,7 +48,7 @@ export const gmailIntegrationManifest = {
       token_url: "https://oauth2.googleapis.com/token", scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"], pkce: "S256",
       parameters: { access_type: "offline", prompt: "consent" },
       identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email", "identity:/name", "identity:/sub"] },
-    }] },
+    }, { kind: "mcp", endpoint: "https://gmailmcp.googleapis.com/mcp/v1", auth: "either", registration: "manual" }] },
     capabilities: [
       { label: "Feed 只读收信", fulfillment: "live" },
       { label: "发送邮件", fulfillment: "unfulfilled" },

@@ -97,7 +97,11 @@ async function replayPackage(sample) {
       await env.host.inspectActions(owner, ref);
       return (await env.host.actionClient(ref).discover(owner)).filter(view => view.provider.plugin_id === pluginId);
     };
-    const records = () => env.host.withProject(ref, runtime => runningProjectPlatform(runtime.store, project.project_id).runtime.list().filter(record => record.plugin_id === pluginId));
+    const records = async () => {
+      const platform = await env.host.withProject(ref, runtime => runningProjectPlatform(runtime.store, project.project_id));
+      if (!platform) throw new Error("the project's plugin platform did not start");
+      return platform.runtime.list().filter(record => record.plugin_id === pluginId);
+    };
     const pins = () => new HomeConsentLedger(home).publishers();
     const installed = async (version, installId) => {
       await discovered();

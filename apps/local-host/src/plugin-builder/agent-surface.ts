@@ -172,7 +172,7 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
 /**
  * The page a signed package installed in the Home draws its stage with, framed by the workbench (`?frame=workbench`): the same
  * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
- * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-106).
+ * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-107).
  */
 export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; projectId?: string | null; assertProject?(): Promise<void> }): string {
   const { release } = input, pluginId = release.pluginId;

@@ -243,11 +243,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-395 (RAC-2859/2860): device authorization and Feed source account selection keep their complete interactions.
-  // Removing old paths and provider-specific assembly is already reflected in the measured 1,302 B increase;
-  // neither CSS reduction is used to offset it. The coordinator authorized this exact allowance against frozen
-  // T394 (3878296adf), with no new served URL. T394's workbench and Jelly allowances have both been spent.
-  "/assets/molis-work-workbench.js": [1152663, 1153965],
+  // T-399 (RAC-2894–2896): project consent, signed publication/download and the visible installation target.
+  // Reuse existing controls and request/download paths; removing an extra fetch already saved 150 B in the builder.
+  // These are the measured combined increases against T395 ccdb190c: 3,321 B, 2,272 B and 40 B; no new URL.
+  // Reviewed as necessary under decision #17. T395's previous workbench allowance has been spent.
+  "/assets/molis-work-workbench.js": [1153965, 1157286],
+  "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
+  "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

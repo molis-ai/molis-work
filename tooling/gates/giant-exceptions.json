@@ -93,7 +93,7 @@
       "kind": "cohesive-unit",
       "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
       "size": {
-        "lines": 654,
+        "lines": 658,
         "methods": 40
       }
     },
@@ -140,7 +140,7 @@
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
       "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
-      "size": 161
+      "size": 191
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",
@@ -236,6 +236,16 @@
       "kind": "cohesive-unit",
       "reason": "同一 AgentDefinitions 数据主人的声明登记、用户覆盖、history 和 uses 共用同一份来源引用及 SQLite 事务；新增的是精确读取与已接受使用的两个既有职责，拆分会分散同一状态和记录，不新增第二份业务账。",
       "size": { "lines": 257, "methods": 26 }
+    },
+    "function plugins/native/feed/src/plugin.ts#createFeedPlugin": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 159
+    },
+    "function plugins/native/feed/src/plugin.ts#start": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 157
     }
   }
 }

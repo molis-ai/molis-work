@@ -91,6 +91,7 @@ export interface PluginSourcePullClient {
 }
 
 export interface PluginSourceVocabulary {
+    presentation(id: string, input: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentationInput): Promise<import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentation>;
     readonly custom_rss_definition_id: string;
     readonly youtube_definition_id: string;
     readonly youtube_feed_host: string;

@@ -18,6 +18,11 @@ export interface OwnedUiContribution<TModel = unknown> {
     render(request: UiRenderRequest<TModel>): string;
 }
 
+export declare const PLUGIN_PRESENTATION_CAPABILITY: {
+    readonly capability_id: "ui.plugin-presentation";
+    readonly version: 1;
+};
+
 export declare const RECEIPT_WORDS: {
     FACT: {
         received: string;
@@ -169,6 +174,10 @@ export interface StagePageModel<Data = unknown> {
     readonly shown_plugins: readonly string[];
     readonly data?: Data;
     readonly request?: Readonly<Record<string, string>>;
+    readonly object?: {
+        readonly id: string;
+        readonly surface: string;
+    };
     readonly primitives: StagePagePrimitives;
     readonly drawing?: StagePageDrawing;
     readonly context?: StagePageContext;
@@ -498,6 +507,7 @@ export interface UiSlotDescriptor {
 
 export interface UiStageDataDeclaration {
     readonly action: string;
+    readonly object_action?: string;
     readonly input?: readonly string[];
 }
 
@@ -603,6 +613,7 @@ export interface UiViewDeclaration {
     readonly settings_runtimes?: true;
     readonly settings_address?: UiSettingsAddressParamsDeclaration;
     readonly stage_data?: UiStageDataDeclaration;
+    readonly stage_surfaces?: readonly string[];
     readonly creates?: UiViewCreateEntry;
     readonly start?: UiViewStartEntry;
 }

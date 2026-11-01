@@ -205,4 +205,3 @@ function provider(item: FeedItemRecord): FeedUiEntry["provider"] {
   if (value.includes("rss") || value.includes("atom") || value.includes("feed")) return "rss";
   return "other";
 }
-

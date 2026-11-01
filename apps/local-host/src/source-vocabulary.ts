@@ -28,4 +28,3 @@ export function createSourceVocabulary(registry?: () => Promise<IntegrationRegis
     rssCursorAfterSuccess: withRssHttpSuccess,
   });
 }
-

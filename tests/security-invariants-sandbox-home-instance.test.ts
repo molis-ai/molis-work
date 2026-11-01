@@ -97,7 +97,7 @@ function reaching(publisher: ReturnType<typeof newPublisher>, capabilities: Reco
   }, pluginId ? { pluginId } : {});
 }
 
-test("RAC-966 RAC-2644 S-91 S-106 without a triggering project and its consent, a Home package reads Home actions but cannot call project actions", mac, async t => {
+test("RAC-966 RAC-2644 S-91 S-107 without a triggering project and its consent, a Home package reads Home actions but cannot call project actions", mac, async t => {
   const h = await fixture(t);
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] };
   await h.host.homePlugins!.ready();

@@ -127,7 +127,7 @@ function holdCatalog(host: MolisWorkLocalHost, projectId: string) {
   return { entered: entered.promise, release: release.resolve, close() { release.resolve(); host.inspectActions = original; } };
 }
 
-test("RAC-2646 S-106 withdrawal before a real Goal effect blocks old calls even after regrant; late reads and committed commands are distinguished", mac, async t => {
+test("RAC-2646 S-107 withdrawal before a real Goal effect blocks old calls even after regrant; late reads and committed commands are distinguished", mac, async t => {
   const f = await setup(t); await f.agree(f.a);
   for (const regrant of [false, true]) {
     const before = await f.state(f.a), hold = holdTarget(f.activeHost, goalPluginActions.progress.capability_id, "before");

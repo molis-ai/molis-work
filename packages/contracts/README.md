@@ -63,6 +63,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 - 公开入口：`@molis-ai/molis-work-contracts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/package`。
 - 依赖：不依赖任何工作区包，也不依赖 App、业务实现、数据库或网络客户端（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 2 节）；所有包都依赖它。
 - 不变量：
+  - `PluginConsentRecord` 的 `project_reach` 保存同一行的、排序去重的 `approved_capability_ids`；其它 kind 必须为 null。安装同意不能生成项目同意，项目授权只接受本人从项目设置的确认。
   - 不依赖任何其他工作区包；按显式子路径导出，不做根 barrel。
   - 结果合同读写都只认现行取值：存量数据由维护改成现行形状，schema 里不留历史取值。
   - 动作的 `effect` 按 id 推断会误判时用 `withActionEffect` 显式声明（比如 `delete_preview` 只存确认凭证）。

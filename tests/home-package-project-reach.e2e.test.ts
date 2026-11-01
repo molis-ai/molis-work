@@ -152,7 +152,7 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
   return { page, child, openSettings, openPackage, submit, decide, upgrade, resize, navigate, reload, close };
 }
 
-test("RAC-2644–2649 S-106 actual project settings, signed File upgrade and workbench navigation retain A through page, refresh, withdrawal and project switch", mac, async t => {
+test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and workbench navigation retain A through page, refresh, withdrawal and project switch", mac, async t => {
   const f = await fixture(t), ui = await browserFixture(t, f);
   try {
   const b0 = await f.state(f.b), a0 = await f.state(f.a);
@@ -217,7 +217,7 @@ test("RAC-2644–2649 S-106 actual project settings, signed File upgrade and wor
   } finally { await ui.close(); }
 });
 
-test("S-106 project settings reject copied credentials, other audiences, extra identity inputs, global revoke and a plugin page", mac, async t => {
+test("S-107 project settings reject copied credentials, other audiences, extra identity inputs, global revoke and a plugin page", mac, async t => {
   const f = await fixture(t), response = await f.settings(f.a, "list");
   assert.equal(response.status, 200, await response.clone().text());
   const selection = (await response.json() as { plugins: Array<{ plugin_id: string; snapshot: string }> }).plugins.find(item => item.plugin_id === REACH_PLUGIN_ID)!;
@@ -265,7 +265,7 @@ test("S-106 project settings reject copied credentials, other audiences, extra i
 });
 
 
-test("RAC-2647 S-106 copying a real page invocation control does not copy its project authority", mac, async t => {
+test("RAC-2647 S-107 copying a real page invocation control does not copy its project authority", mac, async t => {
   const f = await fixture(t), listed = await f.settings(f.a, "list");
   const selection = (await listed.json() as { plugins: Array<{ plugin_id: string; snapshot: string }> }).plugins.find(row => row.plugin_id === REACH_PLUGIN_ID)!;
   assert.equal((await f.settings(f.a, "grant", { plugin_id: selection.plugin_id, snapshot: selection.snapshot })).status, 200);

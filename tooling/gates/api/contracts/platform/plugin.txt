@@ -3218,6 +3218,7 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
     kind: "integration";
+    presentSource?(id: string, input: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentationInput): import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentation | Promise<import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentation>;
     bind(binding: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationBinding): {
         connector_driver: ConnectorDriver;
         signal_adapter: RawEventAdapter;
@@ -3443,6 +3444,7 @@ export interface PluginManifest {
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
     integrations?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginIntegrationDeclaration[];
+    source_presentations?: readonly string[];
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];

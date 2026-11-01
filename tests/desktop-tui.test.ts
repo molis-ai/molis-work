@@ -793,7 +793,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /goalUiStorageKey \+ ":inbox"/, "the Goal-era decisions page, which had its own saved state, is gone");
     assert.match(desktop, /const desktopNavigationStateVersion = 4/);
     assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
-    assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true\) =>/);
+    assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true, intent = "open"\) =>/);
     assert.match(desktop, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
     assert.match(desktop, /setDesktopWorkSurface\("goals", false, false\)/);
     assert.doesNotMatch(desktop, /pluginForSurface/, "a surface is its plugin's id; nothing turns one into the other (T-114)");

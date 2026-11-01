@@ -3,6 +3,7 @@ import type { EditorView } from "prosemirror-view";
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
 import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { headingPath } from "./focus.js";
+import { wholeEnds } from "./whole-characters.js";
 
 /**
  * Pages as the landing on the left (specs/context-program §3.4, §21.8 steps 3 and 5).
@@ -53,8 +54,8 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     shown = { key, doc, from, to };
     const text = position === "selection" ? doc.textBetween(from, to, "\n") : "";
     send({ pane_id: "", plugin_id: PLUGIN_ID, object: { kind: "pages_document", id: open.id, title: open.title }, position, version: open.version,
-      targets: [{ kind: "text_range", role: "paragraph", text: text.slice(0, 4000), ...(text.length > 4000 ? { truncated: true } : {}), anchor: from, head: to }],
-      surroundings: { heading_path: headingPath(doc, from), before: doc.textBetween(Math.max(0, from - AROUND), from, "\n"), after: doc.textBetween(to, Math.min(doc.content.size, to + AROUND), "\n") } });
+      targets: [{ kind: "text_range", role: "paragraph", text: wholeEnds(text.slice(0, 4000)), ...(text.length > 4000 ? { truncated: true } : {}), anchor: from, head: to }],
+      surroundings: { heading_path: headingPath(doc, from), before: wholeEnds(doc.textBetween(Math.max(0, from - AROUND), from, "\n")), after: wholeEnds(doc.textBetween(to, Math.min(doc.content.size, to + AROUND), "\n")) } });
   };
 
   let pop: HTMLElement | null = null;

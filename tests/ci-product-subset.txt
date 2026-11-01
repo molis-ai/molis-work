@@ -352,6 +352,7 @@ tests/session-project-binding-router.test.ts
 
 # Other areas
 tests/alchemist-actions.test.ts
+tests/alchemist-host.test.ts
 tests/alchemist-plugin.test.ts
 tests/alchemist-pulse-cancel.test.ts
 tests/alchemist-pulse-close.test.ts

@@ -180,6 +180,10 @@ async function saveStage(
 function classifyError(error: unknown): string {
   if (error instanceof Error) {
     const hostCode = (error as Error & { code?: unknown }).code;
+    // The Host port refuses a prompt over its data position with this code; keep that reason apart from a generic runtime failure so the
+    // page can say the material is too long (the character excess itself stays at the port for now; carrying it to the page needs a
+    // dedicated error-detail field, a separate change).
+    if (hostCode === "alchemist.prompt_too_long") return "alchemist.prompt_too_long";
     if (typeof hostCode === "string" && hostCode.startsWith("alchemist.reuse_")) return hostCode;
     if (typeof hostCode === "string" && (hostCode === "alchemist.research_no_sources" || /^alchemist\.research_search_[a-z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
     if (["alchemist.lens_run_input_invalid", "alchemist.idea_version_not_found", "alchemist.ai_output_invalid", "alchemist.research_call_interrupted", "alchemist.research_no_sources", "alchemist.research_budget_invalid", "alchemist.research_budget_exhausted", "alchemist.research_budget_history_invalid", "alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured", "alchemist.runtime_shutdown"].includes(error.message)) {

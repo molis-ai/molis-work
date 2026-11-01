@@ -14,8 +14,17 @@ import type {
 import { IntegrationRegistry, connectorDirectory, homeIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
 import { integrationKeyOf } from "@molis-ai/molis-work-plugin-feed";
 import { definePollingIntegrationPlugin, parsePluginManifest, pollingIntegrationBinding } from "@molis-ai/molis-work-plugin-sdk";
-import { rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
-import { gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
+import { rssIntegrationManifest, rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
+import { gmailIntegrationManifest, gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
+
+test("RAC-2507 presentation declarations use schema/API 2 and the packaged JSON keeps the same unreleased plugin identity", () => {
+  assert.equal(rssIntegrationManifest.version, "1.0.0");
+  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version: 1, host_api_version: 1 }), /source_presentations 需要 schema_version 2/u);
+  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, host_api_version: 1 }), /host_api_version 与之相同/u);
+  for (const [id, manifest] of [["rss", rssIntegrationManifest], ["gmail", gmailIntegrationManifest]] as const) {
+    assert.deepEqual(parsePluginManifest(JSON.parse(source(`plugins/official-integrations/${id}/manifest.json`))), parsePluginManifest(manifest));
+  }
+});
 
 test("RAC-2507 pure presentations use the actual declaring integration, without binding a source or reading an account", async () => {
   const registry = new IntegrationRegistry();

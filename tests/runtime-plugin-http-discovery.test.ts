@@ -744,33 +744,42 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
   const feed = /<section\b[^>]*data-work-surface="feed"[^>]*data-(?:home|project)-plugin-unavailable[^>]*>/gu;
   const stageId = "io.molis.work.native.feed.ui.v1";
   assert.equal(first.match(feed), null, "Feed's own stage, from its project half, has no placeholder");
-  const ownHome = home.runtime.contribution.bind(home.runtime), ownProject = projectPlatform.supervisor.contribution.bind(projectPlatform.supervisor);
+  const ownHome = home.runtime.contribution.bind(home.runtime);
+  // A capability has one producer across Home/project scope. Withdraw the project read before the fixture moves it with its view.
+  const projectInstallId = projectPlatform.supervisor.state(FEED_PLUGIN_ID)!.install_id!;
+  await projectPlatform.runtime.stop(projectInstallId);
   const data = { snapshot: { sources: [], feed_items: [], runs: [], out_rules: [] }, source_catalog: [],
     connector_auth: { github: { bound: false }, gmail: { bound: false } }, inbox_entries: [], source_presentations: {} };
   let homeReads = 0;
-  const release = host.actionRegistry().registerProvider({ provider: { provider_id: `${FEED_PLUGIN_ID}#stage-probe`, plugin_id: FEED_PLUGIN_ID,
+  const registration = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID,
     plugin_install_id: install.install_id, title: "Feed Home stage", kind: "plugin" }, definitions: [feedQueryActions.stage],
-    handlers: [{ ...feedQueryActions.stage, handle(caller) { homeReads++; assert.equal(caller.project_id, one.project_id); return data; } }] });
+    handlers: [{ ...feedQueryActions.stage, handle(caller) { homeReads++; assert.equal(caller.project_id, one.project_id); return data; } }] };
   const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: ["workbench", "source-workbench"]
     .map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
     render: request => { assert.deepEqual(request.model.data, data, "the selected Home owner reads its own provider, not the project's Feed");
       return request.surface === "workbench" ? "<section>feed-home-half</section>" : ""; } };
-  const homeContribution = ownHome(install.install_id), projectContribution = ownProject(FEED_PLUGIN_ID);
-  assert.ok(homeContribution?.kind === "app" && projectContribution?.kind === "app");
+  const homeContribution = ownHome(install.install_id);
+  assert.ok(homeContribution?.kind === "app");
   const movedHome = { ...homeContribution, views: [...homeContribution.views ?? [], view] };
-  const movedProject = { ...projectContribution, views: (projectContribution.views ?? []).filter(item => item.descriptor.contribution_id !== stageId) };
   const homeHalf = t.mock.method(home.runtime, "contribution", (id: string) => {
     return id === install.install_id ? movedHome : ownHome(id);
   });
-  const projectHalf = t.mock.method(projectPlatform.supervisor, "contribution", (id: string) => {
-    return id === FEED_PLUGIN_ID ? movedProject : ownProject(id);
-  });
+  let release: (() => void) | undefined;
   try {
+    const missing = await page();
+    assert.doesNotMatch(missing, /<section>feed-home-half<\/section>/);
+    assert.match(missing, feed, "a view without its same-owner read cannot borrow the project's data");
+    assert.equal(homeReads, 0);
+    release = host.actionRegistry().registerProvider(registration);
     const moved = await page();
     assert.equal(moved.split("<section>feed-home-half</section>").length - 1, 1, "the Home half that offers the view draws it");
     assert.equal(homeReads, 1, "its declared data is read once by that same Home half");
+    assert.equal(projectPlatform.runtime.get(projectInstallId).state, "stopped", "the original project producer remains withdrawn");
     assert.equal(moved.match(feed), null, "and no half answers with a placeholder");
-  } finally { release(); homeHalf.mock.restore(); projectHalf.mock.restore(); }
+    release(); release = undefined;
+    assert.doesNotMatch(await page(), /<section>feed-home-half<\/section>/, "withdrawing the Home read cannot revive old data or the catalog");
+    assert.equal(homeReads, 1);
+  } finally { release?.(); homeHalf.mock.restore(); }
 });
 
 // PG094-STAGE-01: a Home instance without a declared stage adds no Host placeholder; the opaque frame boundary remains enforced.

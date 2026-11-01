@@ -1,0 +1,9 @@
+# T392 最终本地核收与发布
+
+负责人：Codex统筹。H d35ede4af7689e689c1bc702ed71da091186f49a，tree c99660fc111a0d85a6e4291ef1a3b530a7f13387，原M08642dcb92dbdad029d990813da56682d6864a23。
+
+根直接核最终P1 diff、20文档patch、作者普通health raw及绑定，读取独立验证3与加强二审1终签。普通health不带--update，冻结H上exit0；原update日志保留。24完整218、补充72/9保持各自真实执行归属，源码/构建摘要3084b186fe853a7b6f2b5acbae3160eab29e74cfc2e5db4f76d8f53f6e0ad627匹配，32owner及48served bytes/hash相同。旧失败、模型纠正前输出均未改署。
+
+fresh main f47fa0da，secrets扫描271行通过，普通push仅d35ede4a。当前main/H merge-tree无冲突，预测tree44ca669958cdc9d4b9bd731b9ee365f0da7f41c1；真实CI checkout另核，不能据预测签组合。用户明确批准发布并完成本单CI/Full/审验记录及达标后合入。#1720正式发布；审验评论6555435543/6555436365。Full加标签前全仓0Full、0queued，仅本PR常规CI在跑；当前CI41287784255、Full41287970493由验证3核原件，root最终裁定。
+
+full=true，README剩余74唯一待覆盖文件保原分配，不把macOS排除写成通过。T121/T144后继组合、Functions sealed恢复、真实Home/Keychain/模型与用户验收均未签。

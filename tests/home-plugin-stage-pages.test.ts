@@ -6,6 +6,8 @@ import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MolisWorkLocalHost, installedStageSection } from "@molis-ai/molis-work-app-local-host";
 import { renderHomePluginNavigation } from "@molis-ai/molis-work-app-workbench";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
+import { openDualHome } from "./fixtures/dual-home.js";
+import { dualPlugin } from "./fixtures/dual-plugin.js";
 
 // BL-713 (PG-011; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): the parts of a Home package's stage that need
 // no sandbox, so they run on Linux CI as well. `home-plugin-stage-navigation.test.ts` installs a signed package and runs it in the macOS
@@ -13,6 +15,37 @@ import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 /** The tool-bar entry a page draws for a package: the whole element, or none. */
 const entryOf = (html: string, pluginId: string) => new RegExp(`<(a|button) [^>]*data-home-plugin-open="${pluginId.replaceAll(".", "\\.")}"[^>]*>.*?</\\1>`, "s").exec(html)?.[0];
+
+test("RAC-2682 Home navigation uses the actual dual stage owner and never fills a missing Home stage from the Manifest", async t => {
+  for (const mode of ["home", "project", "wrong-contribution", "wrong-target"] as const) await t.test(mode, async t => {
+    const dual = dualPlugin(`nav-${mode}`, false, mode === "project" ? "project" : "home");
+    const expected = dual.view;
+    dual.stage.descriptor.surfaces = [{ surface_id: "workbench", target_slot_id: mode === "wrong-target" ? "workbench.overlay" : "workbench.main", format: "declarative-html" }];
+    if (mode === "wrong-contribution") dual.stage.descriptor.contribution_id += ".other";
+    const manifest = { ...dual.manifest, ui: { ...dual.manifest.ui, contributions: [...new Set([expected, dual.stage.descriptor.contribution_id])],
+      views: [...dual.manifest.ui.views ?? [], ...(mode === "wrong-contribution"
+        ? [{ view_id: "other", slot: "side" as const, title: "Other", contribution_id: dual.stage.descriptor.contribution_id }] : [])] } };
+    let fail = false;
+    const originalStart = dual.home.start;
+    const home = { ...dual.home, manifest, start: (...args: Parameters<typeof originalStart>) => {
+      if (fail) throw new Error("Home navigation start failure");
+      return originalStart(...args);
+    } };
+    const h = await openDualHome(t, probe => probe.project, { ...dual, manifest, home, project: { ...dual.project, manifest } });
+    await h.page();
+    const host = h.home.host.homePlugins!, platform = await host.ready();
+    assert.equal(platform.supervisor.state(dual.id)?.status, "running", JSON.stringify(platform.supervisor.state(dual.id)));
+    const entries = () => host.navigation().then(rows => rows.filter(row => row.plugin_id === dual.id));
+    if (mode !== "home") { assert.deepEqual(await entries(), [], mode); return; }
+    assert.equal((await entries()).length, 1, "the matching actual Home main is offered once");
+    assert.ok(entryOf(renderHomePluginNavigation(undefined, await host.navigation()), dual.id));
+    await platform.runtime.stop(h.provider());
+    assert.deepEqual(await entries(), [], "stopped Home never borrows the declaration");
+    fail = true;
+    assert.equal((await platform.supervisor.restart(dual.id)).status, "failed");
+    assert.deepEqual(await entries(), [], "a failed Home never borrows the declaration");
+  });
+});
 
 test("RAC-2620.1 an installed stage is drawn with the string a project's agent plugin has always had, and the tool bar's entry is a link on the arrival page and a stage button in a project", () => {
   const pluginId = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
@@ -24,6 +57,8 @@ test("RAC-2620.1 an installed stage is drawn with the string a project's agent p
     { plugin_id: "io.molis.work.example.books", name: "Books", icon: "book", surface: "io.molis.work.example.books" },
   ];
   const arrival = renderHomePluginNavigation(path => path, installed), inProject = renderHomePluginNavigation(undefined, installed);
+  assert.equal(entryOf(inProject, "goals"), undefined, "the dual plugin's project-only stage is no Home toolbar tool");
+  assert.ok(entryOf(inProject, "issues"), "the existing Home tool stays present");
   const notes = entryOf(arrival, "io.molis.work.example.notes")!, books = entryOf(arrival, "io.molis.work.example.books")!;
   assert.ok(notes.startsWith("<a ") && notes.includes('href="/plugins/io.molis.work.example.notes"') && !notes.includes("data-work-surface-open"), "a link to the package's page");
   assert.ok(notes.includes(icon("package")) && notes.includes("Notes &lt;1&gt;"), "the default icon, the name escaped");

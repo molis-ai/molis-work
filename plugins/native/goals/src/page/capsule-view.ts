@@ -1,4 +1,4 @@
-import type { WebProjectNavigation } from "./settings-navigation.js";
+import type { GoalsPageView } from "./view.js";
 
 export type CapsuleStateKind =
   | "working"
@@ -63,7 +63,7 @@ export interface CapsuleTab {
 
 export interface CapsuleSnapshot {
   observed_event_cursor: number;
-  project: WebProjectNavigation;
+  project: NonNullable<GoalsPageView["project"]>;
   state: CapsuleState;
   tabs: CapsuleTab[];
   default_tab: CapsuleTabKind | null;

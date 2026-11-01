@@ -21,7 +21,9 @@ import { text, identifier, count, boolean, object, nullable, goalEventSchema, go
 import { listGoalDocumentHistory } from "./event-document-model.js";
 import { readGoalHistory, type GoalHistoryQueryPorts, type GoalHistoryReadResult } from "./history-query.js";
 import type { GoalDocumentHistoryQuery, GoalHistoryTimelinePage } from "./event-history-map.js";
-import { goalDocumentAction, createGoalDocumentActionHandler } from "./document-action.js";
+import { goalDocumentAction, createGoalDocumentActionHandler, readGoalDocument } from "./document-action.js";
+import { goalsStageAction, createGoalsStageActionHandler } from "./stage-action.js";
+import { buildGoalsDocumentCollection } from "./document-collection.js";
 import type { GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./library-actions.js";
@@ -70,6 +72,7 @@ export const goalsActions = {
   decide: goalDecisionAction,
   document: goalDocumentAction,
   collection: goalsCollectionAction,
+  stage: goalsStageAction,
   snapshot: goalEntryActions.snapshot,
   contract: goalPluginActions.contract,
   progressReceipt: goalPluginActions.receipt,
@@ -155,6 +158,8 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     } },
     ...createGoalsBoardActionHandlers(projectId, board),
     createGoalsCollectionActionHandler(projectId, collection),
+    createGoalsStageActionHandler({ collection: () => buildGoalsDocumentCollection(collection, projectId),
+      document: goalId => readGoalDocument(projectId, { goal: readGoal, events, history, planning: planning.planning }, goalId) }),
     { ...goalsActions.snapshot, handle: () => history.snapshot() },
     { ...goalsActions.contract, handle: (_caller, input) => readContract((input as GoalReadActionInput).goal_id) },
     createGoalDocumentActionHandler(projectId, { goal: readGoal, events, history, planning: planning.planning }),

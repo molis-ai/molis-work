@@ -15,6 +15,7 @@ export { createGoalsRendererFactories, type GoalsRendererFactories } from "./fac
 export { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "./surfaces.js";
 export type { GoalsHintOptions, GoalsPagePorts, GoalsTerminalPaneModel, GoalsTranslate, MountSurface } from "./ports.js";
 export type { GoalsPageView } from "./view.js";
+export type { GoalsStageData } from "../stage-action.js";
 export type { GoalInputsCreatableKind } from "./inputs.js";
 
 /**
@@ -27,3 +28,6 @@ export function createGoalsPage<TView extends GoalsPageView>(ports: GoalsPagePor
   const documents = createGoalsDocuments<TView>({ ...ports, goals }, factories);
   return { goals, documents, planningRenderer: factories.planning };
 }
+
+export { createGoalsCapsuleProjection } from "./capsule.js";
+export type { CapsuleGoalItem, CapsuleSnapshot, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";

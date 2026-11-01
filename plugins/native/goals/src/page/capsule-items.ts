@@ -1,10 +1,11 @@
-import { isAppliedGoalCompletion, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
-import type { MolisWorkWebView } from "./page-view.js";
-import type { WorkbenchRendererPorts } from "./renderer.js";
+import type { GoalsDocumentView as WebGoalView } from "../document-view.js";
+import { isAppliedGoalCompletion } from "../decision-view.js";
+import type { GoalsPageView } from "./view.js";
+import type { GoalsTranslate } from "./ports.js";
 import type { CapsuleGoalItem, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 
-export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"]["L"]) {
-  function activeGoalViews(view: MolisWorkWebView): WebGoalView[] {
+export function createCapsuleItemProjection(L: GoalsTranslate) {
+  function activeGoalViews(view: GoalsPageView): WebGoalView[] {
     return view.goals.filter((item) => item.display_status === "in_progress");
   }
 
@@ -24,7 +25,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
 
   /** The Goal whose completion applied most recently, while it is still complete. */
   function recentCompletedGoal(
-    view: MolisWorkWebView,
+    view: GoalsPageView,
     now: Date,
     visibleForMs: number,
   ): { item: WebGoalView; at: string } | null {
@@ -41,15 +42,15 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     return newest && { item: newest.item, at: newest.at };
   }
 
-  function goalPath(view: MolisWorkWebView, goalId: string): string {
+  function goalPath(view: GoalsPageView, goalId: string): string {
     return `${view.route_prefix}/goals/${encodeURIComponent(goalId)}`;
   }
 
-  function decisionPath(view: MolisWorkWebView, goalId: string): string {
+  function decisionPath(view: GoalsPageView, goalId: string): string {
     return goalPath(view, goalId);
   }
 
-  function projectPath(view: MolisWorkWebView): string {
+  function projectPath(view: GoalsPageView): string {
     return view.route_prefix || "/";
   }
 
@@ -62,7 +63,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function itemBase(
-    view: MolisWorkWebView,
+    view: GoalsPageView,
     item: WebGoalView,
     input: Omit<CapsuleGoalItem, "goal_id" | "goal_title" | "goal_path" | "why">,
   ): CapsuleGoalItem {
@@ -75,7 +76,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     };
   }
 
-  function decisionItem(view: MolisWorkWebView, item: WebGoalView, decisionCount: number): CapsuleGoalItem {
+  function decisionItem(view: GoalsPageView, item: WebGoalView, decisionCount: number): CapsuleGoalItem {
     const actionPath = decisionCount > 0
       ? decisionPath(view, item.goal.goal_id)
       : goalPath(view, item.goal.goal_id);
@@ -99,7 +100,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     return item.display_status === "waiting_user" || item.status.includes("review") ? "checking" : "working";
   }
 
-  function activeItem(view: MolisWorkWebView, item: WebGoalView): CapsuleGoalItem {
+  function activeItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
     return itemBase(view, item, {
       tab_kind: "in_progress",
       kind: activeTone(item),
@@ -115,7 +116,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function availableItem(
-    view: MolisWorkWebView,
+    view: GoalsPageView,
     item: WebGoalView,
   ): CapsuleGoalItem {
     return itemBase(view, item, {
@@ -132,7 +133,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     });
   }
 
-  function blockedItem(view: MolisWorkWebView, item: WebGoalView): CapsuleGoalItem {
+  function blockedItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
     const blocker = primaryBlocker();
     return itemBase(view, item, {
       tab_kind: "blocked",
@@ -148,7 +149,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     });
   }
 
-  function waitingItem(view: MolisWorkWebView, item: WebGoalView): CapsuleGoalItem {
+  function waitingItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
     return itemBase(view, item, {
       tab_kind: "waiting",
       kind: "waiting",
@@ -163,7 +164,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     });
   }
 
-  function completeItem(view: MolisWorkWebView, item: WebGoalView, at: string): CapsuleGoalItem {
+  function completeItem(view: GoalsPageView, item: WebGoalView, at: string): CapsuleGoalItem {
     return itemBase(view, item, {
       tab_kind: "completed",
       kind: "complete",
@@ -205,7 +206,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function stateFromItem(
-    view: MolisWorkWebView,
+    view: GoalsPageView,
     tabs: CapsuleTab[],
     selected: CapsuleGoalItem,
     runningCount: number,

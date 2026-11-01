@@ -56,7 +56,7 @@ test("RAC-2500 Schedule's stage-opening view names its own task list, and the wo
   assert.equal(stageDataAction(scheduleManifest), scheduleManifest.actions!.find(action => action.capability_id === scheduleActions.list.capability_id));
   assert.equal(stageDataAction(scheduleManifest)?.capability_id, "schedule.tasks.list");
   const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => stageDataAction(entry.manifest)).map(entry => entry.project_plugin_id);
-  assert.deepEqual(declaring, ["schedule"], "slice 1 moves Schedule alone; Feed and Inbox follow in slice 2");
+  assert.deepEqual(declaring, ["goals", "schedule"], "Goals and Schedule declare their own reads; Feed and Inbox follow in their slice");
 });
 
 /** A binder that records the action each stage read is bound for, and answers through `answer`. */
@@ -71,10 +71,10 @@ function recordingBinder(answer: (capabilityId: string) => unknown) {
 
 test("RAC-2505 a stage read is bound for its own action alone, and only for the plugins the page shows", async () => {
   const { bound, bind } = recordingBinder(() => ({ jobs: [], tasks: [], operations: [] }));
-  assert.deepEqual(await declaredStageData(["schedule", "goals"], bind), { schedule: { jobs: [], tasks: [], operations: [] } });
-  assert.deepEqual(bound, [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`]);
+  assert.deepEqual(await declaredStageData(["schedule", "goals"], bind), { goals: { jobs: [], tasks: [], operations: [] }, schedule: { jobs: [], tasks: [], operations: [] } });
+  assert.deepEqual(bound, ["goals.stage.read@1", `${scheduleActions.list.capability_id}@${scheduleActions.list.version}`]);
   const none = recordingBinder(() => { throw new Error("not called"); });
-  assert.deepEqual(await declaredStageData(["goals", "pages"], none.bind), {}, "no shown plugin declares a stage read");
+  assert.deepEqual(await declaredStageData(["feed", "pages"], none.bind), {}, "no shown plugin declares a stage read");
   assert.deepEqual(none.bound, [], "a plugin the page does not show is not asked");
 });
 

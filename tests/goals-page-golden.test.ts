@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { L, clientI18nScript, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { inWordsOf } from "@molis-ai/molis-work-app-workbench";
+import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
+import { assertGoalsDictionaryMove, expectedGoalsDictionaryMove } from "./fixtures/goals-dictionary-move.js";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-plugin-goals/module";
 import * as renderers from "./workbench-renderer-fixture.js";
 import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -126,4 +130,84 @@ test("RAC-2680: the view is made again", { skip: process.env.MOLIS_WORK_GOLDEN_V
 
 test("RAC-2680: recording writes the hashes", { skip: !record }, () => {
   writeFileSync(RECORDED, `${JSON.stringify(Object.fromEntries(Object.entries(recorded).sort(([a], [b]) => a.localeCompare(b))), null, 1)}\n`);
+});
+
+// Root's 2026-11-01 RAC-2680/2686 ruling: fixed words/consumption come from independent B, never a candidate RECORD.
+const moved = JSON.parse(readFileSync(new URL("moved-words.json", GOLDEN), "utf8")) as {
+  owner: string; words: Record<string, string>; capsule_words: Record<string, string>;
+  interpolation: Array<{ key: string; vars: Record<string, string | number>; en: string; zh: string }>;
+};
+
+test("RAC-2680 the precise owner move retains non-moved tokens and rejects changes outside the approved dictionary properties", () => {
+  const tokens = Object.entries(moved.words).map(([key, value]) => `${JSON.stringify(key)}:${JSON.stringify(value)}`);
+  const stable = '"untouched":"\\u0041","after":"second"';
+  const page = (messages: string, own: string) => `<main data-proof="same"></main><script>globalThis.MOLIS_WORK_MESSAGES = ${messages};\nglobalThis.MOLIS_WORK_PLUGIN_WORDS = {"io.example.other":{"stable":"same"},"${moved.owner}":${own}};\nglobalThis.L = function L(key) { return key; };\nglobalThis.LF = function LF(owner, key) { return key; };</script>`;
+  const reference = page(`{${stable},${tokens.join(",")}}`, '{"kept":"same"}');
+  const expected = page(`{${stable}}`, `{"kept":"same",${tokens.join(",")}}`);
+  assert.equal(expectedGoalsDictionaryMove(reference, moved.words, "en"), expected, "the expected payload is specified independently of the transformer");
+  assert.doesNotThrow(() => assertGoalsDictionaryMove(reference, expected, moved.words, "en"));
+  const changed = (before: string, after: string) => {
+    assert.ok(expected.includes(before), "the negative must change a real byte");
+    const candidate = expected.replace(before, after); assert.notEqual(candidate, expected); return candidate;
+  };
+  const [key, value] = Object.entries(moved.words)[0]!;
+  for (const candidate of [
+    changed('data-proof="same"', 'data-proof="sXme"'),
+    changed(`${tokens[0]},`, ""),
+    changed(tokens[0]!, `${JSON.stringify(key)}:${JSON.stringify(value + " changed")}`),
+    changed(JSON.stringify(moved.owner), '"io.example.wrong-owner"'),
+    changed(stable, '"untouched":"A","after":"second"'),
+    changed(stable, '"after":"second","untouched":"\\u0041"'),
+    changed("function L(key)", "function changedL(key)"),
+    changed("function LF(owner, key)", "function changedLF(owner, key)"),
+  ]) assert.throws(() => assertGoalsDictionaryMove(reference, candidate, moved.words, "en"));
+});
+
+test("RAC-2680 exact dictionary comparison checks assignment boundaries and retains Chinese and script-free fragments byte for byte", () => {
+  const zh = '<script>globalThis.MOLIS_WORK_MESSAGES = {};\nglobalThis.MOLIS_WORK_PLUGIN_WORDS = {};</script>';
+  assert.doesNotThrow(() => assertGoalsDictionaryMove(zh, zh, moved.words, "zh"));
+  for (const candidate of [
+    zh.replace("MOLIS_WORK_MESSAGES = {}", 'MOLIS_WORK_MESSAGES = {"injected":"English"}'),
+    zh.replace("</script>", "globalThis.MOLIS_WORK_MESSAGES = {};</script>"),
+    zh.replace("MOLIS_WORK_MESSAGES = {}", "MOLIS_WORK_MESSAGES = {} || {}"),
+    zh.replace("PLUGIN_WORDS = {}", 'PLUGIN_WORDS = {"broken":}'),
+    zh.replace("globalThis.MOLIS_WORK_PLUGIN_WORDS", "</script><script>globalThis.MOLIS_WORK_PLUGIN_WORDS"),
+  ]) { assert.notEqual(candidate, zh); assert.throws(() => assertGoalsDictionaryMove(zh, candidate, moved.words, "zh")); }
+  const fragment = '<section>Unchanged</section><script type="application/json">{"x":1}</script>';
+  assert.doesNotThrow(() => assertGoalsDictionaryMove(fragment, fragment, moved.words, "en"));
+  assert.throws(() => assertGoalsDictionaryMove(fragment, fragment.replace('"x":1', '"x":2'), moved.words, "en"));
+});
+
+test("RAC-2686 moved words retain B's server and browser translation, including Capsule, placeholders and number agreement", { timeout: 60_000 }, async t => {
+  const executable = process.env.MOLIS_WORK_TEST_CHROME;
+  assert.ok(executable, "an explicit dedicated test browser executable is required; no default browser fallback");
+  const directory = await mkdtemp(join(tmpdir(), "goals-word-browser-"));
+  let browser: ChromeHarness | null = null;
+  t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  browser = await ChromeHarness.start(directory, { executable }); assert.ok(browser);
+  const page = await browser.page();
+  for (const locale of ["zh", "en"] as const) {
+    const script = runWithLocale(locale, clientI18nScript);
+    const actual = await page.evaluate<{ words: string[][]; capsule: string[][]; interpolation: string[] }>(`(() => {
+      ${script}
+      const spec=${JSON.stringify(moved)}, own=globalThis.LFor(spec.owner), other=globalThis.LFor("io.example.no-words");
+      return { words:Object.keys(spec.words).map(key=>[key,own(key),globalThis.L(key),other(key)]),
+        capsule:Object.keys(spec.capsule_words).map(key=>[key,own(key)]),
+        interpolation:spec.interpolation.map(sample=>own(sample.key,sample.vars)) };
+    })()`);
+    runWithLocale(locale, () => {
+      const server = inWordsOf(moved.owner, L);
+      for (const [key, value] of Object.entries(moved.words)) {
+        assert.equal(server(key), locale === "en" ? value : key);
+        assert.equal(L(key), key, "moved words have no global copy");
+      }
+      assert.deepEqual(actual.words, Object.entries(moved.words).map(([key, value]) => [key, locale === "en" ? value : key, key, key]),
+        "real browser LFor uses the owner; global L and another owner have no restored copy");
+      for (const [key, value] of Object.entries(moved.capsule_words)) assert.equal(server(key), locale === "en" ? value : key);
+      assert.deepEqual(actual.capsule, Object.entries(moved.capsule_words).map(([key, value]) => [key, locale === "en" ? value : key]));
+      for (const sample of moved.interpolation) assert.equal(server(sample.key, sample.vars), sample[locale]);
+      assert.deepEqual(actual.interpolation, moved.interpolation.map(sample => sample[locale]));
+    });
+  }
+  assert.ok(markup(drawn["page-current.en"]!).includes('aria-label="Goal view"'), "the real Goals contribution draws the moved English in its markup");
 });

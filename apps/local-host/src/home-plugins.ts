@@ -1,4 +1,4 @@
-import type { HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
+import { stageContributionId, type HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -132,13 +132,24 @@ export class HomePluginHost {
    * back (their page says why), by name. A Home that did not start offers none, nor one whose library cannot be read now.
    */
   async navigation(): Promise<HomePluginNavigationEntry[]> {
-    let pages: { key: string; manifest: PluginManifest }[];
-    try { await this.ready(); pages = this.installed?.pages() ?? []; }
+    let pages: { key: string; manifest: PluginManifest }[], platform: HomePluginPlatform;
+    try { platform = await this.ready(); pages = this.installed?.pages() ?? []; }
     catch { return []; /* A Home that did not start, or whose library broke since, has no packages to offer. */ }
-    return pages.map(({ key, manifest }) => {
+    // A dual instance offers a Home tool only when that actual half supplies the Manifest's stage.
+    const dual = this.registered().flatMap(entry => {
+      const stage = this.dualInstance(entry.manifest.plugin_id) && entry.manifest.ui?.views?.find(view => view.slot === "stage");
+      if (!stage) return [];
+      const contribution = platform.supervisor.contribution(entry.manifest.plugin_id), id = stageContributionId(entry.manifest);
+      const view = contribution?.kind === "app" && contribution.views?.find(view => view.descriptor.contribution_id === id
+        && view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main"));
+      if (!view) return [];
+      const icon = entry.manifest.ui?.views?.find(view => view.slot === "navigator")?.icon;
+      return [{ plugin_id: entry.key, name: entry.manifest.name, ...icon ? { icon } : {}, surface: stage.view_id }];
+    });
+    return [...dual, ...pages.map(({ key, manifest }) => {
       const icon = manifest.ui?.views?.find(view => view.slot === "stage")?.icon;
       return { plugin_id: key, name: manifest.name, ...icon ? { icon } : {}, surface: this.packageSurface(key) ?? key };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => a.name.localeCompare(b.name))];
   }
   /**
    * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the

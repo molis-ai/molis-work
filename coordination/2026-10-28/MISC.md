@@ -228,3 +228,5 @@
 2026-11-01 03:18Z：T382/#1710已采用，BL926及artifact旧native路由例外随路径改名消失；T147建议②的该终态已落实，通用BL出处断言保留。①EXTENSION-POINTS余项仍按原T148前置，不因本次路径改名提前关闭。
 
 2026-11-01 04:40Z：T385 Full shard7 stop-feedback首轮paused投影超时、retry绿，旧因果UNKNOWN保留。准确源码未await真实pause transaction Promise，静态排序缺口已核并由T388/RAC2829～2830承接；仅await+一完整文件，不放宽超时/断言，不将storage两片归因或记新产品语义。
+
+2026-11-01 04:54Z：T385 Full的project-user-journey 390px重复Hidden目标由T389/RAC2831～2833承接有限H/M诊断。T384同文件绿仍非基线归因；不把失败先归storage/环境，不放宽断言，不重跑概率Full。

@@ -22,9 +22,8 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import fs from "node:fs";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { homeStageHalves } from "./home-plugin-http.js";
@@ -159,7 +158,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
 function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">) {
-  return async (): Promise<MolisWorkWebView> => {
+  return async (): Promise<GoalsWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.

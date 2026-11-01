@@ -1,5 +1,4 @@
 import { GOALS_PRESENTATION_STATES, type GoalsInputBinding } from "./document-view.js";
-import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalPresentationState } from "./tree-order.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 import { createGoalDocumentIndex } from "./document-index.js";
@@ -9,7 +8,7 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, proj
   const snapshot = ports.snapshot(projectId);
   const inputBindings = ports.inputs.list(projectId)
     .map(({ project_id: _projectId, ...binding }): GoalsInputBinding => binding);
-  const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(projectId);
+  const policyBindings = ports.goals.listPolicyHistory(projectId);
   const events = ports.events(projectId);
   const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listWorkEventGoalLinks(projectId));
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {

@@ -7,6 +7,9 @@ import { currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 
+/** The Host retains Goals' owner collection while the shell consumes only its platform view. */
+export type GoalsWebView = MolisWorkWebView & GoalsDocumentCollectionView;
+
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
   project?: WebProjectNavigation | null; projects?: WebProjectNavigation[]; routePrefix?: string;
@@ -16,7 +19,7 @@ export interface WebViewOptions {
 interface MolisWorkWebViewCacheEntry {
   cursor: number;
   optionsFingerprint: string;
-  view: MolisWorkWebView;
+  view: GoalsWebView;
 }
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
@@ -47,7 +50,7 @@ export async function optionalPluginQuery<I, O>(actions: BoundActionClient, defi
   }
 }
 
-export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = {}): MolisWorkWebView {
+export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = {}): GoalsWebView {
   return {
     snapshot: options.project
       ? { ...collection.snapshot, board: { ...collection.snapshot.board, project_id: "" } }
@@ -71,7 +74,7 @@ export async function cachedMolisWorkWebView(
   options: WebViewOptions,
   actions: BoundActionClient,
   goalsHere = true,
-): Promise<MolisWorkWebView> {
+): Promise<GoalsWebView> {
   // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400, by its plugin list)
   // reads as one with none; in a project with Goals, a read Goals refuses is an error to show.
   const collection = goalsHere ? await actions.invoke(goalsActions.collection, {}) : emptyGoalsDocumentCollection(options.projectId);
@@ -98,13 +101,13 @@ export async function cachedMolisWorkWebView(
 }
 
 export async function withSelectedEventDocument(
-  view: MolisWorkWebView,
+  view: GoalsWebView,
   goalId: string | undefined,
   actions: BoundActionClient,
-): Promise<MolisWorkWebView> {
+): Promise<GoalsWebView> {
   if (!goalId || ![...view.goals, ...view.archived_goals, ...view.trashed_goals].some(item => item.goal.goal_id === goalId)) return view;
   const eventDocument = await actions.invoke(goalsActions.document, { goal_id: goalId });
-  const decorate = (item: MolisWorkWebView["goals"][number]) =>
+  const decorate = (item: GoalsWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item, event_document: eventDocument } : item;
   return { ...view, goals: view.goals.map(decorate), archived_goals: view.archived_goals.map(decorate), trashed_goals: view.trashed_goals.map(decorate) };
 }

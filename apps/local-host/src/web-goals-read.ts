@@ -13,7 +13,7 @@ import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { renderGoalArtifactContext } from "./artifact-library-http.js";
-import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
+import { lookingForArea, withSelectedEventDocument, type WebViewOptions, type GoalsWebView } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -51,12 +51,12 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
  * that does not, the installed plugins' stages, and the plugin directory the shell is drawn from (the Manifests the Home and project
  * Runtimes run, and the installed plugins', read fresh for this page).
  */
-async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
+async function withProjectPluginSurfaces(view: GoalsWebView, input: {
   store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] };
   pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">;
   stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
-}): Promise<MolisWorkWebView> {
+}): Promise<GoalsWebView> {
   const { store, homeDirectory, pluginServices } = input;
   const surfacePorts = { ...pluginServices, store, projectId: input.projectId, actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml,
     translate: (value: string) => value, routePrefix: view.route_prefix };
@@ -81,7 +81,7 @@ export function createLocalGoalsReadHttp(ports: {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
   const { renderMolisWorkProjectSettingsHub, declaredPageSurface, renderMolisWorkWeb, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
-    readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
+    readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, actions: BoundActionClient,
     goalsHere: () => Promise<boolean>,
   ): Promise<boolean> {
     const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
@@ -123,7 +123,7 @@ export function createLocalGoalsReadHttp(ports: {
     return false;
   }
   async function fragments(request: IncomingMessage, response: ServerResponse, url: URL,
-    readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
+    readWebView: () => GoalsWebView | Promise<GoalsWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
     const match = matchPageRoute(url);
@@ -155,7 +155,7 @@ export function createLocalGoalsReadHttp(ports: {
     return false;
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
-    homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, _goalActions: BoundActionClient, artifactActions: BoundActionClient,
+    homeDirectory: string | undefined, readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, _goalActions: BoundActionClient, artifactActions: BoundActionClient,
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
@@ -212,12 +212,12 @@ export function createLocalGoalsReadHttp(ports: {
 }
 
 async function withSelectedGoalDocument(
-  view: MolisWorkWebView,
+  view: GoalsWebView,
   goalId: string | undefined,
   goalActions: BoundActionClient,
   actions: BoundActionClient,
   collection: "current" | "archive" | "trash" = "current",
-): Promise<MolisWorkWebView> {
+): Promise<GoalsWebView> {
   const eventView = await withSelectedEventDocument(view, goalId, goalActions);
   if (!goalId) return eventView;
   const visible = collection === "trash" ? eventView.trashed_goals : collection === "archive" ? eventView.archived_goals : eventView.goals;
@@ -228,14 +228,14 @@ async function withSelectedGoalDocument(
     goalActions.invoke(goalsActions.policyResolve, { goal_id: goalId }),
   ]);
   const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
-  const decorate = (item: MolisWorkWebView["goals"][number]) => item.goal.goal_id === goalId
+  const decorate = (item: GoalsWebView["goals"][number]) => item.goal.goal_id === goalId
     ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy } : item;
   return withGoalArtifactContext({ ...eventView, goals: eventView.goals.map(decorate), archived_goals: eventView.archived_goals.map(decorate),
     trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, collection);
 }
 
-async function withGoalArtifactContext(eventView: MolisWorkWebView, goalId: string, actions: BoundActionClient,
-  collection: "current" | "archive" | "trash"): Promise<MolisWorkWebView> {
+async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, actions: BoundActionClient,
+  collection: "current" | "archive" | "trash"): Promise<GoalsWebView> {
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
@@ -258,7 +258,7 @@ async function withGoalArtifactContext(eventView: MolisWorkWebView, goalId: stri
     // Keep the relation data untouched and show why its contents cannot be read.
     html = `<p class="empty-state" data-artifact-unavailable>${escapeHtml(L(error.message))}</p>`;
   }
-  const decorate = (item: MolisWorkWebView["goals"][number]) =>
+  const decorate = (item: GoalsWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item,
       ...(html === undefined ? {} : { artifact_embed_html: html, artifact_outputs: outputs, artifact_inputs: inputs }) } : item;
   return {

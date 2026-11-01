@@ -1,7 +1,8 @@
 import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { PAGE_PLUGINS_WITHOUT_SELECTION } from "@molis-ai/molis-work-app-workbench";
+import type { GoalsWebView } from "./web-view.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
@@ -43,7 +44,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly goalActions: ReturnType<typeof bindGoalsWebActions>;
   readonly pluginServices: ProjectPluginServices;
   readonly pluginPorts: ProjectPluginSurfacePorts;
-  readonly readWebView: () => Promise<MolisWorkWebView>;
+  readonly readWebView: () => Promise<GoalsWebView>;
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home, its plugins and settled reviews. */

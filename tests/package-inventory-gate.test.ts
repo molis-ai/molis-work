@@ -7,12 +7,12 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { plannedDepth } from "../scripts/gates/package-inventory.mjs";
 
-// specs/repository-anti-corruption §5 (W1-18): the package inventory table lists exactly the workspace packages, with the
+// RAC-2898/RAC-2900 (W1-18): PACKAGE-BOUNDARIES.md's current table lists exactly the workspace packages, with the
 // layer and the status the code gives them. Each rule is mutation-verified on a small scratch repository: the table that
 // the generator printed passes, and one cell changed, one row removed or added, or one package edited fails.
 const gateScript = fileURLToPath(new URL("../scripts/gates/package-inventory.mjs", import.meta.url));
 const healthScript = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
-const DOC = "specs/repository-anti-corruption/spec.md";
+const DOC = "docs/system/PACKAGE-BOUNDARIES.md";
 let repo = "";
 
 const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: repo, encoding: "utf8", stdio: "pipe" });
@@ -62,7 +62,7 @@ const buildProduct = () => {
   writePackage(named("modules/standalone"));
 };
 const table = () => run(gateScript, "--table").stdout;
-const writeDoc = (rows = table()) => put(DOC, `# Spec\n\n状态：进行中\n\n## 5. 包级清单\n\n${rows}\n### 5.x 其余\n\n正文。\n`);
+const writeDoc = (rows = table()) => put(DOC, `# Package 边界规则\n\n## 7. 现行包清单\n\n${rows}\n### 其余\n\n正文。\n`);
 const editDoc = (change: (text: string) => string) => put(DOC, change(read(DOC)));
 
 before(() => {

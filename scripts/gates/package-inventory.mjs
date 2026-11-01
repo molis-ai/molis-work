@@ -1,4 +1,4 @@
-// Package inventory (specs/repository-anti-corruption §5, §4.4): one row per workspace package, measured from the code
+// Package inventory (docs/system/PACKAGE-BOUNDARIES.md, 现行包清单): one row per workspace package, measured from the code
 // and kept true by a gate. The gate is wired into check-health-gates.mjs (an absolute rule, no merge-base comparison).
 //
 //   node scripts/gates/package-inventory.mjs --table [--root <dir>]   print the table rows measured from the code
@@ -17,8 +17,8 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { homeRuntimePackages, projectRuntimePackages } from "./home-runtime-entries.mjs";
 
-/** Where the table lives. When the spec is archived, move the table (and this constant) to docs/system. */
-export const INVENTORY_DOC = "specs/repository-anti-corruption/spec.md";
+/** The single current inventory table; historical review evidence stays in the anti-corruption spec. */
+export const INVENTORY_DOC = "docs/system/PACKAGE-BOUNDARIES.md";
 /** The file that starts the Plugin Runtime plugins (the proof tests/builtin-plugin-assembly-gate.test.ts also uses). */
 export const PLUGIN_SUPERVISOR = "apps/local-host/src/project-plugins.ts";
 /** Root tsconfig.json compiles these into the bins of package.json (molis-work, molis-work-mcp, molis-work-web). */

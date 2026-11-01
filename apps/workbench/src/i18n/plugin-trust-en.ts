@@ -1,6 +1,5 @@
 /** English for 插件 in project settings: installed plugins, their permissions and agreements, installing a signed package (ac-trust T7). */
 export const PLUGIN_TRUST_EN: Record<string, string> = {
-  "项目读写": "Project access",
   "读写当前项目": "Read and write this project",
   "未同意": "Not approved",
   "已同意": "Approved",
@@ -11,10 +10,10 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "新增声明的动作": "Newly declared actions",
   "同意读写这个项目": "Allow access to this project",
   "同意读写这个项目？": "Allow access to this project?",
-  "允许 {plugin} 按它声明的动作读写项目 {project}。这不会给它其他项目的同意。": "Allow {plugin} to read and write project {project} through its declared actions. This does not approve access to any other project.",
+  "允许 {plugin} 按它声明的动作读写“{project}”。这不会给它其他项目的同意。": "Allow {plugin} to read and write “{project}” through its declared actions. This does not approve access to any other project.",
   "撤回当前项目的同意": "Withdraw approval for this project",
   "撤回当前项目的同意？": "Withdraw approval for this project?",
-  "{plugin} 将不能再读写项目 {project}。其他项目的同意保持原状。": "{plugin} will no longer be able to read or write project {project}. Approvals for other projects stay as they are.",
+  "{plugin} 将不能再读写“{project}”。其他项目的同意保持原状。": "{plugin} will no longer be able to read or write “{project}”. Approvals for other projects stay as they are.",
   "已同意读写当前项目": "Access to this project approved",
   "已撤回当前项目的同意": "Approval for this project withdrawn",
   "这个项目里装着的插件：谁签的名、要了哪些权限、在后台做什么，以及你给过它们的同意。": "The plugins installed in this project: who signed them, what they asked for, what they do in the background, and the agreements you gave them.",

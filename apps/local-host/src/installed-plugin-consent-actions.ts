@@ -6,6 +6,8 @@ import { consentsChanged } from "./consent-revision.js";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry, assertProjectReachSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { pluginInstallActions } from "./plugin-install-actions.js";
 import type { ProjectReachConsents, ProjectReachSelection, ProjectReachView } from "./plugin-project-reach-consent.js";
+import type { CatalogCapability } from "./plugin-builder/catalog.js";
+import { latestCapability } from "./plugin-builder/capabilities.js";
 
 // Taking an agreement back (ac-trust T5, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-77). The Home's consent ledger
 // holds one row for each declaration of a plugin that changes what it does elsewhere (常开, a default wiring, a default input group). Only
@@ -34,6 +36,11 @@ const consentView = {
 };
 
 const strings = { type: "array", items: { type: "string" } };
+interface ReachCapability { capability_id: string; title: string; description: string; available: boolean }
+interface ReachOverview { plugins: ProjectReachView[]; project_name: string; capabilities: ReachCapability[] }
+type ReachDetails = (projectId: string) => Promise<{ project_name: string; capabilities: readonly CatalogCapability[] }>;
+const reachCapability = { type: "object", additionalProperties: false, required: ["capability_id", "title", "description", "available"],
+  properties: { capability_id: { type: "string" }, title: { type: "string" }, description: { type: "string" }, available: { type: "boolean" } } };
 const reachView = { type: "object", additionalProperties: false,
   required: ["plugin_id", "name", "publisher_signature", "version", "snapshot", "state", "capability_ids", "added_capability_ids", "consent", "error"],
   properties: { plugin_id: { type: "string" }, name: { type: "string" }, publisher_signature: { type: "string" }, version: { type: "string" }, snapshot: { type: "string" },
@@ -42,14 +49,15 @@ const reachView = { type: "object", additionalProperties: false,
 const reachSelection = { type: "object", additionalProperties: false, required: ["plugin_id", "snapshot"],
   properties: { plugin_id: { type: "string", pattern: PLUGIN_ID, maxLength: 160 }, snapshot: { type: "string", minLength: 1, maxLength: 1000 } } };
 const reachAction = (name: "list" | "grant" | "revoke", title: string): ActionDefinition => ({
-  capability_id: "plugins.project_reach." + name, version: 1, operation: name === "list" ? "query" : "command", action: { ...metadata, scope: "project", title,
+  capability_id: "plugins.project_reach." + name, version: name === "list" ? 2 : 1, operation: name === "list" ? "query" : "command", action: { ...metadata, scope: "project", title,
     description: "本人在当前项目设置里管理一个 Home 签名包读写此项目的同意。", kind: name === "list" ? "query" : "operation",
     effect: name === "list" ? "read" : "write", permissions: [name === "list" ? PLUGIN_CONSENT_READ : PLUGIN_CONSENT_WRITE],
     input_schema: name === "list" ? { type: "object", properties: {}, additionalProperties: false } : reachSelection,
-    output_schema: name === "list" ? { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: reachView } } }
+    output_schema: name === "list" ? { type: "object", additionalProperties: false, required: ["plugins", "project_name", "capabilities"], properties: {
+      plugins: { type: "array", items: reachView }, project_name: { type: "string" }, capabilities: { type: "array", items: reachCapability } } }
       : { type: "object", additionalProperties: false, required: ["plugin"], properties: { plugin: reachView } } } });
 export const projectReachActions = {
-  list: reachAction("list", "查看 Home 插件对当前项目的同意") as ActionDefinition<Record<string, never>, { plugins: ProjectReachView[] }>,
+  list: reachAction("list", "查看 Home 插件对当前项目的同意") as ActionDefinition<Record<string, never>, ReachOverview>,
   grant: reachAction("grant", "同意 Home 插件读写当前项目") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,
   revoke: reachAction("revoke", "撤回 Home 插件对当前项目的同意") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,
 };
@@ -97,7 +105,7 @@ export function assertPluginConsentActionEntry(caller: ActionCallContext, refere
 }
 
 /** The Host's own provider of the person's agreements; it grants nothing to a plugin. */
-export function pluginConsentProvider(ledger: PluginConsentLedger, projectReach?: () => Promise<ProjectReachConsents>): ActionProviderRegistration {
+export function pluginConsentProvider(ledger: PluginConsentLedger, projectReach?: () => Promise<ProjectReachConsents>, details?: ReachDetails): ActionProviderRegistration {
   const reachHandlers: ActionHandlerBinding[] = Object.entries(projectReachActions).map(([name, action]) => ({ capability_id: action.capability_id, version: action.version,
     handle: async (caller, input) => {
       assertProjectReachSettingsEntry(caller);
@@ -105,7 +113,17 @@ export function pluginConsentProvider(ledger: PluginConsentLedger, projectReach?
       const owner = await projectReach();
       const check = async () => { await caller.beforeEffect(); assertProjectReachSettingsEntry(caller); };
       await check();
-      if (name === "list") return { plugins: owner.list(caller.project_id!) };
+      if (name === "list") {
+        if (!details) throw new ActionError("actions.unavailable", "项目与动作说明尚未就绪");
+        const info = await details(caller.project_id!);
+        await check();
+        const plugins = owner.list(caller.project_id!), ids = [...new Set(plugins.flatMap(plugin => plugin.capability_ids))].sort();
+        const capabilities = ids.map(capability_id => {
+          const entry = latestCapability(info.capabilities, capability_id) ?? info.capabilities.filter(item => item.id === capability_id).sort((a, b) => b.version - a.version)[0];
+          return { capability_id, title: entry?.title ?? capability_id, description: entry?.consent ?? "", available: Boolean(entry?.offered && entry.installed) };
+        });
+        return { plugins, project_name: info.project_name, capabilities };
+      }
       return { plugin: await owner[name === "grant" ? "grant" : "revoke"](caller.project_id!, input as ProjectReachSelection, check) };
     } }));
   return { provider: { provider_id: PLUGIN_CONSENT_PROVIDER_ID, title: "插件的同意", kind: "system" },

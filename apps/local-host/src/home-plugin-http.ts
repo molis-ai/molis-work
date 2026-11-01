@@ -1,3 +1,4 @@
+import { withProjectReachInvocation } from "./plugin-project-reach-subject.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
@@ -34,7 +35,7 @@ export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly 
  */
 export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
   host: MolisWorkLocalHost, controlToken: string, csp: string, projectPlugins?: HomeRouteProjectPlugins): Promise<boolean> {
-  const prefixed = /^\/projects\/([^/]+)(\/(?:api\/plugins\/[^/]+\/.*|side\/[^/]+\/[^/]+))$/u.exec(incomingUrl.pathname);
+  const prefixed = /^\/projects\/([^/]+)(\/(?:api\/plugins\/[^/]+\/.*|side\/[^/]+\/[^/]+|plugins\/[^/]+))$/u.exec(incomingUrl.pathname);
   const url = prefixed ? new URL(prefixed[2]! + incomingUrl.search, incomingUrl) : incomingUrl;
   // A page's key is a shipped plugin's project key or another Home plugin's id (dotted); see HomePluginHost.registered.
   const sidePage = /^\/side\/([a-z0-9][a-z0-9.-]*)\/([a-z0-9-]+)$/u.exec(url.pathname);
@@ -103,10 +104,10 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (host.homePlugins.hasPackage(pluginId)) {
       const surface = host.homePlugins.packageSurface(pluginId);
       try {
-        const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken)!
+        const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null)!
           : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
             // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
-            { L, htmlLang, clientI18nScript }, false, false, project, surface ? `/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
+            { L, htmlLang, clientI18nScript }, false, false, project, surface ? `${project ? `/projects/${encodeURIComponent(project.project_id)}` : ""}/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
         response.end(body);
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
@@ -161,8 +162,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
       if (found instanceof ActionError) throw found;
     }, caller, { id: randomUUID() });
-    const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
-      execution: routed?.control ?? plain,
+    const execution = routed?.control ?? plain;
+    const dispatch = () => dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
+      execution,
       stop,
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
@@ -171,6 +173,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
           error instanceof Error ? error.message : "请求读取失败"); }
       },
     });
+    const handled = install && host.homePlugins.hasPackage(pluginId)
+      ? await withProjectReachInvocation(execution, project?.project_id ?? null, install, dispatch) : await dispatch();
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
@@ -280,7 +284,7 @@ function homeViewModel(pluginId: string) {
  * drawn here, the unavailable shell included, is reported by the contribution that would draw it, so the shell's declared
  * stages do not draw it again.
  */
-export async function renderHomePluginStages(host?: HomePluginHost, options?: { page_owner?: string; model(projectPluginId: string): unknown }): Promise<{ html: string[]; ids: string[]; unavailable: UnavailablePluginStage[]; page?: RenderedStagePage }> {
+export async function renderHomePluginStages(host?: HomePluginHost, options?: { project_id?: string; page_owner?: string; model(projectPluginId: string): unknown }): Promise<{ html: string[]; ids: string[]; unavailable: UnavailablePluginStage[]; page?: RenderedStagePage }> {
   if (!host) return { html: [], ids: [], unavailable: [] };
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
   try { platform = await host.ready(); }
@@ -314,7 +318,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     // A signed package installed in the Home is drawn as every installed plugin's stage is, a frame of its own page; one that did not come back says why.
     if (host.hasPackage(pluginId)) {
       const surface = host.packageSurface(pluginId);
-      if (surface) return [installedStageSection({ pluginId, surface, label: entry.manifest.name, prefix: "" })];
+      if (surface) return [installedStageSection({ pluginId, surface, label: entry.manifest.name, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" })];
       unavailable.push(homeUnavailableStage(host, platform, failure, entry));
       return [];
     }

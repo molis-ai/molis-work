@@ -1,3 +1,4 @@
+import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { FEED_ACTION_PERMISSIONS, feedQueryActions, feedRuleActions, promoteOffered } from "@molis-ai/molis-work-plugin-feed";
@@ -130,6 +131,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   } },
   homePluginsRoute,
   pluginPageRoute, directoryGrantRoute,
+  { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {
@@ -183,7 +185,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
         inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
-    const homeStages = await renderHomePluginStages(localHost.homePlugins, { page_owner: view.page_owner, model: pluginId => composition.workbenchRenderer.declaredStageModel(pluginId, view) });
+    const homeStages = await renderHomePluginStages(localHost.homePlugins, { project_id: hostReference.project_id, page_owner: view.page_owner, model: pluginId => composition.workbenchRenderer.declaredStageModel(pluginId, view) });
     return { ...view, plugin_stages: homeStages.html, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable, home_plugin_nav: await localHost.homePlugins?.navigation() ?? [], plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
       ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };

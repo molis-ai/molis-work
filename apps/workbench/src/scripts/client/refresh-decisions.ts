@@ -115,7 +115,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const refreshBoard = async (force = false, signal = boardVisibleSignal) => {
-      if (syncing || document.hidden || (boardLifetime && !boardLifetime.visible)) return;
+      if (!goalData || syncing || document.hidden || (boardLifetime && !boardLifetime.visible)) return;
       if (!force && searchInteractionActive()) {
         scheduleDeferredRefresh();
         return;
@@ -290,8 +290,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       translate: LFor("io.molis.work.goals"), route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
     });
 
-    bindTreeSearchEvents();
-    documentPane.addEventListener("scroll", queueSave, { passive: true });
+    if (goalData) {
+      bindTreeSearchEvents();
+      documentPane.addEventListener("scroll", queueSave, { passive: true });
+    }
     document.addEventListener("toggle", (event) => {
       if (event.target.matches?.("[data-persist-open]")) queueSave();
     }, true);

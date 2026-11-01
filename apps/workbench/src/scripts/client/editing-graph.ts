@@ -118,7 +118,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setNavigatorView: (...args) => setNavigatorView(...args),
       });
     const setWorkspaceMode = (view, persist = true, preserveMobile = false) => {
-      const graph = graphElement();
+      const graph = goalData ? graphElement() : null;
       const nextMode = view === "graph" && graph
         ? "graph"
         : view === "runtime" && tuiPane
@@ -129,7 +129,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       workspace.dataset.navigatorView = navigatorView;
       workspace.dataset.workspaceMode = nextMode;
       workspace.classList.toggle("is-graph-view", nextMode === "graph");
-      const canvasActive = Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goals";
+      const canvasActive = goalData && Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goals";
       if (canvasActive) {
         documentPane.hidden = false;
         if (tuiPane) tuiPane.hidden = false;
@@ -147,8 +147,10 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         if (persist) queueSave();
         return;
       }
-      syncGoalWorkspace(nextMode, false);
-      documentPane.hidden = nextMode !== "focus";
+      if (goalData) {
+        syncGoalWorkspace(nextMode, false);
+        documentPane.hidden = nextMode !== "focus";
+      }
       if (tuiPane) tuiPane.hidden = nextMode !== "runtime";
       document.querySelectorAll("button[data-navigator-view]").forEach((button) => {
         const active = button.dataset.navigatorView === navigatorView;
@@ -205,7 +207,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setMobileView: (...args) => setMobileView(...args),
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
-        getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
+        getDocumentGoalId: () => goalData ? documentPane.querySelector("[data-goal-view]")?.dataset.goalView : undefined,
         selectFeedItem: (...args) => selectFeedItem(...args),
         selectInboxEntry: (...args) => selectInboxEntry(...args),
         getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,

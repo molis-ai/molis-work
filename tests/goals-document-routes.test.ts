@@ -3,8 +3,12 @@ import test from "node:test";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome } from "./fixtures/test-home.js";
-import { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
+import { goalsManifest, goalsReadRouteOf, goalsPageRouteOf, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
+import { matchDeclaredPageRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { createGoalsFragmentRenderer, renderGoalsReadRoute, renderGoalsReadRequest, renderGoalsPageRequest, type GoalsReadRenderers } from "@molis-ai/molis-work-plugin-goals/page";
+
+/** The Host's match of a request, as the Host makes it: one matcher over the plugins' declared page routes (T-116). */
+const matchOf = (path: string) => { const url = new URL(path, "http://fixture.test"); return matchDeclaredPageRoute([goalsManifest], url.pathname, url.searchParams); };
 
 test("fragment composition selects the correct owner and preserves collection restrictions, context and prefix behavior", () => {
   const goal = (goal_id: string, archived_at: string | null = null, trashed_at: string | null = null) =>
@@ -38,7 +42,7 @@ test("Workbench request dispatch rejects invalid requests before reading views o
   const view = { goals: [{ goal: { goal_id: "current" } }], archived_goals: [{ goal: { goal_id: "archived" } }],
     trashed_goals: [{ goal: { goal_id: "trash" } }] };
   let reads = 0, renders = 0;
-  const request = (method: string, path: string) => renderGoalsPageRequest(method, path,
+  const request = (method: string, path: string) => renderGoalsPageRequest(method, matchOf(path),
     () => { reads++; return view; },
     async (input, selection) => { assert.equal(input, view); renders++; return JSON.stringify(selection); });
   // "/decisions" was a Goal-era page of its own (the Inbox opened as a page); it is not a route any more.
@@ -65,30 +69,39 @@ test("Workbench request dispatch rejects invalid requests before reading views o
   }
   assert.deepEqual(await request("GET", "/trash/goals/current"), { status: 404, error: "找不到这个 Goal: current" });
   let ownerLoads = 0;
-  const owners = () => { ownerLoads++; throw new Error("Owner load"); };
-  assert.equal(renderGoalsReadRequest("POST", "/api/goals/current/document", new URLSearchParams(), owners), null);
-  assert.equal(renderGoalsReadRequest("GET", "/api/board", new URLSearchParams(), owners), null);
-  assert.deepEqual(renderGoalsReadRequest("GET", "/api/goals/%/document", new URLSearchParams(), owners),
-    { status: 404, error: "Goal 内容不存在" });
-  assert.deepEqual(renderGoalsReadRequest("GET", "/api/board/refresh", new URLSearchParams("view=bad"), owners),
-    { status: 400, error: "Goal 正文集合无效" });
+  const load = () => { ownerLoads++; throw new Error("Owner load"); };
+  const create = (): GoalsReadRenderers => { throw new Error("Renderers are created only after the owners load"); };
+  const read = (method: string, path: string) => renderGoalsReadRequest(method, matchOf(path), load, create);
+  assert.equal(await read("POST", "/api/goals/current/document"), null);
+  assert.equal(await read("GET", "/api/board"), null);
+  assert.deepEqual(await read("GET", "/api/goals/%/document"), { status: 404, error: "Goal 内容不存在" });
+  assert.deepEqual(await read("GET", "/api/board/refresh?view=bad"), { status: 400, error: "Goal 正文集合无效" });
   assert.equal(ownerLoads, 0);
-  assert.throws(() => renderGoalsReadRequest("GET", "/api/board/refresh", new URLSearchParams(), owners), /Owner load/);
+  await assert.rejects(read("GET", "/api/board/refresh"), /Owner load/);
   assert.equal(ownerLoads, 1, "Recognized requests propagate provider failures to the existing HTTP error boundary");
 });
 
-test("public route descriptors decode once, preserve collection/offset boundaries and leave unrelated paths alone", () => {
-  const read = (path: string) => { const url = new URL(path, "http://fixture.test"); return resolveGoalsReadRoute(url.pathname, url.searchParams); };
+test("declared route matches decode once, preserve collection/offset boundaries and leave unrelated paths alone", () => {
+  const read = (path: string) => goalsReadRouteOf(matchOf(path));
   assert.deepEqual(read("/api/goals/goal%252Fname/document?view=archive"), { route: { kind: "document", goal_id: "goal%2Fname", collection: "archive" } });
   assert.deepEqual(read("/api/board/refresh?goal_id=%20one%20&view=trash"), { route: { kind: "refresh", goal_id: "one", collection: "trash" } });
   assert.deepEqual(read("/api/board/momentum?goal_id=%20&view=archive"), { route: { kind: "momentum", goal_id: "", collection: "archive" } });
   assert.deepEqual(read("/api/goals/%/document?view=bad"), { status: 404, error: "Goal 内容不存在" });
   for (const path of ["/api/goals/one/draft", "/api/goals/one/panels/progress", "/api/goals/one/records", "/api/goals/one/quick-record", "/api/goals/one/record-events", "/api/goals/a/b/document", "/api/goals/one/document/", "/api/board"]) assert.equal(read(path), null, path);
-  assert.deepEqual(resolveGoalsPageRoute("/"), { route: { collection: "current" } });
-  assert.deepEqual(resolveGoalsPageRoute("/archive"), { route: { collection: "archive" } });
-  assert.deepEqual(resolveGoalsPageRoute("/trash/goals/a%252Fb"), { route: { collection: "trash", goal_id: "a%2Fb" } });
-  assert.deepEqual(resolveGoalsPageRoute("/goals/%"), { status: 404, error: "Goal 页面不存在" });
-  for (const path of ["/decisions", "/settings/planning", "/goals/a/b", "/archive/", "/projects/one/goals/a"]) assert.equal(resolveGoalsPageRoute(path), null, path);
+  const page = (path: string) => goalsPageRouteOf(matchOf(path));
+  assert.deepEqual(page("/"), { route: { collection: "current" } });
+  assert.deepEqual(page("/archive"), { route: { collection: "archive" } });
+  assert.deepEqual(page("/trash/goals/a%252Fb"), { route: { collection: "trash", goal_id: "a%2Fb" } });
+  assert.deepEqual(page("/goals/%"), { status: 404, error: "Goal 页面不存在" });
+  for (const path of ["/decisions", "/settings/planning", "/goals/a/b", "/archive/", "/projects/one/goals/a"]) assert.equal(page(path), null, path);
+  // RAC-2681: a declared parameter over the limit is refused, never cut; and another plugin's route is not Goals' to read.
+  const long = "g".repeat(257);
+  assert.deepEqual(page("/goals/" + long), { status: 404, error: "Goal 页面不存在" });
+  assert.deepEqual(read("/api/goals/" + long + "/document"), { status: 404, error: "Goal 内容不存在" });
+  assert.deepEqual(read("/api/board/refresh?goal_id=" + long), { status: 400, error: "Goal 请求参数无效" });
+  const other = { plugin_id: "io.example.other", route_id: "goal-page", params: { goal_id: "a" } };
+  assert.equal(goalsPageRouteOf(other), null);
+  assert.equal(goalsReadRouteOf({ ...other, route_id: "board-refresh" }), null);
 });
 
 test("Workbench routes call only the selected owner with exact inputs and retain empty/missing response semantics", () => {

@@ -3418,6 +3418,7 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
+        page_routes?: UiPageRouteDeclaration[];
         messages?: PluginMessagesDeclaration;
         translations?: PluginTranslationsDeclaration;
     };

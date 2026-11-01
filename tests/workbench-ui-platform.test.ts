@@ -14,11 +14,13 @@ import {
   BUILTIN_PLUGIN_CATALOG,
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
+  mountContributionsOf,
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "@molis-ai/molis-work-plugin-goals/page";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -185,6 +187,23 @@ function surfaceSlotProblems(
   }
   return problems;
 }
+
+test("T-116 a page is mounted only on its own plugin's contributions: another plugin's contribution id is refused by the host", () => {
+  const host = createWorkbenchUiHost();
+  const mountable = host.list().filter(item => (item.surfaces?.length ?? 0) > 0);
+  const own = mountable.find(item => item.plugin_id === GOALS_PLUGIN_ID), foreign = mountable.find(item => item.plugin_id !== GOALS_PLUGIN_ID);
+  assert.ok(own && foreign, "the workbench host holds Goals' contributions and another plugin's");
+  const code = (expected: string, kind?: string) => (error: unknown) => error instanceof ActionError && error.code === expected && (kind === undefined || error.kind === kind);
+  const mount = mountContributionsOf(GOALS_PLUGIN_ID, host);
+  // The Goals page's mount: a contribution another plugin owns is refused, whatever surface it names.
+  assert.throws(() => mount(foreign.contribution_id, foreign.surfaces![0]!.surface_id, {}), code("ui_host.plugin_denied", "forbidden"));
+  assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: foreign.surfaces![0]!.surface_id, model: {} }, GOALS_PLUGIN_ID), code("ui_host.plugin_denied"));
+  // Its own contribution passes the owner check: it stops at the next check (this surface is not declared), not at ownership.
+  assert.throws(() => mount(own.contribution_id, "no-such-surface", {}), code("ui_host.surface_invalid"));
+  assert.throws(() => mount("io.molis.work.absent.v1", "panel", {}), code("ui_host.contribution_not_found"));
+  // Without an owner the host mounts as before: the same foreign contribution is not refused for ownership.
+  assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: "no-such-surface", model: {} }), code("ui_host.surface_invalid"));
+});
 
 test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers, or one a plugin that embeds it opens", () => {
   const embeddedBy = new Map(BUILTIN_PLUGIN_CATALOG.map((entry) => [entry.manifest.plugin_id, entry.manifest.ui.embedded_plugins ?? []]));

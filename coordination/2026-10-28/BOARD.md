@@ -11,7 +11,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用 main 为 f47fa0da（T389/#1718）。PR1b 修复80e3bf已推#1680，原红Product完整文件在新CI待核。T385/2b391与T387/03c712已推原PR且本地增量审验通过；T386/9214已发布#1721，同样待CI/适用SI与自身Full。T141正常同步/资源核验由开发1负责，T353B当前main同步由开发2负责，T144由开发3继续，开发4只读准备CI#1673接续。T392#1720常规CI已核绿、Full41287970493在途；T146 Full41288807896在途。公共build和全部测试各1槽，Full最多两份；原失败/UNKNOWN保留。
+当前已采用 main 为 f47fa0da（T389/#1718）。PR1b #1680@80e3bf新CI/Verify、Product436首轮与原红route-table完整2/2已核，SI文件级通过，nonpass边界保留；自身Full待预算。T385/2b391、T387/03c712、T386#1721/9214和T353B/45b3已推，独立本地增量核收，CI核验接续。T141#1722@817809已发布并补齐两个Mac完整文件18/18，CI/Full未结。T144和CI#1673继续实施；T145、PR1c、PG070做已有工程书的只读接续，未采用候选不解除前置。T392 Full41287970493及T146 Full41288807896仍在途。公共build和全部测试各1槽，Full预算不变；原失败/UNKNOWN保留。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -304,7 +304,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
 | T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4；原二审线5交线4接资源增量 | #1661 已合 a1117b3ba；整树与稳定patch-id已核同，审计6550512963 | full=false；准确CI四完整59/59已核；原Mac/DOM UNKNOWN保留；原作者树清理被自动审批拦截，等具体确认 | 原产品/测试及资源锁释放；本地task/T351-a与原树保留 |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
-| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1/独立验证一审线2/二审线1，C开发线2 | A已合；B #1682已普通推2de956e7，M6729增量审验核收；C #1683待B采用 | 新H自身CI/Full待结，旧Full失败保留；C采用后再retarget | 原30路径/28非资源blob同；三gate307/307、48资源仅Jelly+33B；作者已冻结交窗 |
+| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex统筹；B开发线2/原验证一审线2/二审线1；C开发线2/验证线1/二审线5 | A已合；B #1682已推45b3dbff，正常合M f47且独立增量核收；C #1683@07592仍待B采用 | B自身CI/Full待结，旧失败保留；C正文已纠正并发布新版gate独立补证6555971100，full=true | B30路径，非资源patch保持、registry合成main；48资源仅Jelly+33B，171/171；C不提前retarget |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
 | T-355 | 急：`form.fill.too-long` 的英文改成 fill-message 测试认可的写法（main 红 VUX-40，挡集成分支 Full） | 丙 | A | 0.1 | — | `plugins/native/form/src/messages.ts` |
 | T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 已合（10-31，#1685 → `a9fbdf756`；Codex 统筹） | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |
@@ -333,7 +333,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-381 | Goals创建后返回导航重复超时（RAC-2807～2809） | 丙 | Codex 开发线2；验证线3/二审线5 | #1709已采用main328d5b612；合入6552463056；patch-id/整树同 | full=false；独立最终3/3、二审、Verify齐；历史超时因果UNKNOWN保留 | 自有作者树/本地分支已清，原件与独立副本保留；测试锁释放 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
-| T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex开发线1；验证4；加强二审t141_final_review | 4742配套本地核收，正常合流M f47后构建/资源进行中 | full=true；原56/128/539及实操不重跑，不预签最终N | tasks/T-141.md；共享SI/slice/资源根串行 |
+| T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex开发线1；原验证4/最终增量t141_increment_verify；加强二审t141_final_review | #1722@817809fd已发布，正常合M f47，最终独立增量及二审通过 | full=true；原56/128/539/85保来源；新N Mac两完整文件18/18已核，CI/Full待结 | 原20路径+共享配套，48资源仅workbench减12B；不关闭PG011/017整行 |
 | T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex开发线3；独立二审线1 | A–D实施中，T141四文件已冻结交接 | full=true；只写自身M树原hunk，后继普通合成；真实模型体验未验 | 详plans/T144-current/WINDOW.md；保护分支不动 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给Goals并走平台启动终端服务（BL-695/637/508） | 甲 | Codex 开发线1 | 已合 #1643 → `0926d15a9`；patch-id核同；自有树/分支已清理 | 后片T-148已交开发线4 | 已释放 |
@@ -341,7 +341,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-139 | PG-011、PG-017 余项的设计稿与待用户拍板的六问（只写文档；BL-916～924 按需；full=false；统筹大单） | 甲 | A-Claude | 统筹定 | — | `specs/repository-anti-corruption/slices/pg011-pg017-remaining.md`（新）、`specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md`（只第 3 行与 §3.8）、`specs/repository-anti-corruption/slices/pg017-sandbox-services.md`（只 §3.8 表）、`specs/BACKLOG.md`（只 BL-491/493/916 新行与 BL-710～714 行） |
 | T-060 | 助理底栏脚本 assistant-island.ts 按职责拆成十二个部件，原位拼回、程序逐字节可证，绕开 #1101 七段（W5-10；用户 10-30 定现在拆；RAC-2570～2577；full=true；统筹大单） | 甲 | A-Claude | 已合（10-31，#1636 → `4e96bb47e`） | — | `apps/workbench/src/scripts/client/assistant-island.ts`；同目录 12 个新文件（`assistant-choosers/-browser-handback/-layout/-conversation/-side-kit/-side-path/-strip/-tabs/-notices/-materials/-composer/-page-messages.ts`）；`packages/contracts/src/platform/dom-events.ts`（只 :67）；`tooling/gates/api/contracts/platform/dom-events.txt`（只 api:update）；`tests/assistant-island-script.test.ts`；`docs/system/HUGE-CLASS-MIGRATION.md`（只 :103/:105/:258/:313）；`tooling/gates/baseline.json`（只 --update --base） |
 | T-400 | 缺权限与助理关掉的动作在源头带被拒的 kind，搜索按 kind 认被拒的读取器（MISC「T-131 二审 建议（6527887667）」；RAC-2670～2676；碰 S-08；full=true；统筹大单） | 甲 | A-Claude | 已合（10-31，#1637 → `e3b553d33`） | — | `apps/local-host/src/mcp-action-grants.ts`、`apps/local-host/src/mcp-action-client.ts`（不碰 `:11`）、`apps/local-host/src/mcp-background-authority.ts`、`apps/local-host/src/assistant/assistant-errors.ts`、`apps/local-host/src/assistant/assistant-authority.ts`、`horizontal/search/src/index.ts`、`tests/external-mcp-dispatch.test.ts`、`tests/mcp-effect-authority.test.ts`、`tests/mcp-scene-effect-authority.test.ts`、`tests/system-search.test.ts`（只在末尾加）、`tests/assistant-knowledge-switch.test.ts`、`tests/assistant-business-gateway.test.ts`（只 `:1148`）；`docs/system/SECURITY-INVARIANTS.md` 只改 S-08 一行 |
-| T-146 | 设置样式表去Coding整张样式（RAC-2590～2594） | 乙 | Codex开发线3；原验证线1，视觉交验证线4；二审线4 | #1676已普通推c35ad3036；M6729同步与四组局部视觉/二审核收 | 仅settings −77638B，其余47资源字节/hash同；旧Node14/67/三M和浏览器UNKNOWN保来源，准确Linux Full待结 | 原六文件；新CI/Full待结，PG070后继仍等实际采用 |
+| T-146 | 设置样式表去Coding整张样式（RAC-2590～2594） | 乙 | Codex开发线3；原验证线1，视觉交验证线4；二审线4 | #1676@c35ad3036，M6729同步与四组局部视觉/二审核收 | 自身Full41288807896仍在途，七重点已核六份首轮完整，另两文件retry照留；整run未签 | 仅settings −77638B，其余47资源同；原六文件，PG070后继等实际采用 |
 | T-147 | 构建期装配只剩用户批过的两个例外：门禁名单改成带出处的例外表，AGENTS 与文档的「冻结名单」改成终态（W6-01 第二片，BL-750；RAC-2650～2652；BL-926；full=false；统筹大单） | 甲 | A-Claude | 已合（10-31，#1666 → `1c9c6e2b2`） | ~~#1595（T-135）~~ 已合入 08a445129；干净 Home 批（含 #1552）合入 | `tests/builtin-plugin-assembly-gate.test.ts`、`AGENTS.md`（只 :33、:53）、`skills/molis-plugin-dev/host.md`、`skills/molis-plugin-dev/SKILL.md`、`skills/molis-plugin-dev/elements.md`、`docs/system/RUNTIME-MIGRATION.md`、`docs/system/EXTENSION-POINTS.md`（只 :20、:69、:84、:250）、`docs/platform/LOCAL-HOST.md`（只 :76）、`docs/platform/PLUGIN-PLATFORM.md`（只 :86-88）、`docs/platform/PROLOGUE-AI.md`（只 :35）、`docs/platform/PLUGIN-DEVELOPMENT.md`（只 :9）、`docs/system/CALL-CHAINS.md`（只 :117）、`docs/system/GLOSSARY.md`（只 :142，等 T-316）、`docs/system/PACKAGE-BOUNDARIES.md`（只 :173-174）、`skills/molis-plugin-dev/examples.md`（只 :11）、`apps/workbench/README.md`（只 :131）、`specs/repository-anti-corruption/slices/w6-01-aliases.md`、`specs/BACKLOG.md`（只加 BL-926、改 BL-080 行）、`tooling/gates/baseline.json` |
 | T-236 | 包边界门禁里 Goals、Governance、Artifacts、Runtime Host 几段「必须包含」的检查也先去掉注释、字符串、正则和模板文字再判断，不能再靠一段注释或字符串顶替代码（防腐清理，MISC「T-215 起草」`check-package-boundaries.mjs` 一行；派片，方案自定，RAC-2010～2019） | 甲 | Claude（设备 A） | 148 | — | `scripts/check-package-boundaries.mjs`（Feed 那段 T-215 已收紧，不动）、新增或改动的门禁用例文件（方案里列） |
 | T-237 | 内核 `clip` 截情境请求的标题 120、目标 2000、最近 40 时按整字截，不再留下半个字（防腐清理，MISC「T-195 发布」`contextual.ts:170` 一行；派片，方案自定，共享核心 full=true，RAC-2020～2029） | 甲 | Claude（设备 A） | 149 | — | `packages/kernel/src/contextual.ts`、对应用例文件（方案里列） |
@@ -502,7 +502,7 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 
 2026-11-01 06:50Z：T390准确b7eee1b已开#1719，本地原副作用红、最终25/25加64文件625/625沿用及独立审验经根核收；full=false、真实SI/CI待结。T389审验两评论获用户具体批准后原样发布，首次Full在跑。T386最终cb931作者/独立验证/二审核收，171门禁只拿build槽的偏差明确保留，不重跑补历史；等T389采用后真实资源合流。T065当前同步书独立审通过，开发2可先非资源普通merge/证据窄核；T144父等待解除，SDK/Assistant窗口另结。
 
-| T-392 | W5-14 R-A4判断规则实现包/路径原子迁移 | 甲 | Codex开发线4；验证线3；加强二审线1 | 最终d35ede4a，218/72/9各保原输入，普通health与独立审验通过 | #1720，full=true；CI41287784255/Full41287970493在途，审验6555435543/6555436365已发布 | T121/T144具体hunk保持冻结 |
+| T-392 | W5-14 R-A4判断规则实现包/路径原子迁移 | 甲 | Codex开发线4；验证线3；加强二审线1 | #1720@d35ede4a，218/72/9各保原输入，普通health与独立审验通过 | full=true；CI41287784255已核通过，Full41287970493仍在途，74README逐文件核回 | 审验6555435543/6555436365、CI补记6555751263；T121/T144具体hunk保留 |
 
 2026-11-01 07:01Z：根fresh22 open/准确M不变，核收T141与R-A4接续及独立审查并交两条独立实现窗口；T141归开发1，R-A4登记T392归开发4，完整范围不拆片。T144原owner保留，仅具体安装/设置接缝等T141冻结；SDK已释放。T065第一段4accb7d普通同步完成且原37路径/34blob与M资源账本完整保留，无新运行结论。T390两审计已按用户具体批准原样发布6554723182/6554723753。T389 Linux Full新菜单完整2/2首轮、shard1全102/102已根读raw，原journey仍待后片。
 
@@ -515,3 +515,6 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01本轮：按用户新要求加两条独立writer，开发5修PR1b空stage_request回归；开发6同步T387到实际M f47fa0da。原四writer继续，所有源码窗口无交集；机器槽和Full预算保持。T392已开#1720@d35ede4a，独立本地审验通过，CI/Full未结。
 
 本轮：T385新H2b3910ef已交独立增量验证，作者开发2转T353B的当前main普通同步；B原30路径与Jelly许可hunk已明确，C继续等B采用。
+
+
+2026-11-01 09:06Z：#1673当前main接续由开发线4实施，唯一合同见 plans/CI1673-current/DECISION.md；只收紧Verify并保M的PR整套/失败回退与manual probe，最多原14路径+公共CI fixture，普通合流M f47，full=false。独立验证/二审另派，未实现/采用。

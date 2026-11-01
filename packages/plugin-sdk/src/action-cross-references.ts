@@ -5,9 +5,10 @@ import { workExecutorSetProblems } from "./work-executor-declarations.js";
 // The checks a group of action declarations gets as a whole: the actions one declaration points at (the undo command, the job's
 // status query, the targets of fragment and subject options) must be declared in the same group, as the kind of action the
 // pointer needs, in the same scope, and the places it names inside an input or an output must be in the schema. A "group" is one
-// Manifest's `actions`, or the `definitions` of one `registerProvider` call: one registration, whatever its provider id. Targets in
-// another registration are not found, however they were registered; a reference across providers is `required_actions`, which is
-// checked when someone calls. Who may use a target (audiences, permissions, effect) is also for that moment, not for here.
+// Manifest's `actions`, or the `definitions` of one `registerProvider` call. The kernel additionally checks a background status
+// pointer against an already registered real query of the same provider, project and scope, to allow per-operation replacement;
+// this function never invents such a target. Other cross-registration pointers are not found. A reference across providers is
+// `required_actions`, checked when someone calls. Who may use a target (audiences, permissions, effect) is also for that moment.
 //
 // This is a separate pass from `inspectActionDeclarations`, which reads one definition at a time. A definition or a reference that
 // is incomplete (`inspectActionDeclarations` reports that) is skipped, never reported twice. Problems come in the order of the

@@ -365,6 +365,11 @@ export interface SandboxManifestInput {
     runtime?: PluginManifest['runtime'];
     icon?: PluginIconName;
     effects?: DerivedEffects;
+    contract?: SandboxPluginContract;
+    actionIdentity?: {
+        buildId: string;
+        version: number;
+    };
     textDeclarations?: SandboxPackageManifest;
     homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
     connections?: PluginManifest['connections'];
@@ -619,6 +624,8 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
 
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const sandboxActionId: (buildId: string, operationId: string) => string;
+
 export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" | "method", name: string): {
     entry_id: string;
     prompt_id: string;
@@ -626,11 +633,25 @@ export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" 
 
 export declare function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods">;
 
+export declare function sandboxBackgroundProblems(contract: SandboxPluginContract): string[];
+
 export declare function sandboxDerivedPermissions(effects: DerivedEffects | undefined): NonNullable<PluginManifest['permissions']>;
 
 export declare function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest;
 
+export declare function sandboxOperationActions(input: {
+    contract: SandboxPluginContract;
+    buildId: string;
+    version: number;
+    title: string;
+    scope: 'home' | 'project';
+}): ActionDefinition[];
+
+export declare function sandboxOperationEffects(contract: SandboxPluginContract, operation: SandboxOperationContract): SandboxEffects;
+
 export declare function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[];
+
+export declare const sandboxPackageBuildId: (pluginId: string, signature: string) => string;
 
 export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
 
@@ -668,4 +689,4 @@ export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/a
 
 // Declarations the exports above refer to, which no entry exports itself:
 
-type DerivedEffects = Pick<SandboxEffects, 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;

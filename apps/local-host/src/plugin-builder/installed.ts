@@ -3,13 +3,15 @@
  * uninstall; this definition only proxies to the plugin's sandboxed process. The plugin's code never runs in the
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
-import { pluginErrors, type PluginDefinition, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { rememberInstalledActionSource } from '../installed-action-registration.js';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, createBackgroundLane, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
+import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
@@ -26,7 +28,8 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
   return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
-    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract) });
+    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract),
+    contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
@@ -40,7 +43,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
-  return {
+  let background: SandboxBackgroundLane | undefined;
+  const definition: PluginDefinition = {
     manifest,
     ...(instructions ? { instructions } : {}),
     ...(release.packaged?.agentBodies ? {
@@ -55,8 +59,28 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       // A package's model settings and image connections belong to the person's Home (BL-491): a project's instance of it is refused, as it is for a Home library.
       if (context.project_id && (approved.modelSettings?.length || approved.imageGeneration?.length)) throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
-      const services = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
+      const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
+      background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath,
+        contract: release.design.contract, grants: approved, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS }) });
+      const lane = background;
+      const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
+        const operation = release.design.contract.operations.find(item => item.id === operationId)!;
+        const effects = sandboxOperationEffects(release.design.contract, operation);
+        const callContext: SandboxServiceContext = { identity, operationId, signal: control.signal ?? new AbortController().signal, projectReach: control.projectReach };
+        await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
+        const binding = capabilityPolicyBinding(effects, effects.capabilities?.length ? await host.capabilities?.(callContext) ?? [] : []);
+        const beforeEffect = async () => {
+          await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
+          if (effects.capabilities?.length && host.capabilities && capabilityPolicyBinding(effects, await host.capabilities(callContext)) !== binding) {
+            throw new SandboxError('plugin_builder.capability_changed', '后台依赖的提供方、版本或执行策略已变化；请核对已发生的结果');
+          }
+          await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
+        };
+        await beforeEffect();
+        return lane.run(operationId, input, { ...control, beforeEffect });
+      } };
+      const services = sandboxServicesFor(context.services, { ...host, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
@@ -67,7 +91,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       };
       // A bundle that cannot start fails the installation, not the person's first click.
       await open('quick');
-      return {
+      const contribution: PluginAppContribution = {
         kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
           let outcomeUnknown = false;
@@ -80,7 +104,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             const call = scheduled ? { operationId: body.operation as string, input: Object.hasOwn(body, 'input') ? body.input : {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
             const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
-            const dependencies = operation.effects.capabilities ?? [];
+            const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
             const projectReach = executionProjectReach(request.execution);
             const callContext: SandboxServiceContext = { identity, operationId: call.operationId, signal: request.execution?.signal ?? new AbortController().signal, projectReach };
             const capabilities = dependencies.length ? await host.capabilities?.(callContext) ?? [] : [];
@@ -91,12 +115,12 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
                 throw new SandboxError('plugin_builder.capability_denied', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
               }
             }
-            const binding = capabilityPolicyBinding(operation.effects, capabilities);
+            const binding = capabilityPolicyBinding(effects, capabilities);
             let policyChanged = false;
             const beforeEffect = async () => {
               await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
               if (!host.capabilities || !dependencies.length) return;
-              if (capabilityPolicyBinding(operation.effects, await host.capabilities(callContext)) !== binding) {
+              if (capabilityPolicyBinding(effects, await host.capabilities(callContext)) !== binding) {
                 policyChanged = true;
                 throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
               }
@@ -123,7 +147,23 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         views: [{ descriptor: { contribution_id: uiId, kind: 'primary-page', label: release.design.title, slots: [] },
           render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],
       };
+      if (manifest.actions) contribution.actions = manifest.actions.map(action => ({ capability_id: action.capability_id, version: action.version,
+        handle: async (caller, input) => {
+          const response = await contribution.routes![0]!.handle({ method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: caller.actor_id,
+            execution: { signal: caller.signal, beforeEffect: caller.beforeEffect, page_context: caller.page_context, locale: caller.locale,
+              assert_authority_current: caller.assert_authority_current, retainBackgroundAuthority: caller.retainBackgroundAuthority }, body: { operation: action.action.local_id, input } });
+          const body = response.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
+          if (response.status !== 200) {
+            if (body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error));
+            throw new Error(String(body?.error ?? '插件操作未完成'));
+          }
+          return body?.value;
+        } }));
+      return contribution;
     },
-    async stop() { const current = [...lanes.values()]; lanes.clear(); await Promise.all(current.map(item => item.then(runner => runner.stop(), () => undefined))); },
+    async stop() { const current = [...lanes.values()], lane = background; lanes.clear(); background = undefined;
+      await Promise.all([lane?.stop(), ...current.map(item => item.then(runner => runner.stop(), () => undefined))]); },
   };
+  rememberInstalledActionSource(definition, release);
+  return definition;
 }

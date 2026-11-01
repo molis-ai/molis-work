@@ -112,11 +112,12 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       const images = copiedImages(request.images);
       const checked = checkRequest(manifest.plugin_id, prompt, request);
       const signal = AbortSignal.any([caller.signal, request.signal].filter(item => item !== undefined)), onText = request.onText;
-      const validateAuthority = () => {
-        signal.throwIfAborted();
+      const validateAuthority = (activeCaller = caller) => {
+        if (activeCaller === caller) signal.throwIfAborted();
+        else { activeCaller.signal?.throwIfAborted(); request.signal?.throwIfAborted(); }
         gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
-        if (!caller.permissions.includes(MODEL_INVOKE)) throw new ActionError("actions.forbidden", "这次调用没有模型调用权限");
-        requireSynchronous(caller.assert_authority_current?.(), "最终模型授权检查必须同步完成");
+        if (!activeCaller.permissions.includes(MODEL_INVOKE)) throw new ActionError("actions.forbidden", "这次调用没有模型调用权限");
+        requireSynchronous(activeCaller.assert_authority_current?.(), "最终模型授权检查必须同步完成");
       };
       const validateCall = () => {
         if (currentPluginAction() !== scope) throw pluginModelErrors.model_action_required("结果只能由原模型调用提交");
@@ -125,7 +126,12 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       const guarded = (validateHost: () => void) => () => { validateCall(); validateHost(); };
       // The platform checks the answer again itself before the call commits anything (PG-047): from inside the call's own checks,
       // which a nested dispatch may run in another scope, so the scope identity is the plugin's own call's to check.
-      const hold = (validateHost: () => void) => holdPluginResult(scope, () => { validateAuthority(); validateHost(); });
+      const hold = (validateHost: () => void) => holdPluginResult(scope, () => {
+        // A background continuation carries this invocation's checked record and its retained caller, not the finished handler's lifetime.
+        const active = currentPluginAction();
+        validateAuthority(scope.checked && active?.checked === scope.checked && inPluginInstance(active, gate) ? active.caller : caller);
+        validateHost();
+      });
       await authority(caller);
       validateCall();
       let receiving = true;

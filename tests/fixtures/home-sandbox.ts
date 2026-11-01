@@ -39,11 +39,11 @@ export const operate = (client: ActionClient, caller: ActionCallContext, views: 
 export const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
 
 /** A Host on a temporary Home with one project, which can be closed and opened again over the same Home. */
-export async function fixture(t: TestContext, options: { completeText?: HostCompleteText | null } = {}) {
+export async function fixture(t: TestContext, options: { completeText?: HostCompleteText | null; pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>['pluginFixtures'] } = {}) {
   const home = await mkdtemp(join(tmpdir(), "bl628-home-"));
   // The Host makes the Home first: a Home that already holds files is an older one, and its memory is not adopted.
   const completeText = options.completeText ?? null;
-  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
+  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText, pluginFixtures: options.pluginFixtures });
   const databasePath = join(home, "project.sqlite"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const open = async () => { await host.withProject(reference, () => undefined); return host; };
@@ -61,7 +61,7 @@ export async function fixture(t: TestContext, options: { completeText?: HostComp
   };
   return { home, reference, install, store, ledger: new HomeConsentLedger(home), open,
     get host() { return host; },
-    async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText }); await open(); await host.homePlugins!.ready(); return host; },
+    async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText, pluginFixtures: options.pluginFixtures }); await open(); await host.homePlugins!.ready(); return host; },
     homeClient: () => host.homeActionClient(), projectClient: () => host.actionClient(reference), homeCaller: (): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] }),
     projectCaller: (): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: DEMO_PROJECT_ID, permissions: [] }) };
 }

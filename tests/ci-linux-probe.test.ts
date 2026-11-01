@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { passed, writeReport } from "../scripts/ci-linux-probe/report.mjs";
 import { failureDetail, parseCounts, statusOf, testEnvironment } from "../scripts/ci-linux-probe/run.mjs";
 import { selectTests } from "../scripts/ci-linux-probe/select.mjs";
-import { blockingJobs, blockingTestRuns, jobBlock, workflow } from "./fixtures/ci-workflow.js";
+import { blockingJobs, blockingTestRuns, evaluateExpression, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 // specs/repository-anti-corruption §4.7 (W1-11, decision #14): the Linux probe that CI runs as a non-blocking job. Each rule is
 // mutation-verified here on a scratch repository of small fake test files: a file is excluded as a browser file by its name,
@@ -459,10 +459,14 @@ test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and
   const probeJob = jobBlock("linux-probe");
   assert.match(probeJob, /^    runs-on: ubuntu-latest$/m);
   assert.match(probeJob, /^    continue-on-error: true$/m, "a red probe must not turn the workflow red");
-  // Nightly on main and by hand, not on every push (user 2026-10-14); by hand only with the `linux_probe` input ticked, which is off
-  // by default (user 2026-10-31). The nightly run has its own concurrency group, so a merge does not cancel it.
-  assert.match(probeJob, /^    if: \$\{\{ github\.event_name == 'schedule' \|\| \(github\.event_name == 'workflow_dispatch' && inputs\.linux_probe\) \}\}$/m);
-  assert.match(workflow, /^  workflow_dispatch:\n    inputs:\n(?:      #.*\n)*      linux_probe:\n        description: "[^"]+"\n        type: boolean\n        default: false$/m, "a manual run does not start the probe unless asked");
+  // Decision #14 joins the test jobs to Verify; the existing nightly and manual probe entry points stay unchanged.
+  assert.match(probeJob, /^    if: \$\{\{ github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch' \}\}$/m);
+  assert.doesNotMatch(probeJob, /inputs\.linux_probe/, "a manual run still starts the probe without a new opt-in");
+  const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(probeJob)?.[1];
+  assert.ok(condition, "the actual probe condition exists");
+  for (const [event, runs] of [["pull_request", false], ["push", false], ["merge_group", false], ["schedule", true], ["workflow_dispatch", true]] as const) {
+    assert.equal(Boolean(evaluateExpression(condition, { "github.event_name": event })), runs, `${event}: the existing probe entry point is preserved`);
+  }
   assert.match(workflow, /^  schedule:\n    - cron: "[^"]+"$/m);
   assert.match(workflow, /^  group: ci-.*github\.event_name == 'schedule' && 'nightly'/m);
   assert.match(probeJob, /node scripts\/ci-linux-probe\.mjs --expect-platform linux /, "the probe refuses to record results from another platform");

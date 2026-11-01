@@ -42,7 +42,7 @@ import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
 import {
-  agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
+  agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
   workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
@@ -179,7 +179,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
     const homeStages = await renderHomePluginStages(localHost.homePlugins);
-    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
+    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, home_plugin_nav: await localHost.homePlugins?.navigation() ?? [], plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
       ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }
@@ -283,7 +283,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
   capsuleRoute,
-  desktopPanelRoute,
   ...goalsAndArtifactRoutes,
   projectNotFoundRoute,
 ];

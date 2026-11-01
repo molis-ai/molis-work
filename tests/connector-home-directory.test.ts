@@ -32,7 +32,7 @@ function packageManifest(serviceId = SERVICE): PluginManifest {
     integrations: [{ integration_id: serviceId, kind: "source", service_id: serviceId }],
   };
 }
-const attach = async (home: TestHome, serviceId = SERVICE) => (await homeIntegrationRegistry(home.home)).attach(packageManifest(serviceId), () => null, () => true);
+const attach = async (home: TestHome, serviceId = SERVICE) => (await homeIntegrationRegistry(home.home)).attach(packageManifest(serviceId), "install-home-directory", () => null, () => true);
 const detach = async (home: TestHome) => (await homeIntegrationRegistry(home.home)).detach(PLUGIN_ID);
 const cards = async (home: TestHome) => (await home.web.get<{ connectors: Array<ConnectorDirectoryEntry & Record<string, unknown>> }>("/api/settings/connectors")).connectors;
 // A registry keyed by a path no test attaches to lists only the built-in services; nothing reads the disk for it.

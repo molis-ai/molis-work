@@ -1,13 +1,13 @@
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "./page-view.js";
 import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
-import { createProjectGuidanceDocumentRenderer } from "./project-guidance-document.js";
+import { createProjectGuidanceDocumentRenderer, type GoalsRendererFactories } from "@molis-ai/molis-work-plugin-goals/page";
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
-import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
-import { PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
+import { PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
+import { pluginSettingsClients } from "./plugin-workbench.js";
+import { renderHint } from "@molis-ai/molis-work-design-system";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
 import { WRITE_CHECKERS_CLIENT_SCRIPT } from "./scripts/write-checkers-client.js";
@@ -32,6 +32,8 @@ export interface ProjectSettingsPagePorts {
   navigation: Pick<ReturnType<typeof createWorkbenchSettingsNavigation>, "settingsContextHref" | "renderProjectSettingsNavigation" | "renderSettingsNavigation">;
   composePlanningMethodPacks(methods: readonly PlanningMethodPack[]): PlanningMethodComposition;
   renderProjectPolicyDocument(view: MolisWorkWebView): string;
+  /** Goals' planning pages, mounted where the Planning contribution declares them. */
+  planningRenderer: GoalsRendererFactories["planning"];
 }
 
 /** The settings pages whose content Goals owns: a project without Goals (`guidance` null in the hub) has none of them (RAC-400). */
@@ -39,15 +41,15 @@ const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["gu
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
-  const { composePlanningMethodPacks, L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery, renderProjectPolicyDocument } = ports;
+  const { composePlanningMethodPacks, L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery, renderProjectPolicyDocument, planningRenderer: createPlanningRenderer } = ports;
   const { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
   const folds = createProjectSettingsFolds({ L, escapeHtml, icon, withDesktopQuery });
-  const renderProjectGuidanceDocument = createProjectGuidanceDocumentRenderer({ L, escapeHtml, formatDate, icon });
+  const renderProjectGuidanceDocument = createProjectGuidanceDocumentRenderer({ L, escapeHtml, formatDate, icon, renderHint });
 
   function planningPageRenderer(controlToken: string, desktopShell: boolean, navigation: string) {
-    return createWorkbenchGoalsPlanningRenderer({
+    return createPlanningRenderer({
       translate: L, escapeHtml, icon, listJoin, withDesktopQuery,
       settingsContextHref,
       renderPage: (page) => `<!doctype html>${page.documentComment ?? ""}<html lang="${htmlLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${escapeHtml(page.title)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${`<header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${navigation.includes("project-settings-navigation") ? L("项目设置") : L("全局设置")}</span><a href="${page.returnHref}" aria-label="${L("返回工作台")}">${icon("x")}</a></header>`}<main class="settings-shell">${navigation}<div class="settings-content">${page.body}</div></main><script>${clientI18nScript()}${page.requiresControl ? UI_REQUEST_CLIENT_SCRIPT : ""}${page.clientScript}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script></body></html>`,
@@ -55,7 +57,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function planningBodyRenderer() {
-    return createWorkbenchGoalsPlanningRenderer({
+    return createPlanningRenderer({
       translate: L, escapeHtml, icon, listJoin, withDesktopQuery,
       settingsContextHref,
       renderPage: (page) => page.body,
@@ -113,7 +115,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
 </body></html>`;
   }
 

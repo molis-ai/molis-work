@@ -19,10 +19,10 @@
     },
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
-      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
+      "reason": "项目目录的门面：32 个方法里多数是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
       "size": {
-        "lines": 265,
-        "methods": 40
+        "lines": 208,
+        "methods": 32
       }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -100,7 +100,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3269
+      "size": 3265
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -131,6 +131,16 @@
       "kind": "cohesive-unit",
       "reason": "Home 动作提供方的登记：返回体按动作逐个列出处理器，Talk、Offer、Event 三族处理器已抽成 createHome…Handlers，余下是登记清单与共用的 record、handler 助手；超 150 行 32 行。",
       "size": 182
+    },
+    "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
+      "kind": "cohesive-unit",
+      "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
+      "size": { "lines": 311, "methods": 9 }
+    },
+    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
+      "kind": "cohesive-unit",
+      "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
+      "size": 163
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",

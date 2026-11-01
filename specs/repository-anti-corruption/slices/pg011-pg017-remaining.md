@@ -21,14 +21,14 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 | 2 | BL-714 Home 实例的模型入口 | T-140 | RAC-2610～2614 | 扩 S-66、S-91 的分句 | T-134 |
 | 3 | BL-711 Home 包就地升级（回滚不做，D1） | T-141 | RAC-2615～2619 | 改写 S-80、S-84 的分句 | T-134、T-140 |
 | 4 | BL-712 创作台产物装进 Home | T-149 | RAC-2656～2658（统筹预留） | 无（D2 甲） | BL-377、BL-589 |
-| 5 | BL-713 导航位置与图标 | T-142（档甲） | RAC-2620～2626、2653 | 无 | T-138、#1576、#1552 |
+| 5 | BL-713 导航位置与图标 | T-142（档甲，包选图标）；T-401（档甲，页面通路与导航位置，从 T-142 拆出） | T-142：RAC-2620 的包选图标一半、2625、2653；T-401：RAC-2620 的到达页一半、2621～2624、2626 | 无 | T-138、#1576、#1552 |
 | 6 | BL-491 模型设置与生图 | T-143 | RAC-2627～2635、2654、2655 | 扩 S-60；S-66、S-91 补分句 | 第 1 节、D6（不依赖 T-142） |
-| 7 | BL-493 Agent 角色与方法正文 | T-144 | RAC-2636～2643 | S-104（统筹暂留） | T-143 先合 |
-| 8 | BL-710 项目范围动作对 Home 包可达 | T-145 | RAC-2644～2649 | S-105（统筹暂留） | T-134、T-141 |
+| 7 | BL-493 Agent 角色与方法正文 | T-144 | RAC-2636～2643 | S-105（统筹暂留） | T-143 先合 |
+| 8 | BL-710 项目范围动作对 Home 包可达 | T-145 | RAC-2644～2649 | S-106（统筹暂留） | T-134、T-141 |
 
-- S-104、S-105 是统筹给 BL-493、BL-710 暂留的号。开 T-144、T-145 时，统筹会再核 main 与在途的改动。S 号要连着排：前面的号如果还没落地，这两个可能顺延。S-103 已经给了 T-136。
+- S-105、S-106 是统筹给 BL-493、BL-710 暂留的号。开 T-144、T-145 时，统筹会再核 main 与在途的改动。S 号要连着排：前面的号如果还没落地，这两个可能顺延。S-103 已经给了 T-136，S-104 给了 T-134（连接钉，#1649）。
 - BL-715 不在这份稿里，由 T-138 做。
-- 二审后各单的 RAC 段在 RAC-2610～2649 这四十个号里重新分过；三审再按统筹的批示从 2650～2669 段里取 RAC-2653、RAC-2654、RAC-2655 三个号（RAC-2650～2652 是 T-147 的）。T-140～T-145 合计 43 个：T-140 五个、T-141 五个、T-142 八个（2620～2626、2653）、T-143 十一个（2627～2635、2654、2655）、T-144 八个、T-145 六个；T-149 另有统筹预留的 RAC-2656～2658 三个。每节「可检验」的条目都写了号，条数与号数一一对应。
+- 二审后各单的 RAC 段在 RAC-2610～2649 这四十个号里重新分过；三审再按统筹的批示从 2650～2669 段里取 RAC-2653、RAC-2654、RAC-2655 三个号（RAC-2650～2652 是 T-147 的）。T-140～T-145 合计 43 个：T-140 五个、T-141 五个、T-142 三个号（RAC-2620 的包选图标一半、2625、2653）、T-401 六个号（RAC-2620 的到达页一半、2621～2624、2626；2620 一条两半，各归一单，拆分见第 5 节）、T-143 十一个（2627～2635、2654、2655）、T-144 八个、T-145 六个；T-149 另有统筹预留的 RAC-2656～2658 三个。每节「可检验」的条目都写了号，条数与号数一一对应。
 
 ## 1. 前提：签名包的格式（BL-491、BL-493、BL-916 共用，先定这个）
 
@@ -105,29 +105,30 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - Home 的已装插件宿主（`apps/local-host/src/home-installed-plugins.ts`）不注册它，所以 Home 包的 `prompts.json` 调用被拒。
 - **快照能不能有 Home 一行**：`scripts/gates/action-contract-snapshot.mjs` 第 198 行，宿主行的键是 `capability_id@version via provider`；第 273～275 行（`buildHostRows`），同一个键再出现一次而各列不同（比如 `scope`），就报「registered with two different declarations」。所以**同一个 provider 下不能有 Home 一行；另起一个 provider id 就可以**。先例是 Goals 的 `goals.planning.personal.*`：它在 Home 里以 `io.molis.work.goals.home` 注册（同一文件第 247～250 行的注释）。
 - `registerPlatformCapabilities` 已经在 `actions.project_id === null` 时去掉 provider 的 `project_id`（`catalog.ts` 第 56 行），只差 `scope` 和 provider id。
+- **注册表不让同 id 并存**（T-140 开工时核出，统筹 2026-10-31 裁定改采 ②，#1332 评论 6538644146）：`packages/kernel/src/index.ts` 第 52～54 行，条目的键是 `[capability_id, version, project_id|null]`，不含 provider；第 69～73 行的重叠检查是「同 id 同版本，且任何一边没有 project_id，或两边相同」。Home 的 provider 没有 project_id，所以和所有项目已登记的 `model.generate@1` 撞，开机即抛 `kernel.capability_duplicate`。快照的键（`capability@version via provider`）放得下，注册表放不下；Goals 的先例也不同：`goals.planning.personal.*` 是另一个 capability id，不是同 id 换 provider。放宽内核（让 `scope: home` 的无项目条目与项目条目并存）不选：一个能力只登记一次，页面、工作流、Agent、MCP 都从同一个目录拿，同一个 `id@version` 出两条，动作目录、MCP 工具名、工作流绑定、Agent 能力表里都会有同名的两项，正确性就靠查找顺序加 `scope` 拒绝，等于把命名问题变成内核里的歧义规则，还要碰共享核心。
 
 ### 做完是什么
 
-- Home 实例用另一个 provider id 注册 `model.generate@1`，`scope: "home"`。id 由开发单定，推荐「插件平台」的 Home 版本，照 Goals 的写法。`capability_id` 不改，包里的调用也不用改。
-- 这个入口只认本 Home 实例的执行身份（调用者有 `plugin_install_id`、`project_id` 为空、安装属于这个 Home）。指令只能按包自己登记的 id 点名（与 `createPluginModelPort` 的规则相同）。
+- Home 实例用另一个能力 id `model.generate.home@1` 注册，provider 是 `plugin-platform.home`，`scope: "home"`；输入输出 schema、执行策略与说明取项目一半的同一份定义（`studioCapability("model.generate")`），不另抄。包里的调用不变：包写 `sdk.capability.call('model.generate', …)`，Home 的目录（`capabilityCatalog`）把这一条以包用的名字 `model.generate` 给出，另带 `registered_id: "model.generate.home"`，`catalogCapabilities.call` 按 `registered_id` 发动作。作者不知道有两个 id；包自己写 `model.generate.home` 在目录里找不到。**别名只在没有项目的目录里起**：不带项目的条目在每个项目的目录里都看得见，所以项目的目录（`capabilityCatalog`，有项目时）把 Home 一半整条拿掉，Home 一半登记时带 `availability`，有项目的调用者一律 `actions.scope_mismatch`。（与统筹答 T-140 的一点偏离：选 id 放在 Home 实例的目录视图，不放在 `plugin-model-service.ts` 一侧——包声明的依赖检查、费用、权限和调用五处都按包用的名字在目录里查，只在调用一处换 id 会让依赖检查找不到；注册表、动作目录、快照里始终是真名 `model.generate.home`。二审 6538985936 的必修 1 就出在这条别名没分范围。）
+- 这个入口只认本 Home 实例的执行身份（调用者有 `plugin_install_id`、`project_id` 为空、安装属于这个 Home），分三层拦：动作服务的 `availability` 按范围拒有项目的调用者、项目的目录不列它、处理器核身份（网关 S-15 之后的一道）。指令只能按包自己登记的 id 点名（与 `createPluginModelPort` 的规则相同）。
 - 计量与模型设置读 Home 的。它只读已有的模型设置与计量，不新建表，所以预计不用等干净重建批（#1578、#1549、#1588、#1587、#1589、#1591、#1593、#1552）。开发单开工时若发现要动 Home 插件库的 DDL，就等批落地（#1588 把 `home-plugin-store.ts` 的基线改成 v1）。
-- 快照多一行 `model.generate@1 via <Home 的 provider>`，跑 `pnpm actions:update`。
-- 可检验（前四条断言「拒绝」）：
-  - RAC-2610：带项目身份调 Home 入口被拒；
-  - RAC-2611：别的安装的身份被拒；
-  - RAC-2612：点名未登记的指令被拒；
-  - RAC-2613：停用后的调用被拒；
-  - RAC-2614：本 Home 包用自己登记的指令可以调通。
+- 快照多一行 `model.generate.home@1 via plugin-platform.home`（`scope` 一列为 `home`），跑 `pnpm actions:update`。对调用方：新 id `model.generate.home@1` 在动作目录里以真名出现（项目的目录里也看得见，显示为不可用）；包作者继续写 `model.generate`；没有 Manifest、MCP 工具、工作流步骤或 Skill 提到它。
+- 可检验（经包自己的代码和 Host 的目录走真实 Host、沙箱和模型替身；伪造的插件身份在网关 S-15 就被拒，到不了处理器，所以处理器自己的身份检查不单独钉，钉的是走得到的三层）：
+  - RAC-2610（三例）：项目调用者调 Home 的 id 被拒——项目的目录里 `model.generate.home` 显示为不可用（`actions.scope_mismatch`），项目的包依赖它时调用被拒，模型没被问；Home 实例到不了项目一半——Home 的目录里只有 Home 的这一条，Home 包点名 `model.generate.home` 同样被拒；项目里装的包按 `model.generate` 问模型照常调通，用项目登记的指令（二审必修 1 的回归）；原写的「Home 实例调项目的 id 被拒」在别名设计下就是第二例：Home 实例用 `model.generate` 到的是 Home 一半，项目一半不在它的目录里；
+  - RAC-2611：每个安装用自己登记的指令：两个 Home 包有同名指令时各自用各自的正文，只有另一个包登记的 id 被拒；
+  - RAC-2612：点名未登记的指令被拒，模型没被问；
+  - RAC-2613：停用后包的操作不再被提供，模型没被问，启用后恢复；
+  - RAC-2614：Home 包的操作按 `model.generate` 这个名字问模型，用包自己登记的指令可以调通。
 
 ### 选项与推荐
 
 | 选项 | 推荐与理由 |
 | --- | --- |
-| ① 同一个 `capability_id`，Home 用另一个 provider id（推荐） | 包的代码不用管自己在哪里运行；快照有先例 |
-| ② 另起 id，如 `model.generate.home@1` | 不推荐：作者要按运行范围调不同的 id |
+| ① 同一个 `capability_id`，Home 用另一个 provider id | 原先的推荐；开工后核出注册表挡住（见现状），不可行 |
+| ② 另起 id `model.generate.home@1`，目录按包用的名字给出（采用） | 不碰内核；包的代码不变，按运行范围选 id 由平台目录做 |
 | ③ 同一个 provider 下 `scope` 跟着 registry 走 | 不行：快照门禁按第 273～275 行报错 |
 
-统筹已采纳 ①，不问用户。
+统筹先采纳 ①，T-140 开工后核出注册表挡住，2026-10-31 改采 ②（统筹答 T-140，#1332 评论 6538644146），不问用户。
 
 ### S
 
@@ -212,7 +213,9 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - 开发单 T-149，RAC-2656～2658（统筹预留，不在 T-140～T-145 的号里），对应上面三条。
 - 依赖：D2；甲方案与 BL-589 共用「创作台发布出签名包」这一步，推荐排在 BL-589 之后，或与它合成一单。BL-377 的重做不必等。
 
-## 5. BL-713 导航位置与图标（T-142）
+## 5. BL-713 导航位置与图标（T-142、T-401）
+
+**拆分**（统筹裁定，#1332 评论 6538786921）：本节分给两单。T-142 只做图标：SDK 的图标名单与校验（P1）、沙箱包的 stage 视图可以带 `icon`（P2）；页面通路与导航位置（P3：宿主给出运行中的 Home 包的导航数据、到达页与项目标题栏的工具位、包的页面与项目里的 stage）拆给 T-401。原因：Home 层的已装包没有 stage 的打开路径，P3 要新开宿主页面、stage 面和导航数据，不是把条目并进一个常量，体量和风险都与图标名单无关；拆开后图标这一半可以先合。下面「做完是什么」里的图标一条（D4）和 RAC-2625、2653、2620 的包选图标一半归 T-142，运行期数据通路、工具位、侧栏页签、三种状态和 RAC-2620 的到达页一半、2621～2624、2626 归 T-401。
 
 ### 现状
 
@@ -236,19 +239,32 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 停用：不出现；
   - 恢复错误：出现，打开后是不可用页，原因取 T-138 给的 `recovery_error`；
   - 卸载：消失。
+- **页面通路与数据**（T-401，已做；核对时发现沙箱包的视图没有 `workbench` surface，Home 一侧也没有框内页面，所以比原稿多一块）：
+  - 包的 stage 与项目里的 agent 生成插件用同一份区块标记（`installed-stage-section.ts`）和同一个框内渲染器（`renderPluginDocumentShell`，installed 模式）；Home 一侧由 `plugin-builder/agent-surface.ts` 的 `renderHomePackageDocument` 出这个页面（放在这里，因为项目一侧的同类页面也在这个文件，且门禁数「内置插件包名在它自己的包之外被点名的文件」，新文件不许加），调用走 Home 自己的 `/api/plugins/<id>/call`，页面授权用既有的 `pluginPagesFor(home).open(id, null, 人)`，不新增路由路径、动作或合同；
+  - `/plugins/<id>` 是 Home 插件页（返回、停用/启用按钮）里框一个 iframe，`?frame=workbench` 是框内页面本身；
+  - `HomePluginHost.registered()` 末尾并入 `HomeInstalledPlugins.pages()`（在跑的，或没停用但没起来的、有 `recoveryErrors` 的；停用、隔离、卸载、集成包不在），所以 `/plugins/<id>`、项目页的 stage 与页面情境都认它；stage 的区块 id 就是插件 id，也是 Home 登记它用的键，所以 Dock 的名字、标签条的图标按这个 id 找到包的名字和它选的图标，与别的 Home 插件一样（真 Chrome 里看到过用构建号作 id 时 Dock 只显示 `app-…`，改了）；
+  - 工具位的数据是 `HomePluginHost.navigation()`（按名字排）：到达页走 `ChooserArrival.home_plugins`，项目页走视图的 `home_plugin_nav`，都只在服务端渲染成 HTML，不进动作、MCP、工作流或插件能读到的任何输出；
+  - **发布记录读不到的包**（包文件被搬走，`releaseFor` 为空）没有清单可画，不出现在工具位和页面里，只在插件管理里看到 T-138 的原因；
+  - **只认当前被信任的发布者**：`pages()` 与停用、隔离、卸载一样，在发布者被撤销后不再列出该包（发布者撤销会把它的包停掉，原因写在插件管理里），所以工具位、`/plugins/<id>` 和项目里的 stage 同时消失；
+  - **没起来的包**（恢复错误）：工具位照列，`/plugins/<id>` 是一页写出原因的页面，页面上没有「启用」按钮（它没被停用，按钮会误导）；`?frame=workbench` 不框它；
+  - **Home 的工具位是本人的，不随项目隐藏**（#679）：项目页的工具位也列它，不因当前项目而变；
+  - **进程刚启动时的第一个请求**：Home 在第一次被请求时才起来，包的页面可能就是第一个请求。`/plugins/<id>` 与 `?frame=workbench` 遇到没登记的键，先等 Home 起来再查一次（`ready()`），仍没有才是 404；实测到达时间：没有包 74 ms，有一个包第一个请求 185 ms，之后 7～12 ms；
+  - **框内页面的安全头与项目一侧不同**：Home 一侧的框内页面带页面策略（`frame-ancestors 'self'`）和 `X-Frame-Options: SAMEORIGIN`；项目里 agent 插件的框内页面没有 CSP，只有 `X-Frame-Options: SAMEORIGIN`。两边的 `<iframe>` 标记都不写 `sandbox`，被隔离的是包自己的页面（沙箱里跑，页面授权是一次性的 `page_id`）；
+  - **已知限制**：标签条上包的图标一律是 `package`（BL-912，要改页面脚本字节数）；发布者撤销与「在跑但不被信任」之间的瞬时窗口没有公开接口可测（`consentsChanged` 未导出），只有撤销之后的结果被断言（RAC-2622.1）；
 - **图标**（D4）：
   - 包的 stage 视图允许带 `icon`，这是 §1 名单里「包自己写的」一块；
   - 取值只能是平台命名图标集里的名字（SDK 的 `PluginIconName`，`packages/plugin-sdk/src/ui/icon.ts`）；不写就画 `package`；
-  - **在哪里拒、名单从哪来**（三审建议 J，统筹采纳）：SDK 的 Manifest 规则（`packages/plugin-sdk/src/manifest.ts`，现在对视图 `icon` 没有任何检查）加一条图标名校验，名字不在集合里，安装时就以明确的错误码拒绝（码名在开发单里按 `defineErrorCodes` 定），不靠 `sanitizeView` 静默丢弃。`PluginIconName` 现在只是类型（`packages/plugin-sdk/src/ui/icon.ts` 第 9～22 行），没有运行期名单；SDK 只依赖 contracts，不能引用 design-system 的 `registeredIconNames`（边界规则 `public-sdk-private-dependency`）。所以在 SDK 里加一份运行期的图标名数组，类型 `PluginIconName` 由它派生（design-system 的 `Record<PluginIconName, …>` 继续在编译期兜底），再加一条测试断言这份数组和 design-system 的图标集逐项相等，两边漂移就红（RAC-2653）。这是改 SDK，算共享核心，T-142 按共享核心跑测（全量由统筹在集成分支跑），并跑 `pnpm api:update`。
+  - **在哪里拒、名单从哪来**（三审建议 J，统筹采纳）：SDK 的视图放置规则（`packages/plugin-sdk/src/view-placement-declarations.ts`，已有一条「icon 必须是图标名」，不是字符串或是空白时报它）里，字符串但不在名单里的再报「不在平台图标集里」，用 `else if`，一条消息不重复；错误码沿用视图所有问题共用的 `plugin.declaration_invalid`，不新增码。名字不在集合里，Manifest 读取（含签名和预览）当场拒绝，不靠 `sanitizeView` 静默丢弃。`PluginIconName` 现在只是类型（`packages/plugin-sdk/src/ui/icon.ts` 第 9～22 行），没有运行期名单；SDK 只依赖 contracts，不能引用 design-system 的 `registeredIconNames`（边界规则 `public-sdk-private-dependency`）。所以在 SDK 里加一份运行期的图标名数组，类型 `PluginIconName` 由它派生（design-system 的 `Record<PluginIconName, …>` 继续在编译期兜底），再加一条测试断言这份数组和 design-system 的图标集逐项相等，两边漂移就红（RAC-2653）。这是改 SDK，算共享核心，T-142 按共享核心跑测（全量由统筹在集成分支跑），并跑 `pnpm api:update`。
 - 可检验：
-  - RAC-2620：装一个 Home 包后，到达页的 Home 工具位有它，图标是包选的名字，没写就是 `package`；
-  - RAC-2621：只有 stage 视图的包不出侧栏页签，到达页的工具位有它，从那里打开的是它的 stage 视图；
-  - RAC-2622：停用后它从工具位消失；
-  - RAC-2623：恢复错误时它出现，打开后的不可用页写出原因；
-  - RAC-2624：卸载后消失；
-  - RAC-2625：写了图标集之外的名字，装包时以明确的错误码被拒，不画默认图标；
-  - RAC-2626：运行期导航数据只给本人的页面：agent、MCP、工作流、插件看不到也读不到；
-  - RAC-2653：SDK 的运行期图标名数组与 design-system 的图标集逐项相等；
+  - RAC-2620：装一个 Home 包后，到达页的 Home 工具位有它，图标是包选的名字，没写就是 `package`（T-142：包选的图标进 Host 重建的清单、不写就没有 `icon` 键；T-401：到达页的工具位）；
+  - RAC-2621（T-401）：只有 stage 视图的包不出侧栏页签，到达页的工具位有它，从那里打开的是它的 stage 视图；
+  - RAC-2622（T-401）：停用后它从工具位消失；
+  - RAC-2623（T-401）：恢复错误时它出现，打开后的不可用页写出原因（有清单可画的：见上面发布记录读不到的一条）；
+  - RAC-2624（T-401）：卸载后消失；
+  - RAC-2625（T-142）：写了图标集之外的名字，装包时以明确的错误码被拒，不画默认图标；
+  - RAC-2626（T-401）：运行期导航数据只给本人的页面：agent、MCP、工作流的动作视图里没有它，插件没有宿主发的调用身份就看不到任何目录（S-15）；
+  - T-401 二审后补的编号（同属上面八条，只是更细）：RAC-2620.1（区块标记与工具位的写法，Linux 上跑）、RAC-2621.1（进程刚启动的第一个请求）、RAC-2621.2（框内页面只给在跑的包）、RAC-2621.3（页面策略与不加 `sandbox`）、RAC-2621.4（没登记的键在第一个请求也是 404，Linux 上跑）、RAC-2622.1（发布者被撤销）；用到沙箱的在 `tests/home-plugin-stage-navigation.test.ts`（只在 macOS 上跑，因为签名的沙箱包只能在 macOS 装），不用包的在 `tests/home-plugin-stage-pages.test.ts`；
+  - RAC-2653（T-142）：SDK 的运行期图标名数组与 design-system 的图标集逐项相等；
 
 ### 选项与推荐（图标，D4 定①）
 
@@ -264,12 +280,12 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### RAC 与依赖
 
-- RAC-2620～2626、RAC-2653，对应上面八条。
+- T-142：RAC-2620（包选图标一半）、2625、2653；T-401：RAC-2620（到达页一半）、2621～2624、2626。合起来仍是上面八条，2620 一条两半。
 - 依赖：
   - T-138（同一套「个人空间里的插件」的说法与 `recovery_error`）；
   - #1576（T-126）与 #1552（都碰插件目录与沉浸外壳）合入；
   - D4。
-- 档：甲（新增运行期数据通路、改 SDK 与 contracts）。
+- 档：T-142 甲（改 SDK，共享核心）；T-401 甲（新增运行期数据通路与宿主页面）。
 
 ## 6. BL-491 模型设置与生图（T-143）
 
@@ -313,6 +329,11 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - **`SANDBOX_SERVICE_FATE`**：`imageGeneration` 从 `'entry'` 改成 `'given'`，NOT_GIVEN 的 `model_configuration` 一行删掉（`packages/plugin-sandbox/src/services.ts`）。
 - **模型设置的 `save` 怎么限**（统筹裁定，第 11 节 R2）：沙箱包的 `save` **不许写 `base_url` 和 `connection_id`**（`api_format` 与指向自己的专用供应商也一并不许），只能在宿主已经批过、已经启用的供应商与模型里选（`provider_id`、`model_id`）。S-93、S-95 的来源审批因此不被绕开。T-143 开工**第一步**先核 `assertTarget` 对 `base_url` 与连接配对能挡到哪一步，结论写进 PR，并把每个被拒的字段写成一条拒绝用例。要给沙箱包自定义供应商，要走来源批准，另议、不在本单。
 - 生图：只给命令，不给查询；照项目的计量；返回的 base64 字节设上限，数字在开发单里定，照 pg017 片 §3.7 的取法。
+- **T-143 实际做法（2026-10-31，统筹裁定 A/B/C 之后）**：清单只带由 `effects` 派生的可选权限行，不带 `model_configuration`、`image_generation` 块（块写了仍被 `SANDBOX_NOT_GIVEN` 拒）；模型设置端口是宿主给 Home 包建的 `model.configuration`（不要 Manifest 动作），偏好存在 `<Home>/plugin-files/<安装>/.model-settings/`（不另开 Home 顶层目录，否则 Home 快照清单会拒；包的声明文件夹以字母数字开头，碰不到它），不记账本、不写 `.owner`；生图 namespace `imageconn-<32 位>`、专用供应商 `sbx-<32 位>` 由安装号 `install_id` 的 SHA-256 派生（与偏好文件、主人文件同一个键；二审改，原先按 `plugin_id`），两个前缀保留（`openInstalledPluginLibrary`、账本枚举的 `holderOf`、`pluginModelFor` 的 `custom_provider.provider_id`、`pluginImageGenerationFor` 的 `store_name` 各一条拒绝用例）；`bind`/`generate` 必须是已钉在同一来源的连接，不首次钉住；字节上限 4 张、合计 360 KiB（base64 约 480 KiB，在通道单次响应上限 1 MiB 的一半以内）。`action.permissions` 的语义是「调用者必须持有」，所以已登记动作的 `permissions` 写派生的权限名，调用者必须自己持有（二审改，原先的 `scoped` 副本会替调用者补上权限，已删；页面调用看这个安装的 grants 有没有覆盖动作的全部 `permissions`——人没批可选行时整个动作对人不可见，`draw` 这类操作也派生出 `model:invoke`；Agent、MCP、插件要有各自的授权），客户端仍查 Manifest 声明和人的授权。**接续状态**：原七条未执行 complete/query/generate，RAC-2628/2655 尚未验收；下列执行合同补齐真包链，不能用分层测试替代。
+- **2026-10-31 接续执行合同（统筹 6549207475）**：包格式已经有经校验的 `prompts.json`，缺口是定义与 broker 未收到可信指令。仅已验证 `declared.kind === 'app'` 且 `runtime.scope === 'home'` 的包，把同一 release prompt 映射用于 `PluginDefinition.instructions` 与 broker extras（可信字段覆盖 extras）；project/trial/integration 不扩围，不改 SDK、包格式或拒绝规则。Home 登记统一原 installId scope，保持 source、正文、版本、state 一致；保留人的覆盖、停用/重启/卸载、失败补偿，不新增旧 scope 兼容。
+- **RAC-2628 接续证明**：真实签名包从 preview/confirm/grants、动作目录、Runtime、Seatbelt、broker、生产 model client 到 HostCompleteText 接缝；接缝执行 beforeDispatch。精确断言正文/data、人的覆盖、未知指令、合法 query 调 complete 和缺 caller 权限拒绝、等待中撤权/停用后不写业务记录；同安装只有一份声明，停用重开仍停用、卸载重开不复活，有 prompts 的失败安装清声明。首红须是 instruction_unknown，不能用编译/夹具失败代替。
+- **2026-10-31 生命周期补修（统筹接受 T-143 工单）**：真实 complete 到达 Host 后，旧 broker 正常 RPC dispose 中止了 Runtime held-result 保存的 request signal，导致后续存储与动作返回被误拒。仅 `broker.ts` 的 `model.complete` 增加可解除的取消转发，持续至 invoke 最终检查退出，在 finally 内同步解绑再 dispose；真实 timeout/cancel 保留原 reason，原 caller/grant/active/Host binding 和 held-result 检查不改。RAC-2628 补正常与普通失败可提交、在途取消/超时、模型已返回但 exit guard 等待的真实超时，以及 RPC 结束后取消/撤权仍拒绝写入；不改 Runtime、SDK、runner、生产时限或公开合同。
+- **RAC-2655 接续证明**：真实签名包 bind→inspect→generate 经共享 Prologue 到独立 HTTPS 假厂商；临时 CA、精确 SAN、进程内 exact DNS（promises 与 callback 两路均命中），未知外部名拒绝。未信任 CA 与错误 SAN 各自因真实 TLS 失败且 HTTP=0；正确证书正面核一次 POST、独立图片 bytes、revision、metered。保持生产 TLS/来源/pin/权限；不 mock fetch、不更换 inference、不使用真实凭据。全部在临时系统 HOME/config/cache 与 Molis Home、file SecretStore、ad-hoc 构建和公共槽中完成，完整文件 jobs1/retries0；原七条数量不再是验收标准。本机不跑 Full，最终准确头 Full、独立验证和用户验收分开记录。
 - 补 RAC-239 的用例（沿用原号，不占新号）：删项目时，平台按安装与声明清掉沙箱插件的数据，沙箱插件不用交 `purge` 函数。这是项目数据的清理，与下面的卸载是两件事，别并在一起。
 - **卸载**（含保留数据与否）时，账本里的归属行与专用供应商登记一并清掉；偏好文件和生图存储按「保留数据」的选择去留。删项目不清它们：这两项是 Home 实例专有的，数据在 Home，不是项目的。
 - 预览：模型一项列在 `permissions`，模型设置与生图列在顶层 `effects` 的新键里（第 1 节）。
@@ -395,7 +416,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ### S
 
-S-104（统筹暂留）：签名包带进来的 Agent 角色与方法正文只作数据、带来源、不升级权限；包的 `agent` 块只收名字、用途、正文引用，带权限的字段安装时拒。开 T-144 时统筹再核号。
+S-105（统筹暂留）：签名包带进来的 Agent 角色与方法正文只作数据、带来源、不升级权限；包的 `agent` 块只收名字、用途、正文引用，带权限的字段安装时拒。开 T-144 时统筹再核号。
 
 ### RAC 与依赖
 
@@ -440,7 +461,7 @@ S-104（统筹暂留）：签名包带进来的 Agent 角色与方法正文只�
 
 ### S
 
-S-105（统筹暂留）：Home 沙箱包只在本人对某个项目同意之后才能调那个项目的动作，同意按项目、按安装记，可撤回。开 T-145 时统筹再核号。
+S-106（统筹暂留）：Home 沙箱包只在本人对某个项目同意之后才能调那个项目的动作，同意按项目、按安装记，可撤回。开 T-145 时统筹再核号。
 
 ### RAC 与依赖
 

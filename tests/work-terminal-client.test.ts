@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { createTerminalAutofill, createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalAutofillOptions, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
+import { createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
 
 function installGlobals(t: TestContext, values: Record<string, unknown>) {
   for (const [key, value] of Object.entries(values)) {
@@ -12,80 +12,6 @@ function installGlobals(t: TestContext, values: Record<string, unknown>) {
     });
   }
 }
-
-// Browser ports, not a browser E2E: assertions exercise the exported production controller.
-function autofillFixture(t: TestContext) {
-  const storage = new Map<string, string>();
-  installGlobals(t, {
-    sessionStorage: {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => storage.set(key, value),
-      removeItem: (key: string) => storage.delete(key),
-    },
-  });
-  const writes: unknown[][] = [];
-  const statuses: Array<[string, string | undefined]> = [];
-  const menus: boolean[] = [];
-  const state = { panel: null as { panel_id: string } | null };
-  const options: TerminalAutofillOptions = {
-    goalId: () => "goal-a",
-    text: (text) => text, errorText: (error) => String(error),
-    terminal: {
-      current: () => state.panel,
-      isAlive: (id) => state.panel?.panel_id === id,
-      output: () => ({ hasOutput: true, lastOutputAt: Date.now() - 10_000 }),
-      writePrompt: async (...args) => { writes.push(args); },
-    },
-    setStatus: (text, status) => statuses.push([text, status]),
-    setMenuOpen: (open) => menus.push(open), showToast() {},
-  };
-  return { storage, state, options, writes, statuses, menus };
-}
-
-test("Feed context waits for a live panel, fills once without sending, and consumes its pending record", async (t) => {
-  const f = autofillFixture(t);
-  const key = "molis-work-feed-runtime-autofill:goal-a";
-  f.storage.set(key, JSON.stringify({ itemId: "item-a", at: Date.now() }));
-  let completeWrite!: () => void;
-  f.options.terminal.writePrompt = async (...args) => {
-    f.writes.push(args);
-    await new Promise<void>((resolve) => { completeWrite = resolve; });
-  };
-  const controller = createTerminalAutofill(f.options);
-  await controller.fillPendingFeedContext();
-  assert.deepEqual(f.menus, [true]);
-  assert.equal(f.storage.has(key), true);
-  assert.deepEqual(f.writes, []);
-  f.state.panel = { panel_id: "panel-a" };
-  const first = controller.fillPendingFeedContext();
-  await Promise.resolve();
-  await controller.fillPendingFeedContext();
-  assert.deepEqual(f.writes, [[false, "item-a"]]);
-  completeWrite();
-  await first;
-  assert.equal(f.storage.has(key), false);
-  assert.deepEqual(f.statuses.at(-1), ["Item 上下文已填入，检查后再发送。", "live"]);
-});
-
-test("Failed context fill preserves the pending item for a later retry", async (t) => {
-  const f = autofillFixture(t);
-  const key = "molis-work-feed-runtime-autofill:goal-a";
-  f.storage.set(key, JSON.stringify({ itemId: "item-a" }));
-  f.state.panel = { panel_id: "panel-a" };
-  let fail = true;
-  f.options.terminal.writePrompt = async (...args) => {
-    if (fail) throw new Error("channel disconnected");
-    f.writes.push(args);
-  };
-  const controller = createTerminalAutofill(f.options);
-  await controller.fillPendingFeedContext();
-  assert.equal(f.storage.has(key), true);
-  assert.equal(f.statuses.at(-1)?.[1], "error");
-  fail = false;
-  await controller.fillPendingFeedContext();
-  assert.equal(f.storage.has(key), false);
-  assert.deepEqual(f.writes, [[false, "item-a"]]);
-});
 
 class BrowserSocket extends EventTarget {
   static OPEN = 1;
@@ -154,9 +80,10 @@ test("Closed authentication handshake rejects pending connect and allows a fresh
   connection.stop();
 });
 
-function panelRecord(goalId: string, status: "open" | "exited" = "open"): PanelRecord {
-  return { panel_id: `panel-${goalId}`, goal_id: goalId, runtime_kind: "generic", launch_command: "cat",
-    launch_args: [], cwd: "/project", work_context_id: `context-${goalId}`, title: "Terminal", status };
+/** A terminal as Goals lists it (`goals.terminal.list`). */
+function listedPanel(goalId: string, running = true) {
+  return { key: `key-${goalId}`, panel_id: `panel-${goalId}`, title: "Terminal", runtime: "command", program: { command: "cat", args: [] },
+    running, created_at: "2026-10-31T00:00:00.000Z" };
 }
 
 function panelsFixture(t: TestContext) {
@@ -202,9 +129,9 @@ function panelsFixture(t: TestContext) {
     goalId: () => state.goal, parentReadOnly: () => state.parent, parentReadOnlyMessage: () => "parent read-only",
     canControlPanel: (panel): panel is PanelRecord => Boolean(panel && !state.parent && panel.goal_id === state.goal),
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
-    request,
+    terminalsRoute: () => "/api/plugins/goals-owner/goals/:goalId/terminals", request,
     controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
-    showTerminal: (id) => shown.push(id), afterOpened: async () => {},
+    showTerminal: (id) => shown.push(id),
   };
   return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, resets: () => resets };
 }
@@ -214,14 +141,14 @@ test("Switching Goals invalidates an in-flight panel response without adopting t
   let finishOld!: (response: Response) => void;
   f.io.respond = async (url) => url.includes("/goals/goal-a/")
     ? new Promise<Response>((resolve) => { finishOld = resolve; })
-    : Response.json({ panels: [panelRecord("goal-b", "exited")] });
+    : Response.json({ panels: [listedPanel("goal-b", false)] });
   const oldLoad = f.controller.loadPanels();
   f.state.goal = "goal-b";
   f.controller.resetGoal();
   assert.deepEqual(f.controller.panels, []);
   assert.equal(f.controller.activeId, null);
   await f.controller.loadPanels();
-  finishOld(Response.json({ panels: [panelRecord("goal-a", "exited")] }));
+  finishOld(Response.json({ panels: [listedPanel("goal-a", false)] }));
   await oldLoad;
   assert.deepEqual(f.controller.panels.map((p) => p.goal_id), ["goal-b"]);
   assert.equal(f.controller.activeId, "panel-goal-b");
@@ -229,27 +156,33 @@ test("Switching Goals invalidates an in-flight panel response without adopting t
   assert.equal(BrowserSocket.instances.length, 0);
 });
 
-test("Panel loading attaches without starting and explicit reopen restarts the same panel", async (t) => {
+test("RAC-2566 Panel loading attaches without starting; reopen asks Goals to start the same key with its program, then only attaches", async (t) => {
   const f = panelsFixture(t);
-  const panel = panelRecord("goal-a");
-  f.io.respond = async (url) => url.endsWith("/reopen") ? Response.json({ panel }) : Response.json({ panels: [panel] });
+  const panel = listedPanel("goal-a");
+  // The Host's process: gone when listed, started by Goals' open; the channel only ever attaches.
+  let running = false;
+  f.io.respond = async (_url, init) => {
+    if (init.method === "POST") { running = true; return Response.json({ panel_id: panel.panel_id, key: panel.key, started: true }); }
+    return Response.json({ panels: [panel] });
+  };
   const connected = f.controller.connect();
   const ws = BrowserSocket.instances[0]!;
   ws.open(); ws.message({ type: "ready" }); await connected;
   ws.onSend = (message) => {
-    if (message.type === "spawn") ws.message({ type: "spawned", panelId: message.panelId,
-      attached: false, started: message.attachOnly ? false : true });
+    if (message.type === "spawn") ws.message({ type: "spawned", panelId: message.panelId, attached: running, started: false });
   };
   await f.controller.loadPanels();
   const attach = ws.sent.find((m) => (m as { type: string }).type === "spawn") as Record<string, unknown>;
-  assert.equal(attach.attachOnly, true);
-  assert.equal(attach.panelId, panel.panel_id);
+  assert.deepEqual(attach, { type: "spawn", panelId: panel.panel_id, attachOnly: true, cols: 100, rows: 30 });
   assert.equal(f.controller.isAlive(panel.panel_id), false);
   assert.equal(f.controller.panels[0]?.status, "exited");
-  assert.equal(f.requests.some((r) => r.method === "POST" && r.url.endsWith("/exited")), true);
+  assert.equal(f.requests.filter((r) => r.method === "POST").length, 0, "nothing is told the process ended");
   await f.controller.reopenPanel();
+  const opened = f.requests.find((r) => r.method === "POST")!;
+  assert.equal(opened.url, "/projects/project-a/api/plugins/goals-owner/goals/goal-a/terminals");
+  assert.deepEqual(JSON.parse(opened.body!), { key: panel.key, command: "cat", args: [] });
   const reopen = ws.sent.at(-1) as Record<string, unknown>;
-  assert.equal(reopen.attachOnly, false);
+  assert.equal(reopen.attachOnly, true);
   assert.equal(reopen.panelId, panel.panel_id);
   assert.equal(f.controller.isAlive(panel.panel_id), true);
   assert.equal(f.controller.panels[0]?.status, "open");
@@ -264,7 +197,7 @@ test("Panel loading attaches without starting and explicit reopen restarts the s
 test("Channel reconnect reattaches the live process and restores replay without relaunching it", async (t) => {
   const f = panelsFixture(t);
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const panel = panelRecord("goal-a");
+  const panel = listedPanel("goal-a");
   f.io.respond = async () => Response.json({ panels: [panel] });
   const connected = f.controller.connect();
   const first = BrowserSocket.instances[0]!;

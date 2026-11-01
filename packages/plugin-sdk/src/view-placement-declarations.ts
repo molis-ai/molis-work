@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_ICON_NAMES } from "./ui/icon-names.js";
 
 // The checks for where a view says its plugin is listed, made new and started from (W5-06 2b): its icon, its tab-strip `hue` (PG-075), its rail `group`,
 // what it `creates` and its project home `start`. Only a view that opens its plugin from the rail (`navigator`, `island`) may say
@@ -16,6 +17,12 @@ const RAILS: ReadonlySet<string> = new Set(UI_VIEW_RAILS);
 const HUES: ReadonlySet<string> = new Set(UI_VIEW_HUES);
 const HAN = /\p{Script=Han}/u;
 const CONTROL = /[\u0000-\u001f\u007f]/u;
+// T-362 (BL-543, S-47): a settings page's own address parameters. The defaults (`project`, `desktop`) and the shell's entry parameters
+// (`settings`, `settingsPath`, `embed`) belong to the shell; the lists are explicit and bounded.
+const ADDRESS_QUERY_LIMIT = 8, ADDRESS_HASH_LIMIT = 8;
+const ADDRESS_QUERY_NAME = /^[A-Za-z0-9_-]{1,32}$/u;
+const ADDRESS_HASH = /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}$/u;
+const ADDRESS_RESERVED_QUERY = new Set(["project", "desktop", "settings", "settingsPath", "embed"]);
 /** The longest English name or title, in Unicode code points: the unit the Host's directory cuts a name to (`apps/workbench/src/plugin-directory.ts`). */
 export const ENGLISH_NAME_LIMIT = 80;
 
@@ -58,6 +65,7 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   const problems: string[] = [];
   const id = view.view_id;
   if (view.icon !== undefined && !words(view.icon)) problems.push(`视图 ${id} 的 icon 必须是图标名`);
+  else if (view.icon !== undefined && !(PLUGIN_ICON_NAMES as readonly unknown[]).includes(view.icon)) problems.push(`视图 ${id} 的图标 ${JSON.stringify(view.icon)} 不在平台图标集里`);
   if (view.hue !== undefined && (typeof view.hue !== "string" || !HUES.has(view.hue))) problems.push(`视图 ${id} 的 hue ${String(view.hue)} 不是设计系统的颜色名（${UI_VIEW_HUES.join("、")}）`);
   const opens = view.slot === "navigator" || view.slot === "island";
   if (view.title_en !== undefined) {
@@ -78,6 +86,41 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   if (view.settings_runtimes !== undefined) {
     if (view.slot !== "settings") problems.push(`视图 ${id} 的 settings_runtimes 只用于 settings 视图`);
     if (view.settings_runtimes !== true) problems.push(`视图 ${id} 的 settings_runtimes 只能是 true`);
+  }
+  const address: unknown = view.settings_address;
+  if (address !== undefined) {
+    if (view.slot !== "settings") problems.push(`视图 ${id} 的 settings_address 只用于 settings 视图`);
+    if (!isObject(address)) problems.push(`视图 ${id} 的 settings_address 必须是对象`);
+    else {
+      for (const key of Object.keys(address)) if (key !== "query" && key !== "hash") problems.push(`视图 ${id} 的 settings_address 只能写 query 与 hash`);
+      const query = address.query;
+      if (query !== undefined) {
+        if (!Array.isArray(query) || query.some(item => typeof item !== "string")) problems.push(`视图 ${id} 的 settings_address.query 必须是参数名数组`);
+        else {
+          if (query.length > ADDRESS_QUERY_LIMIT) problems.push(`视图 ${id} 的 settings_address.query 最多 ${ADDRESS_QUERY_LIMIT} 个参数名`);
+          const seen = new Set<string>();
+          for (const name of query) {
+            if (!ADDRESS_QUERY_NAME.test(name)) problems.push(`视图 ${id} 的 settings_address.query 的参数名 ${name} 不合法（[A-Za-z0-9_-]{1,32}）`);
+            else if (ADDRESS_RESERVED_QUERY.has(name)) problems.push(`视图 ${id} 的 settings_address.query 不能声明 ${name}（外壳的默认或入口参数）`);
+            else if (seen.has(name)) problems.push(`视图 ${id} 的 settings_address.query 重复声明了 ${name}`);
+            seen.add(name);
+          }
+        }
+      }
+      const hash = address.hash;
+      if (hash !== undefined) {
+        if (!Array.isArray(hash) || hash.some(item => typeof item !== "string")) problems.push(`视图 ${id} 的 settings_address.hash 必须是片段数组`);
+        else {
+          if (hash.length > ADDRESS_HASH_LIMIT) problems.push(`视图 ${id} 的 settings_address.hash 最多 ${ADDRESS_HASH_LIMIT} 个片段`);
+          const seen = new Set<string>();
+          for (const fragment of hash) {
+            if (!ADDRESS_HASH.test(fragment)) problems.push(`视图 ${id} 的 settings_address.hash 的片段 ${fragment} 不合法（以 # 起头，[A-Za-z0-9][A-Za-z0-9._~-]{0,31}）`);
+            else if (seen.has(fragment)) problems.push(`视图 ${id} 的 settings_address.hash 重复声明了 ${fragment}`);
+            seen.add(fragment);
+          }
+        }
+      }
+    }
   }
   const data: unknown = view.settings_data;
   if (data !== undefined) {

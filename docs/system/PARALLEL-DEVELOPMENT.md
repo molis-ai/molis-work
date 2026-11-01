@@ -69,8 +69,10 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 - main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到；2026-10-15 去掉了「必须与 main 同步」，加了带合并队列的规则集）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `gates`、`health-gate-rules`（两份）、`architecture-boundaries`、`action-contracts`、`secret-scan`、`native-checks`、`shell-checks` 都成功；needs 里另有只在 push main 上运行的 `queue-check`（T-129），它不是一项检查，只让队列已验过的提交在 main 上不重跑；改这个作业的名字就等于改保护规则）；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 与动作合同影响和基本合同检查。
-- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；2026-10-31 用户定并入 `Verify`（main 上自 10-24 起 `product-subset` 250 次全绿、`security-invariants` 225 次里 223 次绿），不改分支保护。现在 `ci.yml` 挡合并的是 `gates`（健康门禁与文档、运行器、扫描器的变异用例，不要构建）、`health-gate-rules`（健康门禁各条规则的变异用例，分两份）、`architecture-boundaries`（构建与构建之上的门禁）、`action-contracts`（构建与动作、插件合同，分两份）、`secret-scan`、`native-checks`、`shell-checks`、`security-invariants`（安全不变量，分两份）、`product-subset`（产品子集，分两份），并行跑，经 `verify` 汇总，二十来分钟（`ci.yml` 里 T-128 统计的各作业最长一次成功运行：`gates` 6.8 分钟、`health-gate-rules` 5.2、`architecture-boundaries` 5.8；`action-contracts` 的 15.4 是合并队列里一台慢 runner 上的那次。`gates`、`health-gate-rules`、`architecture-boundaries`、`action-contracts`、`security-invariants` 和 `product-subset` 各有作业超时，只为挡住 6 小时的挂死：挡合并的作业一律不低于 30 分钟，且都不低于各自最长一次成功运行的 1.8 倍（`security-invariants` 40 分钟、`product-subset` 35 分钟）；每个 `Install pnpm` 步骤 3 分钟；T-128，数值与依据在 `ci.yml` 注释和 `tests/ci-timeouts.test.ts`，调高时两处和新的实测一起改）；不挡合并的只剩 `linux-probe`。`security-invariants` 和 `product-subset` 在合并队列里跑整张清单；PR 上由 `test-selection` 作业按改动挑文件（T-130），只在挑出一部分时跑，整套或一个没挑中时跳过（`Verify` 只在 PR 上把这个跳过当作通过）；合并队列已验过的 push main 和别的挡合并作业一样跳过，直推、每晚与手动运行整套跑。`linux-probe` 每晚（和勾上 `linux_probe` 的手动触发时）在 ubuntu 上把全部非浏览器用例逐个跑一遍，记下哪些通过（只记录，约 60 分钟，PR 和推送上不跑）；`product-subset` 跑 `tests/ci-product-subset.txt`（快而稳、走用户动线的约 400 个文件，加 5 个浏览器冒烟、`tests/i18n.test.ts`），4 个非浏览器文件同时跑（2026-10-14 起），有时间预算，不稳定的文件写进 `tests/quarantine.json`（`file`、`owner`、`since`、`expires`、`reason`，至多 30 天（从 `since` 数起，`since` 不能比运行当天晚）、最多 10 条，到期自动重新计入）。做法、预算、退出码见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」。**日常怎么用**：产品用例新增或改动后，若它快（几秒）、在 Linux 上稳、走用户动线，就加进清单；`product-subset` 作业红了，先看摘要里「Failed」与「Flaky」两节，是自己引入的就修，是偶发的就按摘要里附的条目格式写进隔离名单（owner 写你自己），不要跳过或放宽断言，也不要为了变绿把文件从清单里拿掉。全量产品用例和浏览器用例的全量在 `.github/workflows/full-suite.yml` 分片跑（第 7 节），也可以在本机跑。
+- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；本次按已定的“观察后并入”与只许变严合同加入 `Verify`，不改分支保护。现在 `ci.yml` 挡合并的是 `gates`（健康门禁与文档、运行器、扫描器的变异用例，不要构建）、`health-gate-rules`（健康门禁各条规则的变异用例，分两份）、`architecture-boundaries`（构建与构建之上的门禁）、`action-contracts`（构建与动作、插件合同，分两份）、`secret-scan`、`native-checks`、`shell-checks`、`security-invariants`（安全不变量，分两份）、`product-subset`（产品子集，分两份），并行跑，经 `verify` 汇总，二十来分钟（`ci.yml` 里 T-128 统计的各作业最长一次成功运行：`gates` 6.8 分钟、`health-gate-rules` 5.2、`architecture-boundaries` 5.8；`action-contracts` 的 15.4 是合并队列里一台慢 runner 上的那次。`gates`、`health-gate-rules`、`architecture-boundaries`、`action-contracts`、`security-invariants` 和 `product-subset` 各有作业超时，只为挡住 6 小时的挂死：挡合并的作业一律不低于 30 分钟，且都不低于各自最长一次成功运行的 1.8 倍（`security-invariants` 40 分钟、`product-subset` 35 分钟）；每个 `Install pnpm` 步骤 3 分钟；T-128，数值与依据在 `ci.yml` 注释和 `tests/ci-timeouts.test.ts`，调高时两处和新的实测一起改）；不挡合并的只剩 `linux-probe`。`security-invariants` 和 `product-subset` 在合并队列里跑整张清单；PR 上由 `test-selection` 作业按改动挑文件（T-130），some 跑选中项，whole、空或未知 mode、选择器故障回退整套；只有成功且对应 mode 为 none 才跳过，`Verify` 逐项核该依据才允许 skipped；合并队列已验过的 push main 和别的挡合并作业一样跳过，直推、每晚与手动运行整套跑。`linux-probe` 每晚（和所有手动触发时）在 ubuntu 上把全部非浏览器用例逐个跑一遍，记下哪些通过（只记录，约 60 分钟，PR 和推送上不跑）；`product-subset` 跑 `tests/ci-product-subset.txt`（快而稳、走用户动线的约 400 个文件，加 5 个浏览器冒烟、`tests/i18n.test.ts`），4 个非浏览器文件同时跑（2026-10-14 起），有时间预算，不稳定的文件写进 `tests/quarantine.json`（`file`、`owner`、`since`、`expires`、`reason`，至多 30 天（从 `since` 数起，`since` 不能比运行当天晚）、最多 10 条，到期自动重新计入）。做法、预算、退出码见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」。**日常怎么用**：产品用例新增或改动后，若它快（几秒）、在 Linux 上稳、走用户动线，就加进清单；`product-subset` 作业红了，先看摘要里「Failed」与「Flaky」两节，是自己引入的就修，是偶发的就按摘要里附的条目格式写进隔离名单（owner 写你自己），不要跳过或放宽断言，也不要为了变绿把文件从清单里拿掉。全量产品用例和浏览器用例的全量在 `.github/workflows/full-suite.yml` 分片跑（第 7 节），也可以在本机跑。
 - 清单和隔离文件自己的规则也挡合并：这些规则（每行的文件存在、没有 live 或 macOS 专有的用例、冒烟 3 到 5 个、`tests/i18n.test.ts` 在内、隔离项的字段与日期）在 `pnpm health:check` 里，随挡合并的 `gates`（经 `Verify`）检查，没有基线，出一处就失败。这是 W2-16 实现时加的，当时决定 #14 说的是作业先不挡合并（记在 spec §1 同一行）。对每个人的影响：重命名或删除清单里的某个用例，要在同一个 PR 里改 `tests/ci-product-subset.txt` 那一行；给清单里的用例加上 macOS 专有或 live 的用法（直接写，或经它引入的夹具）也会变红，那个用例已经不适合 Linux 子集，在 PR 描述里说明后从清单拿掉。需要日期的两条（隔离到期、`since` 不在将来）不在门禁里，由运行器按当天日期判断。
+
+上述本地 Full 为通用运行能力；本次接续执行按第 5.1 节覆盖说明。
 
 ## 4. PR 体量
 
@@ -92,11 +94,13 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 ### 5.1 子代理与并发的 Agent
 
+**本次接续覆盖说明（2026-10-31）**：通用运行能力、历史成本和本次执行授权分别理解。下文保留本地 Full 的通用能力与规则；它们不授予本次运行权限。2026-10-31 防腐本机 Codex 全线接续期间，按协调仓库 `coordination/2026-10-28/README.md` 的「2026-10-31 本机 Codex 全线接续（现行）」执行：本机及子代理均不跑 Full，由根安排所需 CI Full，仅根加 `full-suite`；本地定向验证经公共机器槽、`--jobs 1`。此覆盖说明仅用于本次接续，后续执行依当时明确授权与协调安排；Full/SI 及定向验收要求不因此减少。
+
 一个会话派出的子代理、Workflow 里的 Agent，和别的会话一样受上面的规矩约束；下面几条是它们常出事的地方（用户 2026-10-14 要求写进仓库：之前只记在某一个会话的记忆里，别的会话和工具看不到）。
 
-- **子代理不跑全量。** 全量由统筹的会话在集成分支上跑一次（第 7 节）；子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。
+- **子代理不跑全量。** 全量由统筹的会话在集成分支上跑一次（第 7 节）；子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。 本次接续由根安排 CI Full，见本节覆盖说明。
 - **只停自己起的进程，按 pid。** 用 `$!` 记下自己起的进程，或用 `pgrep` 按自己工作树的路径过滤后 `kill <pid>`；不用 `pkill`、`killall` 或按模式的 `kill`。依据：2026-10-11 一个子代理发现自己误起了全量，`pkill -f "scripts/run-tests.mjs"` 把统筹会话跑了约 50 分钟的全量一起杀了。
-- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 1`（或环境变量 `MOLIS_WORK_TEST_JOBS=1`）把自己的份数调到最小。本机跑测试一律包成 `node scripts/machine-slot.mjs run browser --label "<线名> tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>`，整机一次一个测试（用户 2026-10-25 定）：不带槽位的非浏览器运行不排队，别用它绕过；全量与浏览器批次由统筹安排，别的会话不在本机跑。
+- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 1`（或环境变量 `MOLIS_WORK_TEST_JOBS=1`）把自己的份数调到最小。本机跑测试一律包成 `node scripts/machine-slot.mjs run browser --label "<线名> tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>`，整机一次一个测试（用户 2026-10-25 定）：不带槽位的非浏览器运行不排队，别用它绕过；全量与浏览器批次由统筹安排，别的会话不在本机跑。 本次本机不执行其中 Full，按本节覆盖说明。
 
 ## 6. 验证频率（2026-10-03 的决定）
 
@@ -108,8 +112,8 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 带 `L()` 文案 | 再加 `tests/i18n.test.ts` |
 | 路由 | 再加所有读这条路由的用例 |
 | 界面 | 受影响的浏览器用例（排时段、串行）；PR 模板里的浅深色与三个宽度的截图。动了共用样式、皮肤、外壳或底栏的，再跑 `pnpm visual:compare`：在本机 Chrome 里把关键界面按 1440、1024、390 三个宽度、浅深色各拍一张，与 main 逐像素比对（同一棵树拍两次一像素不差，所以有差就是分支的；报告在 `.impeccable/qa/review/visual/compare/report.html`，用法见 `scripts/visual-compare.mjs` 开头） |
-| 共享核心（contracts、kernel、plugin-sdk、plugin-runtime、horizontal/agent-host、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 58 分钟：2026-10-16 在 1,017 个文件上测，W5-12；之前串行 76–78 分钟） |
-| 每个阶段收尾 | 全量一次，作为阶段证据 |
+| 共享核心（contracts、kernel、plugin-sdk、plugin-runtime、horizontal/agent-host、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 58 分钟：2026-10-16 在 1,017 个文件上测，W5-12；之前串行 76–78 分钟） ；本次 Full 由根按第 5.1 节覆盖说明安排 CI |
+| 每个阶段收尾 | 全量一次，作为阶段证据；本次 Full 由根按第 5.1 节覆盖说明安排 CI |
 
 测试与包的引用：一个测试进程既读包的 `src` 又读它的构建（包名、`dist`）就加载了两份，`instanceof`、模块级缓存和 `AsyncLocalStorage` 会对不上。改了包的出口、搬了名字或 rebase 之后，`node scripts/test-imports.mjs --check` 列出这样的测试，`--report` 按规则出重写计划（公开的名字走包入口，其余走 `dist` 里的同一个模块），`--write` 落地；`pnpm health:check` 对每个测试文件及独立子进程夹具要求这个数为零；改旧基线或 `--update` 也不能放过混用（`tooling/gates/README.md`）。
 
@@ -187,10 +191,12 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 **全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 16 个分片，每个分片 2 个文件同时跑、其中浏览器文件 1 个；一次运行最多同时占 6 台 runner（仓库一共 20 台，给 `Verify` 和合并队列留出余量），约 30–35 分钟；集成分支（`integration/**`）上最多占 10 台，约 20–25 分钟，两批同时跑就占满 20 台，这期间 `Verify` 要排队（用户 2026-10-20）；失败的文件自动重跑一次（`--retries 1`），重跑通过的在摘要里单列为「flaky」、不让分片变红，所以 `Full suite` 红只说明有文件两次都失败（2026-10-15：3 个同时跑时，每轮都有一批不同的浏览器文件因 CDP、DOM 等待超时失败，#519 前后五轮）；一个文件两次都失败，这个分片就停下（`--bail`：不再开新文件，正在跑的也停掉），其余分片随之取消（`fail-fast`），所以红的一次只报出第一个失败的文件，要看其余文件要修好后再跑（用户 2026-10-18）。集成分支上不这样（用户 2026-10-20）：不带 `--bail`、不 `fail-fast`，每个分片跑完所有文件，一次红的运行列出所有两次都失败的文件，这批的失败可以同时修，不用修一个跑一次；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加上 `full-suite` 标签时跑一次（之后推送不再自动跑；要再跑就去掉标签再加上，或 `gh workflow run full-suite.yml --ref <分支>`）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
 
+本次接续适用第 5.1 节：本地仅点名文件补 macOS 或复现 CI 失败，不运行 Full。
+
 几个 PR 同时动共享核心，各跑一次全量太贵，也看不到它们合在一起的结果。做法（第二步各批的做法，记录在 spec §9.5）：
 
 1. 开一个集成工作树和分支，名字 `integration/batch-<月-日><字母>`；把这几个 PR 的分支合进去。
-2. 整体构建一次；`pnpm boundary:check`、健康门禁（`node scripts/check-health-gates.mjs --base origin/main`）和类型检查过了，再跑这批的相关用例，最后跑一次全量。
+2. 整体构建一次；`pnpm boundary:check`、健康门禁（`node scripts/check-health-gates.mjs --base origin/main`）和类型检查过了，再跑这批的相关用例，最后跑一次全量。 本次最后一步由根安排 CI Full 并核回结果，见第 5.1 节。
 3. 失败先和干净基线比对。属于某个 PR 的，修在那个 PR 的分支上，再合进集成分支重跑受影响的用例；不在集成分支上直接改。
 4. 全量通过后，各 PR 仍然各自合入：各自的 CI 通过，分支同步到最新 main，批次结果贴在各 PR 里，也记进对应 spec。集成分支本身不合入 main。
 5. 用完删掉集成工作树与分支（第 10 节）。

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request runs (T-130).
-// Both block (decision #14, 2026-10-31), and the merge queue runs both whole, so on a pull request a job runs only for `some`: `whole`
-// and `none` skip it there, and `Verify` takes that skip (only on a pull request). The merge queue, a push to main, the nightly run and
-// a manual run never ask this, so they run both jobs whole.
+// Both block (decision #14). On a PR, some runs selected files, whole runs both complete shards, and only a successful none
+// skips the corresponding job. Verify reads the selector result and both modes to authorize those skips. Selector faults retain
+// the complete runs. The merge queue, direct pushes, nightly and manual runs run both lists whole.
 //
 // For a pull request it asks scripts/affected-tests.mjs which tests the change touches (`--json --wide`: every limit lifted, so a
 // test that reaches a changed file only through a shared helper is selected too) and keeps, for each job, the files of that job's
@@ -14,15 +14,14 @@
 //           anything here fails: no base, affected-tests exits non-zero or prints something that is not its JSON;
 //   some    the selected files only, on one runner when they fit in one shard of the whole list, otherwise on two;
 //   none    when none of its files is selected: the job is skipped.
-// When in doubt it asks for more, never less: every way out of this script that is not a clean answer is `whole`, which on a pull
-// request leaves the whole list to the merge queue.
+// When in doubt it runs more, never less: every way out of this script that is not a clean answer is `whole`.
 //
 //   node scripts/ci-test-selection.mjs --base <ref> [--root <dir>]     print the decision; in CI also write it to $GITHUB_OUTPUT
 //                                                                      and $GITHUB_STEP_SUMMARY
 // Outputs, per job (`security_…`, `product_…`): `mode` (whole, some, none), `shards` (the matrix as JSON: [1] or [1, 2]); and the
 // files of `some`: `security_files` (space-separated, for scripts/run-tests.mjs) and `product_only` (an anchored regular expression
 // of the files, for `scripts/ci-product-subset.mjs --only`). Both are empty unless the mode is `some`, so an empty value means
-// "the whole list" to the jobs; on a pull request they run only for `some`, and outside one this job does not run.
+// "the whole list" to the jobs; only a successful some on a PR supplies a selected list or shard count.
 // Exit: 0 whenever a decision was written (a `whole` that comes from a failure included), 2 on a usage error.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync, readdirSync } from "node:fs";
@@ -115,10 +114,10 @@ export function outputLines(decisions) {
 }
 
 function summary(decisions, base) {
-  const out = [`## PR test selection`, "", `Compared with \`${base}\`. On a pull request a job runs only for \`some\` (\`whole\` and \`none\` skip it); the merge queue runs both whole, and the merge waits for that.`, ""];
+  const out = [`## PR test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. The merge queue runs both whole and waits for them.`, ""];
   const titles = { security: "Security invariants", product: "Product subset" };
   for (const [job, decision] of Object.entries(decisions)) {
-    out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : decision.mode === "whole" ? " (skipped here, the merge queue runs the whole list)" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
+    out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
     for (const reason of decision.reasons) out.push(`- ${reason}`);
     if (decision.mode === "some") out.push("", ...decision.files.map((file) => `- \`${file}\``));
     out.push("");

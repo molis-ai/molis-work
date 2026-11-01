@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import type { IncomingMessage } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
-import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginPageRequest, pluginPagesFor, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
@@ -390,4 +395,227 @@ test("SYS-15 S-47 RAC-1811 a plain Home request with bad percent-encoding is 400
   assert.deepEqual(answered, [], "the route's handler did not run for a malformed path");
   assert.equal((await f.request(`/api/plugins/${id}/items/abc`)).status, 200, "a well-formed path still reaches the route");
   assert.deepEqual(answered, ["abc"]);
+});
+// RAC-2442 (T-218 S1): a page without an install_id (a registered page or the builder's trial page) ends the requests it has in flight as
+// a cancellation when the person who opened it leaves; only a withdrawal ends them as refused. The class is the same production authority
+// the HTTP routes use, so the page state and the abort reason are the real ones.
+test("RAC-2442 a page without install_id cancels its in-flight requests when the person leaves, and refuses them on a withdrawal", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-work-page-authority-"));
+  try {
+    const authority = pluginPagesFor(home);
+    const manifest = { plugin_id: "io.example.registered", ui: {}, actions: [], routes: [] } as PluginManifest;
+    const activation = () => ({ manifest, install_id: null, project_id: null, actor_id: "web-user", assertCurrent() {}, requestAllowed: () => true });
+    const requestOf = async (pageId: string) => {
+      const request = { headers: { "x-molis-plugin-page": pageId }, method: "GET" } as IncomingMessage;
+      await authority.bind(request, new URL("http://127.0.0.1/api/anything"));
+      return pluginPageRequest(request)!.signal;
+    };
+
+    const person = authority.open("io.example.registered", null, "web-user", undefined, activation());
+    const left = await requestOf(person.page_id);
+    await authority.finish(person.page_id, undefined);
+    assert.equal((left.reason as { code?: string } | undefined)?.code, "actions.cancelled",
+      "the person leaving ends the request as a cancellation, not a withdrawal");
+
+    const revoked = authority.open("io.example.registered", null, "web-user", undefined, activation());
+    const refused = await requestOf(revoked.page_id);
+    authority.close(revoked.page_id);
+    assert.equal((refused.reason as { code?: string } | undefined)?.code, "actions.forbidden",
+      "a withdrawn page still ends its requests as refused");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+// RAC-2412 (S-47): the workbench keeps only the address parameters and fragments the settings page being opened reads. A page can push any
+// address into a settings page through `molis-work:open-settings-path`; undeclared query parameters and an undeclared fragment must not
+// reach it, while what the page reads stays. The same table is injected into the shell and into the standalone Home model settings dialog.
+import {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  HOME_MODEL_SETTINGS_CLIENT_SCRIPT,
+  HOME_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+  SETTINGS_DIRECTORY_FACTORY_SCRIPT,
+} from "@molis-ai/molis-work-app-workbench";
+import vm from "node:vm";
+import { readFileSync } from "node:fs";
+
+/** The `table` a script injected: `const NAME = {…};` read back out of its source. */
+function injectedTable(script: string, name: string): unknown {
+  const match = new RegExp(`const ${name} = (\\{.*?\\});`).exec(script);
+  assert.ok(match, `${name} is injected`);
+  return JSON.parse(match[1]!);
+}
+
+/** The string a script injected: `const NAME = "…";` read back out of its source. */
+function injectedString(script: string, name: string): string {
+  const match = new RegExp(`const ${name} = ("(?:[^"\\\\]|\\\\.)*");`).exec(script);
+  assert.ok(match, `${name} is injected`);
+  return JSON.parse(match[1]!);
+}
+
+type Event = { type: string; detail?: { href?: string } };
+type Listener = (event: Event) => void;
+
+import { createSettingsAddressHarness, type SettingsAddressSection } from "./fixtures/settings-address.js";
+
+/** A single address; lifecycle regressions below retain the harness across requests. */
+function openSettingsAddress(href: string, pluginSections: readonly SettingsAddressSection[] = [], via: "event" | "link" = "event"): string {
+  const address = createSettingsAddressHarness(pluginSections).open(href, via);
+  assert.notEqual(address, null, `${href}: one settings page is opened`);
+  return address!;
+}
+
+/** A Home shell dialog over a page mock: what it asks the Host for after a page hands over an address. */
+async function homeModelAddress(href: string): Promise<string> {
+  const asked: string[] = [];
+  const listeners = new Map<string, Listener[]>();
+  const element = (): Record<string, unknown> => ({ dataset: {}, hidden: false, textContent: "", value: "", options: [], open: false,
+    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {},
+    removeAttribute: () => {}, setAttribute: () => {}, showModal: () => {}, close: () => {} });
+  const dialog = element();
+  const request = Object.assign((url: string) => { asked.push(url); return Promise.reject(new Error("captured")); }, { show: () => {} });
+  const document = {
+    querySelector: (selector: string) => selector === "[data-home-model-settings]" ? dialog : null,
+    querySelectorAll: () => [],
+    addEventListener: (type: string, listener: Listener) => { const list = listeners.get(type) ?? []; list.push(listener); listeners.set(type, list); },
+    dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
+  };
+  vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
+    document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
+    DOMParser: class {}, AbortController, setTimeout, clearTimeout,
+  });
+  const swallowed: unknown[] = [];
+  const onRejection = (reason: unknown) => swallowed.push(reason);
+  process.on("unhandledRejection", onRejection);
+  try {
+    document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally { process.off("unhandledRejection", onRejection); }
+  assert.equal(asked.length, 1, `${href}: the dialog loads once`);
+  return asked[0]!;
+}
+
+test("RAC-2412 S-47 a settings address keeps only the parameters and fragment its page reads", () => {
+  assert.equal(openSettingsAddress("/settings/models?setup=1&template=balanced&provider=second&new=1&x=1#frag"),
+    "/settings/models?setup=1&template=balanced&provider=second&new=1", "models keeps setup, template, provider and new; drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/connectors?connector=image-api&connected=notion&connection_error=cancelled&setup=s-1&x=1"),
+    "/capabilities/connections?connector=image-api&connected=notion&connection_error=cancelled&setup=s-1", "connectors (opened as the 能力 connections page) keeps connector, connected, connection_error and setup; drops x");
+  assert.equal(openSettingsAddress("/capabilities/library?kind=action&action=feed.list@1&version=2&provider=not-read&x=1"),
+    "/capabilities/library?kind=action&action=feed.list%401&version=2", "library keeps kind, action and version; drops provider (only models reads it) and x");
+  assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#agent-diagnostics"),
+    "/settings/diagnostics?call=c-1#agent-diagnostics", "diagnostics keeps its call and its fragment");
+  assert.equal(openSettingsAddress("/settings/diagnostics?call=c-1#elsewhere"),
+    "/settings/diagnostics?call=c-1", "diagnostics drops a fragment it does not read");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&q=feed&filter=all&format=html&bad=1"),
+    "/capabilities/access?client=agent%3Aprologue&client_custom=acme&q=feed&filter=all", "the access page keeps its client selector, q and filter; drops format (the page does not read it) and bad");
+  assert.equal(openSettingsAddress("/capabilities/access?client=agent:prologue&client_custom=acme&project=desk-1&q=feed&filter=all&format=html&bad=1", [], "link"),
+    "/capabilities/access?client=agent%3Aprologue&client_custom=acme&project=desk-1&q=feed&filter=all", "the same retention on the full address when a plugin page's link clicks through to the access page");
+  assert.equal(openSettingsAddress("/capabilities/rules?project=p1&rule=r-1&key=k-1&x=1"),
+    "/capabilities/rules?project=p1&rule=r-1&key=k-1", "the rules page keeps project, rule and key, drops x");
+  assert.equal(openSettingsAddress("/projects/p1/settings/planning/method-a?project=p1&x=1#frag"),
+    "/projects/p1/settings/planning/method-a?project=p1", "a nested planning page keeps project, drops x and #frag");
+  assert.equal(openSettingsAddress("/settings/coding-settings?project=p1&desktop=1&x=1", ["coding-settings"]),
+    "/settings/coding-settings?project=p1&desktop=1", "a plugin settings page keeps project and desktop, drops x");
+  // A plugin section may be named like an Object property: only the table's own keys count, so it gets the plugin defaults and no hash.
+  assert.equal(openSettingsAddress("/settings/constructor?project=p1&desktop=1&function=not-declared#frag", ["constructor"]),
+    "/settings/constructor?project=p1&desktop=1", "a plugin section named constructor keeps project and desktop, drops an undeclared parameter and the fragment");
+  // Projects reads the picked project's id from the fragment; only a project-id-shaped value is kept, and the page's own project
+  // parameter stays while an undeclared one does not.
+  assert.equal(openSettingsAddress("/settings/projects?project=p1&x=1#p1.2_x~y-3"),
+    "/settings/projects?project=p1#p1.2_x~y-3", "the projects page keeps the picked project's id in the fragment and drops x");
+  assert.equal(openSettingsAddress(`/settings/projects?project=p1#${"x".repeat(200)}`),
+    `/settings/projects?project=p1#${"x".repeat(200)}`, "a project id of exactly 200 characters is kept");
+  for (const bad of ["#.hidden", "#bad id", "#a/b", "#%2e", `#${"x".repeat(201)}`]) {
+    assert.equal(openSettingsAddress(`/settings/projects?project=p1${bad}`), "/settings/projects?project=p1",
+      `the projects page drops a fragment that is not a project id: ${bad.slice(0, 20)}`);
+  }
+  assert.equal(openSettingsAddress("/settings/assistant#contributions"),
+    "/settings/assistant#contributions", "the assistant page keeps its declared contributions fragment");
+});
+
+test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {
+  const models = new URL(await homeModelAddress("/settings/models?setup=1&template=balanced&provider=second&x=1#frag"));
+  assert.equal(models.searchParams.get("setup"), "1");
+  assert.equal(models.searchParams.get("template"), "balanced");
+  assert.equal(models.searchParams.get("provider"), "second", "the providers page's own choice is kept");
+  assert.equal(models.searchParams.get("x"), null, "an undeclared parameter is dropped");
+  assert.equal(models.searchParams.get("embed"), "1", "the dialog still asks for the embedded document");
+  assert.equal(models.hash, "", "the fragment is dropped");
+  const connectors = new URL(await homeModelAddress("/capabilities/connections?setup=s-1&connector=notion&x=1"));
+  assert.equal(connectors.searchParams.get("setup"), "s-1");
+  assert.equal(connectors.searchParams.get("connector"), "notion");
+  assert.equal(connectors.searchParams.get("x"), null);
+});
+
+test("RAC-2412 S-47 the access declaration lists exactly what the access page reader reads", () => {
+  // Tie the declaration to the real reader instead of a second copy: every parameter mcpAccessPageModel reads (after the defaults every
+  // page gets) must be declared, so a new read there without a new declaration turns this red.
+  const source = readFileSync(new URL("../apps/local-host/src/mcp-action-access.ts", import.meta.url), "utf8");
+  const start = source.indexOf("export async function mcpAccessPageModel");
+  assert.ok(start > 0, "the access page reader is found");
+  const bodyStart = source.indexOf("{", source.indexOf("Promise<", start));
+  let depth = 0, end = -1;
+  for (let at = bodyStart; at < source.length; at += 1) {
+    if (source[at] === "{") depth += 1;
+    else if (source[at] === "}" && --depth === 0) { end = at; break; }
+  }
+  assert.ok(end > bodyStart, "the reader's body is found");
+  const read = new Set([...source.slice(bodyStart, end).matchAll(/url\.searchParams\.get\("([A-Za-z_]+)"\)/gu)].map(match => match[1]!));
+  assert.ok(read.has("client") && read.has("client_custom"), "the reader reads the client selector");
+  const shared = new Set(SETTINGS_ADDRESS_DEFAULTS.global.split(" "));
+  const expected = [...read].filter(key => !shared.has(key)).sort();
+  const declared = (GLOBAL_SETTINGS_QUERY_EXTRAS.access ?? "").split(" ").filter(Boolean).sort();
+  assert.deepEqual(declared, expected, "the access declaration is exactly the reader's own parameters");
+});
+
+test("RAC-2412 S-47 both scripts carry the one declaration table", () => {
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_QUERY_EXTRAS"), JSON.parse(JSON.stringify(GLOBAL_SETTINGS_QUERY_EXTRAS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_QUERY_EXTRAS"), JSON.parse(JSON.stringify(PROJECT_SETTINGS_QUERY_EXTRAS)));
+  assert.deepEqual(injectedTable(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "ADDRESS_HASHES"), JSON.parse(JSON.stringify(SETTINGS_ADDRESS_HASHES)));
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "GLOBAL_DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.project);
+  assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ID_HASH_SECTION"), PROJECT_ID_HASH_SECTION);
+  assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_QUERY_EXTRAS"), JSON.parse(JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)));
+  assert.equal(injectedString(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+});
+
+// RAC-2743 (T-362, BL-543): a plugin settings page keeps the query parameters and fragments its Manifest declares (rendered on its
+// settings-directory row as data-settings-address-*), keeps the defaults every page is rendered with, and still drops what it did not
+// declare. RAC-2744: a page that declares nothing keeps the defaults only, as before.
+test("RAC-2743 S-47 a plugin settings page keeps what its Manifest declares, and RAC-2744 a page without declarations keeps the defaults", () => {
+  const declared = [{ id: "roles", query: "tab filter", hash: "#section #members" }];
+  assert.equal(openSettingsAddress("/settings/roles?tab=members&filter=active&evil=1#section", declared),
+    "/settings/roles?tab=members&filter=active#section", "the declared query names and fragment stay; the undeclared one goes");
+  assert.equal(openSettingsAddress("/settings/roles?project=p1&desktop=1&tab=members&evil=1#members", declared),
+    "/settings/roles?project=p1&desktop=1&tab=members#members", "the defaults stay beside the declared names");
+  assert.equal(openSettingsAddress("/settings/roles?tab=members#other", declared),
+    "/settings/roles?tab=members", "a fragment the page did not declare is dropped");
+  assert.equal(openSettingsAddress("/settings/plain?tab=members&evil=1#section", ["plain"]),
+    "/settings/plain", "a page that declares nothing keeps no parameter, as before");
+  assert.equal(openSettingsAddress("/settings/plain?project=p1&tab=members#section", ["plain"]),
+    "/settings/plain?project=p1", "a page that declares nothing keeps the defaults only, as before");
+  assert.equal(openSettingsAddress("/settings/plain?tab=members#section", [{ id: "plain", query: "", hash: "" }]),
+    "/settings/plain", "an empty declaration is the same as none");
+});
+
+test("RAC-2743 RAC-2744 S-47 the same factory follows replaced, added, removed and reappearing settings rows", () => {
+  const shell = createSettingsAddressHarness([{ id: "shelf", query: "tab", hash: "#old" }]);
+  assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#old"),
+    "/settings/shelf?project=p1&desktop=1&tab=old#old");
+  shell.replaceNavigation([{ id: "shelf", query: "filter", hash: "#new" }]);
+  assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#new"),
+    "/settings/shelf?project=p1&desktop=1&filter=new#new", "replacement uses the current row, not the cached declaration");
+  assert.equal(shell.open("/settings/shelf?tab=old&filter=new#old"), "/settings/shelf?filter=new", "old hash is no longer declared");
+  shell.replaceNavigation([{ id: "shelf", query: "filter", hash: "#new" }, { id: "added", query: "tab", hash: "#added" }]);
+  assert.equal(shell.open("/settings/added?tab=active&evil=1#added"), "/settings/added?tab=active#added", "new row is discovered");
+  shell.replaceNavigation([]);
+  assert.equal(shell.open("/settings/shelf?filter=new#new"), null, "a removed row does not open");
+  assert.equal(shell.open("/settings/added?tab=active#added"), null, "the other removed row does not open");
+  shell.replaceNavigation(["shelf"]);
+  assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#new"),
+    "/settings/shelf?project=p1&desktop=1", "a reappearing row without declarations keeps only defaults");
 });

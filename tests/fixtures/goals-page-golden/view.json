@@ -1,0 +1,6893 @@
+{
+ "snapshot": {
+  "board": {
+   "project_id": "molis-work-v1-demo",
+   "active_goal_id": "V1",
+   "created_at": "2026-10-30T09:00:00.000Z",
+   "updated_at": "2026-10-30T09:00:00.000Z"
+  },
+  "cursor": 94,
+  "goals": [
+   {
+    "goal_id": "V1",
+    "project_id": "molis-work-v1-demo",
+    "title": "让第一次使用的人顺利完成一轮目标协作",
+    "outcome": "用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据",
+    "why": "AI 对话结束后容易丢失目标、决定和进度，新用户尤其难判断该从哪里继续",
+    "business_logic": "用户先在当前对话说明想做什么，Runtime 保存可辨认的意图并上报工作事实；需要用户决定的由用户在 Web 确认，满足当前约定后显式收尾，Molis Work 持续保存共同进度。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 100,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "PLATFORM",
+    "project_id": "molis-work-v1-demo",
+    "title": "让项目事实成为不同 Runtime 的共同底座",
+    "outcome": "不同 AI、会话和插件按各自所有者读到同一份项目事实",
+    "why": "长程任务最容易在切换对话和 Runtime 后失去共同上下文",
+    "business_logic": "Molis Work 保存项目事实，每类事实由各自的插件负责；Runtime 经统一动作目录读取、执行工作并上报结果，不在各自会话里维护另一套项目记忆。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 96,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "WORKSPACE",
+    "project_id": "molis-work-v1-demo",
+    "title": "让人能在同一工作台看清并推进 Goal",
+    "outcome": "用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime",
+    "why": "频繁切换页面、终端和 AI 对话会打断判断，也让 Goal 与执行 Session 脱节",
+    "business_logic": "桌面端把 Goal 导航、当前工作和 Runtime 组合成连续工作面；网页保留同一份项目事实与独立访问方式。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 94,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "ADOPTION",
+    "project_id": "molis-work-v1-demo",
+    "title": "让第一次接入从安装走到真实推进",
+    "outcome": "新用户从 README、安装和首次打开一路走到推进第一条 Goal",
+    "why": "只把程序装上不等于用户已经理解产品，更不等于完成第一次有效使用",
+    "business_logic": "公开文档先解释适用场景，再引导安装、连接 Runtime、选择项目并推进一条可执行 Goal。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 92,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "CORE",
+    "project_id": "molis-work-v1-demo",
+    "title": "让每项工作都有可信的完成依据",
+    "outcome": "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
+    "why": "只有进度标签而没有结果和完成依据，用户仍然无法相信工作真的完成了",
+    "business_logic": "Runtime 开始一项已约定的工作，并把进展和结果作为事实上报；每条要求都有当前结果支持、没有挡住收尾的 Concern 或待决定时，这项工作才能显式收尾并显示为已完成。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "satisfied",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 90,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "INTERFACES",
+    "project_id": "molis-work-v1-demo",
+    "title": "让不同 AI 对话看到同一项目进度",
+    "outcome": "用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作",
+    "why": "如果每个入口各自记录状态，用户换一次对话就要重新解释整个项目",
+    "business_logic": "用户在当前对话明确选择项目后继续推进；其他 Runtime 也通过 Molis Work 读取和更新同一份项目事实，不会各自维护一套进度。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 80,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "RISK",
+    "project_id": "molis-work-v1-demo",
+    "title": "安装文档和真实接入步骤对不上",
+    "outcome": "接入说明与当前产品步骤一致，用户不会按过期文档操作",
+    "why": "文档仍写旧入口时，用户会以为产品坏了",
+    "business_logic": "对照当前安装、Runtime 接入和首次会话步骤，标出对不上的句子并改到同一条路径。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 78,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "GRAPH",
+    "project_id": "molis-work-v1-demo",
+    "title": "让复杂 Goal 关系仍然一眼可读",
+    "outcome": "父子层级、前置依赖和当前焦点在复杂网络中仍有清楚的方向与落点",
+    "why": "列表适合顺序浏览，但复杂 Goal 的多层结构和跨分支依赖会在列表里变得难以判断",
+    "business_logic": "用户在 List 与 Graph 之间切换；Graph 只读取真实父子和依赖关系，以节点、分区和有向连线呈现。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "satisfied",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": "2026-10-30T09:00:00.000Z",
+    "archived_by": "demo-user",
+    "priority": 76,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "DESKTOP",
+    "project_id": "molis-work-v1-demo",
+    "title": "把 Molis Work 作为不切窗口的主工作站",
+    "outcome": "用户在桌面端同时看到 Goal、下一步、完成要求和强绑定的 Runtime",
+    "why": "工作在 AI 对话里推进、状态在另一个页面查看，会增加切换成本并削弱人的掌控感",
+    "business_logic": "桌面端复用网页事实和 Runtime 能力，将全局控制放进 TitleBar，并为 List、Focus 与 Runtime 保留连续三栏。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 74,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "DECIDE",
+    "project_id": "molis-work-v1-demo",
+    "title": "决定首页先展示目标还是先展示 Runtime",
+    "outcome": "首次打开项目时，用户知道自己该先看目标树还是先开一条会话",
+    "why": "两个入口同时强调时，新用户会停在选择上",
+    "business_logic": "产品决定一个默认落点，另一个入口仍可从同一工作台到达。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 72,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "WEB",
+    "project_id": "molis-work-v1-demo",
+    "title": "让用户打开页面就看懂目标和下一步",
+    "outcome": "用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞",
+    "why": "底层规则正确并不代表产品容易理解；信息组织混乱会让用户放弃继续使用",
+    "business_logic": "用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 70,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "WEB-SCAN",
+    "project_id": "molis-work-v1-demo",
+    "title": "打开项目后三秒内认出当前目标和阻塞",
+    "outcome": "用户不用点进详情，也能从列表看出现在该看哪条 Goal、它卡在哪里",
+    "why": "首屏如果只堆标题，用户仍然要逐条点开才能判断下一步",
+    "business_logic": "列表把当前目标、状态和阻塞放在同一行；多层子 Goal 用缩进表达归属，不把状态列推歪。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 68,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "WEB-SCAN-ROW",
+    "project_id": "molis-work-v1-demo",
+    "title": "子 Goal 标题比父 Goal 更靠右，状态仍对齐",
+    "outcome": "四层 Goal 树扫一眼就能分清父子，状态列仍在同一条竖线上",
+    "why": "只有折叠箭头、标题却和父行齐平，多层树会读成平铺清单",
+    "business_logic": "标题簇按归属深度每次右移 16px；没有短码的子行仍给编号留位，避免标题跑到父行左边。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 66,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "WEB-SCAN-NEST",
+    "project_id": "molis-work-v1-demo",
+    "title": "再下一层仍能看出归属",
+    "outcome": "五层树里最深的一行仍然明显属于上一层，不和旁边的叶子抢位置",
+    "why": "只演示到四层时，更深的真实项目树仍然可能挤成一团",
+    "business_logic": "继续用同一套缩进，不另做编号体系。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 64,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "RELEASE",
+    "project_id": "molis-work-v1-demo",
+    "title": "让新用户安装后知道下一步怎么开始",
+    "outcome": "用户完成安装后知道如何启动页面、连接正在使用的 Runtime，以及为什么需要新开会话",
+    "why": "安装成功但不知道服务是否常驻、工具何时生效或下一步说什么，仍然会被理解成产品不可用",
+    "business_logic": "安装只放置 Molis Work 自己的程序，不偷偷修改项目或 Runtime；用户随后显式启用常驻服务、预览并确认 Runtime 接入，再在新会话中选择或创建项目开始使用。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 60,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "ONBOARDING",
+    "project_id": "molis-work-v1-demo",
+    "title": "让用户第一次打开就完成有效操作",
+    "outcome": "用户首次进入后能选择项目、找到可做 Goal，并理解 Runtime 为什么绑定到它",
+    "why": "展示很多功能不等于用户知道第一步做什么，首屏需要直接引向一次有效推进",
+    "business_logic": "首次体验使用一份明确标记的 Mock 项目，沿着可做 Goal、下一步与 Runtime 归属完成一轮引导。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 58,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "DOCS",
+    "project_id": "molis-work-v1-demo",
+    "title": "让用户从 README 进入正确的使用方式",
+    "outcome": "用户先理解长程任务为何会跑偏，再看到 Molis Work 的闭环、桌面端和 Runtime 伴随方式",
+    "why": "功能清单无法建立需求感，也无法解释 Molis Work 与 Agent Orchestration 的边界",
+    "business_logic": "README 用痛点、核心思路和完整演示组织内容；截图来自 Mock 项目的真实网页与桌面页面。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 56,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "DROPPED",
+    "project_id": "molis-work-v1-demo",
+    "title": "在旧会话里自动启用 MCP",
+    "outcome": "接入后不必新开对话也能立刻调用工具",
+    "why": "早期希望减少一次重启，但旧会话读不到新接入",
+    "business_logic": "安装完成后在当前对话直接启用 MCP。这个方案会让人误以为安装失败，因此已经取消。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 20,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   {
+    "goal_id": "AUTO-CONNECT",
+    "project_id": "molis-work-v1-demo",
+    "title": "自动替用户选择最近使用的项目",
+    "outcome": "新对话少做一次项目确认",
+    "why": "早期方案希望用历史目录记录缩短首次连接步骤",
+    "business_logic": "新对话进入一个以前使用过的目录时，系统直接连接最近的项目，不再询问用户。这个方案可能选错项目，因此已经移入回收站，当前产品只展示候选并让用户决定。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": "2026-10-30T09:00:00.000Z",
+    "trashed_by": "demo-user",
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 10,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   }
+  ],
+  "relations": [
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000001",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "ADOPTION",
+    "to_goal_id": "V1",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000002",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "CORE",
+    "to_goal_id": "PLATFORM",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000003",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DECIDE",
+    "to_goal_id": "DESKTOP",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000004",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DECIDE",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000005",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DESKTOP",
+    "to_goal_id": "CORE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000006",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DESKTOP",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000007",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DOCS",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000008",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DOCS",
+    "to_goal_id": "ONBOARDING",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000009",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "DROPPED",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000010",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "GRAPH",
+    "to_goal_id": "CORE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000011",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "GRAPH",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000012",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "INTERFACES",
+    "to_goal_id": "CORE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000013",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "INTERFACES",
+    "to_goal_id": "PLATFORM",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000014",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "ONBOARDING",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000015",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "ONBOARDING",
+    "to_goal_id": "RELEASE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000016",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "PLATFORM",
+    "to_goal_id": "V1",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000017",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "RELEASE",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000018",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "RISK",
+    "to_goal_id": "INTERFACES",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000019",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "RISK",
+    "to_goal_id": "PLATFORM",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000020",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "WEB-SCAN-NEST",
+    "to_goal_id": "WEB-SCAN-ROW",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000021",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "WEB-SCAN-ROW",
+    "to_goal_id": "WEB-SCAN",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000022",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "WEB-SCAN",
+    "to_goal_id": "WEB",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000023",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "WEB",
+    "to_goal_id": "INTERFACES",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000024",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "WEB",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   },
+   {
+    "relation_id": "relation-00000000-0000-4000-8000-000000000025",
+    "project_id": "molis-work-v1-demo",
+    "from_goal_id": "WORKSPACE",
+    "to_goal_id": "V1",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal",
+    "created_by": "demo-user",
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "deactivated_at": null
+   }
+  ],
+  "goal_tree_proposals": [
+   {
+    "proposal_id": "goal-tree-proposal-00000000-0000-4000-8000-000000000026",
+    "project_id": "molis-work-v1-demo",
+    "root_goal_id": "ONBOARDING",
+    "submitted_by": "runtime:test:session",
+    "submitted_session_id": null,
+    "state": "pending",
+    "version": 1,
+    "supersedes_proposal_id": null,
+    "base_event_cursor": 93,
+    "summary": "新增一个等你判断的 Goal",
+    "narrative": null,
+    "decision": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "decided_at": null,
+    "items": [
+     {
+      "item_id": "golden-item",
+      "proposal_id": "goal-tree-proposal-00000000-0000-4000-8000-000000000026",
+      "project_id": "molis-work-v1-demo",
+      "ordinal": 1,
+      "kind": "goal",
+      "operation": "create",
+      "payload": {
+       "goal_id": "GOLDEN-CHILD",
+       "outcome": "判断后创建",
+       "title": "等你判断的子 Goal"
+      },
+      "source_refs": [
+       "runtime"
+      ],
+      "reason": "用户确认后创建",
+      "explanation": null,
+      "confidence": 1,
+      "affected_objects": [
+       {
+        "object_type": "goal",
+        "object_id": "GOLDEN-CHILD"
+       }
+      ],
+      "baseline_versions": [
+       {
+        "object_type": "goal",
+        "object_id": "GOLDEN-CHILD",
+        "exists": false,
+        "version": "absent"
+       }
+      ],
+      "requires_user_confirmation": true,
+      "state": "pending",
+      "conflict": null,
+      "decision": null,
+      "materialized_objects": [],
+      "revision_proposal_id": null,
+      "supersedes_item_id": null,
+      "created_at": "2026-10-30T09:00:00.000Z",
+      "updated_at": "2026-10-30T09:00:00.000Z"
+     }
+    ],
+    "decisions": []
+   }
+  ],
+  "planning_method_packs": [],
+  "project_guidance": []
+ },
+ "project": null,
+ "projects": [],
+ "route_prefix": "",
+ "demo": true,
+ "active_goal_id": "V1",
+ "goals": [
+  {
+   "goal": {
+    "goal_id": "V1",
+    "project_id": "molis-work-v1-demo",
+    "title": "让第一次使用的人顺利完成一轮目标协作",
+    "outcome": "用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据",
+    "why": "AI 对话结束后容易丢失目标、决定和进度，新用户尤其难判断该从哪里继续",
+    "business_logic": "用户先在当前对话说明想做什么，Runtime 保存可辨认的意图并上报工作事实；需要用户决定的由用户在 Web 确认，满足当前约定后显式收尾，Molis Work 持续保存共同进度。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 100,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "executing",
+   "display_status": "in_progress",
+   "status_label": "正在推进",
+   "main_action_label": "记录进展",
+   "action_summary": "先处理需要决定和受阻的 Goal",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000001",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "ADOPTION",
+     "to_goal_id": "V1",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000016",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "PLATFORM",
+     "to_goal_id": "V1",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000025",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WORKSPACE",
+     "to_goal_id": "V1",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 93,
+     "event_id": "00000000-0000-4000-8000-000000000027",
+     "actor_id": "demo-user",
+     "type": "board.active_goal_changed",
+     "object_type": "goal",
+     "object_id": "V1",
+     "reason": "演示项目从第一个目标开始",
+     "payload": {},
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 78,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000028",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.progress_summary",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000028",
+     "reason": "记录当前进展和下一步",
+     "payload": {
+      "operation": "progress_summary",
+      "summary": "列表、画布和看板都有真实内容可扫。",
+      "based_on_cursor": 77,
+      "next_step": "先处理需要决定和受阻的 Goal",
+      "next_actor": "当前用户"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 77,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000029",
+     "actor_id": "demo-user",
+     "type": "goal.work_event.recorded",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000029",
+     "reason": "目标树已经能看出下一步",
+     "payload": {
+      "type_id": "lifecycle",
+      "type_version": 1,
+      "fields": {
+       "result": "列表、画布和看板都有真实内容可扫。"
+      },
+      "judgments": [
+       {
+        "requirement_id": "V1-C1",
+        "verdict": "supports"
+       }
+      ]
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 76,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000030",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "V1",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 14,
+     "event_id": "00000000-0000-4000-8000-000000000031",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000001",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "ADOPTION",
+      "to_goal_id": "V1",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 11,
+     "event_id": "00000000-0000-4000-8000-000000000032",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000025",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WORKSPACE",
+      "to_goal_id": "V1",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 8,
+     "event_id": "00000000-0000-4000-8000-000000000033",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000016",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "PLATFORM",
+      "to_goal_id": "V1",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 5,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000034",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000034",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 4,
+     "event_id": "00000000-0000-4000-8000-000000000035",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "V1",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "PLATFORM",
+    "project_id": "molis-work-v1-demo",
+    "title": "让项目事实成为不同 Runtime 的共同底座",
+    "outcome": "不同 AI、会话和插件按各自所有者读到同一份项目事实",
+    "why": "长程任务最容易在切换对话和 Runtime 后失去共同上下文",
+    "business_logic": "Molis Work 保存项目事实，每类事实由各自的插件负责；Runtime 经统一动作目录读取、执行工作并上报结果，不在各自会话里维护另一套项目记忆。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 96,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000002",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "CORE",
+     "to_goal_id": "PLATFORM",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000013",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "INTERFACES",
+     "to_goal_id": "PLATFORM",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000016",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "PLATFORM",
+     "to_goal_id": "V1",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000019",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "RISK",
+     "to_goal_id": "PLATFORM",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 24,
+     "event_id": "00000000-0000-4000-8000-000000000036",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000019",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "RISK",
+      "to_goal_id": "PLATFORM",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 20,
+     "event_id": "00000000-0000-4000-8000-000000000037",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000013",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "INTERFACES",
+      "to_goal_id": "PLATFORM",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 17,
+     "event_id": "00000000-0000-4000-8000-000000000038",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000002",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "CORE",
+      "to_goal_id": "PLATFORM",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 8,
+     "event_id": "00000000-0000-4000-8000-000000000033",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000016",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "PLATFORM",
+      "to_goal_id": "V1",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 7,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000039",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000039",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 6,
+     "event_id": "00000000-0000-4000-8000-000000000040",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "PLATFORM",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "WORKSPACE",
+    "project_id": "molis-work-v1-demo",
+    "title": "让人能在同一工作台看清并推进 Goal",
+    "outcome": "用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime",
+    "why": "频繁切换页面、终端和 AI 对话会打断判断，也让 Goal 与执行 Session 脱节",
+    "business_logic": "桌面端把 Goal 导航、当前工作和 Runtime 组合成连续工作面；网页保留同一份项目事实与独立访问方式。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 94,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000004",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DECIDE",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000006",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DESKTOP",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000011",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "GRAPH",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000024",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000025",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WORKSPACE",
+     "to_goal_id": "V1",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 40,
+     "event_id": "00000000-0000-4000-8000-000000000041",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000004",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DECIDE",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 36,
+     "event_id": "00000000-0000-4000-8000-000000000042",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000006",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DESKTOP",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 32,
+     "event_id": "00000000-0000-4000-8000-000000000043",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000011",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "GRAPH",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 28,
+     "event_id": "00000000-0000-4000-8000-000000000044",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000024",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 11,
+     "event_id": "00000000-0000-4000-8000-000000000032",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000025",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WORKSPACE",
+      "to_goal_id": "V1",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 10,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000045",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000045",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 9,
+     "event_id": "00000000-0000-4000-8000-000000000046",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "WORKSPACE",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "ADOPTION",
+    "project_id": "molis-work-v1-demo",
+    "title": "让第一次接入从安装走到真实推进",
+    "outcome": "新用户从 README、安装和首次打开一路走到推进第一条 Goal",
+    "why": "只把程序装上不等于用户已经理解产品，更不等于完成第一次有效使用",
+    "business_logic": "公开文档先解释适用场景，再引导安装、连接 Runtime、选择项目并推进一条可执行 Goal。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 92,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000001",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "ADOPTION",
+     "to_goal_id": "V1",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000007",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DOCS",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000009",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DROPPED",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000014",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "ONBOARDING",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000017",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "RELEASE",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 55,
+     "event_id": "00000000-0000-4000-8000-000000000047",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000009",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DROPPED",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 51,
+     "event_id": "00000000-0000-4000-8000-000000000048",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000007",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DOCS",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 47,
+     "event_id": "00000000-0000-4000-8000-000000000049",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000014",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "ONBOARDING",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 44,
+     "event_id": "00000000-0000-4000-8000-000000000050",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000017",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "RELEASE",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 14,
+     "event_id": "00000000-0000-4000-8000-000000000031",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000001",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "ADOPTION",
+      "to_goal_id": "V1",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 13,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000051",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000051",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 12,
+     "event_id": "00000000-0000-4000-8000-000000000052",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "ADOPTION",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "CORE",
+    "project_id": "molis-work-v1-demo",
+    "title": "让每项工作都有可信的完成依据",
+    "outcome": "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
+    "why": "只有进度标签而没有结果和完成依据，用户仍然无法相信工作真的完成了",
+    "business_logic": "Runtime 开始一项已约定的工作，并把进展和结果作为事实上报；每条要求都有当前结果支持、没有挡住收尾的 Concern 或待决定时，这项工作才能显式收尾并显示为已完成。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "satisfied",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 90,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "satisfied",
+   "display_status": "completed",
+   "status_label": "已完成",
+   "main_action_label": "显式继续",
+   "action_summary": "可用的生命周期记录",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000002",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "CORE",
+     "to_goal_id": "PLATFORM",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000005",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DESKTOP",
+     "to_goal_id": "CORE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000010",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "GRAPH",
+     "to_goal_id": "CORE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000012",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "INTERFACES",
+     "to_goal_id": "CORE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 74,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000053",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.closure_submitted",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000053",
+     "reason": "显式完成当前 Goal",
+     "payload": {
+      "operation": "closure_submitted",
+      "kind": "complete",
+      "result": "可用的生命周期记录",
+      "reason": "约定要求已有支持事实，演示收尾",
+      "completion_applied": true,
+      "unmet_reasons": [],
+      "expected_config_version": 1,
+      "expected_agreement_version": 2,
+      "config_version": 1,
+      "agreement_version": 2
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 73,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000054",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.observation_note",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000054",
+     "reason": "演示项目用当前事件记录说明这项工作为什么可以算完成。",
+     "payload": {
+      "operation": "observation_note",
+      "body": "演示项目用当前事件记录说明这项工作为什么可以算完成。"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 72,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000055",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.progress_summary",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000055",
+     "reason": "记录当前进展和下一步",
+     "payload": {
+      "operation": "progress_summary",
+      "summary": "完成依据已经写进当前事件记录。",
+      "based_on_cursor": 71,
+      "next_step": "明确收尾",
+      "next_actor": "当前用户"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 71,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000056",
+     "actor_id": "demo-user",
+     "type": "goal.work_event.recorded",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000056",
+     "reason": "生命周期记录已接通",
+     "payload": {
+      "type_id": "lifecycle",
+      "type_version": 1,
+      "fields": {
+       "result": "从约定、报告到收尾形成完整记录"
+      },
+      "judgments": [
+       {
+        "requirement_id": "CORE-C1",
+        "verdict": "supports"
+       }
+      ]
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 70,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000057",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.agreement_set",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000057",
+     "reason": "更新当前结果约定",
+     "payload": {
+      "operation": "agreement_set",
+      "outcome": "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
+      "version": 2,
+      "config_version": 1,
+      "change": {
+       "new_requirements": [
+        {
+         "requirement_id": "CORE-C1",
+         "statement": "工作从约定、报告到收尾形成完整记录",
+         "bound_type_id": "lifecycle",
+         "human_decision_required": false
+        }
+       ]
+      }
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 69,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000058",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "CORE",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 37,
+     "event_id": "00000000-0000-4000-8000-000000000059",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000005",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "DESKTOP",
+      "to_goal_id": "CORE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 33,
+     "event_id": "00000000-0000-4000-8000-000000000060",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000010",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "GRAPH",
+      "to_goal_id": "CORE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 21,
+     "event_id": "00000000-0000-4000-8000-000000000061",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000012",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "INTERFACES",
+      "to_goal_id": "CORE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 17,
+     "event_id": "00000000-0000-4000-8000-000000000038",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000002",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "CORE",
+      "to_goal_id": "PLATFORM",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 16,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000062",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000062",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 15,
+     "event_id": "00000000-0000-4000-8000-000000000063",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "CORE",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "INTERFACES",
+    "project_id": "molis-work-v1-demo",
+    "title": "让不同 AI 对话看到同一项目进度",
+    "outcome": "用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作",
+    "why": "如果每个入口各自记录状态，用户换一次对话就要重新解释整个项目",
+    "business_logic": "用户在当前对话明确选择项目后继续推进；其他 Runtime 也通过 Molis Work 读取和更新同一份项目事实，不会各自维护一套进度。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 80,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000012",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "INTERFACES",
+     "to_goal_id": "CORE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000013",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "INTERFACES",
+     "to_goal_id": "PLATFORM",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000018",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "RISK",
+     "to_goal_id": "INTERFACES",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000023",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB",
+     "to_goal_id": "INTERFACES",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 75,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000064",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.observation_note",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000064",
+     "reason": "升级前应先看到安全说明：能保留的旧数据明确列出，不能可靠迁移的内容提示重新整理。",
+     "payload": {
+      "operation": "observation_note",
+      "body": "升级前应先看到安全说明：能保留的旧数据明确列出，不能可靠迁移的内容提示重新整理。"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 29,
+     "event_id": "00000000-0000-4000-8000-000000000065",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000023",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "WEB",
+      "to_goal_id": "INTERFACES",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 25,
+     "event_id": "00000000-0000-4000-8000-000000000066",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000018",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "RISK",
+      "to_goal_id": "INTERFACES",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 21,
+     "event_id": "00000000-0000-4000-8000-000000000061",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000012",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "INTERFACES",
+      "to_goal_id": "CORE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 20,
+     "event_id": "00000000-0000-4000-8000-000000000037",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000013",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "INTERFACES",
+      "to_goal_id": "PLATFORM",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 19,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000067",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000067",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 18,
+     "event_id": "00000000-0000-4000-8000-000000000068",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "INTERFACES",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "RISK",
+    "project_id": "molis-work-v1-demo",
+    "title": "安装文档和真实接入步骤对不上",
+    "outcome": "接入说明与当前产品步骤一致，用户不会按过期文档操作",
+    "why": "文档仍写旧入口时，用户会以为产品坏了",
+    "business_logic": "对照当前安装、Runtime 接入和首次会话步骤，标出对不上的句子并改到同一条路径。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 78,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_blocked",
+   "display_status": "blocked",
+   "status_label": "受阻",
+   "main_action_label": "处理问题",
+   "action_summary": "README 仍指向已撤掉的启动命令",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000018",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "RISK",
+     "to_goal_id": "INTERFACES",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000019",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "RISK",
+     "to_goal_id": "PLATFORM",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 85,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000069",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.concern_opened",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000069",
+     "reason": "提出 Concern：README 仍指向已撤掉的启动命令",
+     "payload": {
+      "operation": "concern_opened",
+      "concern_id": "gcon-00000000-0000-4000-8000-000000000070",
+      "title": "README 仍指向已撤掉的启动命令",
+      "statement": "按文档复制的命令会启动旧入口，用户会以为安装失败。",
+      "scope": {
+       "requirement_ids": [
+        "RISK-C1"
+       ],
+       "event_ids": [],
+       "concern_ids": [],
+       "action": null
+      },
+      "blocks_closure": true
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 84,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000071",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "RISK",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 25,
+     "event_id": "00000000-0000-4000-8000-000000000066",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000018",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "RISK",
+      "to_goal_id": "INTERFACES",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 24,
+     "event_id": "00000000-0000-4000-8000-000000000036",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000019",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "RISK",
+      "to_goal_id": "PLATFORM",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 23,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000072",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000072",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 22,
+     "event_id": "00000000-0000-4000-8000-000000000073",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "RISK",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "DESKTOP",
+    "project_id": "molis-work-v1-demo",
+    "title": "把 Molis Work 作为不切窗口的主工作站",
+    "outcome": "用户在桌面端同时看到 Goal、下一步、完成要求和强绑定的 Runtime",
+    "why": "工作在 AI 对话里推进、状态在另一个页面查看，会增加切换成本并削弱人的掌控感",
+    "business_logic": "桌面端复用网页事实和 Runtime 能力，将全局控制放进 TitleBar，并为 List、Focus 与 Runtime 保留连续三栏。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 74,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "executing",
+   "display_status": "in_progress",
+   "status_label": "正在推进",
+   "main_action_label": "记录进展",
+   "action_summary": "核对分屏后 Goal 绑定仍保持",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000003",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DECIDE",
+     "to_goal_id": "DESKTOP",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000005",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DESKTOP",
+     "to_goal_id": "CORE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000006",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DESKTOP",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 81,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000074",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.progress_summary",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000074",
+     "reason": "记录当前进展和下一步",
+     "payload": {
+      "operation": "progress_summary",
+      "summary": "目录、舞台和标签已经能在同一窗口里切换。",
+      "based_on_cursor": 80,
+      "next_step": "核对分屏后 Goal 绑定仍保持",
+      "next_actor": "当前用户"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 80,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000075",
+     "actor_id": "demo-user",
+     "type": "goal.work_event.recorded",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000075",
+     "reason": "工作台主栏已经对齐",
+     "payload": {
+      "type_id": "lifecycle",
+      "type_version": 1,
+      "fields": {
+       "result": "目录、舞台和标签已经能在同一窗口里切换。"
+      },
+      "judgments": [
+       {
+        "requirement_id": "DESKTOP-C1",
+        "verdict": "supports"
+       }
+      ]
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 79,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000076",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "DESKTOP",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 41,
+     "event_id": "00000000-0000-4000-8000-000000000077",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000003",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "DECIDE",
+      "to_goal_id": "DESKTOP",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 37,
+     "event_id": "00000000-0000-4000-8000-000000000059",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000005",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "DESKTOP",
+      "to_goal_id": "CORE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 36,
+     "event_id": "00000000-0000-4000-8000-000000000042",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000006",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DESKTOP",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 35,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000078",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000078",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 34,
+     "event_id": "00000000-0000-4000-8000-000000000079",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "DESKTOP",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "DECIDE",
+    "project_id": "molis-work-v1-demo",
+    "title": "决定首页先展示目标还是先展示 Runtime",
+    "outcome": "首次打开项目时，用户知道自己该先看目标树还是先开一条会话",
+    "why": "两个入口同时强调时，新用户会停在选择上",
+    "business_logic": "产品决定一个默认落点，另一个入口仍可从同一工作台到达。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 72,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "waiting_for_human",
+   "display_status": "waiting_user",
+   "status_label": "需要你决定",
+   "main_action_label": "作出决定",
+   "action_summary": "第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000003",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DECIDE",
+     "to_goal_id": "DESKTOP",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000004",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DECIDE",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 83,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000080",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.decision_requested",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000080",
+     "reason": "请求决定：第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
+     "payload": {
+      "operation": "decision_requested",
+      "request_id": "gdec-req-00000000-0000-4000-8000-000000000081",
+      "question": "第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
+      "options": [
+       {
+        "option_id": "goals",
+        "label": "先看目标树",
+        "impact": "用户先理解现在做什么，再决定开哪条会话"
+       },
+       {
+        "option_id": "session",
+        "label": "先开 Session",
+        "impact": "用户立刻回到对话，但可能还没看清目标"
+       }
+      ],
+      "scope": {
+       "requirement_ids": [
+        "DECIDE-C1"
+       ],
+       "event_ids": [],
+       "concern_ids": [],
+       "action": null
+      },
+      "purpose": "suggestion",
+      "proposed_change": null
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 82,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000082",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "DECIDE",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 41,
+     "event_id": "00000000-0000-4000-8000-000000000077",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000003",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "DECIDE",
+      "to_goal_id": "DESKTOP",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 40,
+     "event_id": "00000000-0000-4000-8000-000000000041",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000004",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DECIDE",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 39,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000083",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000083",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 38,
+     "event_id": "00000000-0000-4000-8000-000000000084",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "DECIDE",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "WEB",
+    "project_id": "molis-work-v1-demo",
+    "title": "让用户打开页面就看懂目标和下一步",
+    "outcome": "用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞",
+    "why": "底层规则正确并不代表产品容易理解；信息组织混乱会让用户放弃继续使用",
+    "business_logic": "用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 70,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000022",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB-SCAN",
+     "to_goal_id": "WEB",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000023",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB",
+     "to_goal_id": "INTERFACES",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000024",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 58,
+     "event_id": "00000000-0000-4000-8000-000000000085",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000022",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB-SCAN",
+      "to_goal_id": "WEB",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 29,
+     "event_id": "00000000-0000-4000-8000-000000000065",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000023",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "WEB",
+      "to_goal_id": "INTERFACES",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 28,
+     "event_id": "00000000-0000-4000-8000-000000000044",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000024",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 27,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000086",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000086",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 26,
+     "event_id": "00000000-0000-4000-8000-000000000087",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "WEB",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "WEB-SCAN",
+    "project_id": "molis-work-v1-demo",
+    "title": "打开项目后三秒内认出当前目标和阻塞",
+    "outcome": "用户不用点进详情，也能从列表看出现在该看哪条 Goal、它卡在哪里",
+    "why": "首屏如果只堆标题，用户仍然要逐条点开才能判断下一步",
+    "business_logic": "列表把当前目标、状态和阻塞放在同一行；多层子 Goal 用缩进表达归属，不把状态列推歪。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 68,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000021",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB-SCAN-ROW",
+     "to_goal_id": "WEB-SCAN",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000022",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB-SCAN",
+     "to_goal_id": "WEB",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 61,
+     "event_id": "00000000-0000-4000-8000-000000000088",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000021",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB-SCAN-ROW",
+      "to_goal_id": "WEB-SCAN",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 58,
+     "event_id": "00000000-0000-4000-8000-000000000085",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000022",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB-SCAN",
+      "to_goal_id": "WEB",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 57,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000089",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000089",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 56,
+     "event_id": "00000000-0000-4000-8000-000000000090",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "WEB-SCAN",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "WEB-SCAN-ROW",
+    "project_id": "molis-work-v1-demo",
+    "title": "子 Goal 标题比父 Goal 更靠右，状态仍对齐",
+    "outcome": "四层 Goal 树扫一眼就能分清父子，状态列仍在同一条竖线上",
+    "why": "只有折叠箭头、标题却和父行齐平，多层树会读成平铺清单",
+    "business_logic": "标题簇按归属深度每次右移 16px；没有短码的子行仍给编号留位，避免标题跑到父行左边。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 66,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000020",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB-SCAN-NEST",
+     "to_goal_id": "WEB-SCAN-ROW",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000021",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB-SCAN-ROW",
+     "to_goal_id": "WEB-SCAN",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 64,
+     "event_id": "00000000-0000-4000-8000-000000000091",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000020",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB-SCAN-NEST",
+      "to_goal_id": "WEB-SCAN-ROW",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 61,
+     "event_id": "00000000-0000-4000-8000-000000000088",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000021",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB-SCAN-ROW",
+      "to_goal_id": "WEB-SCAN",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 60,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000092",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000092",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 59,
+     "event_id": "00000000-0000-4000-8000-000000000093",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "WEB-SCAN-ROW",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "WEB-SCAN-NEST",
+    "project_id": "molis-work-v1-demo",
+    "title": "再下一层仍能看出归属",
+    "outcome": "五层树里最深的一行仍然明显属于上一层，不和旁边的叶子抢位置",
+    "why": "只演示到四层时，更深的真实项目树仍然可能挤成一团",
+    "business_logic": "继续用同一套缩进，不另做编号体系。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 64,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000020",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "WEB-SCAN-NEST",
+     "to_goal_id": "WEB-SCAN-ROW",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 64,
+     "event_id": "00000000-0000-4000-8000-000000000091",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000020",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "WEB-SCAN-NEST",
+      "to_goal_id": "WEB-SCAN-ROW",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 63,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000094",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000094",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 62,
+     "event_id": "00000000-0000-4000-8000-000000000095",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "WEB-SCAN-NEST",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "RELEASE",
+    "project_id": "molis-work-v1-demo",
+    "title": "让新用户安装后知道下一步怎么开始",
+    "outcome": "用户完成安装后知道如何启动页面、连接正在使用的 Runtime，以及为什么需要新开会话",
+    "why": "安装成功但不知道服务是否常驻、工具何时生效或下一步说什么，仍然会被理解成产品不可用",
+    "business_logic": "安装只放置 Molis Work 自己的程序，不偷偷修改项目或 Runtime；用户随后显式启用常驻服务、预览并确认 Runtime 接入，再在新会话中选择或创建项目开始使用。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 60,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000015",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "ONBOARDING",
+     "to_goal_id": "RELEASE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000017",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "RELEASE",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 67,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000096",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.observation_note",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000096",
+     "reason": "接入 Runtime 后必须新开会话；继续使用接入前的会话会让人误以为安装失败。",
+     "payload": {
+      "operation": "observation_note",
+      "body": "接入 Runtime 后必须新开会话；继续使用接入前的会话会让人误以为安装失败。"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 48,
+     "event_id": "00000000-0000-4000-8000-000000000097",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000015",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "ONBOARDING",
+      "to_goal_id": "RELEASE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 44,
+     "event_id": "00000000-0000-4000-8000-000000000050",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000017",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "RELEASE",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 43,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000098",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000098",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 42,
+     "event_id": "00000000-0000-4000-8000-000000000099",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "RELEASE",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "ONBOARDING",
+    "project_id": "molis-work-v1-demo",
+    "title": "让用户第一次打开就完成有效操作",
+    "outcome": "用户首次进入后能选择项目、找到可做 Goal，并理解 Runtime 为什么绑定到它",
+    "why": "展示很多功能不等于用户知道第一步做什么，首屏需要直接引向一次有效推进",
+    "business_logic": "首次体验使用一份明确标记的 Mock 项目，沿着可做 Goal、下一步与 Runtime 归属完成一轮引导。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 58,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000008",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DOCS",
+     "to_goal_id": "ONBOARDING",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000014",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "ONBOARDING",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000015",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "ONBOARDING",
+     "to_goal_id": "RELEASE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 94,
+     "event_id": "00000000-0000-4000-8000-000000000100",
+     "actor_id": "runtime:test:session",
+     "type": "goal_tree_proposal.submitted",
+     "object_type": "goal_tree_proposal",
+     "object_id": "goal-tree-proposal-00000000-0000-4000-8000-000000000026",
+     "reason": "当前 Runtime 提交了等待用户确认的统一 Goal Tree 提案",
+     "payload": {
+      "root_goal_id": "ONBOARDING",
+      "base_event_cursor": 93,
+      "version": 1,
+      "supersedes_proposal_id": null,
+      "item_ids": [
+       "golden-item"
+      ]
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 52,
+     "event_id": "00000000-0000-4000-8000-000000000101",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000008",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "DOCS",
+      "to_goal_id": "ONBOARDING",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 48,
+     "event_id": "00000000-0000-4000-8000-000000000097",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000015",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "ONBOARDING",
+      "to_goal_id": "RELEASE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 47,
+     "event_id": "00000000-0000-4000-8000-000000000049",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000014",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "ONBOARDING",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 46,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000102",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000102",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 45,
+     "event_id": "00000000-0000-4000-8000-000000000103",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "ONBOARDING",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "DOCS",
+    "project_id": "molis-work-v1-demo",
+    "title": "让用户从 README 进入正确的使用方式",
+    "outcome": "用户先理解长程任务为何会跑偏，再看到 Molis Work 的闭环、桌面端和 Runtime 伴随方式",
+    "why": "功能清单无法建立需求感，也无法解释 Molis Work 与 Agent Orchestration 的边界",
+    "business_logic": "README 用痛点、核心思路和完整演示组织内容；截图来自 Mock 项目的真实网页与桌面页面。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 56,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "execution_pending",
+   "display_status": "continue",
+   "status_label": "待开始",
+   "main_action_label": "开始工作",
+   "action_summary": "打开终端开始工作，或添加一条记录。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000007",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DOCS",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000008",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DOCS",
+     "to_goal_id": "ONBOARDING",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 52,
+     "event_id": "00000000-0000-4000-8000-000000000101",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000008",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "DOCS",
+      "to_goal_id": "ONBOARDING",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 51,
+     "event_id": "00000000-0000-4000-8000-000000000048",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000007",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DOCS",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 50,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000104",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000104",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 49,
+     "event_id": "00000000-0000-4000-8000-000000000105",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "DOCS",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  },
+  {
+   "goal": {
+    "goal_id": "DROPPED",
+    "project_id": "molis-work-v1-demo",
+    "title": "在旧会话里自动启用 MCP",
+    "outcome": "接入后不必新开对话也能立刻调用工具",
+    "why": "早期希望减少一次重启，但旧会话读不到新接入",
+    "business_logic": "安装完成后在当前对话直接启用 MCP。这个方案会让人误以为安装失败，因此已经取消。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 20,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "invalidated",
+   "display_status": "continue",
+   "status_label": "已取消",
+   "main_action_label": "显式继续",
+   "action_summary": "已取消的 Goal 需要显式继续，不会被普通记录自动恢复。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000009",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "DROPPED",
+     "to_goal_id": "ADOPTION",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 92,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000106",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.closure_submitted",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000106",
+     "reason": "取消当前 Goal",
+     "payload": {
+      "operation": "closure_submitted",
+      "kind": "cancel",
+      "result": null,
+      "reason": "旧会话读不到新接入，会让人误以为安装失败",
+      "completion_applied": false,
+      "unmet_reasons": [],
+      "expected_config_version": 1,
+      "expected_agreement_version": 1,
+      "config_version": 1,
+      "agreement_version": 1
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 91,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000107",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "DROPPED",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 55,
+     "event_id": "00000000-0000-4000-8000-000000000047",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000009",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "DROPPED",
+      "to_goal_id": "ADOPTION",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 54,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000108",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000108",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 53,
+     "event_id": "00000000-0000-4000-8000-000000000109",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "DROPPED",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  }
+ ],
+ "archived_goals": [
+  {
+   "goal": {
+    "goal_id": "GRAPH",
+    "project_id": "molis-work-v1-demo",
+    "title": "让复杂 Goal 关系仍然一眼可读",
+    "outcome": "父子层级、前置依赖和当前焦点在复杂网络中仍有清楚的方向与落点",
+    "why": "列表适合顺序浏览，但复杂 Goal 的多层结构和跨分支依赖会在列表里变得难以判断",
+    "business_logic": "用户在 List 与 Graph 之间切换；Graph 只读取真实父子和依赖关系，以节点、分区和有向连线呈现。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "satisfied",
+    "trashed_at": null,
+    "trashed_by": null,
+    "archived_at": "2026-10-30T09:00:00.000Z",
+    "archived_by": "demo-user",
+    "priority": 76,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "archived",
+   "display_status": "completed",
+   "status_label": "已归档",
+   "main_action_label": "查看历史",
+   "action_summary": "已归档，不再出现在普通工作列表。",
+   "event_work": true,
+   "relations": [
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000010",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "GRAPH",
+     "to_goal_id": "CORE",
+     "type": "depends_on",
+     "state": "active",
+     "reason": "创建 Goal 时指定上游依赖",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    },
+    {
+     "relation_id": "relation-00000000-0000-4000-8000-000000000011",
+     "project_id": "molis-work-v1-demo",
+     "from_goal_id": "GRAPH",
+     "to_goal_id": "WORKSPACE",
+     "type": "part_of",
+     "state": "active",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "created_by": "demo-user",
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "deactivated_at": null
+    }
+   ],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 90,
+     "event_id": "00000000-0000-4000-8000-000000000110",
+     "actor_id": "demo-user",
+     "type": "goal.archived",
+     "object_type": "goal",
+     "object_id": "GRAPH",
+     "reason": "画布关系已经可扫，退出日常工作列表",
+     "payload": {
+      "active_goal_cleared": false
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 89,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000111",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.closure_submitted",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000111",
+     "reason": "显式完成当前 Goal",
+     "payload": {
+      "operation": "closure_submitted",
+      "kind": "complete",
+      "result": "画布关系已经可扫",
+      "reason": "演示收尾，把已完成关系图移出日常列表",
+      "completion_applied": true,
+      "unmet_reasons": [],
+      "expected_config_version": 1,
+      "expected_agreement_version": 1,
+      "config_version": 1,
+      "agreement_version": 1
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 88,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000112",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.progress_summary",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000112",
+     "reason": "记录当前进展和下一步",
+     "payload": {
+      "operation": "progress_summary",
+      "summary": "父子和前置关系都来自真实记录。",
+      "based_on_cursor": 87,
+      "next_step": "退出日常列表，需要时再打开归档",
+      "next_actor": "当前用户"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 87,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000113",
+     "actor_id": "demo-user",
+     "type": "goal.work_event.recorded",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000113",
+     "reason": "画布已能读出依赖方向",
+     "payload": {
+      "type_id": "lifecycle",
+      "type_version": 1,
+      "fields": {
+       "result": "父子和前置关系都来自真实记录。"
+      },
+      "judgments": [
+       {
+        "requirement_id": "GRAPH-C1",
+        "verdict": "supports"
+       }
+      ]
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 86,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000114",
+     "actor_id": "demo-user",
+     "type": "goal.event_config.updated",
+     "object_type": "goal_event_config",
+     "object_id": "GRAPH",
+     "reason": "登记 Goal 局部事件配置",
+     "payload": {
+      "config_version": 1,
+      "types": [
+       {
+        "type_id": "lifecycle",
+        "version": 1,
+        "name": "生命周期交付",
+        "purpose": "可核对的工作结果",
+        "semantic_family": "delivery",
+        "source": {
+         "kind": "local",
+         "label": "演示项目"
+        },
+        "fields": [
+         {
+          "field_id": "result",
+          "name": "结果",
+          "purpose": "当前交付",
+          "format": "text",
+          "required": true,
+          "source": {
+           "kind": "local"
+          }
+         }
+        ]
+       }
+      ],
+      "extra_requirements": [],
+      "requirement_bindings": [],
+      "adopted_planning": []
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 33,
+     "event_id": "00000000-0000-4000-8000-000000000060",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000010",
+     "reason": "创建 Goal 时指定上游依赖",
+     "payload": {
+      "from_goal_id": "GRAPH",
+      "to_goal_id": "CORE",
+      "type": "depends_on",
+      "state": "active",
+      "reason": "创建 Goal 时指定上游依赖"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 32,
+     "event_id": "00000000-0000-4000-8000-000000000043",
+     "actor_id": "demo-user",
+     "type": "relation.added",
+     "object_type": "relation",
+     "object_id": "relation-00000000-0000-4000-8000-000000000011",
+     "reason": "创建 Goal 时指定上级 Goal",
+     "payload": {
+      "from_goal_id": "GRAPH",
+      "to_goal_id": "WORKSPACE",
+      "type": "part_of",
+      "state": "active",
+      "reason": "创建 Goal 时指定上级 Goal"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 31,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000115",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000115",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 30,
+     "event_id": "00000000-0000-4000-8000-000000000116",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "GRAPH",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  }
+ ],
+ "trashed_goals": [
+  {
+   "goal": {
+    "goal_id": "AUTO-CONNECT",
+    "project_id": "molis-work-v1-demo",
+    "title": "自动替用户选择最近使用的项目",
+    "outcome": "新对话少做一次项目确认",
+    "why": "早期方案希望用历史目录记录缩短首次连接步骤",
+    "business_logic": "新对话进入一个以前使用过的目录时，系统直接连接最近的项目，不再询问用户。这个方案可能选错项目，因此已经移入回收站，当前产品只展示候选并让用户决定。",
+    "in_scope": [],
+    "out_of_scope": [],
+    "constraints": [],
+    "required_inputs": [],
+    "promised_outputs": [],
+    "decomposition_review": null,
+    "definition_state": "draft",
+    "decomposition_state": "abstract",
+    "validity_state": "valid",
+    "fulfillment_state": "unmet",
+    "trashed_at": "2026-10-30T09:00:00.000Z",
+    "trashed_by": "demo-user",
+    "archived_at": null,
+    "archived_by": null,
+    "priority": 10,
+    "accepted_by": null,
+    "accepted_at": null,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "acceptance_criteria": []
+   },
+   "status": "trashed",
+   "display_status": "blocked",
+   "status_label": "回收站",
+   "main_action_label": "恢复",
+   "action_summary": "Goal 已移入回收站，历史仍被保留。",
+   "event_work": true,
+   "relations": [],
+   "input_bindings": [],
+   "policy_bindings": [],
+   "events": [
+    {
+     "seq": 68,
+     "event_id": "00000000-0000-4000-8000-000000000117",
+     "actor_id": "demo-user",
+     "type": "goal.trashed",
+     "object_type": "goal",
+     "object_id": "AUTO-CONNECT",
+     "reason": "这会替用户猜项目；当前方案只展示历史候选，并再次询问用户",
+     "payload": {
+      "trash_record_id": "trash-00000000-0000-4000-8000-000000000118",
+      "deactivated_relation_ids": [],
+      "active_goal_cleared": false
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 66,
+     "event_id": "gevt-00000000-0000-4000-8000-000000000119",
+     "actor_id": "demo-user",
+     "type": "goal.event_state.intent_created",
+     "object_type": "goal_work_event",
+     "object_id": "gevt-00000000-0000-4000-8000-000000000119",
+     "reason": "保存原始意图",
+     "payload": {
+      "operation": "intent_created",
+      "source_kind": "onboarding"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    },
+    {
+     "seq": 65,
+     "event_id": "00000000-0000-4000-8000-000000000120",
+     "actor_id": "demo-user",
+     "type": "goal.created",
+     "object_type": "goal",
+     "object_id": "AUTO-CONNECT",
+     "reason": "保存原始意图",
+     "payload": {
+      "definition_state": "draft",
+      "decomposition_state": "abstract"
+     },
+     "at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "resolved_policy": {
+    "human_approval": false
+   },
+   "created_by": "demo-user"
+  }
+ ],
+ "counts": {
+  "waiting_for_human": 1,
+  "executing": 2,
+  "execution_blocked": 1,
+  "execution_pending": 11,
+  "satisfied": 1,
+  "invalidated": 1,
+  "trashed": 0,
+  "archived": 0
+ },
+ "input_bindings": [],
+ "policy_bindings": [],
+ "events": [
+  {
+   "seq": 94,
+   "event_id": "00000000-0000-4000-8000-000000000100",
+   "actor_id": "runtime:test:session",
+   "type": "goal_tree_proposal.submitted",
+   "object_type": "goal_tree_proposal",
+   "object_id": "goal-tree-proposal-00000000-0000-4000-8000-000000000026",
+   "reason": "当前 Runtime 提交了等待用户确认的统一 Goal Tree 提案",
+   "payload": {
+    "root_goal_id": "ONBOARDING",
+    "base_event_cursor": 93,
+    "version": 1,
+    "supersedes_proposal_id": null,
+    "item_ids": [
+     "golden-item"
+    ]
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 93,
+   "event_id": "00000000-0000-4000-8000-000000000027",
+   "actor_id": "demo-user",
+   "type": "board.active_goal_changed",
+   "object_type": "goal",
+   "object_id": "V1",
+   "reason": "演示项目从第一个目标开始",
+   "payload": {},
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 92,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000106",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.closure_submitted",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000106",
+   "reason": "取消当前 Goal",
+   "payload": {
+    "operation": "closure_submitted",
+    "kind": "cancel",
+    "result": null,
+    "reason": "旧会话读不到新接入，会让人误以为安装失败",
+    "completion_applied": false,
+    "unmet_reasons": [],
+    "expected_config_version": 1,
+    "expected_agreement_version": 1,
+    "config_version": 1,
+    "agreement_version": 1
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 91,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000107",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "DROPPED",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 90,
+   "event_id": "00000000-0000-4000-8000-000000000110",
+   "actor_id": "demo-user",
+   "type": "goal.archived",
+   "object_type": "goal",
+   "object_id": "GRAPH",
+   "reason": "画布关系已经可扫，退出日常工作列表",
+   "payload": {
+    "active_goal_cleared": false
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 89,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000111",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.closure_submitted",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000111",
+   "reason": "显式完成当前 Goal",
+   "payload": {
+    "operation": "closure_submitted",
+    "kind": "complete",
+    "result": "画布关系已经可扫",
+    "reason": "演示收尾，把已完成关系图移出日常列表",
+    "completion_applied": true,
+    "unmet_reasons": [],
+    "expected_config_version": 1,
+    "expected_agreement_version": 1,
+    "config_version": 1,
+    "agreement_version": 1
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 88,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000112",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.progress_summary",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000112",
+   "reason": "记录当前进展和下一步",
+   "payload": {
+    "operation": "progress_summary",
+    "summary": "父子和前置关系都来自真实记录。",
+    "based_on_cursor": 87,
+    "next_step": "退出日常列表，需要时再打开归档",
+    "next_actor": "当前用户"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 87,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000113",
+   "actor_id": "demo-user",
+   "type": "goal.work_event.recorded",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000113",
+   "reason": "画布已能读出依赖方向",
+   "payload": {
+    "type_id": "lifecycle",
+    "type_version": 1,
+    "fields": {
+     "result": "父子和前置关系都来自真实记录。"
+    },
+    "judgments": [
+     {
+      "requirement_id": "GRAPH-C1",
+      "verdict": "supports"
+     }
+    ]
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 86,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000114",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "GRAPH",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 85,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000069",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.concern_opened",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000069",
+   "reason": "提出 Concern：README 仍指向已撤掉的启动命令",
+   "payload": {
+    "operation": "concern_opened",
+    "concern_id": "gcon-00000000-0000-4000-8000-000000000070",
+    "title": "README 仍指向已撤掉的启动命令",
+    "statement": "按文档复制的命令会启动旧入口，用户会以为安装失败。",
+    "scope": {
+     "requirement_ids": [
+      "RISK-C1"
+     ],
+     "event_ids": [],
+     "concern_ids": [],
+     "action": null
+    },
+    "blocks_closure": true
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 84,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000071",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "RISK",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 83,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000080",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.decision_requested",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000080",
+   "reason": "请求决定：第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
+   "payload": {
+    "operation": "decision_requested",
+    "request_id": "gdec-req-00000000-0000-4000-8000-000000000081",
+    "question": "第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
+    "options": [
+     {
+      "option_id": "goals",
+      "label": "先看目标树",
+      "impact": "用户先理解现在做什么，再决定开哪条会话"
+     },
+     {
+      "option_id": "session",
+      "label": "先开 Session",
+      "impact": "用户立刻回到对话，但可能还没看清目标"
+     }
+    ],
+    "scope": {
+     "requirement_ids": [
+      "DECIDE-C1"
+     ],
+     "event_ids": [],
+     "concern_ids": [],
+     "action": null
+    },
+    "purpose": "suggestion",
+    "proposed_change": null
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 82,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000082",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "DECIDE",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 81,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000074",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.progress_summary",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000074",
+   "reason": "记录当前进展和下一步",
+   "payload": {
+    "operation": "progress_summary",
+    "summary": "目录、舞台和标签已经能在同一窗口里切换。",
+    "based_on_cursor": 80,
+    "next_step": "核对分屏后 Goal 绑定仍保持",
+    "next_actor": "当前用户"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 80,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000075",
+   "actor_id": "demo-user",
+   "type": "goal.work_event.recorded",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000075",
+   "reason": "工作台主栏已经对齐",
+   "payload": {
+    "type_id": "lifecycle",
+    "type_version": 1,
+    "fields": {
+     "result": "目录、舞台和标签已经能在同一窗口里切换。"
+    },
+    "judgments": [
+     {
+      "requirement_id": "DESKTOP-C1",
+      "verdict": "supports"
+     }
+    ]
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 79,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000076",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "DESKTOP",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 78,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000028",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.progress_summary",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000028",
+   "reason": "记录当前进展和下一步",
+   "payload": {
+    "operation": "progress_summary",
+    "summary": "列表、画布和看板都有真实内容可扫。",
+    "based_on_cursor": 77,
+    "next_step": "先处理需要决定和受阻的 Goal",
+    "next_actor": "当前用户"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 77,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000029",
+   "actor_id": "demo-user",
+   "type": "goal.work_event.recorded",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000029",
+   "reason": "目标树已经能看出下一步",
+   "payload": {
+    "type_id": "lifecycle",
+    "type_version": 1,
+    "fields": {
+     "result": "列表、画布和看板都有真实内容可扫。"
+    },
+    "judgments": [
+     {
+      "requirement_id": "V1-C1",
+      "verdict": "supports"
+     }
+    ]
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 76,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000030",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "V1",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 75,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000064",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.observation_note",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000064",
+   "reason": "升级前应先看到安全说明：能保留的旧数据明确列出，不能可靠迁移的内容提示重新整理。",
+   "payload": {
+    "operation": "observation_note",
+    "body": "升级前应先看到安全说明：能保留的旧数据明确列出，不能可靠迁移的内容提示重新整理。"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 74,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000053",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.closure_submitted",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000053",
+   "reason": "显式完成当前 Goal",
+   "payload": {
+    "operation": "closure_submitted",
+    "kind": "complete",
+    "result": "可用的生命周期记录",
+    "reason": "约定要求已有支持事实，演示收尾",
+    "completion_applied": true,
+    "unmet_reasons": [],
+    "expected_config_version": 1,
+    "expected_agreement_version": 2,
+    "config_version": 1,
+    "agreement_version": 2
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 73,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000054",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.observation_note",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000054",
+   "reason": "演示项目用当前事件记录说明这项工作为什么可以算完成。",
+   "payload": {
+    "operation": "observation_note",
+    "body": "演示项目用当前事件记录说明这项工作为什么可以算完成。"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 72,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000055",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.progress_summary",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000055",
+   "reason": "记录当前进展和下一步",
+   "payload": {
+    "operation": "progress_summary",
+    "summary": "完成依据已经写进当前事件记录。",
+    "based_on_cursor": 71,
+    "next_step": "明确收尾",
+    "next_actor": "当前用户"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 71,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000056",
+   "actor_id": "demo-user",
+   "type": "goal.work_event.recorded",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000056",
+   "reason": "生命周期记录已接通",
+   "payload": {
+    "type_id": "lifecycle",
+    "type_version": 1,
+    "fields": {
+     "result": "从约定、报告到收尾形成完整记录"
+    },
+    "judgments": [
+     {
+      "requirement_id": "CORE-C1",
+      "verdict": "supports"
+     }
+    ]
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 70,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000057",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.agreement_set",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000057",
+   "reason": "更新当前结果约定",
+   "payload": {
+    "operation": "agreement_set",
+    "outcome": "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
+    "version": 2,
+    "config_version": 1,
+    "change": {
+     "new_requirements": [
+      {
+       "requirement_id": "CORE-C1",
+       "statement": "工作从约定、报告到收尾形成完整记录",
+       "bound_type_id": "lifecycle",
+       "human_decision_required": false
+      }
+     ]
+    }
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 69,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000058",
+   "actor_id": "demo-user",
+   "type": "goal.event_config.updated",
+   "object_type": "goal_event_config",
+   "object_id": "CORE",
+   "reason": "登记 Goal 局部事件配置",
+   "payload": {
+    "config_version": 1,
+    "types": [
+     {
+      "type_id": "lifecycle",
+      "version": 1,
+      "name": "生命周期交付",
+      "purpose": "可核对的工作结果",
+      "semantic_family": "delivery",
+      "source": {
+       "kind": "local",
+       "label": "演示项目"
+      },
+      "fields": [
+       {
+        "field_id": "result",
+        "name": "结果",
+        "purpose": "当前交付",
+        "format": "text",
+        "required": true,
+        "source": {
+         "kind": "local"
+        }
+       }
+      ]
+     }
+    ],
+    "extra_requirements": [],
+    "requirement_bindings": [],
+    "adopted_planning": []
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 68,
+   "event_id": "00000000-0000-4000-8000-000000000117",
+   "actor_id": "demo-user",
+   "type": "goal.trashed",
+   "object_type": "goal",
+   "object_id": "AUTO-CONNECT",
+   "reason": "这会替用户猜项目；当前方案只展示历史候选，并再次询问用户",
+   "payload": {
+    "trash_record_id": "trash-00000000-0000-4000-8000-000000000118",
+    "deactivated_relation_ids": [],
+    "active_goal_cleared": false
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 67,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000096",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.observation_note",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000096",
+   "reason": "接入 Runtime 后必须新开会话；继续使用接入前的会话会让人误以为安装失败。",
+   "payload": {
+    "operation": "observation_note",
+    "body": "接入 Runtime 后必须新开会话；继续使用接入前的会话会让人误以为安装失败。"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 66,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000119",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000119",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 65,
+   "event_id": "00000000-0000-4000-8000-000000000120",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "AUTO-CONNECT",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 64,
+   "event_id": "00000000-0000-4000-8000-000000000091",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000020",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "WEB-SCAN-NEST",
+    "to_goal_id": "WEB-SCAN-ROW",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 63,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000094",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000094",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 62,
+   "event_id": "00000000-0000-4000-8000-000000000095",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "WEB-SCAN-NEST",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 61,
+   "event_id": "00000000-0000-4000-8000-000000000088",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000021",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "WEB-SCAN-ROW",
+    "to_goal_id": "WEB-SCAN",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 60,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000092",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000092",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 59,
+   "event_id": "00000000-0000-4000-8000-000000000093",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "WEB-SCAN-ROW",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 58,
+   "event_id": "00000000-0000-4000-8000-000000000085",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000022",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "WEB-SCAN",
+    "to_goal_id": "WEB",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 57,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000089",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000089",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 56,
+   "event_id": "00000000-0000-4000-8000-000000000090",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "WEB-SCAN",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 55,
+   "event_id": "00000000-0000-4000-8000-000000000047",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000009",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "DROPPED",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 54,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000108",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000108",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 53,
+   "event_id": "00000000-0000-4000-8000-000000000109",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "DROPPED",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 52,
+   "event_id": "00000000-0000-4000-8000-000000000101",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000008",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "DOCS",
+    "to_goal_id": "ONBOARDING",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 51,
+   "event_id": "00000000-0000-4000-8000-000000000048",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000007",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "DOCS",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 50,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000104",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000104",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 49,
+   "event_id": "00000000-0000-4000-8000-000000000105",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "DOCS",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 48,
+   "event_id": "00000000-0000-4000-8000-000000000097",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000015",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "ONBOARDING",
+    "to_goal_id": "RELEASE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 47,
+   "event_id": "00000000-0000-4000-8000-000000000049",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000014",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "ONBOARDING",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 46,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000102",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000102",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 45,
+   "event_id": "00000000-0000-4000-8000-000000000103",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "ONBOARDING",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 44,
+   "event_id": "00000000-0000-4000-8000-000000000050",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000017",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "RELEASE",
+    "to_goal_id": "ADOPTION",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 43,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000098",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000098",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 42,
+   "event_id": "00000000-0000-4000-8000-000000000099",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "RELEASE",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 41,
+   "event_id": "00000000-0000-4000-8000-000000000077",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000003",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "DECIDE",
+    "to_goal_id": "DESKTOP",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 40,
+   "event_id": "00000000-0000-4000-8000-000000000041",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000004",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "DECIDE",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 39,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000083",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000083",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 38,
+   "event_id": "00000000-0000-4000-8000-000000000084",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "DECIDE",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 37,
+   "event_id": "00000000-0000-4000-8000-000000000059",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000005",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "DESKTOP",
+    "to_goal_id": "CORE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 36,
+   "event_id": "00000000-0000-4000-8000-000000000042",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000006",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "DESKTOP",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 35,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000078",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000078",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 34,
+   "event_id": "00000000-0000-4000-8000-000000000079",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "DESKTOP",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 33,
+   "event_id": "00000000-0000-4000-8000-000000000060",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000010",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "GRAPH",
+    "to_goal_id": "CORE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 32,
+   "event_id": "00000000-0000-4000-8000-000000000043",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000011",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "GRAPH",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 31,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000115",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000115",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 30,
+   "event_id": "00000000-0000-4000-8000-000000000116",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "GRAPH",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 29,
+   "event_id": "00000000-0000-4000-8000-000000000065",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000023",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "WEB",
+    "to_goal_id": "INTERFACES",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 28,
+   "event_id": "00000000-0000-4000-8000-000000000044",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000024",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "WEB",
+    "to_goal_id": "WORKSPACE",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 27,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000086",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000086",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 26,
+   "event_id": "00000000-0000-4000-8000-000000000087",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "WEB",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 25,
+   "event_id": "00000000-0000-4000-8000-000000000066",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000018",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "RISK",
+    "to_goal_id": "INTERFACES",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 24,
+   "event_id": "00000000-0000-4000-8000-000000000036",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000019",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "RISK",
+    "to_goal_id": "PLATFORM",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 23,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000072",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000072",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 22,
+   "event_id": "00000000-0000-4000-8000-000000000073",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "RISK",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 21,
+   "event_id": "00000000-0000-4000-8000-000000000061",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000012",
+   "reason": "创建 Goal 时指定上游依赖",
+   "payload": {
+    "from_goal_id": "INTERFACES",
+    "to_goal_id": "CORE",
+    "type": "depends_on",
+    "state": "active",
+    "reason": "创建 Goal 时指定上游依赖"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 20,
+   "event_id": "00000000-0000-4000-8000-000000000037",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000013",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "INTERFACES",
+    "to_goal_id": "PLATFORM",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 19,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000067",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000067",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 18,
+   "event_id": "00000000-0000-4000-8000-000000000068",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "INTERFACES",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 17,
+   "event_id": "00000000-0000-4000-8000-000000000038",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000002",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "CORE",
+    "to_goal_id": "PLATFORM",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 16,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000062",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000062",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 15,
+   "event_id": "00000000-0000-4000-8000-000000000063",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "CORE",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 14,
+   "event_id": "00000000-0000-4000-8000-000000000031",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000001",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "ADOPTION",
+    "to_goal_id": "V1",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 13,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000051",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000051",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 12,
+   "event_id": "00000000-0000-4000-8000-000000000052",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "ADOPTION",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 11,
+   "event_id": "00000000-0000-4000-8000-000000000032",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000025",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "WORKSPACE",
+    "to_goal_id": "V1",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 10,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000045",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000045",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 9,
+   "event_id": "00000000-0000-4000-8000-000000000046",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "WORKSPACE",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 8,
+   "event_id": "00000000-0000-4000-8000-000000000033",
+   "actor_id": "demo-user",
+   "type": "relation.added",
+   "object_type": "relation",
+   "object_id": "relation-00000000-0000-4000-8000-000000000016",
+   "reason": "创建 Goal 时指定上级 Goal",
+   "payload": {
+    "from_goal_id": "PLATFORM",
+    "to_goal_id": "V1",
+    "type": "part_of",
+    "state": "active",
+    "reason": "创建 Goal 时指定上级 Goal"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 7,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000039",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000039",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 6,
+   "event_id": "00000000-0000-4000-8000-000000000040",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "PLATFORM",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 5,
+   "event_id": "gevt-00000000-0000-4000-8000-000000000034",
+   "actor_id": "demo-user",
+   "type": "goal.event_state.intent_created",
+   "object_type": "goal_work_event",
+   "object_id": "gevt-00000000-0000-4000-8000-000000000034",
+   "reason": "保存原始意图",
+   "payload": {
+    "operation": "intent_created",
+    "source_kind": "onboarding"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 4,
+   "event_id": "00000000-0000-4000-8000-000000000035",
+   "actor_id": "demo-user",
+   "type": "goal.created",
+   "object_type": "goal",
+   "object_id": "V1",
+   "reason": "保存原始意图",
+   "payload": {
+    "definition_state": "draft",
+    "decomposition_state": "abstract"
+   },
+   "at": "2026-10-30T09:00:00.000Z"
+  },
+  {
+   "seq": 3,
+   "event_id": "00000000-0000-4000-8000-000000000121",
+   "actor_id": "web-user",
+   "type": "board.created",
+   "object_type": "board",
+   "object_id": "molis-work-v1-demo",
+   "reason": "创建 Molis Work 真相源",
+   "payload": {},
+   "at": "2026-10-30T09:00:00.000Z"
+  }
+ ],
+ "shown_plugins": [
+  "goals",
+  "inbox",
+  "feed",
+  "issues",
+  "cognia",
+  "plugin-builder",
+  "images",
+  "jelly",
+  "shelf",
+  "lingguang",
+  "todo",
+  "pages",
+  "form",
+  "dataset",
+  "ppt",
+  "alchemist",
+  "workflows"
+ ],
+ "feed": {
+  "sources": [],
+  "feed_items": [],
+  "inbox_entries": [
+   {
+    "project_id": "molis-work-v1-demo",
+    "entry_id": "inboxentry-00000000-0000-4000-8000-000000000122",
+    "owner_plugin_id": "io.molis.work.goals",
+    "subject_type": "goal_decision",
+    "subject_id": "ONBOARDING",
+    "reason": "goal_decision",
+    "status": "open",
+    "revision": 1,
+    "created_at": "2026-10-30T09:00:00.000Z",
+    "updated_at": "2026-10-30T09:00:00.000Z",
+    "completed_at": null,
+    "detail": {}
+   }
+  ],
+  "runs": [],
+  "out_rules": []
+ },
+ "feed_source_catalog": [
+  {
+   "id": "36kr",
+   "name": "36氪",
+   "kind": "rss",
+   "feed_url": "https://36kr.com/feed",
+   "category": "tech_cn",
+   "category_label": "中文科技",
+   "limitations": [
+    "许多网络环境下 https://36kr.com/feed 会返回 HTML 风控页（火山引擎等），不是 RSS 空流",
+    "若同步失败并提示 feed_blocked_html / feed_not_rss，请改用其他可公开订阅的源",
+    "Molis Work 不会绕过验证码或把 HTML 伪造成文章列表"
+   ]
+  },
+  {
+   "id": "sspai",
+   "name": "少数派",
+   "kind": "rss",
+   "feed_url": "https://sspai.com/feed",
+   "category": "tech_cn",
+   "category_label": "中文科技",
+   "limitations": []
+  },
+  {
+   "id": "infoq-cn",
+   "name": "InfoQ 中文",
+   "kind": "rss",
+   "feed_url": "https://www.infoq.cn/feed",
+   "category": "tech_cn",
+   "category_label": "中文科技",
+   "limitations": []
+  },
+  {
+   "id": "techcrunch",
+   "name": "TechCrunch",
+   "kind": "rss",
+   "feed_url": "https://techcrunch.com/feed/",
+   "category": "tech_global",
+   "category_label": "国际科技",
+   "limitations": []
+  },
+  {
+   "id": "theverge",
+   "name": "The Verge",
+   "kind": "rss",
+   "feed_url": "https://www.theverge.com/rss/index.xml",
+   "category": "tech_global",
+   "category_label": "国际科技",
+   "limitations": []
+  },
+  {
+   "id": "arstechnica",
+   "name": "Ars Technica",
+   "kind": "rss",
+   "feed_url": "https://feeds.arstechnica.com/arstechnica/index",
+   "category": "tech_global",
+   "category_label": "国际科技",
+   "limitations": []
+  },
+  {
+   "id": "cnbc",
+   "name": "CNBC",
+   "kind": "rss",
+   "feed_url": "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": []
+  },
+  {
+   "id": "reuters",
+   "name": "Reuters",
+   "kind": "rss",
+   "feed_url": "https://feeds.reuters.com/reuters/topNews",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": []
+  },
+  {
+   "id": "wsj",
+   "name": "WSJ",
+   "kind": "rss",
+   "feed_url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": []
+  },
+  {
+   "id": "bloomberg",
+   "name": "Bloomberg",
+   "kind": "rss",
+   "feed_url": "https://feeds.bloomberg.com/markets/news.rss",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": []
+  },
+  {
+   "id": "solidot",
+   "name": "Solidot",
+   "kind": "rss",
+   "feed_url": "https://www.solidot.org/index.rss",
+   "category": "tech_cn",
+   "category_label": "中文科技",
+   "limitations": [
+    "中文科技资讯公开 RSS"
+   ]
+  },
+  {
+   "id": "ithome",
+   "name": "IT之家",
+   "kind": "rss",
+   "feed_url": "https://www.ithome.com/rss/",
+   "category": "tech_cn",
+   "category_label": "中文科技",
+   "limitations": [
+    "中文科技资讯公开 RSS"
+   ]
+  },
+  {
+   "id": "cnbc-finance",
+   "name": "CNBC Finance",
+   "kind": "rss",
+   "feed_url": "https://www.cnbc.com/id/10000664/device/rss/rss.html",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "CNBC 财经频道公开 RSS 摘要"
+   ]
+  },
+  {
+   "id": "marketwatch-top",
+   "name": "MarketWatch Top Stories",
+   "kind": "rss",
+   "feed_url": "https://feeds.marketwatch.com/marketwatch/topstories/",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "MarketWatch 头条公开 RSS"
+   ]
+  },
+  {
+   "id": "yahoo-finance",
+   "name": "Yahoo Finance News",
+   "kind": "rss",
+   "feed_url": "https://finance.yahoo.com/news/rssindex",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "Yahoo Finance 新闻索引 RSS；条目量与字段因地区而异"
+   ]
+  },
+  {
+   "id": "investing-news",
+   "name": "Investing.com News",
+   "kind": "rss",
+   "feed_url": "https://www.investing.com/rss/news.rss",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "Investing.com 公开新闻 RSS"
+   ]
+  },
+  {
+   "id": "ft-home",
+   "name": "Financial Times (Home)",
+   "kind": "rss",
+   "feed_url": "https://www.ft.com/rss/home",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "FT 首页 RSS；全文多需订阅，仅作标题/链接参考"
+   ]
+  },
+  {
+   "id": "economist-finance",
+   "name": "The Economist · Finance & economics",
+   "kind": "rss",
+   "feed_url": "https://www.economist.com/finance-and-economics/rss.xml",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "经济学人财经栏目 RSS；全文多需订阅，仅作标题/链接参考"
+   ]
+  },
+  {
+   "id": "seeking-alpha",
+   "name": "Seeking Alpha · Market Currents",
+   "kind": "rss",
+   "feed_url": "https://seekingalpha.com/market_currents.xml",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "Seeking Alpha 快讯 RSS；个人非商业用途条款见源站"
+   ]
+  },
+  {
+   "id": "nber-papers",
+   "name": "NBER Working Papers",
+   "kind": "rss",
+   "feed_url": "https://www.nber.org/rss/new.xml",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "美国国家经济研究局最新工作论文公开 RSS"
+   ]
+  },
+  {
+   "id": "npr-business",
+   "name": "NPR Business",
+   "kind": "rss",
+   "feed_url": "https://feeds.npr.org/1006/rss.xml",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "NPR 商业新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "guardian-business",
+   "name": "The Guardian Business",
+   "kind": "rss",
+   "feed_url": "https://www.theguardian.com/uk/business/rss",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "卫报商业版块公开 RSS"
+   ]
+  },
+  {
+   "id": "mckinsey-insights",
+   "name": "McKinsey Insights",
+   "kind": "rss",
+   "feed_url": "https://www.mckinsey.com/insights/rss",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "麦肯锡 Insights 公开 RSS（管理/经济洞察，非行情）"
+   ]
+  },
+  {
+   "id": "coindesk",
+   "name": "CoinDesk",
+   "kind": "rss",
+   "feed_url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+   "category": "finance",
+   "category_label": "金融 / 财经",
+   "limitations": [
+    "加密市场新闻公开 RSS；波动大，仅作信息源"
+   ]
+  },
+  {
+   "id": "fed-press",
+   "name": "Federal Reserve Press",
+   "kind": "rss",
+   "feed_url": "https://www.federalreserve.gov/feeds/press_all.xml",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "美联储新闻稿公开 XML"
+   ]
+  },
+  {
+   "id": "fed-monetary",
+   "name": "Federal Reserve · Monetary Policy",
+   "kind": "rss",
+   "feed_url": "https://www.federalreserve.gov/feeds/press_monetary.xml",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "美联储货币政策相关新闻稿公开 XML"
+   ]
+  },
+  {
+   "id": "ecb-press",
+   "name": "ECB Press",
+   "kind": "rss",
+   "feed_url": "https://www.ecb.europa.eu/rss/press.html",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "欧洲央行新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "ecb-stats",
+   "name": "ECB Statistical Press",
+   "kind": "rss",
+   "feed_url": "https://www.ecb.europa.eu/rss/statpress.html",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "欧洲央行统计新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "bis-press",
+   "name": "BIS Press Releases",
+   "kind": "rss",
+   "feed_url": "https://www.bis.org/doclist/all_pressrels.rss",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "国际清算银行新闻稿公开 RSS"
+   ]
+  },
+  {
+   "id": "fsb-press",
+   "name": "Financial Stability Board",
+   "kind": "rss",
+   "feed_url": "https://www.fsb.org/feed/",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "金融稳定理事会（FSB）公开 RSS"
+   ]
+  },
+  {
+   "id": "sec-press",
+   "name": "SEC Press Releases",
+   "kind": "rss",
+   "feed_url": "https://www.sec.gov/news/pressreleases.rss",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "美国证监会新闻稿公开 RSS"
+   ]
+  },
+  {
+   "id": "cftc-press",
+   "name": "CFTC Press",
+   "kind": "rss",
+   "feed_url": "https://www.cftc.gov/RSS/RSSGP/rssgp.xml",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "美国商品期货交易委员会新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "bankofengland",
+   "name": "Bank of England News",
+   "kind": "rss",
+   "feed_url": "https://www.bankofengland.co.uk/rss/news",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "英格兰银行新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "boj-en",
+   "name": "Bank of Japan (EN)",
+   "kind": "rss",
+   "feed_url": "https://www.boj.or.jp/en/rss/whatsnew.xml",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "日本银行英文更新公开 RSS"
+   ]
+  },
+  {
+   "id": "bls-latest",
+   "name": "BLS Latest",
+   "kind": "rss",
+   "feed_url": "https://www.bls.gov/feed/bls_latest.rss",
+   "category": "policy",
+   "category_label": "央行 / 政策",
+   "limitations": [
+    "美国劳工统计局最新发布公开 RSS"
+   ]
+  },
+  {
+   "id": "bbc-world",
+   "name": "BBC World",
+   "kind": "rss",
+   "feed_url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "category": "general_news",
+   "category_label": "综合新闻",
+   "limitations": [
+    "国际新闻公开摘要 RSS"
+   ]
+  },
+  {
+   "id": "nytimes-tech",
+   "name": "NYTimes Technology",
+   "kind": "rss",
+   "feed_url": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
+   "category": "tech_global",
+   "category_label": "国际科技",
+   "limitations": [
+    "标题与摘要公开；全文可能需订阅"
+   ]
+  },
+  {
+   "id": "nature-news",
+   "name": "Nature",
+   "kind": "rss",
+   "feed_url": "https://www.nature.com/nature.rss",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "Nature 公开 RSS；全文访问依机构/订阅而定"
+   ]
+  },
+  {
+   "id": "science-news",
+   "name": "Science Magazine News",
+   "kind": "rss",
+   "feed_url": "https://www.science.org/rss/news_current.xml",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "Science 新闻公开 RSS 摘要"
+   ]
+  },
+  {
+   "id": "who-news",
+   "name": "WHO News",
+   "kind": "rss",
+   "feed_url": "https://www.who.int/rss-feeds/news-english.xml",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "世界卫生组织英文新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "mit-news",
+   "name": "MIT News",
+   "kind": "rss",
+   "feed_url": "https://news.mit.edu/rss/feed",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "MIT 新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "nasa-breaking",
+   "name": "NASA Breaking News",
+   "kind": "rss",
+   "feed_url": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "NASA 突发/要闻公开 RSS"
+   ]
+  },
+  {
+   "id": "esa-space-science",
+   "name": "ESA Space Science",
+   "kind": "rss",
+   "feed_url": "https://www.esa.int/rssfeed/Our_Activities/Space_Science",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "欧空局空间科学公开 RSS"
+   ]
+  },
+  {
+   "id": "plos-one",
+   "name": "PLOS ONE",
+   "kind": "rss",
+   "feed_url": "https://journals.plos.org/plosone/feed/atom",
+   "category": "science",
+   "category_label": "科学 / 健康",
+   "limitations": [
+    "PLOS ONE 最新论文 Atom；条目量中等，同步按 SDK 上限截断"
+   ]
+  },
+  {
+   "id": "krebs-security",
+   "name": "Krebs on Security",
+   "kind": "rss",
+   "feed_url": "https://krebsonsecurity.com/feed/",
+   "category": "security",
+   "category_label": "安全",
+   "limitations": [
+    "安全新闻博客公开 RSS"
+   ]
+  },
+  {
+   "id": "aws-security",
+   "name": "AWS Security Blog",
+   "kind": "rss",
+   "feed_url": "https://aws.amazon.com/blogs/security/feed/",
+   "category": "security",
+   "category_label": "安全",
+   "limitations": [
+    "AWS 安全博客公开 RSS"
+   ]
+  },
+  {
+   "id": "schneier",
+   "name": "Schneier on Security",
+   "kind": "rss",
+   "feed_url": "https://www.schneier.com/feed/atom/",
+   "category": "security",
+   "category_label": "安全",
+   "limitations": [
+    "Bruce Schneier 安全博客公开 Atom"
+   ]
+  },
+  {
+   "id": "eff-updates",
+   "name": "EFF Updates",
+   "kind": "rss",
+   "feed_url": "https://www.eff.org/rss/updates.xml",
+   "category": "security",
+   "category_label": "安全",
+   "limitations": [
+    "电子前沿基金会更新公开 RSS（隐私/数字权利）"
+   ]
+  },
+  {
+   "id": "openai-blog",
+   "name": "OpenAI Blog",
+   "kind": "rss",
+   "feed_url": "https://openai.com/blog/rss.xml",
+   "category": "ai_research",
+   "category_label": "AI / 研究",
+   "limitations": [
+    "OpenAI 博客公开 RSS"
+   ]
+  },
+  {
+   "id": "deepmind-blog",
+   "name": "Google DeepMind Blog",
+   "kind": "rss",
+   "feed_url": "https://deepmind.google/blog/rss.xml",
+   "category": "ai_research",
+   "category_label": "AI / 研究",
+   "limitations": [
+    "DeepMind 博客公开 RSS"
+   ]
+  },
+  {
+   "id": "arxiv-cs",
+   "name": "arXiv cs (recent)",
+   "kind": "rss",
+   "feed_url": "https://rss.arxiv.org/rss/cs",
+   "category": "ai_research",
+   "category_label": "AI / 研究",
+   "limitations": [
+    "计算机科学 arXiv 最近论文 RSS；条目量大，同步时会按 SDK 上限截断"
+   ]
+  },
+  {
+   "id": "github-blog",
+   "name": "GitHub Blog",
+   "kind": "rss",
+   "feed_url": "https://github.blog/feed/",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "GitHub 官方博客公开 RSS"
+   ]
+  },
+  {
+   "id": "hnrss-frontpage",
+   "name": "Hacker News",
+   "kind": "rss",
+   "feed_url": "https://hnrss.org/frontpage",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "HN 前页聚合 RSS（第三方 hnrss.org）"
+   ]
+  },
+  {
+   "id": "cloudflare-blog",
+   "name": "Cloudflare Blog",
+   "kind": "rss",
+   "feed_url": "https://blog.cloudflare.com/rss/",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "Cloudflare 工程博客公开 RSS"
+   ]
+  },
+  {
+   "id": "stripe-blog",
+   "name": "Stripe Blog",
+   "kind": "rss",
+   "feed_url": "https://stripe.com/blog/feed.rss",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "Stripe 博客公开 RSS"
+   ]
+  },
+  {
+   "id": "lwn",
+   "name": "LWN.net",
+   "kind": "rss",
+   "feed_url": "https://lwn.net/headlines/rss",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "Linux/开源新闻公开 RSS"
+   ]
+  },
+  {
+   "id": "ieee-spectrum",
+   "name": "IEEE Spectrum",
+   "kind": "rss",
+   "feed_url": "https://spectrum.ieee.org/feeds/feed.rss",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "IEEE Spectrum 工程/科技公开 RSS"
+   ]
+  },
+  {
+   "id": "acm-queue",
+   "name": "ACM Queue",
+   "kind": "rss",
+   "feed_url": "https://queue.acm.org/rss/feeds/queuecontent.xml",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "ACM Queue 工程文章公开 RSS"
+   ]
+  },
+  {
+   "id": "rust-blog",
+   "name": "Rust Blog",
+   "kind": "rss",
+   "feed_url": "https://blog.rust-lang.org/feed.xml",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "Rust 语言官方博客公开 RSS"
+   ]
+  },
+  {
+   "id": "kubernetes-blog",
+   "name": "Kubernetes Blog",
+   "kind": "rss",
+   "feed_url": "https://kubernetes.io/feed.xml",
+   "category": "dev",
+   "category_label": "工程 / 开发",
+   "limitations": [
+    "Kubernetes 官方博客公开 RSS"
+   ]
+  },
+  {
+   "id": "scotusblog",
+   "name": "SCOTUSblog",
+   "kind": "rss",
+   "feed_url": "https://www.scotusblog.com/feed/",
+   "category": "general_news",
+   "category_label": "综合新闻",
+   "limitations": [
+    "美国最高法院报道博客公开 RSS（法律专业）"
+   ]
+  }
+ ],
+ "feed_connector_auth": {
+  "github": {
+   "bound": false
+  },
+  "gmail": {
+   "bound": false
+  }
+ },
+ "stage_data": {
+  "schedule": {
+   "jobs": [
+    {
+     "job_id": "job_00000000-0000-4000-8000-000000000123",
+     "plugin_id": "io.molis.work.feed",
+     "capability_id": "feed.sources.wake",
+     "object_ref": "sources",
+     "title": "拉取到期的 Feed 来源",
+     "recurrence": {
+      "kind": "interval",
+      "interval_ms": 30000
+     },
+     "next_due_at": "2026-10-30T09:00:00.000Z",
+     "enabled": true,
+     "last_wakeup": null,
+     "created_at": "2026-10-30T09:00:00.000Z",
+     "updated_at": "2026-10-30T09:00:00.000Z"
+    }
+   ],
+   "tasks": [],
+   "operations": []
+  }
+ }
+}

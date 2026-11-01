@@ -42,6 +42,7 @@ tests/i18n.test.ts
 tests/inbox-action-scenes.test.ts
 tests/issue-naming.test.ts
 tests/jelly-actions.test.ts
+tests/home-plugin-stage-pages.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
@@ -291,7 +292,6 @@ tests/project-arrival-chooser.test.ts
 tests/project-arrival-http.test.ts
 tests/project-arrival.test.ts
 tests/project-brief.test.ts
-tests/project-catalog.test.ts
 tests/project-deletion-assistant.test.ts
 tests/project-deletion-declarations.test.ts
 tests/project-deletion-memory.test.ts
@@ -334,6 +334,7 @@ tests/session-project-binding-router.test.ts
 
 # Other areas
 tests/alchemist-actions.test.ts
+tests/alchemist-host.test.ts
 tests/alchemist-plugin.test.ts
 tests/alchemist-pulse-cancel.test.ts
 tests/alchemist-pulse-close.test.ts
@@ -356,7 +357,6 @@ tests/creative-artifact-promote.test.ts
 tests/creative-tools-plugins.test.ts
 tests/cross-device-client.test.ts
 tests/demo-plugin-sample.test.ts
-tests/desktop-launch-args.test.ts
 tests/desktop-shell-bootstrap.test.ts
 tests/diff-plugin.test.ts
 tests/document-import-providers.test.ts
@@ -366,6 +366,7 @@ tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
 tests/form-draft-questions.test.ts
 tests/form-draft-retry.test.ts
+tests/form-fillpage-answer-length.test.ts
 tests/functions-agent-references.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts

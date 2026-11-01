@@ -28,21 +28,8 @@ const jobTimeoutIn = (text: string) => /^    timeout-minutes: (\d+)(?:\s+#.*)?\s
 const jobTimeout = (name: string) => jobTimeoutIn(jobBlock(name));
 /** A step's limit, the same way; a step line is indented four spaces further. */
 const stepTimeoutIn = (text: string) => /^        timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
-/** One job's block out of any workflow text: from its two-space key to the next job key (or the end). */
-const jobBlockIn = (text: string, name: string): string => {
-  const start = text.split("\n").findIndex(line => line === `  ${name}:`);
-  if (start < 0) return "";
-  const lines = text.split("\n").slice(start + 1);
-  const end = lines.findIndex(line => /^  [a-z0-9-]+:$/u.test(line));
-  return text.split("\n").slice(start, end < 0 ? undefined : start + 1 + end).join("\n") + "\n";
-};
 const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step) => step.startsWith("name: Install pnpm\n"));
 
-/** `verify`'s `needs:`, read from its block: a job the table calls blocking but `verify` does not need would hold a merge group for nothing. */
-const verifyNeedsIn = (text: string): string[] => {
-  const needs = /^    needs: (.*)$/m.exec(jobBlockIn(text, "verify"))?.[1] ?? "";
-  return [...needs.matchAll(/([a-z0-9-]+)/gu)].map((match) => match[1]!);
-};
 /**
  * The blocking-job floor for one job block (RAC-2411's check, so RAC-2425 can drive it with any text): a job-level
  * `timeout-minutes:` line must be a plain number — a comment after it is fine — and at least the floor; a line that is there but not a
@@ -56,6 +43,9 @@ const assertBlockingJobLimit = (name: string, block: string): boolean => {
   assert.ok(Number(plain![1]) >= BLOCKING_FLOOR, `${name}: a blocking job with a limit gets ${BLOCKING_FLOOR} minutes or more, so a slow runner does not fail a merge group`);
   return true;
 };
+
+/** The blocking jobs that carry a job-level limit in `text`: the ones the floor can check (a job without one falls back to the default). */
+const limitedBlockingJobs = (text: string): string[] => blockingJobs(text).filter((name) => assertBlockingJobLimit(name, jobBlock(name, text)));
 
 test("RAC-1905 ci.yml: the blocking jobs that build or test and security-invariants stop at a limit of at least 1.8 times their longest run, a blocking job at 30 minutes or more, and none above an hour", () => {
   for (const [name, { limit, longest, blocking }] of Object.entries(JOBS)) {
@@ -75,10 +65,12 @@ test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or 
   // `queue-check` is among verify's needs only to let a push already verified by the merge queue pass (T-129): it decides no merge,
   // and its 5-minute limit is the intentional exception.
   assert.ok(!blocking.includes("queue-check"), "queue-check is not a blocking job");
+  assert.ok(!blocking.includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
   assert.equal(jobTimeout("queue-check"), "5", "queue-check keeps its intentional 5-minute limit");
+  assert.equal(jobTimeout("test-selection"), "5", "the auxiliary selector keeps its intentional 5-minute limit");
   // `secret-scan`, `native-checks` and `shell-checks` are verify's needs without a job-level limit, so they fall back to the six-hour
   // default if they hang; giving them a limit is a workflow change of its own, and a job without one is skipped here.
-  const limited = blocking.filter((name) => assertBlockingJobLimit(name, jobBlock(name)));
+  const limited = limitedBlockingJobs(workflow);
   // The table marks what blocks a merge and `verify` is what decides it: neither may drift from the other, or a new blocking job would
   // go unchecked, and a job the table calls blocking but verify does not need would hold a merge group for nothing.
   const tableBlocking = Object.entries(JOBS).filter(([, job]) => job.blocking).map(([name]) => name).sort();
@@ -110,8 +102,8 @@ test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, exc
 // must name the job, so the floor cannot be skipped.
 test("RAC-2425 a job or step limit with a trailing comment is read, and an unreadable blocking-job limit is refused by the gate", () => {
   const inline = "  slow-job:\n    runs-on: ubuntu-latest\n    timeout-minutes: 20 # 偏短\n    steps:\n      - name: Install pnpm\n        timeout-minutes: 3 # 安装\n  verify:\n    needs: [slow-job]\n";
-  const slow = jobBlockIn(inline, "slow-job");
-  assert.deepEqual(verifyNeedsIn(inline), ["slow-job"], "verify needs the job, so the blocking floor applies to it");
+  const slow = jobBlock("slow-job", inline);
+  assert.deepEqual(blockingJobs(inline), ["slow-job"], "verify needs the job, so the blocking floor applies to it");
   assert.equal(jobTimeoutIn(inline), "20", "a job-level limit with a trailing comment is read as its number");
   assert.equal(stepTimeoutIn(inline), "3", "a step-level limit with a trailing comment too");
   // The hole: 20 minutes is refused by the real gate, with the floor's own message.
@@ -127,4 +119,7 @@ test("RAC-2425 a job or step limit with a trailing comment is read, and an unrea
   // Two spaces after the colon is legal YAML: reading it as the number is fine, and the floor still applies.
   assert.throws(() => assertBlockingJobLimit("slow-job", "  slow-job:\n    timeout-minutes:  20\n"), /30 minutes or more/u);
   assert.equal(assertBlockingJobLimit("slow-job", "  slow-job:\n    runs-on: ubuntu-latest\n"), false, "a job without a limit line has none");
+  // Only blocking jobs with a job-level limit are checked: one without a limit is skipped, not counted as checked.
+  const mixed = "  limited:\n    timeout-minutes: 30\n  unlimited:\n    runs-on: ubuntu-latest\n  verify:\n    needs: [limited, unlimited]\n";
+  assert.deepEqual(limitedBlockingJobs(mixed), ["limited"], "a blocking job without a limit is skipped by the limit check, not silently counted");
 });

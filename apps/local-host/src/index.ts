@@ -22,6 +22,14 @@ export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, typ
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
+export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";
+export { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+export { pluginModelFor } from "./plugin-model-service.js";
+export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
+export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
+export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
+export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "./plugin-builder/exposed-actions.js";
+export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
@@ -117,9 +125,10 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
-export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+export { sandboxDerivedPermissions, sandboxOperationPermissions, sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
+export { installedStageSection } from "./installed-stage-section.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
@@ -159,7 +168,7 @@ export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-doc
 export { feedItemForReader } from "./web-request.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
-export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
 
 export * from "./onboarding.js";
 
@@ -178,9 +187,6 @@ export { handleContextualHttp } from "./contextual/contextual-http.js";
 export { draftRequest } from "./contextual/contextual-draft.js";
 export { createChosen, undoCreated, type ContextualCreated, type UndoOwner } from "./contextual/contextual-create.js";
 export { intakeKey } from "./contextual/contextual-choice.js";
-// The Host's one whole-character cut, exported for the tests that pin it; the MISC "整字截收成一份" line drops these two exports when it
-// makes them a public helper.
-export { cutHead, cutTail } from "./whole-units.js";
 export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { scheduleServiceFor } from "./project-clock.js";
@@ -191,6 +197,11 @@ export { createLocalWebAssets } from "./web-assets.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { MCP_TOOLS } from "./mcp-platform-tools.js";
+export { mcpErrors, mcpErrorKind, type McpErrorReason } from "./mcp-errors.js";
+export { createPresentationError } from "./mcp-v1-tool.js";
+export { assertMcpStartInput } from "./mcp-start-preflight.js";
+export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
+export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
@@ -198,7 +209,6 @@ export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
-export { createLocalPanelHttp } from "./web-panel.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
@@ -312,6 +322,7 @@ export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
+export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";

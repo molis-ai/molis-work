@@ -127,8 +127,8 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
 | `modules/context-ledger` | `context_edges` |
-| `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`） |
-| `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref` |
+| `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`）：T-148 起只建表、没有读写；何时删随 #1633 定 |
+| `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref`；`plugin_terminal_panels`、`plugin_terminal_panel_aliases`（`src/plugin-terminal-panels.ts`）：插件经 `services.terminal` 起的终端记录与运行时会话别名（S-103） |
 
 ### 4.2 `projects/<id>/molis-work.db`（v1）
 

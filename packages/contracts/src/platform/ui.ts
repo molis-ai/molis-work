@@ -166,6 +166,20 @@ export interface UiSettingsDataDeclaration {
 }
 
 /**
+ * The address parameters a plugin's settings page reads (BL-543, S-47). A plugin page may name a settings address
+ * (`molis-work:open-settings-path`); the shell keeps only what the page being opened reads, and every settings page is rendered with the
+ * defaults (`project`, `desktop`). A page that reads more lists those names explicitly — never a wildcard. Query names are
+ * `[A-Za-z0-9_-]{1,32}` (at most 8; `project`, `desktop`, `settings`, `settingsPath` and `embed` are the shell's own and cannot be named);
+ * fragments are written with their leading `#` (`#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}`, at most 8).
+ */
+export interface UiSettingsAddressParamsDeclaration {
+  /** Query parameter names this page reads, besides the defaults. */
+  readonly query?: readonly string[];
+  /** Fragments this page reads, each with its leading `#`. */
+  readonly hash?: readonly string[];
+}
+
+/**
  * Where a plugin's stage gets what it shows (T-133, PG-060): the same rule as `settings_data`. `action` is the `capability_id` of one of
  * the same Manifest's own actions, a query for the person (audience `user`) that only reads, with one version. The Host calls it with no
  * input, as the person in the project and with only that action's own permissions, and the stage receives the answer as
@@ -250,8 +264,8 @@ export interface UiViewDeclaration {
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**
-   * Icon name from the Host's own catalog. The Host resolves it and falls back
-   * to a default when it does not know the name; a Plugin never ships artwork
+   * Icon name from the platform's icon set (the SDK's `PLUGIN_ICON_NAMES`). The
+   * Manifest reader refuses a name outside the set; a Plugin never ships artwork
    * into the shell.
    */
   readonly icon?: string;
@@ -281,6 +295,8 @@ export interface UiViewDeclaration {
   readonly settings_data?: UiSettingsDataDeclaration;
   /** `settings` views only: request the Host's Agent Runtime list in `SettingsPageContext.runtimes`. Omission skips the query. */
   readonly settings_runtimes?: true;
+  /** `settings` views only: the extra address parameters this page reads (BL-543). Omitted means the defaults only. */
+  readonly settings_address?: UiSettingsAddressParamsDeclaration;
   /**
    * The view that opens the plugin's stage only (its `stage` view, else its `navigator` view): the read action that gives the stage its
    * data. The Host calls it as the person and hands the answer to the stage, on the page and when the stage is redrawn in place.

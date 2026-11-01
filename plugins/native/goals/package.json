@@ -26,6 +26,10 @@
       "types": "./dist/governance/index.d.ts",
       "import": "./dist/governance/index.js"
     },
+    "./page": {
+      "types": "./dist/page/index.d.ts",
+      "import": "./dist/page/index.js"
+    },
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"

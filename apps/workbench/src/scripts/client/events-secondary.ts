@@ -135,23 +135,20 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           const restoreTarget = feedAction.dataset.feedRestoreTarget;
           const result = await api(feedApi + "/items/" + encodeURIComponent(itemId) + "/" + action,"POST",expectedRevision
             ? {expected_revision:expectedRevision,...(restoreTarget?{restore_target:restoreTarget}:{})}:{});
-          if (action === "promote" || action === "start") {
+          if (action === "promote") {
             saveUiState();
             let existing = {};
             try { existing = JSON.parse(sessionStorage.getItem(currentGoalUiStorageKey) || sessionStorage.getItem(goalUiStorageKey) || "null") || {}; } catch {}
-            if (action === "start" && result.runtime_autofill && result.goal_id) {
-              sessionStorage.setItem("molis-work-feed-runtime-autofill:" + result.goal_id, JSON.stringify({ itemId, at: Date.now() }));
-            }
             sessionStorage.setItem(currentGoalUiStorageKey, JSON.stringify({
               ...existing,
               selected: result.goal_id,
               navigationVersion: desktopNavigationStateVersion,
               directory: "goals",
               workSurface: "goals",
-              workspaceMode: action === "start" ? "runtime" : "focus",
-              mobileView: action === "start" ? "tui" : "document",
+              workspaceMode: "focus",
+              mobileView: "document",
             }));
-            location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(result.goal_id)) + (action === "start" ? "?feed-start=1" : "")));
+            location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(result.goal_id))));
             return;
           }
           saveUiState();

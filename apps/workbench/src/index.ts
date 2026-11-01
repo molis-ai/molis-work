@@ -1,16 +1,9 @@
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
-export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
-export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
-export { homeToolKeysScript } from "./home-plugin-navigation.js";
-export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
-export {
-  renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
-  type GoalsReadRenderers, type WorkbenchGoalPageSelection,
-} from "./goals-document-routes.js";
+export { homeToolKeysScript, renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
@@ -34,16 +27,6 @@ export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, 
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
-  createWorkbenchGoalsContextRenderer,
-  createWorkbenchGoalsDialogsRenderer,
-  createWorkbenchGoalsDocumentRenderer,
-  createWorkbenchGoalsFactorsRenderer,
-  createWorkbenchGoalsMomentumRenderer,
-  createWorkbenchGoalsPlanningRenderer,
-  createWorkbenchGoalsPolicyRenderer,
-  createWorkbenchGoalsRelationRenderer,
-  createWorkbenchGoalsStatusRenderer,
-  createWorkbenchGoalsTreeRenderer,
   createWorkbenchUiHost,
   renderPluginSettingsContribution,
   renderWorkbenchDocument,
@@ -81,8 +64,17 @@ export {
 } from "./settings-models.js";
 
 export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
-export { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
+export { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
+export {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  HOME_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+} from "./settings-address-params.js";
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";

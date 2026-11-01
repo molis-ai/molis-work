@@ -4057,22 +4057,48 @@ export interface PluginStartContext {
 export interface PluginTerminalClient {
     open(input: {
         key: string;
-        title: string;
-        command: string;
-        args?: readonly string[];
+        title?: string;
+        program: PluginTerminalProgram;
+        subject?: string;
         directory: PluginTerminalDirectory;
     }): Promise<{
         panelId: string;
+        started: boolean;
     }>;
+    list(input?: {
+        subject?: string;
+    }): Promise<readonly PluginTerminalPanel[]>;
+    close(input: {
+        key: string;
+    }): Promise<void>;
 }
 
 export type PluginTerminalDirectory = {
     readonly root: "workspace";
-    readonly workspace_id: string;
+    readonly workspace_id?: string;
     readonly path?: string;
 } | {
     readonly root: "owner_files";
     readonly path?: string;
+};
+
+export interface PluginTerminalPanel {
+    readonly key: string;
+    readonly panelId: string;
+    readonly title: string;
+    readonly runtime: string;
+    readonly program: PluginTerminalProgram;
+    readonly subject: string | null;
+    readonly running: boolean;
+    readonly created_at: string;
+}
+
+export type PluginTerminalProgram = {
+    readonly runtime: string;
+    readonly session?: string;
+} | {
+    readonly command: string;
+    readonly args?: readonly string[];
 };
 
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;

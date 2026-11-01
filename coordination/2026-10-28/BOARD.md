@@ -15,6 +15,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4 | 当前 | PG077/T147/T364已采用；共享artifact路径hunk根已交接 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
 | T-002 | privileges 状态列收口与 BACKLOG 清理 | 丙 | B | 1 | — | `specs/repository-anti-corruption/privileges.md` |
 | T-003 | 给 Feed、Inbox 各加一项生命周期用例 | 乙 | A | 2 | — | `tests/shipped-plugin-lifecycle-feed.test.ts`、`tests/fixtures/shipped-lifecycle.ts`（只改 `declared()`，与 T-005 共改，后合的解冲突） |
@@ -449,3 +450,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 02:03Z：两当前Full的goals-dialogs RAC2700均在create持久化后backToBoard的Page.navigate首轮超时，分别2/3后retry3/3；根全文核两raw及独立归因报告，因果仍UNKNOWN。按README§9重复文件规则，候选T381正在起草有界诊断/最小修复书，不增加超时、不吞错、不概率重跑。现有Full继续，不取消；新Full先等该重复故障处置。T146本地b2cb0e158及两增量已核，先冻结不推，避免已知接续再触发一次CI。
 
 2026-11-01 02:08Z：T381已正式登记并交开发线2；两首败尚无同根归因，只按书内一轮被动观测定位，目标RAC2700所有业务断言保持。T380本地b4382ea8f的右pane stale CORE恢复根因和最小4行修复已有同B/H整文件2/3→3/3；根已读实际diff/时序，独立验证线4先给最小计划，二审线1核代码。+199B资源未许可，未签W6。
+
+2026-11-01 02:22Z：T381首轮3/3未复现30秒超时，真实事件已证两次测试返回覆盖产品新Goal导航；根接受独立窄审并更新同一书，开发线2仅修完整提交等待及目标页面断言，旧Linux因果仍UNKNOWN，不做概率重跑。T382已接受独立书审唯一类型修订并派开发线4，承接已有BL926，三项验收2810–2812；具体artifact路径hunk交接，未开PR、不减少在途或后继估算。

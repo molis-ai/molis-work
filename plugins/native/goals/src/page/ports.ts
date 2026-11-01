@@ -18,6 +18,8 @@ export interface GoalsTerminalPaneModel {
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
   promptRoute: string;
+  /** RAC-2817: the registered Goals terminal route is required by the platform pane. */
+  terminalsRoute: string;
   text: (value: string, vars?: Record<string, string | number>) => string;
   icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }

@@ -16,7 +16,7 @@
 - 负责：插件创作台：用自然语言设计、生成、试用并发布独立插件。
 - 不负责：模型凭据、运行时所有权、任意代码执行。
 - 公开入口：`@molis-ai/molis-work-plugin-builder`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - resetPreview 的旧 job 在 stopRunner 等待后再次核原 token，才能清预览数据或改构建。升级的授权表单传秘密值到 Host；只对本 release 声明的名称分批验证后切换，失败恢复本次秘密与原版本，较新的安装或启停选择优先。公开清单和批准记录不含秘密正文。
   - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计、体验、界面、复查与代码按阶段挂载，各不超过 20000 字）。

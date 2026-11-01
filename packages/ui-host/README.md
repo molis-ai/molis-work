@@ -15,7 +15,7 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 | 文件 | 用途 |
 | --- | --- |
 | [src/index.ts](src/index.ts) | UiHost 注册、渲染与挂载 |
-| [src/surface-renderers.ts](src/surface-renderers.ts) | 按插件给的「方法→surface」表造一组渲染方法：每个方法把 `{ kind, args, primitives }` 挂到声明的 slot，外壳不再为每个插件写挂载转接文件 |
+| [src/declared-mount-host.ts](src/declared-mount-host.ts) | 外壳的构造器对 UiHost 只要的那一个调用：`mountDeclared`（按 surface 声明的 slot 挂）；「方法→surface」表造渲染方法的构造器在 Goals 页（`plugins/native/goals/src/page/surfaces.ts`），这里不留第二份 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin UI 访问边界 |
 | [src/client-lifecycle.ts](src/client-lifecycle.ts) | 浏览器挂载、取消及资源释放，由 Host 注入 |
 | [src/call-id.ts](src/call-id.ts) | 诊断编号（调用编号）给人看的短形式 `shortCallId`：前 8 位，设置页服务端渲染用；怎样显示一个编号归界面，所以不在内核 |

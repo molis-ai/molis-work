@@ -10,6 +10,7 @@ import { ActionError, type ActionAvailability, type ActionDefinition, type Actio
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { runInPluginAction, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
+import { sandboxOperationPermissions } from '../sandbox-plugin-manifest.js';
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
 
@@ -35,6 +36,8 @@ export function exposedOperationCosts(releases: readonly PublishedOperations[], 
       visited.add(key); visiting.add(key);
       const operation = operations.get(key)!;
       if (operation.effects.networkDomains?.length) costs.push('unknown');
+      // The person's model or image account is spent by these, whatever else the operation reaches (BL-491).
+      if (operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate')) costs.push('metered');
       for (const id of operation.effects.capabilities ?? []) {
         const entry = dependencies.get(id);
         if (!entry || entry.installed === false) { costs.push('unknown'); continue; }
@@ -62,7 +65,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     capability_id: exposedActionId(release, operation.id), version: release.version, provider_id: providerId,
     operation: operation.kind === 'query' ? 'query' : 'command',
     action: { local_id: operation.id, title: title + ' · ' + (operation.description || operation.id), description: '插件「' + title + '」的功能：' + (operation.description || operation.id),
-      kind: operation.kind === 'query' ? 'query' : 'operation', scope: actions.project_id === null ? 'home' : 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
+      kind: operation.kind === 'query' ? 'query' : 'operation', scope: actions.project_id === null ? 'home' : 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: sandboxOperationPermissions(operation.effects), subject_kinds: [],
       input_schema: operation.input as unknown as ActionSchema, output_schema: operation.output as unknown as ActionSchema },
   }));
   const handlers: ActionHandlerBinding[] = release.design.contract.operations.map(operation => ({

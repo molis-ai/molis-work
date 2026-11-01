@@ -27,8 +27,6 @@ const hostCatalogErrors = defineErrorCodes("catalog", {
   demo_not_found: "invalid",
   not_demo: "invalid",
   personal_space: "invalid",
-  panel_not_found: "not_found",
-  panel_confirmation_required: "invalid",
 });
 export const catalogErrors = {
   ...hostCatalogErrors,
@@ -37,15 +35,6 @@ export const catalogErrors = {
   plugin_not_found: projectCatalogErrors.plugin_not_found,
   project_storage_invalid: projectCatalogErrors.project_storage_invalid,
 };
-
-/**
- * The failure the catalog's remaining desktop-panel factory raises: declared catalog codes retain their kinds. Unclassified panel validation codes pass through
- * unchanged as caller input errors. The injected factory does not assign the fact owner.
- */
-export function catalogFailure(code: string, message: string): ActionError {
-  const reason = code.startsWith("catalog.") ? code.slice("catalog.".length) : "";
-  return Object.hasOwn(catalogErrors, reason) ? catalogErrors[reason as keyof typeof catalogErrors](message) : new ActionError(code, message);
-}
 
 export function catalogSchemaCompatibilityError(
   actualSchemaVersion: number,

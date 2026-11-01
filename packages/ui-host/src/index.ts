@@ -10,8 +10,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export { createPluginUiClient } from "./plugin-client.js";
-export { createSurfaceRenderer, createSurfaceRenderers } from "./surface-renderers.js";
-export type { UiDeclaredMountHost, UiSurfaceCallModel } from "./surface-renderers.js";
+export type { UiDeclaredMountHost } from "./declared-mount-host.js";
 export { UiViewRegistry } from "./view-registry.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";

@@ -10,12 +10,12 @@ import { buildGoalCollectionModel, GOALS_PLUGIN_ID, type GoalCollectionItem, typ
 
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { homeStarts, pluginDirectoryFor, sideEntries } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages } from "./declared-stages.js";
-import { renderGoalFrameStage } from "./goal-frame-stage.js";
+import { renderGoalFrameStage, renderGoalDetailsAside, renderImmersiveGoalHeader, renderImmersiveWorkTabs } from "@molis-ai/molis-work-plugin-goals/page";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";

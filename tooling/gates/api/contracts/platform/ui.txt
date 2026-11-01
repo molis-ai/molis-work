@@ -359,6 +359,11 @@ export interface UiRequestScope {
     assertCurrent(signal?: AbortSignal): void;
 }
 
+export interface UiSettingsAddressParamsDeclaration {
+    readonly query?: readonly string[];
+    readonly hash?: readonly string[];
+}
+
 export interface UiSettingsDataDeclaration {
     readonly action: string;
 }
@@ -494,6 +499,7 @@ export interface UiViewDeclaration {
     readonly pinned_default?: true;
     readonly settings_data?: UiSettingsDataDeclaration;
     readonly settings_runtimes?: true;
+    readonly settings_address?: UiSettingsAddressParamsDeclaration;
     readonly stage_data?: UiStageDataDeclaration;
     readonly creates?: UiViewCreateEntry;
     readonly start?: UiViewStartEntry;

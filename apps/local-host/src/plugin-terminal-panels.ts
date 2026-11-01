@@ -1,5 +1,6 @@
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isTerminalSessionId } from "./plugin-terminal-runtimes.js";
 
 /**
  * The records of the terminals plugins start through `services.terminal` (S-103), in the project catalog: one row per installation,
@@ -92,19 +93,23 @@ export class PluginTerminalPanels {
       .map(row => row.panel_id);
   }
 
-  /** Records a new terminal, with its own work context as an alias; in a project, binds that context and journals the opening. */
-  insert(input: Omit<PluginTerminalPanelRecord, "tab_index" | "created_at" | "updated_at" | "host_session_id">, cwd: string): PluginTerminalPanelRecord {
+  /**
+   * Records a new terminal, with its own work context as an alias; in a project, binds that context and journals the opening. A runtime
+   * session it starts by resuming is kept as its session; it answers to it once the runtime reports it.
+   */
+  insert(input: Omit<PluginTerminalPanelRecord, "tab_index" | "created_at" | "updated_at" | "host_session_id"> & { host_session_id?: string | null }, cwd: string): PluginTerminalPanelRecord {
+    if (input.host_session_id != null && !isTerminalSessionId(input.host_session_id)) throw new ActionError("actions.input_invalid", "终端启动参数无效");
     const now = this.now();
     const { tab_index } = this.db.prepare(`
       SELECT COALESCE(MAX(tab_index), -1) + 1 AS tab_index FROM plugin_terminal_panels
       WHERE install_id = ? AND project_id IS ? AND actor_id = ? AND subject IS ?
     `).get(input.install_id, input.project_id, input.actor_id, input.subject) as { tab_index: number };
-    const row: PluginTerminalPanelRecord = { ...input, host_session_id: null, tab_index: Number(tab_index), created_at: now, updated_at: now };
+    const row: PluginTerminalPanelRecord = { ...input, host_session_id: input.host_session_id ?? null, tab_index: Number(tab_index), created_at: now, updated_at: now };
     this.db.prepare(`
       INSERT INTO plugin_terminal_panels (panel_id, install_id, project_id, actor_id, key, subject, runtime, launch_command, launch_args, title,
         host_session_id, tab_index, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(row.panel_id, row.install_id, row.project_id, row.actor_id, row.key, row.subject, row.runtime, row.launch_command,
-      JSON.stringify(row.launch_args), row.title, null, row.tab_index, now, now);
+      JSON.stringify(row.launch_args), row.title, row.host_session_id, row.tab_index, now, now);
     this.addAlias(row.panel_id, row.runtime, row.panel_id, now);
     if (row.project_id) {
       this.ports.bind({ runtime_id: row.runtime, stable_work_context_id: row.panel_id, project_id: row.project_id, actor_id: row.actor_id, cwd });
@@ -126,17 +131,20 @@ export class PluginTerminalPanels {
    * The runtime reported its own session for a terminal: keep it, so the terminal resumes it when it starts again, and answer to it as a
    * work context of the same project.
    */
-  aliasSession(input: { panel_id: string; runtime_id: string; host_session_id: string; actor_id: string }): PluginTerminalPanelRecord {
+  aliasSession(input: { panel_id: string; runtime_id: string; host_session_id: string }): PluginTerminalPanelRecord {
     const current = this.get(input.panel_id.trim());
     if (!current) throw new ActionError("actions.missing", "找不到这个终端面板");
     const session = input.host_session_id.trim(), runtime = input.runtime_id.trim();
     if (!session || !runtime) throw new ActionError("actions.input_invalid", "Runtime 与它的 Session 标识不能为空");
+    if (!isTerminalSessionId(session)) return current;
     const now = this.now();
     this.addAlias(current.panel_id, runtime, session, now);
-    if (current.host_session_id !== session) this.db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ?, updated_at = ? WHERE panel_id = ?")
-      .run(session, now, current.panel_id);
-    if (current.project_id) this.ports.bind({ runtime_id: runtime, stable_work_context_id: session, project_id: current.project_id, actor_id: input.actor_id });
-    return { ...current, host_session_id: session, updated_at: current.host_session_id === session ? current.updated_at : now };
+    // The session is the person's who opened the terminal, as its own work context is.
+    if (current.project_id) this.ports.bind({ runtime_id: runtime, stable_work_context_id: session, project_id: current.project_id, actor_id: current.actor_id });
+    // Even an unchanged valid session must restore its alias and project binding.
+    if (current.host_session_id === session) return current;
+    this.db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ?, updated_at = ? WHERE panel_id = ?").run(session, now, current.panel_id);
+    return { ...current, host_session_id: session, updated_at: now };
   }
 
   deleteForProject(projectId: string): void {

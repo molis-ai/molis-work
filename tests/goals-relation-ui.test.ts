@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsRelationRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { GOALS_RELATION_UI_CONTRIBUTION_ID, type GoalsRelationItem } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsRelationRenderer({ translate: L, escapeHtml, icon });
+const renderer = goalsRenderers.relation({ translate: L, escapeHtml, icon });
 const item = (id: string, title = id): GoalsRelationItem => ({ goal: { goal_id: id, title, archived_at: null, priority: 1, created_at: "2026-09-05" },
   status: "execution_pending", display_status: "continue", relations: [], events: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({

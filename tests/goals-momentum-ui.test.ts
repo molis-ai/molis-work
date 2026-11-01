@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsMomentumRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsMomentumRenderer({ translate: L, escapeHtml, icon, currentLocale,
+const renderer = goalsRenderers.momentum({ translate: L, escapeHtml, icon, currentLocale,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>` });
 const item = (id: string, title = id): GoalsMomentumItem => ({ goal: { goal_id: id, title, priority: 1, created_at: "2026-08-01", updated_at: "2026-09-05", fulfillment_state: "unmet", acceptance_criteria: [] },
   status: "execution_pending", work_state: "execution_pending", display_status: "continue", relations: [], reasons: [], events: [] });

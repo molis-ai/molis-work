@@ -813,6 +813,27 @@
     "type": "application/json",
     "error": "页面或接口不存在"
   },
+  "GET <project>/api/goals/no-such-goal/panels": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "POST <project>/api/goals/no-such-goal/panels": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "POST <project>/api/panels/no-such-panel/reopen": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals": {
+    "status": 404,
+    "type": "application/json",
+    "code": "actions.missing",
+    "error": "找不到这个 Goal"
+  },
   "GET <project>/api/home/events": {
     "status": 404,
     "type": "application/json",

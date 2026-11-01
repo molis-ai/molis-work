@@ -1,6 +1,6 @@
 import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationBinding, IntegrationKind, OAuthGrant, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationBinding, IntegrationKind, OAuthGrant, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { checkedSourcePresentation, checkedSourcePresentationInput, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
@@ -13,6 +13,17 @@ export interface OAuthServiceOwner {
   readonly install_id: string;
   readonly publisher_id: string;
   readonly method: PluginAuthMethodDeclaration | null;
+}
+
+/** The actual running Host instance that contributes a remote MCP method. */
+export interface McpServiceOwner {
+  readonly plugin_id: string;
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly publisher_id: string;
+  readonly publisher_signature: string;
+  readonly state: "running";
+  readonly method: PluginMcpMethodDeclaration;
 }
 
 /**
@@ -77,10 +88,10 @@ export class IntegrationRegistry {
   attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean> {
     const run = this.tail.then(() => {
       const parsed = parsePluginManifest(manifest);
+      this.assertFree(parsed);
       if (!live()) return false;
       // Validate the replacement before releasing anything the current installation holds. The queue keeps this change atomic.
       const entry = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
-      this.assertFree(parsed);
       if (this.attached.has(parsed.plugin_id)) this.declarations.release(parsed.plugin_id);
       this.declarations.declare(parsed);
       this.attached.set(parsed.plugin_id, entry);
@@ -108,8 +119,8 @@ export class IntegrationRegistry {
     if (this.installs.has(parsed.plugin_id)) throw pluginErrors.integration_declaration_conflict(`插件 ${parsed.plugin_id} 已由宿主自带的集成占用；请给这个包换一个插件 ID`);
     // Until installs are trusted by signature (T1), an `oauth` method with its flow as data is the Host's build's alone (W5-11 §2.8):
     // a package's would send the product client, the person's secret and refresh tokens to endpoints it chose.
-    const carried = parsed.connection_services?.find(service => service.auth.methods.some(method => method.kind === "oauth" && Object.keys(method).length > 1));
-    if (carried) throw pluginErrors.declaration_invalid(`签名安装包不能写带数据的 OAuth 方法：${carried.service_id} 的授权流程只由宿主构建的插件声明`);
+    const carried = parsed.connection_services?.find(service => service.auth.methods.some(method => (method.kind === "oauth" || method.kind === "mcp") && Object.keys(method).length > 1));
+    if (carried) throw pluginErrors.declaration_invalid(`签名安装包不能写带数据的 OAuth 或 MCP 方法：${carried.service_id} 的授权流程只由宿主构建的插件声明`);
     this.declarations.assertFree(parsed);
   }
 
@@ -124,6 +135,17 @@ export class IntegrationRegistry {
     if (!service || !installId) return undefined;
     const method = service.declaration.auth.methods.find(entry => entry.kind === "oauth" && entry.grant === grant) ?? null;
     return { plugin_id: service.owner, install_id: installId, publisher_id: this.runtime.get(installId).publisher_id, method };
+  }
+
+  mcpOwner(serviceId: string): McpServiceOwner | undefined {
+    const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
+    const installId = service ? this.installs.get(service.owner) : undefined;
+    if (!service || !installId) return undefined;
+    const instance = this.runtime.get(installId);
+    const method = service.declaration.auth.methods.find((entry): entry is PluginMcpMethodDeclaration => entry.kind === "mcp" && "endpoint" in entry);
+    if (instance.state !== "running" || !method) return undefined;
+    return { plugin_id: service.owner, install_id: installId, installation_generation: instance.installation_generation,
+      publisher_id: instance.publisher_id, publisher_signature: instance.publisher_signature, state: "running", method };
   }
 
   /**

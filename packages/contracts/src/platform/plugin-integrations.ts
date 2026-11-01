@@ -19,12 +19,25 @@ export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
 /**
  * One way to connect to a service. `token` carries its card text; `oauth` carries its whole flow as data (W5-11 §2.1), read by the
- * platform's one interpreter; `cli` and `mcp` are slots, their data still in the platform's tables.
+ * platform's one interpreter; a remote `mcp` carries its server configuration. Local `mcp` and `cli` remain slots.
  */
 export type PluginAuthMethodDeclaration =
   | { readonly kind: "token"; readonly label: string; readonly placeholder?: string }
   | PluginOAuthMethodDeclaration
-  | { readonly kind: Exclude<ConnectorMethodKind, "token" | "oauth"> };
+  | PluginMcpMethodDeclaration
+  | { readonly kind: "cli" | "mcp" };
+
+/** A remote MCP server, all data. Only Host-built integrations may currently carry this method. */
+export interface PluginMcpMethodDeclaration {
+  readonly kind: "mcp";
+  readonly endpoint: string;
+  readonly auth: "oauth" | "bearer" | "either" | "none";
+  /** Omitted means dynamic registration. */
+  readonly registration?: "manual";
+  /** The original complete-address expression, serialized without executable hooks. */
+  readonly endpoint_pattern?: { readonly source: string; readonly flags: "u" | "iu" };
+  readonly token_scheme?: "Sentry-Bearer";
+}
 
 /** `authorization_code`: the browser comes back to the Host's callback; `device`: the person types a code on the service's page. */
 export const OAUTH_GRANTS = ["authorization_code", "device"] as const;

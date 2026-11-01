@@ -125,7 +125,7 @@
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": {
       "kind": "cohesive-unit",
       "reason": "连接器 MCP 宿主：启动连接、完成授权、取令牌、调用工具、读资源，共享同一张连接表和同一个受保护的 fetch；连接的状态在闭包里，拆开要把这张表传来传去。",
-      "size": 246
+      "size": 261
     },
     "function apps/local-host/src/home-actions.ts#homeActionProvider": {
       "kind": "cohesive-unit",

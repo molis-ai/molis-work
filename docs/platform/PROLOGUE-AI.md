@@ -94,6 +94,8 @@ Coding 页面 → plugins/native/coding/src/routes.ts
 
 正式 AgentHost Action 的启动输入允许既有 `original_input` 草稿和 `continued_from`，但 project/plugin/install/actor 只由 Host 调用上下文推导，冻结角色不从输入读。原件草稿不是本人证明：Host 仍比对受保护输入的安装、正文、作者、编号及首次时间。Run、Session 最新轮次与等待输出保留 canonical `original_input`，顶层未知字段仍拒绝。助理向通用执行方转交补充时，只匹配所选插件当前安装的精确 `run.control` Action/版本，原话通过 Host 上下文传递，不放进业务 `original` 字段。
 
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
+
 ## 4. 新增一个 AI 能力：调用骨架与可执行示例
 
 以下片段解释接缝，省略了输入合同、提示词构造和端口定义，不能单独运行。以「灵光对话」为蓝本（`plugins/native/lingguang/src/actions.ts`、`plugins/native/lingguang/src/plugin.ts`）。

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "plugin_id": "io.molis.work.integration.github",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "name": "GitHub",
   "kind": "integration",
   "publisher": {
@@ -39,7 +39,8 @@
             "scopes": ["notifications", "read:user"],
             "pkce": "S256",
             "identity": { "url": "{service}/user", "account_id": [["identity:/id"]], "label": ["identity:/login"] }
-          }
+          },
+          { "kind": "mcp", "endpoint": "https://api.githubcopilot.com/mcp/", "auth": "either", "registration": "manual" }
         ]
       },
       "capabilities": [

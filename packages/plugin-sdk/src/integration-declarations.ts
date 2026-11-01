@@ -105,6 +105,7 @@ function methodProblems(id: string, auth: unknown): string[] {
     if (kinds.has(slot)) { problems.push(`连接服务 ${id} 的接入方式重复：${slot === "oauth:device" ? "oauth（device）" : method.kind}`); continue; }
     kinds.add(slot);
     if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method)); continue; }
+    if (method.kind === "mcp" && Object.keys(method).length > 1) { problems.push(...mcpMethodProblems(id, method)); continue; }
     if (method.kind !== "token") {
       if (Object.keys(method).length !== 1) problems.push(`连接服务 ${id} 的 ${method.kind} 接入方式现在只写 kind，数据仍在平台的表里`);
       continue;
@@ -113,6 +114,33 @@ function methodProblems(id: string, auth: unknown): string[] {
     if (unknown.length > 0) problems.push(`连接服务 ${id} 的 token 接入方式不认这些字段：${unknown.join("、")}`);
     if (!text(method.label)) problems.push(`连接服务 ${id} 的 token 接入方式要写 label`);
     if (method.placeholder !== undefined && typeof method.placeholder !== "string") problems.push(`连接服务 ${id} 的 token.placeholder 必须是文字`);
+  }
+  return problems;
+}
+
+/** The remote MCP declaration is data; the Host keeps admission and the connection's live source checks. */
+function mcpMethodProblems(id: string, method: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  const fields = new Set(["kind", "endpoint", "auth", "registration", "endpoint_pattern", "token_scheme"]);
+  const unknown = Object.keys(method).filter(field => !fields.has(field));
+  if (unknown.length) problems.push(`连接服务 ${id} 的 mcp 接入方式不认这些字段：${unknown.join("、")}`);
+  let endpoint: URL | undefined;
+  try { endpoint = typeof method.endpoint === "string" && method.endpoint.length <= 4096 ? new URL(method.endpoint) : undefined; } catch { endpoint = undefined; }
+  if (!endpoint || endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash ||
+    [...endpoint.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/iu.test(key))) {
+    problems.push(`连接服务 ${id} 的 mcp.endpoint 必须是无凭据的 HTTPS 地址`);
+  }
+  if (typeof method.auth !== "string" || !["oauth", "bearer", "either", "none"].includes(method.auth)) problems.push(`连接服务 ${id} 的 mcp.auth 必须是 oauth、bearer、either 或 none`);
+  if (method.registration !== undefined && method.registration !== "manual") problems.push(`连接服务 ${id} 的 mcp.registration 只可写 manual；省略表示 dynamic`);
+  if (method.token_scheme !== undefined && method.token_scheme !== "Sentry-Bearer") problems.push(`连接服务 ${id} 的 mcp.token_scheme 只可写 Sentry-Bearer`);
+  if (method.endpoint_pattern !== undefined) {
+    const pattern = method.endpoint_pattern;
+    if (!isRecord(pattern) || Object.keys(pattern).some(key => key !== "source" && key !== "flags") || typeof pattern.source !== "string" ||
+      pattern.source.length > 2048 || !pattern.source.startsWith("^") || !pattern.source.endsWith("$") || typeof pattern.flags !== "string" || !["u", "iu"].includes(pattern.flags)) {
+      problems.push(`连接服务 ${id} 的 mcp.endpoint_pattern 必须是完整地址的 { source, flags: u 或 iu }`);
+    } else {
+      try { new RegExp(pattern.source, pattern.flags); } catch { problems.push(`连接服务 ${id} 的 mcp.endpoint_pattern 无法编译`); }
+    }
   }
   return problems;
 }

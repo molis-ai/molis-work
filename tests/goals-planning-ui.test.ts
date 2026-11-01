@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsPlanningRenderer, renderWorkbenchPlanningRequest } from "@molis-ai/molis-work-app-workbench";
+import { renderPlanningRequest } from "@molis-ai/molis-work-plugin-goals/page";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
 import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-plugin-goals/contract";
 import { L, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -8,7 +9,7 @@ import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { withDesktopQuery } from "@molis-ai/molis-work-app-desktop";
 
 const escapeHtml = (v: string) => v.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsPlanningRenderer({
+const renderer = goalsRenderers.planning({
   translate: L, escapeHtml, icon, listJoin, withDesktopQuery,
   settingsContextHref: (path, project, desktop) => {
     const href = project ? path + "?project=" + encodeURIComponent(project.project_id) : path;
@@ -31,7 +32,7 @@ test("Planning request composition preserves lazy loading, scope selection, new 
   const projectMethod = { ...method, scope: "project" as const };
   const calls: unknown[][] = [];
   const request = (path: string, scope: "personal" | "project" = "personal", httpMethod = "GET") =>
-    renderWorkbenchPlanningRequest(httpMethod, path, scope, route => {
+    renderPlanningRequest(httpMethod, path, scope, route => {
       calls.push(["load", route]);
       return {
         methods: [method, projectMethod],
@@ -56,7 +57,7 @@ test("Planning request composition preserves lazy loading, scope selection, new 
       error: scope === "personal" ? "找不到这套规划方法" : "找不到这个项目方法" });
     assert.deepEqual(calls, [["load", { kind: "method", method_id: "missing", mode: "detail" }]]);
   }
-  const rejected = renderWorkbenchPlanningRequest("GET", "/settings/planning/method%2Fa", "project",
+  const rejected = renderPlanningRequest("GET", "/settings/planning/method%2Fa", "project",
     () => ({ methods: [method], library: () => { throw Error("Wrong library"); },
       method: () => { throw Error("Built-in cannot be opened as a project method"); } }), text => text);
   assert.deepEqual(rejected, { status: 404, error: "找不到这个项目方法" });

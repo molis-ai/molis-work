@@ -1,35 +1,29 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { buildDecisionGroups, buildGoalsNavigationItems, countGoalDecisions, partOfChildViews, type WebGoalView } from "./goals-plugin.js";
-import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
-import { renderGoalInputsHtml } from "./goal-inputs-html.js";
-import type { createWorkbenchGoalsRenderers } from "./goals-renderers.js";
-import type { MolisWorkWebView } from "./page-view.js";
-import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
-import { shownPagePlugins } from "./page-plugin-visibility.js";
-import type { RendererLocale } from "./renderer-helpers.js";
-import { renderTerminalPane } from "./terminal/pane.js";
-import {
-  createWorkbenchGoalsDialogsRenderer,
-  createWorkbenchGoalsDocumentRenderer,
-  createWorkbenchGoalsFactorsRenderer,
-} from "./ui-composition.js";
+import { buildDecisionGroups, countGoalDecisions } from "../decision-groups.js";
+import type { GoalsDocumentView as WebGoalView } from "../document-view.js";
+import { buildGoalsNavigationItems } from "../navigation-model.js";
+import { partOfChildViews } from "../tree-presentation.js";
+import type { GoalsRendererFactories } from "./factories.js";
+import { createGoalsFragmentRenderer } from "./fragments.js";
+import { renderGoalInputsHtml } from "./inputs.js";
+import type { GoalsPagePorts } from "./ports.js";
+import type { createGoalsRenderers } from "./renderers.js";
+import type { GoalsPageView } from "./view.js";
 
 /** A Goal's document, its fragments, dialogs and terminal pane, composed from the Goals owners' renderers. */
-export function createWorkbenchGoalsDocuments(ports: {
-  L: RendererLocale["L"];
-  goalsL: RendererLocale["L"];
-  formatDate(value: string | null | undefined): string;
-  prefixLocalLinks(html: string, routePrefix: string, desktopShell?: boolean): string;
-  goals: ReturnType<typeof createWorkbenchGoalsRenderers>;
-}) {
-  const { L, goalsL, formatDate, prefixLocalLinks, goals } = ports;
+export function createGoalsDocuments<TView extends GoalsPageView>(
+  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "formatDate" | "prefixLocalLinks" | "creatableKinds" | "inPluginWords" | "renderTerminalPane">
+    & { goals: ReturnType<typeof createGoalsRenderers<TView>> },
+  factories: GoalsRendererFactories,
+) {
+  const { L, goalsL, formatDate, prefixLocalLinks, goals, creatableKinds, inPluginWords, renderTerminalPane } = ports;
   const {
     sectionHeading, renderFocusSectionDeck, renderGoalTreeProposalDecision, explainWorkState, renderReference,
     renderStatus, renderVisibleGoalStatus, visibleGoalStatusIcon, sortGoals,
     renderGoalMomentum, renderGoalKanban, renderRelations, renderChildProgress, renderContractCoverage, renderPolicyEditor,
   } = goals;
 
-  function dataJson(view: MolisWorkWebView): string {
+  function dataJson(view: TView): string {
     const summarize = (items: WebGoalView[]) => buildGoalsNavigationItems(
       items, goalId => partOfChildViews(goalId, view), visibleGoalStatusIcon,
     );
@@ -47,33 +41,33 @@ export function createWorkbenchGoalsDocuments(ports: {
     }).replaceAll("<", "\\u003c");
   }
 
-  const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: goalsL, escapeHtml, icon, renderFocusSectionDeck });
+  const goalsFactorsRenderer = factories.factors({ translate: goalsL, escapeHtml, icon, renderFocusSectionDeck });
 
-  function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
+  function renderGoalFactors(item: WebGoalView, view: TView): string {
     return goalsFactorsRenderer(item, {
       relationsHtml: renderRelations(item, view, Boolean(item.event_document?.state.owner)),
       policyHtml: renderPolicyEditor(item),
     });
   }
 
-  const goalsDocumentRenderer = createWorkbenchGoalsDocumentRenderer({
+  const goalsDocumentRenderer = factories.document({
     translate: goalsL, escapeHtml, icon, formatDate, renderVisibleGoalStatus, renderStatus, sectionHeading,
   });
 
   const { renderTrashGoalDocument } = goalsDocumentRenderer;
 
   /** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
-  function renderInputBindingsHtml(item: WebGoalView, view: MolisWorkWebView): string {
-    return renderGoalInputsHtml(item, { L, escapeHtml, renderReference }, creatableKinds(shownPagePlugins(view), pluginDirectoryFor(view.plugin_directory)));
+  function renderInputBindingsHtml(item: WebGoalView, view: TView): string {
+    return renderGoalInputsHtml(item, { L, escapeHtml, renderReference, inPluginWords }, creatableKinds(view));
   }
 
-  function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {
+  function renderGoalDecisionHtml(item: WebGoalView, view: TView): string {
     const group = buildDecisionGroups(view).find((entry) => entry.item?.goal.goal_id === item.goal.goal_id);
     if (!group?.goalTreeProposals.length) return "";
     return group.goalTreeProposals.map((proposal) => renderGoalTreeProposalDecision(proposal, view)).join("");
   }
 
-  function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected: boolean): string {
+  function renderGoalDocument(item: WebGoalView, view: TView, selected: boolean): string {
     return goalsDocumentRenderer.renderGoalDocument(item, {
       activeGoalId: view.snapshot.board.active_goal_id,
       decisionCount: countGoalDecisions(view, item.goal.goal_id),
@@ -90,7 +84,7 @@ export function createWorkbenchGoalsDocuments(ports: {
   /** Bind the public fragment composition to existing content owners. */
   const {
     renderGoalDocumentFragment, renderMolisWorkMomentumFragment,
-  } = createWorkbenchGoalsFragmentRenderer<WebGoalView, MolisWorkWebView>({
+  } = createGoalsFragmentRenderer<WebGoalView, TView>({
     document: (item, view) => renderGoalDocument(item, view, true),
     trash: (item) => renderTrashGoalDocument(item, true),
     momentum: (view, goalId, items) => renderGoalMomentum(view, goalId, [...items]) + renderGoalKanban(view, goalId, [...items]),
@@ -98,17 +92,17 @@ export function createWorkbenchGoalsDocuments(ports: {
   });
 
   /** Event history content remains with the execution/records owner, not the route adapter. */
-  const goalsDialogsRenderer = createWorkbenchGoalsDialogsRenderer({ translate: goalsL, escapeHtml, icon });
+  const goalsDialogsRenderer = factories.dialogs({ translate: goalsL, escapeHtml, icon });
 
   const { renderGoalTrashDialog } = goalsDialogsRenderer;
 
-  function renderCreateDialog(view: MolisWorkWebView): string {
+  function renderCreateDialog(view: TView): string {
     return goalsDialogsRenderer.renderCreateDialog(view.goals);
   }
 
   function renderTuiPane(
     selected: WebGoalView | undefined,
-    view: MolisWorkWebView,
+    view: TView,
     cliAvailability: Record<string, boolean> = {},
   ): string {
     return renderTerminalPane({

@@ -16,7 +16,7 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 | --- | --- |
 | [src/ui-composition.ts](src/ui-composition.ts) | UI 组合 |
 | [src/shell-page-renderer.ts](src/shell-page-renderer.ts) | 工作台整页装配 |
-| 渲染器的组合根（`createWorkbenchRenderer`） | 只把请求的语言与桌面端口交给各页面渲染器，再返回宿主用的渲染表。Goals 的渲染器见 [src/goals-renderers.ts](src/goals-renderers.ts)，Goal 文档与终端面板见 [src/goals-documents.ts](src/goals-documents.ts)，Feed、Inbox、Schedule 舞台见 [src/stage-renderers.ts](src/stage-renderers.ts)，日期、列表与链接前缀见 [src/renderer-helpers.ts](src/renderer-helpers.ts) |
+| 渲染器的组合根（`createWorkbenchRenderer`） | 只把请求的语言与桌面端口交给各页面渲染器，再返回宿主用的渲染表。Goals 的渲染器见 [plugins/native/goals/src/page/renderers.ts](../../plugins/native/goals/src/page/renderers.ts)，Goal 文档与终端面板见 [plugins/native/goals/src/page/documents.ts](../../plugins/native/goals/src/page/documents.ts)（工作台经 `createGoalsPage` 把壳的端口交给它，T-116），Feed、Inbox、Schedule 舞台见 [src/stage-renderers.ts](src/stage-renderers.ts)，日期、列表与链接前缀见 [src/renderer-helpers.ts](src/renderer-helpers.ts) |
 | [src/home-plugin-page.ts](src/home-plugin-page.ts) | 无项目时的 Home 工作台；复用文档壳和 UI Host 生命周期，装配 Runtime 提供的内容片段 |
 | [src/scripts/client/initialization.ts](src/scripts/client/initialization.ts) | 客户端初始化与恢复 |
 | [src/browser-assets.ts](src/browser-assets.ts) | 浏览器资产入口 |

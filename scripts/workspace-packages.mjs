@@ -155,19 +155,7 @@ export const WORKSPACE_PACKAGES = [
       "workbench.shell.v1",
       "workbench.ui-slots.v1",
       "workbench.feed-composition.v1",
-      "workbench.work-composition.v1",
-      "workbench.goals-policy-composition.v1",
-      "workbench.goals-safety-composition.v1",
-      "workbench.goals-relation-composition.v1",
-      "workbench.goals-tree-composition.v1",
-      "workbench.goals-momentum-composition.v1",
-      "workbench.goals-document-composition.v1",
-      "workbench.goals-context-composition.v1",
-      "workbench.goals-planning-composition.v1",
-      "workbench.goals-status-composition.v1",
-      "workbench.goals-factors-composition.v1",
-      "workbench.goals-dialogs-composition.v1",
-      "workbench.goals-document-routes.v1"
+      "workbench.work-composition.v1"
     ],
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [

@@ -1,3 +1,4 @@
+import { DEFAULT_GOAL_POLICY } from "./default-policy.js";
 import { goalErrors } from "./errors.js";
 import type {
   GoalFactsView,
@@ -18,8 +19,6 @@ import {
 import { GuidanceCommands } from "./guidance-commands.js";
 import { GoalsRepository } from "./repository.js";
 import { GoalQueryFactsRepository } from "./query-facts-repository.js";
-
-export const DEFAULT_GOAL_POLICY: GoalPolicy = { human_approval: false };
 
 export class GoalsQueryService implements GoalsQueryApi {
   private readonly context: GoalsCommandContext;

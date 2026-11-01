@@ -16,9 +16,9 @@ export interface FocusSectionCardOptions {
 }
 
 
-export function createWorkbenchFocusSections(primitives: {
-  L(text: string): string;
-  escapeHtml(value: unknown): string;
+export function createFocusSections(primitives: {
+  L: (text: string) => string;
+  escapeHtml: (value: unknown) => string;
 }) {
   const { L, escapeHtml } = primitives;
 function sectionHeading(iconName: PluginIconName, title: string, description = ""): string {

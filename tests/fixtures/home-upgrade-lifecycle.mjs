@@ -141,7 +141,7 @@ try {
     assert.deepEqual(await call(id, 'notes.list', {}), [{ id: '1', text: 'kept' }, { id: '2', text: 'v2:after' }]);
     assert.deepEqual(c.secrets.list(id).map(item => item.name).sort(), ['fresh', 'weather']);
     await host.packageAction(id, 'uninstall', { keepData: false });
-    console.log('RAC-2615 controlled Home lifecycle: ' + scenario + ' passed');
+    process.stdout.write('RAC-2615 controlled Home lifecycle: ' + scenario + ' passed\n');
   }
 } finally {
   fault?.release.resolve(); await Promise.allSettled(pending);

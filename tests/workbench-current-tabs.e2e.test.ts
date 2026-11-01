@@ -6,7 +6,7 @@ import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/b
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { feedSourceActions, feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
+import { feedManifest, feedSourceActions, feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { openTestHome } from "./fixtures/test-home.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
@@ -87,8 +87,10 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
   assert.ok(executable, "RAC-2687 requires the dedicated test browser");
   const served = await openTestHome(t), project = await served.createProject("PR2 saved views", ["feed", "pages"]);
   await seedDemoGoals(project.database_path, project.project_id);
+  const feedReads = new Set([feedSourceActions.register.capability_id, feedQueryActions.snapshot.capability_id]);
   const actions = bindActionClient(served.host.actionClient(project.reference), () => ({
-    actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["goals:read", "feed:read", "feed:write"],
+    actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user",
+    permissions: ["goals:read", ...feedManifest.actions.filter(action => feedReads.has(action.capability_id)).flatMap(action => action.action.permissions)],
   }));
   const { source } = await actions.invoke(feedSourceActions.register, { kind: "web_query", name: "固定观察来源", query: "PR2 fixed source" });
   const pages = openPagesStore(served.home);

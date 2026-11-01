@@ -422,3 +422,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 00:19Z：T116后继[精确工程增量](plans/T116-followups/PLAN.md)及[独立书审](plans/T116-followups/REVIEW.md)核收。对象数据/HTML同实际owner、等待后失效拒绝；stage_surfaces仅列整页main，绘制贡献+surface对去重、stage读一次；普通reader与frame同批切objects并显式surface。PR1c/T402/T403保持原accepted范围和前置，T403端口映射正在补齐，三资源实测审批未发生。
 
 2026-11-01 00:23Z：场景7移动/权限实操已收尾、原件待根核，另发现并动态确认iframe全局搜索快捷键缺口，候选T379起草中，甲档由独立验证/二审收口，资源窗口仍根串行。验证线1[场景8正常Host重启子步](plans/W6-scene8/PLAN.md)已授权复用b6f匹配构建，独立Home/同origin，准备期driver错误不算产品结论。T377 Full当前11/16成功；Pages一文件首败retry通过仍待只读归因，不写首轮全绿。
+
+2026-11-01 00:35Z：[T379](tasks/T-379.md)正式派开发线4（独立验证线3、二审线4），B=b6f92222f；两生产/两浏览器路径无在途交集，先源码与定向验证，资源账本待T208/T362；共享README/S-30配套文字根串行。场景7独立二审核收已完成局部链，无必修返工，五条首败和iframe搜索缺口保留；不签整个W6/最终F。T377 Full 13/16绿，最后三片未结，Pages首败归因UNKNOWN、retry通过不冒称首轮全绿。

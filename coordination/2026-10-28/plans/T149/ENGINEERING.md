@@ -165,3 +165,6 @@ RAC 2656–2658 使用已预留号；以下 BL589/工程条目只是本文标签
 开发4现在拥有其余允许路径；contracts/platform/ui.ts的presentation常量hunk、plugin-builder/installed.ts和home-plugins.ts的imports/必要接线暂只出候选补丁，根待PR1c/T145相关hunk冻结后串行接入。不要将这三处短等待扩为整Host/SDK锁；SDK index具名导出可实施，PR1c的page-routes/view-placement校验不重做。共享API/actions、SI、基线、总词典和状态文档只交窄候选给根。保护#1101等分支不碰、任何产品语义新取舍才报根。
 
 按原书有区分度的完整相关文件和必要真实UI闭环验证，沿用未变父证据；公共build/test槽、jobs1/retries0、独立测试浏览器，子代理不跑本机Full。无额外固定README矩阵、哈希账本或多轮复核；准确最终H的full=true仍由根排。作者先实现完整路径后交一页报告，不以SDK搬迁或可生成JSON提前结单。真实Home/4207/Keychain/真凭据/真模型不动，测试只在隔离Home与file secrets里进行。
+
+
+2026-11-01 12:54Z 测试隔离纠正：用户报告重复Keychain not found。根查authd定位两批T149 workflow测试的内层G7 Browser回落/Applications/Google Chrome.app，临时HOME触发loginKC:queryCreate；8个涉事Chrome与2个SecurityAgent PID均已退出，日志所见创建请求失败。外层test-kit专用不等于内层已隔离。作者3f92da607已在实际studio options注入browserExecutable并给共用测试fixture加显式专用路径检查；各本线wrapper的TEST_CHROME/BUILDER_BROWSER/BROWSER_PATH均须钉专用molis-test-browser，file secret backend保留。产品默认和真实钥匙串不改。根核静态差量后已放行一次相关完整文件回归，其余独立开发继续。原测试失败保留，不把隔离修复当作产品主链已通过。

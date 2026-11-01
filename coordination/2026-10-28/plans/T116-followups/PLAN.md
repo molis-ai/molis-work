@@ -163,3 +163,16 @@ DD2门禁须随owner真链迁位，同时保原拒绝并加强新链：限定sha
 RAC2686要求英文键真正归Goals，故RAC2680的原始全HTML字节恒等只作必要精确修订：独立已接受参考B的66完整HTML与同输入保留，不在候选RECORD。只对现有i18n脚本两个赋值MOLIS_WORK_MESSAGES和MOLIS_WORK_PLUGIN_WORDS的JSON载荷，按从B原有效词典和已审迁移项固定的键值集合K做确定的owner迁移：global删K，Goals合入K原值，其它键/插件/值不变；中文保持原规则。不得从候选字典或diff自动生成允许集合。两赋值边界/次数/JSON完整性须检查，未搬条目的属性次序和值token保持；只允许K的删插及必要逗号，其余HTML/脚本语句/位置/标签/样式/数据/工具栏仍逐字节。精确对比可用本次独立参考的确定变换，不给生产加旧顺序适配，不忽略整个script。原markup金样断言不改，仍独立正常运行；补少/改迁移值、错owner、非词典字节和L/LF函数修改的拒绝证明，以及Goals服务端/浏览器实际翻译结果。上述是已要求owner迁移的确定输出变化，产品文字与行为不变；不放宽通用门禁或接受其它差异。
 
 作者据此收尾一次matching build和实际受影响原完整文件，已有未变证据沿用；不重录候选金样/扩父矩阵。最终独立审验只核本片合同/差量，原首败/skip保留，整片尚未完成。
+
+
+### 2026-11-01 12:49Z T402 来源展示与内部子读接缝
+
+根已核实际 local-web-actions、readRuntimeStageOwner、Feed consumes/required_actions 和 RSS 装配，接受 /private/tmp/t402-next/DEPENDENCY-DECISION.md 的通用纯投影及请求内只读方案，并纳入独立 /private/tmp/t402-next/SEAMS-REVIEW.md 的两项P1。沿原RAC2507～2514完成产品语义，范围不是额外平台项目：不能补RSS/Gmail专名vocabulary方法，不能删除单入口授权限制。
+
+来源展示沿现有Integration Manifest/contribution/declarations/registry增加单个通用presentation合同，RSS协议状态与Gmail范围仍各归原owner。有限普通数据入/出，无Binding、凭据、网络或账号读取；source-pull的当前调用、安装授权、取消与await后fence保留。同一字段及兑现校验覆盖SDK/Runtime与签名沙箱，沙箱固定operation为query且effects为空；不能借原带connections effects的health/poll。RSS原来没有运行于Home registry，故现有builtinIntegrationDefinitions唯一入口及RSS工厂的必要真实presenter装配纳入允许范围，不造空provider、不另建presenter名单或假账号。沿现有源拉取/registry测试证明正反与零副作用即可。
+
+单入口限制保留在外部client边界：discover/invoke仅精确入口及原provider；受信stage/object内部使用同请求真实本人快照的owner自身与Manifest consumes交集，read_only_effects在执行点拒command/付费query，不拼安装权限、不放宽kernel/MCP/Agent/S43。本人validate_authority和插件query消费/源grant/provider pin/retain/父beforeEffect/await后fence都保持。Feed补声明原来就在真实调用的goals.directory.read、goals.create、goals.inputs.confirm三项consumes，保原required_actions的版本和provider，避免promotion布尔恒false；不另造metadata authority字段。实际owner必须由project-plugin-stages::readRuntimeStageOwner贯穿整页和objects的bind最小签名传入，连同scope/安装世代/provider/current fence，而非只改catalog的project-stage-data路径。
+
+开发线2领取上述必要contracts/SDK/Runtime/Host/两Integration/Feed接缝及直接测试，现有API快照/注册生成/文档与其他writer的共享hunk由根串行；不得回退T396统一取钥或T068/T149现有字段。继续原整片实现；新口少量真实正反证明外部不能调用第二入口、内部声明子读成功、失权或换代后不回传、promotion可用性不变和第三方相同待遇。作者最终一页报告，代码冻结后独立验证/加强二审各一轮；本段不签当前运行通过。
+
+12:52Z准确父补充：T402进入上述新SDK/Integration接缝前，先保存自有checkpoint，再普通合冻结T395五成员d7d88ccce0c42cad12b8fa767f7a489a7fc6c8b3及T149 SDK唯一owner完整前缀40249032c73e84c605fe3f02ab2f33ed43a2c09e；前者含T396与T394必修，后者含d3921f，均未宣称采用。不得吸T149发布WIP或重建Host旧派生算法。实际冲突仅保双方已接受hunk，最终随本片一次matching build，不为每个父重复测试。

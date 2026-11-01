@@ -138,6 +138,9 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
 
     await load(prefix + "?openPlugin=goals&openItem=CORE&openView=work");
     await page.wait("document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+    if (await page.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=feed]')?.closest('[data-plugin-picker-popover]')?.hidden === true")) {
+      await page.click('[data-plugin-picker-toggle]');
+    }
     if (!await page.evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]')?.getClientRects().length)")) {
       await page.click('.plugin-rail-items [data-rail-tools-toggle]');
     }

@@ -1203,7 +1203,9 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   await raw.command('Page.navigate', { url: origin + '/__t149_studio' });
   await page.wait(`document.querySelector('[data-as-model] option[value^="fixture"]')`);
   await page.evaluate(`(()=>{const select=document.querySelector('[data-as-model]');select.value=[...select.options].find(option=>option.value.startsWith('fixture')).value;select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await page.wait(`document.querySelector('[data-as-model-note]').textContent.includes('预览替身')`);
   await page.fill('[data-as-input]', '创建一个可以保存并阅读笔记的插件'); await page.click('.as-send');
+  await page.wait(`document.querySelector('[data-as-candidate="board"]')`); await page.click('[data-as-candidate="board"]');
   await page.wait(`document.querySelector('[data-as-choose="board"]')`); await page.click('[data-as-choose="board"]');
   await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='ready'`, { timeoutMs: 100_000 });
   assert.ok(seen.includes(project.project_id)); const before = modelCalls;
@@ -1239,7 +1241,7 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   await select(); const shown = await raw.evaluate<string>(`document.querySelector('[data-plugin-trust-preview]').innerText`);
   assert.ok(shown.includes(bundle.payload.manifest.publisher.signature)); assert.match(shown, /个人|Home/);
   await raw.click('[data-plugin-trust-preview] .mw-btn--secondary'); await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
-  assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []); assert.equal(f.host.homePlugins!.installation(pluginId), undefined);
+  assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []); assert.equal(f.host.homePlugins!.installation(pluginId), null);
   await select(); await raw.fill('[data-plugin-trust-preview] input', 'My local publisher'); await raw.click('[data-plugin-trust-preview] .mw-btn--primary');
   await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
   assert.equal(f.host.homePlugins!.installation(pluginId)!.execution, 'sandbox');

@@ -1,3 +1,4 @@
+import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
 import { framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
 import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
@@ -156,6 +157,25 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v1')||document.querySelector('[role=alert]')`);
     assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'installation reports no problem');
     const pluginHref = await page.evaluate<string>(`[...document.querySelectorAll('a')].find(a=>a.textContent.includes('打开插件')).getAttribute('href')`);
+    // ID-1: signed export does not migrate an existing agent-built project installation or its publisher/data.
+    const legacy = await ensureInstalledPlugins(options), originalRecord = legacy.records()[0]!;
+    const originalIdentity = [originalRecord.install_id, originalRecord.publisher_signature, originalRecord.version];
+    assert.equal(originalRecord.publisher_signature, 'agent-built:' + visualBuildId);
+    const distribution = await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId + '/download?version=1')).json();
+    const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
+    const importing = new PluginInstallService({ ledger, packages, installed: async () => legacy.records().map(record => ({ record, manifest: undefined })),
+      installInProject: async () => { assert.fail('A signed export cannot replace the legacy installation'); } });
+    const who = { project_id: DEMO_PROJECT_ID, actor_id: 'web-user' }, offered = await importing.preview({ bundle: distribution }, who);
+    await assert.rejects(importing.confirm({ preview_id: offered.preview_id, consent: true, pin_label: 'A different signing identity' }, who),
+      (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === 'plugin.definition_conflict');
+    assert.deepEqual(ledger.publishers(), [], 'the conflicting publisher is not pinned');
+    const unchanged = legacy.records().find(record => record.plugin_id === originalRecord.plugin_id)!;
+    assert.deepEqual([unchanged.install_id, unchanged.publisher_signature, unchanged.version], originalIdentity);
+    const state = await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId)).json();
+    const scope = await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId + '/action', { method: 'POST',
+      headers: { origin, 'content-type': 'application/json', 'x-molis-work-control-token': token, 'x-molis-work-idempotency-key': randomUUID() },
+      body: JSON.stringify({ action: 'scope', scope: 'home', revision: state.build.revision }) });
+    assert.equal(scope.status, 400); assert.match((await scope.json()).error, /已发布草稿的范围不能改变/);
     // The workbench lists it beside the built-in plugins: one stage framing its installed page.
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);

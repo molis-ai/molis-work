@@ -166,9 +166,10 @@ test('KEY-2 only explicit publishing repairs interrupted public metadata using t
 test('CLEAN-1 explicit production Home purge removes its publisher metadata and sealed key while another Home still signs', async t => {
   const directory = await mkdtemp(join(tmpdir(), 't149-clean-')), user = join(directory, 'user'), home = join(user, '.molis-work'), other = join(directory, 'other-user', '.molis-work');
   const a = readyPublication(home, 'a'), b = readyPublication(other, 'b');
-  t.after(async () => { await a.workflow.close(); await b.workflow.close(); await rm(directory, { recursive: true, force: true }); });
+  let aClosed = false;
+  t.after(async () => { if (!aClosed) await a.workflow.close(); await b.workflow.close(); await rm(directory, { recursive: true, force: true }); });
   await Promise.all([a.publish(), b.publish()]); const keyB = metadata(other).key_id;
-  await a.workflow.close();
+  await a.workflow.close(); aClosed = true;
   const service = new MolisWorkUninstallService({ homeDirectory: home,
     projects: { inspect: async () => ({ projects: [], conflict: null }), removeDemos: async () => {} },
     runtimeIntegrationService: new RuntimeIntegrationService({ homeDirectory: home, userHomeDirectory: user,
@@ -190,7 +191,7 @@ test('RAC-2656 RAC-2657 RAC-2658 KEY-2 local signatures still require personal p
   const preview = await a.projectClient().invoke(person(), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; preview: { publisher_pinned: boolean }; runtime_scope: string };
   assert.equal(preview.preview.publisher_pinned, false); assert.equal(preview.runtime_scope, 'home');
   await assert.rejects(a.projectClient().invoke(person(), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true }), refused('plugin.publisher_untrusted'));
-  assert.deepEqual(a.ledger.publishers(), []); assert.equal(a.host.homePlugins!.installation(pluginId), undefined);
+  assert.deepEqual(a.ledger.publishers(), []); assert.equal(a.host.homePlugins!.installation(pluginId), null);
   assert.equal(existsSync(join(a.home, 'plugin-packages', pluginId)), false);
   const again = await a.projectClient().invoke(person(), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
   await a.projectClient().invoke(person(), ref(pluginInstallActions.confirm), { preview_id: again.preview_id, consent: true, pin_label: 'My publishing key' });
@@ -212,7 +213,7 @@ test('RAC-2656 RAC-2657 RAC-2658 KEY-2 local signatures still require personal p
   const foreign = await b.projectClient().invoke(person(), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; preview: { publisher_pinned: boolean } };
   assert.equal(foreign.preview.publisher_pinned, false);
   await assert.rejects(b.projectClient().invoke(person(), ref(pluginInstallActions.confirm), { preview_id: foreign.preview_id, consent: true }), refused('plugin.publisher_untrusted'));
-  assert.equal(b.ledger.publishers().length, 1); assert.equal(b.host.homePlugins!.installation(pluginId), undefined);
+  assert.equal(b.ledger.publishers().length, 1); assert.equal(b.host.homePlugins!.installation(pluginId), null);
   await a.homeClient().invoke(person(null), ref(pluginControlActions.homeUninstall), { plugin_id: pluginId, keep_data: true });
   assert.equal(metadata(a.home).key_id, release.distribution!.publisher_key_id, 'CLEAN-1 uninstalling the published plugin preserves the Home publisher');
   a.ledger.revokePublisher(release.distribution!.publisher_key_id, new Date().toISOString()); laterRevision(source);

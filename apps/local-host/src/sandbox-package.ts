@@ -1,3 +1,4 @@
+import { effectsFromContract, sandboxIntegrationManifest, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * Reads a sandbox package (the public format in `SANDBOX_PACKAGE_FILES`, described in docs/platform/PLUGIN-DEVELOPMENT.md) into what the
  * Host runs it from. The plugin studio is one author of the format; this reads the format and nothing of the studio. It writes nothing:
@@ -11,11 +12,11 @@ import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type Sand
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
 import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
-import { assertContract, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
-import { sandboxIntegrationManifest, sandboxPluginManifest } from './sandbox-plugin-manifest.js';
+
 
 /** The longest plugin code the Host takes, as the studio's own publish does. */
 const MAX_ENTRYPOINT_BYTES = 8 * 1024 * 1024;

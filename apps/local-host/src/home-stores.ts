@@ -60,7 +60,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", { path: "browser", snapshot: browserSnapshot }, { path: "plugin-builder", snapshot: builderSnapshot },
       { path: "cache", snapshot: omittedSnapshot("Rebuildable cache") }, ...at("plugin-files", "git-operation-details.json", "config/onboarding.json",
-      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json")),
+      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/plugin-publisher.json")),
     ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },

@@ -1,8 +1,9 @@
+import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { pluginInstallActions, readSandboxPackage, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+import { pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, person, ref } from "./fixtures/home-sandbox.js";
 

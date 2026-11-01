@@ -232,6 +232,7 @@ const close = () => { preview.replaceChildren(); preview.hidden = true; };
 const review = (shown) => {
 const view = shown.preview, panel = el("div", "plugin-trust-review"); panel.style.overflowWrap = "anywhere";
 panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + L("签名者 {id}", { id: shown.publisher.key_id })));
+panel.append(el("p", "settings-muted", L(shown.runtime_scope === "home" ? "安装到个人空间" : "安装到这个项目")));
 const was = (shown.runtime_scope === "home" ? personal : current).find((plugin) => plugin.plugin_id === view.plugin_id);
 if (was) panel.append(el("span", "", L("已装的是 {from}，装上后升级到 {to}；数据保留。", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));

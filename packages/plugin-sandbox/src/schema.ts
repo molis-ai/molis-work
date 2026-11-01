@@ -123,12 +123,6 @@ export function assertEffects(effects: unknown): asserts effects is SandboxEffec
   }
 }
 
-/** The effects a contract asks for in all: the union of what each of its operations declares. */
-export function effectsFromContract(contract: SandboxPluginContract): SandboxEffects {
-  const result: Record<string, string[]> = {};
-  for (const operation of contract.operations) for (const [key, values] of Object.entries(operation.effects)) result[key] = [...new Set([...(result[key] ?? []), ...(values ?? [])])].sort();
-  return result as SandboxEffects;
-}
 
 export function assertContract(contract: unknown): asserts contract is SandboxPluginContract {
   assertJson(contract);

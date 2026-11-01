@@ -4,10 +4,10 @@
  * Host rebuilds it from a sandbox package to check the package's own Manifest against it; this is the one place that writes it.
  */
 import { PLUGIN_PROJECTS_EXIST_PERMISSION, type PluginManifest, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { sandboxAgentDeclarations } from '@molis-ai/molis-work-plugin-sdk';
-import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
-import type { PluginIconName } from '@molis-ai/molis-work-plugin-sdk/ui';
+import { sandboxAgentDeclarations } from './sandbox-agent-declarations.js';
+import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
+import type { PluginIconName } from './ui/icon.js';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
@@ -54,8 +54,8 @@ export interface SandboxManifestInput {
   /** Versions this one upgrades from; empty or absent for a first release. */
   upgradesFrom?: readonly string[];
   /**
-   * Where the plugin runs: absent for a project, `{ scope: "home" }` for one instance every project shares (BL-628). Only a signed package
-   * writes it; the studio's own plugins are always a project's. Whether the Home takes it is the install's to decide (S-80), not the form's.
+   * Where the plugin runs: absent for a project, `{ scope: "home" }` for one instance every project shares (BL-628). A published package
+   * writes its checked target scope. Whether the Home takes it is the install's to decide (S-80), not the form's.
    */
   runtime?: PluginManifest['runtime'];
   /** The icon of the plugin's page in the navigation; absent means the Host's default. */
@@ -113,3 +113,11 @@ export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInpu
     connection_services: input.connection_services, integrations: input.integrations,
   };
 }
+
+/** The effects a contract asks for in all: the union of what each of its operations declares. */
+export function effectsFromContract(contract: SandboxPluginContract): SandboxEffects {
+  const result: Record<string, string[]> = {};
+  for (const operation of contract.operations) for (const [key, values] of Object.entries(operation.effects)) result[key] = [...new Set([...(result[key] ?? []), ...(values ?? [])])].sort();
+  return result as SandboxEffects;
+}
+

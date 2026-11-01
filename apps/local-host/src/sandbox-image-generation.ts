@@ -1,3 +1,4 @@
+import { SANDBOX_IMAGE_PERMISSIONS } from '@molis-ai/molis-work-plugin-sdk';
 import type { PluginDefinition, PluginImageGenerationClient, PluginImageGenerationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginImageGenerationClient, type PluginImageGenerationPort } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxNotAuthorized } from "@molis-ai/molis-work-plugin-sandbox";
@@ -6,7 +7,7 @@ import type { PluginPlatformHome } from "./home-side.js";
 import { createPluginImageGenerationPort } from "./plugin-image-generation-service.js";
 import { imageBaseUrl, imageConnectionSnapshot, imagePortErrors } from "./plugin-image-connections.js";
 import { sandboxImageNamespace } from "./sandbox-home-names.js";
-import { SANDBOX_IMAGE_PERMISSIONS } from "./sandbox-plugin-manifest.js";
+
 
 // A Home package's image generation (`sdk.imageGeneration`, PG-017 BL-491, S-60). The Manifest has no `image_generation` block for a sandboxed package: the
 // package asks with `effects.imageGeneration` and the Host derives the declaration, the permission names (rows derived from the effects) and the namespace the

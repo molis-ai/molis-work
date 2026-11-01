@@ -3,6 +3,9 @@ import type { ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 
+/** A renderer contract requirement, not a callable business capability. */
+export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
+
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */

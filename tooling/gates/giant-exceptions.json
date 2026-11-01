@@ -160,7 +160,7 @@
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",
       "reason": "标签布局的纯操作集（拆分、移动、并排打开、规范化、关闭、固定），对同一棵布局树做变换；它被 toString 注入浏览器，必须自成一体，W5-04 打包后才能分文件。",
-      "size": 425
+      "size": 441
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": {
       "kind": "cohesive-unit",

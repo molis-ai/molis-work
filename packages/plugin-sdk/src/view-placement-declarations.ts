@@ -133,6 +133,15 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
     if (view.slot !== "stage" && view.slot !== "navigator") problems.push(`视图 ${id} 的 stage_data 只用于打开舞台的视图（stage 或 navigator）`);
     if (!isObject(stage) || !words(stage.action)) problems.push(`视图 ${id} 的 stage_data 必须写明 action`);
     else if (!readables.has(stage.action)) problems.push(`视图 ${id} 的 stage_data 指向 ${stage.action}，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作`);
+    if (isObject(stage) && stage.object_action !== undefined && (!words(stage.object_action) || !readables.has(stage.object_action))) {
+      problems.push(`视图 ${id} 的 stage_data.object_action 必须指向本 Manifest 只读、面向用户（audience user）、只有一个版本的查询动作`);
+    }
+  }
+  const surfaces: unknown = view.stage_surfaces;
+  if (surfaces !== undefined) {
+    if (view.slot !== "stage" && view.slot !== "navigator") problems.push(`视图 ${id} 的 stage_surfaces 只用于打开舞台的视图（stage 或 navigator）`);
+    if (!Array.isArray(surfaces) || surfaces.length === 0 || surfaces.some(surface => !words(surface))) problems.push(`视图 ${id} 的 stage_surfaces 必须是非空的表面名数组`);
+    else if (new Set(surfaces).size !== surfaces.length || surfaces.filter(surface => surface === "workbench").length !== 1) problems.push(`视图 ${id} 的 stage_surfaces 不能重复，且必须包含 workbench 一次`);
   }
   const creates: unknown = view.creates;
   if (creates !== undefined) {
@@ -153,6 +162,6 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
  */
 export function stageDataPlacementProblems(views: readonly UiViewDeclaration[]): string[] {
   const opening = views.find(view => view.slot === "stage") ?? views.find(view => view.slot === "navigator");
-  return views.filter(view => view.stage_data !== undefined && view !== opening && (view.slot === "stage" || view.slot === "navigator"))
-    .map(view => `视图 ${view.view_id} 的 stage_data 只用于打开舞台的视图（${opening?.view_id ?? "无"}）`);
+  return views.filter(view => (view.stage_data !== undefined || view.stage_surfaces !== undefined) && view !== opening && (view.slot === "stage" || view.slot === "navigator"))
+    .map(view => `视图 ${view.view_id} 的 ${view.stage_data !== undefined ? "stage_data" : "stage_surfaces"} 只用于打开舞台的视图（${opening?.view_id ?? "无"}）`);
 }

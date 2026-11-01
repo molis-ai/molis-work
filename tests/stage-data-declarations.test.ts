@@ -8,7 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_CATALOG, stageDataAction } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, stageDataAction, renderStagePage } from "@molis-ai/molis-work-app-workbench";
 import { scheduleActions, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -175,4 +175,42 @@ test("RAC-2505 the page and its redraw call the stage read as the person in the 
     assert.deepEqual(caller!.allowed_actions?.map(item => `${item.capability_id}@${item.version}`), [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`], `${path}: no other action`);
     assert.equal(typeof caller!.validate_authority, "function", `${path}: the installation's grant is still checked per call`);
   }
+});
+
+
+test("RAC-2510 object reads and finite stage surfaces obey the same owner/read/placement declarations", () => {
+  const object = readAction({}, "notes.object");
+  const opening = navigator({ stage_data: { action: "notes.snapshot", object_action: "notes.object" }, stage_surfaces: ["workbench", "source-workbench"] });
+  assert.equal(manifestProblems(withViews([opening], [readAction(), object])), "");
+  for (const invalid of [readAction({}, "notes.other"), readAction({ effect: "write" }, "notes.object"),
+    { ...object, operation: "command", action: { ...object.action, kind: "operation" } }, readAction({ audiences: ["agent"] }, "notes.object")]) {
+    assert.match(manifestProblems(withViews([opening], [readAction(), invalid])), /stage_data.object_action/);
+  }
+  assert.match(manifestProblems(withViews([opening], [readAction(), object, readAction({}, "notes.object", 2)])), /stage_data.object_action/);
+  for (const list of [[], ["source-workbench"], ["workbench", "workbench"], ["workbench", ""], "workbench"]) {
+    assert.match(manifestProblems(withViews([navigator({ stage_surfaces: list })])), /stage_surfaces/);
+  }
+  assert.match(manifestProblems(withViews([navigator({ stage_surfaces: ["workbench"] }), { view_id: "other", title: "Other", slot: "stage" }])), /stage_surfaces.*打开舞台/);
+  assert.match(manifestProblems(withViews([navigator({ slot: "settings", stage_data: undefined, stage_surfaces: ["workbench"] })])), /stage_surfaces.*打开舞台/);
+});
+
+test("RAC-2508 finite automatic surfaces share one model, skip already drawn pairs and exclude object/fragment main surfaces", () => {
+  const manifest = scheduleManifest;
+  const calls: string[] = [], data = { owner: "same result" }, model = { data };
+  const contribution = { descriptor: { contribution_id: "surface-owner", kind: "embedded" as const, label: "Surface owner", slots: [], surfaces: [
+    ...["workbench", "source-workbench", "persisted-detail", "frame-block", "workbench-fragment"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),
+    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "overlay", target_slot_id: "workbench.overlay", format: "declarative-html" },
+  ] }, render(request: { surface: string; model: typeof model }) { assert.equal(request.model.data, data); calls.push(request.surface); return `<div data-surface="${request.surface}"></div>`; } };
+  const selected = { ...manifest, ui: { ...manifest.ui, views: [{ view_id: "stage", title: "Stage", slot: "stage" as const, stage_surfaces: ["workbench", "source-workbench"] }] } };
+  const result = renderStagePage(contribution, model, "surface-owner", false, undefined, { manifest: selected });
+  assert.deepEqual(calls, ["workbench", "source-workbench", "directory", "overlay"]);
+  assert.deepEqual(result.surfaces.map(row => row.surface), calls);
+  assert.match(result.panels, /data-surface="directory"/); assert.match(result.overlays, /data-surface="overlay"/);
+  calls.length = 0;
+  renderStagePage(contribution, model, "surface-owner", false, undefined, { manifest: selected, rendered: [{ contribution_id: "surface-owner", surface: "workbench" }] });
+  assert.deepEqual(calls, ["source-workbench", "directory", "overlay"]);
+  calls.length = 0;
+  assert.throws(() => renderStagePage(contribution, model, "surface-owner", false, undefined, { manifest: { ...selected, ui: { ...selected.ui,
+    views: [{ ...selected.ui.views[0]!, stage_surfaces: ["workbench", "overlay"] }] } } }), /Stage main surface/);
+  assert.deepEqual(calls, [], "an invalid declaration renders nothing");
 });

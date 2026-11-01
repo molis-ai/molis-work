@@ -1,10 +1,7 @@
 import type { StagePageModel, StagePagePrimitives } from "@molis-ai/molis-work-contracts/platform/ui";
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
-import { FEED_PLUGIN_ID, type FeedItemRecord, type InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
-import { createWorkbenchFeedProjectionRenderer } from "./feed-projection-ui.js";
 import { inWordsOf, withPluginWords } from "./i18n.js";
-import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { declaredStageContributionId, stageDataAction, viewContributionId } from "./declared-stages.js";
 import type { MolisWorkWebView } from "./page-view.js";
@@ -15,8 +12,7 @@ import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 
 /**
- * Feed and Inbox still draw their stage from this page's view; every other declared stage gets the shared model, with the answer of
- * its `stage_data` action when it declares one (T-133). The same model whoever draws the stage: the shell from the catalog, or the
+ * Every declared stage receives the shared model and its own `stage_data` answer. The same model whoever draws the stage: the shell from the catalog, or the
  * Host from the running instance (W5-06).
  */
 export function createWorkbenchStageRenderers(ports: {
@@ -30,11 +26,6 @@ export function createWorkbenchStageRenderers(ports: {
 }) {
   const { L, dateTimeLocale, currentLocale, listJoin } = ports;
   const { prefixLocalLinks, formatDate, renderList } = ports.helpers;
-  const feedL = inWordsOf(FEED_PLUGIN_ID, L);
-  const { buildFeedNativePluginModel, renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L: feedL, dateTimeLocale });
-  const { buildInboxNativePluginModel, renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
-  const stageModels: ReadonlyMap<string, (view: MolisWorkWebView) => unknown> = new Map<string, (view: MolisWorkWebView) => unknown>([
-    ["feed", view => buildFeedNativePluginModel(view, "feed", [], false)], ["inbox", buildInboxNativePluginModel]]);
   const primitives: StagePagePrimitives = {
     escape: escapeHtml, text: L, icon,
     formatDate(value) {
@@ -44,7 +35,7 @@ export function createWorkbenchStageRenderers(ports: {
       return new Intl.DateTimeFormat(dateTimeLocale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
     },
   };
-  const sharedStageModel = (projectPluginId: string, view?: MolisWorkWebView): StagePageModel => {
+  const sharedStageModel = (projectPluginId: string, view?: Partial<MolisWorkWebView>): StagePageModel => {
     const pluginId = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? projectPluginId;
     const text = inWordsOf(pluginId, L);
     return {
@@ -59,7 +50,12 @@ export function createWorkbenchStageRenderers(ports: {
       renderHint: options => renderHint({ ...options, iconName: options.iconName as PluginIconName | undefined }) },
   } satisfies StagePageModel;
   };
-  const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): unknown => stageModels.get(projectPluginId)?.(view) ?? sharedStageModel(projectPluginId, view);
+  const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): StagePageModel => sharedStageModel(projectPluginId, view);
+
+  function stageFragmentModel(projectPluginId: string, context: Pick<MolisWorkWebView, "route_prefix" | "shown_plugins" | "project" | "demo">,
+    data: unknown, object?: StagePageModel["object"]): StagePageModel {
+    return { ...sharedStageModel(projectPluginId, context), data, ...(object ? { object } : {}) };
+  }
 
   function declaredPageSurface(pluginId: string, surface: string, view: MolisWorkWebView, data: unknown,
     request: Readonly<Record<string, string>> = {}): string {
@@ -87,36 +83,11 @@ export function createWorkbenchStageRenderers(ports: {
     return view => prefixLocalLinks(renderWorkbenchContribution(contributionId, "workbench", declaredStageModel(projectPluginId, view)), view.route_prefix);
   }
 
-  function renderPersistedFeedItemDetail(
-    item: FeedItemRecord,
-    routePrefix = "",
-    options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
-  ): string {
-    return renderFeedNativePluginPersistedDetail(item, routePrefix, options);
-  }
-
-  function renderFeedWorkbenchFragment(view: MolisWorkWebView): string {
-    return prefixLocalLinks(renderFeedNativePluginSurface(
-      view,
-      "workbench-fragment",
-      "feed",
-      [],
-      true,
-    ), view.route_prefix);
-  }
-
-  function renderInboxWorkbenchFragment(view: MolisWorkWebView): string {
-    return prefixLocalLinks(renderInboxNativePluginSurface(view, "workbench"), view.route_prefix);
-  }
-
   return {
     declaredPageSurface,
     declaredSettingsSurface,
     declaredStageModel,
     declaredStageFragment,
-    renderFeedNativePluginSurface,
-    renderPersistedFeedItemDetail,
-    renderFeedWorkbenchFragment,
-    renderInboxWorkbenchFragment,
+    stageFragmentModel,
   };
 }

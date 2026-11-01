@@ -1,5 +1,4 @@
 import type { PluginSourceVocabulary } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
-import { feedSourceCatalog, type FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, FEED_CATEGORY_LABEL, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
 import { normalizeYouTubeChannelId, YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
 
@@ -24,7 +23,3 @@ export function createSourceVocabulary(): PluginSourceVocabulary {
   });
 }
 
-/** The public feeds a person can register, as the Feed page lists them (the same catalog `services.sourcePull.vocabulary` gives plugins). */
-export function listFeedSourceCatalog(): FeedSourceCatalogView[] {
-  return feedSourceCatalog(createSourceVocabulary());
-}

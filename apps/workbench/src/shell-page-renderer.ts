@@ -4,7 +4,7 @@ import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./una
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
-import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
@@ -36,7 +36,6 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], paneP
   };
 }
 
-type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 /** The project a page is drawn for: what the shell's title bar and project switcher need. */
 export interface ShellProject {
   project_id: string;
@@ -66,8 +65,8 @@ export interface WorkbenchShellPageView {
   plugin_stages?: readonly string[];
   /** Host-owned failures are not plugin HTML and cannot request a page grant. */
   unavailable_plugin_stages?: readonly UnavailablePluginStage[];
-  /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
-  plugin_stage_ids?: readonly string[];
+  plugin_stage_surfaces?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
+  plugin_overlays?: readonly string[];
   /**
    * The declarations of the plugins the Host's Runtimes run in this project, read from their Manifests for this page: built-in
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
@@ -85,7 +84,7 @@ export interface WorkbenchShellPageView {
 /** Finite composition ports, not a second Web model or an execution/permission API.
  * HTML ports accept only trusted output from the registered product owners.
  */
-export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView, TFeedEntry> {
+export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> {
   L: Translate;
   escapeHtml(value: unknown): string;
   icon(name: PageIcon): string;
@@ -101,8 +100,6 @@ export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView, 
     options: { switcherClass: string; manageHref: string; directoryToggle: boolean; globalSearch?: boolean }): string;
   renderProjectSwitcher(project: ShellProject | null, projects: readonly ShellProject[],
     desktop: boolean, className: string, manageHref: string): string;
-  renderFeedNativePluginSurface(view: TView, surface: FeedPageSurface, preset: "feed",
-    entries?: TFeedEntry[], active?: boolean): string;
   /** The model a plugin's declared stage is drawn with, from this page's view. */
   stageModel(projectPluginId: string, view: TView): unknown;
 }
@@ -116,23 +113,22 @@ function renderProjectReferenceDialog(L: (text: string) => string): string {
 }
 
 /** The shell's whole page: Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. The function keeps its old name until W5-10 splits it, because the giant-unit gate keys a function by its name. */
-export function createWorkbenchGoalsPageRenderer<TView extends WorkbenchShellPageView, TFeedEntry>(
-  owners: WorkbenchShellPageOwners<TView, TFeedEntry>,
+export function createWorkbenchGoalsPageRenderer<TView extends WorkbenchShellPageView>(
+  owners: WorkbenchShellPageOwners<TView>,
 ) {
   const { L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument,
     renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, stageModel } = owners;
+    stageModel } = owners;
 
 function renderMolisWorkWeb(
   view: TView,
   controlToken = "",
   desktopShell = false,
 ): string {
-  const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = "root";
   const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
-  const declared = renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_ids ?? [], page_owner: view.page_owner,
+  const declared = renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
     model: pluginId => stageModel(pluginId, view) });
   const page = view.page_stage ?? declared.page, parts = page?.parts;
   const title = parts?.title ?? "Molis Work";
@@ -186,9 +182,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, {
-          feed: pluginEnabled("feed")
-            ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
-            : "",
+          ...declared.panels,
           // A running Plugin's own panel wins over the built-in one.
           ...(view.plugin_panels ?? {}),
         }, initialDesktopDirectory, settingsDirectory)}
@@ -203,7 +197,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-pool" data-surface-pool hidden>
             ${renderProjectHome(view.project?.display_name || title, primitives, homeStarts(enabledPlugins, directory))}
             ${page?.html ?? ""}
-            ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
@@ -212,7 +205,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           </div>
         </div>
       </div>
-      ${renderFeedNativePluginSurface(view, "overlays", initialFeedPreset)}
+      ${[...(view.plugin_overlays ?? []), ...declared.overlays].join("")}
       ${renderRuntimePlanDialog({ L, icon })}
     </main>
   </div>

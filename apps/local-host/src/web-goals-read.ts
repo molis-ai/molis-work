@@ -41,9 +41,9 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
-    drawn: view.plugin_stage_ids ?? [], page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
+    drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
-  return { html: [characters, ...runtime.html], ids: runtime.ids, unavailable: runtime.unavailable, page: runtime.page,
+  return { html: [characters, ...runtime.html], panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
     directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
 }
 /**
@@ -61,7 +61,8 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   const surfacePorts = { ...pluginServices, store, projectId: input.projectId, actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml,
     translate: (value: string) => value, routePrefix: view.route_prefix };
   const builtin = await projectPluginStages(surfacePorts, view, input.configuration, input.stageModel);
-  view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtin.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtin.ids],
+  view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtin.html], plugin_stage_surfaces: [...(view.plugin_stage_surfaces ?? []), ...builtin.surfaces],
+    plugin_panels: { ...view.plugin_panels, ...builtin.panels }, plugin_overlays: [...(view.plugin_overlays ?? []), ...builtin.overlays],
     ...(builtin.page ? { page_stage: builtin.page } : {}),
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtin.unavailable] };
   // Installed execution supplies rail entries and stages independently of opening the authoring studio.

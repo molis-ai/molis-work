@@ -51,12 +51,10 @@ const APPROVED_BUILD_TIME_EXCEPTIONS: ReadonlyMap<string, string> = new Map([
 
 /**
  * `apps/local-host/src/<name>-native-plugin-http.ts` files that exist, each with why it is there (RAC-2651). One named for a
- * built-in plugin belongs to an approved build-time exception. `artifact` serves the platform's Artifacts routes since PG-077
- * (#1552); it is no plugin's, and keeps its old file name until BL-926 renames it.
+ * built-in plugin belongs to an approved build-time exception (RAC-2811).
  */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlyMap<string, string> = new Map([
   ["alchemist", "the routes of an approved build-time exception (APPROVED_BUILD_TIME_EXCEPTIONS)"],
-  ["artifact", "the platform's Artifacts routes since PG-077 (#1552), no plugin's; BL-926 renames the file"],
 ]);
 
 test("RAC-2650 every built-in catalog entry is started by a supervisor or is one of the two build-time exceptions the user approved", async () => {

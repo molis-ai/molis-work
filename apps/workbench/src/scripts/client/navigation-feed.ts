@@ -29,7 +29,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
     };
 
-    const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true) => {
+    const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true, intent = "open") => {
       if (!desktopWorkSurfaces.length) return false;
       if (surface === "sources") {
         setFeedTask(selectedSource || selectedFeedTask || "all", persist);
@@ -40,8 +40,9 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (surface === "goals") restoreLastGoal(true);
         return false;
       }
-      void deferredClients?.prepare(nextSurface);
       const surfaceChanged = activeDesktopSurface !== surface;
+      // Restoring the current location after a data refresh is not a request to retry its failed client.
+      if (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed") void deferredClients?.prepare(nextSurface);
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
         if (activeDesktopSurface === "goals") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";

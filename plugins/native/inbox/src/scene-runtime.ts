@@ -139,11 +139,12 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
           reason: !current ? "尚未绑定规则" : !current.enabled ? "已暂停" : usage && !usage.availability.available ? usage.availability.reason : !usage ? "当前无权使用此场景" : null },
       };
     },
-    recommendations: async () => {
+    recommendations: async (_caller, entryIds) => {
       const usage = (await scenes.usages()).find(usage => usage.scene_id === INBOX_NEXT_SCENE_ID && usage.binding_id === inboxSceneBindingId(projectId));
       if (!usage?.enabled || !usage.availability.available) return { judgments: [] };
       const held: JudgmentRecord[] = [];
       for (const record of judgments.latest(INBOX_NEXT_SCENE_ID)) {
+        if (entryIds && !entryIds.has(record.subject.id)) continue;
         const provenance = record.scene_provenance;
         if (record.subject.kind !== "inbox_entry" || !provenance || provenance.binding_id !== usage.binding_id || provenance.binding_revision !== usage.revision
           || provenance.function.capability_id !== usage.function.capability_id || provenance.function.version !== usage.function.version || provenance.function.provider_id !== usage.function.provider_id) continue;

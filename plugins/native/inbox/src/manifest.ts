@@ -3,7 +3,7 @@ import { inboxHomeEventsAction } from "./home-events.js";
 import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { INBOX_UI_CONTRIBUTION_ID } from "./ui.js";
-import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS } from "./actions.js";
+import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, INBOX_STAGE_GOAL_READ } from "./actions.js";
 import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
@@ -56,7 +56,7 @@ export const inboxManifest: PluginManifest = {
     { route_id: "inbox.judgment.evaluate", method: "POST", path: "/judgment/evaluate", permission: "inbox:read" },
   ],
   databases: { project: INBOX_PROJECT_DATABASE },
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],

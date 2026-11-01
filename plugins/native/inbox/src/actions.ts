@@ -1,8 +1,9 @@
-import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration } from "./pages-shapes.js";
-import type { InboxJudgmentState } from "./route-handlers.js";
+import type { InboxBriefs, InboxItemBrief } from "./content-actions.js";
+import type { InboxJudgmentState, InboxJudgmentSummary } from "./route-handlers.js";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };
 const ids = { type: "array", minItems: 1, maxItems: 20, items: { type: "string", minLength: 1 } };
@@ -33,6 +34,45 @@ const judgmentProperties = { judgment_id: text, function_key: text, function_ver
 const judgmentSchema = { type: "object", properties: judgmentProperties, required: Object.keys(judgmentProperties) };
 
 export type InboxActionEntry = AttentionEntryRecord & { project_id: string };
+export interface InboxStageSubject { readonly entry_id: string; readonly title: string | null; readonly source_label: string | null }
+export interface InboxStageData {
+  readonly entries: readonly InboxActionEntry[];
+  readonly subjects: readonly InboxStageSubject[];
+  readonly judgment?: InboxJudgmentSummary;
+  readonly judgments: readonly JudgmentRecord[];
+}
+export const INBOX_STAGE_GOAL_READ = { capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" } as const;
+
+/** Resolve only the names this stage needs; a missing subject never replaces the Inbox's original attention entry. */
+export async function readInboxStageSubjects(entries: readonly InboxActionEntry[], ports: {
+  briefs(ids: { item_ids: readonly string[]; source_ids: readonly string[] }): Promise<InboxBriefs>;
+  feedAvailability(): ActionAvailability;
+  goal(id: string): Promise<{ goal: { title: string } }>;
+}): Promise<readonly InboxStageSubject[]> {
+  const state = ports.feedAvailability();
+  const missing = !state.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(state.code ?? "");
+  const { items, sources } = missing ? { items: new Map<string, InboxItemBrief>(), sources: new Map<string, { source_id: string; name: string }>() }
+    : await ports.briefs({ item_ids: [...new Set(entries.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id))],
+      source_ids: [...new Set(entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id))] });
+  const goals = new Map<string, string | null>();
+  for (const id of new Set(entries.filter(entry => entry.subject_type === "goal_decision").map(entry => entry.subject_id))) {
+    try { goals.set(id, (await ports.goal(id)).goal.title); }
+    catch (error) { if (error instanceof ActionError && error.code === "goals.not_found") goals.set(id, null); else throw error; }
+  }
+  return entries.map(entry => {
+    if (entry.subject_type === "feed_item") {
+      const item = items.get(entry.subject_id);
+      return { entry_id: entry.entry_id, title: item?.title ?? null, source_label: item?.source_label || item?.source_kind || "Feed" };
+    }
+    if (entry.subject_type === "source_fault") {
+      const source = sources.get(entry.subject_id);
+      return { entry_id: entry.entry_id, title: source?.name ?? null, source_label: source?.name ?? null };
+    }
+    return { entry_id: entry.entry_id, title: goals.get(entry.subject_id) ?? null, source_label: "Molis Work" };
+  });
+}
+
+
 export type InboxPagesResult = Omit<InboxPagesGeneration, "inputs"> & { entry_ids: string[] };
 export interface InboxGeneratedPages { document: InboxPagesDocument; replayed: boolean; request_id: string; entry_ids: string[] }
 
@@ -50,7 +90,13 @@ function action<Input, Output>(id: string, title: string, description: string, o
 export interface InboxStatusInput { entry_id: string; status: AttentionStatus; expected_revision: number }
 export interface InboxPagesMaterialRef { entry_id: string; item_id: string; revision: number; content_digest: string }
 export interface InboxPagesInput { request_id: string; entry_ids: string[]; title: string; instructions: string; expected_materials?: InboxPagesMaterialRef[] }
+const stage = action<Record<string, never>, InboxStageData>("inbox.stage.read", "读取 Inbox 舞台", "读取当前事项、主体简介和仍有效的下一步建议；缺失主体保留原事项", "query", empty,
+  { type: "object", properties: { entries: { type: "array", items: entrySchema },
+    subjects: { type: "array", items: { type: "object", properties: { entry_id: text, title: nullableText, source_label: nullableText }, required: ["entry_id", "title", "source_label"], additionalProperties: false } },
+    judgment: { type: "object", required: ["name", "enabled", "available", "reason"] }, judgments: { type: "array", items: judgmentSchema } },
+    required: ["entries", "subjects", "judgments"], additionalProperties: false }, ["inbox:read", "feed:read", "goals:read", "evidence:read"]);
 export const inboxActions = {
+  stage: { ...stage, action: { ...stage.action, audiences: ["user"] } },
   offers: defineSubjectOffersAction("inbox.actions.prepare", ["inbox_entry"], "Inbox 可用动作", ["inbox:read"], [
     { offer_id: "inbox.done", title: "做完了", action: { capability_id: "inbox.entry.status", version: 1 } },
     { offer_id: "inbox.dismiss", title: "忽略", action: { capability_id: "inbox.entry.status", version: 1 } },
@@ -95,16 +141,17 @@ export const inboxActions = {
 } as const;
 
 export const INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(inboxActions);
-export const INBOX_ACTION_PERMISSIONS = ["inbox:read", "inbox:write", "pages:read", "pages:write", "model:invoke", "functions:invoke", "feed:read", "attention:write", "judgments:write"] as const;
+export const INBOX_ACTION_PERMISSIONS = ["inbox:read", "inbox:write", "pages:read", "pages:write", "model:invoke", "functions:invoke", "feed:read", "attention:write", "judgments:write", "goals:read", "evidence:read"] as const;
 
 export interface InboxActionPorts {
   listEntries(): readonly InboxActionEntry[];
+  stageSubjects?(entries: readonly InboxActionEntry[], caller: ActionExecutionContext): Promise<readonly InboxStageSubject[]>;
   setStatus(entryId: string, status: AttentionStatus, revision: number, caller: ActionExecutionContext): InboxActionEntry | Promise<InboxActionEntry>;
   pagesResults?(caller: ActionCallContext): readonly InboxPagesResult[] | Promise<readonly InboxPagesResult[]>;
   preparePages?(input: SubjectOffersInput, caller: ActionCallContext): Promise<InboxPagesInput | null>;
   generatePages?(input: InboxPagesInput, caller: ActionExecutionContext): Promise<InboxGeneratedPages>;
   readJudgment?(caller: ActionCallContext): InboxJudgmentState | Promise<InboxJudgmentState>;
-  recommendations?(caller: ActionCallContext): Promise<{ judgments: readonly JudgmentRecord[] }>;
+  recommendations?(caller: ActionCallContext, entryIds?: ReadonlySet<string>): Promise<{ judgments: readonly JudgmentRecord[] }>;
   writeJudgment?(key: string | null, caller: ActionCallContext): { function_key: string | null } | Promise<{ function_key: string | null }>;
   evaluateJudgment?(ids: readonly string[], caller: ActionExecutionContext): Promise<{ judgments: readonly JudgmentRecord[] }>;
 }
@@ -118,6 +165,14 @@ export function createInboxActionHandlers(ports: InboxActionPorts): ActionHandle
     handle: (_caller, input) => { if (!enabled) throw new ActionError(unavailable.code, unavailable.reason); return handle(input as Input, _caller); },
   });
   return [
+    bind(inboxActions.stage, async (_input, caller) => {
+      const entries = ports.listEntries();
+      const subjects = await ports.stageSubjects!(entries, caller);
+      const available = new Set(subjects.filter(subject => subject.title !== null).map(subject => subject.entry_id));
+      const [state, { judgments }] = await Promise.all([ports.readJudgment!(caller), ports.recommendations!(caller, available)]);
+      await caller.beforeEffect();
+      return { entries, subjects, ...(state.summary ? { judgment: state.summary } : {}), judgments };
+    }, !!ports.stageSubjects && !!ports.readJudgment && !!ports.recommendations),
     bind(inboxActions.offers, async (input, caller) => {
       if (input.subject.kind !== "inbox_entry") throw new ActionError("actions.subject_mismatch", "此查询只接受 Inbox 事项");
       const entry = ports.listEntries().find(row => row.entry_id === input.subject.id);

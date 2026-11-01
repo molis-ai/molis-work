@@ -15,8 +15,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-395 | OAuth/Feed绑定/PG070四成员合成 | 甲 | Codex辅助开发线t065_final_sync；独立验证/加强二审另派 | accepted，M e4bf46ca，T394父冻结3878296ad，五次普通merge窗口 | full=true；实际发布采用在T394后；T066最终S106、T145预留S107 | tasks/T-395.md，旧成员源码不重写，真实冲突/必要组合回归/一次Full |
 | T-149 | BL589完整签名发布与SDK Manifest唯一主人 | 甲 | Codex开发线4；独立验证/加强二审另派 | 已交完整实施；准确父T394 H3878296ad；发布采用排父后 | full=true；三共享hunk等PR1c/T145短窗口，其他独立实现现在推进 | plans/T149/ENGINEERING.md末尾执行窗口；不迁旧项目/不自动pin/无真实Home |
-| T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1接手；验证/加强二审另派 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，两个stage共享接缝等PR1c冻结串接 | plans/T145/PLAN.md §5及末尾窗口；S106，原RAC2644～2649完整范围 |
+| T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1接手；验证/加强二审另派 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，两个stage共享接缝等PR1c冻结串接 | plans/T145/PLAN.md §5及末尾窗口；最终S107（T066先采用S106），原RAC2644～2649完整范围 |
 | T-394 | W5与已审候选五成员合成：PR1b、Home升级、签名正文、T353B、T387 | 甲 | Codex开发线4；独立验证5/加强二审5 | 最终M e4bf46ca，H3878296ad；原组合审验通过，最终main仅资源冲突根核 | full=true；370有效沿用；最终build/门禁/48资源已过，待普通PR与一次Full | tasks/T-394.md五个冻结成员；workbench +1390B、Jelly +33B准确tuple，算法不动 |
 | T-393 | PG070完整后继：Coding登记与Characters随内容样式 | 乙 | Codex开发线2；一审线3/验证线2/二审线5 | accepted WO，M be0；开发窗口已交 | T146已采用，full=true；完整两部分同验同交 | tasks/T-393及CURRENT精确生产/测试hunk；共享文档/预算根串行，保护#1101不动 |
 | T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |

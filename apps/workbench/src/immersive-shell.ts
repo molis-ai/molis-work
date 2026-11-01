@@ -6,7 +6,7 @@ import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirecto
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
-import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
+import { renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 export interface ImmersiveShellPrimitives {
@@ -89,15 +89,6 @@ const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 
 /**
- * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
- *
- * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
- * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
- * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
- * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
- * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
- */
-/**
  * The plugin keys that go when one goes: `id` plus every member whose companions name something already going. The Projects service
  * applies the same closure on removal, so the Dock and the market both say it from the directory alone.
  */
@@ -110,6 +101,16 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
   going.delete(id);
   return [...going];
 }
+
+/**
+ * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
+ *
+ * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
+ * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
+ * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
+ * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
+ * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
+ */
 
 /**
  * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
@@ -277,7 +278,7 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean): string {
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = []): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
@@ -289,7 +290,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    ${renderHomePluginNavigation()}
+    ${renderHomePluginNavigation(undefined, homePlugins)}
     <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
   </header>`;
 }
@@ -297,24 +298,6 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
 export function renderWorkspaceChrome(primitives: ImmersiveShellPrimitives, chromeHtml: string): string {
   const { L } = primitives;
   return `<section class="workspace-chrome project-island titlebar-chrome navigator-project" data-workspace-chrome data-titlebar-chrome data-project-island aria-label="${L("当前项目")}">${chromeHtml}</section>`;
-}
-
-export function renderImmersiveGoalHeader(title: string, primitives: ImmersiveShellPrimitives): string {
-  const { L, escapeHtml, icon } = primitives;
-  return `<header class="goal-node-toolbar"><button class="goal-node-back" type="button" data-goal-collapse aria-label="${L("返回 Goal 画布")}" title="${L("返回 Goal 画布")}">${icon("chevron-right")}</button><div class="goal-node-heading"><h1 data-workspace-goal-title tabindex="-1">${escapeHtml(title)}</h1><span data-workspace-goal-status></span></div><div class="mw-toggle-group goal-view-switch" data-slot="toggle-group" role="group" aria-label="${L("Goal 视图")}"><button class="mw-toggle is-current" type="button" data-goal-view-tab="document" aria-pressed="true">${icon("file")}<span>${L("概览")}</span></button><button class="mw-toggle" type="button" data-goal-view-tab="work" aria-pressed="false">${icon("terminal")}<span>${L("终端")}</span></button></div>
-  </header>`;
-}
-
-export function renderGoalDetailsAside(documentHtml: string, primitives: ImmersiveShellPrimitives): string {
-  const { L, icon } = primitives;
-  return `<aside class="goal-details-aside" data-goal-details-aside>
-      <button class="goal-details-toggle" type="button" data-goal-details-toggle aria-expanded="true" aria-label="${L("收起 Goal 信息与时间线")}" title="${L("Goal 信息与时间线")}">${icon("panel")}</button>
-      ${documentHtml}
-    </aside>`;
-}
-
-export function renderImmersiveWorkTabs({ L, icon }: ImmersiveShellPrimitives): string {
-  return `<div class="goal-work-modebar"><div role="tablist" aria-label="${L("工作方式")}"><button type="button" role="tab" id="goal-conversation-tab" aria-selected="false" aria-disabled="true" disabled tabindex="-1" title="${L("对话尚未接入")}" data-goal-work-mode="conversation">${icon("message")}<span>${L("对话")}</span></button><button type="button" role="tab" id="goal-terminal-tab" aria-controls="goal-tui-pane" aria-selected="true" data-goal-work-mode="terminal">${icon("terminal")}<span>${L("终端")}</span></button></div><span data-goal-runtime-status></span></div>`;
 }
 
 export { renderProjectHome } from "./project-home.js";

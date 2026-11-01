@@ -28,7 +28,8 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
-import { declaredStageData } from "./project-stage-data.js";
+import { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
+import { matchPageRoute } from "./page-routes.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
@@ -42,7 +43,7 @@ import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
 import {
-  agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
+  agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
   workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
@@ -152,7 +153,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
@@ -163,7 +164,9 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
     if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
-    view = { ...view, stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action)) };
+    // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
+    const stage_request = declaredStageRequests(view.shown_plugins ?? [], matchPageRoute(url));
+    view = { ...view, ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}), stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request) };
     const feedActions = bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
@@ -179,7 +182,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
     const homeStages = await renderHomePluginStages(localHost.homePlugins);
-    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
+    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, home_plugin_nav: await localHost.homePlugins?.navigation() ?? [], plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
       ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }
@@ -283,7 +286,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
   capsuleRoute,
-  desktopPanelRoute,
   ...goalsAndArtifactRoutes,
   projectNotFoundRoute,
 ];

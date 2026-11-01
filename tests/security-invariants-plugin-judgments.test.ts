@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference, type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
-import { purgeFunctionsProject } from "@molis-ai/molis-work-module-functions";
+import { purgeFunctionsProject } from "@molis-ai/molis-work-module-judgment-rules";
 import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";

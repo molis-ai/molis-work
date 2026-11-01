@@ -56,7 +56,7 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
           const now = accountOf(home, target);
           if (!now || markerOf(now) !== marker) throw connectorSourcePullErrors.connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
         };
-        const integration = await registry.bind(request.integration_id, "source", bindingOf(account, source_id, request.settings));
+        const integration = await registry.bind(request.integration_id, "source", bindingOf(account, source_id, request.settings), run.retainProvider);
         const connector = new ConnectorHost(), connection_id = `source:${source_id}`;
         connector.registerDriver(integration.connector_driver);
         connector.connect({ connection_id, driver_id: integration.connector_driver.driver_id });

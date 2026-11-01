@@ -1,5 +1,5 @@
 import { ARTIFACT_EN } from "../artifacts/en.js";
-import { FUNCTIONS_EN } from "../functions/en.js";
+import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
@@ -18,6 +18,11 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  "角色资料": "Role material",
+  "角色资料与方法": "Role materials and methods",
+  "新增正文": "Body added",
+  "正文已变化": "Body changed",
+  "已移除正文": "Body removed",
   ...ARTIFACT_EN,
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,

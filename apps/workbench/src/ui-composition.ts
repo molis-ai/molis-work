@@ -8,19 +8,6 @@ import {
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
 import {
-  GOALS_CONTEXT_UI_CONTRIBUTION_ID, GOALS_CONTEXT_UI_SURFACES, type GoalsContextRenderer, type GoalsContextUiPrimitives,
-  GOALS_DIALOGS_UI_CONTRIBUTION_ID, GOALS_DIALOGS_UI_SURFACES, type GoalsDialogsRenderer, type GoalsDialogPrimitives,
-  GOALS_DOCUMENT_UI_CONTRIBUTION_ID, GOALS_DOCUMENT_UI_SURFACES, type GoalsDocumentRenderer, type GoalsDocumentUiPrimitives,
-  GOALS_FACTORS_UI_CONTRIBUTION_ID, GOALS_FACTORS_UI_SURFACE, type GoalsFactorsRenderer, type GoalsFactorsPrimitives,
-  GOALS_MOMENTUM_UI_CONTRIBUTION_ID, GOALS_MOMENTUM_UI_SURFACES, type GoalsMomentumRenderer, type GoalsMomentumUiPrimitives,
-  GOALS_PLANNING_UI_CONTRIBUTION_ID, GOALS_PLANNING_UI_SURFACES, type GoalsPlanningRenderer, type GoalsPlanningPrimitives,
-  GOALS_POLICY_UI_CONTRIBUTION_ID, GOALS_POLICY_UI_SURFACES, type GoalsPolicyRenderer, type GoalsPolicyUiPrimitives,
-  GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES, type GoalsProposalRenderer, type GoalsProposalUiPrimitives,
-  GOALS_RELATION_UI_CONTRIBUTION_ID, GOALS_RELATION_UI_SURFACES, type GoalsRelationRenderer, type GoalsRelationUiPrimitives,
-  GOALS_STATUS_UI_CONTRIBUTION_ID, GOALS_STATUS_UI_SURFACES, type GoalsStatusRenderer, type GoalsStatusPrimitives,
-  GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_TREE_UI_SURFACES, type GoalsTreeRenderer, type GoalsTreeUiPrimitives,
-} from "@molis-ai/molis-work-plugin-goals";
-import {
   INBOX_UI_CONTRIBUTION_ID,
   type InboxUiModel,
   type InboxUiSurface,
@@ -30,7 +17,7 @@ import {
   type ScheduleUiModel,
   type ScheduleUiSurface,
 } from "@molis-ai/molis-work-plugin-schedule";
-import { UiHost, createSurfaceRenderer, createSurfaceRenderers } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { withPluginWords } from "./i18n.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
@@ -57,20 +44,6 @@ export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack
 const workbenchUiHost = createWorkbenchUiHost();
 
 
-// The Goals renderers the shell still calls by name (until Goals S11 and W5-10); each method mounts the surface the
-// plugin's own map names.
-export const createWorkbenchGoalsProposalRenderer = createSurfaceRenderers<GoalsProposalRenderer, GoalsProposalUiPrimitives>(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES);
-export const createWorkbenchGoalsPolicyRenderer = createSurfaceRenderers<GoalsPolicyRenderer, GoalsPolicyUiPrimitives>(workbenchUiHost, GOALS_POLICY_UI_CONTRIBUTION_ID, GOALS_POLICY_UI_SURFACES);
-export const createWorkbenchGoalsRelationRenderer = createSurfaceRenderers<GoalsRelationRenderer, GoalsRelationUiPrimitives>(workbenchUiHost, GOALS_RELATION_UI_CONTRIBUTION_ID, GOALS_RELATION_UI_SURFACES);
-export const createWorkbenchGoalsTreeRenderer = createSurfaceRenderers<GoalsTreeRenderer, GoalsTreeUiPrimitives>(workbenchUiHost, GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_TREE_UI_SURFACES);
-export const createWorkbenchGoalsMomentumRenderer = createSurfaceRenderers<GoalsMomentumRenderer, GoalsMomentumUiPrimitives>(workbenchUiHost, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, GOALS_MOMENTUM_UI_SURFACES);
-export const createWorkbenchGoalsDocumentRenderer = createSurfaceRenderers<GoalsDocumentRenderer, GoalsDocumentUiPrimitives>(workbenchUiHost, GOALS_DOCUMENT_UI_CONTRIBUTION_ID, GOALS_DOCUMENT_UI_SURFACES);
-export const createWorkbenchGoalsContextRenderer = createSurfaceRenderers<GoalsContextRenderer, GoalsContextUiPrimitives>(workbenchUiHost, GOALS_CONTEXT_UI_CONTRIBUTION_ID, GOALS_CONTEXT_UI_SURFACES);
-export const createWorkbenchGoalsPlanningRenderer = createSurfaceRenderers<GoalsPlanningRenderer, GoalsPlanningPrimitives>(workbenchUiHost, GOALS_PLANNING_UI_CONTRIBUTION_ID, GOALS_PLANNING_UI_SURFACES);
-export const createWorkbenchGoalsStatusRenderer = createSurfaceRenderers<GoalsStatusRenderer, GoalsStatusPrimitives>(workbenchUiHost, GOALS_STATUS_UI_CONTRIBUTION_ID, GOALS_STATUS_UI_SURFACES);
-export const createWorkbenchGoalsFactorsRenderer = createSurfaceRenderer<GoalsFactorsRenderer, GoalsFactorsPrimitives>(workbenchUiHost, GOALS_FACTORS_UI_CONTRIBUTION_ID, GOALS_FACTORS_UI_SURFACE);
-export const createWorkbenchGoalsDialogsRenderer = createSurfaceRenderers<GoalsDialogsRenderer, GoalsDialogPrimitives>(workbenchUiHost, GOALS_DIALOGS_UI_CONTRIBUTION_ID, GOALS_DIALOGS_UI_SURFACES);
-
 export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost);
 
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
@@ -80,6 +53,15 @@ export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiP
 /** Mount one surface of a registered contribution in the slot the contribution declares for it. */
 export function renderWorkbenchContribution(contributionId: string, surface: string, model: unknown): string {
   return workbenchUiHost.mountDeclared({ contribution_id: contributionId, surface, model }).html;
+}
+
+/**
+ * The mount one plugin's page is given (T-116, `GoalsPagePorts.mount`): its own contributions only. Another plugin's contribution id is
+ * refused by the host with `ui_host.plugin_denied`, so a page cannot draw a surface another plugin owns through the port it was handed.
+ * `host` is the workbench's own unless a test gives another.
+ */
+export function mountContributionsOf(pluginId: string, host: UiHost = workbenchUiHost): (contributionId: string, surface: string, model: unknown) => string {
+  return (contributionId, surface, model) => host.mountDeclared({ contribution_id: contributionId, surface, model }, pluginId).html;
 }
 
 export function renderFeedContribution(

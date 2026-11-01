@@ -62,7 +62,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### 启动终端
 
-插件要在这台电脑上起一个交互终端（例如在工作目录里跑终端 Agent），在 Manifest 里声明 `terminal:run` 权限（S-103）。得到 `services.terminal.open({ key, title, command, args?, directory })`，Home 实例和项目实例都有：`command` 是后端选的程序的绝对路径（常和 `services.localTools.find()` 一起用），`args` 至多 32 项；`directory` 是 `{ root: "workspace", workspace_id, path? }`（本次调用所在项目已关联的工作目录，另要 `workspace:read`）或 `{ root: "owner_files", path? }`（本插件声明的主人文件目录），`path` 是根下用 `/` 分隔的相对路径；程序和解析后的目录首尾都不能有空白（终端宿主会 trim 它们）。只能在本插件自己的、受众为 `user`、声明了 `terminal:run` 的 command 里调；安装、项目、人都取自这次调用，输入里多一个键就整个拒。回的只有面板号：同一项目里同一个人、同一个 `key` 再开，就是附着同一个在跑的进程；页面用页面终端（`molisPageTerminal`）附着、写入、改大小、结束。停用、撤权、卸载、项目实例停止时，这次激活起的进程全部结束。沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`，BL-910）。
+插件要在这台电脑上起一个交互终端（例如在工作目录里跑终端 Agent），在 Manifest 里声明 `terminal:run` 权限（S-103）。得到 `services.terminal`，Home 实例和项目实例都有。`open({ key, title?, program, subject?, directory })`：`program` 是平台认识的编程 Agent `{ runtime: "codex" }`（还有 `claude-code`、`opencode`、`pi-agent`、`grok-build`，命令与续接参数由平台定），或 `{ command, args? }`：`command` 是绝对路径（常和 `services.localTools.find()` 一起用）或命令名（平台在自己的 PATH 上找，找不到答 `actions.unavailable`），不经 shell，`args` 至多 32 项；`subject` 是这个终端属于的东西（Goals 写 Goal id），终端里的 `MOLIS_WORK_FOCUS_ID` 就是它；`directory` 是 `{ root: "workspace", workspace_id?, path? }`（本次调用所在项目已关联的工作目录，不写 `workspace_id` 就是首选的那个，另要 `workspace:read`）或 `{ root: "owner_files", path? }`（本插件声明的主人文件目录），`path` 是根下用 `/` 分隔的相对路径；程序和解析后的目录首尾都不能有空白（终端宿主会 trim 它们）。只能在本插件自己的、受众为 `user`、声明了 `terminal:run` 的 command 里调；安装、项目、人都取自这次调用，输入里多一个键就整个拒。回 `{ panelId, started }`：平台按安装、项目、人与 `key` 记下这个终端，同一 `key` 在跑就附着同一个进程（`started: false`），停了就按记下的程序重起，换了程序答 `actions.conflict`（先 `close`）。`list({ subject? })` 在查询里也能调，列出本人在这里的终端和是否在跑；`close({ key })` 结束并忘掉它，别人的 key 答 `actions.missing`。页面用页面终端（`molisPageTerminal`）附着、写入、改大小、结束。停用、撤权、卸载、项目实例停止时，这次激活起的进程全部结束。沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`，BL-910）。
 
 插件自己存了项目 id（例如副本的出处）、要知道那个项目还在不在，在 Manifest 里声明 `projects:exist` 权限（双实例插件的权限都要写 `required: true`；没问到就当「不知道」，不要当「已删除」），得到 `services.projects.exist(ids)`：只回你传进来的 id 的 `{id: boolean}`，不列项目、不返回名字（S-96，BL-680）；Home 实例和项目实例都有。沙箱操作声明 `effects.projects: ["exist"]`，由已校验合同派生这一项可选 Manifest 权限；操作效果批准与当前安装的 `projects:exist` 授权都要满足，仍走同一个客户端。
 
@@ -113,7 +113,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 `APPROVED_BUILD_TIME_EXCEPTIONS` 里的两个（Alchemist、插件创作台；用户 2026-10-21、10-23 定不迁、不删、本轮绕过，以后由 BL-377 重做）仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
 
-- 手写 HTTP 文件：`<id>-native-plugin-http.ts` 只剩 Alchemist 的 `alchemist-native-plugin-http.ts`，由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）。Pages、灵光、Schedule、Feed、Inbox 等都已迁完，路由是 Manifest `routes`。`artifact-native-plugin-http.ts` 是平台成果库的路由文件（PG-077），不是插件的。
+- 手写 HTTP 文件：`<id>-native-plugin-http.ts` 只剩 Alchemist 的 `alchemist-native-plugin-http.ts`，由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）。Pages、灵光、Schedule、Feed、Inbox 等都已迁完，路由是 Manifest `routes`。`artifact-library-http.ts` 是平台成果库的路由文件（PG-077），不是插件的。
 - Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不是构建期例外），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 

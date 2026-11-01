@@ -243,12 +243,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
-  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
-  // T-354 一审 P1 keeps the shortcut but asks first that what is rendered is not a skipped subtree (`checkVisibility`, style only) and
-  // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
-  // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
-  "/assets/molis-work-plugins/coding.js": [289876, 290029],
+  // T-394 (RAC-2855/2856): signed role/method previews and provenance handoff retain complete names,
+  // excerpts and change/source display, reusing T141's shared UI helpers. The combined feature adds
+  // 1,390 B after those existing savings. Measured against adopted e4bf46ca; the coordinator authorized
+  // this exact final carrier allowance, without changing the resource gate or adding a served path.
+  "/assets/molis-work-workbench.js": [1151273, 1152663],
   // T-353 (RAC-2726–2728): Jelly's row summary uses the SDK cutHead instead of a second inline implementation.
   // +33 B for the shared import/call; an inline copy keeps the duplication and precomputation still needs this helper.
   "/assets/molis-work-plugins/jelly.js": [76866, 76899],

@@ -139,9 +139,6 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     capabilities: [
       "desktop.shell.v1",
-      "desktop.runtime-launch.v1",
-      "desktop.advance-prompt.v1",
-      "desktop.panels.v1",
       "desktop.capsule-shell.v1"
     ],
     extraWorkspaceDependencies: [
@@ -158,19 +155,7 @@ export const WORKSPACE_PACKAGES = [
       "workbench.shell.v1",
       "workbench.ui-slots.v1",
       "workbench.feed-composition.v1",
-      "workbench.work-composition.v1",
-      "workbench.goals-policy-composition.v1",
-      "workbench.goals-safety-composition.v1",
-      "workbench.goals-relation-composition.v1",
-      "workbench.goals-tree-composition.v1",
-      "workbench.goals-momentum-composition.v1",
-      "workbench.goals-document-composition.v1",
-      "workbench.goals-context-composition.v1",
-      "workbench.goals-planning-composition.v1",
-      "workbench.goals-status-composition.v1",
-      "workbench.goals-factors-composition.v1",
-      "workbench.goals-dialogs-composition.v1",
-      "workbench.goals-document-routes.v1"
+      "workbench.work-composition.v1"
     ],
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
@@ -214,7 +199,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-attention-resumption",
       "@molis-ai/molis-work-module-characters",
       "@molis-ai/molis-work-module-context-ledger",
-      "@molis-ai/molis-work-module-functions",
+      "@molis-ai/molis-work-module-judgment-rules",
       "@molis-ai/molis-work-module-private-work-context",
       "@molis-ai/molis-work-module-projects",
       "@molis-ai/molis-work-module-shelf",
@@ -389,7 +374,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ]
   }),
-  entry("modules/functions", "@molis-ai/molis-work-contracts/modules/functions", {
+  entry("modules/judgment-rules", "@molis-ai/molis-work-contracts/modules/functions", {
     maturity: "production",
     capabilities: [
       "functions.query.v1",

@@ -22,6 +22,14 @@ export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, typ
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
+export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";
+export { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+export { pluginModelFor } from "./plugin-model-service.js";
+export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
+export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
+export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
+export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "./plugin-builder/exposed-actions.js";
+export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
@@ -93,7 +101,7 @@ export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
 export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
 export { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
-export { seedSceneRules, withFunctionsService } from "./functions-host.js";
+export { seedSceneRules, withFunctionsService } from "./judgment-rules-host.js";
 
 export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
@@ -117,9 +125,10 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
-export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+export { sandboxDerivedPermissions, sandboxOperationPermissions, sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
+export { installedStageSection } from "./installed-stage-section.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
@@ -157,9 +166,9 @@ export type { IntegrationProviderFactory } from "./integration-providers.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 /** One Feed item for the shell's reader (`/api/stage/feed/items/<id>`), read through Feed's own actions. */
 export { feedItemForReader } from "./web-request.js";
-export { handleFunctionsHttp } from "./functions-http.js";
+export { handleFunctionsHttp } from "./judgment-rules-http.js";
 
-export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
 
 export * from "./onboarding.js";
 
@@ -168,7 +177,7 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
-export { declaredStageData } from "./project-stage-data.js";
+export { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
 export { developerMode } from "./developer-mode.js";
 export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
@@ -200,7 +209,6 @@ export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
-export { createLocalPanelHttp } from "./web-panel.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
@@ -314,6 +322,7 @@ export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
+export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";

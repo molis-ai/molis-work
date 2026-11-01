@@ -1,10 +1,11 @@
+import { assertSandboxAgentDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxBackgroundLane } from './background.js';
 import type { SandboxServices } from './broker.js';
 import { sandboxDatabase } from './database.js';
-import { sandboxModel } from './model.js';
+import { sandboxModel, sandboxModelSettings } from './model.js';
 import { sandboxOwnerFiles } from './owner-files.js';
 import { SandboxError } from './schema.js';
 
@@ -43,7 +44,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'projects' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'projects' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'imageGeneration' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
   /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
@@ -77,13 +78,17 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
     // The Host's text model for the package, which names the instructions it registered and never carries a prompt of its own (S-66).
     ...(host.model ? { model: sandboxModel(host.model, extras.instructions ?? []) } : {}),
+    // The package's own model settings: the Host puts `configuration` on the model it gives a Home package (BL-491); the Manifest has no block for it.
+    ...(host.model?.configuration ? { modelSettings: sandboxModelSettings(host.model.configuration) } : {}),
+    // The person's image generation, the Host's client for the activation (it holds the pinning rule); the broker checks effects, address and size around it.
+    ...(host.imageGeneration ? { imageGeneration: host.imageGeneration } : {}),
     // The Host's background client for accepting a run, reduced to `start`, and the lane the run happens in (S-67).
     ...(host.background && extras.backgroundLane ? { background: { client: { start: (work, options) => host.background!.start(work, options) }, lane: extras.backgroundLane } } : {}),
   };
 }
 
 /** What a definition says it needs of the Host: its Manifest, and the bodies that ride on the definition rather than the Manifest. */
-export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructions' | 'methods' | 'agent_prompts' | 'agent_skills'>;
+export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructions' | 'methods' | 'agent_prompts' | 'agent_prompt_names' | 'agent_skills'>;
 
 /**
  * What the sandbox does with each member of the Host's services (`PluginHostServices`), so none is left without a decision: `given` is forwarded
@@ -97,7 +102,7 @@ export type SandboxServiceFate = 'given' | 'refused' | 'entry' | 'replaced' | 'd
 export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServices]-?: SandboxServiceFate } = Object.freeze({
   storage: 'given', project_statements: 'given', database_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
-  database: 'entry', files: 'entry', imageGeneration: 'entry',
+  database: 'entry', files: 'entry', imageGeneration: 'given',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
   notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
@@ -130,12 +135,12 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
-  { service: 'model_configuration', services: [], reason: 'Model settings (model_configuration in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-490/491).',
+  { service: 'model_configuration', services: [], reason: 'A sandboxed package does not write model_configuration in its Manifest: it asks for its model settings with effects.modelSettings in contract.json and the Host derives the rest (PG-017 BL-491).',
     declared: definition => definition.manifest.model_configuration !== undefined },
+  { service: 'image_generation', services: [], reason: 'A sandboxed package does not write image_generation in its Manifest: it asks for image generation with effects.imageGeneration in contract.json and the Host derives the rest (PG-017 BL-491).',
+    declared: definition => definition.manifest.image_generation !== undefined },
   { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',
     declared: definition => !!definition.manifest.background?.jobs.length },
-  { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',
-    declared: definition => !!(definition.methods?.length || definition.manifest.methods?.length || definition.agent_prompts?.length || definition.agent_skills?.length || definition.manifest.agent) },
   { service: 'directory', services: ['directory'], reason: 'A person-authorized directory (directory:read) is not given to sandboxed plugins: it hands the plugin a folder of the person\'s, and has no form without paths yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['directory:read']) },
   { service: 'localTools', services: ['localTools'], reason: 'Looking for command-line tools on this machine (local_tools in the Manifest, local-tools:read) is only given to plugins the Host runs itself: it answers with the paths of files outside the sandbox (PG-112, S-79).',
@@ -174,6 +179,8 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
  * the first time the plugin reaches for the service.
  */
 export function assertSandboxDeclarations(definition: SandboxDeclarations, held: readonly string[]): void {
+  try { assertSandboxAgentDefinition(definition); }
+  catch (error) { throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for agent: ${error instanceof Error ? error.message : '沙箱文字声明无效'}`); }
   for (const row of SANDBOX_NOT_GIVEN) {
     if (row.declared(definition, held)) {
       throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for ${row.service}: ${row.reason}`);

@@ -1,3 +1,4 @@
+// RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -12,7 +13,7 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
-import * as functionsModule from "@molis-ai/molis-work-module-functions";
+import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -156,7 +157,8 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   expect(capture(() => catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "entry-1", host_declares_stable: true }, project_id: project.project_id, actor_id: "runtime", user_confirmed: false })),
     "work.context.user_confirmation_required", 400);
   // A live terminal is a conflict the person can resolve.
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "user", user_confirmed: true });
+  const panel = await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: "plugin-error-model-terminal", install_id: "fixture-install", project_id: project.project_id,
+    actor_id: "user", key: "terminal", subject: "goal-1", runtime: "command", launch_command: "/bin/cat", launch_args: [], title: "cat" }, directory));
   const service = new hostModule.ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });
   await assert.rejects(service.deleteProject(home, { project_id: project.project_id, actor_id: "user", delete_confirmed: true, idempotency_key: "delete-with-terminal" }),
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });
@@ -456,9 +458,9 @@ test("the mapper, the catalog class, the artifact classes and the Functions clas
   const found = spawnSync("git", ["grep", "-n", "-E", `\\b(${OLD.join("|")})\\b`, "--", "apps", "packages", "modules", "plugins", "horizontal", "scripts", "tests", `:!${here}`],
     { cwd: REPOSITORY, encoding: "utf8" });
   assert.deepEqual([found.status, found.stdout.trim()], [1, ""], "no source names the removed classes or the mapper");
-  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/functions-http/route-error.ts")), false);
-  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/functions-http.ts", "apps/local-host/src/web-project-reference.ts",
-    "apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/functions/src"],
+  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/judgment-rules-http/route-error.ts")), false);
+  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/judgment-rules-http.ts", "apps/local-host/src/web-project-reference.ts",
+    "apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/judgment-rules/src"],
   { cwd: REPOSITORY, encoding: "utf8" });
   const bare = scan.stdout.trim().split("\n").filter(line => line && !/\/\/ .*new Error\(|object required/.test(line));
   assert.deepEqual(bare, [], "a caller's mistake on these edges has a code (a bare Error would answer 500)");

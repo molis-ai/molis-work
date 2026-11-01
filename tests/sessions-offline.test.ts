@@ -85,7 +85,7 @@ test("RAC-215 the Sessions routes are gone while workspace settings and Goal ter
   assert.equal(routes["GET <project>/api/sessions"]?.status, 404);
   assert.equal(routes["GET <project>/sessions (page)"]?.status, 302, "the old page address redirects to 'missing'");
   assert.deepEqual(Object.keys(routes).filter(key => /\/api\/session-|workspaces\/[^ ]+\/sessions/u.test(key)), []);
-  assert.ok(routes["GET <project>/api/panels"], "Goal terminal panels keep their route");
+  assert.ok(routes["GET <project>/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals"], "Goal terminals keep their route (Goals', T-148)");
   assert.ok(routes["GET <project>/workspaces (page)"], "workspace pages keep answering (as a missing redirect, they have no management page)");
 });
 

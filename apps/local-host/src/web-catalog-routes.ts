@@ -9,7 +9,7 @@ import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
-import { handleFunctionsHttp } from "./functions-http.js";
+import { handleFunctionsHttp } from "./judgment-rules-http.js";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -122,7 +122,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     sendJson(response, 200, { status: "ok", process_id: process.pid, service_process_id: serviceProcessId(), project_count: projects.length, desktop_tui: true });
     return true;
   } },
-  { id: "project-index", handle: ({ request, response, url, serverOptions, projects, controlToken, composition }) => {
+  { id: "project-index", handle: async ({ request, response, url, serverOptions, projects, controlToken, composition, localHost }) => {
     if (!(request.method === "GET" && url.pathname === "/")) return false;
     const desktopShell = composition.isDesktopShellRequest(request, url);
     const onboarding = molisWorkOnboardingStatus(serverOptions.homeDirectory, projects.length);
@@ -133,11 +133,13 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       response.end();
       return true;
     }
+    const homePlugins = await localHost.homePlugins?.navigation() ?? [];
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...noStore, "content-security-policy": composition.PAGE_CSP });
     const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)));
     response.end(composition.workbenchRenderer.renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
+      ...homePlugins.length ? { home_plugins: homePlugins } : {},
     }));
     return true;
   } },

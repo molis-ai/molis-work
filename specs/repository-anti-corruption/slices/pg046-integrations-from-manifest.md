@@ -66,6 +66,6 @@ FI-3（设计稿 [feed-inbox-integration-registry.md](feed-inbox-integration-reg
 
 ## 4. 待定
 
-- **BL-530（统筹 10-26 定：不进本片，归 ac-sandbox-sched，排在 BL-491、BL-493 之后，先出设计稿）**：装进 Home 的外部集成插件怎样进登记。查实今天没有这条路：安装路径只有 T2 的签名沙箱包（S-84），它的格式只有应用插件，没有 `kind: "integration"`；登记的共用 Runtime 在宿主进程里、按宿主构建的信任装，跑外部集成插件就是在宿主进程里跑外部代码。所以这一项要先定两件动安全边界的事：外部集成插件是否要在沙箱里跑（沙箱包格式加 integration 一类，绑定与拉取经 broker）；装上之后用哪一级信任进登记、冲突时怎样对待已登记的内置集成（FI-3 的「先装的持有」对外部插件是否够）。`integration-registry.ts` 只由内置清单调。两个问题动安全边界，设计稿出来后由统筹弹窗问用户，本线不定；统筹的倾向是 ① 在沙箱里跑、② 信任按发布者签名（与 S-84 同一条），与内置集成撞 id 时在安装时明确拒绝（同 A3 的「安装时拒重复属主」），不用「先装的占住」。
+- **BL-530（原片之外，现行接续按 T-122／T-141）**：外部 source 集成的 Home 沙箱路径、签名安装、按调用临时连接与声明来源已按 [BL-530 方案](bl530-sandboxed-integrations.md) §6 的既定决定实现；配置字节边界与 attach/detach 接续随 #1295（`9efbf8d04`）采用，T-134 连接声明者前置随 #1649（`daa8fd23c`）合入。T-122 仅核收这两项采用及当前组合证据，后续已补冻结 `77f4fd172` 的独立 Mac 三完整文件 23/23；[#1696](https://github.com/molis-ai/molis-work/pull/1696) 仍只作文档采用，结果与核抵边界见[同稿 §7.3](bl530-sandboxed-integrations.md#73-t-122-配置队列采用核收2026-10-31)，不再重复设计或实现。预览 API 已返回 origins，设置页实际展示与初装／升级浏览器验证仍归 T-141；BL-691、整个 PG-046 保持未整体关闭。BL-692～694 仍按原后续分别跟踪，不从本片扩写。
 - **BL-690**：C4（W5-11）把 OAuth、MCP、CLI 的数据搬进 `auth.methods` 后，SDK 检查 `document_import` 的 `connection_methods` 是服务声明了的方式的子集。
 - 其余按推荐定，记在 §3。

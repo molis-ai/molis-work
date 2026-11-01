@@ -10,7 +10,7 @@ import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
-export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner, SandboxPackageInterface, SandboxPackagePrompt } from "./plugin-package.js";
+export type { PluginPackageFile, PluginPackageManifest, SandboxPackageManifest, SandboxAgentBodyDeclaration, SandboxAgentBody, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner, SandboxPackageInterface, SandboxPackagePrompt } from "./plugin-package.js";
 export { SANDBOX_PACKAGE_FILES } from "./plugin-package.js";
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
@@ -29,7 +29,7 @@ export type { PluginLocalToolsClient, PluginLocalToolsDeclaration } from "./plug
 export { PLUGIN_PROJECTS_EXIST_PERMISSION, PLUGIN_PROJECTS_EXIST_LIMITS } from "./plugin-projects.js";
 export type { PluginProjectsClient } from "./plugin-projects.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
-export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient, PluginTerminalDirectory } from "./plugin-host-services.js";
+export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient, PluginTerminalDirectory, PluginTerminalPanel, PluginTerminalProgram } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
 export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginMessagesDeclaration, PluginTranslationsDeclaration } from "./plugin-manifest.js";
 export { SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
@@ -165,6 +165,8 @@ export interface PluginDefinition {
   event_types?: readonly PluginEventType[];
   /** v2: Prompt bodies for the Agent block. */
   agent_prompts?: readonly AgentPromptText[];
+  /** Display metadata for declared prompts; never execution authority. */
+  agent_prompt_names?: Readonly<Record<string, { title: string; purpose: string }>>;
   /** v2: Skill bodies for the Agent block. */
   agent_skills?: readonly AgentSkillDefinition[];
   /**
@@ -175,8 +177,8 @@ export interface PluginDefinition {
    */
   instructions?: readonly InstructionPrompt[];
   /**
-   * Bodies of the Manifest's `methods`, matched by id and version, for a plugin the Host runs itself and the catalog registers
-   * nothing for: registered while it runs, as the catalog's are when the Host starts, and withdrawn when it stops (disabled,
+   * Bodies of the Manifest's `methods`, matched by id and version, for a plugin the catalog registers nothing for. Signed
+   * sandbox packages carry only the verified text-only projection: registered while it runs, as the catalog's are when the Host starts, and withdrawn when it stops (disabled,
    * uninstalled, upgraded). A declared method without a body here is not registered; the developer diagnostics say so.
    */
   methods?: readonly AgentSkillDefinition[];

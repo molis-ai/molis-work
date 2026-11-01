@@ -216,33 +216,54 @@ test("RAC-2700 the new-Goal title box caps at 120 characters, not 120 UTF-16 uni
   };
   const titleState = () => evaluate<{ chars: number; units: number; value: string }>(
     "(() => { const v = document.querySelector('[data-create-form]').elements.title.value; return { chars: [...v].length, units: v.length, value: v }; })()");
-  const waitForGoal = async (title: string) => {
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      if (boardSnapshot(store, DEMO_PROJECT_ID).goals.some((goal: { title: string }) => goal.title === title)) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    assert.fail(`the Goal ${JSON.stringify(title)} was not created`);
+  // RAC-2808: persistence precedes the create response's own navigation. Finish that page before returning to RELEASE.
+  const assertGoalPage = async (goalId: string, title: string) => {
+    const url = origin + prefix + "/goals/" + encodeURIComponent(goalId);
+    const titleSelector = `[data-frame-goal="${goalId}"] [data-frame-goal-title]`;
+    await waitFor(`location.href === ${JSON.stringify(url)} && (() => {
+      const title = document.querySelector(${JSON.stringify(titleSelector)});
+      return title?.getClientRects().length > 0 && getComputedStyle(title).visibility === 'visible';
+    })()`);
+    const { frameTree } = await command<{ frameTree: { frame: { url: string; parentId?: string } } }>("Page.getFrameTree", {}, sessionId);
+    assert.equal(frameTree.frame.parentId, undefined, "the selected Goal is in the main frame");
+    assert.equal(frameTree.frame.url, url);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(titleSelector)}).textContent`), title);
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[role="alert"], [data-create-error]'))
+      .filter(node => node.getClientRects().length && getComputedStyle(node).visibility === 'visible' && node.textContent.trim())
+      .map(node => node.textContent.trim())`), [], "the created or returned Goal page has no visible error");
   };
+  const submitGoal = async (title: string) => {
+    // Register the existing navigation wait before the real submit, including the third title case.
+    await navigate(() => click("[data-create-submit]"));
+    const goal = boardSnapshot(store, DEMO_PROJECT_ID).goals.find((item: { title: string }) => item.title === title);
+    assert.ok(goal, "the submitted title is persisted by the Goal owner");
+    assert.equal(goal.title, title);
+    await assertGoalPage(goal.goal_id, title);
+  };
+  const releaseTitle = boardSnapshot(store, DEMO_PROJECT_ID).goals.find((goal: { goal_id: string }) => goal.goal_id === "RELEASE")!.title;
   const backToBoard = async () => {
-    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId));
+    let reply: { errorText?: string } | undefined;
+    await navigate(async () => { reply = await command<{ errorText?: string }>("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId); });
+    assert.equal(reply?.errorText, undefined, "return navigation has no protocol error");
+    await assertGoalPage("RELEASE", releaseTitle);
     await waitFor("document.querySelector('[data-goal-canvas-shell]')");
     await showGoalStageList();
+    await waitFor(`(() => { const button = document.querySelector('[data-goal-stage-chrome] [data-open-create]');
+      return button?.getClientRects().length > 0 && !button.disabled && !button.closest('[inert]'); })()`);
   };
   await openCreate();
   await command("Input.insertText", { text: "😀".repeat(120) }, sessionId);
   assert.deepEqual(await titleState(), { chars: 120, units: 240, value: "😀".repeat(120) }, "120 two-unit characters fit whole");
   await command("Input.insertText", { text: "😀" }, sessionId);
   assert.equal((await titleState()).chars, 120, "a 121st character is stopped");
-  await click("[data-create-submit]");
-  await waitForGoal("😀".repeat(120));
+  await submitGoal("😀".repeat(120));
   await backToBoard();
   await openCreate();
   await command("Input.insertText", { text: "a".repeat(120) }, sessionId);
   assert.deepEqual(await titleState(), { chars: 120, units: 120, value: "a".repeat(120) }, "120 plain characters fit");
   await command("Input.insertText", { text: "a" }, sessionId);
   assert.equal((await titleState()).chars, 120, "a 121st plain character is stopped");
-  await click("[data-create-submit]");
-  await waitForGoal("a".repeat(120));
+  await submitGoal("a".repeat(120));
   await backToBoard();
   // The mixed case: neither a units slice nor a plain code-point slice leaves half of a two-unit character behind.
   await openCreate();
@@ -252,6 +273,5 @@ test("RAC-2700 the new-Goal title box caps at 120 characters, not 120 UTF-16 uni
   const mixed = await titleState();
   assert.deepEqual({ chars: mixed.chars, units: mixed.units, value: mixed.value }, { chars: 120, units: 239, value: "😀".repeat(119) + "a" }, "the extra two-unit character is cut whole, not by units");
   assert.ok([...mixed.value].every((character) => { const point = character.codePointAt(0)!; return point < 0xD800 || point > 0xDFFF; }), "no lone surrogate is left in the value");
-  await click("[data-create-submit]");
-  await waitForGoal("😀".repeat(119) + "a");
+  await submitGoal("😀".repeat(119) + "a");
 });

@@ -491,6 +491,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
         frames = stored.frames && typeof stored.frames === "object" ? stored.frames : {};
       }
     } catch { openIds = []; curTab = LIST_TAB; lastBoard = LIST_TAB; frames = {}; }
+    // A split pane's Goals page has no item in its URL. The project-level Frame selection
+    // may be a Goal open in another pane; its saved board view is the page's view.
+    const paneParams = new URLSearchParams(location.search);
+    if (window.parent !== window && paneParams.has("workbenchPane") && paneParams.get("panePlugin") === "goals" && !paneParams.has("paneItem")) curTab = lastBoard;
     prune();
     ready = true;
     sync();

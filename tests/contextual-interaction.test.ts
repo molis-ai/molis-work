@@ -850,3 +850,71 @@ test("RAC-2185: the writing menu cuts an over-limit document's text once, and ev
     for (const text of sent) assert.equal(text, expected, "each choice gets the same cut, 180000 whole characters");
   } finally { Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, value: original }); }
 });
+
+// ---- Pages focus: cut on whole characters (RAC-1978, RAC-1979, RAC-1984) ----------------------------------------------------------
+// focus.ts keeps what it tells the Assistant to limits counted in UTF-16 units: a target's text 2000, the text before and after the selection 300, a heading 120. The
+// receiving side counts units too (apps/local-host/src/contextual/contextual-request.ts). One 🟢 is one character but two units, so a cut at a unit that is the first half of
+// one used to leave half of it, and a window that starts at the second half of one leaves half of it at the front. The limits stay in units; only the half character goes.
+const pairs = (count: number) => "🟢".repeat(count);
+/** A long string as a short value a failing assert can print: its length in units and in characters, whether it is well formed, and whether it is `expected`. */
+const shape = (actual: string | undefined, expected: string) => ({
+  units: actual?.length, characters: actual === undefined ? undefined : [...actual].length, wellFormed: actual?.isWellFormed(), same: actual === expected,
+});
+const shapeOf = (expected: string) => ({ units: expected.length, characters: [...expected].length, wellFormed: true, same: true });
+/** The focus read from `blocks` with the text from `from` to `to` selected (by default from the first text to the end of the last). */
+function selectedFocus(blocks: ReturnType<typeof p>[], from = 1, to?: number) {
+  const view = editor(s.node("doc", null, blocks));
+  select(view, from, to ?? view.state.doc.content.size - 1);
+  return readPagesFocus(view.state)!;
+}
+/** The surroundings of the three letters SEL, selected in a paragraph under a heading, with `before` and `after` around them. */
+function focusAround(before: string, after: string, heading = "核心判断") {
+  const view = editor(s.node("doc", null, [h(heading), p(before + "SEL" + after)]));
+  const start = find(view.state, "SEL");
+  select(view, start, start + 3);
+  return readPagesFocus(view.state)!.surroundings;
+}
+
+for (const { name, text, expected } of [
+  { name: "unit 2000 is the first half of a character", text: "a" + pairs(1500), expected: "a" + pairs(999) },
+  { name: "a character ends exactly at unit 2000", text: "ab" + pairs(1500), expected: "ab" + pairs(999) },
+  { name: "3000 plain characters", text: "a".repeat(3000), expected: "a".repeat(2000) },
+]) {
+  test(`RAC-1978 focus: a selected text of over 2000 units is cut on a whole character: ${name}`, () => {
+    const target = selectedFocus([p(text)], 1, 1 + text.length).targets[0]!;
+    assert.deepEqual(shape(target.text, expected), shapeOf(expected));
+    assert.equal(target.truncated, true);
+  });
+}
+
+test("RAC-1978 focus: each of several selected blocks is cut on a whole character", () => {
+  const focus = selectedFocus([p("a" + pairs(1500)), p("b" + pairs(1500))]);
+  assert.equal(focus.granularity, "blocks");
+  assert.equal(focus.targets.length, 2);
+  assert.deepEqual(shape(focus.targets[0]!.text, "a" + pairs(999)), shapeOf("a" + pairs(999)));
+  assert.deepEqual(shape(focus.targets[1]!.text, "b" + pairs(999)), shapeOf("b" + pairs(999)));
+});
+
+test("RAC-1979 focus: a heading in the path is cut at 120 units on a whole character", () => {
+  assert.deepEqual(focusAround("", "", "h".repeat(119) + pairs(1) + "tail").heading_path, ["h".repeat(119)]);
+});
+
+test("RAC-1979 focus: the text before the selection is its last 300 units, without half a character at the front", () => {
+  const { before } = focusAround(pairs(150) + "x".repeat(299), "");
+  assert.deepEqual(shape(before, "x".repeat(299)), shapeOf("x".repeat(299)));
+});
+
+test("RAC-1979 focus: the text after the selection is its first 300 units, without half a character at the end", () => {
+  const { after } = focusAround("", "y".repeat(299) + pairs(1) + "zzzzz");
+  assert.deepEqual(shape(after, "y".repeat(299)), shapeOf("y".repeat(299)));
+});
+
+test("RAC-1984 focus: whole characters at the edge of the limit, of a window or of a heading are kept, and a text that fits is not marked cut", () => {
+  const exact = selectedFocus([p(pairs(1000))], 1, 2001).targets[0]!;
+  assert.deepEqual(shape(exact.text, pairs(1000)), shapeOf(pairs(1000)), "2000 units that are 1000 whole characters");
+  assert.equal(exact.truncated, undefined, "and not marked cut");
+  const around = focusAround(pairs(150), pairs(150), pairs(60));
+  assert.deepEqual(around.heading_path, [pairs(60)], "a heading of 60 wide characters is exactly 120 units");
+  assert.deepEqual(shape(around.before, pairs(150)), shapeOf(pairs(150)), "300 units before the selection are 150 whole characters");
+  assert.deepEqual(shape(around.after, pairs(150)), shapeOf(pairs(150)), "300 units after the selection are 150 whole characters");
+});

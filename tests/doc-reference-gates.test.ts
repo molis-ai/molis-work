@@ -422,6 +422,41 @@ test("an exception for an id works although gate data is quoted in tooling/gates
   assert.match(stale.out, /the exception for `alpha\.counter\.v1` in AGENTS\.md is not needed any more/);
 });
 
+// RAC-2847 / RA4-05: implementation directory changes must preserve the functions action namespace.
+for (const directory of ["functions", "judgment-rules"]) {
+  test(`RAC-2847 judgment citations preserve rejection and exceptions under modules/${directory}`, () => {
+    branch("judgment-citations", () => {
+      put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, modules: "business modules" }));
+      put(`modules/${directory}/src/actions.ts`, lines(
+        'export const run = "functions.run";', 'export const authoring = "authoring.update";'));
+      append("AGENTS.md", "\nCall `functions.run` and `functions.authoring.update`. Unknown namespaces stay ignored: `unrelated.missing`.\n");
+    });
+    const validText = read("AGENTS.md");
+    const valid = gate("--base", "main");
+    assert.equal(valid.code, 0, valid.out);
+
+    append("AGENTS.md", "\nReject `functions.missing`.\n");
+    commit("a misspelled functions action");
+    const missing = gate("--base", "main");
+    assert.equal(missing.code, 1, missing.out);
+    assert.match(missing.out, /`functions\.missing` is not an id the code defines/);
+
+    put("AGENTS.md", validText + "\nCounter-example: `functions.evaluate.v1`. The directory name adds no action namespace: `judgment-rules.missing`.\n");
+    put("tooling/gates/doc-citation-exceptions.json", JSON.stringify({
+      "AGENTS.md": { "functions.evaluate.v1": "a deliberate counter-example, not an action id" },
+    }));
+    commit("a still-consumed functions exception");
+    const excepted = gate("--base", "main");
+    assert.equal(excepted.code, 0, excepted.out);
+
+    put("AGENTS.md", validText);
+    commit("the functions counter-example goes away");
+    const stale = gate("--base", "main");
+    assert.equal(stale.code, 1, stale.out);
+    assert.match(stale.out, /the exception for `functions\.evaluate\.v1` in AGENTS\.md is not needed any more/);
+  });
+}
+
 test("an id declared in a manifest or package.json of a plugin counts as defined", () => {
   branch("manifest-id", () => {
     put("plugins/native/alpha/package.json", JSON.stringify({ name: "alpha", capabilities: ["alpha.declared_in_manifest"] }));

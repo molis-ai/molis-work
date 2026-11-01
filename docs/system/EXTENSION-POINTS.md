@@ -34,7 +34,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 | # | 方向 | 现在 | 目标 | 靠什么到目标 |
 | --- | --- | --- | --- | --- |
-| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
+| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（另需 SSOT 文档一行）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（另需 SSOT 文档一行）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
 | 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
 | 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 11 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
@@ -54,25 +54,27 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 ### 3.1 内置插件
 
-**怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤在 `skills/molis-plugin-dev/host.md`「内置插件：经 Plugin Runtime 装配」：包 `plugins/native/<id>`（Manifest、动作、界面贡献、客户端、`en.ts`）、监督器条目、包自己的 `src/registration.ts`（目录条目，`builtin-plugins.ts` 由 `node scripts/generate-plugin-registry.mjs` 生成）。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
+**怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤见[插件开发手册](../../skills/molis-plugin-dev/host.md)「内置插件：经 Plugin Runtime 装配」：在 `plugins/native/<id>` 包中提供 Manifest、动作、界面贡献等，并从自己的 `src/registration.ts` 导出 `registration`；项目级插件在同一登记声明 `project_runtime: { create, package_name, factory_export }`，包的 `package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`，再运行 `node scripts/generate-plugin-registry.mjs`。`apps/local-host/src/project-plugins.ts` 按登记统一装配，不为新插件修改；生成的 `builtin-plugins.ts` 也不手改。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
 
-**现在要改**（包外 11 处，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
+下表及其成本数字保留 2026-10-08 基线与各行注明的后续修订，不是新增插件的操作清单；没有逐项重新计量。新增步骤按上面的现行入口与插件开发手册执行，旧宿主装配和词典接线只用于解释历史成本。
+
+**现在要改**（历史基线包外 11 处，另需 SSOT 文档一行）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；SSOT 的 owner 文档行在两端都不计入源码/配置处数；现行门禁名单从生成登记读取，新插件不手改。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
 | 登记 | `scripts/workspace-packages.mjs` | W5-02 PR-C（PG-069）后不改：登记表读各插件 `package.json` 的 `molis-work` 块，两个应用的插件依赖由登记推导（`registeredPluginDependencies`） |
 | 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析）。PR-C 后由 `node scripts/generate-plugin-registry.mjs` 写，`--check` 核对，与生成文件 import 的包一致时门禁不计 |
-| 登记 | `apps/local-host/src/project-plugins.ts` | import 和 `PluginSupervisorEntry`（`trust: HOST_BUILD_TRUST` 加 `nativePluginReleaseArtifact`）；要宿主端口时在同一文件构造 |
+| 登记 | `apps/local-host/src/project-plugins.ts` | 历史接线：当时在此 import / 构造 `PluginSupervisorEntry`；现行新增项目插件在自己的 `registration.project_runtime` 登记，由此文件统一装配，不为新增插件改此文件（PG-067） |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
 | 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数；宿主自己画的（Coding 一族、Text Stats、Characters）仍走 `plugin_stages` |
-| 名单 | `apps/workbench/src/i18n/en.ts` | `import` 并 `...X_EN`；没有它，英文界面仍是中文 key |
+| 名单 | `apps/workbench/src/i18n/en.ts` | 历史 Host `L()` / `_EN` 总表路径需要 import / 展开。现行 Runtime 插件按实际使用的 Manifest `ui.messages` / `ui.translations` 声明界面消息和翻译（Text Stats 同时使用两者），不因新增插件而把插件词典接入 Host 总表；Host 自有 `L()` / `_EN` 文案仍走原 import / 展开及翻译检查路径，旧未迁路径也未据此宣称已迁移 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
 
 Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（`palette.ts`、`icons.ts`、`catalog.ts` 三处按插件手写的名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）已随 PG-075 删除，现在是 2026-10-25 起的 9 个：插件的图标是视图的 `icon`，tab 组的颜色是视图的 `hue`，两者都写在 Manifest 里，设计系统不再保留插件名单。）（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
 **个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
-**目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
+**历史目标推演：1（另需 SSOT 文档一行）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，另需 SSOT 的 owner 文档一行；门禁名单从生成登记读取，不手加。其余由声明产生，下面五项都做到才是 1：
 
 - W3-06：模型服务、Home 库服务、Home 级 Runtime 实例（2026-10-07 已定：个人插件装在一个 Home 级实例，按项目启用照旧，数据留在 `{home}/<id>/<id>.db`）。Home 级实例已经有了：Issue 插件（#396）在目录条目（现在是它自己的 `registration`）上声明 `runtime: { scope: "home" }`，宿主的 `home-plugins.ts` 装配它；W3-06-F 复用这个实例（spec §1 2026-10-12），登记位置按用户 2026-10-14 的决定写进 `AGENTS.md`。
 - W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts`（PG-036 C9 已删）和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
@@ -190,7 +192,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/local-host/src/plugin-terminal-runtimes.ts`（终端配方：命令名与续接参数，T-148 起只此一份）、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
 
 外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 
@@ -204,7 +206,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **怎么加**：此前没有写。中文原文是 key，英文是词典（`apps/workbench/src/i18n.ts`）。现行做法：在 `i18n.ts` 里加语言值，并让 `isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin` 认识它；在 `renderLocaleSwitch` 和设置页的语言开关里加一项；客户端 `L` 本身只查 `MOLIS_WORK_MESSAGES[key] ?? key`；`apps/workbench/src/i18n.ts` 的 `clientI18nScript` 注入的几张表（`catalogJson` 写 `MOLIS_WORK_MESSAGES`，`pluginWordsJson` 写 `MOLIS_WORK_PLUGIN_WORDS`，`pluginTabTitles` 写 `MOLIS_WORK_PLUGIN_TITLES`）里按 `locale === "en"` 取英文词典、`pluginTabTitles(currentLocale() === "en")` 也是，要一并改；给「现在」列出的 53 份词典各补一份同形的目标语言词典并在汇总处接入；跑 `tests/i18n.test.ts`。
 
-**现在：15 个代码文件 + 53 份词典。** 加语言**主要位置，不是穷尽清单**：`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L` 都在 `apps/workbench/src/i18n.ts` 的 `createWorkbenchLocale` 里（经 `apps/local-host/src/web-locale.ts` 转出），还有按 `"en"`/`"zh"` 写死的 `resolveWebLocale`（`apps/workbench/src/i18n.ts:98-99`，Accept-Language 只认 `en`/`zh`）、服务端 `L`（`:128`）、`catalogJson` 与 `pluginWordsJson`（`:141`、`:146`）；设置页写死两个语言的是 `settings-appearance.ts:19` 的 `(["zh", "en"] as const)` 与「中文／English」的三元、`settings-directory.ts:91` 的 `htmlLang().toLowerCase().startsWith("en") ? "en" : "zh"`、`settings-renderer.ts:95` 的 `currentLocale() === "en" ? "en" : "zh"`；`settings-directory.ts:23` 另有一份自己的 `localeSwitchHref`，不是 `createWorkbenchLocale` 那份；下面是字面量文件与词典的份数，字面量文件数不等于必改位置数。代码里 `"zh" | "en"` 字面量在 15 个 `.ts` 文件（`git grep -l '"zh" | "en"' -- '*.ts' ':!tests'`）：工作台 12 个（`apps/workbench/src/i18n.ts` 的 `WebLocale`；`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts` 的 `localeSwitchHref`；`assistant-board-frame.ts`、`assistant-board-specimens.ts`、`assistant-board-text.ts`、`board-plugin-rows.ts`、`condition-frame.ts`、`condition-samples.ts`、`condition-specimens.ts`、`primitive-catalog.ts` 的样本与目录渲染 `lang`），`packages/contracts/src/platform/actions.ts`（`ActionLocale`）与 `plugin-registration.ts`（样本语言的 `"zh" | "en" | "mixed"`）2 个，`plugins/native/issues/src/naming.ts`（标题语言判断）1 个。两项开关：`WEB_LOCALES` 在 `apps/workbench/src/i18n.ts`（`:42`，转出到 `apps/workbench/src/index.ts`、`apps/local-host/src/web-locale.ts`），`isWebLocale` 校验也在 `apps/workbench/src/i18n.ts`。词典 53 份：工作台 21 份（`apps/workbench/src/i18n/` 下 19 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `apps/workbench/src/functions/en.ts`），插件 32 份（20 个插件各一份 `src/en.ts`，加 Goals 的 12 份 `src/*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
+**现在：15 个代码文件 + 53 份词典。** 加语言**主要位置，不是穷尽清单**：`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L` 都在 `apps/workbench/src/i18n.ts` 的 `createWorkbenchLocale` 里（经 `apps/local-host/src/web-locale.ts` 转出），还有按 `"en"`/`"zh"` 写死的 `resolveWebLocale`（`apps/workbench/src/i18n.ts:98-99`，Accept-Language 只认 `en`/`zh`）、服务端 `L`（`:128`）、`catalogJson` 与 `pluginWordsJson`（`:141`、`:146`）；设置页写死两个语言的是 `settings-appearance.ts:19` 的 `(["zh", "en"] as const)` 与「中文／English」的三元、`settings-directory.ts:91` 的 `htmlLang().toLowerCase().startsWith("en") ? "en" : "zh"`、`settings-renderer.ts:95` 的 `currentLocale() === "en" ? "en" : "zh"`；`settings-directory.ts:23` 另有一份自己的 `localeSwitchHref`，不是 `createWorkbenchLocale` 那份；下面是字面量文件与词典的份数，字面量文件数不等于必改位置数。代码里 `"zh" | "en"` 字面量在 15 个 `.ts` 文件（`git grep -l '"zh" | "en"' -- '*.ts' ':!tests'`）：工作台 12 个（`apps/workbench/src/i18n.ts` 的 `WebLocale`；`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts` 的 `localeSwitchHref`；`assistant-board-frame.ts`、`assistant-board-specimens.ts`、`assistant-board-text.ts`、`board-plugin-rows.ts`、`condition-frame.ts`、`condition-samples.ts`、`condition-specimens.ts`、`primitive-catalog.ts` 的样本与目录渲染 `lang`），`packages/contracts/src/platform/actions.ts`（`ActionLocale`）与 `plugin-registration.ts`（样本语言的 `"zh" | "en" | "mixed"`）2 个，`plugins/native/issues/src/naming.ts`（标题语言判断）1 个。两项开关：`WEB_LOCALES` 在 `apps/workbench/src/i18n.ts`（`:42`，转出到 `apps/workbench/src/index.ts`、`apps/local-host/src/web-locale.ts`），`isWebLocale` 校验也在 `apps/workbench/src/i18n.ts`。词典 53 份：工作台 21 份（`apps/workbench/src/i18n/` 下 19 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `apps/workbench/src/judgment-rules/en.ts`），插件 32 份（20 个插件各一份 `src/en.ts`，加 Goals 的 12 份 `src/*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
 
 **用户 2026-10-08 的决定（#16，`specs/repository-anti-corruption/spec.md` §1「界面翻译」，PR #312；用户没有选推荐的「中文作键」）：全部换成稳定键。** 约 164 个源文件改用稳定键（spec 该行给的数字），词典按所有者分，CI 查缺失、无用与冲突；第 5 波的「翻译按主人分」改成「稳定键」，并先做一个插件样板（W5-03）。换完以后键不再是中文原文，所以中文也要有自己的词典，加语言的做法随之变成：语言清单加一项，每个词典所有者各交一份该语言的词典；上面「怎么加」里 `catalogJson`、`pluginWordsJson`、`pluginTabTitles` 和服务端 `L` 里按 `"en"` 取英文词典的判断因此要改成按词典查。「怎么加」和「现在」写的是换成稳定键之前的做法和数字。
 
@@ -235,11 +237,11 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 | # | 功能 | 现在 | 目标 | 补扩展点后再推演 | 补什么 |
 | --- | --- | --- | --- | --- | --- |
-| F1 | 风险记录插件 | 12（带 AI 建议时 13），外加 2 | 1，外加 2 | 1，外加 2 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
+| F1 | 风险记录插件 | 12（带 AI 建议时 13），另需 SSOT 文档一行 | 1，另需 SSOT 文档一行 | 1，另需 SSOT 文档一行 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
 | F2 | Coding 质量保证 | 2 | 0 | 0 | X-5（项目库基线由 owner 声明）；端口走服务 |
 | F3 | 新的外部服务（自带 OAuth） | 11 | 1 | 1 | W5-11 |
 | F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
-| F5 | 自动化规则（事件触发动作） | 约 21（推演），外加 2 | 6，外加 2 | 6，外加 2 | X-1、X-6 加 4 项已有切片 |
+| F5 | 自动化规则（事件触发动作） | 约 21（推演），另需 SSOT 文档一行 | 6，另需 SSOT 文档一行 | 6，另需 SSOT 文档一行 | X-1、X-6 加 4 项已有切片 |
 | F6 | 调用诊断（按调用编号追查、导出诊断包） | 约 13（推演） | 3 | 3 | W3-01、W3-02（W5-13 在宿主里已铺好） |
 
 ### 4.2 逐个推演
@@ -247,8 +249,8 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 **F1 风险记录插件**（`specs/risk-plugin/spec.md`：记风险、关联 Goal 与会话、动作进共同目录、只走 Plugin Runtime、插件只提供内容）。
 
 - 现在：3.1 的 12 处（外加 SSOT 一行），包外全是平台登记。关联 Goal、会话、消息、成果走公开对象引用，不 import 其他插件，包外 0 处；到期复查提醒用 `defineDueRemindersAction`，搜索用 `defineSearchEntriesAction`，都在包内。要在 Goal 事件里以「顾虑」引用风险，要改 `plugins/native/goals`，属功能自己的产品集成（Goals 是构建期例外），不计。带「建议处置办法」的 AI 动作会因缺 `services.model` 多一个宿主端口文件，所以是 13。
-- 超过目标：登记 8、名单 4；外加的 2 现在和目标里都在，不算超出。
-- 补什么：3.1 列出的四片加 X-1。**再推演：1，外加 2**（`scripts/workspace-packages.mjs` 的一条登记；应用依赖要按 X-1 生成才不再手改，否则是 4）。
+- 超过目标：登记 8、名单 4；SSOT 文档一行在现在和目标里都不计入处数；门禁名单由生成登记读取，不是手改项。
+- 补什么：3.1 列出的四片加 X-1。**再推演（按当时模型）：1，另需 SSOT 文档一行**（`scripts/workspace-packages.mjs` 的一条登记；应用依赖要按 X-1 生成才不再手改，否则是 4）。
 
 **F2 Coding 质量保证**（`specs/coding-quality-assurance/spec.md`：自检、交叉评审、对抗评审，设置放在 Coding，结论写回关联 Goal 的事件）。
 
@@ -272,12 +274,12 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F5 自动化规则**（`docs/modules/automation.md`：Trigger、Rule、Run；Automation 是动作的触发来源，不是另一套执行系统）。
 
-- 现在（推演，约 21，外加 2）：
+- 现在（推演，约 21，另需 SSOT 文档一行）：
   - 新 Module 7（含表）；
-  - 一个「自动化」插件：12（外加 2）；
+  - 一个「自动化」插件：12（另需 SSOT 文档一行）；
   - 触发源：现有可订阅的事件总线只给经 Plugin Runtime 启动的插件（`skills/molis-plugin-dev/host.md`「接到插件事件总线」），Goals、Feed 等构建期插件不发布插件事件，所以要给规则引擎一个读领域事件的端口（读项目库的 `LocalSqliteJournal` 事件流），宿主装配和合同各一处：2。
 - 执行规则里的动作：沿用现有受众（`ActionAudience`，`packages/contracts/src/platform/actions.ts`，目前是 `user | agent | workflow | mcp | plugin`），不新增受众（新增要改这个联合并复核所有按受众分支的位置）；无人在场执行的授权语义要在设计稿里单独定。
-- 补什么：X-6「领域事件订阅口」（读项目库事件流、按声明订阅）；插件部分靠 3.1 的四片加 X-1；Module 部分靠 3.10 的目标。**再推演：6，外加 2** = Module 4 + 插件 1 + 订阅口 1。
+- 补什么：X-6「领域事件订阅口」（读项目库事件流、按声明订阅）；插件部分靠 3.1 的四片加 X-1；Module 部分靠 3.10 的目标。**再推演：6，另需 SSOT 文档一行** = Module 4 + 插件 1 + 订阅口 1。
 
 **F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
 

@@ -3,14 +3,16 @@ import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
-import { renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderCharacters, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderGoalsReadRequest, renderGoalsPageRequest } from "@molis-ai/molis-work-plugin-goals/page";
+import { matchPageRoute } from "./page-routes.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
-import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+import { renderGoalArtifactContext } from "./artifact-library-http.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -122,17 +124,14 @@ export function createLocalGoalsReadHttp(ports: {
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
-    const resolved = resolveGoalsReadRoute(url.pathname, url.searchParams);
-    if (!resolved) return false;
-    if ("error" in resolved) { sendJson(response, resolved.status, { error: resolved.error }); return true; }
-    const route = resolved.route;
-    const view = await readWebView();
-    const selected = route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection);
-    const renderedGoalsRead = renderWorkbenchGoalsReadRoute(route, {
+    const renderedGoalsRead = await renderGoalsReadRequest(request.method, matchPageRoute(url), async route => {
+      const view = await readWebView();
+      return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
+    }, ({ view, selected }) => ({
       refresh: (goalId, collection) => renderMolisWorkRefreshFragment(selected, goalId, collection === "archive", collection === "trash"),
       momentum: (goalId, collection) => renderMolisWorkMomentumFragment(view, goalId, collection),
       document: (goalId, collection) => renderGoalDocumentFragment(selected, goalId, collection),
-    });
+    }));
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
         sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error });
@@ -153,8 +152,8 @@ export function createLocalGoalsReadHttp(ports: {
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
-    const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
-      request.method, url.pathname, readWebView,
+    const renderedGoalsPage = await renderGoalsPageRequest(
+      request.method, matchPageRoute(url), readWebView,
       async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
         const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;

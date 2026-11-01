@@ -141,16 +141,16 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ## 3. BL-711 Home 包就地升级（T-141）
 
-### 现状
+### 当前实现与验收边界
 
-- 项目里的签名包已经就地升级：`installed-plugin-host.ts` 第 207 行传的是 `lifecycle(recordFor(...) ? 'upgrade' : 'install', ...)`（BL-623）。
-- Home 有两处拒绝，都答 `plugin.state_invalid`（「先卸载（可保留数据），再装新包」）：确认处 `plugin-install-service.ts` 第 164 行，宿主 `home-installed-plugins.ts` 第 178 行。
-- 回滚在两个范围都被拒：`apps/local-host/src/installed-plugin-lifecycle.ts` 第 152 行。
-- 钉住这些拒绝的用例：
-  - RAC-1505～1507：`tests/home-installed-plugins.test.ts` 第 155～199 行；
-  - RAC-1683：`tests/security-invariants-sandbox-home-instance.test.ts` 第 125～157 行；
-  - 来自 T-055、T-155、T-175。
-- 设置页的预览只拿当前项目的列表比对版本（`apps/workbench/src/settings-plugins.ts` 第 191～192 行的 `current.find(...)`），装 Home 包时不和 Home 行比。
+T-141 已完成隔离 Home 中的本地实现与作者验收，独立原件核验及生产差异二审已通过；最终配套门禁、准确头 CI Full 与采用待结。BL-916、PG-011 的其它余项不随本片关闭。
+
+本轮主线同步：2026-11-01 统筹指定已采用 main `be0c777002509b6eb4e2c2187eb3a5765a5440f6`（含 T392 私有路径迁移与 T146 设置样式减重）作为 T141 当前普通合流基点，保留原实现及 `e8aa2a8ed1027150d828cbd0fb0206789412b30f` 的 RAC-959／RAC-2606 断言修复。匹配构建、实际资源与普通门禁按此组合记录，已有行为证据按实际输入核抵；新头 CI Full 与采用仍由统筹结算。
+
+- Home 与项目的签名包共用 `installed-plugin-lifecycle.ts` 的升级路径；`plugin-install-service.ts` 在保存前检查发布者、命名空间、范围、严格递增版本和兼容声明，`home-installed-plugins.ts` 按真实安装记录选择 install/upgrade。安装身份及数据保留，批准、密钥与提示词随版本更新；失败补偿恢复旧状态，禁用安装升级后仍禁用。
+- 集成声明在 `integration-registry.ts` 的原队列内先完整检查冲突，再同步替换；来源旧回执的提供方检查保留到同一调用的后续平台写入，升级或停用后连失败记账也拒绝。较新的启用不被旧目录查询失败停用。真实签名 source、Runtime Feed、重启与失败恢复由 `tests/sandbox-integration-home.test.ts`、`tests/integration-registry.test.ts` 验证。
+- `settings-plugins.ts` 按 preview 的范围比对 Home 或项目列表，初装与升级均以文本显示服务名、ID 和精确 origins。`tests/plugin-trust-home-upgrade.e2e.test.ts` 通过真实 File、预览、取消与确认核对版本、声明及持久事实；局部 view 与受控密钥输入证据分别陈述。
+- RAC-1505～1507、RAC-1682/1683 改为断言可升级及原拒绝边界；同版、降版、缺兼容、另发布者、双向范围更换仍拒绝。Home 与项目的用户主动 rollback 仍拒绝（D1），与失败后的内部补偿分开。
 
 ### 做完是什么
 
@@ -239,6 +239,18 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 停用：不出现；
   - 恢复错误：出现，打开后是不可用页，原因取 T-138 给的 `recovery_error`；
   - 卸载：消失。
+- **页面通路与数据**（T-401，已做；核对时发现沙箱包的视图没有 `workbench` surface，Home 一侧也没有框内页面，所以比原稿多一块）：
+  - 包的 stage 与项目里的 agent 生成插件用同一份区块标记（`installed-stage-section.ts`）和同一个框内渲染器（`renderPluginDocumentShell`，installed 模式）；Home 一侧由 `plugin-builder/agent-surface.ts` 的 `renderHomePackageDocument` 出这个页面（放在这里，因为项目一侧的同类页面也在这个文件，且门禁数「内置插件包名在它自己的包之外被点名的文件」，新文件不许加），调用走 Home 自己的 `/api/plugins/<id>/call`，页面授权用既有的 `pluginPagesFor(home).open(id, null, 人)`，不新增路由路径、动作或合同；
+  - `/plugins/<id>` 是 Home 插件页（返回、停用/启用按钮）里框一个 iframe，`?frame=workbench` 是框内页面本身；
+  - `HomePluginHost.registered()` 末尾并入 `HomeInstalledPlugins.pages()`（在跑的，或没停用但没起来的、有 `recoveryErrors` 的；停用、隔离、卸载、集成包不在），所以 `/plugins/<id>`、项目页的 stage 与页面情境都认它；stage 的区块 id 就是插件 id，也是 Home 登记它用的键，所以 Dock 的名字、标签条的图标按这个 id 找到包的名字和它选的图标，与别的 Home 插件一样（真 Chrome 里看到过用构建号作 id 时 Dock 只显示 `app-…`，改了）；
+  - 工具位的数据是 `HomePluginHost.navigation()`（按名字排）：到达页走 `ChooserArrival.home_plugins`，项目页走视图的 `home_plugin_nav`，都只在服务端渲染成 HTML，不进动作、MCP、工作流或插件能读到的任何输出；
+  - **发布记录读不到的包**（包文件被搬走，`releaseFor` 为空）没有清单可画，不出现在工具位和页面里，只在插件管理里看到 T-138 的原因；
+  - **只认当前被信任的发布者**：`pages()` 与停用、隔离、卸载一样，在发布者被撤销后不再列出该包（发布者撤销会把它的包停掉，原因写在插件管理里），所以工具位、`/plugins/<id>` 和项目里的 stage 同时消失；
+  - **没起来的包**（恢复错误）：工具位照列，`/plugins/<id>` 是一页写出原因的页面，页面上没有「启用」按钮（它没被停用，按钮会误导）；`?frame=workbench` 不框它；
+  - **Home 的工具位是本人的，不随项目隐藏**（#679）：项目页的工具位也列它，不因当前项目而变；
+  - **进程刚启动时的第一个请求**：Home 在第一次被请求时才起来，包的页面可能就是第一个请求。`/plugins/<id>` 与 `?frame=workbench` 遇到没登记的键，先等 Home 起来再查一次（`ready()`），仍没有才是 404；实测到达时间：没有包 74 ms，有一个包第一个请求 185 ms，之后 7～12 ms；
+  - **框内页面的安全头与项目一侧不同**：Home 一侧的框内页面带页面策略（`frame-ancestors 'self'`）和 `X-Frame-Options: SAMEORIGIN`；项目里 agent 插件的框内页面没有 CSP，只有 `X-Frame-Options: SAMEORIGIN`。两边的 `<iframe>` 标记都不写 `sandbox`，被隔离的是包自己的页面（沙箱里跑，页面授权是一次性的 `page_id`）；
+  - **已知限制**：标签条上包的图标一律是 `package`（BL-912，要改页面脚本字节数）；发布者撤销与「在跑但不被信任」之间的瞬时窗口没有公开接口可测（`consentsChanged` 未导出），只有撤销之后的结果被断言（RAC-2622.1）；
 - **图标**（D4）：
   - 包的 stage 视图允许带 `icon`，这是 §1 名单里「包自己写的」一块；
   - 取值只能是平台命名图标集里的名字（SDK 的 `PluginIconName`，`packages/plugin-sdk/src/ui/icon.ts`）；不写就画 `package`；
@@ -247,10 +259,11 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - RAC-2620：装一个 Home 包后，到达页的 Home 工具位有它，图标是包选的名字，没写就是 `package`（T-142：包选的图标进 Host 重建的清单、不写就没有 `icon` 键；T-401：到达页的工具位）；
   - RAC-2621（T-401）：只有 stage 视图的包不出侧栏页签，到达页的工具位有它，从那里打开的是它的 stage 视图；
   - RAC-2622（T-401）：停用后它从工具位消失；
-  - RAC-2623（T-401）：恢复错误时它出现，打开后的不可用页写出原因；
+  - RAC-2623（T-401）：恢复错误时它出现，打开后的不可用页写出原因（有清单可画的：见上面发布记录读不到的一条）；
   - RAC-2624（T-401）：卸载后消失；
   - RAC-2625（T-142）：写了图标集之外的名字，装包时以明确的错误码被拒，不画默认图标；
-  - RAC-2626（T-401）：运行期导航数据只给本人的页面：agent、MCP、工作流、插件看不到也读不到；
+  - RAC-2626（T-401）：运行期导航数据只给本人的页面：agent、MCP、工作流的动作视图里没有它，插件没有宿主发的调用身份就看不到任何目录（S-15）；
+  - T-401 二审后补的编号（同属上面八条，只是更细）：RAC-2620.1（区块标记与工具位的写法，Linux 上跑）、RAC-2621.1（进程刚启动的第一个请求）、RAC-2621.2（框内页面只给在跑的包）、RAC-2621.3（页面策略与不加 `sandbox`）、RAC-2621.4（没登记的键在第一个请求也是 404，Linux 上跑）、RAC-2622.1（发布者被撤销）；用到沙箱的在 `tests/home-plugin-stage-navigation.test.ts`（只在 macOS 上跑，因为签名的沙箱包只能在 macOS 装），不用包的在 `tests/home-plugin-stage-pages.test.ts`；
   - RAC-2653（T-142）：SDK 的运行期图标名数组与 design-system 的图标集逐项相等；
 
 ### 选项与推荐（图标，D4 定①）
@@ -316,6 +329,11 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - **`SANDBOX_SERVICE_FATE`**：`imageGeneration` 从 `'entry'` 改成 `'given'`，NOT_GIVEN 的 `model_configuration` 一行删掉（`packages/plugin-sandbox/src/services.ts`）。
 - **模型设置的 `save` 怎么限**（统筹裁定，第 11 节 R2）：沙箱包的 `save` **不许写 `base_url` 和 `connection_id`**（`api_format` 与指向自己的专用供应商也一并不许），只能在宿主已经批过、已经启用的供应商与模型里选（`provider_id`、`model_id`）。S-93、S-95 的来源审批因此不被绕开。T-143 开工**第一步**先核 `assertTarget` 对 `base_url` 与连接配对能挡到哪一步，结论写进 PR，并把每个被拒的字段写成一条拒绝用例。要给沙箱包自定义供应商，要走来源批准，另议、不在本单。
 - 生图：只给命令，不给查询；照项目的计量；返回的 base64 字节设上限，数字在开发单里定，照 pg017 片 §3.7 的取法。
+- **T-143 实际做法（2026-10-31，统筹裁定 A/B/C 之后）**：清单只带由 `effects` 派生的可选权限行，不带 `model_configuration`、`image_generation` 块（块写了仍被 `SANDBOX_NOT_GIVEN` 拒）；模型设置端口是宿主给 Home 包建的 `model.configuration`（不要 Manifest 动作），偏好存在 `<Home>/plugin-files/<安装>/.model-settings/`（不另开 Home 顶层目录，否则 Home 快照清单会拒；包的声明文件夹以字母数字开头，碰不到它），不记账本、不写 `.owner`；生图 namespace `imageconn-<32 位>`、专用供应商 `sbx-<32 位>` 由安装号 `install_id` 的 SHA-256 派生（与偏好文件、主人文件同一个键；二审改，原先按 `plugin_id`），两个前缀保留（`openInstalledPluginLibrary`、账本枚举的 `holderOf`、`pluginModelFor` 的 `custom_provider.provider_id`、`pluginImageGenerationFor` 的 `store_name` 各一条拒绝用例）；`bind`/`generate` 必须是已钉在同一来源的连接，不首次钉住；字节上限 4 张、合计 360 KiB（base64 约 480 KiB，在通道单次响应上限 1 MiB 的一半以内）。`action.permissions` 的语义是「调用者必须持有」，所以已登记动作的 `permissions` 写派生的权限名，调用者必须自己持有（二审改，原先的 `scoped` 副本会替调用者补上权限，已删；页面调用看这个安装的 grants 有没有覆盖动作的全部 `permissions`——人没批可选行时整个动作对人不可见，`draw` 这类操作也派生出 `model:invoke`；Agent、MCP、插件要有各自的授权），客户端仍查 Manifest 声明和人的授权。**接续状态**：原七条未执行 complete/query/generate，RAC-2628/2655 尚未验收；下列执行合同补齐真包链，不能用分层测试替代。
+- **2026-10-31 接续执行合同（统筹 6549207475）**：包格式已经有经校验的 `prompts.json`，缺口是定义与 broker 未收到可信指令。仅已验证 `declared.kind === 'app'` 且 `runtime.scope === 'home'` 的包，把同一 release prompt 映射用于 `PluginDefinition.instructions` 与 broker extras（可信字段覆盖 extras）；project/trial/integration 不扩围，不改 SDK、包格式或拒绝规则。Home 登记统一原 installId scope，保持 source、正文、版本、state 一致；保留人的覆盖、停用/重启/卸载、失败补偿，不新增旧 scope 兼容。
+- **RAC-2628 接续证明**：真实签名包从 preview/confirm/grants、动作目录、Runtime、Seatbelt、broker、生产 model client 到 HostCompleteText 接缝；接缝执行 beforeDispatch。精确断言正文/data、人的覆盖、未知指令、合法 query 调 complete 和缺 caller 权限拒绝、等待中撤权/停用后不写业务记录；同安装只有一份声明，停用重开仍停用、卸载重开不复活，有 prompts 的失败安装清声明。首红须是 instruction_unknown，不能用编译/夹具失败代替。
+- **2026-10-31 生命周期补修（统筹接受 T-143 工单）**：真实 complete 到达 Host 后，旧 broker 正常 RPC dispose 中止了 Runtime held-result 保存的 request signal，导致后续存储与动作返回被误拒。仅 `broker.ts` 的 `model.complete` 增加可解除的取消转发，持续至 invoke 最终检查退出，在 finally 内同步解绑再 dispose；真实 timeout/cancel 保留原 reason，原 caller/grant/active/Host binding 和 held-result 检查不改。RAC-2628 补正常与普通失败可提交、在途取消/超时、模型已返回但 exit guard 等待的真实超时，以及 RPC 结束后取消/撤权仍拒绝写入；不改 Runtime、SDK、runner、生产时限或公开合同。
+- **RAC-2655 接续证明**：真实签名包 bind→inspect→generate 经共享 Prologue 到独立 HTTPS 假厂商；临时 CA、精确 SAN、进程内 exact DNS（promises 与 callback 两路均命中），未知外部名拒绝。未信任 CA 与错误 SAN 各自因真实 TLS 失败且 HTTP=0；正确证书正面核一次 POST、独立图片 bytes、revision、metered。保持生产 TLS/来源/pin/权限；不 mock fetch、不更换 inference、不使用真实凭据。全部在临时系统 HOME/config/cache 与 Molis Home、file SecretStore、ad-hoc 构建和公共槽中完成，完整文件 jobs1/retries0；原七条数量不再是验收标准。本机不跑 Full，最终准确头 Full、独立验证和用户验收分开记录。
 - 补 RAC-239 的用例（沿用原号，不占新号）：删项目时，平台按安装与声明清掉沙箱插件的数据，沙箱插件不用交 `purge` 函数。这是项目数据的清理，与下面的卸载是两件事，别并在一起。
 - **卸载**（含保留数据与否）时，账本里的归属行与专用供应商登记一并清掉；偏好文件和生图存储按「保留数据」的选择去留。删项目不清它们：这两项是 Home 实例专有的，数据在 Home，不是项目的。
 - 预览：模型一项列在 `permissions`，模型设置与生图列在顶层 `effects` 的新键里（第 1 节）。
@@ -372,22 +390,28 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 正文是包里的资源文件（包格式的文件名单多一个目录，例如 `agent/`，每条一个文件），Manifest 的块只用包内相对路径引用它；这与合同「正文在包里，不在 Manifest」一致，也不算 D6 被拒的「另加单独的声明文件」，不用再问用户；
   - 条数与字数上限照 `prompts.json` 的口径（至多 64 条、每条 8000 字），在开发单里定；路径必须在包内、不许越界。
 - **`agent` 与 `methods` 两块都只收 `{ name, purpose, body }`**（三审建议 L，统筹采纳）：`body` 是包内资源文件的相对路径。它们是简化形状，**不是** `AgentManifest` 的子集，所以包里写不了任何带权限的字段：`execution`、`host_tools`、`subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port`（`agent` 一侧），`tools`（`AgentSkillDeclaration.tools`，`plugin-agent.ts` 第 126～132 行，`methods` 一侧），多出名字、用途、正文引用以外的任何键都以明确的错误码拒绝，这就是 D5 的「不加权限」。
-- **宿主怎样派生合同里的形状**：读包时先把这两块取出来，各自校验（路径、条数、字数），由宿主派生成 `AgentManifest` 的 `roles`、`prompts` 与 `skills`；`role_id`、`skill_id` 由 `plugin_id` 加名字派生，`version` 取包的版本，`name` 取包给的名字，`summary` 取用途，`workspace` 固定为 `none`（纯推理角色，不需要授权目录，`plugin-agent.ts` 第 39～41 行），`tools` 固定为空数组，`host_tools`、`execution` 等一律不写；派生的 `agent`、`methods` 放进 `sandboxPluginManifest` 重建，再整份过 `parsePluginManifest`，最后与包里的清单比较（第 1 节）。这样一个只读、不带工具的角色是否还有用，T-144 开工第一步核，没用就只许 `methods`，回统筹。
-- 安装预览逐条列出名字与正文前 N 字（N 在开发单里定）。`plugins.install.preview` 升到 `@4`，加顶层可选字段（第 1 节）。
+- **宿主派生的形状与真实用法**：`agent`、`methods` 各收 `{ name, purpose, body }` 的可选数组，合计至多 64 条；`body` 引用包内资源，正文至多 8000 个 UTF-16 单元。宿主派生角色的 `roles`、`prompts` 与顶层 `methods`，不复制到 `agent.skills`、`agent_skills`；`workspace` 固定为 `none`，顶层方法 `tools` 固定为空数组，`host_tools`、`execution` 等一律不写。角色资料和方法都以有来源材料供消费者选择、读取，UI 区分两种 kind；携带角色正文不获得 Agent 执行入口、不增加 `agent:run`、目录、MCP 或子 Agent 权限。角色不能只登记而没有实际取材路径。
+- **正文的精确版本**：完整包 SemVer 复用 `AgentDefinitionSource.plugin_version`，与发布者签名身份、`plugin_id`、kind、条目 id 组成默认正文引用，不另建版本字段或版本计数器。派生 Agent 声明里的数字 1 仅为该投影内部占位，不改变公共 Agent 数字版本含义；签名正文的精确读取、覆盖默认更新提示、历史和采用记录均认完整来源引用。角色 prompt 沿用现有人的覆盖，实际正文标 `effective` 与 `user_revision`，不把人的改文称为发布者签名原文；顶层方法不新增编辑功能。
+- **派生 id 与校验**：同一 SDK 函数以 `plugin_id`、kind、完整 name 的确定编码做完整 SHA-256，保留原名称作显示，既不截短名称也不截短摘要；不同 plugin/kind 的同名不得混用。对外引用必须满足现有 200 长度的消费合同，名字与用途按 UTF-16 单元限 80/300。原 wire Manifest 与签名文件保持原样验证，完整运行 Manifest 由宿主派生后校验，两种形状不直接作整份相等比较。
+- **既有集成包拒绝合同保持**：`readSandboxIntegrationPackage` 的首次清单解析在现有 `validated('清单', …)` 内完成，非法声明仍以 `plugin.declaration_invalid` 拒绝；不重复解析，不改变包内清单一致性、固定形状检查或返回对象（RAC-893）。
+- **登记与恢复**：旧 prompts.json 指令、新角色和顶层方法由同一个完整 registration 组装函数提供，执行器及 Home/项目安装启停回调使用同一安装 scope，回调不能再以仅 prompts 的登记覆盖它。覆盖/history/uses 的签名默认来源引用由既有 AgentDefinitions owner 持久保存；重启继续使用当前来源和人的有效修订，不另建正文目录或身份账本。
+- 安装预览逐条列出 kind、名字与正文前 200 个 Unicode 码点；`plugins.install.preview` 升到 `@4`，加顶层可选 `agent_bodies`。升级按全文比较并标新增、变化、移除，不能因开头相同漏报正文变化。
 - 正文按提示注入面处理，对照 `docs/system/SECURITY-INVARIANTS.md` 里提示注入的几行：
-  - 只作数据进别的 Agent 的上下文，带来源标记（哪个插件、哪个版本、哪个发布者）；
+  - 名字、用途、目录摘要和正文都只作带固定不可信声明的 JSON 数据进入消费者上下文，保留真实插件、完整版本、发布者及有效用户修订，不进入系统提示或工具定义；
   - 不升级权限：Agent 用这段正文时，调用的仍是它自己被授权的动作；
-  - 升级后正文换了，预览里要能看出来。
+  - 读取按当前工作范围关联实际安装/世代与签名来源，旧引用失效就拒绝，不悄悄换最新正文；send 到实际 handoff、运行中 input deliver、按需工具读取的最后副作用检查各复核本次来源；失效后不新增正文交付或采用成功记录；
+  - 已有效交付的资料保留为该轮历史，不声称能从模型撤回，不因源插件撤销新增跨插件整轮取消；新读取、新注入再核当前来源；
+  - 升级后正文换了，预览里要能看出来；项目升级按已有链验证，Home 就地升级不借用未采纳的 T-141。
 - 删掉 NOT_GIVEN 的 `agent` 一行。
 - 可检验：
-  - RAC-2636：名单内的 `agent`、`methods`（`{ name, purpose, body }`）能装，宿主派生出合同形状（不是拒绝）；
+  - RAC-2636：名单内的 `agent`、`methods` 能装且可实际取材，混合旧 prompts.json 的包在全部安装/启停回调、重启及失败恢复后仍保有完整登记；最大长度中文/代理对名称能列出、选择和读取，同名跨 kind/plugin 不混用（不是拒绝）；
   - RAC-2637：名单外的键**每个一例**被拒：`agent` 一侧的 `execution`、`host_tools`、`subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port`，`methods` 一侧的 `tools`；
   - RAC-2638：正文引用不是包内相对路径（绝对路径、`..`、缺文件）被拒；
   - RAC-2639：超过条数或字数上限的包被拒；
   - RAC-2640：预览列出每一条的名字与正文开头（不是拒绝）；
-  - RAC-2641：正文进上下文时带来源标记（不是拒绝）；
-  - RAC-2642：正文里写「调用某某动作」不会让 Agent 多一项授权（断言拒绝）；
-  - RAC-2643：包升级后正文换了，预览里能看出来（不是拒绝）。
+  - RAC-2641：显式选择和按需读取的实际模型输入都有完整签名来源，角色人的覆盖带 effective/user_revision，名字、用途与正文均在数据中，伪标记不能逃出字符串（不是拒绝）；
+  - RAC-2642：正文要求未授权动作/目录访问仍被代码拒绝；已读正文但尚未实际 handoff、input deliver 和工具最后检查时取消/停用/撤销/换安装，均不交付迟到正文、不记无效采用或执行副作用；有效交付后的历史保留，不新增整轮取消；
+  - RAC-2643：包升级后包括第 200 字以后的变化也可在预览辨认；确认前仍旧正文，失败恢复不泄漏新正文；完整包版本 1.1.0→1.2.0 的角色覆盖/history/default_updated/reset/uses 经重启保持准确，旧引用不自动换版（不是拒绝）。
 
 ### 选项与推荐（正文怎样给，D5 定①）
 

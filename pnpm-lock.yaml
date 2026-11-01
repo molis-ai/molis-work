@@ -73,9 +73,9 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:modules/context-ledger
-      '@molis-ai/molis-work-module-functions':
+      '@molis-ai/molis-work-module-judgment-rules':
         specifier: workspace:*
-        version: link:modules/functions
+        version: link:modules/judgment-rules
       '@molis-ai/molis-work-module-private-work-context':
         specifier: workspace:*
         version: link:modules/private-work-context
@@ -344,9 +344,9 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:../../modules/context-ledger
-      '@molis-ai/molis-work-module-functions':
+      '@molis-ai/molis-work-module-judgment-rules':
         specifier: workspace:*
-        version: link:../../modules/functions
+        version: link:../../modules/judgment-rules
       '@molis-ai/molis-work-module-private-work-context':
         specifier: workspace:*
         version: link:../../modules/private-work-context
@@ -730,7 +730,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  modules/functions:
+  modules/judgment-rules:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

@@ -2,6 +2,7 @@ import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } fr
 import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-private-work-context";
 import { createModelProviderTables } from "./model-provider-store.js";
+import { createPluginTerminalPanelTables } from "./plugin-terminal-panels.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, catalogErrors, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
@@ -16,6 +17,7 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
   createRuntimeContextSetupRequestTable(db);
   createRuntimeContextSuggestionRejectionTable(db);
   createDesktopPanelTables(db);
+  createPluginTerminalPanelTables(db);
   createModelProviderTables(db);
   metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION);
 }

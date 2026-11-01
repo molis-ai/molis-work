@@ -108,7 +108,7 @@
 **判断规则（judgment rule）**
 
 - 定义：一条已发布、版本不可变的规则：输入一段内容（至多 8000 字），由 TypeSafe 服务（Jev）按规则返回结构化判断，形态是 `choice`（选一个键）、`noul`（是非加概率）或 `score`（分数）三种之一。草稿不在动作目录里，发布后注册为动作 `functions.published.<function_key>`（类别 `judgment`，权限 `functions:invoke`）。每次调用留一条判断记录（`JudgmentRecord`，库表 `function_judgments`）。判断只推荐，不取得执行授权。
-- 归属：`modules/functions`（草稿、版本、样本、判断记录）；编辑器在 `apps/workbench/src/functions`，从「能力 → 能力库 → 编辑判断规则」进入 `/capabilities/rules`。没有独立的 Functions 插件。
+- 归属：`modules/judgment-rules`（草稿、版本、样本、判断记录）；编辑器在 `apps/workbench/src/judgment-rules`，从「能力 → 能力库 → 编辑判断规则」进入 `/capabilities/rules`。没有独立的 Functions 插件。
 - 取舍：界面本来就叫「判断规则」。「函数」一词同时被「函数调用」（调用动作）和工作流程里的「模板转换」占用，所以文档不用。
 - 不是：工作流程的「模板转换」（衔接类型，代码里叫 `function`，不调用模型）；也不是已被删除的 Functions 插件。
 
@@ -202,7 +202,7 @@
 - **工具**必须加限定：MCP 工具（动作的呈现）、Agent 工具（内置 Agent 一轮里的工具，如 `ask-user`、`find-capabilities`）、执行工具（界面「AI 与执行工具」页里的外部 Runtime）。
 - **后台作业**必须加限定：已受理的后台执行（`services.background.start`，一次声明了 `background_job` 的命令受理后继续做完，随那次调用的授权，撤权就停，S-18）；随激活作业（`services.background.keep`，随插件这次激活存活，属于安装，S-52）。
 - **事件**必须加限定：插件事件（运行中的插件经 `services.events.publish` 发，落项目库、按订阅者续投）；宿主事件（宿主自己发，如定向的 `host.review.settled@1`、广播的 `host.workspace.changed@1`，只投给收件安装、不落库，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，X-6 的另一种来源，还没有订阅口）；页面里的 DOM 事件（`CustomEvent`，登记在 `packages/contracts/src/platform/dom-events.ts`）。
-- **Function**：在代码里同时指判断规则（`modules/functions`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
+- **Function**：在代码里同时指判断规则（`modules/judgment-rules`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
 
 ### 2.6 讨论（项目讨论）
 
@@ -213,7 +213,7 @@
 
 ### 2.7 术语与翻译键
 
-- 现状：翻译键就是中文原文。`apps/workbench/src/i18n/en.ts` 的 `EN: Record<string, string>` 由工作台和各插件的词典展开合成，条目形如 `"连接不可用": "Connection unavailable"`。所以改一个界面用词要同时改源码里的文字和每份词典的键，同一句中文在不同词典里还可以有不同的英文，例如「判断规则」在 `apps/workbench/src/functions/en.ts:148` 是 Judgment rules，在 `plugins/native/lingguang/src/en.ts:47` 是 Rules，在 `plugins/native/workflows/src/en.ts:151` 是 Judgment rule。
+- 现状：翻译键就是中文原文。`apps/workbench/src/i18n/en.ts` 的 `EN: Record<string, string>` 由工作台和各插件的词典展开合成，条目形如 `"连接不可用": "Connection unavailable"`。所以改一个界面用词要同时改源码里的文字和每份词典的键，同一句中文在不同词典里还可以有不同的英文，例如「判断规则」在 `apps/workbench/src/judgment-rules/en.ts:148` 是 Judgment rules，在 `plugins/native/lingguang/src/en.ts:47` 是 Rules，在 `plugins/native/workflows/src/en.ts:151` 是 Judgment rule。
 - 决定（2026-10-08，`specs/repository-anti-corruption/spec.md` §1「界面翻译」，用户没有选推荐）：全部换成稳定键，词典按主人分，CI 查缺失、无用与冲突；路线第 5 波的「翻译按主人分」改成「稳定键」，先做一个插件样板（W5-03）。
 - 术语怎样对应键（规则；样板落地时按实际调整，调整在同一个 PR 里改本节）：
   1. 键标识概念和位置，不含措辞；中文和英文措辞都是词典的值。所以第 4 节的界面用词获批后只改词典的值，键、代码标识符和文档都不动；不获批就保持现值。英文值跟中文值同一批审批，例如「能力」今天译作 Capabilities（`apps/workbench/src/i18n/gap-en.ts:109`）。
@@ -251,7 +251,7 @@
 | --- | --- | --- |
 | `project_plugin_id` | 项目里启用与隐藏、插件切换器、工作面都用的短 id（`ProjectPluginId`） | `goals`、`form`、`plugin-builder` |
 | `manifest.plugin_id` | 插件的身份键，安装记录、事件订阅、发行物留存、提示词覆盖（`owner_id`）等都以它为键；签名变了同样视为另一个插件，旧授权、存储和绑定不继承（`docs/platform/PLUGIN-PLATFORM.md` §2） | `io.molis.work.todo` |
-| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口（含按声明链接的插件分组的小标题）里的 `plugin_title` 取它（`apps/local-host/src/artifact-type-registry.ts:180,155,163,199`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:78`），动作提供方的标题也取它（`packages/plugin-runtime/src/action-provider.ts:34`），所以会出现在界面上 | `Forms`、`待办` |
+| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口（含按声明链接的插件分组的小标题）里的 `plugin_title` 取它（`apps/local-host/src/artifact-type-registry.ts:180,155,163,199`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-library-http.ts:78`），动作提供方的标题也取它（`packages/plugin-runtime/src/action-provider.ts:34`），所以会出现在界面上 | `Forms`、`待办` |
 | 界面显示名 | `manifest.ui.views[].title`，插件切换器和标签页标题用它 | `Forms`、`角色` |
 | 目录与包名 | `plugins/native/<目录>`，`@molis-ai/molis-work-plugin-<目录>` | `plugins/native/todo` |
 
@@ -309,14 +309,14 @@
 **U1　动作叫「能力」还是「动作」**
 
 - 现状：界面把动作目录叫「能力」：顶栏「能力」「打开能力服务」（`apps/workbench/src/arrival/shell.ts`），页面「能力库」（`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-sections.ts`），创作台「能力板」（`plugins/native/plugin-builder/src/agent-studio.ts`），角色页「角色可选能力」（`modules/characters/src/actions.ts`），助理提示词里的「可用能力目录」（`apps/local-host/src/assistant/assistant-service.ts`），报错「能力未注册或版本已失效」（`packages/kernel/src/action-service.ts`）。在 `apps/workbench/src`、`plugins/native`、`apps/local-host/src` 里，「能力」出现 264 行，「动作」200 行（只数 `.ts/.mts/.mjs`，不含测试和英文翻译文件；含注释、提示词和动作说明，不全是界面文字）。
-- 同一页里两个词并用：判断规则编辑器里既有「从动作库加入」「原动作不可用」（`apps/workbench/src/functions/client-render.ts`），又有「搜索能力」「没有匹配的能力」（`apps/workbench/src/functions/ui.ts`、`client-render.ts`）。
+- 同一页里两个词并用：判断规则编辑器里既有「从动作库加入」「原动作不可用」（`apps/workbench/src/judgment-rules/client-render.ts`），又有「搜索能力」「没有匹配的能力」（`apps/workbench/src/judgment-rules/ui.ts`、`client-render.ts`）。
 - 同一组页面两个名字：顶栏进入的是「能力 · 系统服务」，设置里同样四页（能力库、服务连接、对外接入、调用记录）却放在「工具与接入」组下（`apps/workbench/src/settings-sections.ts`）。该组还含「AI 与执行工具」，范围比前者大，所以这一条不要求合并，只请确认。
 - 建议：界面统一用「能力」指目录里的条目（它已是顶栏、页面名和设置项的名字）：把「动作库」「原动作」两处改成「能力库」「原能力」；页面上给用户的下一步仍叫「动作」（「页面动作」「推荐动作」）。代码与文档仍写 Action，术语表记录「界面叫能力」。
 - 备选：界面全部改成「动作」；保持现状。
 
 **U2　界面里出现的「Functions」改成「判断规则」**
 
-- 现状：Functions 插件已不存在，但这些用户可见的文字还在用这个名字：`apps/local-host/src/connector-access.ts`（错误提示「请在使用此连接的模型、Images、Functions 或 Coding 设置中……」）、`apps/local-host/src/connector-directory.ts`（TypeSafe 连接的说明与用途标签）、`apps/local-host/src/host-connector-methods.ts` 和 `apps/workbench/src/functions/client.ts`（「Functions 请求失败」）、`apps/local-host/src/plugin-builder-surface.ts`（「请在 Functions 设置中配置 TypeSafe Key」）、`apps/workbench/src/settings-connector-guide.ts`、`apps/workbench/src/settings-connectors.ts`（含按钮「查看 Functions」，实际链到能力库）。英文界面的对应译文随之改。
+- 现状：Functions 插件已不存在，但这些用户可见的文字还在用这个名字：`apps/local-host/src/connector-access.ts`（错误提示「请在使用此连接的模型、Images、Functions 或 Coding 设置中……」）、`apps/local-host/src/connector-directory.ts`（TypeSafe 连接的说明与用途标签）、`apps/local-host/src/host-connector-methods.ts` 和 `apps/workbench/src/judgment-rules/client.ts`（「Functions 请求失败」）、`apps/local-host/src/plugin-builder-surface.ts`（「请在 Functions 设置中配置 TypeSafe Key」）、`apps/workbench/src/settings-connector-guide.ts`、`apps/workbench/src/settings-connectors.ts`（含按钮「查看 Functions」，实际链到能力库）。英文界面的对应译文随之改。
 - 建议：改成「判断规则」。
 - 备选：保持现状。
 
@@ -328,7 +328,7 @@
 
 **U4　消费场景在界面叫「用途」或「消费场景」**
 
-- 现状：规则编辑器的步骤叫「选择用途」（`apps/workbench/src/functions/ui.ts`），能力库页和一批报错写「消费场景」（`apps/workbench/src/capabilities.ts`、`apps/local-host/src/functions-actions.ts`、`apps/local-host/src/local-host.ts`）。
+- 现状：规则编辑器的步骤叫「选择用途」（`apps/workbench/src/judgment-rules/ui.ts`），能力库页和一批报错写「消费场景」（`apps/workbench/src/capabilities.ts`、`apps/local-host/src/judgment-rules-actions.ts`、`apps/local-host/src/local-host.ts`）。
 - 建议：用户可见处统一写「用途」，把报错和能力库页里的「消费场景」改掉；文档与代码仍写消费场景。
 - 备选：统一成「消费场景」；保持现状。
 
@@ -411,13 +411,13 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `library-commands.ts`）、`GOALS_BOARDS_SQL`（原 `GOAL_BOARDS_SCHEMA_SQL`，S8 搬到 `plugins/native/goals`） | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`initializeBoard` 系 14（`validateManagedBoard`、`readManagedBoard` 已在 S8b 删改，2026-10-24）、`BoardSnapshot` 13；测试：`initializeBoard` 系 58。**2026-10-28 已做（W5-14 片 5）**：Goals 包内 `requireBoard` → `requireGoalsLibrary`，12 个源码文件、24 处（`GoalsCommandContext` 的方法，加 `goal-tree-decision.ts`、`goal-tree-submission.ts` 两个类里的同名私有方法）；没有测试引用它；`getBoard`、`GoalsBoardRecord` 在合同导出里、`boardExists` 在库层，错误码 `goals.board.not_found` 属 R-B3，都没动。 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
 | R-A2 | 文件 `plugins/native/goals/src/module/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件。**2026-10-29 已做（W5-14 片 6）**：`board-entry-capabilities.ts` 已在 #523（`f74e29d86`）删除；其余四个用 `git mv` 改为 `module/library-commands.ts`、`library-actions.ts`、`snapshot-query.ts`、`tests/goals-library-actions.test.ts`，内容不变（测试只改临时目录前缀）。`actions.ts`、`tests/goals-actions.test.ts` 已有，直接去前缀会撞名，所以这两个和 `module/` 里的命令文件用 R-A1 的「目标资料库」叫法 `library-`；`snapshot-query.ts` 不撞名，直接去前缀。文件里的 `MolisWorkCommands`、`goalsBoardActions`、`readMolisWorkSnapshot` 等标识符属 R-A1，没动 | 引用这些路径的 README 和 `docs/` 同步 |
 | R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 9 个文件、测试 3 个。**2026-10-26 已做（W5-14 片 4，用户 Q1 批准合同导出名）**：上面各名改为 `JudgmentRuleRecord` 等，`FunctionAuthoring*` → `JudgmentRuleAuthoring*`；同文件里同族的 `FunctionActionMap`、`FunctionSceneMap`、`Functions{CredentialSource,Outcome,PreviewRecord,SettingsStatus}` → `JudgmentRule…`，`FUNCTION_AUTHORING_SUBJECTS`、`isFunctionDestinationId` → `JUDGMENT_RULE_AUTHORING_SUBJECTS`、`isJudgmentRuleDestinationId`。`SYSTEM_*_FUNCTION_KEY` 常量名和 `function_key` 字段是 R-B2，没动。`FunctionAuthoringBehavior` 现叫 `JudgmentRuleAuthoringBehavior`，改成 `…Option` 随 R-A5 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
-| R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 源码 15 个文件、测试 20 个文件导入这个包名 | Home 里的 `functions` 库名属合同，见 R-B2 |
+| R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 原规模为 2026-10-08 的估计。**2026-11-01 已做（T-392）**：私有包与 37 个实现路径原子迁到 `judgment-rules`，活动 import、23 条 dist 导入及现行文档同片更新；公开 `contracts/modules/functions`、导出名、动作与权限保持 | Home 的 `functions` 库路径和快照 owner `modules/functions` 保持，见 R-B2 |
 | R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | **2026-10-26 已做（W5-14 片 3）**：文件 `behavior-catalog.ts` → `recommendation-catalog.ts`，`liveHostFunctionAuthoringCatalog` → `liveHostJudgmentRuleAuthoringCatalog`（与 R-A3 的 `JudgmentRule*` 一致，宿主内部名）。**2026-10-29 已做（T-111）**：合同导出的 `JudgmentRuleAuthoringBehavior` → `JudgmentRuleAuthoringOption`，12 个 `*_BEHAVIOR_ID` → `*_OPTION_ID`（值不变），源码 7 个文件、测试 6 个。没改：编辑器目录的字段 `behaviors`、`behavior_id`、`behavior_ids`，与落库、进动作 schema 的 `suggested_behavior_ids` 同名，分开改易错，记 BL-900；`behavior_id` 字样（含 `suggested_behavior_ids`）源码 35 个文件、测试 29 个（2026-10-28 数，口径见本节开头） | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
 | R-A6 | `AgentMethodView`、`AgentMethodRegistration`、`METHOD_TOOLS`、`inspectMethodDeclarations`、`method_owner`、`codingMethods`/`pagesMethods`/`todoMethods` 及其所在文件（`plugins/native/coding/src/methods.ts`、`plugins/native/pages/src/methods.ts`、`plugins/native/todo/src/roles.ts`）。**2026-10-26 已做（W5-14 片 2）**：`codingSkills`/`pagesSkills`/`todoSkills`/`issuesSkills`（Issues 同型，表里原先没列），`coding|pages|issues/src/methods.ts` → `skills.ts`；`todo/src/roles.ts` 里还有 Todo 的角色与提示词，不是只放 Skill 的文件，所以文件不改名，只改常量。其余前五项 **2026-10-29 已做（T-111）**：`AgentMethodView`、`AgentMethodRegistration` → `AgentSkillView`、`AgentSkillRegistration`，`METHOD_TOOLS` → `SKILL_TOOLS`（值不变），`inspectMethodDeclarations` → `inspectSkillDeclarations`，agent-host 授权里的 `method_owner` → `skill_owner`（内存字段，不落库） | `AgentSkill*`、`SKILL_TOOLS`、`inspectSkillDeclarations`、`skill_owner`、`*Skills`、`skills.ts` | 前五项源码 7 个文件，`codingMethods`/`pagesMethods`/`todoMethods` 11 个文件 | 只含类型、函数和文件名。Manifest 的 `methods` 键、`assistant.methods.*`、字段 `method_id` 和助理物料种类值 `"method"` 都是合同或已存数据，见 R-B5 |
 | R-A7 | （已作废，2026-10-23）目录 `plugins/native/work` 与包 `@molis-ai/molis-work-plugin-work` 随 Sessions 下线（SC-4）一起删除，改名不再需要 | — | — | 重做 Sessions 时按 BL-177 另起包名 |
-| R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
+| R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/judgment-rules/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
 | R-A9 | （已作废，2026-10-25）UI 描述里的 `plugin_id` 不再由插件写，平台按 Manifest 填（3.3 表后第 2 条） | — | — | PG-098 |
-| R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`（`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 已于 2026-10-26 删改，W5-14 片 1）；`plugins/native/goals/src/contract/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
+| R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/judgment-rules/src/store.ts` 的局部变量 `board`（`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 已于 2026-10-26 删改，W5-14 片 1）；`plugins/native/goals/src/contract/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
 
 ### R-B　持久化或合同里的标识符（改名等于改数据或合同）
 
@@ -461,10 +461,10 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | 旧称 | 现行文档里的位置 |
 | --- | --- |
 | 判断场景 | `docs/platform/PLUGIN-DEVELOPMENT.md`、`plugins/native/inbox/README.md`、`tooling/plugin-cli/README.md`、`.cursor/rules/plugin-dev-skill.mdc`、`skills/molis-plugin-dev/{SKILL,elements,examples,host}.md`、`specs/action-architecture/spec.md` |
-| 判断函数 | `docs/SSOT-MATRIX.md`、`docs/platform/PROLOGUE-AI.md`、`modules/functions/README.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/BACKLOG.md`、`specs/action-architecture/spec.md` |
-| 共同目录、能力目录、能力板、能力库 | `docs/SSOT-MATRIX.md`、`docs/modules/actions.md`、`docs/modules/shelf.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`docs/platform/PROLOGUE-AI.md`、`packages/plugin-sdk/README.md`、`apps/workbench/src/functions/README.md`、`plugins/native/{alchemist,coding,feed,inbox}/README.md`、`skills/` 下 6 个文件 |
+| 判断函数 | `docs/SSOT-MATRIX.md`、`docs/platform/PROLOGUE-AI.md`、`modules/judgment-rules/README.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/BACKLOG.md`、`specs/action-architecture/spec.md` |
+| 共同目录、能力目录、能力板、能力库 | `docs/SSOT-MATRIX.md`、`docs/modules/actions.md`、`docs/modules/shelf.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`docs/platform/PROLOGUE-AI.md`、`packages/plugin-sdk/README.md`、`apps/workbench/src/judgment-rules/README.md`、`plugins/native/{alchemist,coding,feed,inbox}/README.md`、`skills/` 下 6 个文件 |
 | 函数调用 | `docs/platform/PROLOGUE-AI.md`、`specs/action-architecture/spec.md` |
-| Functions 插件 | `modules/functions/README.md`、`plugins/native/inbox/README.md`、`apps/workbench/src/functions/README.md` |
+| Functions 插件 | `modules/judgment-rules/README.md`、`plugins/native/inbox/README.md`、`apps/workbench/src/judgment-rules/README.md` |
 | 方法（指 Skill） | `docs/horizontal/agent-host.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`plugins/native/coding/README.md`、`specs/coding-plugin/spec.md` |
 | 行为（指推荐选项） | `docs/platform/PLUGIN-DEVELOPMENT.md`、`packages/plugin-sdk/README.md`、`plugins/official-integrations/catalog/README.md`、`skills/molis-plugin-dev/{elements,host,integrations}.md`、`specs/action-architecture/spec.md` |
 | Board（指项目） | `docs/mcp.md`、`docs/mcp.en.md`、`plugins/native/goals/README.md` |

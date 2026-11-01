@@ -540,7 +540,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
   - 按 id 查项目：`web-server.ts` 3 处、`web-request.ts`、`system-agent-service.ts`、`project-arrival-http.ts` 原来捕获一切当「没有这个项目」。现在经新文件 `catalog-lookup.ts` 的 `projectOrNull`，只有目录的 `catalog.project_not_found` 读成没有，别的错误（目录打不开、读不了）在这里记一条 `projects` / `catalog_lookup_failed`（只记键），再交给调用方，由各边缘按惯常的 500 答（目录类已是巨大单元，不往里加方法）。这是行为变化：项目简介（`project-arrival-http.ts`）原来读成 404，现在是 500；侧栏浏览器的项目检查原来是 404，现在经 Web 服务最后的 catch 成 500；群聊的项目连接（`im-server.ts`）原来一律 403，现在目录读不了是 500（`im.server.catalog_unavailable`），没有这个项目仍是 403；进程不崩，下一个请求照常答。
   - 定时轮次：`web-project-schedulers.ts` 的 Feed 与定时任务两种轮次、`project-schedulers.ts` 启动时的首轮、`schedule-task-runner.ts` 取消失败，原来静默；现在记 `schedule` 区域。每 30 秒一轮的失败只在开始失败时记一条，跑通过后再失败才再记（`host-log.ts` 的 `repeatingFailure`，Coding 后台清单与终端记录共用）。
   - 连接目录：`connector-mcp-actions.ts` 重启后某个连接登记失败按连接 id 记，其余照常登记；`external-mcp-actions.ts` 重启副本写不进、恢复失败，`project-host.ts` 启动时 `connectorMcp.sync()` 失败，都记 `connections` 区域。
-  - 成果预览：`artifact-actions.ts`、`side-files-http.ts`、`artifact-native-plugin-http.ts` 的主人预览失败仍显示为没有预览；「不能读」（`forbidden`）与「不在了」（`not_found`）是答案不记，别的按成果类型记（`logPreviewFailure`）。
+  - 成果预览：`artifact-actions.ts`、`side-files-http.ts`、`artifact-library-http.ts` 的主人预览失败仍显示为没有预览；「不能读」（`forbidden`）与「不在了」（`not_found`）是答案不记，别的按成果类型记（`logPreviewFailure`）。
   - 其余：Characters 解析不了的记录按 id 记；已安装插件的入口读不出来时页面照开、记一条；终端记录写不进每个进程记一次；Coding 后台清单读不了的库按项目记（开始失败时一条）。2026-10-21 起（C4，PG-043）这条换了做法：Coding 的清单是它自己的查询 `coding.home.background-tasks@1`，宿主 `home-background-tasks.ts` 经首页聚合（S-49）问每个已打开的项目，读取器 `listCodingBackgroundSessions` 与 `holdsCodingSessions` 已删；停用或没授权的项目安静跳过，读不了的按项目记一条（`home` 区域 `background_tasks_unreadable`，开始失败时一条），仍是 W5-13-06 管的那件事，测试换成经真实宿主与插件的写法（`tests/host-log-catches.test.ts`）。Alchemist 读不到绑定账户的令牌（只记键，不记错误文字和任何可能带令牌的值；界面上该不该显示「读不到」而不是「未连接」是界面改动，不在本片，记为后续）、Images 绑定连接对这个地址被拒或读不到密钥，仍按无令牌处理，但记一条。项目关闭时搜索、放置关不掉也记，不挡其余部分关闭。
   - `web-onboarding-input.ts` 的空 `catch {}` 写明真实原因（空 catch 4 → 3）。
 - 留下并写明真实原因（不写「忽略」）：队列串接（`connector-api-oauth.ts`、`connector-mcp.ts`、`mcp-settings-store.ts`：上一个的失败已经答给它自己的调用方）、收尾关闭（`connector-mcp.ts` ×4、`material-web.ts` ×2、`workspace-git-index.ts`、`git-operations.ts` ×2、`alchemist-native-plugin-http.ts`）、「没有就是答案」（`action-call-log.ts` ×3、`git-status.ts`、`git-worktrees.ts`、`onboarding.ts`、`jelly-source-providers.ts` ×3、`personal-planning-methods.ts`、`notion-oauth.ts` ×2、`feed-history-release.ts`、`web-assets.ts`、`home-plugin-http.ts`、`resident-host-request.ts`）；`project-host.ts` 原来的「closing anyway」改成记录。
@@ -1119,7 +1119,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 2026-10-08 | 术语表收敛范围（§4.15，弹窗） | 文档一个定义、内部名跟着改、界面用词另列审批（推荐）；只改文档；代码和界面一次合并 | 文档一个定义、内部名跟着改、界面用词另列审批 | 用户看得见的用词变化先列清单经用户批准再发 |
 | 2026-10-08 | 「不留兼容」何时结束、读兼容的合同流程何时开始（#15，弹窗） | 第一个装到开发机外的版本（推荐）；有外部使用者的合同现在就开始；每个合同各自决定 | 第一个装到开发机外的版本 | 1.0 或第一个外部用户装上的版本开始，日期写进 `docs/system/CONTRACT-CHANGES.md`；之前照旧「不留兼容」 |
 | 2026-10-08 | 宿主设置里的写入只走 HTTP（#7，弹窗） | 留作管理接口并登记例外（推荐）；改成只给用户的动作；改成助理和 MCP 也能调的动作 | 留作管理接口并登记例外 | 每条写进 CALL-CHAINS 例外表并附删除条件；只把删除项目与 MCP 的删除统一；连接器路由以后搬进各自的官方接入插件 |
-| 2026-10-08 | CI 产品子集是否挡合并（#14，弹窗） | 先不挡、两周后并入（推荐）；马上挡；单独设成必过检查 | 先不挡、两周后并入 | 单独作业跑约两周、隔离不稳定用例后加进 Verify；不改分支保护。补记（W2-16，2026-10-09，实现时加的，不是用户另定的）：清单与隔离文件自己的规则在 `pnpm health:check` 里，随挡合并的 `architecture-boundaries` 检查，所以现在就挡合并（作业本身不挡）：重命名或删除清单里的用例、给清单里的用例加 macOS 专有或 live 的用法，要在同一个 PR 里改 `tests/ci-product-subset.txt`；若连这点也不要，把这些规则只放进 `product-subset` 作业 |
+| 2026-10-08 | CI 产品子集是否挡合并（#14，弹窗） | 先不挡、两周后并入（推荐）；马上挡；单独设成必过检查 | 先不挡、两周后并入 | 单独作业跑约两周、隔离不稳定用例后加进 Verify；不改分支保护。W2-16 实现时清单与隔离文件自己的规则先进入挡合并门禁，作业当时尚不挡。本次按 2026-11-01 窄合同落实并入：`product-subset` 与 `security-invariants` 是 Verify 的九项必过结果之二，合并队列、直推、每晚和手动运行整清单；可信已验 push 复用原队列结果。PR 保留原 some 定向、whole 及选择故障整套回退；Verify 仅在 PR、`test-selection` 明确 success 且对应 job 的 mode 为 none 时接受该 job 的 skipped，两个 mode 分别核，some/whole/空值/未知值或选择失败取消不能豁免。选择器直接列入 Verify needs 供判定，但与 queue-check 一样只是辅助依赖，不当作必须 success 的产品检查。沿 RAC-1760～1765、RAC-1900～1906 核真实 job if 与 Verify shell；保 T350 限时与缺 limit 断言。清单只删除当前 SI 已承接的重复文件，保总并集：本次 M 的 Product436/SI271 重叠28，去重后408/271、并集679；stage-pages留Product、project-catalog归SI、不恢复已删desktop-launch-args。原H曾提出的PR whole/故障跳过与手动探针opt-in不在本次采用，历史来源另留审计 |
 | 2026-10-08 | 界面翻译（#16，弹窗） | 中文作键、按主人分词典、CI 查（推荐）；全部换成稳定键；维持现状只查缺键 | 全部换成稳定键 | 用户没选推荐。约 164 个源文件改用稳定键，词典按主人分，CI 查缺失、无用与冲突；第 5 波「翻译按主人分」改成「稳定键」并先做一个插件样板 |
 | 2026-10-08 | 删旧皮肤时的视觉验收与页面体积上限（#17，弹窗） | 自动比对像素、超阈值给用户看（推荐）；每组截图都看、现在定上限；接受变化最后走查 | 自动比对像素、超阈值给用户看 | 关键界面 3 种宽度×亮暗两种主题；体积先冻结只许变小，旧皮肤删完再定真实上限 |
 | 2026-10-08 | 调用编号是否上界面（#5，弹窗） | 错误详情里显示短编号可复制（推荐）；只在诊断页；不上界面 | 错误详情里显示短编号可复制 | 「设置 › 诊断」按编号列出最近的调用 |
@@ -1834,7 +1834,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/functions` | 模块 | 17 | 1,969 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/judgment-rules` | 模块 | 17 | 1,963 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |

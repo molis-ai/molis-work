@@ -1,7 +1,7 @@
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { CapabilitiesView, CapabilitySection } from "@molis-ai/molis-work-app-workbench";
-import { functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { actionUsageActions, type ActionUsagesResult } from "./action-usage-actions.js";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";

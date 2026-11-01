@@ -1,5 +1,5 @@
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
-import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageBundle, type PluginPackagePayload, type PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageManifest, type SandboxAgentBodyDeclaration, type SandboxPackageManifest, type PluginPackageBundle, type PluginPackagePayload, type PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
@@ -52,7 +52,7 @@ export function packageFiles(publisher: string, change?: (files: PackageFiles, m
   return { files, manifest };
 }
 
-export function payloadOf(manifest: PluginManifest, files: PackageFiles): PluginPackagePayload {
+export function payloadOf(manifest: PluginPackageManifest, files: PackageFiles): PluginPackagePayload {
   const all: PackageFiles = { ...files, [SANDBOX_PACKAGE_FILES.manifest]: JSON.stringify(manifest) };
   return { schema_version: 1, manifest, files: Object.entries(all).filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString("base64") })) };
@@ -62,4 +62,18 @@ export function payloadOf(manifest: PluginManifest, files: PackageFiles): Plugin
 export function signedPackage(publisher = newPublisher(), change?: (files: PackageFiles, manifest: PluginManifest) => void, options: { pluginId?: string; version?: string } = {}): PluginPackageBundle {
   const { files, manifest } = packageFiles(publisher.identity, change, options);
   return signPluginPackage({ payload: payloadOf(manifest, files), signature: null, publisher_key: null }, publisher.signer);
+}
+
+/** A genuine signed text package for consumer, lifecycle and browser acceptance. */
+export function signedAgentPackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; scope?: "home" | "project"; broken?: boolean;
+  roles?: SandboxAgentBodyDeclaration[]; methods?: SandboxAgentBodyDeclaration[]; bodies?: Record<string, string>; compatibleFrom?: string[] } = {}): PluginPackageBundle {
+  const { manifest, files } = packageFiles(publisher.identity, undefined, options);
+  const roles = options.roles ?? [{ name: "审稿", purpose: "检查论据和结论", body: "agent/role.md" }], methods = options.methods ?? [{ name: "校对", purpose: "逐项核对事实", body: "agent/method.md" }];
+  const wire: SandboxPackageManifest = { ...manifest, agent: roles, methods, ...(options.scope === "home" ? { runtime: { scope: "home" } } : {}),
+    ...(options.compatibleFrom ? { upgrade_compatibility: { compatible_from_versions: options.compatibleFrom } } : {}) };
+  for (const entry of roles) files[entry.body] = options.bodies?.[entry.body] ?? "  检查文章的论据。\n保留空白。  ";
+  for (const entry of methods) files[entry.body] = options.bodies?.[entry.body] ?? "逐条核对可验证的事实。";
+  files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "summary", title: "摘要", purpose: "概括这份资料", body: "用一句话概括资料。" }]);
+  if (options.broken) files[SANDBOX_PACKAGE_FILES.entrypoint] = "throw new Error('signed-agent startup failed');\n";
+  return signPluginPackage({ payload: payloadOf(wire, files), signature: null, publisher_key: null }, publisher.signer);
 }

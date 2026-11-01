@@ -111,8 +111,8 @@ export interface AgentQueuedInput {
 }
 
 /**
- * The runtime's side. `beforeQueue` runs right before a supplement is kept in the session, once the round turned out to
- * have ended, and `beforeWithdraw` right before the round or the session is asked to give one back: the caller checks
+ * The runtime's side. `beforeQueue` runs right before each handoff: to a live round, and again before keeping it in the
+ * session when the round ended. `beforeWithdraw` runs right before the round or session is asked to give one back. The caller checks
  * there that it may still write.
  */
 export interface AgentInputsPort {

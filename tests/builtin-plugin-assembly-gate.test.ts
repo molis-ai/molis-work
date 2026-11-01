@@ -51,12 +51,10 @@ const APPROVED_BUILD_TIME_EXCEPTIONS: ReadonlyMap<string, string> = new Map([
 
 /**
  * `apps/local-host/src/<name>-native-plugin-http.ts` files that exist, each with why it is there (RAC-2651). One named for a
- * built-in plugin belongs to an approved build-time exception. `artifact` serves the platform's Artifacts routes since PG-077
- * (#1552); it is no plugin's, and keeps its old file name until BL-926 renames it.
+ * built-in plugin belongs to an approved build-time exception (RAC-2811).
  */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlyMap<string, string> = new Map([
   ["alchemist", "the routes of an approved build-time exception (APPROVED_BUILD_TIME_EXCEPTIONS)"],
-  ["artifact", "the platform's Artifacts routes since PG-077 (#1552), no plugin's; BL-926 renames the file"],
 ]);
 
 test("RAC-2650 every built-in catalog entry is started by a supervisor or is one of the two build-time exceptions the user approved", async () => {
@@ -100,13 +98,22 @@ test("no new <plugin>-native-plugin-http.ts route file appears in the Host", asy
 
 test("RAC-2651 a Host route file named for a built-in plugin belongs to an approved build-time exception", async () => {
   const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
+  const backlog = await readFile(join(repoRoot, "specs/BACKLOG.md"), "utf8");
   const files = await readdir(join(repoRoot, "apps/local-host/src"));
   for (const name of files.filter(file => file.endsWith("-native-plugin-http.ts")).map(file => file.slice(0, -"-native-plugin-http.ts".length))) {
     // A plural plugin directory may have had a singular Host file (artifact-… for artifacts), so both spellings are checked.
     const plugin = [name, `${name}s`].find(id => catalogIds.has(id));
     if (plugin) assert.ok(APPROVED_BUILD_TIME_EXCEPTIONS.has(plugin), `${name}-native-plugin-http.ts is named for ${plugin}, which is not an approved build-time exception`);
   }
-  for (const [name, why] of NATIVE_PLUGIN_HTTP_FILES) assert.ok(why.length >= 20, `${name}-native-plugin-http.ts: say why it is there`);
+  // RAC-2746, RAC-2747, RAC-2748: a platform route's exception needs an independent, still-open BACKLOG row; plugin exceptions use RAC-2650.
+  for (const [name, why] of NATIVE_PLUGIN_HTTP_FILES) {
+    assert.ok(why.length >= 20, `${name}-native-plugin-http.ts: say why it is there`);
+    if ([name, `${name}s`].some(id => catalogIds.has(id))) continue;
+    const row = /\bBL-\d+\b/.exec(why)?.[0];
+    assert.ok(row, `${name}-native-plugin-http.ts: the platform route exception must name its BACKLOG row`);
+    assert.match(backlog, new RegExp(`^\\| ${row} \\|`, "m"),
+      `${name}-native-plugin-http.ts: ${row} must still be open in specs/BACKLOG.md; once done, rename the platform route file and remove it from NATIVE_PLUGIN_HTTP_FILES`);
+  }
 });
 
 const hostSourceFiles = async (): Promise<string[]> => {

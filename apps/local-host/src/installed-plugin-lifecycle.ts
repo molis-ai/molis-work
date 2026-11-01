@@ -39,7 +39,7 @@ export interface InstalledLifecycleContext {
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
   expose(release: InstalledRelease, onFailure?: 'caller'): Promise<void>;
   withdraw(pluginId: string): void;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   /** Reminders and scheduled operations of one installation stop with it. */
   /** What the Host remembers of an uninstalled installation: its prompts and its code. */
   forget(pluginId: string, installId: string): void;

@@ -1,4 +1,4 @@
-import { createTypeSafeProvider, TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
+import { createTypeSafeProvider, TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-judgment-rules";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 
 interface TypeSafeInferenceAuthority {

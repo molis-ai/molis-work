@@ -6,7 +6,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
-import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 

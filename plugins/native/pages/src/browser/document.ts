@@ -87,7 +87,7 @@ export async function openDocument(page: PagesPage, record: PagesRecord | null |
 /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
 export const placed = (detail: PlacedDetail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
 
-const safeName = (page: PagesPage, value: string | undefined) => String(value || page.L("pages.doc.untitled")).replace(/[\\/:*?"<>|]/g, "_").slice(0, 80);
+const safeName = (page: PagesPage, value: string | undefined) => [...String(value || page.L("pages.doc.untitled")).replace(/[\\/:*?"<>|]/g, "_")].slice(0, 80).join("");
 
 const htmlDocument = (page: PagesPage, body: unknown) => {
   const title = escapeHtml(page.sel!.title);

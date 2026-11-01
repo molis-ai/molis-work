@@ -418,3 +418,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 00:02Z：T378经正常队列实际采用b6f92222f，根核patch-id及整树相同并发6550884059；自建临时工作树与准确本地分支已清、报告保留，T351原作者对象仍不动。仅关闭两处静态文档差异，不签W6动态/RAC11。当前24 open=16任务号/18任务PR+6其他；后继24～32不再次扣减。T143/T065最终main吸收最小方案正只读准备；T377 Full继续，后继仍等其实际采用。
 
 2026-11-01 00:17Z：根核存[T143/T065最小同步准备](plans/T143-T065-current-sync/PLAN.md)，两单仍等T377实际采用后冻结M/唯一writer；原行为证据保绑定，不重演无变化历史整批。W6[最终执行图](plans/W6-final-execution/PLAN.md)及[场景5](plans/W6-scene5/PLAN.md)、[场景7](plans/W6-scene7/PLAN.md)已存。场景7正常Todo链已授权验证线3在b6f92222f隔离实操，匹配构建及甲项目持久正控完成、全链未结；场景5由验证线4等T377采用。验证线1准备场景8无模型/无Memory最小Host重启链。T116后继A/B/C具体合同已修订，原书审窄核最后字段，T403闭包映射起草中；不新增本数/READY/完成声明。
+
+2026-11-01 00:19Z：T116后继[精确工程增量](plans/T116-followups/PLAN.md)及[独立书审](plans/T116-followups/REVIEW.md)核收。对象数据/HTML同实际owner、等待后失效拒绝；stage_surfaces仅列整页main，绘制贡献+surface对去重、stage读一次；普通reader与frame同批切objects并显式surface。PR1c/T402/T403保持原accepted范围和前置，T403端口映射正在补齐，三资源实测审批未发生。

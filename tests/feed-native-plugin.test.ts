@@ -10,6 +10,7 @@ import {
   feedQueryActions,
   feedManifest,
   feedUiContribution,
+  buildFeedStageUiModel,
   type FeedPluginRouteHandler,
   type FeedUiModel,
   type PersistedFeedDetailModel,
@@ -23,7 +24,6 @@ import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixt
 import { FEED_SAVE_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
-import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
 const primitives: FeedUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -530,10 +530,10 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
 });
 
 test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
-  const { buildFeedNativePluginModel } = createWorkbenchFeedProjectionRenderer({ L: text => text, dateTimeLocale: () => "zh-CN" });
-  const view = { route_prefix: "/projects/demo", demo: true, snapshot: { board: { project_id: "demo" } },
-    feed: { feed_items: [], sources: [], runs: [], out_rules: [] } } as Partial<MolisWorkWebView> as MolisWorkWebView;
-  const built = buildFeedNativePluginModel(view, "feed");
+  const built = buildFeedStageUiModel({ route_prefix: "/projects/demo", shown_plugins: ["feed"], primitives,
+    context: { project: { project_id: "demo", display_name: "Demo" }, demo: true, cli_availability: {} },
+    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
+      connector_auth: { github: { bound: false }, gmail: { bound: false } } } });
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);
   assert.equal("demo" in built, false, "the model has no demo flag for the plugin to draw a prototype from");

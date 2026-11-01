@@ -1,6 +1,6 @@
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "./artifacts/index.js";
-import { ownedContribution, type UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ownedContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "./artifacts/index.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";

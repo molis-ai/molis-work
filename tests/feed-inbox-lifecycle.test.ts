@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -8,7 +9,7 @@ import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, listFeedSourceCatalog, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, type SourcePullRuntime,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, type SourcePullRuntime,
 } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -63,7 +64,7 @@ test("a failed scheduled pull still moves the schedule on, so the source is not 
       content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
     }) as unknown as SourcePullRuntime;
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
-    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
     // The same wiring as the feed.sources.tick action: the sync runs under the scheduler's own authority guard.
     const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (candidate, key, authority) =>
@@ -101,7 +102,7 @@ test("a person's edit during a failing scheduled pull still refuses the bookkeep
       content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
     }) as unknown as SourcePullRuntime;
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
-    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
     const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (candidate, key, authority) =>
       await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now)
@@ -391,7 +392,7 @@ test("RAC-1214 a scheduled pull that fails judging after it committed spends its
     });
     const feedOptions = { captureJudgment: async () => { throw new ActionError("actions.execution_failed", "判断失败"); } };
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions);
-    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
     const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (candidate, key, authority) =>
       await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions)

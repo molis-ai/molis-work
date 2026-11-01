@@ -29,6 +29,7 @@ import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
 import { feedSourceCatalog } from "./source-catalog.js";
+import { feedSourcePresentationId } from "./source-presentation.js";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
@@ -150,6 +151,10 @@ export function createFeedPlugin(): PluginDefinition {
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
         stage: { sourceCatalog: vocabulary ? () => feedSourceCatalog(vocabulary) : noVocabulary, recommendations: sceneRuntime.selection.recommendations,
+          sourcePresentations: async sources => Object.fromEntries(await Promise.all(sources.flatMap(source => {
+            const id = feedSourcePresentationId(source);
+            return id ? [(async () => [source.source_id, await (vocabulary ?? noVocabulary()).presentation(id, { cursor: source.cursor })] as const)()] : [];
+          }))),
           inboxEntries: async () => {
             const actions = services.actions!;
             const availability = actions.availability(FEED_STAGE_INBOX_READ);

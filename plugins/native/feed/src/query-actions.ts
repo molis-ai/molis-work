@@ -5,6 +5,7 @@ import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/module
 import type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 import type { FeedItemRecord, FeedSnapshot, FeedSourceCatalogView } from "./projection.js";
 import type { FeedHydrate } from "./item-hydration.js";
+import type { SourcePresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };
 const item = { type: "object", required: ["item_id", "revision", "materials", "title"] };
@@ -23,6 +24,7 @@ export interface FeedStageData {
   readonly source_catalog: readonly FeedSourceCatalogView[];
   readonly connector_auth: ConnectorAuthStatus;
   readonly inbox_entries: readonly AttentionEntryRecord[];
+  readonly source_presentations: Readonly<Record<string, SourcePresentation>>;
 }
 export interface FeedReaderData {
   readonly item: FeedItemRecord;
@@ -44,8 +46,8 @@ const linkedContext = define<{ goal_id: string; item_id?: string }, { source_con
 export const feedQueryActions = {
   stage: define<Record<string, never>, FeedStageData>("feed.stage.read", "读取 Feed 舞台", "读取本实例的来源目录、消息、捕捉建议、连接与 Inbox 活跃事实", empty,
     { type: "object", properties: { snapshot: snapshotSchema, source_catalog: rows(["id", "name", "feed_url", "category", "category_label", "limitations"]),
-      connector_auth: connectionsSchema, inbox_entries: rows(["entry_id", "subject_type", "subject_id", "status"]) },
-      required: ["snapshot", "source_catalog", "connector_auth", "inbox_entries"], additionalProperties: false },
+      connector_auth: connectionsSchema, inbox_entries: rows(["entry_id", "subject_type", "subject_id", "status"]), source_presentations: { type: "object" } },
+      required: ["snapshot", "source_catalog", "connector_auth", "inbox_entries", "source_presentations"], additionalProperties: false },
     ["feed:read", "inbox:read", "evidence:read", "sources:pull_feed", "sources:pull_connector"]),
   reader: define<{ object_id: string }, FeedReaderData>("feed.items.reader", "读取 Feed 阅读器", "读取一条消息的正文、有效捕捉建议及当前可用的处置",
     { ...empty, properties: { object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
@@ -70,6 +72,7 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
   hydrate: FeedHydrate;
   stage: {
     sourceCatalog(): readonly FeedSourceCatalogView[];
+    sourcePresentations?(sources: FeedDirectorySnapshot["sources"]): Promise<Readonly<Record<string, SourcePresentation>>>;
     recommendations: FeedRuleJudgmentSelection["recommendations"];
     inboxEntries(caller: ActionExecutionContext): Promise<readonly AttentionEntryRecord[]>;
     promoteAvailable(caller: ActionExecutionContext): Promise<boolean>;
@@ -92,10 +95,11 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
       const [current, connector_auth, { recommendations }, inbox_entries] = await Promise.all([
         snapshot(), ports.authStatus(), ports.stage.recommendations(caller), ports.stage.inboxEntries(caller),
       ]);
+      const source_presentations = await ports.stage.sourcePresentations?.(current.sources) ?? {};
       await caller.beforeEffect();
       const suggested = new Map(recommendations.map(row => [row.item_id, row.suggested_behavior_ids]));
       return { snapshot: { ...current, feed_items: current.feed_items.map(entry => ({ ...entry, suggested_behavior_ids: suggested.get(entry.item_id) ?? [] })) },
-        source_catalog, connector_auth, inbox_entries };
+        source_catalog, connector_auth, inbox_entries, source_presentations };
     }),
     bind(feedQueryActions.reader, async (input, caller) => {
       const [item, { recommendations }, entries, promote_available] = await Promise.all([

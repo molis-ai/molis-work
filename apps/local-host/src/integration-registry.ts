@@ -2,7 +2,8 @@ import type { PluginContribution, PluginDefinition, PluginIntegrationContributio
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, OAuthGrant, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { checkedSourcePresentation, checkedSourcePresentationInput, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import type { SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
@@ -153,6 +154,25 @@ export class IntegrationRegistry {
 
   listIntegrations(kind?: IntegrationKind): readonly RegisteredIntegration[] {
     return this.declarations.listIntegrations(kind);
+  }
+
+  /** No source binding, account, credential or transport enters this pure presentation call. */
+  async presentSource(id: string, input: SourcePresentationInput): Promise<SourcePresentation> {
+    const checked = checkedSourcePresentationInput(input), entry = this.declarations.presentation(id);
+    if (!entry) throw pluginErrors.integration_unavailable(`来源展示 ${id} 没有已启用的提供方`);
+    const attached = this.attached.get(entry.plugin_id), installId = this.installs.get(entry.plugin_id);
+    const active = () => attached ? attached.contribution() : installId && this.installs.get(entry.plugin_id) === installId ? this.runtime.contribution(installId) : null;
+    const contribution = active();
+    const current = () => {
+      if (this.declarations.presentation(id) !== entry || this.attached.get(entry.plugin_id) !== attached || !contribution || active() !== contribution) {
+        throw pluginErrors.integration_unavailable(`来源展示 ${id} 的原提供实例已变化`);
+      }
+    };
+    current();
+    if (contribution?.kind !== "integration" || !contribution.presentSource) throw pluginErrors.integration_unavailable(`来源展示 ${id} 没有运行中的实现`);
+    const answer = await contribution.presentSource(id, checked);
+    current();
+    return checkedSourcePresentation(answer);
   }
 
   /** The driver and adapter of one source of an integration. A missing integration, or one of another kind, is unavailable. */

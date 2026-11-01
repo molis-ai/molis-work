@@ -7,11 +7,14 @@ import type {
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
+import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
+import type { FeedReaderData, FeedStageData } from "./query-actions.js";
 import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
   UiRenderRequest,
+  StagePageModel,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   FEED_ARCHIVE_OPTION_ID,
@@ -174,26 +177,28 @@ export const feedUiDescriptor: UiContributionDeclaration = {
   ],
 };
 
-export const feedUiContribution: UiContribution<FeedUiModel | PersistedFeedDetailModel> = {
+export const feedUiContribution: UiContribution<FeedUiModel | PersistedFeedDetailModel | StagePageModel<FeedStageData | FeedReaderData>> = {
   descriptor: feedUiDescriptor,
-  render(request: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>): string {
+  render(request: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel | StagePageModel<FeedStageData | FeedReaderData>>): string {
+    const model = "entries" in request.model || "item" in request.model ? request.model : request.model.object
+      ? buildFeedReaderUiModel(request.model as StagePageModel<FeedReaderData>) : buildFeedStageUiModel(request.model as StagePageModel<FeedStageData>);
     switch (request.surface as FeedUiSurface) {
       case "directory":
-        return renderFeedDirectory(request.model as FeedUiModel);
+        return renderFeedDirectory(model as FeedUiModel);
       case "workbench":
-        return renderFeedWorkbench(request.model as FeedUiModel);
+        return renderFeedWorkbench(model as FeedUiModel);
       case "workbench-fragment":
-        return renderFeedWorkbenchFragment(request.model as FeedUiModel);
+        return renderFeedWorkbenchFragment(model as FeedUiModel);
       case "source-directory":
-        return renderSourceDirectory(request.model as FeedUiModel);
+        return renderSourceDirectory(model as FeedUiModel);
       case "source-workbench":
-        return renderSourceWorkbench(request.model as FeedUiModel);
+        return renderSourceWorkbench(model as FeedUiModel);
       case "overlays":
-        return renderFeedOverlays(request.model as FeedUiModel);
+        return renderFeedOverlays(model as FeedUiModel);
       case "persisted-detail":
-        return renderPersistedFeedItemDetail(request.model as PersistedFeedDetailModel);
+        return renderPersistedFeedItemDetail(model as PersistedFeedDetailModel);
       case "frame-block":
-        return renderFeedFrameBlock(request.model as PersistedFeedDetailModel);
+        return renderFeedFrameBlock(model as PersistedFeedDetailModel);
       default:
         throw new Error(`Feed UI surface ${(request as UiRenderRequest).surface} 不存在`);
     }

@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
 import { FEED_ACTION_PERMISSIONS, createFeedCaptureTrigger, feedCaptureScene, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
@@ -8,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, scheduleServiceFor, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { reminderActions, SCHEDULE_PLUGIN_ID, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxJudgmentTrigger, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
@@ -155,7 +156,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     // fetched and holds, only the RSS response stood in for.
     const pull = t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
     const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, () => now, home, feedOptions);
-    const publicSource = publicSources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const publicSource = publicSources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     publicSources.feed.outRules.create(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
     const feedActions = bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: [...new Set([...caller.permissions, ...FEED_ACTION_PERMISSIONS])] }));
     const syncPublic = () => feedActions.invoke(feedSourceActions.sync, { source_id: publicSource.source_id, idempotency_key: "auto-public-once" });

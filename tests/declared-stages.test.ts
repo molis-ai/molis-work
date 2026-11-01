@@ -85,7 +85,7 @@ test("W5-06 a plugin the project does not show has no stage, and one a host path
     ...emptyView(),
     enabled_plugins: ["goals"],
     hidden_plugins: ["dataset", "ppt"],
-    plugin_stage_ids: [stageContributionId(todo.manifest)!],
+    plugin_stage_surfaces: [{ contribution_id: stageContributionId(todo.manifest)!, surface: "workbench" }],
     plugin_stages: ['<section data-work-surface="todo" data-stage="host"></section>'],
   } as MolisWorkWebView;
   const owner = draw(view);

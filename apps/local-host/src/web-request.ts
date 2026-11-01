@@ -10,7 +10,7 @@ import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -23,7 +23,7 @@ import fs from "node:fs";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { homeStageHalves } from "./home-plugin-http.js";
@@ -169,7 +169,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
     const prepared = options.project ? await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
-      action => bindLocalWebAction(localHost, hostReference, action), stage_request) : undefined;
+      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent } }), stage_request) : undefined;
     view = { ...view, stage_data: prepared?.data ?? await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request),
       ...(prepared ? { plugin_stage_views: prepared.views } : {}) };
     // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
@@ -201,7 +201,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handlePluginStageFragmentHttp(request, response, url, { shown: () => shownPlugins(options.projectId),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer,
       context: { route_prefix: options.routePrefix ?? "", project: options.project ?? null, demo: Boolean(options.demo) },
-      bind: (action, signal) => bindLocalWebAction(localHost, hostReference, action, { signal }),
+      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent } }),
       owner: async key => {
         const state = await ensureProjectPlugins(pluginPorts), home = await homeStageHalves(localHost.homePlugins);
         const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key) ?? home?.entries.find(item => item.project_plugin_id === key);
@@ -239,7 +239,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    projectWebView(context, { includeStageIds: true }), context.controlToken, context.goalActions,
+    projectWebView(context), context.controlToken, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];

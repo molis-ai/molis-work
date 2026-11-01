@@ -101,7 +101,7 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
   options?: { manifest?: PluginManifest; rendered?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">> }) {
   const contribution_id = contribution.descriptor.contribution_id;
   const selected = options?.manifest ? stageSurfaceDescriptors(options.manifest, contribution)
-    : contribution.descriptor.surfaces.filter(surface => surface.surface_id === "workbench");
+    : (contribution.descriptor.surfaces ?? []).filter(surface => surface.surface_id === "workbench");
   if (!selected.some(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html")) {
     throw new Error(`Stage main surface is not declared by ${contribution_id}`);
   }
@@ -134,7 +134,7 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
   }
   const overlay = (surface: string | undefined): string => {
     if (!surface) return "";
-    if (!contribution.descriptor.surfaces.some(item => item.surface_id === surface && item.target_slot_id === "workbench.overlay" && item.format === "declarative-html")) {
+    if (!contribution.descriptor.surfaces?.some(item => item.surface_id === surface && item.target_slot_id === "workbench.overlay" && item.format === "declarative-html")) {
       throw new Error(`Page overlay is not declared by ${contribution_id}: ${surface}`);
     }
     return once(surface);

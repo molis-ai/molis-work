@@ -14,7 +14,7 @@ export interface PluginStageFragmentPorts {
   readonly invalidateWebView: () => void;
   readonly context: Pick<MolisWorkWebView, "route_prefix" | "project" | "demo">;
   readonly owner: (projectPluginId: string) => Promise<RuntimeStageOwner | undefined>;
-  readonly bind: (action: ActionDefinition, signal: AbortSignal) => BoundActionClient;
+  readonly bind: (action: ActionDefinition, owner: RuntimeStageOwner, signal: AbortSignal) => BoundActionClient;
 }
 
 function stageRequest(url: URL): { plugin: string; object?: { id: string; surface: string } } | undefined {
@@ -49,13 +49,13 @@ export async function handlePluginStageFragmentHttp(request: IncomingMessage, re
     const surface = target.object?.surface ?? "workbench";
     if (!target.object && !stageDataAction(owner.entry.manifest)) throw new ActionError("actions.missing", "插件没有声明舞台读取");
     if (target.object && !stageObjectAction(owner.entry.manifest)) throw new ActionError("actions.missing", "插件没有声明对象读取");
-    const declared = owner.view.descriptor.surfaces.filter(item => item.surface_id === surface);
+    const declared = (owner.view.descriptor.surfaces ?? []).filter(item => item.surface_id === surface);
     if (declared.length !== 1 || declared[0]!.target_slot_id !== "workbench.main" || declared[0]!.format !== "declarative-html") {
       throw new ActionError("actions.input_invalid", "表面必须由同一舞台贡献声明，且属于主区");
     }
     abort.signal.throwIfAborted();
     ports.invalidateWebView();
-    const data = await readRuntimeStageOwner(owner, action => ports.bind(action, abort.signal), target.object ? { object_id: target.object.id } : {}, Boolean(target.object));
+    const data = await readRuntimeStageOwner(owner, (action, bound) => ports.bind(action, bound, abort.signal), target.object ? { object_id: target.object.id } : {}, Boolean(target.object));
     if (!(await ports.shown()).includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
     abort.signal.throwIfAborted(); owner.assertCurrent();
     const model = ports.renderer.stageFragmentModel(target.plugin, { ...ports.context, shown_plugins: showing }, data, target.object);

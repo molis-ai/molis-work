@@ -55,7 +55,7 @@ export interface ProjectRuntimeStageOptions {
   page_owner?: string;
   /** The plugins this project shows. */
   shown: readonly string[];
-  /** Contribution ids another stage path has already drawn (`plugin_stage_ids`). */
+  /** Exact contribution/surface pairs another stage path has already drawn. */
   drawn: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
   /** Prepared once before reads; each wrapper retains its actual running owner. */
   views?: Readonly<Record<string, UiContribution | null>>;
@@ -208,13 +208,13 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   const id = stageContributionId(manifest), view = contribution.views?.find(item => item.descriptor.contribution_id === id);
   if (!view) return undefined;
   const identity = { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version, manifest_digest: record.manifest_digest };
-  const descriptor = JSON.stringify(view.descriptor), declaration = JSON.stringify({ ui: manifest.ui, actions: manifest.actions }), render = view.render, grants = [...record.grants].sort().join("\0");
+  const descriptor = JSON.stringify(view.descriptor), declaration = JSON.stringify(manifest), render = view.render, grants = [...record.grants].sort().join("\0");
   const assertCurrent = () => {
     const now = platform.supervisor.state(pluginId), installed = platform.runtime.get(record.install_id);
     if (now?.status !== "running" || now.install_id !== identity.install_id || installed.state !== "running"
       || installed.installation_generation !== identity.installation_generation || installed.version !== identity.version || installed.manifest_digest !== identity.manifest_digest
       || [...installed.grants].sort().join("\0") !== grants || platform.supervisor.manifest(pluginId) !== manifest
-      || JSON.stringify({ ui: manifest.ui, actions: manifest.actions }) !== declaration
+      || JSON.stringify(manifest) !== declaration
       || platform.supervisor.contribution(pluginId) !== contribution || !contribution.views?.includes(view) || view.render !== render
       || JSON.stringify(view.descriptor) !== descriptor) throw new ActionError("actions.provider_changed", "原舞台实例、声明或授权已变化，请重新读取");
   };
@@ -235,14 +235,14 @@ export function runtimeStageOwner(state: ProjectPluginState, entry: StageEntry, 
 }
 
 /** Invoke exactly this actual owner's declaration and pin the provider of its selected half. */
-export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (action: ActionDefinition) => BoundActionClient,
+export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient,
   input: Readonly<Record<string, string>>, object = false): Promise<unknown> {
   owner.assertCurrent();
   const manifest = owner.entry.manifest, action = object ? stageObjectAction(manifest) : stageDataAction(manifest);
   if (!action) { if (object) throw new ActionError("actions.missing", "插件未声明对象读取"); return undefined; }
   if (manifest.actions?.filter(item => item.capability_id === action.capability_id).length !== 1 || action.operation !== "query"
     || actionEffect(action.action, action.capability_id) !== "read" || !action.action.audiences.includes("user")) throw new ActionError("actions.input_invalid", "舞台读取必须是本 Manifest 唯一的本人只读查询");
-  const client = bind(action), matches = (await client.discover()).filter(view => view.capability_id === action.capability_id && view.version === action.version
+  const client = bind(action, owner), matches = (await client.discover()).filter(view => view.capability_id === action.capability_id && view.version === action.version
     && view.provider.plugin_install_id === owner.install_id && (owner.scope === "home" ? !view.provider.project_id : Boolean(view.provider.project_id)));
   owner.assertCurrent();
   if (matches.length !== 1) throw new ActionError("actions.forbidden", "原舞台的读取提供方不再唯一可用");
@@ -254,7 +254,7 @@ export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (act
 
 /** Choose once, read once, and keep only request-local guarded view references for later synchronous rendering. */
 export async function readRuntimeStageData(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined,
-  bind: (action: ActionDefinition) => BoundActionClient, requests: Readonly<Record<string, Readonly<Record<string, string>>>> = {}) {
+  bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient, requests: Readonly<Record<string, Readonly<Record<string, string>>>> = {}) {
   const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, UiContribution | null> = {};
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
     ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];

@@ -1,7 +1,8 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
-import { createSourcePullRuntime, createPluginPlatform, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { createSourcePullRuntime, createPluginPlatform } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -87,7 +88,7 @@ async function fixture(t: TestContext) {
       in: (body: typeof work, action: ActionDefinition<Record<string, never>, unknown> = run, held: string[] = permissions, extra?: Partial<ActionCallContext>) => { work = body; return client.invoke(user(held, extra), action, {}); },
       run, serial, plain, query };
   };
-  return { reference, runtime, feeds, fetched, start, host, catalog: listFeedSourceCatalog(), library, gitCalls, gitHooks };
+  return { reference, runtime, feeds, fetched, start, host, catalog: listTestFeedSourceCatalog(), library, gitCalls, gitHooks };
 }
 const evidence = () => createEvidenceContentStore();
 

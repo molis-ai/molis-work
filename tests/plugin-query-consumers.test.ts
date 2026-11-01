@@ -41,13 +41,14 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
     await actions.invoke(scheduleActions.createTask, { title: "原任务", instructions: "查阅原材料", time: "10:00" });
     const cache = new Map(), options = { databasePath, projectId, homeDirectory: home };
-    const view = () => cachedMolisWorkWebView(cache, runtime.store, options, actions);
+    const view = async () => ({ ...await cachedMolisWorkWebView(cache, runtime.store, options, actions),
+      stage_data: await declaredStageData(["feed", "inbox"], () => actions) });
     // Schedule's stage reads its own data (`stage_data`), as the person and with only that read's permissions (T-133).
     const scheduleTasks = async () => ((await declaredStageData(["schedule"], action => bindActionClient(host.actionClient(reference),
       () => ({ ...caller, permissions: [...action.action.permissions] })))).schedule as { tasks: unknown[] } | undefined)?.tasks.length ?? 0;
     const first = await view();
-    assert.equal(first.feed.feed_items.find(row => row.item_id === item.item_id)?.body, null);
-    assert.equal(first.feed.inbox_entries.length, 1); assert.equal(await scheduleTasks(), 1);
+    assert.equal(first.stage_data.feed.snapshot.feed_items.find(row => row.item_id === item.item_id)?.body, null);
+    assert.equal(first.stage_data.inbox.entries.length, 1); assert.equal(await scheduleTasks(), 1);
     const read = await actions.invoke(feedQueryActions.item, { item_id: item.item_id });
     assert.deepEqual(read.item, feed.getFeedItem(projectId, item.item_id));
     // RAC-2507/2511/2512: real Runtime owners compose stage data through their declared public reads.
@@ -70,26 +71,26 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     const address = server.address(); assert.ok(address && typeof address === "object");
     const base = `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}`;
     assert.equal((await fetch(`${base}/api/plugins/io.molis.work.feed/snapshot`)).status, 200);
-    assert.match(await (await fetch(`${base}/api/stage/feed/items/${item.item_id}`)).text(), /正文只在获得读取权限后提供/);
+    assert.match(await (await fetch(`${base}/api/stage/feed/objects/${encodeURIComponent(item.item_id)}?surface=persisted-detail`)).text(), /正文只在获得读取权限后提供/);
     disabled.add("io.molis.work.feed"); disabled.add("io.molis.work.schedule");
     const revoked = await view();
     assert.strictEqual(revoked.goals, first.goals, "the authorized Goals cache is still warm");
-    assert.equal(revoked.feed.feed_items.length, 0); assert.equal(revoked.feed.sources.length, 0);
-    assert.equal(revoked.feed_connector_auth, undefined); assert.equal(await scheduleTasks(), 0);
-    assert.equal(revoked.feed.inbox_entries.length, 1, "Inbox retains its own authority");
-    for (const route of ["/api/plugins/io.molis.work.feed/snapshot", `/api/stage/feed/items/${item.item_id}`]) {
+    assert.equal(revoked.stage_data.feed, undefined);
+    assert.equal("feed_connector_auth" in revoked, false); assert.equal(await scheduleTasks(), 0);
+    assert.equal(revoked.stage_data.inbox.entries.length, 1, "Inbox retains its own authority");
+    for (const route of ["/api/plugins/io.molis.work.feed/snapshot", `/api/stage/feed/objects/${encodeURIComponent(item.item_id)}?surface=persisted-detail`]) {
       const response = await fetch(base + route); assert.equal(response.status, 403);
       assert.equal((await response.json() as { code: string }).code, "actions.plugin_disabled");
     }
-    disabled.add("io.molis.work.inbox"); assert.equal((await view()).feed.inbox_entries.length, 0);
+    disabled.add("io.molis.work.inbox"); assert.equal((await view()).stage_data.inbox, undefined);
     disabled.clear();
     const recovered = await view();
     assert.strictEqual(recovered.goals, first.goals);
-    assert.equal(recovered.feed.feed_items.length, 1);
+    assert.equal(recovered.stage_data.feed.snapshot.feed_items.length, 1);
     feed.ingestItem({ source, externalId: "two", title: "没有 Goals 事件的新材料", summary: "摘要", occurredAt: new Date().toISOString(), attention: false });
     const restored = await view();
     assert.ok(restored.snapshot.cursor >= first.snapshot.cursor);
-    assert.equal(restored.feed.feed_items.length, 2); assert.equal(restored.feed.inbox_entries.length, 1);
+    assert.equal(restored.stage_data.feed.snapshot.feed_items.length, 2); assert.equal(restored.stage_data.inbox.entries.length, 1);
     assert.equal(await scheduleTasks(), 1);
     assert.equal((await fetch(`${base}/api/plugins/io.molis.work.feed/snapshot`)).status, 200);
     const promoted = await actions.invoke(feedItemActions.promote, { item_id: item.item_id, expected_revision: item.revision });

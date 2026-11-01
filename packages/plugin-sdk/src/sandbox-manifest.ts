@@ -92,6 +92,7 @@ export interface SandboxIntegrationManifestInput {
   /** The services and integrations the package declares, as an Integration Plugin writes them; the rest of the Manifest is the Host's. */
   connection_services: NonNullable<PluginManifest['connection_services']>;
   integrations: NonNullable<PluginManifest['integrations']>;
+  source_presentations?: NonNullable<PluginManifest['source_presentations']>;
 }
 
 /**
@@ -111,6 +112,7 @@ export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInpu
     // An integration's sources are the Home's: one registry, which every project's Feed reads (BL-530).
     runtime: { scope: 'home' },
     connection_services: input.connection_services, integrations: input.integrations,
+    ...(input.source_presentations ? { source_presentations: [...input.source_presentations] } : {}),
   };
 }
 

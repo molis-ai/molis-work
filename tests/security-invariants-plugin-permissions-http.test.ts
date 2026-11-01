@@ -157,7 +157,8 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   assert.match(html, /data-plugin-trust-home/);
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
   assert.match(script, /^const homeApi = \(name, payload = \{\}\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\);$/m, "the shared Home helper uses the absolute Host door and forwards its payload");
-  assert.match(script, /^personal = \(await homeApi\("list"\)\)\.plugins;$/m, "the Home rows come from that door's list");
+  assert.match(script, /^const homeData = \(await homeApi\("list"\)\)\.plugins;$/m, "the Home rows come from that door's list");
+  assert.match(script, /^current = data\.plugins; personal = homeData;/m, "the latest complete response supplies those Home rows");
   assert.match(script, /^const homeSend = \(payload\) => homeApi\("set", payload\);$/m, "the permission switch forwards its payload through that door's set");
   assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
   assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act\)/, "a project's rows send theirs to the project's route");

@@ -48,3 +48,19 @@ writer允许：`apps/workbench/src/page-view.ts`，前置最终剩余的`capsule
 满足父片采用、文件表冻结和单writer窗口后按原授权直接实施，不再问已定产品方向。交准确base/head/tree、符号去向表、实际diff、构建/门禁和核抵证据。父片缺渲染迁移、出现必须新合同/行为变更、或保护路径冲突时只暂停对应部分并给根具体差集。没有数据迁移或真实Home步骤。
 
 所有构建/测试仍未执行；本稿未开新用户可见任务、未改coord/source/GH/refs。
+
+
+## 2026-11-01 16:40Z 冻结父开发窗口
+
+用户要求加速W5，根已核最终父T399 8becfee3babc326b04f816b07a1f2e22d4c7417c/tree d885f8924c5c9f8d2ae2b2808a9fde04cd5fdc19的普通合流、PR1c两个owner接缝与T402均已完整冻结。允许原执行负责人开发线2在独立树从此准确父提前完成候选；发布和最终采用仍等T395/T399实际采用，候选不当main。唯一范围补充取/tmp/t117-next/CURRENT.md：page-view保BoardSnapshot/GoalPolicyHistoryRecord现有contract与InboxStageData公开query输出，仅删除无外壳消费者的Goal展示字段；Goals document-collection仅去policyBindings的扩宽类型注解和无用import，保持原实际返回。Host web-view/web-request/web-project-context/web-goals-read以现有平台型与GoalsDocumentCollectionView交叉保真实完整输入；中央workbench-renderer-fixture、fixtures/web-view仅跟随取型。workbench-goals-mentions保合法事实引用并更新理由。原运行语句、对象构造、现行Host刷新包装、数据顺序、公开schema/动作/导出不改，不新增DTO/桥接/强转。
+
+fresh十个open PR完整分页文件表已核：除本批T395已冻结写点外，唯一交集是保护#1101的tests/memory-settings-cas.e2e.test.ts；该文件不在本轮写权内。其旧literal含T402已删feed类型成员，是否本片必要直接编译修正正在有限核对，不能用编译不覆盖或删断言掩盖新增错误，也不为绕锁扩大平台型。其余九个明确路径可先实施，保本单整体OPEN直到必需项结清；根不签保护文件已解锁。T399作者已冻结源码并只做build/gates，开发线2为此后唯一源码writer。
+
+一次matching整体build与原五完整定向文件、raw必要门禁/资源零差和fresh secrets按本书执行；若有实际新增编译消费者先报准确路径，不扩实现。乙档的一审/验证/二审由另三线在冻结差量上分别承担，原有效父证据核抵。无需重审总方案或新增矩阵。
+
+
+## 2026-11-01 16:59Z 必需测试取型 hunk 裁定
+
+根核实际 #1101 H2b38b5f5 与本线父3286的差分：Memory行为改动在测试数据、接口模拟及用例；目标import及view类型注解未改。用户红线保护的是#1101分支，本片不切换、写入、合并或重放该分支；此非枢纽测试的独立type hunk不占其产品行为写权。前轮整文件排除是根的保守锁，现按真实差分收窄，允许开发线2仅在自己的T117树应用 /tmp/t117-next/memory-settings-cas.type-only.patch 的3增2删：MolisWorkWebView改取既有中央fixture完整类型，原feed事实由既有FeedSnapshot交叉类型表达。不得改任何literal、请求、断言、Memory版本或功能，不引入新的公共类型/兼容。
+
+该hunk消除本次删除平台Goal展示字段引入的直接消费者错误；原version=1对当前2的既有诊断单列，不以编译未覆盖tests掩盖。本轮只改类型，原matching build与30/30输入有效，不重复构建/浏览器矩阵；最终文件语义诊断应只剩原version错误，并核测试imports、diff和fresh secrets。整个T117仍等独立一审/验证/二审与父实际采用，不提前签完成。

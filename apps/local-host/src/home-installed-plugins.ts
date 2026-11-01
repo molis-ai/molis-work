@@ -68,7 +68,14 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
-  const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
+  const recordFor = (pluginId: string, retryUninstall = false) => {
+    const current = records().find(item => item.plugin_id === pluginId);
+    if (current || !retryUninstall || approvedFor(pluginId) === null) return current;
+    // A failed cleanup keeps the existing approval until the same lifecycle finishes. Never choose another retired publisher/installation.
+    const retired = platform.runtime.list().filter(item => item.plugin_id === pluginId && item.publisher_trust === 'pinned'
+      && item.execution === 'sandbox' && item.state === 'uninstalled');
+    return retired.length === 1 ? retired[0] : undefined;
+  };
   /** A package runs only while its publisher's pin stands (S-84, S-87): the ledger is asked at the start, at every effect, and before it is enabled again. */
   const standing = publisherStanding({ publishers: () => platform.consents?.publishers() ?? [] });
   /** A package is read back (and checked again) from the Home's package store the first time an installation asks for it. */
@@ -191,8 +198,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   return {
     lifecycle, recordFor, releaseFor, records, recoveryErrors, close,
     /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
-    packageOf: (pluginId: string): InstalledRelease | undefined => {
-      const record = recordFor(pluginId);
+    packageOf: (pluginId: string, retryUninstall = false): InstalledRelease | undefined => {
+      const record = recordFor(pluginId, retryUninstall);
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */

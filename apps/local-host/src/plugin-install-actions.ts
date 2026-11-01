@@ -21,8 +21,8 @@ const pinView = {
   properties: { key_id: text, public_key_spki_base64: text, label: text, pinned_at: text, pinned_by: text, revoked_at: { type: ["string", "null"] } },
 };
 
-const installedPermissionView = { type: "object", additionalProperties: false, required: ["permission", "required", "reason", "meaning", "granted"],
-  properties: { permission: text, required: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] }, granted: { type: "boolean" } } };
+const installedPermissionView = { type: "object", additionalProperties: false, required: ["permission", "required", "requested", "reason", "meaning", "granted"],
+  properties: { permission: text, required: { type: "boolean" }, requested: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] }, granted: { type: "boolean" } } };
 const permissionSwitch = {
   input_schema: { type: "object", properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, permission: { type: "string", minLength: 1, maxLength: 200 }, granted: { type: "boolean" } },
     required: ["install_id", "permission", "granted"], additionalProperties: false },
@@ -45,7 +45,7 @@ const installedView = {
 };
 
 export const pluginInstallActions = {
-  preview: { capability_id: "plugins.install.preview", version: 4, operation: "command", action: { ...metadata, scope: "project",
+  preview: { capability_id: "plugins.install.preview", version: 5, operation: "command", action: { ...metadata, scope: "project",
     title: "预览插件包的安装", description: "检查一个签名的沙箱插件包：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、发布者有没有被固定）；不安装、不固定发布者。包不合格在这里就被拒，什么也不写。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     input_schema: { type: "object", properties: { bundle: { type: "object" } }, required: ["bundle"], additionalProperties: false },
@@ -57,7 +57,7 @@ export const pluginInstallActions = {
       origins: { type: "array", items: { type: "object", additionalProperties: false, required: ["service_id", "title", "origins"], properties: { service_id: text, title: text, origins: { type: "array", items: text } } } },
       preview: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "trust", "publisher_signature", "publisher_pinned", "permissions", "declarations", "jobs"], properties: {
         plugin_id: text, version: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text, publisher_pinned: { type: "boolean" },
-        permissions: { type: "array", items: { type: "object", required: ["permission", "required", "reason", "meaning"], properties: { permission: text, required: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] } }, additionalProperties: false } },
+        permissions: { type: "array", items: { type: "object", required: ["permission", "required", "requested", "reason", "meaning"], properties: { permission: text, required: { type: "boolean" }, requested: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] } }, additionalProperties: false } },
         jobs: { type: "array", items: { type: "object", required: ["job_id", "reason", "permissions"], properties: { job_id: text, reason: text, permissions: { type: "array", items: text } }, additionalProperties: false } },
         declarations: { type: "array", items: { type: "object", required: ["kind", "subject", "summary"], properties: { kind: text, subject: text, summary: text }, additionalProperties: false } } } } } } } } as ActionDefinition<{ bundle: unknown }, PluginInstallPreviewResult>,
   confirm: { capability_id: "plugins.install.confirm", version: 1, operation: "command", action: { ...metadata, scope: "project",
@@ -77,21 +77,21 @@ export const pluginInstallActions = {
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     input_schema: { type: "object", properties: { key_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["key_id"], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["publisher"], properties: { publisher: pinView } } } } as ActionDefinition<{ key_id: string }, { publisher: PluginPublisherPin }>,
-  setPermission: { capability_id: "plugins.permissions.set", version: 1, operation: "command", action: { ...metadata, scope: "project",
+  setPermission: { capability_id: "plugins.permissions.set", version: 2, operation: "command", action: { ...metadata, scope: "project",
     title: "开关插件的一项可选权限", description: "本人在项目设置里，为这个项目里装着的一个插件打开或关掉它的一项可选权限（必需的关不掉，没声明的开不了）。关掉的权限马上收回：插件会被停下、换上新的授权再启动，正在做的事走到下一次写入就被拒、不留业务记录；打开则在重启后生效。只有宿主的项目设置入口能调，Agent、MCP、工作流和插件都调不到。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     ...permissionSwitch } } as PermissionSwitch,
   // The same switch for the plugins that run as the Home's own instance, from the Host settings (BL-700); no project in the call.
-  setHomePermission: { capability_id: "plugins.home.permissions.set", version: 1, operation: "command", action: { ...metadata, scope: "home",
+  setHomePermission: { capability_id: "plugins.home.permissions.set", version: 2, operation: "command", action: { ...metadata, scope: "home",
     title: "开关个人空间里插件的一项可选权限", description: "本人在宿主设置里，为运行在个人空间（所有项目共用）的一个插件打开或关掉它的一项可选权限（必需的关不掉，没声明的开不了）。关掉的权限马上收回：插件会被停下、换上新的授权再启动，正在做的事走到下一次写入就被拒、不留业务记录；打开则在重启后生效。只有宿主设置入口能调，Agent、MCP、工作流和插件都调不到。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     ...permissionSwitch } } as PermissionSwitch,
-  homeInstalled: { capability_id: "plugins.home.installed.list", version: 2, operation: "query", action: { ...metadata, scope: "home",
+  homeInstalled: { capability_id: "plugins.home.installed.list", version: 3, operation: "query", action: { ...metadata, scope: "home",
     title: "查看个人空间里的插件", description: "列出运行在个人空间（所有项目共用）的插件：谁签的名、信任到哪一级、它要了哪些权限（含现在开着没有）、它在后台常做的事和本人给过的同意，以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
-  installed: { capability_id: "plugins.installed.list", version: 3, operation: "query", action: { ...metadata, scope: "project",
+  installed: { capability_id: "plugins.installed.list", version: 4, operation: "query", action: { ...metadata, scope: "project",
     title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的），以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
@@ -164,13 +164,13 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
       return { plugin_id, state: await service.controlHome(action, { plugin_id, keep_data: keep_data === true }) };
     } })),
-    { capability_id: pluginInstallActions.setPermission.capability_id, version: 1, handle: async (caller, input) => {
+    { capability_id: pluginInstallActions.setPermission.capability_id, version: pluginInstallActions.setPermission.version, handle: async (caller, input) => {
       assertPluginPermissionSettingsEntry(caller);
       await caller.beforeEffect();
       const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };
       return await service.setPermission(caller.project_id!, install_id, permission, granted);
     } },
-    { capability_id: pluginInstallActions.setHomePermission.capability_id, version: 1, handle: async (caller, input) => {
+    { capability_id: pluginInstallActions.setHomePermission.capability_id, version: pluginInstallActions.setHomePermission.version, handle: async (caller, input) => {
       assertHomePluginPermissionSettingsEntry(caller);
       await caller.beforeEffect();
       const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };

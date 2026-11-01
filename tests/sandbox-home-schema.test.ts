@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { ChildProcess, execFileSync, fork } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -162,4 +162,17 @@ test("RAC2867 losing the real initialization confirmation preserves the committe
   assert.deepEqual(await reopened.statements.all("SELECT text FROM own_rows", [], { rows: 1, bytes: 100 }, new AbortController().signal), [{ text: "kept after unknown" }]);
   reopened.close();
   assert.equal(installedLibrarySnapshots(directory, homeStores()).length, 1, "no duplicate owner or automatic replay");
+});
+
+test("RAC2867 an existing owner never replays DDL into a missing or empty business file", async t => {
+  const directory = home(t), file = homeSqlitePath(directory, declaration.store_name);
+  (await open(directory)).close();
+  const before = installedLibrarySnapshots(directory, homeStores());
+  writeFileSync(file, "");
+  await assert.rejects(open(directory), { code: "plugin.home_database.version_mismatch" });
+  assert.equal(statSync(file).size, 0, "the empty recorded file was not initialized again");
+  unlinkSync(file);
+  await assert.rejects(open(directory), { code: "plugin.home_database.shape_mismatch" });
+  assert.equal(existsSync(file), false, "the missing recorded file was not recreated");
+  assert.deepEqual(installedLibrarySnapshots(directory, homeStores()), before);
 });

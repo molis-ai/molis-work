@@ -1,4 +1,4 @@
-import type { PluginInstanceRecord, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { platformPermissionMeaning, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 
@@ -6,6 +6,15 @@ import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: PluginManifest | undefined; recoveryError?: string;
   /** Recomputed from a validated saved package, never a second persisted grant list. Ordinary plugins request every declared row. */
   requestedPermissions?: readonly string[] }
+
+export type PermissionSwitchTarget = Pick<PluginInstanceRecord, 'installation_generation' | 'manifest_digest' | 'plugin_id' | 'publisher_signature' | 'version'>;
+/** A switch checked against a saved package cannot cross an asynchronous change to the installation or its published declaration. */
+export function assertPermissionSwitchTarget(record: PluginInstanceRecord, expected?: PermissionSwitchTarget): void {
+  if (expected && (record.installation_generation !== expected.installation_generation || record.manifest_digest !== expected.manifest_digest
+    || record.plugin_id !== expected.plugin_id || record.publisher_signature !== expected.publisher_signature || record.version !== expected.version)) {
+    throw pluginErrors.definition_conflict('插件的安装或版本已变化，请重新查看权限');
+  }
+}
 
 /** What a Manifest asks for, each with the plugin's reason and what the platform says the permission is. */
 export const permissionViews = (manifest: PluginManifest, requested?: readonly string[]): PluginPermissionView[] =>

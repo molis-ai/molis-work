@@ -45,7 +45,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
       <header class="mw-form__header"><h2 id="create-dialog-title">${L("新建 Goal")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-create aria-label="${L("关闭")}">${icon("x")}</button></header>
       <div class="dialog-body mw-form__body">
         <div class="create-compose">
-          <input class="create-compose-title" data-plain-field name="title" required maxlength="120" autocomplete="off" placeholder="${L("你想让什么变成现实？")}" aria-label="${L("目标名称")}">
+          <input class="create-compose-title" data-plain-field name="title" required autocomplete="off" placeholder="${L("你想让什么变成现实？")}" aria-label="${L("目标名称")}">
           <p class="create-compose-example" data-create-example>${L("例如：让新用户安装后知道下一步怎么开始")}</p>
           <textarea class="create-compose-outcome" data-plain-field data-fit name="outcome" rows="2" placeholder="${L("完成后会有什么不一样？可以先空着")}" aria-label="${L("要得到的结果 ")}"></textarea>
         </div>

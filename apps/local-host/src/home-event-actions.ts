@@ -16,7 +16,8 @@ export const homeEventActions = {
     output_schema: { type: "object", properties: { target: HOME_OPEN_TARGET_SCHEMA }, required: ["target"], additionalProperties: false } } } as ActionDefinition<HomeEventOpenInput, { target: HomeOpenTarget }>,
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
-export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference): ActionHandlerBinding[] {
+/** `projectPlugins` asks whether the project reaches a provider's plugin: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
+export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>): ActionHandlerBinding[] {
   const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
     assertHomeEventWindow(window);
     const directory = await client.discover(caller);
@@ -24,11 +25,29 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
     const events: HomeEventView[] = [], issues: string[] = [];
+    // The exposure judgement is only needed for a source that cannot answer; when it is needed and the read fails, the person sees
+    // that code (not a plugin silently turned off). A read with no such source never asks for it.
+    let reaches: ((pluginId: string) => boolean | undefined) | undefined, judgedFailed = false;
+    const reachesOf = async (pluginId: string): Promise<boolean | undefined> => {
+      if (!reaches && !judgedFailed && projectPlugins && caller.project_id) {
+        try { reaches = await projectPlugins(caller.project_id); }
+        catch (error) {
+          if (!(error instanceof ActionError && error.code === "host.catalog_unavailable")) throw error;
+          judgedFailed = true;
+          issues.push("首页事项：项目的插件清单读取失败（host.catalog_unavailable）");
+        }
+      }
+      return reaches?.(pluginId);
+    };
     for (const source of sources) {
       if (!source.availability.available) {
         if (pinned) throw new ActionError(source.availability.code, source.availability.reason);
-        // A plugin the person turned off in this project has nothing to report; anything else that stops a source is shown.
-        if (source.availability.code !== "actions.plugin_disabled") issues.push(source.action.title + "：" + source.availability.reason);
+        // A source behind a plugin this project reaches that cannot answer (turned off, or refused by policy) is shown; one it does
+        // not reach is not installed here and has nothing to report. Without the judgement, the old rule still turns off silently.
+        const pluginId = source.provider.plugin_id;
+        // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code.
+        const judged = projectPlugins && caller.project_id && pluginId !== undefined ? await reachesOf(pluginId) : undefined;
+        if (source.availability.code !== "actions.plugin_disabled" || judged === true) issues.push(source.action.title + "：" + source.availability.reason);
         continue;
       }
       const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };

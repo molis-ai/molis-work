@@ -1,10 +1,12 @@
-import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { pluginPageClients } from "../../plugin-workbench.js";
+
+const GOALS_PAGE = pluginPageClients("goals");
 /** AP3 Workbench client segment: documents-state. */
 export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) => error instanceof DOMException && error.name === "AbortError";
 
     let reloadGoalEventDocument = async (_goalId, _restore) => false;
     let pendingEventRestore = null;
-    const goalEventDocumentApi = (${GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT})({
+    const goalEventDocumentApi = (${GOALS_PAGE.goalsEventDocument})({
       documentPane, route, translate: LFor("io.molis.work.goals"), isAbortError,
       showError: (message) => showToast(message, true),
       showStatus: (message) => showToast(message, false),
@@ -65,7 +67,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     const { openEventReaderFromHash, eventReaderFromTargetId,
       setGoalFactor, goalFactorFromTargetId, goalFactorFromHash,
       handleGoalFactorClick, handleGoalFactorKeyboard,
-    } = (${GOALS_PANELS_CLIENT_FACTORY_SCRIPT})({
+    } = (${GOALS_PAGE.goalsPanels})({
       documentPane, activateFocusSection,
       queueSave: () => queueSave(),
       openEventReader,
@@ -222,7 +224,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         if (selectedSource) selectSource(selectedSource, false);
       }
       setWorkspaceMode(ui?.workspaceMode || "graph", false, true);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false);
+      if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false, "restore");
       if (nextDesktopSurface === "feed" && selectedFeedItem) {
         selectFeedItem(selectedFeedItem, false, true, false);
       }

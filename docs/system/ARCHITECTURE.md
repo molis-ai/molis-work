@@ -67,7 +67,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 ## 5. Goal 与成果
 
-Goals 与成果（Artifacts）是两个内置插件，各自拥有自己的事实；它们不是其他插件内容的主干。
+Goals 是内置插件，拥有 Goal 的事实；成果（Artifacts）的正式事实由 `modules/artifacts` 拥有，Host 装配平台动作提供方，工作台成果界面经动作消费。两者不是其他插件内容的主干。
 
 - Goal 表达要持续推进和验收的结果。
 - Artifact 表达人要留存、引用的固定版本，可保存、版本化、共享和重放；类型在插件 manifest 的 `artifacts.produces` 里声明。
@@ -124,4 +124,4 @@ Gmail Integration Plugin
 → 用户选择后，Feed 自己记下保存或忽略；加入 Inbox、升格为 Goal 等由 Inbox、Goals 等对应 owner 经动作接收 Command
 ```
 
-每一步只改变自己拥有的事实：上面三步现在都在 Feed 插件的存储层里，各写自己的表（监听记录、信号、条目），没有谁替谁写。未来用户把某个 Plugin 结果共享给 Team 时，Artifacts/Goals 生成 Envelope，Exchange 负责可靠传输，接收方本地 Plugin 再消费内容。
+每一步只改变自己拥有的事实：上面三步现在都在 Feed 插件里，各写自己存储层里的表（监听记录、信号、条目），没有谁替谁写。未来用户把某个 Plugin 结果共享给 Team 时，Artifacts/Goals 生成 Envelope，Exchange 负责可靠传输，接收方本地 Plugin 再消费内容。

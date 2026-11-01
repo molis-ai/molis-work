@@ -545,8 +545,7 @@ export const SOURCE_FEED_STYLES = `  /* Feed and Source: directory, list, readin
   body[data-desktop-shell="true"] .feed-destination-strip small { grid-column: 2; color: var(--muted); font-size: 11px; }
   body[data-desktop-shell="true"] .feed-destination-strip[data-destination-state="inbox"] strong { color: var(--amber); }
   body[data-desktop-shell="true"] .feed-destination-strip[data-destination-state="saved"] strong { color: var(--green); }
-  body[data-desktop-shell="true"] .feed-destination-strip[data-destination-state="promoted"] strong,
-  body[data-desktop-shell="true"] .feed-destination-strip[data-destination-state="processing"] strong { color: var(--blue-dark); }
+  body[data-desktop-shell="true"] .feed-destination-strip[data-destination-state="promoted"] strong { color: var(--blue-dark); }
   body[data-desktop-shell="true"] .feed-detail--attention .feed-detail-kicker span:first-child { color: var(--amber); background: color-mix(in srgb, var(--amber) 9%, transparent); }
   body[data-desktop-shell="true"] .feed-detail--attention .feed-detail-actions { padding-bottom: 24px; border-bottom: 1px solid color-mix(in srgb, var(--line) 68%, transparent); }
   body[data-desktop-shell="true"] .inbox-attention-context { max-width: 76ch; margin-top: 24px; }

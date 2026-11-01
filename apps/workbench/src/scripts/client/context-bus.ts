@@ -176,8 +176,6 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
   // ✦ and 「带到助理」: what is in hand goes in the Assistant's strip, unsent; the person says what to do (spec §21.2 point 4).
   const bringToAssistant = () => { if (bus.focus) openAssistant(inHand(bus.focus)); };
 
-  // Cut to at most max UTF-16 units (the Host counts units too) without ending on half of a two-unit character; a value inside the limit is returned as it is.
-  const cutWhole = (text, max) => text.length <= max ? text : text.slice(0, max).replace(/[\ud800-\udbff]$/u, "");
 
   const starters = {
     focus: null,

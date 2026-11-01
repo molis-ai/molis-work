@@ -71,3 +71,47 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
 });
+
+test("RAC-1983: what the landing reports about the cursor and the selection never starts or ends with half a character", { timeout: 120_000 }, async (t) => {
+  // landing-editor.ts reports the 200 units before and after the cursor and the first 4000 units of a selection. One 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const first = wide(150) + "m".repeat(199) + "n".repeat(199) + wide(1) + "tail", second = "a" + wide(2500);
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "pages");
+  const store = openPagesStore(homeDirectory);
+  const page = store.create({ project_id: projectId!, title: "Landing windows", body: { type: "doc", content: [paragraph(first), paragraph(second)] } });
+  store.close();
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });" }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === 'Landing windows'");
+  await waitFor("window.lastLanding?.position === 'end'");
+  // Put the DOM selection from one offset to another in the paragraph of `units` UTF-16 units, the way the person's pointer would.
+  const place = (units: number, from: number, to: number) => child.evaluate(`(() => {
+    const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+    const text = [...editor.querySelectorAll('p')].find(node => node.textContent.length === ${units}).firstChild;
+    const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to});
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  })()`);
+  const shape = (value: string, expected: string) => ({ units: value.length, characters: [...value].length, same: value === expected });
+  type Landing = { targets: { text: string; truncated?: boolean }[]; surroundings: { before: string; after: string } };
+  // The cursor after 499 units of the first paragraph: the 200 units before it start in the middle of the 150th 🟢, the 200 after it end in the middle of the last one.
+  await place(first.length, 499, 499);
+  await waitFor("window.lastLanding?.position === 'cursor'");
+  const cursor = await evaluate<Landing>("window.lastLanding");
+  assert.deepEqual(shape(cursor.surroundings.before, "m".repeat(199)), { units: 199, characters: 199, same: true }, "the text before the cursor starts at the first whole character");
+  assert.deepEqual(shape(cursor.surroundings.after, "n".repeat(199)), { units: 199, characters: 199, same: true }, "the text after the cursor ends at the last whole character");
+  // The whole second paragraph selected: 5001 units, of which the report keeps the first 4000.
+  await place(second.length, 0, second.length);
+  await waitFor("window.lastLanding?.position === 'selection'");
+  const selected = await evaluate<Landing>("window.lastLanding");
+  assert.deepEqual(shape(selected.targets[0]!.text, "a" + wide(1999)), { units: 3999, characters: 2000, same: true }, "unit 4000 was the first half of a 🟢: it is not kept");
+  assert.equal(selected.targets[0]!.truncated, true);
+  // RAC-1984: the cursor after one plain character and 100 🟢: both windows are 100 whole 🟢, and are kept as they are.
+  await place(second.length, 201, 201);
+  await waitFor("window.lastLanding?.position === 'cursor'");
+  const whole = await evaluate<Landing>("window.lastLanding");
+  assert.deepEqual(shape(whole.surroundings.before, wide(100)), { units: 200, characters: 100, same: true });
+  assert.deepEqual(shape(whole.surroundings.after, wide(100)), { units: 200, characters: 100, same: true });
+});

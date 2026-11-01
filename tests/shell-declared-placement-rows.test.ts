@@ -106,8 +106,14 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
     assert.deepEqual(homeStarts(defaultHtml).map(start => start.id), ["goals", "pages", "lingguang"]);
 
     const emptyHtml = draw({ ...defaults, enabled_plugins: [] }, goalId);
-    assert.deepEqual(creates(emptyHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"], "personal plugins still follow the existing visibility rule");
+    assert.deepEqual(creates(emptyHtml), [], "an unshown Goals owner draws no Goal input buttons");
+    assert.doesNotMatch(emptyHtml, /<[^>]+\b(?:data-work-surface="goals"|data-goal-inputs\b)/u);
     assert.deepEqual(homeStarts(emptyHtml).map(start => start.id), ["pages", "lingguang"], "an explicit empty selection does not restore Goals");
+
+    const goalHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);
+    assert.deepEqual(creates(goalHtml).map(({ station, title, label }) => [station, title, label]), [
+      ["pages", "文档", "文档"], ["form", "问卷", "问卷"], ["dataset", "数据表", "数据表"], ["ppt", "演示稿", "演示稿"],
+    ], "a shown Goal keeps every visible personal plugin's declared create");
 
     const hiddenHtml = draw({ ...defaults, hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
     assert.deepEqual(creates(hiddenHtml), []);
@@ -144,8 +150,14 @@ test("RAC-600 RAC-602 a default project's declared create reaches the real page,
     assert.deepEqual(homeStarts(html)[0], { id: "goals", title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', glyph: "target" });
     assert.doesNotMatch(html, /起点 "<\/script>&/u);
 
+    const goalHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);
+    assert.deepEqual(creates(goalHtml), creates(html), "an explicitly shown Goal keeps the same declared titles and escaping");
+    assert.deepEqual(homeStarts(goalHtml), homeStarts(html));
+    assert.doesNotMatch(goalHtml, /默认 "<\/button><script>&|起点 "<\/script>&/u);
+
     const empty = draw({ ...defaults, enabled_plugins: [] }, goalId);
-    assert.deepEqual(creates(empty).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
+    assert.deepEqual(creates(empty), []);
+    assert.doesNotMatch(empty, /<[^>]+\b(?:data-work-surface="goals"|data-goal-inputs\b)/u);
     assert.deepEqual(homeStarts(empty).map(start => start.id), ["pages", "lingguang"]);
   });
 });

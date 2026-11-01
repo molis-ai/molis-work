@@ -310,20 +310,23 @@ test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, o
   } finally { await h.done(); }
 });
 
-test("RAC-1682 S-80 S-84 the Home's own publisher's package of a plugin the Home already holds is refused at the confirmation with plugin.state_invalid, before the package is kept, whether that installation runs or is switched off", async () => {
+test("RAC-1682 S-80 S-84 a compatible Home upgrade is saved and sent to the Home port for running and disabled installations", async () => {
   const h = await harness(undefined, true);
   try {
-    const a = newPublisher();
-    const confirm = confirmIn(h.service);
-    const snapshot = async () => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), dirs: (await readdir(join(h.home, "plugin-packages"))).sort(), installs: h.installed.length });
-    assert.equal(await confirm(homeBundle(a)), "installed");
-    const step = async (bundle: PluginPackageBundle) => { const before = await snapshot(); return { code: await confirm(bundle), unchanged: isDeepStrictEqual(await snapshot(), before) }; };
-    const results: Record<string, { code: string; unchanged: boolean }> = {};
-    results["a, a newer version"] = await step(homeBundle(a, { version: "1.1.0" }));
-    h.homeRecords.find(record => record.plugin_id === PACKAGE_PLUGIN_ID)!.state = "disabled";
-    results["a, installation switched off"] = await step(homeBundle(a, { version: "1.2.0" }));
-    const refusedUntouched = { code: "plugin.state_invalid", unchanged: true };
-    assert.deepEqual(results, { "a, a newer version": refusedUntouched, "a, installation switched off": refusedUntouched }, "refused, with no package kept and nothing installed");
+    const publisher = newPublisher(), confirm = confirmIn(h.service);
+    assert.equal(await confirm(homeBundle(publisher)), "installed");
+    for (const state of ["running", "disabled"] as const) {
+      h.homeRecords[0]!.state = state;
+      const bundle = signedPackage(publisher, (_files, manifest) => {
+        manifest.runtime = { scope: "home" }; manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+      }, { version: state === "running" ? "1.1.0" : "1.2.0" });
+      const count = h.installed.length, pins = h.ledger.publishers();
+      assert.equal(await confirm(bundle), "installed");
+      assert.equal(h.installed.length, count + 1);
+      assert.equal(h.installed.at(-1)!.project, "~home");
+      assert.deepEqual(h.ledger.publishers(), pins);
+      assert.equal((await readdir(join(h.home, "plugin-packages"))).length, count + 1);
+    }
   } finally { await h.done(); }
 });
 

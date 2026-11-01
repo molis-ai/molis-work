@@ -50,7 +50,7 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
   },
 };
 
-/** Goals owns its canvas, collection and refresh document; the shell only places the resulting content. */
+/** Goals owns its canvas, collection and refresh content; the shell places it in the Host's document. */
 export function createGoalsWorkbenchStage<TView extends GoalsPageView>(
   page: ReturnType<typeof createGoalsPage<TView>>,
   ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "prefixLocalLinks">,
@@ -73,13 +73,12 @@ function renderMolisWorkRefreshFragment(
       ? renderTrashGoalDocument(selected, true)
       : renderGoalDocument(selected, view, true)
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, false);
-  const bodyView = trashView ? "trash" : archiveView ? "archive" : "current";
-  const html = `<!doctype html><html><body data-board-view="${bodyView}">
+  const html = `
     ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection, renderGoalProposals(view))}
     <section data-document-pane><section data-work-surface="goals">${document}</section></section>
     ${renderCreateDialog(view)}
     <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
-  </body></html>`;
+  `;
   return prefixLocalLinks(html, view.route_prefix);
 }
 

@@ -251,6 +251,9 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1152663, 1159218],
   "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
   "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
+  // T405 Git receipt ownership: +764 B for the prepared review identity, authoritative result and stale-response checks.
+  // Preparation completion reuses the result read to paint the operation list; no new dependency or resource.
+  "/assets/molis-work-plugins/git.js": [29496, 30260],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

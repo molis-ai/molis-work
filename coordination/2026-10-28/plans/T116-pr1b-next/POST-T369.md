@@ -36,3 +36,10 @@ T369新测试不改生产，支持相关父构建/父DUMP按输入核抵；它�
 当前无需新的本地研究或用户产品决定。下一动作仅是根在T389返writer后fresh核锁/PR头并绑定执行M，交唯一writer按上述已有合同实施；本线只写本READY，未触源码、refs、GH、构建、测试、提交或writer占用。
 
 当前[并行执行窗口](../parallel-2026-11-01/PLAN.md)解除旧唯一writer等待，原行为、证据和禁区保持。
+
+
+## 当前真实合流裁定（2026-11-01 06:18Z）
+
+根已核实际merge绑定与19冲突，全文读[作者合流计划](MERGE-PLAN.md)及[独立二审](MERGE-REVIEW.md)，接受继续解冲突。真实共同祖先31315不是slice基点7f；原预测只说明内容增量可合，不能当普通merge零冲突证据。保当前HEAD=M db29/MERGE_HEAD=原H d37的正常双亲关系；内容以准确M加7f→d37的44路径自有差量为期望，全部路径都检查，不只清19冲突。三条slice外README/ports/golden保准确M，非冲突区域亦不得带回旧父贡献。manifest相邻终端import与privileges相邻PG058按精确自有hunk投影，不模糊匹配或整文件取旧边。
+
+纯合流scope/tree确认后，继续原三必修及两叶子扩展，golden/view/terminalsRoute/settings_address/现行Manifest与Artifact路径保父。最终两Goals路由完整文件按实际接缝补验或有明确相同输入核抵，不用旧跑过充数。四负例、66完整HTML、匹配build/48响应、README必要集合、full=true与全部禁区不变。此裁定不新增产品语义或新任务号，也不解除Full暂停。

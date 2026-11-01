@@ -11,19 +11,19 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用main为db29f18d4：T369/#1716已实际合并。T391/#1717准确Verify成功，根核§8后已入普通队列（6554285172），实际采用另结。按用户新要求，T389/开发2、T390/开发1、PR1b/开发3、T386/开发4以四独立树并行；生产与测试路径无交集，公共build/browser各1、资源与文档hunk由根串行。PR1b实际merge的19处历史父冲突正按准确slice差量复核，其他三线继续。T389旧Linux因果仍UNKNOWN，新Full暂停；T146/T387/B等准确Full。本轮已批准审计均已发布，早先T384/385 CI补充与T387审验评论仍待批准，未改道。
+当前已采用main为08642dcb9：T391/#1717已合并且补丁核同、自有树清理。T389修复已开#1718 @13767116，独立验证/二审通过，人工full=true；准确Verify后只排本修复首次Full，其它Full等其实际采用，旧Linux因果UNKNOWN保留。T390/开发1、PR1b/开发3、T386/开发4继续独立树并行，开发2接T065有限接续准备；公共build/browser各1，资源与文档hunk根串行。本轮已批准审计已发，早先T384/385 CI补充与T387审验评论仍待批准，未改道。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | 已开#1717 @8c197031，独立终审通过待CI | full=false，唯一文档10行15项与两处历史限定 | writer已交回，原成本/终端段保留 |
-| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | accepted书；等T389阶段3唯一writer | T369已实际采用；开工核实际M/组合，full按实际diff | plugin-terminal-panels/project-catalog及终端slice、S103本行 |
+| T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |
+| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | 实施与完整文件验证；根已接受仅追加SI收录 | Mdb29；full最终实际diff裁定，Linux证据待CI | 原四路径+package.json test:security末尾单token；S103本行 |
 | T-369 | MCP alias等待中换连接拒绝证据 | 丙 | Codex开发线3；验证线3/二审线5 | 已合 #1716 → db29f18d4（05:46Z） | full=false；未新增Linux动态证据 | 作者树与本地分支已清，原件保留；合入审计6554193654按用户具体批准发布 |
-| T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | 阶段2当前缺陷已核；同书阶段3修复开始 | 实施Mdb29；原Linux因果UNKNOWN，新Full暂缓 | 唯一writer；四client片段+一新回归；T121共享hunk冻结 |
+| T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | #1718 @13767116，本地核收/独立终审通过 | full=true；等准确Verify后首次Full，旧LinuxUNKNOWN | 四client片段+永久测试+精确99B资源；作者已冻结 |
 | T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | #1715实际采用820d9a0f5，补丁核同；自有作者树已清 | full=false；旧CI首败因果UNKNOWN保留 | 已释放；仅一行await |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712实际采用15ad4f397；原四PR已按承载采用关闭 | Verify/SI/Full16片+聚合及队列通过；两retry-only保留UNKNOWN | 生产writer释放；冻结构建/金样原件暂供后继核抵 |
 | T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；本地/普通CI核收，Full41271185187失败 | 390px project-user-journey同点首跑/retry红；只读归因中，未重跑/取消 | 两原片10路径不扩修；9片成功/1失败/6矩阵取消，旧失败保持 |
 | T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；普通CI已核，等T389结论恢复Full调度；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
-| T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线2；验证线3/二审线5 | T384实际前置已解除，等待唯一writer | 根冻结实际M与资源窗口后执行；full=true | 六原文件+README/S30精确文案+根核资源tuple；三完整e2e与窄实操 |
+| T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线4；验证线3/一审线2二审 | 六行为合成/10用例与A/B核收；最终配套执行 | Mdb29；根批准两精确tuple，full=true待T389采用 | 六原文件+README/S30精确文案+资源配套；公共槽 |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710实际采用main4b04947e7；patch-id同、原树/分支已清 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
 | T-383 | Pages父上下文保存完成后再刷新 | 丙 | Codex开发线2；验证线3/二审线5 | #1711已实际采用main6729a2d46；完整patch/patch-id同，full=false | full=false；初轮私有槽不合格保留，历史Linux因果UNKNOWN | 仅tests/pages-actions.e2e.test.ts；保护#1101共享fixture不交写 |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
@@ -497,3 +497,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 06:02Z：T391 fresh fetch及secrets10行完成后正常push，已开#1717；验证6554187417、二审6554188146按用户具体批准发布。T390/391派单6554158560亦已批准发布。T369合入审计6554193654获具体批准后发布。root此前pnpm secrets在无node_modules的文档树触发自动依赖准备，node-pty使用prebuild，非产品build且未改跟踪文件；该准备未在公共槽，保留流程偏差，不冒称无依赖准备，后续无依赖树使用等价node扫描或在公共槽准备。T389旧版产物来源因已清理T369树出现一次准备FileNotFound，未进入业务回归；改用已核同产物的冻结menu-dev树并保留首失败。
 
 2026-11-01 06:12Z：按用户提高并行要求，根fresh核main db29与21个open PR，四线生产/测试路径两两无交集；T389/开发2继续，T390/开发1、PR1b/开发3、T386/开发4获独立树并行窗口。公共build/browser各1、资源与文档hunk根串行，实际后继依赖和Full暂停保留。详plans/parallel-2026-11-01/PLAN.md。
+
+2026-11-01 06:32Z：T391实际采用/patch-id/队列原件/自有树清理结账。T389最终H本地38业务文件271/271及资源门171/171、48响应47同/+99B已核，独立审验通过后普通推送开#1718；根人工full=true仅给修复首次Linux全量，准确Verify待结。T386根接受+179/+559精确tuple并串行应用README/S30，作者收最终配套；T390独立CI方案接受，仅追加project-catalog至SI，保正在跑的批自然结束和原测试修订失败原件。PR1b三必修、正常66完整HTML与负例/README批进行中。T065接续只读准备明确由开发4移交开发2，无新产品语义或实现授权。

@@ -11,15 +11,15 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用main仍为6729a2d46（含T381/T382/T383）。T384 #1712与T385 #1713各自Full执行中；T146 #1676准确c35ad3036的Verify已绿，适用SI与Full仍待结。T387本地合成、独立验证及二审已核，正常推送3862de92并开#1714，等自身CI及Full预算；三原PR继续只读。T386和T369/PR1b仍等T384实际采用，未造READY或提前关行。
+当前已采用main仍为6729a2d46。T388 #1715（H45abd）和T384 #1712（H4404）均已按§8入队、位置1/2，尚未实际采用。T384 Full16片及聚合通过，两份retry-only保留UNKNOWN，有限增量二审可合；T388 full=false且普通CI已核。T385 #1713 Full失败由T389承接，Mac H/M各一次2/2未复现、无修复候选；新Full暂停，有限静态链路判断进行中。T146/T387/B普通CI已通过（B适用SI原件终核在途）；原成员PR继续只读，T386/T369/PR1b等待T384实际采用。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-389 | 390px项目动线添加来源失败有限诊断 | 甲 | Codex开发线2；验证线1/二审线4 | 书审必修观测顺序已落实；根交唯一writer做H/M各一完整文件 | 只诊断，不预选生产修法；新Full调度暂等结论 | 独立诊断树测试侧被动观测，不改共享helper/生产或原断言/超时 |
-| T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | 窗口已交开发线4，准确M6729本地单行修复/验证中 | 实际M及一完整文件；旧CI首败因果UNKNOWN保留 | 仅tests/workbench-stop-feedback.e2e.test.ts的await及编号注释，无生产/超时/屏障变化 |
-| T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712 @4404e142；Verify与独立审验已核，已排自身Full | full=true；适用SI及Full在途；未采用/原四PR只读 | 原四片合成；ports与golden两自修；BACKLOG准确冲突已解；资源仅原T362+324B |
+| T-389 | 390px项目动线添加来源失败有限诊断 | 甲 | Codex开发线2；验证线1/二审线4 | H/M各一完整2/2、独立审验核收；当前仅有限静态后续 | 未复现、无修复候选；Linux现场缺口及新Full暂停保持 | 独立诊断树测试侧被动观测，不改共享helper/生产或原断言/超时 |
+| T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | 准确H45abd本地/独立审验/CI已核；#1715队列位置1 | 实际M及一完整文件；旧CI首败因果UNKNOWN保留 | 仅tests/workbench-stop-feedback.e2e.test.ts的await及编号注释，无生产/超时/屏障变化 |
+| T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712 @4404e142；§8已核，队列位置2 | full=true；适用SI已手查、Full16片+聚合通过；未采用/原四PR只读 | 原四片合成；ports与golden两自修；BACKLOG准确冲突已解；资源仅原T362+324B |
 | T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；本地/普通CI核收，Full41271185187失败 | 390px project-user-journey同点首跑/retry红；只读归因中，未重跑/取消 | 两原片10路径不扩修；9片成功/1失败/6矩阵取消，旧失败保持 |
-| T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；等准确CI与Full预算；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
+| T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；普通CI已核，等T389结论恢复Full调度；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
 | T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线2；验证线3/二审线5 | 书审两项oracle已落实，WAIT不计READY | 等T384实际采用和资源窗口交接；full=true | 六原文件+README/S30精确文案+根核资源tuple；三完整e2e与窄实操 |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710实际采用main4b04947e7；patch-id同、原树/分支已清 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
 | T-383 | Pages父上下文保存完成后再刷新 | 丙 | Codex开发线2；验证线3/二审线5 | #1711已实际采用main6729a2d46；完整patch/patch-id同，full=false | full=false；初轮私有槽不合格保留，历史Linux因果UNKNOWN | 仅tests/pages-actions.e2e.test.ts；保护#1101共享fixture不交写 |
@@ -481,3 +481,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 04:54Z：T389注册并交开发线2有限诊断，T388 H45abd已冻结交回writer、独立审验在途。H44efe/M6729各一完整journey文件；关键59→60之间不插await/CDP/落盘或布局采样，不用诊断等待掩盖时序。共享测试/helper在fresh open PR查询无占用。只诊断、修复需根更新同书；当前不触发新Full或取消T384。
 
 2026-11-01 05:00Z：T388准确H45abd已通过独立验证/二审，根核一行await、真实transaction顺序、完整文件一次1/1和构建/清理原件；fresh fetch+secrets1行通过后普通推送并开#1715、审验6553666679/6553667332。full=false，等本头Verify；未采用，旧paused CI因果UNKNOWN仍在。T384 Full15/16已成功，shard3 onboarding与page-interaction首败/retry通过另做有限关系核查；T385 Full失败与T389有限H/M诊断不销账。
+
+2026-11-01 05:12Z：T388与T384已按§8入普通队列，尚未采用；T384队列15ad4f相对H4404仅前序T388一行await，根已取Git对象核，生产及T384测试输入未漂移。fresh26 open=20任务PR+6其他，未出主线23～31不变。T389有限H/M诊断独立审验核收为未复现/UNKNOWN，无修复候选；新Full仍暂停，静态后续与Linux环境缺口分开跟进。

@@ -172,6 +172,7 @@
 | T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374/#1703，独立审验通过待CI/合入；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |
 
 | T-347 修复二审后续 | `deleteSecretEntriesWithPrefix` | 本单获批之外的前缀删除入口仍未校验留存坏条目；若要统一坏条目保证，另定删除/恢复合同。与结构合法认证失败延期同属后续，不扩大当前T-347。 | Codex 统筹 |
+| T-384 Full增量二审后续（#1712，6553736025） | onboarding-journey:172；page-interaction-flow:42 | 两个真实首败均整文件retry通过。前者是移除网页材料组后数量未退回1，后者是发Esc前真实隐藏展开层前置条件未成立；当前delta有装配/渲染交集但未定位必修回归，不以静态HTML或retry绿销账。缺失败现场状态，后续按同文件再现/相关代码改动有界处置，不盲重跑。 | Codex统筹，输入与因果UNKNOWN留存 |
 
 ## 2026-10-31 21:00Z 主线差集核收
 
@@ -230,3 +231,5 @@
 2026-11-01 04:40Z：T385 Full shard7 stop-feedback首轮paused投影超时、retry绿，旧因果UNKNOWN保留。准确源码未await真实pause transaction Promise，静态排序缺口已核并由T388/RAC2829～2830承接；仅await+一完整文件，不放宽超时/断言，不将storage两片归因或记新产品语义。
 
 2026-11-01 04:54Z：T385 Full的project-user-journey 390px重复Hidden目标由T389/RAC2831～2833承接有限H/M诊断。T384同文件绿仍非基线归因；不把失败先归storage/环境，不放宽断言，不重跑概率Full。
+
+2026-11-01 05:12Z：T388与T384已按§8入普通队列，尚未采用；T384队列15ad4f相对H4404仅前序T388一行await，根已取Git对象核，生产及T384测试输入未漂移。fresh26 open=20任务PR+6其他，未出主线23～31不变。T389有限H/M诊断独立审验核收为未复现/UNKNOWN，无修复候选；新Full仍暂停，静态后续与Linux环境缺口分开跟进。

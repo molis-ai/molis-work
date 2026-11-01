@@ -7,11 +7,11 @@ import { bindActionClient, type ActionCallContext, type ActionSceneDefinition } 
 import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, createFunctionsService } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
+import { functionsActionProvider } from "@molis-ai/molis-work-module-judgment-rules";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
 
 const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] };
 

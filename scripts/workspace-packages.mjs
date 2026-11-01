@@ -199,7 +199,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-attention-resumption",
       "@molis-ai/molis-work-module-characters",
       "@molis-ai/molis-work-module-context-ledger",
-      "@molis-ai/molis-work-module-functions",
+      "@molis-ai/molis-work-module-judgment-rules",
       "@molis-ai/molis-work-module-private-work-context",
       "@molis-ai/molis-work-module-projects",
       "@molis-ai/molis-work-module-shelf",
@@ -371,7 +371,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ]
   }),
-  entry("modules/functions", "@molis-ai/molis-work-contracts/modules/functions", {
+  entry("modules/judgment-rules", "@molis-ai/molis-work-contracts/modules/functions", {
     maturity: "production",
     capabilities: [
       "functions.query.v1",

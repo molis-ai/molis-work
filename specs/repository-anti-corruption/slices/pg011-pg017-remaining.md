@@ -145,6 +145,8 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 T-141 已完成隔离 Home 中的本地实现与作者验收，独立原件核验及生产差异二审已通过；最终配套门禁、准确头 CI Full 与采用待结。BL-916、PG-011 的其它余项不随本片关闭。
 
+本轮主线同步：2026-11-01 统筹指定已采用 main `be0c777002509b6eb4e2c2187eb3a5765a5440f6`（含 T392 私有路径迁移与 T146 设置样式减重）作为 T141 当前普通合流基点，保留原实现及 `e8aa2a8ed1027150d828cbd0fb0206789412b30f` 的 RAC-959／RAC-2606 断言修复。匹配构建、实际资源与普通门禁按此组合记录，已有行为证据按实际输入核抵；新头 CI Full 与采用仍由统筹结算。
+
 - Home 与项目的签名包共用 `installed-plugin-lifecycle.ts` 的升级路径；`plugin-install-service.ts` 在保存前检查发布者、命名空间、范围、严格递增版本和兼容声明，`home-installed-plugins.ts` 按真实安装记录选择 install/upgrade。安装身份及数据保留，批准、密钥与提示词随版本更新；失败补偿恢复旧状态，禁用安装升级后仍禁用。
 - 集成声明在 `integration-registry.ts` 的原队列内先完整检查冲突，再同步替换；来源旧回执的提供方检查保留到同一调用的后续平台写入，升级或停用后连失败记账也拒绝。较新的启用不被旧目录查询失败停用。真实签名 source、Runtime Feed、重启与失败恢复由 `tests/sandbox-integration-home.test.ts`、`tests/integration-registry.test.ts` 验证。
 - `settings-plugins.ts` 按 preview 的范围比对 Home 或项目列表，初装与升级均以文本显示服务名、ID 和精确 origins。`tests/plugin-trust-home-upgrade.e2e.test.ts` 通过真实 File、预览、取消与确认核对版本、声明及持久事实；局部 view 与受控密钥输入证据分别陈述。

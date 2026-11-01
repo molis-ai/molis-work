@@ -8,15 +8,16 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { bindActionClient, type ActionDefinition, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalMcpServer, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { functionAuthoringActions, functionContextActions, functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions, functionContextActions, functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
+// RAC-2846 / RA4-04: the real Host serves the unchanged editor behavior from the renamed implementation paths.
 test("Agent authoring discovers runtime capabilities, preserves exact references, and MCP recommendations require a separate authorized business call", { timeout: 120_000 }, async t => {
   let onEvaluate: (() => Promise<void>) | undefined;
   let evaluated = 0;

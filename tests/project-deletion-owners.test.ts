@@ -15,7 +15,7 @@ import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
-import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 
 /** A Home with a catalog and two projects: `gone` is deleted by the tests, `kept` must come through untouched. */
 async function withHome<T>(run: (env: { home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>; gone: string; kept: string }) => Promise<T>): Promise<T> {

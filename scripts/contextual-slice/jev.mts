@@ -8,7 +8,7 @@ import { mkdtempSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
+import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-judgment-rules";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { typeSafeCredential } from "../../apps/local-host/src/typesafe-connection.js";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTypeSafeProvider } from "@molis-ai/molis-work-module-functions";
+import { createTypeSafeProvider } from "@molis-ai/molis-work-module-judgment-rules";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 const base = { function_key: "decision", model: "jev-latest", instructions: "Classify the supplied state" };
 

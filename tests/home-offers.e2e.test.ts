@@ -7,7 +7,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
-import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService } from "../apps/local-host/dist/judgment-rules-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";

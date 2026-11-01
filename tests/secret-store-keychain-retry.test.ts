@@ -8,8 +8,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { createFileSecretStore, createLazyFileSecretStore, openBaselineHomeSqlite, openExistingHomePayload, sealExistingHomePayload, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTORS_BASELINE } from "@molis-ai/molis-work-app-local-host";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
-import { functionsActions } from "@molis-ai/molis-work-module-functions";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
+import { functionsActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // All Keychain calls resolve to this test executable. PATH contains no system
@@ -191,7 +191,7 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     assert.deepEqual(calls(), [], "construction and environment credentials never unlock the unrelated Keychain");
 
     const hostUrl = new URL("../apps/local-host/src/project-host.ts", import.meta.url).href;
-    const script = `import { functionsActions } from '@molis-ai/molis-work-module-functions';
+    const script = `import { functionsActions } from '@molis-ai/molis-work-module-judgment-rules';
       import { MolisWorkLocalHost } from ${JSON.stringify(hostUrl)};
       import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
       const host = new MolisWorkLocalHost({homeDirectory:${JSON.stringify(home)},functions:{env:{}}});

@@ -3,7 +3,7 @@ import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { functionsActions } from "@molis-ai/molis-work-module-functions";
+import { functionsActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";

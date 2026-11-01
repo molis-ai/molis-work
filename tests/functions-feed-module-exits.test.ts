@@ -17,8 +17,8 @@ import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platf
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import * as feedModule from "@molis-ai/molis-work-plugin-feed/store";
-import * as functionsModule from "@molis-ai/molis-work-module-functions";
-import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
+import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
+import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 
@@ -69,8 +69,8 @@ test("RAC-172 the Home rule is seeded with the targets the Inbox declaration giv
 });
 
 test("RAC-172 neither the Functions Module nor its Host file names a plugin id", async () => {
-  const files = (await readdir(new URL("modules/functions/src/", ROOT))).map(name => `modules/functions/src/${name}`);
-  for (const file of [...files, "apps/local-host/src/functions-host.ts"]) {
+  const files = (await readdir(new URL("modules/judgment-rules/src/", ROOT))).map(name => `modules/judgment-rules/src/${name}`);
+  for (const file of [...files, "apps/local-host/src/judgment-rules-host.ts"]) {
     assert.doesNotMatch(await readFile(new URL(file, ROOT), "utf8"), /io\.molis\.work\.[a-z]/, `${file} names a plugin id`);
   }
 });

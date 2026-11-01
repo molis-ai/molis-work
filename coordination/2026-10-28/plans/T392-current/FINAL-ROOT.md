@@ -7,3 +7,7 @@
 fresh main f47fa0da，secrets扫描271行通过，普通push仅d35ede4a。当前main/H merge-tree无冲突，预测tree44ca669958cdc9d4b9bd731b9ee365f0da7f41c1；真实CI checkout另核，不能据预测签组合。用户明确批准发布并完成本单CI/Full/审验记录及达标后合入。#1720正式发布；审验评论6555435543/6555436365。Full加标签前全仓0Full、0queued，仅本PR常规CI在跑；当前CI41287784255、Full41287970493由验证3核原件，root最终裁定。
 
 full=true，README剩余74唯一待覆盖文件保原分配，不把macOS排除写成通过。T121/T144后继组合、Functions sealed恢复、真实Home/Keychain/模型与用户验收均未签。
+
+## 实际采用
+
+2026-11-01：准确H普通CI41287784255、Full41287970493的16片及汇总和74README705/705逐源核收；queue41293306584通过后采用为ddc12b8e12b7d17d3a1a103d5dff40b6270746a3，父f47fa0da、tree44ca669958cdc9d4b9bd731b9ee365f0da7f41c1等于CI/Full真实树。原候选/实际采用stable patch-id均85d57ba6cbf8eafd31df4004d89e62298de6843c；新增/删除行与rename路径相同，原始diff上下文/blob id不同不冒同字节。Full一文件retry、15nonpass/49Mac排除和SI非pass保原边界。原作者只清理已合干净自有树，报告与原件保留。

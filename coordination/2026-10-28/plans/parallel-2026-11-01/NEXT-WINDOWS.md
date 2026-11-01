@@ -33,3 +33,7 @@ T389已采用f47fa0da，七路径patch核同。四源码writer为开发1 T141来
 用户要求继续合并旧 Open PR并提高并行效率。T389已采用，根将B普通同步交开发线2，原作者与历史证据归属保留；独立增量验证/二审另由非作者收。以现有 `/private/tmp/t353b-current-sync/wt` 的 H `2de956e7ac3b4ad1ef7df936b2e48b5b5ee72d09` 正常合已采用 M `f47fa0da4ba7447f94d1cd209e6d69d43b21465c`。不重组成员，不吸其它候选。原28非资源结果与27指定输入逐项核抵；若main本身触到某项，按实际hunk保两边，不能覆盖main。
 
 许可表只有Jelly原已审+33B与main已消费workbench许可邻接冲突：保持新M算法，移除已消费T389许可，仅保Jelly实际基数76866→76899，若实测不符先交根；预算继承main各资源，仅Jelly保批准增长，不混入T386候选。相同M的matching build/48served可复用 `/private/tmp/t386-evidence/sync-20261101/` 及 `/private/tmp/t385-evidence/post-t389/assets-M.json`，本B必须自己的matching整体build与48响应。普通health/boundary/import/diff/page-assets；许可表变更补一份完整page-assets-budget，jobs1/retries0公共browser槽。原69+67门禁文件、238/508/KP等输入与机制未变则不重复；新共享core组合交自身Full，完整Alchemist必须从新run核，旧失败UNKNOWN保留。根负责push/CI/Full/合并，writer不操作远端。C仍等B真正采用。
+
+## 09:50Z 实际采用后的窗口
+
+main已采用T392 ddc12与T146 be0。T141仅快查baseline冲突交原开发1正常merge be0并官方重建，不改原业务矩阵；T144在39a冻结给验证5补7个Mac完整文件，结束前不合main或改dist。CI1673 N1957由验证3/二审4独立审验，原作者交回writer并仅清理其已合T392树。PG070后继由开发2在be0只读重冻完整Coding+Characters方案；根随后按在途真实hunk交接，不把T146采用等于全部共享锁解除。起草线只准备现有T144的PR正文，不重试先前被拒的T393/T394零碎派单。

@@ -7,6 +7,32 @@ import { registeredPageRoutes } from "./plugin-page-routes.js";
 import { changePageWorkspace } from "./plugin-page-workspaces.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
+import { runningProjectPlatform } from "./project-plugins.js";
+import { runtimeStageOwner } from "./project-plugin-stages.js";
+import { homeStageHalves } from "./home-plugin-http.js";
+
+/** Resolve the same running stage half as rendering; the request names a surface, never an installation. */
+async function stagePageSelection(context: WebRequestContext, project: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
+  const mount = body.mount;
+  if (mount === undefined) return undefined;
+  if (!mount || typeof mount !== "object" || Array.isArray(mount)
+    || Object.keys(mount).some(key => !["contribution_id", "surface", "target_slot_id"].includes(key)))
+    throw new ActionError("actions.input_invalid", "舞台挂载无效");
+  const { contribution_id, surface, target_slot_id } = mount as Record<string, unknown>;
+  const { localHost } = context;
+  const home = await homeStageHalves(localHost.homePlugins);
+  const platform = project ? await localHost.withProject(project, runtime => runningProjectPlatform(runtime.store, project.project_id)) : null;
+  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id)
+    ?? home?.entries.find(item => item.manifest.plugin_id === body.plugin_id);
+  const manifest = typeof body.plugin_id === "string" ? platform?.supervisor.manifest(body.plugin_id) : undefined;
+  const stage = entry ?? (manifest ? { project_plugin_id: manifest.plugin_id, manifest } : undefined);
+  const owner = stage && runtimeStageOwner({ platform }, stage, home).owner;
+  if (!owner || owner.view.descriptor.contribution_id !== contribution_id
+    || !owner.view.descriptor.surfaces?.some(item => item.surface_id === surface && item.target_slot_id === target_slot_id))
+    throw new ActionError("actions.forbidden", "原舞台实例不可用");
+  owner.assertCurrent();
+  return { install_id: owner.install_id, project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent };
+}
 
 /** Only the trusted shell calls this, after the owner transport checks. It never hands the returned id to plugin JavaScript. */
 export async function handlePluginPageHttp(context: WebRequestContext, project?: LocalHostProjectReference,
@@ -43,17 +69,21 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     if (action) {
       const page = pluginPageRequest(request);
       if (!page) throw new ActionError("actions.forbidden", "动作入口需要当前插件页面");
-      if (!body || Object.keys(body).some(key => !["reference", "input"].includes(key))) throw new ActionError("actions.input_invalid", "动作请求无效");
+      const availability = body?.mode === "availability";
+      const keys = availability ? ["mode", "reference"] : ["reference", "input"];
+      if (!body || Object.keys(body).some(key => !keys.includes(key)) || availability && !body.reference)
+        throw new ActionError("actions.input_invalid", "动作请求无效");
       const beforeBackgroundEffect = async () => {
         const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === page.plugin_id);
         if (shown && entry && !(await shown()).includes(entry.project_plugin_id)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };
       const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); page.assertCurrent(); };
       const result = await page.invoke({ reference: body.reference as ActionReference, input: body.input,
+        ...(availability ? { mode: "availability" as const } : {}),
         project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect });
       sendLocalWebJson(response, 200, result); return true;
     }
-    if (!body || Object.keys(body).some(key => key !== "plugin_id") || typeof body.plugin_id !== "string")
+    if (!body || Object.keys(body).some(key => !["plugin_id", "mount"].includes(key)) || typeof body.plugin_id !== "string")
       throw new ActionError("actions.input_invalid", "请选择插件");
     const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id);
     const assertScope = async () => {
@@ -67,7 +97,8 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
       requestAllowed: registeredPageRoutes(entry.workbench.pageRequests),
       assertCurrent() { if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭"); },
     } : undefined;
-    sendLocalWebJson(response, 200, pages.open(body.plugin_id, project?.project_id ?? null, LOCAL_PERSON_ACTOR_ID, assertScope, registered));
+    const selected = await stagePageSelection(context, project, body);
+    sendLocalWebJson(response, 200, pages.open(body.plugin_id, project?.project_id ?? null, LOCAL_PERSON_ACTOR_ID, assertScope, registered, selected));
   } catch (error) {
     const failed = actionErrorResponse(error); sendLocalWebJson(response, failed.status, failed.body);
   }

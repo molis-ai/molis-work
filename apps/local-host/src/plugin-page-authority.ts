@@ -26,6 +26,7 @@ interface Page {
   expiresAt: number;
   closing?: boolean;
   assertScope?(): Promise<void>;
+  selection?: { assertCurrent(): void };
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
@@ -56,18 +57,21 @@ export class PluginPageAuthority {
     };
   }
 
-  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation): { page_id: string; storage_scope: string } {
+  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
+    selected?: { install_id: string; project_id: string | null; assertCurrent(): void }): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
-    const activation = candidates.find(item => item.project_id === null && item.resolveFiles)
-      ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
+    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id)
+      : candidates.find(item => item.project_id === null && item.resolveFiles)
+        ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
     if (!activation) throw refused();
+    selected?.assertCurrent();
     activation.assertCurrent();
     if (activation === registered) this.activations.add(activation);
     for (const [id, page] of this.pages) if (page.expiresAt < Date.now()) this.close(id);
     if (this.pages.size >= 256) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
     this.pages.set(id, { activation, project_id: projectId, requests: new Set(), expiresAt: Date.now() + 30 * 60_000,
-      match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope });
+      match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
     return { page_id: id, storage_scope: `${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
 
@@ -95,7 +99,7 @@ export class PluginPageAuthority {
     // Only the page's own authority, no route permission: a page's grant is fixed when it is activated, and every withdrawal goes
     // through `revoke` (`withdrawPages`), which closes the page as forbidden. If a grant could change while the page is open, this
     // would have to check the route's permission too, or a page that lost it would still leave as a cancellation (T-218 S3).
-    try { page.activation.assertCurrent(); } catch { return refused(); }
+    try { page.activation.assertCurrent(); page.selection?.assertCurrent(); } catch { return refused(); }
     return cancelled();
   }
 
@@ -110,7 +114,7 @@ export class PluginPageAuthority {
     const check = () => {
       controller.signal.throwIfAborted();
       if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
-      page.activation.assertCurrent();
+      page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     const beforeEffect = async () => { check(); await page.assertScope?.(); check(); };
     try {
@@ -133,7 +137,7 @@ export class PluginPageAuthority {
     if (!page || !page.activation.install_id) throw refused();
     const check = () => {
       if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
-      page.activation.assertCurrent();
+      page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     check();
     return { install_id: page.activation.install_id, project_id: page.project_id, actor_id: page.activation.actor_id,
@@ -180,6 +184,7 @@ export class PluginPageAuthority {
       controller.signal.throwIfAborted();
       if (this.pages.get(id as string) !== page || !this.activations.has(page.activation)) throw refused();
       page.activation.assertCurrent(permission);
+      page.selection?.assertCurrent();
     };
     await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; page.requests.add(controller);
     requests.set(request, { page, check, signal: controller.signal });

@@ -1,5 +1,5 @@
 import type { ContractDescriptor } from "./package.js";
-import type { ActionReference } from "./actions.js";
+import type { ActionAvailability, ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 
@@ -22,7 +22,37 @@ export interface UiPageView<Element = unknown> {
 
 export interface UiPageActions {
   invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
+  /** Metadata under this page's actual caller, consumes, grants and provider; no action is executed. */
+  actionAvailability(reference: ActionReference): Promise<ActionAvailability>;
 }
+
+/** The surface selected by the trusted shell; pack identity is independent of this mount. */
+export interface UiClientMount {
+  readonly contribution_id: string;
+  readonly surface: string;
+  readonly target_slot_id: string;
+}
+
+/** A finite same-owner navigation intent; the Host chooses the pane and installation. */
+export interface UiViewSelection {
+  readonly surface: string;
+  readonly id?: string;
+  readonly panel?: string;
+  readonly intent?: "open" | "select";
+}
+
+/** Only the current or explicitly chosen account; the account directory stays in the trusted Host. */
+export interface UiConnectionSlotChoice {
+  readonly connection_id: string;
+  readonly label: string;
+  readonly auth_method: string;
+  readonly state: string;
+}
+
+export type UiConnectionSlotRequest<Element = unknown> = {
+  readonly slot_id: string;
+  readonly record_key: string;
+} & ({ readonly mode: "read" } | { readonly mode: "choose"; readonly anchor: Element });
 
 /** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
 export interface UiPageWorkspaces {
@@ -573,6 +603,16 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   readonly root: Element;
   readonly scope: UiClientScope;
   readonly translate: UiClientTranslate;
+  readonly mount: UiClientMount | null;
+  readonly view: UiPageView<Element>;
+  openView(selection: UiViewSelection): void;
+  invalidateView(): void;
+  connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+  openItem(surface: string, itemId: string, title?: string): void;
+  openBeside(surface: string, itemId: string, title?: string): void;
+  openPlugin(surface: string): void;
+  hideDirectory(): void;
+  showToast(message: string, failure?: boolean): void;
   /** From the owning Manifest; presentation only, never accepted as authority by the parent. */
   readonly pluginId: string;
   projectId(): string;

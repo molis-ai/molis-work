@@ -37,6 +37,7 @@ export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "scenes:use", required: true, reason: "绑定并运行捕捉规则的判断场景" },
   { permission: "judgments:read", required: true, reason: "读取捕捉规则的判断记录" },
   { permission: "judgments:write", required: true, reason: "记录捕捉规则的判断结果" },
+  { permission: "functions:manage", required: false, reason: "在来源规则里创建、读取、修改、试跑并发布本 Home 的判断规则；可在权限设置关闭" },
   { permission: "functions:invoke", required: true, reason: "按 Inbox 绑定的规则，替当前调用者给 Feed 带来的新事项判断下一步" },
   { permission: "actions:delegate", required: true, reason: "替当前这个调用者请 Inbox 与首页判断下一步、读取已发布的判断规则" },
   { permission: "connections:use", required: true, reason: "读取你为每个账号来源选好的账号是否还能用" },

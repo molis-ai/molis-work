@@ -185,7 +185,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     assert.match(html, /<dialog[^>]+data-create-dialog/u);
     const data = html.match(/<script id="molis-work-data" type="application\/json">([\s\S]*?)<\/script>/u);
     assert.ok(data);
-    assert.equal((JSON.parse(data[1]!) as { snapshot: { board: { project_id: string } } }).snapshot.board.project_id, projectId);
+    assert.equal((JSON.parse(data[1]!) as { project: { project_id: string } | null }).project?.project_id, projectId);
     assert.doesNotMatch(html, /href="\/(?:goals|archive|trash)(?:\/|["?])/u, "local links retain the project prefix");
     if (goalId) assert.match(html, new RegExp('data-goal-view="' + goalId + '"', "u"));
     else assert.doesNotMatch(html, /data-goal-view=/u, "an empty collection has no selected document");

@@ -5,7 +5,7 @@ import type { FeedApplication } from "./application.js";
 import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
-import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
+import { FEED_ACCOUNT_SERVICES, type AddFeedAccountSourceInput, type ConfigureFeedSourceScheduleInput, type FeedSourceSyncResult, type UpdateFeedSourceInput } from "./source-ports.js";
 import { removeFeedSource } from "./source-removal.js";
 import type { FeedSourceService } from "./source-service.js";
 import type { ScheduleWakeupInput, ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
@@ -33,8 +33,12 @@ export const feedSourceActions = {
     { type: "object", properties: { kind: { enum: ["research_library", "rss", "web_query", "youtube_channel", "custom_rss"] }, name: text, repository: text, research_source: text,
       definition_id: text, query: text, channel_id: text, feed_url: text }, required: ["kind"], additionalProperties: false },
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
-  update: define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string; connection_id?: string }, { source: FeedSourceRecord }>("update", "修改来源", "修改来源名称、说明、范围、订阅地址或所用连接",
-    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text, connection_id: text }, ["source_id"]), sourceResult),
+  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", "添加账号来源", "为 GitHub 或 Gmail 添加一个账号来源；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
+    closed({ service: { enum: [...FEED_ACCOUNT_SERVICES] }, name: { type: "string", minLength: 1, maxLength: 80 } }, ["service", "name"]),
+    { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
+  // @2: the account is no longer a field of the source (`connection_id` went in T-121); it is the person's binding on the platform.
+  update: { ...define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string }, { source: FeedSourceRecord }>("update", "修改来源", "修改来源名称、说明、范围或订阅地址",
+    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult), version: 2 },
   delete: define<{ source_id: string; history_decision: SourceHistoryDecision }, { source: FeedSourceRecord; history_decision: SourceHistoryDecision }>("delete", "删除来源",
     "删除来源；必须说明保留（retain_history）还是删除（delete_local_history）本地已收到的消息",
     closed({ source_id: id, history_decision: { enum: ["retain_history", "delete_local_history"] } }, ["source_id", "history_decision"]),
@@ -103,6 +107,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       if (!registration) throw new ActionError("actions.input_invalid", "来源参数无效");
       return ports.sources(caller).register(registration);
     }),
+    bind(a.add_account, (input, caller) => ports.sources(caller).addAccount(input)),
     bind(a.update, (input, caller) => {
       const { source_id, ...patch } = input;
       return { source: ports.sources(caller).update(source_id, patch as UpdateFeedSourceInput) };

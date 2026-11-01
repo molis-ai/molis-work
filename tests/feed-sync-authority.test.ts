@@ -218,13 +218,14 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
       assert.equal(requests, 1);
       assert.equal((store.db.prepare("SELECT lease_owner FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id) as { lease_owner: string | null }).lease_owner, null, "the owned lease is released even after refusal");
       allowed = true; fails = false;
-      let recoverySource = source.source_id;
+      let recoverySource: string = source.source_id;
       if (mode === "paused") sources.setEnabled(source.source_id, true);
       if (mode === "disconnected") {
         const replacement = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Restored account", token: "fixture-restored-token" }));
-        recoverySource = sources.update(source.source_id, { connection_id: replacement.connection_id }).source_id;
-        assert.notEqual(recoverySource, source.source_id, "a different account keeps a separate source identity and dedupe scope");
-        assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).enabled, false);
+        // The person binds another account to the same source (T-121: the account is the platform's binding, never a field Feed writes);
+        // this local arrangement stands for that binding. The source keeps its identity.
+        feed.sources.upsert({ ...feed.sources.get(DEMO_PROJECT_ID, source.source_id), credential_ref: replacement.credential_ref, config: { connection_id: replacement.connection_id } });
+        recoverySource = source.source_id;
       }
       const retry = { ...input, source_id: recoverySource };
       if (mode === "scheduled-revoked") {

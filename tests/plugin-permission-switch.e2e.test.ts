@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, normalize } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -23,7 +23,11 @@ interface Seen { url: string; body: unknown }
 async function openPluginPage(t: TestContext) {
   const executable = locateTestChrome();
   if (!executable) { t.skip("Chrome is required for the plugin permission switches"); return null; }
-  assert.equal(executable, "/Users/yijunwang/.local/bin/molis-test-browser");
+  if (process.platform === "darwin") {
+    assert.equal(executable, process.env.MOLIS_WORK_TEST_CHROME, "macOS uses the explicitly configured test browser");
+    assert.ok(isAbsolute(executable), "the dedicated test browser has an absolute path");
+    assert.doesNotMatch(normalize(executable), /^\/Applications\/Google Chrome\.app(?:\/|$)/u, "daily Chrome is not a test browser");
+  }
   const host = await serveHomeRuntime(t), project = await host.project("权限开关页面");
   const prefix = `/projects/${project.project_id}`;
   const html = await (await host.request(`${prefix}/settings/plugins`)).text();
